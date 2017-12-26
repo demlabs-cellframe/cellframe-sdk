@@ -1,2 +1,2 @@
 # libdap-stream
-Deus Applications Prototypes: multichannel stream client
+Deus Applications Prototypes: multichannel stream
