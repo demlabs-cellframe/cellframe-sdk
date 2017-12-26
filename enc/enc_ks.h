@@ -18,14 +18,30 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _DAP_HTTP_FOLDER_H_
-#define _DAP_HTTP_FOLDER_H_
+#ifndef _ENC_KS_H_
+#define _ENC_KS_H_
+#include <time.h>
+#include <pthread.h>
+#include "uthash.h"
+struct dap_http_client;
 
-struct dap_http;
+struct enc_key;
+typedef struct enc_ks_key{
+    char id[33];
+    struct enc_key *key;
+    time_t time_created;
+    pthread_mutex_t mutex;
+    UT_hash_handle hh; // makes this structure hashable with UTHASH library
+} enc_ks_key_t;
 
-extern int dap_http_folder_init();
-extern void dap_http_folder_deinit();
+extern int enc_ks_init();
+extern void enc_ks_deinit();
 
-extern int dap_http_folder_add(struct dap_http *sh, const char * url_path, const char * local_path); // Add folder for reading to the HTTP server
+extern enc_ks_key_t * enc_ks_find(const char * v_id);
+extern struct enc_key * enc_ks_find_http(struct dap_http_client * http);
+
+//extern enc_ks_key_t * enc_ks_new();
+extern enc_ks_key_t * enc_ks_add(struct enc_key * key);
+extern void enc_ks_delete(const char *id);
 
 #endif
