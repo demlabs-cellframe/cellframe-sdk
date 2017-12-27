@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (dapcrypt)
   
-set(CRYPT_SRCS enc.c  enc_fnam2.c enc_key.c  )
+set(CRYPT_SRCS dap_enc.c dap_enc_key.c  )
  
 include_directories("${dapcore_INCLUDE_DIRS}")
 add_definitions ("${dapcore_DEFINITIONS}")

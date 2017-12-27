@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <string.h>
 #include "common.h"
-#include "dap_server.h"
+#include "dap_loop.h"
 #include "dap_client.h"
 #include <ev.h>
 #define LOG_TAG "client"

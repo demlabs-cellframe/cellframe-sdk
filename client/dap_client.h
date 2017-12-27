@@ -1,5 +1,5 @@
-#ifndef _SAP_CLIENT_H_
-#define _SAP_CLIENT_H_
+#ifndef _DAP_CLIENT_H_
+#define _DAP_CLIENT_H_
 #include <stdint.h>
 
 
@@ -24,6 +24,8 @@ typedef enum dap_client_error {
     DAP_CLIENT_ERROR_UNDEFINED = 0,
     DAP_CLIENT_ERROR_ENC_NO_KEY,
     DAP_CLIENT_ERROR_ENC_WRONG_KEY,
+    DAP_CLIENT_ERROR_AUTH_WRONG_COOKIE,
+    DAP_CLIENT_ERROR_AUTH_WRONG_CREDENTIALS,
     DAP_CLIENT_ERROR_NETWORK_CONNECTION_TIMEOUT,
     DAP_CLIENT_ERROR_NETWORK_CONNECTION_REFUSE,
     DAP_CLIENT_ERROR_NETWORK_DISCONNECTED,
@@ -52,6 +54,8 @@ void dap_client_delete(dap_client_t * a_client);
 
 void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port);
 void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end, dap_client_callback_t a_stage_end_callback);
+
+void dap_client_set_credentials(dap_client_t * a_client,const char* a_user, const char * a_password);
 
 void dap_client_enc_request(dap_client_t * a_client, const char * a_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_t a_response_proc);
