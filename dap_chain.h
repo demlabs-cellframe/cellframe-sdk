@@ -22,5 +22,9 @@
 #ifndef _DAP_CHAIN_H_
 #define _DAP_CHAIN_H_
 
+typedef struct dap_chain{
+    void * _internal;
+    void * _inhertor;
+} dap_chain_t;
 
 #endif
