@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
-project (dapcore)
+project (dapclient)
   
-set(CORE_SRCS common.c dap_client_remote.c)
+set(CLIENT_SRCS dap_client_remote.c dap_client.c)
  
 add_library(${PROJECT_NAME} STATIC ${CORE_SRCS})
-
-target_link_libraries(${PROJECT_NAME}  ev)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
