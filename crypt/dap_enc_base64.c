@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <stdlib.h>
+
 #include "enc_base64.h"
 
 #define B64_TRUE	1
@@ -77,9 +78,14 @@ b64_decode (const char *, size_t);
 unsigned char *
 b64_decode_ex (const char *, size_t, size_t *);
 
-
-
-size_t enc_base64_decode(const char * in, size_t in_size,void * out)
+/**
+ * @brief dap_enc_base64_decode
+ * @param in
+ * @param in_size
+ * @param out
+ * @return
+ */
+size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out)
 {
     //B64_Decode( in, in_size, (byte*) out );
     //return B64_GetSize( in_size,0 );
@@ -168,7 +174,14 @@ size_t enc_base64_decode(const char * in, size_t in_size,void * out)
     return l_size;
 }
 
-size_t enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out)
+/**
+ * @brief dap_enc_base64_encode
+ * @param a_in
+ * @param a_in_size
+ * @param a_out
+ * @return
+ */
+size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out)
 {
   int i = 0;
   int j = 0;

@@ -22,52 +22,53 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "enc_key.h"
-#include "enc_fnam2.h"
+#include "dap_enc_aes.h"
 
-#define LOG_TAG "enc_key"
+#include "dap_enc_key.h"
 
+#define LOG_TAG "dap_enc_key"
+
+struct dap_enc_key_callbacks{
+    dap_enc_callback_dataop_t enc;
+    dap_enc_callback_dataop_t dec;
+    dap_enc_callback_data_t new_from_callback;
+    dap_enc_callback_t new_generate_callback;
+    dap_enc_callback_t delete_callback;
+} s_callbacks[]={
+    [DAP_ENC_KEY_TYPE_AES]={
+                            .enc = dap_enc_aes_encode,
+                            .dec = dap_enc_aes_decode,
+                            .new_generate_callback = dap_enc_aes_key_new_generate,
+                            .new_from_callback = dap_enc_aes_key_new_from
+                           }
+};
 
 /**
- * @brief enc_key_session_pair_create
- * @param client_pub_key
- * @param key_len
+ * @brief dap_enc_key_init
  * @return
  */
-rsa_key_t* enc_key_session_pair_create(const char* client_pub_key, u_int16_t key_len)
+int dap_enc_key_init()
 {
-    rsa_key_t* key_session_pair = (rsa_key_t*)calloc(1, sizeof(rsa_key_t));
-
-    BIO *bio = BIO_new(BIO_s_mem());
-    BIO_write(bio, client_pub_key,key_len);
-    PEM_read_bio_RSAPublicKey(bio, &key_session_pair->client_public_key, NULL, NULL);
-    BIO_free_all(bio);
-
-    if ( key_session_pair->client_public_key == NULL)
-    {
-        free(key_session_pair);
-        log_it(WARNING, "key session pair not create");
-        return NULL;
-    }
-
-    key_session_pair->server_key = RSA_generate_key(RSA_KEY_LENGTH, PUB_EXP, NULL, NULL);
-
-    if ( key_session_pair->server_key == NULL )
-        log_it(ERROR, "Error generate rsa key");
-
-    return key_session_pair;
+    return 0;
 }
 
+/**
+ * @brief dap_enc_key_deinit
+ */
+void dap_enc_key_deinit()
+{
 
+}
 
 /**
- * @brief enc_key_generate
- * @param v_type
- * @param key_session_pair
+ * @brief dap_enc_key_new_generate
+ * @param key_type
+ * @param key_size
  * @return
  */
-enc_key_t* enc_key_generate(enc_data_type_t v_type, rsa_key_t* key_session_pair)
+dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, size_t key_size)
 {
+    if(s_callbacks[key_type] )
     switch (v_type) {
     case ENC_KEY_TYPE_RSA: {
             if(key_session_pair == NULL)
@@ -89,13 +90,7 @@ enc_key_t* enc_key_generate(enc_data_type_t v_type, rsa_key_t* key_session_pair)
     return NULL;
 }
 
-/**
- * @brief enc_key_create
- * @param key_input_b64
- * @param v_type
- * @return
- */
-enc_key_t *enc_key_create(const char * key_input,enc_key_type_t v_type)
+dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_type, const char *a_key_str)
 {
    enc_key_t * ret= (enc_key_t *) calloc(1,sizeof(enc_key_t) );
    size_t input_size=strlen(key_input);
@@ -113,16 +108,33 @@ enc_key_t *enc_key_create(const char * key_input,enc_key_type_t v_type)
 }
 
 /**
- * @brief enc_key_delete
- * @param key
+ * @brief dap_enc_key_new_from_data
+ * @param a_type
+ * @param a_key_input
+ * @param a_key_input_size
+ * @return
  */
-void enc_key_delete(enc_key_t * key)
+dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_type, void * a_key_input, size_t a_key_input_size)
 {
-    free(key->data);
-    if(key->type == ENC_KEY_TYPE_AES)
-        enc_aes_key_delete(key);
-    if(key->internal)
-        free(key->internal);
-    free(key);
+
+}
+
+
+/**
+ * @brief dap_enc_key_delete
+ * @param a_key
+ */
+void dap_enc_key_delete(dap_enc_key_t * a_key)
+{
+    if( a_key->delete_callback )
+        a_key->delete_callback( a_key );
+
+    if( a_key->data )
+        free( a_key->data );
+
+    if( a_key->_inheritor )
+        free( a_key->_inheritor );
+
+    free(a_key);
 }
 

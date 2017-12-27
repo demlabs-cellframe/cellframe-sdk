@@ -25,12 +25,21 @@
 
 #include "dap_enc_key.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_enc_init();
+void dap_enc_deinit();
 
 size_t dap_enc_code(struct dap_enc_key * key, const void * buf, const size_t buf_size, void * buf_out,
                     dap_enc_data_type_t data_type_out);
 size_t dap_enc_decode(struct dap_enc_key * key, const void * buf, const size_t buf_size, void * buf_out,
-                      dap_enc_data_type_t data_type_in);
+                     dap_enc_data_type_t data_type_in);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif

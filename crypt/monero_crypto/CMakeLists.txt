@@ -26,7 +26,9 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(crypto_sources
+project (monero_crypto)
+
+set(monero_crypto_sources
   aesb.c
   blake256.c
   chacha8.c
@@ -47,9 +49,9 @@ set(crypto_sources
   slow-hash.c
   tree-hash.c)
 
-set(crypto_headers)
+set(monero_crypto_headers)
 
-set(crypto_private_headers
+set(monero_crypto_private_headers
   blake256.h
   chacha8.h
   crypto-ops.h
@@ -68,17 +70,7 @@ set(crypto_private_headers
   skein.h
   skein_port.h)
 
-monero_private_headers(cncrypto
-  ${crypto_private_headers})
-monero_add_library(cncrypto
-  ${crypto_sources}
-  ${crypto_headers}
-  ${crypto_private_headers})
-target_link_libraries(cncrypto
-  PUBLIC
-    ${Boost_SYSTEM_LIBRARY}
-  PRIVATE
-    ${EXTRA_LIBRARIES})
+
 
 if (ARM)
   option(NO_OPTIMIZED_MULTIPLY_ON_ARM
@@ -99,4 +91,11 @@ if (ANDROID OR IOS)
   endif()
 endif()
 
+
+
+add_library(${PROJECT_NAME} STATIC ${monero_crypto_sources})
+
+set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
+
+set(${PROJECT_NAME}_INCLUDE_DIRS ${PROJECT_SOURCE_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
 
