@@ -29,6 +29,7 @@
 #define LOG_TAG "dap_enc_key"
 
 struct dap_enc_key_callbacks{
+    const char * name,
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_data_t new_from_callback;
@@ -36,6 +37,7 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_t delete_callback;
 } s_callbacks[]={
     [DAP_ENC_KEY_TYPE_AES]={
+                            .name = "AES"
                             .enc = dap_enc_aes_encode,
                             .dec = dap_enc_aes_decode,
                             .new_generate_callback = dap_enc_aes_key_new_generate,
@@ -49,6 +51,25 @@ struct dap_enc_key_callbacks{
  */
 int dap_enc_key_init()
 {
+    size_t i;
+    for( i = 0; i< sizeof(s_callbacks)/sizeof(s_callbacks[0]); i++ ){
+        switch ((dap_enc_key_type_t) i) {
+        case DAP_ENC_KEY_CODE_MCBITS:
+        case DAP_ENC_KEY_LWE_FRODO:
+        case DAP_ENC_KEY_MLWE_KYBER:
+        case DAP_ENC_KEY_NTRU:
+        case DAP_ENC_KEY_RLWE_BCNS15:
+        case DAP_ENC_KEY_RLWE_MSRLN16:
+        case DAP_ENC_KEY_RLWE_NEWHOPE:
+        case DAP_ENC_KEY_SIDH_CLN16:
+        case DAP_ENC_KEY_SIDH_IQC_REF:
+        case DAP_ENC_KEY_SIG_PICNIC:
+        case DAP_ENC_KEY_TYPE_AES:
+            continue;
+        default:
+            memset(&s_callbacks[i],0,sizeof(s_callbacks[0]));
+        }
+    }
     return 0;
 }
 
