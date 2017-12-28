@@ -1,0 +1,3 @@
+[submodule "crypt/picnic"]
+	path = crypt/picnic
+	url = https://github.com/IAIK/Picnic.git
