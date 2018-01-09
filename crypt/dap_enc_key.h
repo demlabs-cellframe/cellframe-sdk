@@ -104,6 +104,8 @@ typedef struct dap_enc_key{
 int dap_enc_key_init();
 void dap_enc_key_deinit();
 
+dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t key_type);
+
 dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, size_t key_size);
 dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_type, void * a_key_input, size_t a_key_input_size);
 dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_type, const char *a_key_str);

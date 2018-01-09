@@ -29,7 +29,7 @@
 #define LOG_TAG "dap_enc_key"
 
 struct dap_enc_key_callbacks{
-    const char * name,
+    const char * name;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_data_t new_from_callback;
@@ -37,7 +37,7 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_t delete_callback;
 } s_callbacks[]={
     [DAP_ENC_KEY_TYPE_AES]={
-                            .name = "AES"
+                            .name = "AES",
                             .enc = dap_enc_aes_encode,
                             .dec = dap_enc_aes_decode,
                             .new_generate_callback = dap_enc_aes_key_new_generate,
@@ -82,6 +82,16 @@ void dap_enc_key_deinit()
 }
 
 /**
+ * @brief dap_enc_key_new
+ * @param key_type
+ * @return
+ */
+dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t key_type)
+{
+
+}
+
+/**
  * @brief dap_enc_key_new_generate
  * @param key_type
  * @param key_size
@@ -89,24 +99,9 @@ void dap_enc_key_deinit()
  */
 dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, size_t key_size)
 {
-    if(s_callbacks[key_type] )
-    switch (v_type) {
-    case ENC_KEY_TYPE_RSA: {
-            if(key_session_pair == NULL)
-            {
-                log_it(WARNING, "Error generate enc key, key session pair is NULL");
-                return NULL;
-            }
-            enc_key_t *key = (enc_key_t*)malloc(sizeof(enc_key_t));
-            key->enc = (enc_callback_t) enc_rsa_encode;
-            key->dec = enc_rsa_decode;
-            key->internal = (void*) key_session_pair;
-            key->type = ENC_KEY_TYPE_RSA;
-            return key;
-        }
-        break;
-    default:
-        break;
+    if(s_callbacks[key_type].name ){
+        dap_enc_key_t * ret = dap_enc_ke_n
+        s_callbacks[key_type].new_generate_callback()
     }
     return NULL;
 }
