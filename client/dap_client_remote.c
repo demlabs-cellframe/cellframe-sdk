@@ -159,7 +159,7 @@ void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh)
 #ifdef DAP_SERVER
     pthread_mutex_lock(&sh->mutex_on_hash);
 
-    log_it(DEBUG, "Client structure remove");
+    log_it(L_DEBUGUG, "Client structure remove");
     HASH_DEL(sc->server->clients,sc);
 
     if(sc->server->client_delete_callback)
@@ -247,7 +247,7 @@ size_t dap_client_read(dap_client_remote_t *sc, void * data, size_t data_size)
 void dap_client_shrink_buf_in(dap_client_remote_t * cl, size_t shrink_size)
 {
     if((shrink_size==0)||(cl->buf_in_size==0) ){
-        //log_it(WARNING, "DBG_#003");
+        //log_it(L_WARNINGNG, "DBG_#003");
         return;
     }else if(cl->buf_in_size>shrink_size){
         size_t buf_size=cl->buf_in_size-shrink_size;
@@ -255,10 +255,10 @@ void dap_client_shrink_buf_in(dap_client_remote_t * cl, size_t shrink_size)
         memcpy(buf,cl->buf_in+ shrink_size,buf_size );
         memcpy(cl->buf_in,buf,buf_size);
         cl->buf_in_size=buf_size;
-        //log_it(WARNING, "DBG_#004");
+        //log_it(L_WARNINGNG, "DBG_#004");
         free(buf);
     }else {
-        //log_it(WARNING, "DBG_#005");
+        //log_it(L_WARNINGNG, "DBG_#005");
         cl->buf_in_size=0;
     }
 

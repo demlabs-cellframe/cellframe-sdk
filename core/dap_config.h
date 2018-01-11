@@ -27,7 +27,7 @@ typedef struct dap_config{
 
 int dap_config_init(const char * a_configs_path);
 void dap_config_deinit();
-void dap_config_open(dap_config_t * a_config);
+dap_config_t * dap_config_open(const char * a_name);
 void dap_config_close(dap_config_t * a_config);
 
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);

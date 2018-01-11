@@ -25,9 +25,10 @@ void dap_config_deinit()
 
 /**
  * @brief dap_config_open
- * @param a_config
+ * @param a_name
+ * @return
  */
-void dap_config_open(dap_config_t * a_config)
+dap_config_t * dap_config_open(const char * a_name)
 {
 
 }

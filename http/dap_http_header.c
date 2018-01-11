@@ -77,14 +77,14 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
             strncpy(name,str,name_len);
             name[name_len]='\0';
 
-       //     log_it(DEBUG, "Found name '%s'",name);
+       //     log_it(L_DEBUGUG, "Found name '%s'",name);
             pos+=2;
             size_t value_len=str_len-pos;
             if(value_len>(sizeof(value)-1))
                 value_len=(sizeof(value)-1);
             strncpy(value,str+pos,value_len);
             value[value_len]='\0';
-           // log_it(DEBUG, "Found value '%s'",value);
+           // log_it(L_DEBUGUG, "Found value '%s'",value);
 
             if(strcmp(name,"Connection")==0){
                 if(strcmp(value,"Keep-Alive")==0){

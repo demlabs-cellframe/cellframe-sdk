@@ -22,7 +22,7 @@
 #define _DAP_ENC_KEY_H_
 
 #include <stddef.h>
-
+#include <time.h>
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
                                DAP_ENC_DATA_TYPE_B64,
                                } dap_enc_data_type_t;
@@ -98,6 +98,7 @@ typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *, const void * ,
 
 typedef struct dap_enc_key{
     size_t data_size;
+    time_t last_used_timestamp;
     unsigned char * data;
     dap_enc_key_type_t type;
 

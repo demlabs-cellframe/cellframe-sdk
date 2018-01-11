@@ -135,7 +135,7 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
                                 (pos-pos_kw_begin) ;
                     memcpy(cl_ht->action, buf+pos_kw_begin,c_size );
                     cl_ht->action[c_size]='\0';
-                    //log_it(DEBUG, "Input: action '%s' pos=%lu pos_kw_begin=%lu", cl_ht->action,pos,pos_kw_begin);
+                    //log_it(L_DEBUGUG, "Input: action '%s' pos=%lu pos_kw_begin=%lu", cl_ht->action,pos,pos_kw_begin);
                     p_st=PS_URL;
                     pos_kw_begin=pos+1;
                 }break;
@@ -145,7 +145,7 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
                                 (pos-pos_kw_begin) ;
                     memcpy(cl_ht->url_path, buf+pos_kw_begin,c_size );
                     cl_ht->url_path[c_size]='\0';
-                    //log_it(DEBUG, "Input: url '%s' pos=%lu pos_kw_begin=%lu", cl_ht->url_path,pos,pos_kw_begin);
+                    //log_it(L_DEBUGUG, "Input: url '%s' pos=%lu pos_kw_begin=%lu", cl_ht->url_path,pos,pos_kw_begin);
                     p_st=PS_TYPE;
                     pos_kw_begin=pos+1;
                 }break;
@@ -173,7 +173,7 @@ void dap_http_client_read(dap_client_remote_t * cl,void * arg)
     (void) arg;
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
     char buf_line[4096];
-//    log_it(DEBUG,"HTTP client in state read %d taked bytes in input %lu",cl_ht->state_read,cl->buf_in_size);
+//    log_it(L_DEBUGUG,"HTTP client in state read %d taked bytes in input %lu",cl_ht->state_read,cl->buf_in_size);
 cnt:switch(cl_ht->state_read){
         case DAP_HTTP_CLIENT_STATE_START:{ // Beginning of the session. We try to detect
             int eol = detect_end_of_line(cl->buf_in,cl->buf_in_size);
@@ -223,7 +223,7 @@ cnt:switch(cl_ht->state_read){
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_HEADERS;
                     }
                     else{
-                        log_it(WARNING, "Input: unprocessed URL request %s is rejected", d_name);
+                        log_it(L_WARNINGNG, "Input: unprocessed URL request %s is rejected", d_name);
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
                         dap_client_ready_to_read(cl_ht->client,true);
                         dap_client_ready_to_write(cl_ht->client,true);
@@ -273,7 +273,7 @@ cnt:switch(cl_ht->state_read){
                 buf_line[eol-1]='\0';
 
                 parse_ret=dap_http_header_parse(cl_ht,buf_line);
-              //  log_it(WARNING, "++ ALL HEADERS TO PARSE [%s]", buf_line);
+              //  log_it(L_WARNINGNG, "++ ALL HEADERS TO PARSE [%s]", buf_line);
                 if(parse_ret<0)
                     log_it(L_WARNING,"Input: not a valid header '%s'",buf_line);
                 else if(parse_ret==1){
@@ -311,7 +311,7 @@ cnt:switch(cl_ht->state_read){
             }
         }break;
         case DAP_HTTP_CLIENT_STATE_DATA:{//Read the data
-         //   log_it(WARNING, "DBG_#002 [%s] [%s]",             cl_ht->in_query_string, cl_ht->url_path);
+         //   log_it(L_WARNINGNG, "DBG_#002 [%s] [%s]",             cl_ht->in_query_string, cl_ht->url_path);
             int read_bytes=0;
 #ifdef DAP_SERVER
             if(cl_ht->proc->data_read_callback){
@@ -329,7 +329,7 @@ cnt:switch(cl_ht->state_read){
 
     }
     if(cl->buf_in_size>0){
-        //log_it(DEBUG,"Continue to process to parse input");
+        //log_it(L_DEBUGUG,"Continue to process to parse input");
         goto cnt;
     }
 }
@@ -344,7 +344,7 @@ void dap_http_client_write(dap_client_remote_t * cl,void * arg)
 
     (void) arg;
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
- //   log_it(DEBUG,"HTTP client write callback in state %d",cl_ht->state_write);
+ //   log_it(L_DEBUGUG,"HTTP client write callback in state %d",cl_ht->state_write);
     switch(cl_ht->state_write){
         case DAP_HTTP_CLIENT_STATE_NONE: return;
         case DAP_HTTP_CLIENT_STATE_START:{
@@ -375,7 +375,7 @@ void dap_http_client_write(dap_client_remote_t * cl,void * arg)
                 }
                 dap_client_ready_to_read(cl,true);
             }else{
-                //log_it(DEBUG,"Output: header %s: %s",hdr->name,hdr->value);
+                //log_it(L_DEBUGUG,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_client_write_f(cl,"%s: %s\n",hdr->name,hdr->value);
                 dap_http_header_remove(&cl_ht->out_headers, hdr);
             }
