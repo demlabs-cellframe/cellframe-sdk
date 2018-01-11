@@ -23,7 +23,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
-#include "common.h"
+#include "dap_common.h"
 #include "dap_client.h"
 #include "dap_http_client.h"
 #include "dap_http_header.h"
@@ -37,7 +37,7 @@
  */
 int dap_http_header_init()
 {
-    log_it(NOTICE, "Initialized HTTP headers module");
+    log_it(L_NOTICE, "Initialized HTTP headers module");
     return 0;
 }
 
@@ -46,7 +46,7 @@ int dap_http_header_init()
  */
 void dap_http_header_deinit()
 {
-    log_it(INFO, "HTTP headers module deinit");
+    log_it(L_INFO, "HTTP headers module deinit");
 }
 
 
@@ -67,7 +67,7 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
     if( str_len==0 )
         return 1;
 
-    //log_it(DEBUG, "Parse header string '%s'",str);
+    //log_it(L_DEBUG, "Parse header string '%s'",str);
     for(pos=1; pos<str_len;pos++)
         if(str[pos]==':'){
             size_t name_len;
@@ -88,7 +88,7 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
 
             if(strcmp(name,"Connection")==0){
                 if(strcmp(value,"Keep-Alive")==0){
-                    log_it(INFO, "Input: Keep-Alive connection detected");
+                    log_it(L_INFO, "Input: Keep-Alive connection detected");
                     cl_ht->keep_alive=true;
                 }
             }else if(strcmp(name,"Content-Type")==0){
@@ -100,14 +100,14 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
             }
 
 
-            //log_it(DEBUG, "Input: Header\t%s '%s'",name,value);
+            //log_it(L_DEBUG, "Input: Header\t%s '%s'",name,value);
 
             dap_http_header_add(&cl_ht->in_headers,name,value);
             return 0;
         }
 
 
-    log_it(ERROR,"Input: Wasn't found ':' symbol in the header");
+    log_it(L_ERROR,"Input: Wasn't found ':' symbol in the header");
     return -1;
 }
 
@@ -123,7 +123,7 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
 dap_http_header_t* dap_http_header_add(dap_http_header_t ** top, const char*name, const char * value)
 {
     dap_http_header_t * nh = (dap_http_header_t*) calloc(1,sizeof(dap_http_header_t));
-  //  log_it(DEBUG,"Added header %s",name);
+  //  log_it(L_DEBUG,"Added header %s",name);
     nh->name=strdup(name);
     nh->value=strdup(value);
     nh->next=*top;
@@ -136,7 +136,6 @@ dap_http_header_t* dap_http_header_add(dap_http_header_t ** top, const char*name
 
 struct dap_http_header* dap_http_out_header_add(dap_http_client_t * ht, const char*name, const char * value)
 {
-
     return dap_http_header_add(&ht->out_headers,name,value);
 }
 

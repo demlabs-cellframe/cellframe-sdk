@@ -28,7 +28,7 @@
 #include <ev.h>
 
 
-struct dap_server;
+typedef struct dap_server dap_server_t;
 struct dap_client_remote;
 
 typedef void (*dap_client_remote_callback_t) (struct dap_client_remote *,void * arg); // Callback for specific client operations
@@ -59,7 +59,7 @@ typedef struct dap_client_remote{
 
     UT_hash_handle hh;
 
-    void * internal; // Internal data to specific client type, usualy states for state machine
+    void * _inheritor; // Internal data to specific client type, usualy states for state machine
 } dap_client_remote_t; // Node of bidirectional list of clients
 
 
@@ -67,20 +67,20 @@ typedef struct dap_client_remote{
 int dap_client_remote_init(); //  Init clients module
 void dap_client_remote_deinit(); // Deinit clients module
 
-extern dap_client_t * dap_client_create(struct dap_server * sh, int s, ev_io* w_client); // Create new client and add it to the list
-extern dap_client_t * dap_client_find(int sock, struct dap_server * sh); // Find client by socket
+dap_client_remote_t * dap_client_create(struct dap_server * sh, int s, ev_io* w_client); // Create new client and add it to the list
+dap_client_remote_t * dap_client_find(int sock, struct dap_server * sh); // Find client by socket
 
-extern bool dap_client_is_ready_to_read(dap_client_t * sc);
-extern bool dap_client_is_ready_to_write(dap_client_t * sc);
-extern void dap_client_ready_to_read(dap_client_t * sc,bool is_ready);
-extern void dap_client_ready_to_write(dap_client_t * sc,bool is_ready);
+bool dap_client_is_ready_to_read(dap_client_remote_t * sc);
+bool dap_client_is_ready_to_write(dap_client_remote_t * sc);
+void dap_client_ready_to_read(dap_client_remote_t * sc,bool is_ready);
+void dap_client_ready_to_write(dap_client_remote_t * sc,bool is_ready);
 
-extern size_t dap_client_write(dap_client_t *sc, const void * data, size_t data_size);
-extern size_t dap_client_write_f(dap_client_t *sc, const char * format,...);
-extern size_t dap_client_read(dap_client_t *sc, void * data, size_t data_size);
+size_t dap_client_write(dap_client_remote_t *sc, const void * data, size_t data_size);
+size_t dap_client_write_f(dap_client_remote_t *a_client, const char * a_format,...);
+size_t dap_client_read(dap_client_remote_t *sc, void * data, size_t data_size);
 
-extern void dap_client_remove(dap_client_t *sc, struct dap_server * sh); // Removes the client from the list
+void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh); // Removes the client from the list
 
-extern void dap_client_shrink_buf_in(dap_client_t * cl, size_t shrink_size);
+void dap_client_shrink_buf_in(dap_client_remote_t * cl, size_t shrink_size);
 
 #endif

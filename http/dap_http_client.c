@@ -243,7 +243,7 @@ cnt:switch(cl_ht->state_read){
                     free(url_cpy1);
                     free(url_cpy2);
                 }else{
-                    log_it(WARNING, "Input: Wrong request line '%s'",buf_line);
+                    log_it(L_WARNING, "Input: Wrong request line '%s'",buf_line);
                     cl->buf_in_size=0;
                     cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
                     dap_client_ready_to_read(cl_ht->client,false);
@@ -253,7 +253,7 @@ cnt:switch(cl_ht->state_read){
                     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
                 }
             }else{
-                log_it(WARNING,"Too big line in request, more than %llu symbols - thats very strange",sizeof(buf_line)-3);
+                log_it(L_WARNING,"Too big line in request, more than %llu symbols - thats very strange",sizeof(buf_line)-3);
                 cl->buf_in_size=0;
                 cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
                 dap_client_ready_to_read(cl_ht->client,false);
@@ -275,14 +275,15 @@ cnt:switch(cl_ht->state_read){
                 parse_ret=dap_http_header_parse(cl_ht,buf_line);
               //  log_it(WARNING, "++ ALL HEADERS TO PARSE [%s]", buf_line);
                 if(parse_ret<0)
-                    log_it(WARNING,"Input: not a valid header '%s'",buf_line);
+                    log_it(L_WARNING,"Input: not a valid header '%s'",buf_line);
                 else if(parse_ret==1){
-                    log_it(INFO,"Input: HTTP headers are over");
+                    log_it(L_INFO,"Input: HTTP headers are over");
+#ifdef DAP_SERVER
                     if(cl_ht->proc->access_callback){
                         bool isOk=true;
                         cl_ht->proc->access_callback(cl_ht,&isOk);
                         if(!isOk){
-                            log_it(NOTICE,"Access restricted");
+                            log_it(L_NOTICE,"Access restricted");
                             cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
                             dap_client_ready_to_read(cl_ht->client,false);
                             dap_client_ready_to_write(cl_ht->client,true);
@@ -294,6 +295,7 @@ cnt:switch(cl_ht->state_read){
 
                     if(cl_ht->proc->headers_read_callback)
                         cl_ht->proc->headers_read_callback(cl_ht,NULL);
+#endif
                      // If no headers callback we go to the DATA processing
                     if(cl_ht->in_content_length ){
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
@@ -311,12 +313,14 @@ cnt:switch(cl_ht->state_read){
         case DAP_HTTP_CLIENT_STATE_DATA:{//Read the data
          //   log_it(WARNING, "DBG_#002 [%s] [%s]",             cl_ht->in_query_string, cl_ht->url_path);
             int read_bytes=0;
+#ifdef DAP_SERVER
             if(cl_ht->proc->data_read_callback){
                 //while(cl_ht->client->buf_in_size){
                     cl_ht->proc->data_read_callback(cl_ht,&read_bytes);
                     dap_client_shrink_buf_in(cl,read_bytes);
                 //}
             }else
+#endif
                 cl->buf_in_size=0;
         } break;
         case DAP_HTTP_CLIENT_STATE_NONE:{
@@ -335,7 +339,7 @@ cnt:switch(cl_ht->state_read){
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_write(struct dap_client * cl,void * arg)
+void dap_http_client_write(dap_client_remote_t * cl,void * arg)
 {
 
     (void) arg;
@@ -344,10 +348,12 @@ void dap_http_client_write(struct dap_client * cl,void * arg)
     switch(cl_ht->state_write){
         case DAP_HTTP_CLIENT_STATE_NONE: return;
         case DAP_HTTP_CLIENT_STATE_START:{
+#ifdef DAP_SERVER
             if(cl_ht->proc)
                 if(cl_ht->proc->headers_write_callback)
                     cl_ht->proc->headers_write_callback(cl_ht,NULL);
-            log_it(DEBUG,"Output: HTTP response with %u status code",cl_ht->reply_status_code);
+#endif
+            log_it(L_DEBUG,"Output: HTTP response with %u status code",cl_ht->reply_status_code);
             dap_client_write_f(cl,"HTTP/1.1 %u %s\r\n",cl_ht->reply_status_code, cl_ht->reply_reason_phrase[0]?cl_ht->reply_reason_phrase:"UNDEFINED");
             dap_http_client_out_header_generate(cl_ht);
 
@@ -356,12 +362,12 @@ void dap_http_client_write(struct dap_client * cl,void * arg)
         case DAP_HTTP_CLIENT_STATE_HEADERS:{
             dap_http_header_t * hdr=cl_ht->out_headers;
             if(hdr==NULL){
-                log_it(DEBUG, "Output: headers are over (reply status code %u)",cl_ht->reply_status_code);
+                log_it(L_DEBUG, "Output: headers are over (reply status code %u)",cl_ht->reply_status_code);
                 dap_client_write_f(cl,"\r\n");
                 if(cl_ht->out_content_length || cl_ht->out_content_ready){
                     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_DATA;
                 }else{
-                    log_it(DEBUG,"Nothing to output");
+                    log_it(L_DEBUG,"Nothing to output");
                     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_NONE;
                     dap_client_ready_to_write(cl,false);
 
@@ -375,9 +381,11 @@ void dap_http_client_write(struct dap_client * cl,void * arg)
             }
         }break;
         case DAP_HTTP_CLIENT_STATE_DATA:{
+#ifdef DAP_SERVER
             if(cl_ht->proc)
                 if(cl_ht->proc->data_write_callback)
                     cl_ht->proc->data_write_callback(cl_ht,NULL);
+#endif
         }break;
     }
 }
@@ -399,19 +407,20 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
         }
         if(cl_ht->out_content_type[0]){
             dap_http_header_add(&cl_ht->out_headers,"Content-Type",cl_ht->out_content_type);
-            log_it(DEBUG,"output: Content-Type = '%s'",cl_ht->out_content_type);
+            log_it(L_DEBUG,"output: Content-Type = '%s'",cl_ht->out_content_type);
         }
         if(cl_ht->out_content_length){
             snprintf(buf,sizeof(buf),"%llu",(unsigned long long)cl_ht->out_content_length);
             dap_http_header_add(&cl_ht->out_headers,"Content-Length",buf);
-            log_it(DEBUG,"output: Content-Length = %llu",cl_ht->out_content_length);
+            log_it(L_DEBUG,"output: Content-Length = %llu",cl_ht->out_content_length);
         }
     }
     if(cl_ht->out_connection_close ||  (!cl_ht->keep_alive) )
         dap_http_header_add(&cl_ht->out_headers,"Connection","Close");
-
+#ifdef DAP_SERVER
     dap_http_header_add(&cl_ht->out_headers,"Server-Name", cl_ht->http->server_name);
-    log_it(DEBUG,"Output: Headers generated");
+#endif
+    log_it(L_DEBUG,"Output: Headers generated");
 }
 
 /**
@@ -419,11 +428,13 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_error(struct dap_client * cl,void * arg)
+void dap_http_client_error(struct dap_client_remote * cl,void * arg)
 {
     (void) arg;
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
+#ifdef DAP_SERVER
     if(cl_ht->proc)
         if(cl_ht->proc->error_callback)
         cl_ht->proc->error_callback(cl_ht,arg);
+#endif
 }

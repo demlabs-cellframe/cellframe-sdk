@@ -13,7 +13,7 @@
  */
 int dap_client_init()
 {
-    dap_client_remote();
+    dap_client_remote_init();
     log_it(L_INFO, "Init DAP client module");
     return 0;
 }
