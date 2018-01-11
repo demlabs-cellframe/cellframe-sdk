@@ -13,6 +13,13 @@
 
 #define DAP_DUP(a) (__typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 
+
+
+#if defined(__GNUC__) ||defined (__clang__)
+#define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
+#endif
+
+
 enum log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0};
 extern enum log_level log_level;
 
@@ -30,8 +37,13 @@ void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list
 
 const char * log_error();
 
+
+
+
 #ifdef __GNUC__
 char *itoa(int i);
+
+
 #elif _MSC_VER
 char *strndup(const char *s, size_t n);
 #endif
