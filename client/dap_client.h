@@ -1,7 +1,8 @@
 #ifndef _DAP_CLIENT_H_
 #define _DAP_CLIENT_H_
-#include <stdint.h>
 
+#include <stdint.h>
+#include <stddef.h>
 
 /**
  * @brief The dap_client_stage enum. Top level of client's state machine
@@ -35,7 +36,7 @@ typedef enum dap_client_error {
 /**
  * @brief The dap_client struct
  */
-typedef struct sap_client{
+typedef struct dap_client{
     void * _internal;
     void * _inheritor;
 } dap_client_t;

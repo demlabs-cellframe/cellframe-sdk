@@ -1,7 +1,8 @@
 #include <stddef.h>
-#include "common.h"
+#include "dap_common.h"
 
 #include "dap_client.h"
+#include "dap_client_remote.h"
 #include "dap_client_internal.h"
 
 #define LOG_TAG "dap_client"
@@ -12,6 +13,7 @@
  */
 int dap_client_init()
 {
+    dap_client_remote();
     log_it(L_INFO, "Init DAP client module");
     return 0;
 }
@@ -96,7 +98,7 @@ void dap_client_set_credentials(dap_client_t * a_client,const char* a_user, cons
  * @param a_client_error
  * @return
  */
-const char * dap_client_error_str(sap_client_error_t a_client_error)
+const char * dap_client_error_str(dap_client_error_t a_client_error)
 {
     switch(a_client_error){
         case DAP_CLIENT_ERROR_ENC_NO_KEY: return "ENC_NO_KEY";

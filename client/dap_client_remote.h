@@ -29,13 +29,13 @@
 
 
 struct dap_server;
-struct dap_client;
+struct dap_client_remote;
 
-typedef void (*dap_client_callback_t) (struct dap_client *,void * arg); // Callback for specific client operations
+typedef void (*dap_client_remote_callback_t) (struct dap_client_remote *,void * arg); // Callback for specific client operations
 
-#define DAP_CLIENT_BUF 100000
+#define DAP_CLIENT_REMOTE_BUF 100000
 
-typedef struct dap_client{
+typedef struct dap_client_remote{
     int socket;
     bool signal_close;
 
@@ -43,10 +43,10 @@ typedef struct dap_client{
     bool _ready_to_read;
 
     uint32_t buf_out_zero_count;
-    char buf_in[DAP_CLIENT_BUF+1]; // Internal buffer for input data
+    char buf_in[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for input data
     size_t buf_in_size; // size of data that is in the input buffer
 
-    char buf_out[DAP_CLIENT_BUF+1]; // Internal buffer for output data
+    char buf_out[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for output data
 
     char hostaddr[1024]; // Address
     char service[128];
@@ -60,12 +60,12 @@ typedef struct dap_client{
     UT_hash_handle hh;
 
     void * internal; // Internal data to specific client type, usualy states for state machine
-} dap_client_t; // Node of bidirectional list of clients
+} dap_client_remote_t; // Node of bidirectional list of clients
 
 
 
-extern int dap_client_init(); //  Init clients module
-extern void dap_client_deinit(); // Deinit clients module
+int dap_client_remote_init(); //  Init clients module
+void dap_client_remote_deinit(); // Deinit clients module
 
 extern dap_client_t * dap_client_create(struct dap_server * sh, int s, ev_io* w_client); // Create new client and add it to the list
 extern dap_client_t * dap_client_find(int sock, struct dap_server * sh); // Find client by socket

@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
-struct dap_client;
+typedef struct dap_client_remote dap_client_remote_t;
 struct dap_http_client;
 struct dap_http;
 struct dap_http_url_proc;
@@ -65,7 +65,7 @@ typedef struct dap_http_client
     bool out_connection_close;
 
 
-    struct dap_client * client;
+    dap_client_remote_t * client;
     struct dap_http * http;
 
     uint32_t reply_status_code;
@@ -73,21 +73,30 @@ typedef struct dap_http_client
 
     struct dap_http_url_proc * proc;
 
-    void * internal;
+    void * _inheritor;
 
 } dap_http_client_t;
-#define DAP_HTTP_CLIENT(a)  ((dap_http_client_t *) (a)->internal )
 
-extern int dap_http_client_init();
-extern void dap_http_client_deinit();
+#define DAP_HTTP_CLIENT(a)  ((dap_http_client_t *) (a)->_inheritor )
 
 
-extern void dap_http_client_new(struct dap_client * cl,void * arg); // Creates HTTP client's internal structure
-extern void dap_http_client_delete(struct dap_client * cl,void * arg); // Free memory for HTTP client's internal structure
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-extern void dap_http_client_read(struct dap_client * cl,void * arg); // Process read event
-extern void dap_http_client_write(struct dap_client * cl,void * arg); // Process write event
-extern void dap_http_client_error(struct dap_client * cl,void * arg); // Process error event
+int dap_http_client_init();
+void dap_http_client_deinit();
 
+
+void dap_http_client_new(dap_client_remote_t * cl,void * arg); // Creates HTTP client's internal structure
+void dap_http_client_delete(dap_client_remote_t * cl,void * arg); // Free memory for HTTP client's internal structure
+
+void dap_http_client_read( dap_client_remote_t * cl,void * arg); // Process read event
+void dap_http_client_write( dap_client_remote_t * cl,void * arg); // Process write event
+void dap_http_client_error( dap_client_remote_t * cl,void * arg); // Process error event
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

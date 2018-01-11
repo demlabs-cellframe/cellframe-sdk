@@ -21,8 +21,10 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "dap_common.h"
 
 #include "dap_enc_aes.h"
+#include "dap_enc_newhope.h"
 
 #include "dap_enc_key.h"
 
@@ -30,20 +32,46 @@
 
 struct dap_enc_key_callbacks{
     const char * name;
+    size_t size_max;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    dap_enc_callback_data_t new_from_callback;
-    dap_enc_callback_t new_generate_callback;
+    dap_enc_callback_pptr_r_size_t key_public_raw_callback;
+
+    dap_enc_callback_t new_callback;
+    dap_enc_callback_data_t new_from_data_callback;
+    dap_enc_callback_data_t new_from_data_public_callback;
+    dap_enc_callback_size_t new_generate_callback;
+
     dap_enc_callback_t delete_callback;
 } s_callbacks[]={
+    // AES
     [DAP_ENC_KEY_TYPE_AES]={
                             .name = "AES",
+                            .size_max = 8,
                             .enc = dap_enc_aes_encode,
                             .dec = dap_enc_aes_decode,
+                            .new_callback = NULL,
+                            .delete_callback = NULL,
                             .new_generate_callback = dap_enc_aes_key_new_generate,
-                            .new_from_callback = dap_enc_aes_key_new_from
+                            .new_from_data_callback = dap_enc_aes_key_new_from_data
+                           },
+    // NEW HOPE
+    [DAP_ENC_KEY_TYPE_RLWE_NEWHOPE]={
+                            .name = "NEWHOPE",
+                            .size_max = 64,
+                            .enc = dap_enc_newhope_encode,
+                            .dec = dap_enc_newhope_decode,
+                            .new_callback = NULL,
+                            .delete_callback = NULL,
+                            .new_generate_callback = dap_enc_newhope_key_new_generate,
+                            .new_from_data_callback = dap_enc_newhope_key_new_from_data,
+                            .key_public_raw_callback = dap_enc_newhope_key_public_raw,
+                            .new_from_data_public_callback = dap_enc_newhope_key_new_from_data_public
                            }
 };
+
+const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
+
 
 /**
  * @brief dap_enc_key_init
@@ -51,25 +79,7 @@ struct dap_enc_key_callbacks{
  */
 int dap_enc_key_init()
 {
-    size_t i;
-    for( i = 0; i< sizeof(s_callbacks)/sizeof(s_callbacks[0]); i++ ){
-        switch ((dap_enc_key_type_t) i) {
-        case DAP_ENC_KEY_CODE_MCBITS:
-        case DAP_ENC_KEY_LWE_FRODO:
-        case DAP_ENC_KEY_MLWE_KYBER:
-        case DAP_ENC_KEY_NTRU:
-        case DAP_ENC_KEY_RLWE_BCNS15:
-        case DAP_ENC_KEY_RLWE_MSRLN16:
-        case DAP_ENC_KEY_RLWE_NEWHOPE:
-        case DAP_ENC_KEY_SIDH_CLN16:
-        case DAP_ENC_KEY_SIDH_IQC_REF:
-        case DAP_ENC_KEY_SIG_PICNIC:
-        case DAP_ENC_KEY_TYPE_AES:
-            continue;
-        default:
-            memset(&s_callbacks[i],0,sizeof(s_callbacks[0]));
-        }
-    }
+
     return 0;
 }
 
@@ -83,56 +93,72 @@ void dap_enc_key_deinit()
 
 /**
  * @brief dap_enc_key_new
- * @param key_type
+ * @param a_key_type
  * @return
  */
-dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t key_type)
+dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
 {
-
+    dap_enc_key_t * ret = NULL;
+    if(a_key_type< c_callbacks_size ){
+        dap_enc_key_t * ret = DAP_NEW_Z(dap_enc_key_t);
+        if(s_callbacks[a_key_type].new_callback){
+            s_callbacks[a_key_type].new_callback(ret);
+        }
+    }
+    return ret;
 }
 
 /**
  * @brief dap_enc_key_new_generate
- * @param key_type
- * @param key_size
+ * @param a_key_type
+ * @param a_key_size
  * @return
  */
-dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, size_t key_size)
+dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_key_size)
 {
-    if(s_callbacks[key_type].name ){
-        dap_enc_key_t * ret = dap_enc_ke_n
-        s_callbacks[key_type].new_generate_callback()
+    dap_enc_key_t * ret = NULL;
+
+    if(a_key_type< c_callbacks_size ){
+        ret = dap_enc_key_new (a_key_type);
+        if( s_callbacks[a_key_type].new_generate_callback ){
+            s_callbacks[a_key_type].new_generate_callback(ret,a_key_size);
+        }
     }
-    return NULL;
+    return ret;
 }
 
-dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_type, const char *a_key_str)
+/**
+ * @brief dap_enc_key_new_from_str
+ * @param a_keyt_type
+ * @param a_key_str
+ * @return
+ */
+dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str)
 {
-   enc_key_t * ret= (enc_key_t *) calloc(1,sizeof(enc_key_t) );
-   size_t input_size=strlen(key_input);
-   switch(v_type){
-        case ENC_KEY_TYPE_AES:{
-            enc_aes_key_create(ret,key_input);
-        }break;
-        case ENC_KEY_TYPE_FNAM2:{
-           ret->data = (unsigned char*) calloc(1,input_size*2);
-           ret->data_size= enc_base64_decode(key_input,input_size,ret->data);
-        }break;
-   }
-   ret->type=v_type;
-   return ret;
+    dap_enc_key_t * ret = NULL;
+
+    if(a_key_type< c_callbacks_size ){
+        ret = DAP_NEW_Z(dap_enc_key_t);
+    }
+    return ret;
 }
 
 /**
  * @brief dap_enc_key_new_from_data
- * @param a_type
+ * @param a_key_type
  * @param a_key_input
  * @param a_key_input_size
  * @return
  */
-dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_type, void * a_key_input, size_t a_key_input_size)
+dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size)
 {
+    dap_enc_key_t * ret = NULL;
 
+    if(a_key_type< c_callbacks_size ){
+        ret = DAP_NEW_Z(dap_enc_key_t);
+        s_callbacks[a_key_type].new_from_data_callback(ret,a_key_input, a_key_input_size);
+    }
+    return ret;
 }
 
 

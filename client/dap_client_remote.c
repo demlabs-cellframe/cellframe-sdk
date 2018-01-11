@@ -24,11 +24,13 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
-#include "common.h"
+
+
+#include "dap_common.h"
 #include "dap_loop.h"
-#include "dap_client.h"
+#include "dap_client_remote.h"
 #include <ev.h>
-#define LOG_TAG "client"
+#define LOG_TAG "dap_client_remote"
 
 
 /**
@@ -37,7 +39,7 @@
  */
 int dap_client_init()
 {
-    log_it(NOTICE,"Initialized socket client module");
+    log_it(L_NOTICE,"Initialized socket client module");
     return 0;
 }
 
@@ -50,15 +52,15 @@ void dap_client_deinit()
 }
 
 /**
- * @brief safe_client_create Create new client and add it to the list
+ * @brief dap_client_remote_create Create new client and add it to the list
  * @param sh Server instance
  * @param s Client's socket
  * @return Pointer to the new list's node
  */
-dap_client_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_client)
+dap_client_remote_t * dap_client_remote_create(dap_server_t * sh, int s, ev_io* w_client)
 {
     pthread_mutex_lock(&sh->mutex_on_hash);
-    log_it(DEBUG,"Client structure create");
+    log_it(L_DEBUG,"Client structure create");
 
     dap_client_t * ret=(dap_client_t *) calloc(1,sizeof(dap_client_t));
     ret->socket=s;

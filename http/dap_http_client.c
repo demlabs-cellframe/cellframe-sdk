@@ -20,12 +20,17 @@
 
 
 #include <stdio.h>
+#include <string.h>
 #include <ctype.h>
 #include <libgen.h>
-#include "common.h"
-#include "dap_client.h"
+#include "dap_common.h"
+#include "dap_client_remote.h"
+
+#ifdef DAP_SERVER
 #include "dap_server.h"
 #include "dap_http.h"
+#endif
+#include "dap_http_header.h"
 #include "dap_http_client.h"
 
 #define LOG_TAG "http_client"
@@ -40,7 +45,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht);
  */
 int dap_http_client_init()
 {
-    log_it(NOTICE,"Initialized HTTP client module");
+    log_it(L_NOTICE,"Initialized HTTP client module");
     return 0;
 }
 
@@ -49,7 +54,7 @@ int dap_http_client_init()
  */
 void dap_http_client_deinit()
 {
-    log_it(INFO,"HTTP client module deinit");
+    log_it(L_INFO,"HTTP client module deinit");
 }
 
 /**
@@ -57,13 +62,15 @@ void dap_http_client_deinit()
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_new(dap_client_t * cl,void * arg)
+void dap_http_client_new(dap_client_remote_t * cl,void * arg)
 {
     (void) arg;
-    cl->internal=calloc(1,sizeof(dap_http_client_t));
+    cl->_inheritor = DAP_NEW_Z(dap_http_client_t);
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
     cl_ht->client=cl;
+#ifdef DAP_SERVER
     cl_ht->http= DAP_HTTP(cl->server);
+#endif
     cl_ht->state_read=DAP_HTTP_CLIENT_STATE_START;
     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
@@ -74,7 +81,7 @@ void dap_http_client_new(dap_client_t * cl,void * arg)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_delete(dap_client_t * cl,void * arg)
+void dap_http_client_delete(dap_client_remote_t * cl,void * arg)
 {
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
     while(cl_ht->in_headers)
@@ -83,12 +90,14 @@ void dap_http_client_delete(dap_client_t * cl,void * arg)
     while(cl_ht->out_headers)
         dap_http_header_remove(&cl_ht->out_headers,cl_ht->out_headers);
 
+#ifdef DAP_SERVER
     if(cl_ht->proc)
         if(cl_ht->proc->delete_callback)
             cl_ht->proc->delete_callback(cl_ht,NULL);
+#endif
 
-    if(cl_ht->internal)
-        free(cl_ht->internal);
+    if(cl_ht->_inheritor)
+        free(cl_ht->_inheritor);
     (void) arg;
 }
 
@@ -158,7 +167,7 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_read(dap_client_t * cl,void * arg)
+void dap_http_client_read(dap_client_remote_t * cl,void * arg)
 {
 
     (void) arg;
@@ -204,7 +213,7 @@ cnt:switch(cl_ht->state_read){
                     b_name=basename(url_cpy2);
 
                     strncpy(cl_ht->url_path,b_name,sizeof(cl_ht->url_path));
-
+#ifdef DAP_SERVER
                     dap_http_url_proc_t * url_proc;
 
                     HASH_FIND_STR(cl_ht->http->url_proc, d_name , url_proc);  // Find URL processor
@@ -226,6 +235,9 @@ cnt:switch(cl_ht->state_read){
                         free(url_cpy2);
                         break;
                     }
+#else
+                    cl_ht->state_read=DAP_HTTP_CLIENT_STATE_HEADERS;
+#endif
                     //free(d_name);
                     //free(b_name);
                     free(url_cpy1);

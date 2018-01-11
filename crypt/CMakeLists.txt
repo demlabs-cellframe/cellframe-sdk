@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 2.8)
-project (dapcrypt)
+project (dap_crypto)
   
-set(CRYPT_SRCS dap_enc.c dap_enc_aes.c dap_enc_key.c  )
+set(CRYPT_SRCS dap_enc.c dap_enc_aes.c dap_enc_newhope.c dap_enc_key.c  )
 
 add_subdirectory(monero_crypto)
 
-include_directories("${dapcore_INCLUDE_DIRS}")
+include_directories("${dap_core_INCLUDE_DIRS}")
 include_directories("${monero_crypto_INCLUDE_DIRS}")
-add_definitions ("${dapcore_DEFINITIONS}")
+add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${monero_crypto_DEFINITIONS}")
 add_library(${PROJECT_NAME} STATIC ${CRYPT_SRCS} ${crypto_sources} )
 

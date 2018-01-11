@@ -24,19 +24,20 @@ void dap_enc_aes_key_delete(struct dap_enc_key *a_key)
 /**
  * @brief dap_enc_aes_key_new_generate
  * @param a_key
+ * @param a_size
  */
-void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key)
+void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size)
 {
 
 }
 
 /**
- * @brief dap_enc_aes_key_new_from
+ * @brief dap_enc_aes_key_new_from_data
  * @param a_key
  * @param a_in
  * @param a_in_size
  */
-void dap_enc_aes_key_new_from(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size)
+void dap_enc_aes_key_new_from_data(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size)
 {
 
 }

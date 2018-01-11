@@ -6,9 +6,12 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define MALLOC(a) ((a *) malloc(sizeof(a)))
-#define CALLOC(a) ((a *) calloc(1,sizeof(a)))
-#define DUP(a) (__typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+#define DAP_NEW(a)    ( (a*) malloc(sizeof(a)))
+#define DAP_NEW_SIZE(a,b)    ( (a*) malloc(b))
+#define DAP_NEW_Z(a) ( (a*) calloc(1,sizeof(a)))
+#define DAP_NEW_Z_SIZE(a,b) ( (a*) calloc(1,b))
+
+#define DAP_DUP(a) (__typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 
 enum log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0};
 extern enum log_level log_level;

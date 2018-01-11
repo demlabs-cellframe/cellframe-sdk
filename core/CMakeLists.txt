@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
-project (dapcore)
+project (dap_core)
   
-set(CORE_SRCS dap_common.c )
+set(CORE_SRCS dap_common.c dap_config.c)
  
 add_library(${PROJECT_NAME} STATIC ${CORE_SRCS})
 
