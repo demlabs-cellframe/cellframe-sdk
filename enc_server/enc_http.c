@@ -157,7 +157,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 {
     enc_key_t * key= enc_ks_find_http(cl_st->http);
     if(key){
-        enc_http_delegate_t * dg = CALLOC(enc_http_delegate_t);
+        enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
         dg->key=key;
         dg->http=cl_st->http;
         dg->isOk=true;

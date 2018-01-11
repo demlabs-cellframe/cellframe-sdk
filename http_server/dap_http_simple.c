@@ -109,7 +109,7 @@ static void* loop_http_simple_proc(void *arg)
  */
 void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t reply_size_max, dap_http_simple_callback_t cb)
 {
-    dap_http_simple_url_proc_t * shs_up = CALLOC(dap_http_simple_url_proc_t);
+    dap_http_simple_url_proc_t * shs_up = DAP_NEW_Z(dap_http_simple_url_proc_t);
     shs_up->proc_callback=cb;
     shs_up->reply_size_max=reply_size_max;
     dap_http_add_proc(sh,url_path
@@ -196,7 +196,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
  */
 void dap_http_simple_headers_read(dap_http_client_t * cl_ht, void * arg )
 {
-    cl_ht->internal = CALLOC(dap_http_simple_t);
+    cl_ht->internal = DAP_NEW_Z(dap_http_simple_t);
 
     DAP_HTTP_SIMPLE(cl_ht)->http = cl_ht;
     DAP_HTTP_SIMPLE(cl_ht)->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( cl_ht->proc )->reply_size_max;

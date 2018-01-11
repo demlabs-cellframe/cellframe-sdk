@@ -70,11 +70,6 @@ typedef struct ev_async_data
  */
 int dap_server_init()
 {
-    if(dap_client_init() != 0) {
-        log_it(CRITICAL, "Can't init client submodule");
-        return -1;
-    }
-
     signal(SIGPIPE, SIG_IGN);
     async_watcher.data = malloc(sizeof(ev_async_data_t));
 

@@ -77,7 +77,7 @@ enc_key_t * enc_ks_find_http(struct dap_http_client * http)
 
 /*enc_ks_key_t * enc_ks_new()
 {
-    enc_ks_key_t * ret = CALLOC(enc_ks_key_t);
+    enc_ks_key_t * ret = DAP_NEW_Z(enc_ks_key_t);
     ret->key=enc_key_new()
     int i;
     for(i=0;i<sizeof(ret->id)-1;i++)
@@ -88,7 +88,7 @@ enc_key_t * enc_ks_find_http(struct dap_http_client * http)
 
 enc_ks_key_t * enc_ks_add(struct enc_key * key)
 {
-    enc_ks_key_t * ret = CALLOC(enc_ks_key_t);
+    enc_ks_key_t * ret = DAP_NEW_Z(enc_ks_key_t);
     ret->key=key;
     pthread_mutex_init(&ret->mutex,NULL);
     int i;
