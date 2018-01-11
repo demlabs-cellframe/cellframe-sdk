@@ -13,8 +13,8 @@
  */
 int dap_client_init()
 {
-    dap_client_remote_init();
     log_it(L_INFO, "Init DAP client module");
+    dap_client_remote_init();
     return 0;
 }
 
@@ -24,6 +24,7 @@ int dap_client_init()
 void dap_client_deinit()
 {
     log_it(L_INFO, "Deinit DAP client module");
+    dap_client_remote_deinit();
 }
 
 /**
@@ -33,7 +34,32 @@ void dap_client_deinit()
  */
 dap_client_t * dap_client_new(dap_client_callback_t a_stage_status_callback)
 {
+    // ALLOC MEM FOR dap_client
+    dap_client_t *l_client = CALLOC(dap_client_t);
+    if (!l_client)
+        goto MEM_ALLOC_ERR;
 
+    l_client->_internal  = CALLOC(dap_client_internal_t);
+    if (!l_client->_internal)
+        goto MEM_ALLOC_ERR;
+
+    // CONSTRUCT dap_client object
+    DAP_CLIENT_INTERNAL(l_client)->client = l_client;
+    DAP_CLIENT_INTERNAL(l_client)->stage_status_callback = a_stage_status_callback;
+    DAP_CLIENT_INTERNAL(l_client)->stage_status_error_callback = a_stage_status_error_callback;
+
+    dap_client_internal_new(DAP_CLIENT_INTERNAL(l_client) );
+
+    return l_client;
+
+MEM_ALLOC_ERR:
+    log_it(L_ERROR, "dap_client_new can not allocate memory");
+    if (l_client)
+        if(l_client->_internal)
+            free(l_client->_internal);
+
+    if (l_client)
+        free (l_client);
 }
 
 /**
@@ -42,7 +68,8 @@ dap_client_t * dap_client_new(dap_client_callback_t a_stage_status_callback)
  */
 void dap_client_delete(dap_client_t * a_client)
 {
-
+    dap_client_internal_delete(DAP_CLIENT_INTERNAL(a_client));
+    free(a_client);
 }
 
 /**
@@ -53,7 +80,40 @@ void dap_client_delete(dap_client_t * a_client)
 void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end,
                          dap_client_callback_t a_stage_end_callback)
 {
+    // ----- check parameters -----
+    if(NULL == a_client) {
+        log_it(L_ERROR, "dap_client_go_stage, a_client == NULL");
+        return;
+    }
+    if(NULL == a_stage_end_callback) {
+        log_it(L_ERROR, "dap_client_go_stage, a_stage_end_callback == NULL");
+        return;
+    }
+    dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
 
+    l_client_internal->stage_target = a_stage_target;
+
+    if(a_stage_target != l_client_internal->stage ){ // Going to stages downstairs
+        switch(l_client_internal->stage_status ){
+            case DAP_CLIENT_STAGE_STATUS_ABORTING:
+                log_it(L_ERROR, "Already aborting the stage %s"
+                        , dap_client_stage_str(l_client_internal->stage));
+            break;
+            case DAP_CLIENT_STAGE_STATUS_IN_PROGRESS:{
+                log_it(L_WARNING, "Aborting the stage %s"
+                        , dap_client_stage_str(l_client_internal->stage));
+            }break;
+            case DAP_CLIENT_STAGE_STATUS_DONE:
+            case DAP_CLIENT_STAGE_STATUS_ERROR:
+            default: {
+                log_it(L_DEBUG, "Start transitions chain to %");
+                int step = (a_stage_target > l_client_internal->stage)?1:-1;
+                dap_client_internal_stage_transaction_begin(l_client_internal,l_client_internal->stage+step,a_stage_end_callback);
+            }
+        }
+    }else{  // Same stage
+        log_it(L_ERROR,"We're already on stage %s",dap_client_stage_str(a_stage_target));
+    }
 }
 
 /**
@@ -67,7 +127,8 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end
 void dap_client_session_request(dap_client_t * a_client, const char * a_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_t a_response_proc)
 {
-
+    dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
+    dap_client_internal_request_enc(l_client_internal, a_path, a_suburl, a_query,a_request,a_request_size, a_response_proc,a_response_error);
 }
 
 /**
@@ -78,7 +139,12 @@ void dap_client_session_request(dap_client_t * a_client, const char * a_path, vo
  */
 void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port)
 {
-
+    if(a_addr == NULL){
+        log_it(L_ERROR,"Address is NULL");
+        return;
+    }
+    DAP_CLIENT_INTERNAL(a_client)->uplink_addr = strdup(a_addr);
+    DAP_CLIENT_INTERNAL(a_client)->uplink_port = a_port;
 }
 
 /**
@@ -89,7 +155,15 @@ void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t 
  */
 void dap_client_set_credentials(dap_client_t * a_client,const char* a_user, const char * a_password)
 {
-
+    if(a_user == NULL){
+        log_it(L_ERROR,"Username is NULL");
+        return;
+    }
+    if(a_password == NULL){
+        log_it(L_ERROR,"Password is NULL");
+        return;
+    }
+    DAP_CLIENT_INTERNAL(a_client)->uplink_user = strdup(a_user);
 }
 
 
