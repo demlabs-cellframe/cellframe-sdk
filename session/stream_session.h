@@ -27,7 +27,7 @@
 #include <netinet/in.h>
 #include "uthash.h"
 
-#include "enc_key.h"
+#include "dap_enc_key.h"
 
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYPE_VPN} stream_session_type_t;
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;

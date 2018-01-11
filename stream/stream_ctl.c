@@ -20,11 +20,11 @@
 
 #include <stdbool.h>
 #include <string.h>
-#include "common.h"
+#include "dap_common.h"
 
 #include "stream.h"
 
-#include "enc_http.h"
+#include "dap_enc_http.h"
 
 #include "dap_http.h"
 #include "dap_http_client.h"
@@ -101,13 +101,13 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         else if (strcmp(dg->url_path,"socket_forward")==0){
             socket_forward=true;
         }else{
-            log_it(ERROR,"ctl command unknown: %s",dg->url_path);
+            log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
             enc_http_delegate_delete(dg);
             *isOk=false;
             return;
         }
         if(socket_forward){
-            log_it(INFO,"[ctl] Play request for db_id=%d",db_id);
+            log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
             ss=stream_session_pure_new();
 
             char key_str[255];
@@ -117,10 +117,10 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             ss->key=enc_key_create(key_str,ENC_KEY_TYPE_AES);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
-       //     log_it(DEBUG,"Stream AES key string %s",key_str);
+       //     log_it(L_DEBUG,"Stream AES key string %s",key_str);
 
         }else if(sscanf( dg->in_query ,"db_id=%u",&db_id)==1){
-            log_it(INFO,"[ctl] Play request for db_id=%d",db_id);
+            log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
             ss=stream_session_new(db_id,openPreview);
 
             char key_str[255];
@@ -130,9 +130,9 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             ss->key=enc_key_create(key_str,ENC_KEY_TYPE_AES);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
-            log_it(DEBUG,"Stream AES key string %s",key_str);
+            log_it(L_DEBUG,"Stream AES key string %s",key_str);
         }else{
-            log_it(ERROR,"Wrong request: \"%s\"",dg->in_query);
+            log_it(L_ERROR,"Wrong request: \"%s\"",dg->in_query);
             dg->isOk=false;
         }
         *isOk=dg->isOk;
@@ -144,7 +144,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         	sscanf(ct_str, "connection_type=%u", &conn_t);
         	if (conn_t < 0 || conn_t >= STREAM_SESSION_END_TYPE)
         	{
-        		log_it(WARNING,"Error connection type : %i",conn_t);
+        		log_it(L_WARNING,"Error connection type : %i",conn_t);
         		conn_t = STEAM_SESSION_HTTP;
         	}
 
@@ -155,12 +155,12 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 
         }
 
-        log_it(INFO,"setup connection_type: %s", connection_type_str[conn_t]);
+        log_it(L_INFO,"setup connection_type: %s", connection_type_str[conn_t]);
 
         enc_http_reply_encode(cl_st,dg);
         enc_http_delegate_delete(dg);
     }else{
-        log_it(ERROR,"No encryption layer was initialized well");
+        log_it(L_ERROR,"No encryption layer was initialized well");
         *isOk=false;
     }
 }

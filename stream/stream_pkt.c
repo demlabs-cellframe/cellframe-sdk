@@ -20,15 +20,15 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "common.h"
+#include "dap_common.h"
 #include "config.h"
 
 
 #include "dap_client.h"
 #include "dap_http_client.h"
 
-#include "enc.h"
-#include "enc_key.h"
+#include "dap_enc.h"
+#include "dap_enc_key.h"
 
 #include "stream.h"
 #include "stream_pkt.h"
@@ -57,7 +57,7 @@ stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
         if(memcmp(sig_start,dap_sig,sizeof(dap_sig))==0){
             ret=sig_start;
             if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
-                log_it(ERROR, "Too big packet size %u",ret->hdr.size);
+                log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
                 ret=NULL;
             }
             break;
@@ -76,11 +76,11 @@ stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
 size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out)
 {
     size_t ds = enc_decode(sid->session->key,pkt->data,pkt->hdr.size,buf_out,ENC_DATA_TYPE_RAW);
-//    log_it(DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
+//    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
 //           *((uint8_t *)buf_out+ds-4),*((uint8_t *)buf_out+ds-3),*((uint8_t *)buf_out+ds-2),*((uint8_t *)buf_out+ds-1)
 //           );
 //    size_t mv=35;
-//    log_it(DEBUG,"(Decoded  bytes with mv %lu bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", mv,
+//    log_it(L_DEBUG,"(Decoded  bytes with mv %lu bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", mv,
 //           *((uint8_t *)buf_out+mv-4),*((uint8_t *)buf_out+mv-3),*((uint8_t *)buf_out+mv-2),*((uint8_t *)buf_out+mv-1)
 //           );
     return ds;
@@ -100,7 +100,7 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
     stream_pkt_hdr_t pkt_hdr;
 
     if(data_size> sizeof(sid->buf) ){
-        log_it(ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(sid->buf));
+        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(sid->buf));
         data_size=sizeof(sid->buf);
     }
 

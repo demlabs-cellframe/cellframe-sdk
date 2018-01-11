@@ -18,7 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "common.h"
+#include "dap_common.h"
 #include "stream_ch_proc.h"
 
 

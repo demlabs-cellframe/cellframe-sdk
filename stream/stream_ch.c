@@ -18,7 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "common.h"
+#include "dap_common.h"
 
 #include "dap_client.h"
 #include "dap_http_client.h"
@@ -37,11 +37,11 @@
 int stream_ch_init()
 {
     if(stream_ch_proc_init() != 0 ){
-        log_it(CRITICAL,"Can't init stream channel proc submodule");
+        log_it(L_CRITICAL,"Can't init stream channel proc submodule");
         return -1;
     }
     if(stream_ch_pkt_init() != 0 ){
-        log_it(CRITICAL,"Can't init stream channel packet submodule");
+        log_it(L_CRITICAL,"Can't init stream channel packet submodule");
         return -1;
     }
     log_it(NOTICE,"Module stream channel initialized");
@@ -75,7 +75,7 @@ stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
             ret->proc->new_callback(ret,NULL);
         return ret;
     }else{
-        log_it(WARNING, "Unknown stream processor with id %uc",id);
+        log_it(L_WARNING, "Unknown stream processor with id %uc",id);
         return NULL;
     }
 }
@@ -103,7 +103,7 @@ void stream_ch_set_ready_to_write(stream_ch_t * ch,bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
     if(ch->ready_to_write!=is_ready){
-        //log_it(DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
+        //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         ch->ready_to_write=is_ready;
         if(is_ready)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;

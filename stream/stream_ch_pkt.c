@@ -21,9 +21,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "common.h"
-#include "enc.h"
-#include "enc_key.h"
+#include "dap_common.h"
+#include "dap_enc.h"
+#include "dap_enc_key.h"
 
 #include "dap_client.h"
 #include "stream.h"
@@ -60,7 +60,7 @@ size_t stream_ch_pkt_write_seq_id(struct stream_ch * ch, uint8_t type, uint64_t 
 {
     pthread_mutex_lock( &ch->mutex);
 
-    //log_it(DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
+    //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 
     stream_ch_pkt_hdr_t hdr;
 
@@ -72,7 +72,7 @@ size_t stream_ch_pkt_write_seq_id(struct stream_ch * ch, uint8_t type, uint64_t 
     hdr.seq_id=seq_id;
 
     if(data_size+sizeof(hdr)> sizeof(ch->buf) ){
-        log_it(ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(ch->buf));
+        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(ch->buf));
         data_size=sizeof(ch->buf)-sizeof(hdr);
     }
     memcpy(ch->buf,&hdr,sizeof(hdr) );

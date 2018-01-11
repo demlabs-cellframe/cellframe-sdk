@@ -19,7 +19,7 @@
 */
 
 #include <stdlib.h>
-#include "common.h"
+#include "dap_common.h"
 #include "stream_session.h"
 
 #define LOG_TAG "stream_session"
@@ -31,14 +31,14 @@ static void * session_check(void * data);
 
 void stream_session_init()
 {
-    log_it(INFO,"[session] Init module");
+    log_it(L_INFO,"[session] Init module");
     srand ( time(NULL) );
 }
 
 void stream_session_deinit()
 {
     stream_session_t *current, *tmp;
-    log_it(INFO,"[session] Destroy everything");
+    log_it(L_INFO,"[session] Destroy everything");
 
       HASH_ITER(hh, sessions, current, tmp) {
           HASH_DEL(sessions,current);
@@ -60,14 +60,14 @@ stream_session_t * stream_session_pure_new()
         session_id_new=session_id=rand()+rand()*0x100+rand()*0x10000+rand()*0x01000000;
         HASH_FIND_INT(sessions,&session_id_new,ret);
     }while(ret);
-    log_it(INFO,"[session] Creating new with id %u",session_id);
+    log_it(L_INFO,"[session] Creating new with id %u",session_id);
     ret=(stream_session_t*) calloc(1,sizeof(stream_session_t));
     pthread_mutex_init(&ret->mutex, NULL);
     ret->id=session_id;
     ret->time_created=time(NULL);
     ret->create_empty=true;
     ret->enc_type = 0x01; // Default encryption type
-    log_it(DEBUG,"[session] timestamp %u",(unsigned int) ret->time_created);
+    log_it(L_DEBUG,"[session] timestamp %u",(unsigned int) ret->time_created);
     HASH_ADD_INT(sessions,id,ret);
     return ret;
 }
@@ -96,7 +96,7 @@ int stream_session_close(unsigned int id)
 
 int stream_session_close2(stream_session_t * s)
 {
-    log_it(INFO,"[session] Close");
+    log_it(L_INFO,"[session] Close");
     HASH_DEL(sessions,s);
     free(s);
     return 0;

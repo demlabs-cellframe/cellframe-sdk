@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "config.h"
-#include "common.h"
+#include "dap_common.h"
 
 #include "db_core.h"
 #include "db_auth.h"
@@ -58,7 +58,7 @@ void stream_delete(dap_http_client_t * sh, void * arg);
 int stream_init()
 {
     if( stream_ch_init() != 0 ){
-        log_it(CRITICAL, "Can't init channel types submodule");
+        log_it(L_CRITICAL, "Can't init channel types submodule");
         return -1;
     }
 
@@ -111,23 +111,23 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
         ai = db_search_cookie_in_db(cl_ht->in_cookie);
 
     if(ai){
-        log_it(DEBUG,"Prepare data stream");
+        log_it(L_DEBUG,"Prepare data stream");
         if(cl_ht->in_query_string[0]){
-            log_it(INFO,"Query string [%s]",cl_ht->in_query_string);
+            log_it(L_INFO,"Query string [%s]",cl_ht->in_query_string);
             if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
                 stream_session_t * ss=NULL;
                 ss=stream_session_id(id);
                 if(ss==NULL){
-                    log_it(ERROR,"No session id %u was found",id);
+                    log_it(L_ERROR,"No session id %u was found",id);
                     cl_ht->reply_status_code=404;
                     strcpy(cl_ht->reply_reason_phrase,"Not found");
                 }else{
-                    log_it(INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
+                    log_it(L_INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
                     if(stream_session_open(ss)==0){ // Create new stream
                         stream_t * sid = stream_new(cl_ht);
                         sid->session=ss;
                         if(ss->create_empty){
-                            log_it(INFO, "Opened stream session with only technical channels");
+                            log_it(L_INFO, "Opened stream session with only technical channels");
 
                             cl_ht->reply_status_code=200;
                             strcpy(cl_ht->reply_reason_phrase,"OK");
@@ -152,17 +152,17 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
 
                         }
                     }else{
-                        log_it(ERROR,"Can't open session id %u",id);
+                        log_it(L_ERROR,"Can't open session id %u",id);
                         cl_ht->reply_status_code=404;
                         strcpy(cl_ht->reply_reason_phrase,"Not found");
                     }
                 }
             }
         }else{
-            log_it(ERROR,"No query string");
+            log_it(L_ERROR,"No query string");
         }
     }else{
-        log_it(WARNING,"Not authorized connection");
+        log_it(L_WARNING,"Not authorized connection");
         cl_ht->reply_status_code=505;
         strcpy(cl_ht->reply_reason_phrase,"Not authorized");
         cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -227,7 +227,7 @@ void stream_data_write(dap_http_client_t * sh, void * arg)
     if(sh->reply_status_code==200){
         size_t i;
         bool ready_to_write=false;
-      //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
+      //  log_it(L_DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
 
         for(i=0;i<STREAM(sh)->channel_count; i++){
             stream_ch_t * ch = STREAM(sh)->channel[i];
@@ -236,12 +236,12 @@ void stream_data_write(dap_http_client_t * sh, void * arg)
                 ready_to_write|=ch->ready_to_write;
             }
         }
-        //log_it(DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
+        //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
 
         dap_client_ready_to_write(sh->client,ready_to_write);
-        //log_it(ERROR,"No stream_data_write_callback is defined");
+        //log_it(L_ERROR,"No stream_data_write_callback is defined");
     }else{
-        log_it(WARNING, "Wrong request, reply status code is %u",sh->reply_status_code);
+        log_it(L_WARNING, "Wrong request, reply status code is %u",sh->reply_status_code);
     }
 }
 
@@ -252,7 +252,7 @@ void stream_data_write(dap_http_client_t * sh, void * arg)
  */
 void stream_proc_pkt_in(stream_t * sid)
 {
-    // log_it(DEBUG,"Input: read last bytes for current packet (hdr.size=%u)",sid->pkt_buf_in-);
+    // log_it(L_DEBUG,"Input: read last bytes for current packet (hdr.size=%u)",sid->pkt_buf_in-);
     stream_ch_pkt_t * ch_pkt= (stream_ch_pkt_t*) calloc(1,sid->pkt_buf_in->hdr.size+sizeof(stream_ch_pkt_hdr_t)+16 );
     stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt);
 
@@ -273,7 +273,7 @@ void stream_proc_pkt_in(stream_t * sid)
                 ch->proc->packet_in_callback(ch,ch_pkt);
 
     }else{
-         log_it(WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
+         log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
     }
     free(sid->pkt_buf_in);
     sid->pkt_buf_in=NULL;
@@ -294,8 +294,8 @@ void stream_proc_pkt_in(stream_t * sid)
 void stream_data_read(dap_http_client_t * sh, void * arg)
 {
 
-  //  log_it(DEBUG, "Stream data read %u bytes", sh->client->buf_in_size);
-  //  log_it(DEBUG, "Stream data  %s", sh->client->buf_in);
+  //  log_it(L_DEBUG, "Stream data read %u bytes", sh->client->buf_in_size);
+  //  log_it(L_DEBUG, "Stream data  %s", sh->client->buf_in);
     stream_t * sid =STREAM(sh);
     int * ret = (int *) arg;
 
@@ -321,21 +321,21 @@ void stream_data_read(dap_http_client_t * sh, void * arg)
                 *ret = (*ret)+ read_bytes_to;
                 sid->pkt_buf_in_data_size=read_bytes_to-sizeof(stream_pkt_hdr_t);
                 if(read_bytes_to>=(pkt->hdr.size)){
-                    //log_it(INFO,"Input: read full packet (hdr.size=%u read_bytes_to=%u buf_in_size=%u)"
+                    //log_it(L_INFO,"Input: read full packet (hdr.size=%u read_bytes_to=%u buf_in_size=%u)"
                     //       ,sid->pkt_buf_in->hdr.size,read_bytes_to,sid->conn->buf_in_size);
                     stream_proc_pkt_in(sid);
                 }else{
-                    log_it(DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",sid->pkt_buf_in->hdr.size,read_bytes_to);
+                    log_it(L_DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",sid->pkt_buf_in->hdr.size,read_bytes_to);
                 }
                 return;
             }else
                 break;
         }
-        //log_it(WARNING,"Input: Not found signature in the incomming data");
+        //log_it(L_WARNING,"Input: Not found signature in the incomming data");
         *ret += sh->client->buf_in_size;
     }
 
-//    log_it(DEBUG,"Stream read data from HTTP client: %u",sh->client->buf_in_size);
+//    log_it(L_DEBUG,"Stream read data from HTTP client: %u",sh->client->buf_in_size);
 //    if(sh->client->buf_in_size )
 }
 
