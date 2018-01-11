@@ -1,3 +1,4 @@
+// Copyright (c) 2017-2018, The Demlabs Inc. Project
 // Copyright (c) 2014-2017, The Monero Project
 // 
 // All rights reserved.
@@ -27,10 +28,10 @@
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
-
 #pragma once
 
-#if !defined(__cplusplus)
+
+//#if !defined(__cplusplus)
 
 #include <assert.h>
 #include <stdbool.h>
@@ -71,7 +72,7 @@ static_assert(sizeof(union hash_state) == 200, "Invalid structure size");
 void hash_permutation(union hash_state *state);
 void hash_process(union hash_state *state, const uint8_t *buf, size_t count);
 
-#endif
+//#endif
 
 enum {
   HASH_SIZE = 32,
