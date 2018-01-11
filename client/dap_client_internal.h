@@ -6,7 +6,7 @@
 #include "dap_client.h"
 
 typedef struct dap_events_socket_t dap_events_socket_t;
-typedef struct enc_key enc_key_t;
+typedef struct dap_enc_key dap_enc_key_t;
 typedef struct dap_http_client dap_http_client_t;
 
 typedef struct dap_client_internal
@@ -17,7 +17,7 @@ typedef struct dap_client_internal
 
     dap_events_socket_t * es_stream;
 
-    enc_key_t * session_key;
+    dap_enc_key_t * session_key;
     char  * session_key_id;
 
     char  * uplink_addr;
@@ -42,6 +42,8 @@ typedef struct dap_client_internal
 } dap_client_internal_t;
 
 #define DAP_CLIENT_INTERNAL(a) ((dap_client_internal_t*) a->_internal )
+
+
 int dap_client_internal_init();
 void dap_client_internal_deinit();
 
@@ -57,4 +59,5 @@ void dap_client_internal_request_enc(dap_client_internal_t * a_client_internal, 
 
 void dap_client_internal_new(dap_client_internal_t * a_client_internal);
 void dap_client_internal_delete(dap_client_internal_t * a_client_internal);
+
 #endif

@@ -41,6 +41,7 @@ int get_select_breaker();
 int send_select_break();
 char * exec_with_ret(const char * a_cmd);
 char * exec_with_ret_multistring(const char * a_cmd);
+char * random_string_create(size_t a_length);
 
 #ifdef __cplusplus
 }

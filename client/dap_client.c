@@ -1,8 +1,10 @@
-#include <stddef.h>
+#include <string.h>
+
 #include "dap_common.h"
 
+#include "dap_http_client.h"
+
 #include "dap_client.h"
-#include "dap_client_remote.h"
 #include "dap_client_internal.h"
 
 #define LOG_TAG "dap_client"
@@ -14,7 +16,8 @@
 int dap_client_init()
 {
     log_it(L_INFO, "Init DAP client module");
-    dap_client_remote_init();
+    dap_http_client_init();
+    dap_client_internal_init();
     return 0;
 }
 
@@ -23,23 +26,26 @@ int dap_client_init()
  */
 void dap_client_deinit()
 {
+    dap_client_internal_deinit();
+    dap_http_client_deinit();
     log_it(L_INFO, "Deinit DAP client module");
-    dap_client_remote_deinit();
 }
 
 /**
  * @brief dap_client_new
  * @param a_stage_status_callback
+ * @param a_stage_status_error_callback
  * @return
  */
-dap_client_t * dap_client_new(dap_client_callback_t a_stage_status_callback)
+dap_client_t * dap_client_new(dap_client_callback_t a_stage_status_callback
+                              ,dap_client_callback_t a_stage_status_error_callback )
 {
     // ALLOC MEM FOR dap_client
-    dap_client_t *l_client = CALLOC(dap_client_t);
+    dap_client_t *l_client = DAP_NEW_Z(dap_client_t);
     if (!l_client)
         goto MEM_ALLOC_ERR;
 
-    l_client->_internal  = CALLOC(dap_client_internal_t);
+    l_client->_internal  = DAP_NEW_Z(dap_client_internal_t);
     if (!l_client->_internal)
         goto MEM_ALLOC_ERR;
 
@@ -60,6 +66,7 @@ MEM_ALLOC_ERR:
 
     if (l_client)
         free (l_client);
+
 }
 
 /**
@@ -77,8 +84,7 @@ void dap_client_delete(dap_client_t * a_client)
  * @param a_client
  * @param a_stage_end
  */
-void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end,
-                         dap_client_callback_t a_stage_end_callback)
+void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_target, dap_client_callback_t a_stage_end_callback)
 {
     // ----- check parameters -----
     if(NULL == a_client) {
@@ -117,15 +123,18 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end
 }
 
 /**
- * @brief dap_client_session_request
+ * @brief dap_client_request_enc
  * @param a_client
  * @param a_path
+ * @param a_suburl
+ * @param a_query
  * @param a_request
  * @param a_request_size
  * @param a_response_proc
+ * @param a_response_error
  */
-void dap_client_session_request(dap_client_t * a_client, const char * a_path, void * a_request, size_t a_request_size,
-                                dap_client_callback_t a_response_proc)
+void dap_client_request_enc(dap_client_t * a_client, const char * a_path, const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
+                                dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error )
 {
     dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
     dap_client_internal_request_enc(l_client_internal, a_path, a_suburl, a_query,a_request,a_request_size, a_response_proc,a_response_error);
@@ -182,10 +191,23 @@ const char * dap_client_error_str(dap_client_error_t a_client_error)
         case DAP_CLIENT_ERROR_NETWORK_CONNECTION_TIMEOUT: return "NETWORK_CONNECTION_TIMEOUT";
         case DAP_CLIENT_ERROR_NETWORK_CONNECTION_REFUSE: return "NETWORK_CONNECTION_REFUSE";
         case DAP_CLIENT_ERROR_NETWORK_DISCONNECTED: return "NETWORK_DISCONNECTED";
+        case DAP_CLIENT_ERROR_STREAM_RESPONSE_WRONG: return "STREAM_RESPONSE_WRONG";
+        case DAP_CLIENT_ERROR_STREAM_RESPONSE_TIMEOUT: return "STREAM_RESPONSE_TIMEOUT";
+        case DAP_CLIENT_ERROR_STREAM_FREEZED: return "STREAM_FREEZED";
+        case DAP_CLIENT_ERROR_LICENSE: return "LICENSE_ERROR";
         default : return "UNDEFINED";
     }
 }
 
+/**
+ * @brief dap_client_get_error_str
+ * @param a_client
+ * @return
+ */
+const char * dap_client_get_error_str(dap_client_t * a_client)
+{
+   return dap_client_error_str( DAP_CLIENT_INTERNAL(a_client)->last_error );
+}
 /**
  * @brief dap_client_get_stage
  * @param a_client
@@ -201,9 +223,18 @@ dap_client_stage_t dap_client_get_stage(dap_client_t * a_client)
  * @param a_client
  * @return
  */
-const char * dap_client_get_stage_status_str(dap_client_t *a_client)
+const char * dap_client_get_stage_status_str(dap_client_t *a_client){
+    return dap_client_stage_status_str(DAP_CLIENT_INTERNAL(a_client)->stage_status);
+}
+
+/**
+ * @brief dap_client_stage_status_str
+ * @param a_stage_status
+ * @return
+ */
+const char * dap_client_stage_status_str(dap_client_stage_status_t a_stage_status)
 {
-    switch(DAP_CLIENT_INTERNAL(a_client)->stage_status){
+    switch(a_stage_status){
         case DAP_CLIENT_STAGE_STATUS_NONE: return "NONE";
         case DAP_CLIENT_STAGE_STATUS_IN_PROGRESS: return "IN_PROGRESS";
         case DAP_CLIENT_STAGE_STATUS_ERROR: return "ERROR";
@@ -217,12 +248,26 @@ const char * dap_client_get_stage_status_str(dap_client_t *a_client)
  * @param a_client
  * @return
  */
-const char * dap_client_get_stage_str(dap_client_t * a_client)
+const char * dap_client_get_stage_str(dap_client_t *a_client)
 {
-    switch(DAP_CLIENT_INTERNAL(a_client)->stage){
+    return dap_client_stage_str(DAP_CLIENT_INTERNAL(a_client)->stage);
+}
+
+/**
+ * @brief dap_client_stage_str
+ * @param a_stage
+ * @return
+ */
+const char * dap_client_stage_str(dap_client_stage_t a_stage)
+{
+    switch(a_stage){
         case DAP_CLIENT_STAGE_BEGIN: return "BEGIN";
         case DAP_CLIENT_STAGE_ENC: return "ENC";
         case DAP_CLIENT_STAGE_AUTH: return "AUTH";
+        case DAP_CLIENT_STAGE_STREAM_CTL: return "STREAM_CTL";
+        case DAP_CLIENT_STAGE_STREAM: return "STREAM";
+        case DAP_CLIENT_STAGE_NETCONF: return "NETCONF";
+        case DAP_CLIENT_STAGE_TUNNEL: return "TUNNEL";
         default: return "UNDEFINED";
     }
 }
@@ -235,3 +280,4 @@ dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client)
 {
     return DAP_CLIENT_INTERNAL(a_client)->stage_status;
 }
+

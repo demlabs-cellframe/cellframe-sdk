@@ -1,4 +1,4 @@
-#ifdef SAP_OS_ANDROID
+#ifdef DAP_OS_ANDROID
 #include <android/log.h>
 #endif
 
@@ -76,26 +76,26 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
     static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
     pthread_mutex_lock(&mutex);
-#ifdef SAP_OS_ANDROID
+#ifdef DAP_OS_ANDROID
     char buf[4096];
     vsnprintf(buf,sizeof(buf),format,ap);
     switch (ll) {
         case L_INFO:
-            __android_log_write(ANDROID_LOG_INFO,SAP_BRAND,buf);
+            __android_log_write(ANDROID_LOG_INFO,DAP_BRAND,buf);
         break;
         case L_WARNING:
-            __android_log_write(ANDROID_LOG_WARN,SAP_BRAND,buf);
+            __android_log_write(ANDROID_LOG_WARN,DAP_BRAND,buf);
         break;
         case L_ERROR:
-            __android_log_write(ANDROID_LOG_ERROR,SAP_BRAND,buf);
+            __android_log_write(ANDROID_LOG_ERROR,DAP_BRAND,buf);
         break;
         case L_CRITICAL:
-            __android_log_write(ANDROID_LOG_FATAL,SAP_BRAND,buf);
+            __android_log_write(ANDROID_LOG_FATAL,DAP_BRAND,buf);
             abort();
         break;
         case L_DEBUG:
         default:
-            __android_log_write(ANDROID_LOG_DEBUG,SAP_BRAND,buf);
+            __android_log_write(ANDROID_LOG_DEBUG,DAP_BRAND,buf);
     }
 #endif
     time_t t=time(NULL);
@@ -301,4 +301,22 @@ char * exec_with_ret_multistring(const char * a_cmd)
     if(retbuf[buf_len-1] =='\n')retbuf[buf_len-1] ='\0';
 FIN:
     return strdup(retbuf);
+}
+
+/**
+ * @brief random_string_create
+ * @param a_length
+ * @return
+ */
+char * random_string_create(size_t a_length)
+{
+    const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    char * ret = (char*) malloc(a_length+1);
+    size_t i;
+    for(i=0; i<a_length; ++i) {
+        int index = rand() % (sizeof(l_possible_chars)-1);
+        ret[i] = l_possible_chars[index];
+    }
+    return ret;
 }

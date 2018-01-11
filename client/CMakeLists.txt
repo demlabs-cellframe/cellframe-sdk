@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_client)
   
-set(CLIENT_SRCS dap_client.c dap_client_internal.c dap_client_remote.c dap_common.c)
+set(CLIENT_SRCS dap_client.c dap_client_internal.c dap_client_remote.c)
  
 add_library(${PROJECT_NAME} STATIC ${CLIENT_SRCS})
 

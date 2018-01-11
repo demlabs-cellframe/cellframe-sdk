@@ -4,24 +4,17 @@
 #include <string.h>
 #include <assert.h>
 
-#include "enc_key.h"
-#include "enc.h"
-#include "common.h"
+#include "dap_enc_key.h"
+#include "dap_enc.h"
+#include "dap_common.h"
 
-#include "dap_http_client.h"
+#include "dap_http_client_simple.h"
 #include "dap_client_internal.h"
 
 #define LOG_TAG "dap_client_internal"
 
-const char s_key_domain_str[]="FZVSsPaYr2TB51Ly4QrMZ8x9c8WY2Vq7"
-                             "NVcHl173CFFBCG9GrnXDYFWh1UDqJp2l"
-                             "hDjwwoM7Qbsgz57heI57VjB1SxHQztIN"
-                             "MIn0454AE0oO55HLwMPnT9l1iSJhK9wo"
-                             "9ZyhGO0tSqz4qphVD0CBGr1z98qzKtk6"
-                             "iZ0eo3CacI2IycvXNjxX9B70weHR0jCP"
-                             "zkVqG5ObAxUsufUyHKD3NL8vSYQy6UlF"
-                             "1Wpjhzl67zPwuez0xIkl0ORoA8S9miE";
-enc_key_t * s_key_domain = NULL;
+const char s_key_domain_str[]="FZVSsPaYr2TB51L";
+dap_enc_key_t * s_key_domain = NULL;
 static void s_stage_status_after(dap_client_internal_t * a_client_internal);
 
 void m_enc_init_response(dap_client_t *, void *, size_t);
@@ -36,7 +29,7 @@ void m_request_error(int,void *);
  */
 int dap_client_internal_init()
 {
-    s_key_domain = enc_key_create(s_key_domain_str,ENC_KEY_TYPE_AES);
+    s_key_domain = dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES, s_key_domain_str);
     return 0;
 }
 
@@ -45,7 +38,7 @@ int dap_client_internal_init()
  */
 void dap_client_internal_deinit()
 {
-    enc_key_delete(s_key_domain);
+    dap_enc_key_delete(s_key_domain);
     s_key_domain = NULL;
 }
 
@@ -94,12 +87,12 @@ static void s_stage_status_after(dap_client_internal_t * a_client_internal)
                         break;
                     }
 
-                    char *l_key_str= enc_random_string_create(255);
+                    char *l_key_str= random_string_create(255);
                     char *l_key_session_data = (char*) calloc(1,256*2);
-                    enc_code(s_key_domain,l_key_str,strlen(l_key_str),l_key_session_data,ENC_DATA_TYPE_B64);
+                    dap_enc_code(s_key_domain,l_key_str,strlen(l_key_str),l_key_session_data,DAP_ENC_DATA_TYPE_B64);
 
 
-                    a_client_internal->session_key = enc_key_create(l_key_session_data,ENC_KEY_TYPE_AES);
+                    a_client_internal->session_key = dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES,l_key_session_data);
 
                     log_it(L_DEBUG,"Request size %u",strlen(l_key_str));
                     dap_client_internal_request( a_client_internal, DAP_UPLINK_PATH_ENC_INIT "/hsd9jslagd92abgjalp9h",
@@ -218,14 +211,15 @@ void dap_client_internal_request_enc(dap_client_internal_t * a_client_internal, 
     a_client_internal->is_encrypted = true;
 
     if ( l_sub_url_size )
-        enc_code(a_client_internal->session_key,a_sub_url,l_sub_url_size,l_sub_url_enc,ENC_DATA_TYPE_B64);
+        dap_enc_code(a_client_internal->session_key,a_sub_url,l_sub_url_size,l_sub_url_enc,DAP_ENC_DATA_TYPE_B64);
 
     if ( l_query_size )
-        enc_code(a_client_internal->session_key,a_query,l_query_size,l_query_enc,ENC_DATA_TYPE_B64);
+        dap_enc_code(a_client_internal->session_key,a_query,l_query_size,l_query_enc,DAP_ENC_DATA_TYPE_B64);
 
 
     if ( a_request_size )
-        l_request_enc_size = enc_code(a_client_internal->session_key, a_request, a_request_size, l_request_enc, ENC_DATA_TYPE_RAW );
+        l_request_enc_size = dap_enc_code(a_client_internal->session_key, a_request, a_request_size
+                                          , l_request_enc, DAP_ENC_DATA_TYPE_RAW );
 
     if (a_path){
         if( l_sub_url_size ){
@@ -283,8 +277,8 @@ void m_request_response(void * a_response,size_t a_response_size,void * a_obj)
         char * l_response_dec = a_response_size? (char*) calloc(1,l_response_dec_size_max ) : NULL;
         size_t l_response_dec_size = 0;
         if ( a_response_size )
-            l_response_dec_size = enc_decode(a_client_internal->session_key,
-                                             a_response, a_response_size, l_response_dec, ENC_DATA_TYPE_RAW );
+            l_response_dec_size = dap_enc_decode(a_client_internal->session_key,
+                                             a_response, a_response_size, l_response_dec, DAP_ENC_DATA_TYPE_RAW );
 
         a_client_internal->request_response_callback(a_client_internal->client, l_response_dec, l_response_dec_size );
 
