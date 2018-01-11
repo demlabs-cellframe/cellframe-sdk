@@ -18,7 +18,12 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_common.h"
+#include "dap_chain_block_roots.h"
+
 #include "dap_chain_block.h"
+
+#define LOG_TAG "dap_chain_block"
 
 /**
  * @brief dap_chain_block_init

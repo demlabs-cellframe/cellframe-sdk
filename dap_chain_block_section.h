@@ -7,6 +7,10 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_math_ops.h"
+#include "dap_chain_common.h"
+
+/// First section that must be in any block, with hash tree roots
+#define DAP_CHAIN_BLOCK_SECTION_ROOTS 0xffff
 
 /// End section, means all the rest of the block is empty
 #define DAP_CHAIN_BLOCK_SECTION_END 0x0000
@@ -14,11 +18,11 @@
 /// Transaction section
 #define DAP_CHAIN_BLOCK_SECTION_TX 0x0100
 
-/// Smart contract: code section
-#define DAP_CHAIN_BLOCK_SECTION_TX 0x0200
+/// Smart contract: EVM code section
+#define DAP_CHAIN_BLOCK_SECTION_EVM_CODE 0x0200
 
-/// Smart contract: data section
-#define DAP_CHAIN_BLOCK_SECTION_TX 0x0201
+/// Smart contract: EVM data section
+#define DAP_CHAIN_BLOCK_SECTION_EVM_DATA 0x0201
 
 /// Public key
 #define DAP_CHAIN_BLOCK_SECTION_PKEY 0x0300

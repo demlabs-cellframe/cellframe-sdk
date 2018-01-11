@@ -24,16 +24,27 @@
 #include <stddef.h>
 #include "dap_common.h"
 #include "dap_math_ops.h"
+#include "dap_chain_common.h"
 #include "dap_chain_block_section.h"
+
+#define DAP_CHAIN_BLOCK_SIGNATURE 0xDA05BF8E
+
 
 /**
  * @brief The dap_chain_block struct
  */
 typedef struct  dap_chain_block{
     struct {
-        dap_uint128_t id; /// @param Block ID uniqie identificator of the block
-        size_t size;
+        uint32_t signature; /// Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
+        int32_t version; /// block version
+        dap_chain_hash_t prev_block_hash;
+        uint64_t timestamp; /// Timestamp
+        uint64_t bits; /// difficulty
+        uint64_t nonce; /// Nonce value to allow header variation for mining
+        dap_uint128_t id; /// @param id Block ID uniqie identificator of the block
+        size_t section_size; /// @param secion_size Size of section[] array
     } header;
+    dap_chain_hash_t tree_root_;
     dap_chain_block_section_t section[];
 } DAP_ALIGN_PACKED dap_chain_block_t;
 
