@@ -64,7 +64,7 @@ stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
 {
     stream_ch_proc_t * proc=stream_ch_proc_find(id);
     if(proc){
-        stream_ch_t * ret= CALLOC(stream_ch_t);
+        stream_ch_t * ret= DAP_NEW_Z(stream_ch_t);
         ret->stream=stream;
         ret->proc=proc;
         ret->ready_to_read=true;
