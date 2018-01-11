@@ -36,7 +36,7 @@
 #include <dirent.h>
 #include <netdb.h>
 
-#include "common.h"
+#include "dap_common.h"
 #include "dap_client.h"
 #include "dap_server.h"
 
@@ -45,7 +45,7 @@
 #include "dap_http_client.h"
 
 
-#define LOG_TAG "http"
+#define LOG_TAG "dap_http"
 
 
 /**
@@ -55,14 +55,14 @@
 int dap_http_init()
 {
     if(dap_http_header_init()!=0){ // Init submodule for headers manipulations
-        log_it(CRITICAL,"Can't init HTTP headers processing submodule");
+        log_it(L_CRITICAL,"Can't init HTTP headers processing submodule");
         return -1;
     }
     if(dap_http_client_init()!=0){ // Init submodule for HTTP client event processing
-        log_it(CRITICAL,"Can't init HTTP client submodule");
+        log_it(L_CRITICAL,"Can't init HTTP client submodule");
         return -2;
     }
-    log_it(NOTICE,"Initialized HTTP server module");
+    log_it(L_NOTICE,"Initialized HTTP server module");
     return 0;
 }
 
@@ -84,7 +84,7 @@ void dap_http_deinit()
  */
 int dap_http_new(dap_server_t *sh, const char * server_name)
 {
-    sh->internal= calloc(1,sizeof(dap_http_t));
+    sh->_inheritor= calloc(1,sizeof(dap_http_t));
 
     dap_http_t *shttp = DAP_HTTP(sh);
 
@@ -114,8 +114,8 @@ void dap_http_delete(dap_server_t *sh,void * arg)
 
     HASH_ITER(hh, shttp->url_proc , up, tmp) {
         HASH_DEL(shttp->url_proc, up);
-        if(up->internal)
-            free(up->internal);
+        if(up->_inheritor)
+            free(up->_inheritor);
         free(up);
     }
 
@@ -150,9 +150,9 @@ void dap_http_add_proc(dap_http_t * sh, const char * url_path, void * internal
     up->headers_read_callback=headers_read_callback;
     up->headers_write_callback=headers_write_callback;
     up->error_callback=error_callback;
-    up->internal=internal;
+    up->_inheritor=internal;
     HASH_ADD_STR(sh->url_proc,url,up);
-    log_it(DEBUG,"Added URL processor for '%s' path",up->url);
+    log_it(L_DEBUG,"Added URL processor for '%s' path",up->url);
 }
 
 

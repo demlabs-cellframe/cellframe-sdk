@@ -47,11 +47,11 @@
 #include <errno.h>
 #include <signal.h>
 
-#include "common.h"
+#include "dap_common.h"
 #include "dap_server.h"
 #include <ev.h>
 
-#define LOG_TAG "server"
+#define LOG_TAG "dap_server"
 
 static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int revents);
 
@@ -73,7 +73,7 @@ int dap_server_init()
     signal(SIGPIPE, SIG_IGN);
     async_watcher.data = malloc(sizeof(ev_async_data_t));
 
-    log_it(NOTICE,"Initialized socket server module");
+    log_it(L_NOTICE,"Initialized socket server module");
 
     return 0;
 }
@@ -83,7 +83,6 @@ int dap_server_init()
  */
 void dap_server_deinit()
 {
-    dap_client_deinit();
 }
 
 
@@ -102,7 +101,7 @@ dap_server_t * dap_server_new()
  */
 void dap_server_delete(dap_server_t * sh)
 {
-    dap_client_t * dap_cur, * tmp;
+    dap_client_remote_t * dap_cur, * tmp;
     if(sh->address)
         free(sh->address);
 
@@ -111,7 +110,7 @@ void dap_server_delete(dap_server_t * sh)
 
     if(sh->server_delete_callback)
         sh->server_delete_callback(sh,NULL);
-    free(sh->internal);
+    free(sh->_inheritor);
     free(sh);
 }
 
@@ -143,7 +142,7 @@ static void async_cb (EV_P_ ev_async *w, int revents)
 static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int revents)
 {
     dap_server_t* sh = watcher->data;
-    dap_client_t* dap_cur = dap_client_find(watcher->fd, sh);
+    dap_client_remote_t* dap_cur = dap_client_find(watcher->fd, sh);
 
     if ( revents & EV_READ )
     {
@@ -161,7 +160,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
             }
             else if(bytes_read < 0)
             {
-                log_it(ERROR,"Bytes read Error %s",strerror(errno));
+                log_it(L_ERROR,"Bytes read Error %s",strerror(errno));
                 dap_cur->signal_close = true;
 
             }
@@ -183,13 +182,13 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
         else
         {
             for(size_t total_sent = 0; total_sent < dap_cur->buf_out_size;) {
-                //log_it(DEBUG, "Output: %u from %u bytes are sent ", total_sent, dap_cur->buf_out_size);
+                //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent, dap_cur->buf_out_size);
                 int bytes_sent = send(dap_cur->socket,
                                       dap_cur->buf_out + total_sent,
                                       dap_cur->buf_out_size - total_sent,
                                       MSG_DONTWAIT | MSG_NOSIGNAL );
                 if(bytes_sent < 0) {
-                    log_it(ERROR,"Some error occured in send() function");
+                    log_it(L_ERROR,"Some error occured in send() function");
                     break;
                 }
                 total_sent += bytes_sent;
@@ -200,7 +199,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
 
     if(dap_cur->signal_close)
     {
-        log_it(INFO, "Close Socket %d", watcher->fd);
+        log_it(L_INFO, "Close Socket %d", watcher->fd);
         dap_client_remove(dap_cur, sh);
         ev_io_stop(listener_clients_loop, watcher);
         free(watcher);
@@ -211,9 +210,9 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
 static void accept_cb (struct ev_loop* loop, struct ev_io* watcher, int revents)
 {
     int client_fd = accept(watcher->fd, 0, 0);
-    log_it(INFO, "Client accept socket %", client_fd);
+    log_it(L_INFO, "Client accept socket %", client_fd);
     if( client_fd < 0 )
-        log_it(ERROR, "error accept");
+        log_it(L_ERROR, "error accept");
     set_nonblock_socket(client_fd);
 
     ev_async_data_t *ev_data = async_watcher.data;
@@ -241,25 +240,25 @@ dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_typ
         sh->socket_listener = socket (AF_INET, SOCK_STREAM, 0);
 
     if (-1 == set_nonblock_socket(sh->socket_listener)) {
-        log_it(WARNING,"error server socket nonblock");
+        log_it(L_WARNING,"error server socket nonblock");
         exit(EXIT_FAILURE);
     }
 
     if (sh->socket_listener < 0){
-        log_it (ERROR,"Socket error %s",strerror(errno));
+        log_it (L_ERROR,"Socket error %s",strerror(errno));
         dap_server_delete(sh);
         return NULL;
     }
 
-    log_it(NOTICE,"Socket created...");
+    log_it(L_NOTICE,"Socket created...");
 
     int reuse = 1;
 
     if (setsockopt(sh->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
-        log_it(WARNING, "Can't set up REUSEADDR flag to the socket");
+        log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket");
 #ifdef SO_REUSEPORT
     if (setsockopt(sh->socket_listener, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
-        log_it(WARNING, "Can't set up REUSEPORT flag to the socket");
+        log_it(L_WARNING, "Can't set up REUSEPORT flag to the socket");
 #endif
 
     sh->listener_addr.sin_family = AF_INET;
@@ -267,11 +266,11 @@ dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_typ
     inet_pton(AF_INET,addr, &(sh->listener_addr.sin_addr));
 
     if(bind (sh->socket_listener, (struct sockaddr *) &(sh->listener_addr), sizeof(sh->listener_addr)) < 0) {
-        log_it(ERROR,"Bind error: %s",strerror(errno));
+        log_it(L_ERROR,"Bind error: %s",strerror(errno));
         dap_server_delete(sh);
         return NULL;
     }else {
-        log_it(INFO,"Binded %s:%u",addr,port);
+        log_it(L_INFO,"Binded %s:%u",addr,port);
 
         listen(sh->socket_listener, 100000);
         pthread_mutex_init(&sh->mutex_on_hash, NULL);
@@ -282,7 +281,7 @@ dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_typ
 
 void* thread_loop(void * arg)
 {
-    log_it(NOTICE, "Start loop listener socket thread");
+    log_it(L_NOTICE, "Start loop listener socket thread");
     ev_loop(listener_clients_loop, 0);
     return NULL;
 }

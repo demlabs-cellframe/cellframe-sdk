@@ -26,7 +26,7 @@
 #include <magic.h>
 #include <errno.h>
 
-#include "common.h"
+#include "dap_common.h"
 #include "dap_client.h"
 #include "dap_http.h"
 #include "dap_http_client.h"
@@ -37,7 +37,7 @@ typedef struct dap_http_url_proc_folder{
     char local_path[4096];
     magic_t mime_detector;
 } dap_http_url_proc_folder_t;
-#define URL_PROC_FOLDER(a) ((dap_http_url_proc_folder_t*) (a)->internal )
+#define URL_PROC_FOLDER(a) ((dap_http_url_proc_folder_t*) (a)->_inhertior )
 
 typedef struct dap_http_file{
     FILE * fd;
@@ -46,7 +46,7 @@ typedef struct dap_http_file{
     dap_http_client_t * client;
 } dap_http_file_t;
 
-#define DAP_HTTP_FILE(a) ((dap_http_file_t*) (a)->internal )
+#define DAP_HTTP_FILE(a) ((dap_http_file_t*) (a)->_inheritor )
 
 void dap_http_folder_headers_read(dap_http_client_t * cl_ht, void * arg);
 void dap_http_folder_headers_write(dap_http_client_t * cl_ht, void * arg);
@@ -54,7 +54,7 @@ void dap_http_folder_data_read(dap_http_client_t * cl_ht, void * arg);
 void dap_http_folder_data_write(dap_http_client_t * cl_ht, void * arg);
 
 
-#define LOG_TAG "http_folder"
+#define LOG_TAG "dap_http_folder"
 
 int dap_http_folder_init()
 {
@@ -78,15 +78,15 @@ void dap_http_folder_deinit()
 int dap_http_folder_add(dap_http_t *sh, const char * url_path, const char * local_path)
 {
     if (!local_path) {
-        log_it(ERROR,"Directory Path parameter is empty!");
+        log_it(L_ERROR,"Directory Path parameter is empty!");
         return -11;
     }
     DIR * dirptr = opendir(local_path);
     if (dirptr == NULL) {
-         log_it(ERROR,"Directory Not Found!");
+         log_it(L_ERROR,"Directory Not Found!");
          return -11;
     }else{
-        log_it(NOTICE, "File service for %s => %s ",url_path,local_path);
+        log_it(L_NOTICE, "File service for %s => %s ",url_path,local_path);
         closedir(dirptr);
     }
 
@@ -95,13 +95,13 @@ int dap_http_folder_add(dap_http_t *sh, const char * url_path, const char * loca
 
     up_folder->mime_detector=magic_open(MAGIC_SYMLINK|MAGIC_MIME|MAGIC_PRESERVE_ATIME);
      if(up_folder->mime_detector==NULL){
-         log_it(CRITICAL,"Can't init MIME detection library");
+         log_it(L_CRITICAL,"Can't init MIME detection library");
          free(up_folder);
          return -1;
      }
 
      if( 0!= magic_load(up_folder->mime_detector, NULL)){
-         log_it(CRITICAL, "Can't load MIME magic detection database");
+         log_it(L_CRITICAL, "Can't load MIME magic detection database");
          magic_close(up_folder->mime_detector);
          free(up_folder);
          return -2;
@@ -136,17 +136,17 @@ void dap_http_folder_headers_write(dap_http_client_t * cl_ht, void * arg)
 {
     (void) arg;
     // Get specific data for folder URL processor
-    dap_http_url_proc_folder_t * up_folder=(dap_http_url_proc_folder_t*) cl_ht->proc->internal;
+    dap_http_url_proc_folder_t * up_folder=(dap_http_url_proc_folder_t*) cl_ht->proc->_inheritor;
 
     // Init specific file response data for HTTP client instance
-    cl_ht->internal=(dap_http_file_t *) calloc (1,sizeof(dap_http_file_t));
+    cl_ht->_inheritor=DAP_NEW_Z(dap_http_file_t);
 
     dap_http_file_t* cl_ht_file=DAP_HTTP_FILE(cl_ht);
     cl_ht_file->client=cl_ht;
 
     // Produce local path for file to open
     snprintf(cl_ht_file->local_path,sizeof(cl_ht_file->local_path),"%s/%s", up_folder->local_path, cl_ht->url_path );
-    log_it(DEBUG, "Check %s file", cl_ht_file->local_path);
+    log_it(L_DEBUG, "Check %s file", cl_ht_file->local_path);
 
     struct stat file_stat;
     if(stat(cl_ht_file->local_path,&file_stat)==0){
@@ -154,7 +154,7 @@ void dap_http_folder_headers_write(dap_http_client_t * cl_ht, void * arg)
         cl_ht->out_content_length=file_stat.st_size;
         cl_ht_file->fd=fopen(cl_ht_file->local_path,"r");
         if(cl_ht_file->fd == NULL){
-            log_it(ERROR, "Can't open %s: %s",cl_ht_file->local_path,strerror(errno));
+            log_it(L_ERROR, "Can't open %s: %s",cl_ht_file->local_path,strerror(errno));
             cl_ht->reply_status_code=404;
             strncpy(cl_ht->reply_reason_phrase,"Not Found",sizeof(cl_ht->reply_reason_phrase));
         }else{
@@ -164,13 +164,13 @@ void dap_http_folder_headers_write(dap_http_client_t * cl_ht, void * arg)
             const char * mime_type = magic_file( up_folder->mime_detector,cl_ht_file->local_path);
             if(mime_type){
                 strncpy(cl_ht->out_content_type,mime_type,sizeof(cl_ht->out_content_type));
-                log_it(DEBUG,"MIME type detected: '%s'",mime_type);
+                log_it(L_DEBUG,"MIME type detected: '%s'",mime_type);
             }else
-                log_it(WARNING,"Can't detect MIME type of %s file: %s",cl_ht_file->local_path,magic_error(up_folder->mime_detector));
+                log_it(L_WARNING,"Can't detect MIME type of %s file: %s",cl_ht_file->local_path,magic_error(up_folder->mime_detector));
         }
 
     }else{
-        log_it(WARNING, "Can't get file info: %s",strerror(errno));
+        log_it(L_WARNING, "Can't get file info: %s",strerror(errno));
         cl_ht->reply_status_code=404;
         strncpy(cl_ht->reply_reason_phrase,"Not Found",sizeof(cl_ht->reply_reason_phrase));
     }
@@ -201,7 +201,7 @@ void dap_http_folder_data_write(dap_http_client_t * cl_ht, void * arg)
     cl_ht_file->position+=cl_ht->client->buf_out_size;
 
     if(feof(cl_ht_file->fd)!=0){
-        log_it(INFO, "All the file %s is sent out",cl_ht_file->local_path);
+        log_it(L_INFO, "All the file %s is sent out",cl_ht_file->local_path);
         //strncat(cl_ht->client->buf_out+cl_ht->client->buf_out_size,"\r\n",sizeof(cl_ht->client->buf_out));
         fclose(cl_ht_file->fd);
         dap_client_ready_to_write(cl_ht->client,false);

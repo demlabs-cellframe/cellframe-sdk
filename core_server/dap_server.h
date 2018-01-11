@@ -44,25 +44,25 @@ typedef struct dap_server{
     uint16_t port; // Listen port
     char * address; // Listen address
 
-    dap_client_t * clients; // Hashmap of clients
+    dap_client_remote_t * clients; // Hashmap of clients
 
     int socket_listener; // Socket for listener
     int epoll_fd; // Epoll fd
 
     struct sockaddr_in listener_addr; // Kernel structure for listener's binded address
 
-    void * internal;  // Pointer to the internal data, HTTP for example
+    void * _inheritor;  // Pointer to the internal data, HTTP for example
 
     dap_thread_t proc_thread;
     pthread_mutex_t mutex_on_hash;
 
     dap_server_callback_t server_delete_callback;
 
-    dap_client_callback_t client_new_callback; // Create new client callback
-    dap_client_callback_t client_delete_callback; // Delete client callback
-    dap_client_callback_t client_read_callback; // Read function
-    dap_client_callback_t client_write_callback; // Write function
-    dap_client_callback_t client_error_callback; // Error processing function
+    dap_client_remote_callback_t client_new_callback; // Create new client callback
+    dap_client_remote_callback_t client_delete_callback; // Delete client callback
+    dap_client_remote_callback_t client_read_callback; // Read function
+    dap_client_remote_callback_t client_write_callback; // Write function
+    dap_client_remote_callback_t client_error_callback; // Error processing function
 
 } dap_server_t;
 

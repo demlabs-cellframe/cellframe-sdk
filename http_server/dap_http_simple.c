@@ -23,22 +23,21 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "common.h"
+#include "dap_common.h"
 #include "dap_http.h"
 #include "dap_http_client.h"
 #include "dap_http_simple.h"
-#include "enc_key.h"
-#include "enc_ks.h"
-#include "enc_http.h"
-#include "config.h"
+#include "dap_enc_key.h"
+#include "dap_enc_ks.h"
+#include "dap_enc_http.h"
+#include "dap_config.h"
 #include <ev.h>
 #include <sys/queue.h>
 
-#define LAST_USE_KEY(key) ((rsa_key_t*)key->internal)->last_time_use_key
 #define LOG_TAG "dap_http_simple"
 
 void dap_http_simple_headers_read(dap_http_client_t * cl_ht, void * arg );
-void dap_http_simple_data_write(dap_http_client_t * cl_ht,void * arg);
+void dap_http_simple_data_write(dap_http_client_t * a_http_client,void * a_arg);
 void dap_http_simple_data_read(dap_http_client_t * cl_ht,void * arg);
 void* dap_http_simple_proc(dap_http_simple_t * cl_sh);
 
@@ -57,15 +56,17 @@ typedef struct tailq_entry {
 } tailq_entry_t;
 TAILQ_HEAD(, tailq_entry) tailq_head;
 
-#define DAP_HTTP_SIMPLE_URL_PROC(a) ((dap_http_simple_url_proc_t*) (a)->internal)
+#define DAP_HTTP_SIMPLE_URL_PROC(a) ((dap_http_simple_url_proc_t*) (a)->_inheritor)
 
 static struct ev_loop* http_simple_loop;
 static ev_async async_watcher_http_simple;
 static pthread_mutex_t mutex_on_queue_http_response = PTHREAD_MUTEX_INITIALIZER;
-
+static dap_config_t * s_config = NULL;
 
 int dap_http_simple_module_init()
 {
+    s_config = dap_config_open("http_simple");
+
     pthread_mutex_init(&mutex_on_queue_http_response, NULL);
     http_simple_loop = ev_loop_new(0);
 
@@ -95,7 +96,7 @@ static void async_control_proc (EV_P_ ev_async *w, int revents)
 
 static void* loop_http_simple_proc(void *arg)
 {
-    log_it(NOTICE, "Start loop http simple thread");
+    log_it(L_NOTICE, "Start loop http simple thread");
     ev_loop(http_simple_loop, 0);
     return NULL;
 }
@@ -126,33 +127,31 @@ void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t repl
  */
 void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 {
-    log_it(INFO, "dap http simple proc");
+    log_it(L_INFO, "dap http simple proc");
     bool is_ok=true;
     bool key_is_expiried = false;
 
-    enc_key_t * key = enc_ks_find_http(cl_sh->http);
-    if(key && key->type == ENC_KEY_RSA_SESSION)
-    {
-        if( LAST_USE_KEY(key) != 0 && key->type == ENC_KEY_RSA_SESSION // if == 0 it's first use key
-                && ( time(NULL) - LAST_USE_KEY(key) ) > my_config.TTL_session_key * 60)
-        {
+    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
+    if(key){
+        if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
+                                          > dap_config_get_item_int32(s_config,"session","key_ttl") ) ) {
+
             enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
 
-            if( dg == NULL )
-            {
-                log_it(ERROR, "dg is NULL");
+            if( dg == NULL ) {
+                log_it(L_ERROR, "dg is NULL");
                 return NULL;
             }
 
-            log_it(WARNING, "Key has been expiried");
+            log_it(L_WARNING, "Key has been expiried");
             strcpy(cl_sh->reply_mime,"text/plain");
             enc_http_reply_f(dg,"Key has been expiried");
             enc_http_reply_encode(cl_sh,dg);
             enc_http_delegate_delete(dg);
             key_is_expiried = true;
+        } else{
+            key->last_used_timestamp = time(NULL);
         }
-        else
-            LAST_USE_KEY(key) = time(NULL);
 
     }
 
@@ -160,7 +159,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
         DAP_HTTP_SIMPLE_URL_PROC(cl_sh->http->proc)->proc_callback(cl_sh,&is_ok);
 
     if(is_ok){
-        log_it(DEBUG, "Request was processed well");
+        log_it(L_DEBUG, "Request was processed well");
 
         if(cl_sh->reply_proc_post_callback){
             void * enc_data = calloc(1,cl_sh->reply_size*2);
@@ -176,7 +175,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
         cl_sh->http->reply_status_code=200;
         //cl_sh->http->client->ready_to_write=true;
     }else{
-        log_it(ERROR, "Request was processed with ERROR");
+        log_it(L_ERROR, "Request was processed with ERROR");
         strcpy(cl_sh->http->reply_reason_phrase,"ERROR");
         cl_sh->http->reply_status_code=500;
         //cl_sh->http->client->ready_to_read=false;
@@ -196,7 +195,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
  */
 void dap_http_simple_headers_read(dap_http_client_t * cl_ht, void * arg )
 {
-    cl_ht->internal = DAP_NEW_Z(dap_http_simple_t);
+    cl_ht->_inheritor = DAP_NEW_Z(dap_http_simple_t);
 
     DAP_HTTP_SIMPLE(cl_ht)->http = cl_ht;
     DAP_HTTP_SIMPLE(cl_ht)->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( cl_ht->proc )->reply_size_max;
@@ -207,11 +206,11 @@ void dap_http_simple_headers_read(dap_http_client_t * cl_ht, void * arg )
         if(cl_ht->in_content_length< DAP_HTTP_SIMPLE_REQUEST_MAX)
             DAP_HTTP_SIMPLE(cl_ht)->request = calloc(1,cl_ht->in_content_length+1);
         else
-            log_it(ERROR, "Too big content-length %u in request", cl_ht->in_content_length);
+            log_it(L_ERROR, "Too big content-length %u in request", cl_ht->in_content_length);
     }
     else
     {
-        log_it(DEBUG,"No data section, execution proc callback");
+        log_it(L_DEBUG,"No data section, execution proc callback");
         queue_http_request_put(DAP_HTTP_SIMPLE(cl_ht));
     }
 }
@@ -232,7 +231,7 @@ void dap_http_simple_data_read(dap_http_client_t * cl_ht,void * arg)
     if(shs->request_size >=cl_ht->in_content_length)
     {
        // bool isOK=true;
-        log_it(DEBUG,"Data collected");
+        log_it(L_DEBUG,"Data collected");
         *ret=cl_ht->client->buf_in_size;
         queue_http_request_put(shs);
     }
@@ -241,23 +240,22 @@ void dap_http_simple_data_read(dap_http_client_t * cl_ht,void * arg)
 
 /**
  * @brief dap_http_simple_data_write
- * @param cl_ht
- * @param arg
+ * @param a_http_client
+ * @param a_arg
  */
-void dap_http_simple_data_write(dap_http_client_t * cl_ht,void * arg)
+void dap_http_simple_data_write(dap_http_client_t * a_http_client,void * a_arg)
 {
-    (void) arg;
-    dap_http_simple_t * cl_st = DAP_HTTP_SIMPLE(cl_ht);
+    (void) a_arg;
+    dap_http_simple_t * cl_st = DAP_HTTP_SIMPLE(a_http_client);
 
-    cl_st->reply_sent += dap_client_write(cl_ht->client,
+    cl_st->reply_sent += dap_client_write(a_http_client->client,
                                           cl_st->reply + cl_st->reply_sent,
-                                          cl_ht->out_content_length - cl_st->reply_sent);
+                                          a_http_client->out_content_length - cl_st->reply_sent);
 
-    if(cl_st->reply_sent>=cl_ht->out_content_length)
-    {
-        log_it(INFO, "All the reply (%u) is sent out",cl_ht->out_content_length);
+    if(cl_st->reply_sent>=a_http_client->out_content_length) {
+        log_it(L_INFO, "All the reply (%u) is sent out",a_http_client->out_content_length);
         //cl_ht->client->signal_close=cl_ht->keep_alive;
-        cl_ht->client->signal_close=true;
+        a_http_client->client->signal_close=true;
         //dap_client_ready_to_write(cl_ht->client,false);
     }
 }

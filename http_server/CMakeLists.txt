@@ -5,11 +5,15 @@ set(HTTP_SRCS dap_http.c dap_http_folder.c  dap_http_simple.c dap_http_simple.h 
 
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")
+include_directories("${INCLUDE_DIRECTORIES} ${dap_enc_server_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
+include_directories("${INCLUDE_DIRECTORIES} ${dap_http_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
 
 add_definitions ("${dap_core_DEFINITIONS}")
+add_definitions ("${dap_http_DEFINITIONS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
+add_definitions ("${dap_enc_server_DEFINITIONS}")
 add_definitions ("${dap_client_DEFINITIONS}")
 add_definitions ("${dap_core_server_DEFINITIONS}")
 

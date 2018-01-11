@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_enc_server)
   
-set(DAP_ENC_SERVER_SRCS  enc_http.c  enc_ks.c )
+set(DAP_ENC_SERVER_SRCS  dap_enc_http.c  dap_enc_ks.c )
 
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")

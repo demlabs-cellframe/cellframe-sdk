@@ -49,7 +49,7 @@ typedef struct dap_http_simple{
     dap_http_simple_callback_t reply_proc_post_callback;
 } dap_http_simple_t;
 
-#define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->internal )
+#define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->_inheritor )
 
 
 extern void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t reply_size_max, dap_http_simple_callback_t cb); // Add simple processor

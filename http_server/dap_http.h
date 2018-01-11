@@ -47,7 +47,7 @@ typedef struct dap_http_url_proc{
 
     dap_http_client_callback_t access_callback;
 
-    void * internal; // Internal data specific to the current URL processor
+    void * _inheritor; // Internal data specific to the current URL processor
     UT_hash_handle hh; // makes this structure hashable with UTHASH library
 } dap_http_url_proc_t;
 
@@ -58,7 +58,7 @@ typedef struct dap_http {
     dap_http_url_proc_t * url_proc;
 } dap_http_t;
 
-#define DAP_HTTP(a) ((dap_http_t *) (a)->internal)
+#define DAP_HTTP(a) ((dap_http_t *) (a)->_inheritor)
 
 extern int dap_http_init(); // Init module
 extern void dap_http_deinit(); // Deinit module
