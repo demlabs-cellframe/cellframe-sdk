@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project (libdap-chain)
+project (dap-chain)
   
 set(DAP_CHAIN_SRCS 
 	dap_chain_common.c
@@ -33,13 +33,14 @@ set(DAP_CHAIN_HEADERS
     )
 
 add_subdirectory(monero_crypto)
+
 include_directories("${monero_crypto_INCLUDE_DIRS}")
 add_definitions ("${monero_crypto_DEFINITIONS}")
 
 include_directories("${dap_core_INCLUDE_DIRS}")
-add_definitions ("${dap_core_DEFINITIONS}")
-
 include_directories("${dap_crypto_INCLUDE_DIRS}")
+
+add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
 
 
