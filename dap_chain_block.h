@@ -26,6 +26,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_block_section.h"
+#include "dap_chain_block_roots.h"
 
 #define DAP_CHAIN_BLOCK_SIGNATURE 0xDA05BF8E
 
@@ -35,16 +36,15 @@
  */
 typedef struct  dap_chain_block{
     struct {
-        uint32_t signature; /// Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
-        int32_t version; /// block version
-        dap_chain_hash_t prev_block_hash;
-        uint64_t timestamp; /// Timestamp
-        uint64_t bits; /// difficulty
+        uint32_t signature; /// @param signature @brief Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
+        int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
+        dap_chain_hash_t prev_block; /// @param prev_block Hash of the previous block
+        dap_chain_hash_t root_main;/// @param root_main Main tree's root for all block's hashes
+        uint64_t timestamp; /// @param timestamp @brief Block create time timestamp
+        uint64_t difficulty; /// difficulty level
         uint64_t nonce; /// Nonce value to allow header variation for mining
-        dap_uint128_t id; /// @param id Block ID uniqie identificator of the block
-        size_t section_size; /// @param secion_size Size of section[] array
+        uint32_t section_size; /// @param secion_size Size of section[] array
     } header;
-    dap_chain_hash_t tree_root_;
     dap_chain_block_section_t section[];
 } DAP_ALIGN_PACKED dap_chain_block_t;
 

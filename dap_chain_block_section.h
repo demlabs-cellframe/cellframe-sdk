@@ -40,7 +40,7 @@
 typedef struct dap_chain_block_section{
     struct{
         uint16_t type; // Section type
-        size_t size; // section size
+        uint32_t size; // section size
     } header;
     uint8_t data[]; // data
 } DAP_ALIGN_PACKED dap_chain_block_section_t;

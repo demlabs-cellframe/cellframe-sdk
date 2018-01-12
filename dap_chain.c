@@ -20,3 +20,41 @@
 
 
 #include "dap_chain.h"
+
+/**
+ * @brief dap_chain_open
+ * @param a_file_name
+ * @return
+ */
+dap_chain_t * dap_chain_open(const char * a_file_name)
+{
+
+}
+
+/**
+ * @brief dap_chain_remap
+ * @param a_chain
+ * @param a_offset
+ */
+void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset)
+{
+
+}
+
+/**
+ * @brief dap_chain_save
+ * @param a_chain
+ */
+void dap_chain_save(dap_chain_t * a_chain)
+{
+
+}
+
+/**
+ * @brief dap_chain_close
+ * @param a_chain
+ */
+void dap_chain_close(dap_chain_t * a_chain)
+{
+
+}

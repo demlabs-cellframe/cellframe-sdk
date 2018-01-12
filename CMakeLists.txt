@@ -9,7 +9,13 @@ set(DAP_CHAIN_SRCS
 	dap_chain.c
 	dap_chain_coin.c  
 	dap_chain_srv.c  
-	dap_chain_tx.c)
+        dap_chain_tx.c
+        dap_hash.c
+        dap_hash_fusion.c
+        dap_hash_keccak.c
+        dap_hash_slow.c
+
+        )
 
 set(DAP_CHAIN_HEADERS
 	dap_chain_block.h
@@ -20,13 +26,23 @@ set(DAP_CHAIN_HEADERS
 	dap_chain_coin.h
 	dap_chain_srv.h
 	dap_chain_tx.h
+        dap_hash.h
+        dap_hash_fusion.h
+        dap_hash_keccak.h
+        dap_hash_slow.h
     )
+
+add_subdirectory(monero_crypto)
+include_directories("${monero_crypto_INCLUDE_DIRS}")
+add_definitions ("${monero_crypto_DEFINITIONS}")
 
 include_directories("${dap_core_INCLUDE_DIRS}")
 add_definitions ("${dap_core_DEFINITIONS}")
 
 include_directories("${dap_crypto_INCLUDE_DIRS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
+
+
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 

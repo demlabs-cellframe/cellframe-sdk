@@ -18,13 +18,25 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef _DAP_CHAIN_H_
 #define _DAP_CHAIN_H_
 
+#include "dap_chain_block.h"
+
 typedef struct dap_chain{
+    dap_chain_block_t * mapped_block_first; // Mapped area start
+    dap_chain_block_t * mapped_block_last; // Last block in mapped area
+    uint64_t blocks_count;
+
     void * _internal;
     void * _inhertor;
 } dap_chain_t;
+
+dap_chain_t * dap_chain_open(const char * a_file_name);
+
+void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
+void dap_chain_save(dap_chain_t * a_chain);
+
+void dap_chain_close(dap_chain_t * a_chain);
 
 #endif
