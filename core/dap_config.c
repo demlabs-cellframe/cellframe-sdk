@@ -218,6 +218,24 @@ dap_config_t * dap_config_open(const char * a_name)
  */
 void dap_config_close(dap_config_t * a_config)
 {
+    dap_config_item_t * l_item = DAP_CONFIG_INTERNAL(a_config)->item_root ;
+    while(l_item){
+        dap_config_item_t * l_item_child = l_item->childs;
+        DAP_CONFIG_INTERNAL(a_config)->item_root = l_item->item_next;
+
+        while( l_item_child ){
+            l_item->childs = l_item_child->item_next;
+            if(l_item_child->data_str)
+                DAP_DELETE(l_item_child->data_str);
+            DAP_DELETE(l_item_child);
+            l_item_child = l_item->childs;
+        }
+        if( l_item->data_str )
+            DAP_DELETE(l_item->data_str);
+        DAP_DELETE(l_item);
+
+        l_item = DAP_CONFIG_INTERNAL(a_config)->item_root;
+    }
 
 }
 
@@ -231,6 +249,7 @@ void dap_config_close(dap_config_t * a_config)
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
 
+    return 0;
 }
 
 /**
@@ -242,6 +261,19 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
  */
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
+    dap_config_item_t * l_item_section = DAP_CONFIG_INTERNAL(a_config)->item_root ;
+    while(l_item_section){
+        if (strcmp(l_item_section->name,a_section_path)==0){
+            dap_config_item_t * l_item = l_item_section->childs;
+            while (l_item){
+                if (strcmp(l_item->name,a_item_name)==0){
+                    return l_item->data_str;
+                }
+                l_item = l_item->item_next;
+            }
+        }
+        l_item_section = l_item_section->item_next;
+    }
     return NULL;
 }
 
@@ -254,7 +286,7 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-
+    return false;
 }
 
 /**
@@ -266,6 +298,6 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
  */
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-
+    return 0.0;
 }
 
