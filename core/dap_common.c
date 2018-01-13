@@ -34,15 +34,15 @@ int pthread_mutex_unlock(HANDLE *obj) {
 
 char last_error[LAST_ERROR_MAX]={0};
 enum log_level log_level=L_DEBUG;
-static FILE * s_lf=NULL;
+static FILE * s_log_file=NULL;
 
 int dap_common_init( const char * a_log_file )
 {
     if ( a_log_file ) {
-        s_lf=fopen( a_log_file , "a");
-        if(s_lf==NULL){
+        s_log_file=fopen( a_log_file , "a");
+        if(s_log_file==NULL){
             fprintf(stderr,"Can't open log file %s to append\n", a_log_file);
-            s_lf=stdout;
+            s_log_file=stdout;
             return -1;
         }
     }
@@ -52,7 +52,7 @@ int dap_common_init( const char * a_log_file )
 
 void common_deinit()
 {
-    if(s_lf) fclose(s_lf);
+    if(s_log_file) fclose(s_log_file);
 }
 
 void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
@@ -98,47 +98,50 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
             __android_log_write(ANDROID_LOG_DEBUG,DAP_BRAND,buf);
     }
 #endif
-    time_t t=time(NULL);
-    struct tm* tmp=localtime(&t);
-    static char s_time[1024]={0};
-    strftime(s_time,sizeof(s_time),"%x-%X",tmp);
 
 
     va_copy(ap2,ap);
-    if (s_lf ) fprintf(s_lf,"[%s] ",s_time);
-    printf("[%s] ",s_time);
+    if (s_log_file){
+        time_t t=time(NULL);
+        struct tm* tmp=localtime(&t);
+        static char s_time[1024]={0};
+        strftime(s_time,sizeof(s_time),"%x-%X",tmp);
+
+        if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
+        printf("[%s] ",s_time);
+    }
 	/*if(ll>=ERROR){
 		vsnprintf(last_error,LAST_ERROR_MAX,format,ap);
 	}*/
 
     if(ll==L_DEBUG){
-        if (s_lf ) fprintf(s_lf,"[DBG] ");
+        if (s_log_file ) fprintf(s_log_file,"[DBG] ");
 		printf(	"\x1b[37;2m[DBG] ");
     }else if(ll==L_INFO){
-        if (s_lf ) fprintf(s_lf,"[   ] ");
+        if (s_log_file ) fprintf(s_log_file,"[   ] ");
 		printf("\x1b[32;2m[   ] ");
     }else if(ll==L_NOTICE){
-        if (s_lf ) fprintf(s_lf,"[ * ] ");
+        if (s_log_file ) fprintf(s_log_file,"[ * ] ");
 		printf("\x1b[32m[ * ] ");
     }else if(ll==L_WARNING){
-        if (s_lf ) fprintf(s_lf,"[WRN] ");
+        if (s_log_file ) fprintf(s_log_file,"[WRN] ");
 		printf("\x1b[31;2m[WRN] ");
     }else if(ll==L_ERROR){
-        if (s_lf ) fprintf(s_lf,"[ERR] ");
+        if (s_log_file ) fprintf(s_log_file,"[ERR] ");
         printf("\x1b[31m[ERR] ");
     }else if(ll==L_CRITICAL){
-        if (s_lf ) fprintf(s_lf,"[!!!] ");
+        if (s_log_file ) fprintf(s_log_file,"[!!!] ");
         printf("\x1b[1;5;31m[!!!] ");
     }
-    if (s_lf ) fprintf(s_lf,"[%8s]\t",log_tag);
+    if (s_log_file ) fprintf(s_log_file,"[%8s]\t",log_tag);
     printf("[%8s]\t",log_tag);
 
-    if (s_lf ) vfprintf(s_lf,format,ap);
+    if (s_log_file ) vfprintf(s_log_file,format,ap);
 	vprintf(format,ap2);
-    if (s_lf ) fprintf(s_lf,"\n");
+    if (s_log_file ) fprintf(s_log_file,"\n");
 	printf("\x1b[0m\n");
 	va_end(ap2);
-    if (s_lf ) fflush(s_lf);
+    if (s_log_file ) fflush(s_log_file);
 	fflush(stdout);
     pthread_mutex_unlock(&mutex);
 }
