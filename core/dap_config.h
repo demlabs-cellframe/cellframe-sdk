@@ -3,23 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/**
- * @brief The dap_config_item struct
- */
-typedef struct dap_config_item{
-    struct {
-        char * name;
-        struct dap_config_item * childs;
-        struct dap_config_item * next;
-    } header;
-    union{
-        char *data_str;
-        uint8_t data_uint8;
-        bool data_bool;
-        double data_double;
-        int32_t data_int32;
-    };
-} dap_config_item_t;
 
 typedef struct dap_config{
     void * _internal;

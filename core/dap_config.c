@@ -1,14 +1,33 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include "uthash.h"
 #include "dap_common.h"
 #include "dap_config.h"
 
 #define LOG_TAG "dap_config"
 
+/**
+ * @brief The dap_config_item struct
+ */
+typedef struct dap_config_item{
+    char name[64];
+    struct dap_config_item * childs;
+    struct dap_config_item * item_next;
+    union{
+        char *data_str;
+        uint8_t data_uint8;
+        bool data_bool;
+        double data_double;
+        int32_t data_int32;
+    };
+    UT_hash_handle hh;;
+} dap_config_item_t;
+
+
 typedef struct dap_config_internal
 {
-    dap_config_item_t * root;
+    dap_config_item_t * item_root;
 } dap_config_internal_t;
 #define DAP_CONFIG_INTERNAL(a) ( (dap_config_internal_t* ) a->_internal )
 
@@ -104,15 +123,16 @@ dap_config_t * dap_config_open(const char * a_name)
                                         l_section_name[l_section_name_length]='\0';
                                         log_it(L_DEBUG,"Config section '%s'",l_section_name);
 
-                                        dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
-                                        l_item->header.name = l_section_name;
-                                        l_item->header.next = l_config_internal->root;
-                                        l_config_internal->root = l_item;
+                                        dap_config_item_t * l_item_section = DAP_NEW_Z(dap_config_item_t);
+                                        strncpy(l_item_section->name,l_section_name,sizeof(l_item_section->name)-1);
+                                        l_item_section->item_next = l_config_internal->item_root;
+                                        l_config_internal->item_root = l_item_section;
+                                        free(l_section_name);
 
-                                        l_section_current = l_item;
+                                        l_section_current = l_item_section;
                                     }else{ // key-value line
                                         //log_it(L_DEBUG,"Read line '%s'",l_line);
-                                        char l_param_name[256];
+                                        char l_param_name[sizeof(l_section_current->name)];
                                         size_t l_param_name_size=0;
                                         size_t l_param_value_size=0;
                                         char l_param_value[1024];
@@ -156,6 +176,18 @@ dap_config_t * dap_config_open(const char * a_name)
                                             }
                                         }
                                         log_it(L_DEBUG,"  Param '%s' = '%s'", l_param_name, l_param_value);
+                                        if (l_section_current){
+                                            dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
+
+                                            strncpy(l_item->name,l_param_name,sizeof(l_item->name));
+                                            l_item->item_next = l_section_current->childs;
+                                            l_item->data_str = strdup (l_param_value);
+
+                                            l_section_current->childs = l_item;
+                                        }else{
+                                            log_it(L_ERROR,"Can't add param to a tree without current section");
+                                        }
+
                                     }
                                     DAP_DELETE(l_line);
                                 }
