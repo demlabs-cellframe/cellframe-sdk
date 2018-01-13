@@ -21,6 +21,27 @@
 
 #include "dap_chain.h"
 
+#define LOG_TAG "dap_chain"
+
+/**
+ * @brief dap_chain_init
+ * @return
+ */
+int dap_chain_init()
+{
+    log_it(L_INFO,"DapChain module init");
+}
+
+/**
+ * @brief dap_chain_deinit
+ */
+void dap_chain_deinit()
+{
+    log_it(L_INFO,"DapChain module deinit");
+
+}
+
+
 /**
  * @brief dap_chain_open
  * @param a_file_name
@@ -55,6 +76,15 @@ void dap_chain_save(dap_chain_t * a_chain)
  * @param a_chain
  */
 void dap_chain_close(dap_chain_t * a_chain)
+{
+
+}
+
+/**
+ * @brief dap_chain_info_dump_log
+ * @param a_chain
+ */
+void dap_chain_info_dump_log(dap_chain_t * a_chain)
 {
 
 }

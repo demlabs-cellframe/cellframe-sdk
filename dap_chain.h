@@ -32,10 +32,14 @@ typedef struct dap_chain{
     void * _inhertor;
 } dap_chain_t;
 
-dap_chain_t * dap_chain_open(const char * a_file_name);
+int dap_chain_init();
+void dap_chain_deinit();
 
+dap_chain_t * dap_chain_open(const char * a_file_name);
 void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
 void dap_chain_save(dap_chain_t * a_chain);
+
+void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 void dap_chain_close(dap_chain_t * a_chain);
 
