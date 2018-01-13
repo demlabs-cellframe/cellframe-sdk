@@ -11,6 +11,7 @@
 #define DAP_NEW_Z(a) ( (a*) calloc(1,sizeof(a)))
 #define DAP_NEW_Z_SIZE(a,b) ( (a*) calloc(1,b))
 
+#define DAP_DELETE(a)   free(a)
 #define DAP_DUP(a) (__typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 
 

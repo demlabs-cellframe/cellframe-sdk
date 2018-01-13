@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_core)
   
-set(CORE_SRCS dap_common.c dap_config.c dap_math_ops.h)
- 
-add_library(${PROJECT_NAME} STATIC ${CORE_SRCS})
+include_directories(common/)
+
+set(CORE_SRCS dap_common.c dap_config.c common/memwipe.c)
+set(CORE_HEADERS dap_common.h dap_config.h dap_math_ops.h common/memwipe.h common/int-util.h)
+
+add_library(${PROJECT_NAME} STATIC ${CORE_SRCS} ${CORE_HEADERS})
 
 target_link_libraries(${PROJECT_NAME}  ev)
 

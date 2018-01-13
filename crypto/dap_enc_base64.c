@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#include "enc_base64.h"
+#include "dap_enc_base64.h"
 
 #define B64_TRUE	1
 #define B64_FALSE	0

@@ -3,7 +3,7 @@ project (dap_crypto)
   
 set(CRYPTO_SRCS
         dap_enc.c
-
+        dap_enc_base64.c
         dap_enc_aes.c
         dap_enc_newhope.c
 
@@ -12,7 +12,7 @@ set(CRYPTO_SRCS
 
 set(CRYPTO_HEADERS
     dap_enc.h
-
+    dap_enc_base64.h
     dap_enc_aes.h
     dap_enc_newhope.h
 

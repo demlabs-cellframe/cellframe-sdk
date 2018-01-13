@@ -2,7 +2,8 @@
 #define _DAP_MATH_OPS_H_
 
 #include <stdint.h>
-#include "monero_crypto/common/int-util.h"
+#include "common/int-util.h"
+
 #if defined(__GNUC__) ||defined (__clang__)
 
 #if __SIZEOF_INT128__ == 16
