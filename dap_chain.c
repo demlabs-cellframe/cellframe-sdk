@@ -35,7 +35,7 @@
  */
 int dap_chain_init()
 {
-    log_it(L_INFO,"DapChain module init");
+
 }
 
 /**
@@ -43,7 +43,6 @@ int dap_chain_init()
  */
 void dap_chain_deinit()
 {
-    log_it(L_INFO,"DapChain module deinit");
 
 }
 
@@ -57,6 +56,9 @@ void dap_chain_deinit()
 dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache)
 {
     dap_chain_t * l_chain = DAP_NEW_Z(dap_chain_t);
+
+    l_chain->difficulty = 4;
+
     DAP_CHAIN_INTERNAL_LOCAL_NEW(l_chain);
 
     l_chain_internal->file_storage_type = 0x0000; // TODO compressed format
@@ -100,4 +102,23 @@ void dap_chain_close(dap_chain_t * a_chain)
 void dap_chain_info_dump_log(dap_chain_t * a_chain)
 {
 
+}
+
+dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain)
+{
+    dap_chain_block_t* l_block = NULL;
+    dap_chain_block_cache_t* l_block_cache = NULL;
+    if ( a_chain->block_last )
+        l_block = dap_chain_block_new( &a_chain->block_last->block_hash );
+    else
+        l_block = dap_chain_block_new( NULL );
+
+    if( l_block ){
+        l_block->header.difficulty = a_chain->difficulty;
+        l_block_cache = dap_chain_block_cache_new(l_block);
+        return l_block_cache;
+    }else{
+        log_it(L_ERROR, "Can't allocate next block!");
+        return NULL;
+    }
 }

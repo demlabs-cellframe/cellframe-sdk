@@ -21,19 +21,16 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-/**
-  * @struct dap_chain_block_section
-  * @brief section inside the block
-  */
 #pragma once
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 
-
 /// End section, means all the rest of the block is empty
 #define DAP_CHAIN_SECTION_END                 0x0000
+/// Section with additional roots, for example transaction roots
+#define DAP_CHAIN_SECTION_ROOTS 0x0001
 
 /// Transaction header section
 #define DAP_CHAIN_SECTION_TX                  0x0100
@@ -55,18 +52,18 @@
 /// Pub key section, with sign and address
 #define DAP_CHAIN_SECTION_PKEY                0x0c00
 
-/// Section with additional roots, for example transaction roots
-#define DAP_CHAIN_SECTION_ROOTS 0xf000
 
 /// Coin
-#define DAP_CHAIN_SECTION_COIN                0xffff
+#define DAP_CHAIN_SECTION_COIN                0xf000
 
+/**
+  * @struct dap_chain_block_section
+  * @brief section inside the block
+  */
 
-
-
-typedef struct dap_chain_block_section{
+typedef struct dap_chain_section{
     uint16_t type; // Section type
     uint8_t data[]; // data
-} DAP_ALIGN_PACKED dap_chain_block_section_t;
+} DAP_ALIGN_PACKED dap_chain_section_t;
 
 

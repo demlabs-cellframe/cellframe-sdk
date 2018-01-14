@@ -56,27 +56,31 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
 /**
  * @brief dap_chain_wallet_get_pkey
  * @param a_wallet
+ * @param a_pkey_idx
  * @param a_pkey
  * @param a_pkey_size_max
  * @return 0 if everything is ok, negative value if error
  */
-int dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet, void * a_pkey, size_t a_pkey_size_max)
+int dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx, void * a_pkey, size_t a_pkey_size_max)
 {
+    DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
     return 0;
 }
 
 /**
  * @brief dap_chain_wallet_sign
  * @param a_wallet
+ * @param a_pkey_idx
  * @param a_data
  * @param a_data_size
  * @param a_sign
  * @param a_sign_size_max
  * @return 0 if everything is ok, negative value if error
  */
-int dap_chain_wallet_sign( dap_chain_wallet_t * a_wallet, const void * a_data, size_t a_data_size,
+int dap_chain_wallet_sign( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx, const void * a_data, size_t a_data_size,
                            void * a_sign, size_t a_sign_size_max)
 {
+    DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
 
     return 0;
 }

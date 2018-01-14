@@ -24,6 +24,7 @@
 
 #pragma once
 #include <stdint.h>
+#include <stdio.h>
 
 #include "dap_common.h"
 #include "dap_math_ops.h"
@@ -33,7 +34,12 @@
 
 typedef union dap_chain_hash{
     uint8_t data[DAP_CHAIN_HASH_SIZE];
-} dap_chain_hash_t;
+} DAP_ALIGN_PACKED dap_chain_hash_t;
+
+typedef enum dap_chain_hash_kind {
+    HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1
+} dap_chain_hash_kind_t;
+
 
 typedef union dap_chain_sig_type{
     enum {
@@ -50,3 +56,38 @@ typedef struct dap_chain_addr{
     uint64_t checksum;
 } dap_chain_addr_t;
 
+/**
+ * @brief dap_chain_hash_to_str
+ * @param a_hash
+ * @return
+ */
+static inline char * dap_chain_hash_to_str(dap_chain_hash_t * a_hash)
+{
+    const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
+    char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
+    size_t i;
+    snprintf(ret,2,"0x");
+    for (i = 0; i< sizeof(a_hash->data); ++i)
+        snprintf(ret+i+2,2,"%02x",a_hash->data[i]);
+    return ret;
+}
+
+/**
+ * @brief dap_chain_hash_kind_check
+ * @param a_hash
+ * @details
+ */
+static inline dap_chain_hash_kind_t dap_chain_hash_kind_check(dap_chain_hash_t * a_hash, const uint8_t a_valuable_head  )
+{
+    register uint8_t i;
+    register uint8_t l_hash_first = a_hash->data[0];
+    register uint8_t * l_hash_data = a_hash->data;
+    for ( i = 1; i < a_valuable_head; ++i ){
+        if ( l_hash_data[i] != l_hash_first  )
+            return HASH_USELESS;
+    }
+    if( l_hash_first == 0 )
+        return HASH_GOLD;
+    else
+        return HASH_SILVER;
+}

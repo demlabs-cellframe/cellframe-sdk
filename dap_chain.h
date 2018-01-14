@@ -24,11 +24,13 @@
 
 #pragma once
 #include "dap_chain_block.h"
+#include "dap_chain_block_cache.h"
 
 typedef struct dap_chain{
-    dap_chain_block_t * mapped_block_first; // Mapped area start
-    dap_chain_block_t * mapped_block_last; // Last block in mapped area
+    dap_chain_block_cache_t * block_first; // Mapped area start
+    dap_chain_block_cache_t * block_last; // Last block in mapped area
     uint64_t blocks_count;
+    uint64_t difficulty;
 
     void * _internal;
     void * _inhertor;
@@ -40,7 +42,9 @@ void dap_chain_deinit();
 dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
 void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
 void dap_chain_save(dap_chain_t * a_chain);
-
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
+
+dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain);
+
 
 void dap_chain_close(dap_chain_t * a_chain);

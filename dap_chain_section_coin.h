@@ -21,11 +21,4 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "dap_common.h"
-#include "dap_chain_section.h"
-#include "dap_chain_section_tx.h"
-#include "dap_chain_section_roots.h"
-#include "dap_chain_section_coin.h"
-
-#define LOG_TAG "dap_chain_secion"
+#pragma once

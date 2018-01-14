@@ -22,10 +22,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_common.h"
-#include "dap_chain_section.h"
-#include "dap_chain_section_tx.h"
-#include "dap_chain_section_roots.h"
-#include "dap_chain_section_coin.h"
+#pragma once
 
-#define LOG_TAG "dap_chain_secion"
+#include "dap_chain_block_cache.h"
+
+
+int dap_chain_mine_block(dap_chain_block_cache_t * a_block_cache, bool a_mine_gold_only);
