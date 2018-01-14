@@ -1,8 +1,6 @@
-#ifndef _DAP_MATH_OPS_H_
-#define _DAP_MATH_OPS_H_
-
+#pragma once
 #include <stdint.h>
-#include "common/int-util.h"
+//#include "common/int-util.h"
 
 #if defined(__GNUC__) ||defined (__clang__)
 
@@ -21,4 +19,3 @@ typedef union dap_uint128{
 #endif
 } dap_uint128_t;
 
-#endif

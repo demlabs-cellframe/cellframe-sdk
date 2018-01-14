@@ -7,7 +7,7 @@ add_library(${PROJECT_NAME} STATIC ${CLIENT_SRCS})
 
 include_directories("${dap_core_INCLUDE_DIRS}")
 include_directories("${dap_crypto_INCLUDE_DIRS}")
-include_directories("${dap_http_INCLUDE_DIRS}")
+#include_directories("${dap_http_INCLUDE_DIRS}")
 add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
 add_definitions ("${dap_http_DEFINITIONS}")

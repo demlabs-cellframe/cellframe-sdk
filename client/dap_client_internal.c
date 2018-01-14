@@ -8,7 +8,7 @@
 #include "dap_enc.h"
 #include "dap_common.h"
 
-#include "dap_http_client_simple.h"
+#include "../http/dap_http_client_simple.h"
 #include "dap_client_internal.h"
 
 #define LOG_TAG "dap_client_internal"
