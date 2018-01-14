@@ -1,6 +1,4 @@
-#ifndef COMMON_H
-#define COMMON_H
-
+#pragma once
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -58,6 +56,4 @@ char * random_string_create(size_t a_length);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif
