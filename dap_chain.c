@@ -19,6 +19,7 @@
 */
 
 
+#include "dap_chain_internal.h"
 #include "dap_chain.h"
 
 #define LOG_TAG "dap_chain"
@@ -47,9 +48,15 @@ void dap_chain_deinit()
  * @param a_file_name
  * @return
  */
-dap_chain_t * dap_chain_open(const char * a_file_name)
+dap_chain_t * dap_chain_open(const char * a_file_cache,const char * a_file_storage )
 {
+    dap_chain_t * l_chain = DAP_NEW_Z(dap_chain_t);
+    DAP_CHAIN_INTERNAL_LOCAL_NEW(l_chain);
 
+    l_chain_internal->file_storage_type = 0x0000; // TODO compressed format
+    l_chain_internal->file_storage  blockhain_file = fopen(a_file_name,"a+");
+
+    return l_chain;
 }
 
 /**

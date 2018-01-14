@@ -17,26 +17,27 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
-#include "dap_chain_block.h"
 
-typedef struct dap_chain{
-    dap_chain_block_t * mapped_block_first; // Mapped area start
-    dap_chain_block_t * mapped_block_last; // Last block in mapped area
-    uint64_t blocks_count;
+#include "dap_common.h"
+#include "dap_chain_common.h"
 
-    void * _internal;
-    void * _inhertor;
-} dap_chain_t;
+/**
+  * @struct dap_chain_section_roots_v1
+  * @brief Hash tree roots for block, version 1
+  */
+typedef struct dap_chain_section_roots_v1{
+    dap_chain_hash_t main;
+} DAP_ALIGN_PACKED dap_chain_block_roots_v1_t;
 
-int dap_chain_init();
-void dap_chain_deinit();
+/**
+  * @struct dap_chain_section_roots_v2
+  * @brief Hash tree roots for block, version 2
+  */
+typedef struct dap_chain_section_roots_v2{
+    dap_chain_hash_t main;
+    dap_chain_hash_t txs;
+} DAP_ALIGN_PACKED dap_chain_section_roots_v2_t;
 
-dap_chain_t * dap_chain_open(const char * a_file_name);
-void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
-void dap_chain_save(dap_chain_t * a_chain);
+typedef dap_chain_section_roots_v2_t dap_chain_section_roots_t;
 
-void dap_chain_info_dump_log(dap_chain_t * a_chain);
-
-void dap_chain_close(dap_chain_t * a_chain);

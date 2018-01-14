@@ -17,13 +17,24 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _DAP_CHAIN_TX_H_
-#define _DAP_CHAIN_TX_H_
-
+#pragma once
 #include "dap_chain_common.h"
+#include "dap_chain_section.h"
 
-int dap_chain_tx_init();
-void dap_chain_tx_deinit();
+typedef enum dap_chain_tx_item_type{
+    TX_ITEM_TYPE_IN = 0x00,
+    TX_ITEM_TYPE_OUT = 0x10,
+} dap_chain_tx_item_type_t;
 
-#endif
+/**
+  * @struct dap_chain_section_tx
+  * @brief Transaction section, consists from lot of tx_items
+  */
+typedef struct dap_chain_section_tx{
+    struct {
+        uint64_t lock_time;
+        uint32_t tx_items_size; // size of next sequencly lying tx_item sections would be decided to belong this transaction
+    } DAP_ALIGN_PACKED header;
+    uint8_t tx_items[];
+} DAP_ALIGN_PACKED dap_chain_section_tx_t;
 

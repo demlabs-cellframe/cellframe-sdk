@@ -19,24 +19,6 @@
 */
 
 #include "dap_common.h"
-#include "dap_chain_tx.h"
+#include "dap_chain_section_roots.h"
 
-#define LOG_TAG "dap_chain_tx"
-/**
- * @brief dap_chain_tx_init
- * @return
- */
-int dap_chain_tx_init()
-{
-    log_it(L_INFO,"DapChain Transactions module init");
-    return 0;
-}
-
-/**
- * @brief dap_chain_tx_deinit
- */
-void dap_chain_tx_deinit()
-{
-    log_it(L_INFO,"DapChain Transactions module deinit");
-}
-
+#define LOG_TAG "dap_chain_section_roots"
