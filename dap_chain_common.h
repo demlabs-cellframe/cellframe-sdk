@@ -29,6 +29,7 @@
 #include "dap_math_ops.h"
 
 #define DAP_CHAIN_HASH_SIZE 64
+#define DAP_CHAIN_ADDR_HASH_SIZE 32
 
 typedef union dap_chain_hash{
     uint8_t data[DAP_CHAIN_HASH_SIZE];
@@ -43,4 +44,10 @@ typedef union dap_chain_sig_type{
     } type: 16;
     uint16_t raw;
 } dap_chain_sig_type_t;
+
+typedef struct dap_chain_addr{
+    dap_chain_sig_type_t sig_type;
+    uint8_t hash[DAP_CHAIN_ADDR_HASH_SIZE];
+    uint64_t checksum;
+} dap_chain_addr_t;
 
