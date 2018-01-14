@@ -19,7 +19,6 @@
 */
 
 #include "dap_common.h"
-#include "dap_chain_section_roots.h"
 
 #include "dap_chain_block.h"
 

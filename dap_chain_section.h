@@ -1,6 +1,10 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Open source community https://github.com/demlabsinc
+ * Copyright  (c) 2017-2018
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
@@ -17,8 +21,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 /**
   * @struct dap_chain_block_section
   * @brief section inside the block
@@ -48,7 +50,7 @@
 #define DAP_CHAIN_SECTION_EVM_CODE            0x0910
 
 /// Smart contract: EVM data section
-#define DAP_CHAIN_SECTION_EVM_CODE            0x0911
+#define DAP_CHAIN_SECTION_EVM_DATA            0x0911
 
 /// Pub key section, with sign and address
 #define DAP_CHAIN_SECTION_PKEY                0x0c00
@@ -67,4 +69,4 @@ typedef struct dap_chain_block_section{
     uint8_t data[]; // data
 } DAP_ALIGN_PACKED dap_chain_block_section_t;
 
-inline uint32_t
+

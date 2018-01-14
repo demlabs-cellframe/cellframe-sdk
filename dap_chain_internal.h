@@ -1,6 +1,10 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Open source community https://github.com/demlabsinc
+ * Copyright  (c) 2017-2018
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
@@ -36,6 +40,8 @@ typedef struct dap_chain_file_header
 /**
   * @struct dap_chain_internal
   * @brief Internal blochain data, mostly aggregated
+  *
+  */
 typedef struct dap_chain_internal
 {
     FILE * file_cache_idx_blocks; /// @param file_cache @brief Index for blocks
@@ -45,8 +51,8 @@ typedef struct dap_chain_internal
     uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
 } dap_chain_internal_t;
 
-#define DAP_CHAIN_INTERNAL(a) ((dap_chain_internal_t *) a->_inheritor  )
+#define DAP_CHAIN_INTERNAL(a) ((dap_chain_internal_t *) a->_internal  )
 
 #define DAP_CHAIN_INTERNAL_LOCAL(a) dap_chain_internal_t * l_chain_internal = DAP_CHAIN_INTERNAL(a)
 
-#define DAP_CHAIN_INTERNAL_LOCAL_NEW(a) dap_chain_internal_t * l_chain_internal = DAP_NEW_Z(dap_chain_internal_t); a->_inheritor = l_chain_internal
+#define DAP_CHAIN_INTERNAL_LOCAL_NEW(a) dap_chain_internal_t * l_chain_internal = DAP_NEW_Z(dap_chain_internal_t); a->_internal = l_chain_internal

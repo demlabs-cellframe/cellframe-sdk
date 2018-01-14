@@ -1,6 +1,10 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Open source community https://github.com/demlabsinc
+ * Copyright  (c) 2017-2018
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
@@ -17,7 +21,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
 #include "dap_chain_block.h"
 
@@ -33,7 +36,7 @@ typedef struct dap_chain{
 int dap_chain_init();
 void dap_chain_deinit();
 
-dap_chain_t * dap_chain_open(const char * a_file_name);
+dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
 void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
 void dap_chain_save(dap_chain_t * a_chain);
 

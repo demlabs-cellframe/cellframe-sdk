@@ -45,16 +45,17 @@ void dap_chain_deinit()
 
 /**
  * @brief dap_chain_open
- * @param a_file_name
+ * @param a_file_storage
+ * @param a_file_cache
  * @return
  */
-dap_chain_t * dap_chain_open(const char * a_file_cache,const char * a_file_storage )
+dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache)
 {
     dap_chain_t * l_chain = DAP_NEW_Z(dap_chain_t);
     DAP_CHAIN_INTERNAL_LOCAL_NEW(l_chain);
 
     l_chain_internal->file_storage_type = 0x0000; // TODO compressed format
-    l_chain_internal->file_storage  blockhain_file = fopen(a_file_name,"a+");
+    l_chain_internal->file_storage = fopen(a_file_storage,"a+");
 
     return l_chain;
 }
