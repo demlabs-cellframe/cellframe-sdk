@@ -21,3 +21,18 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#pragma once
+#include "dap_chain_common.h"
+typedef struct dap_chain_wallet{
+    void * _internal;
+    void * _inheritor;
+} dap_chain_wallet_t;
+
+dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sig_type_t a_sig_type); // Creates new one if not found
+void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet);
+
+int dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet, void * a_pkey, size_t a_pkey_size_max);
+
+int dap_chain_wallet_sign( dap_chain_wallet_t * a_wallet, const void * a_data, size_t a_data_size, void * a_sign, size_t a_sign_size_max);
+

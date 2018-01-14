@@ -35,7 +35,6 @@ typedef union dap_chain_hash{
     uint8_t data[DAP_CHAIN_HASH_SIZE];
 } dap_chain_hash_t;
 
-
 typedef union dap_chain_sig_type{
     enum {
         SIG_TYPE_NEWHOPE = 0x0000,

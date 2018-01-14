@@ -1,6 +1,10 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Open source community https://github.com/demlabsinc
+ * Copyright  (c) 2017-2018
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
@@ -17,6 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 
 #include "dap_common.h"
 #include "dap_chain_section_roots.h"
