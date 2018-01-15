@@ -205,7 +205,7 @@ dap_config_t * dap_config_open(const char * a_name)
         }else{
             log_it(L_ERROR,"Can't open config file '%s' (%s)",l_config_path,strerror(errno));
         }
-
+        DAP_DELETE(l_config_path);
     }else{
         log_it(L_ERROR,"Config name is NULL");
     }
