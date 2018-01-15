@@ -246,6 +246,7 @@ int dap_chain_mine_block(dap_chain_block_cache_t * a_block_cache, bool a_mine_go
         dap_chain_mine_task_t *l_task = &l_tasks->task[i];
         l_task->tasks = l_tasks;
         l_task->id = i;
+        l_task->gold_only = a_mine_gold_only;
         l_task->hash_count = ATOMIC_VAR_INIT(0);
         // Each thread has its own copy of the block for mining
         l_task->block = DAP_NEW_Z_SIZE(dap_chain_block_t,a_block_cache->block->header.size);
