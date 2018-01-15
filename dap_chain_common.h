@@ -29,7 +29,7 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 
-#define DAP_CHAIN_HASH_SIZE 64
+#define DAP_CHAIN_HASH_SIZE 32
 #define DAP_CHAIN_ADDR_HASH_SIZE 32
 
 typedef union dap_chain_hash{
@@ -56,19 +56,18 @@ typedef struct dap_chain_addr{
     uint64_t checksum;
 } dap_chain_addr_t;
 
+size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max);
+
 /**
  * @brief dap_chain_hash_to_str
  * @param a_hash
  * @return
  */
-static inline char * dap_chain_hash_to_str(dap_chain_hash_t * a_hash)
+static inline char * dap_chain_hash_to_str_new(dap_chain_hash_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
-    size_t i;
-    snprintf(ret,2,"0x");
-    for (i = 0; i< sizeof(a_hash->data); ++i)
-        snprintf(ret+i+2,2,"%02x",a_hash->data[i]);
+    dap_chain_hash_to_str(a_hash,ret,c_hash_str_size);
     return ret;
 }
 

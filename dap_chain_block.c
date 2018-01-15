@@ -44,6 +44,7 @@ dap_chain_block_t * dap_chain_block_new(dap_chain_hash_t * a_prev_block )
     }else{
         l_block->header.signature = DAP_CHAIN_BLOCK_SIGNATURE;
         l_block->header.version = 1;
+        l_block->header.timestamp = time(NULL);
         if( a_prev_block ){
             memcpy(&l_block->header.prev_block,a_prev_block,sizeof(l_block->header.prev_block));
         }else{

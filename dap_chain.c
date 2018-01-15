@@ -57,7 +57,7 @@ dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cac
 {
     dap_chain_t * l_chain = DAP_NEW_Z(dap_chain_t);
 
-    l_chain->difficulty = 4;
+    l_chain->difficulty = 2;
 
     DAP_CHAIN_INTERNAL_LOCAL_NEW(l_chain);
 

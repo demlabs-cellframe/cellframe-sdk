@@ -67,3 +67,4 @@ static inline void dap_chain_block_hash_calc(dap_chain_block_t * a_block, dap_ch
     dap_hash(a_block,a_block->header.size,a_hash->data,
              sizeof(a_hash->data),DAP_HASH_TYPE_SLOW_0);
 }
+

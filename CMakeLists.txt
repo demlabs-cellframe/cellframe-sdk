@@ -26,6 +26,7 @@ set(DAP_CHAIN_HEADERS
         dap_chain_ops.h
         dap_chain.h
         dap_chain_mine.h
+        dap_chain_mine_task.h
         dap_chain_block.h
         dap_chain_block_cache.h
         dap_chain_internal.h

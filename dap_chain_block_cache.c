@@ -36,9 +36,9 @@ void dap_chain_block_cache_dump(dap_chain_block_cache_t * a_block_cache)
     if ( a_block_cache ) {
         dap_chain_block_t * l_block = a_block_cache->block;
         if( l_block ){
-            char * l_hash_str = dap_chain_hash_to_str(&a_block_cache->block_hash);
-            char * l_prev_hash_str = dap_chain_hash_to_str(&l_block->header.prev_block);
-            char * l_root_sections_str = dap_chain_hash_to_str(&l_block->header.root_sections);
+            char * l_hash_str = dap_chain_hash_to_str_new(&a_block_cache->block_hash);
+            char * l_prev_hash_str = dap_chain_hash_to_str_new(&l_block->header.prev_block);
+            char * l_root_sections_str = dap_chain_hash_to_str_new(&l_block->header.root_sections);
             log_it(L_INFO, "  **  block_hash        %s",l_hash_str);
             log_it(L_INFO, "  **    version         %d",l_block->header.version);
             log_it(L_INFO, "  **    timestamp       %s",  ctime(  (time_t*) &l_block->header.timestamp) );

@@ -22,19 +22,41 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include <stdint.h>
+#include <stddef.h>
+#include <stdatomic.h>
+#include "dap_chain_common.h"
 #include "dap_chain_block.h"
-#include "dap_hash.h"
+#include "dap_chain_block_cache.h"
 
-typedef struct dap_chain_block_cache{
-    dap_chain_hash_t block_hash;
-    uint32_t sections_size;
-
-    double block_mine_time;
+typedef struct dap_chain_mine_task
+{
+    uint32_t id;
+    pthread_t task_pid;
+    uint64_t nonce_from;
+    uint64_t nonce_to;
+    atomic_uint_fast64_t hash_count;
+    bool gold_only;
     dap_chain_block_t * block;
-} dap_chain_block_cache_t;
+    struct  dap_chain_mine_tasks * tasks;
+} dap_chain_mine_task_t;
 
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block);
-void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);
-dap_chain_block_t* dap_chain_block_cache_sections_size_grow(dap_chain_block_cache_t * a_block_cache,size_t a_sections_size_grow );
+typedef struct  dap_chain_mine_tasks{
+    atomic_bool is_mined;
+    uint32_t tasks_count;
+    atomic_uint_fast64_t mined_nonce;
+    struct  dap_chain_mine_task * task;
+    dap_chain_hash_t mined_hash;
+    double hashrate_prev[10];
+    double hashrate_avg;
+    dap_chain_block_cache_t * block_cache;
+} dap_chain_mine_tasks_t;
 
-void dap_chain_block_cache_dump(dap_chain_block_cache_t * a_block_cache);
+struct dap_chain_mine_task_result
+{
+    bool success;
+    uint64_t nonce;
+    double mined_time;
+    double hashrate_middle;
+    dap_chain_hash_t mined_hash;
+};
