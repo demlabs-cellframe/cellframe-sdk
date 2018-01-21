@@ -38,6 +38,8 @@ set(DAP_CHAIN_HEADERS
 	dap_chain_section_tx.h
         dap_chain_section_tx_in.h
         dap_chain_section_tx_out.h
+        dap_chain_section_tx_pkey.h
+        dap_chain_section_tx_sig.h
         dap_hash.h
         dap_hash_fusion.h
         dap_hash_keccak.h

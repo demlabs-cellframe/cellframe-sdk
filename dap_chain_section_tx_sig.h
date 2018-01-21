@@ -22,25 +22,22 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#include "dap_chain_common.h"
-#include "dap_chain_section.h"
 
-typedef enum dap_chain_tx_item_type{
-    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction inputs
-    TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction outputs
-    TX_ITEM_TYPE_PKEY = 0x20,
-    TX_ITEM_TYPE_SIG = 0x30,
-} dap_chain_tx_item_type_t;
+#include <stdint.h>
+#include "dap_common.h"
+#include "dap_chain_common.h"
+#include "dap_chain_section_tx.h"
+
 
 /**
-  * @struct dap_chain_section_tx
-  * @brief Transaction section, consists from lot of tx_items
+  * @struct dap_chain_tx_sig
+  * @brief Section with set of transaction signatures
   */
-typedef struct dap_chain_section_tx{
+typedef struct dap_chain_tx_sig{
     struct {
-        uint64_t lock_time;
-        uint32_t tx_items_size; // size of next sequencly lying tx_item sections would be decided to belong this transaction
-    } DAP_ALIGN_PACKED header;
-    uint8_t tx_items[];
-} DAP_ALIGN_PACKED dap_chain_section_tx_t;
-
+        dap_chain_tx_item_type_t type:8; /// @param    type            @brief Transaction item type
+        dap_chain_sig_type_t sig_type; /// Signature type
+        uint32_t sig_size; /// Signature size
+    } header; /// Only header's hash is used for verification
+    uint8_t sig[]; /// @param sig @brief raw signature data
+} DAP_ALIGN_PACKED dap_chain_tx_sig_t;

@@ -44,6 +44,7 @@ typedef enum dap_chain_hash_kind {
 typedef union dap_chain_sig_type{
     enum {
         SIG_TYPE_NEWHOPE = 0x0000,
+        SIG_TYPE_KEY_IMAGE = 0xf000, /// @brief key image for anonymous transaction
         SIG_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different signatures and sign composed with all of them
 
     } type: 16;
