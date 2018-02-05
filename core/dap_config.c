@@ -252,6 +252,7 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
     return 0;
 }
 
+
 /**
  * @brief dap_config_get_item_str
  * @param a_config
@@ -260,6 +261,19 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
  * @return
  */
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    return dap_config_get_item_str_default(a_config,a_section_path,a_item_name, NULL);
+}
+
+/**
+ * @brief dap_config_get_item_str_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_value_default
+ * @return
+ */
+const char * dap_config_get_item_str_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, const char * a_value_default)
 {
     dap_config_item_t * l_item_section = DAP_CONFIG_INTERNAL(a_config)->item_root ;
     while(l_item_section){
@@ -274,7 +288,7 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
         }
         l_item_section = l_item_section->item_next;
     }
-    return NULL;
+    return a_value_default;
 }
 
 /**
