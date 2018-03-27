@@ -20,11 +20,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "config.h"
 #include "dap_common.h"
 
-#include "db_core.h"
-#include "db_auth.h"
 #include "stream.h"
 #include "stream_pkt.h"
 #include "stream_ch.h"
@@ -62,7 +59,7 @@ int stream_init()
         return -1;
     }
 
-    log_it(NOTICE,"Init streaming module");
+    log_it(L_NOTICE,"Init streaming module");
     return 0;
 }
 
@@ -184,7 +181,7 @@ stream_t * stream_new(dap_http_client_t * sh)
 
     sh->internal=ret;
 
-    log_it(NOTICE,"New stream instance");
+    log_it(L_NOTICE,"New stream instance");
     return ret;
 }
 
@@ -355,5 +352,5 @@ void stream_delete(dap_http_client_t * sh, void * arg)
     for(i=0;i<sid->channel_count; i++)
         stream_ch_delete(sid->channel[i]);
     //free(sid);
-    log_it(NOTICE,"[core] Stream connection is finished");
+    log_it(L_NOTICE,"[core] Stream connection is finished");
 }

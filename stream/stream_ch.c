@@ -44,7 +44,7 @@ int stream_ch_init()
         log_it(L_CRITICAL,"Can't init stream channel packet submodule");
         return -1;
     }
-    log_it(NOTICE,"Module stream channel initialized");
+    log_it(L_NOTICE,"Module stream channel initialized");
     return 0;
 }
 
