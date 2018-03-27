@@ -38,7 +38,7 @@ int dap_enc_ks_init();
 void dap_enc_ks_deinit();
 
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id);
-struct enc_key * dap_enc_ks_find_http(struct dap_http_client * http);
+dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http);
 
 //extern enc_ks_key_t * enc_ks_new();
 dap_enc_ks_key_t * dap_enc_ks_add(struct enc_key * key);

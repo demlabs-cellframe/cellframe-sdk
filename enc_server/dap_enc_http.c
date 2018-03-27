@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <openssl/bio.h>
+#include <openssl/obj_mac.h>
 #include "dap_common.h"
 #include "dap_config.h"
 
@@ -34,6 +36,7 @@
 #include "dap_enc_http.h"
 
 #define LOG_TAG "dap_enc_http"
+#define RSA_KEY_LENGTH 4096
 
 
 RSA* public_key_server = NULL;
@@ -83,7 +86,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
     {
         rsa_key_t* key_session_pair = enc_key_session_pair_create(cl_st->request,cl_st->request_size);
 
-        enc_key_t* key_session = enc_key_generate(ENC_KEY_RSA_SESSION, key_session_pair);
+        dap_enc_key_t* key_session = enc_key_generate(ENC_KEY_RSA_SESSION, key_session_pair);
 
         dap_enc_ks_key_t * key_ks = dap_enc_ks_add(key_session);
 
@@ -155,7 +158,7 @@ void enc_http_add_proc(struct dap_http * sh, const char * url)
 
 enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 {
-    enc_key_t * key= dap_enc_ks_find_http(cl_st->http);
+    dap_enc_key_t * key= dap_enc_ks_find_http(cl_st->http);
     if(key){
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
         dg->key=key;
@@ -168,7 +171,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 
         if(cl_st->request_size){
             dg->request=calloc(1,cl_st->request_size+1);
-            dg->request_size=enc_decode(key, cl_st->request, cl_st->request_size,dg->request,ENC_DATA_TYPE_RAW);
+            dg->request_size=enc_decode(key, cl_st->request, cl_st->request_size,dg->request,DAP_ENC_DATA_TYPE_RAW);
             log_it(L_DEBUG,"Request after decode '%s'",dg->request_str);
            // log_it(L_DEBUG,"Request before decode: '%s' after decode '%s'",cl_st->request_str,dg->request_str);
         }
@@ -176,7 +179,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
         size_t url_path_size=strlen(cl_st->http->url_path);
         if(url_path_size){
             dg->url_path=calloc(1,url_path_size+1);
-            dg->url_path_size=enc_decode(key, cl_st->http->url_path,url_path_size,dg->url_path,ENC_DATA_TYPE_B64);
+            dg->url_path_size=enc_decode(key, cl_st->http->url_path,url_path_size,dg->url_path,DAP_ENC_DATA_TYPE_B64);
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
         }
@@ -185,7 +188,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 
         if(in_query_size){
             dg->in_query=calloc(1,in_query_size+1);
-            dg->in_query_size=enc_decode(key, cl_st->http->in_query_string,in_query_size,dg->in_query,ENC_DATA_TYPE_B64);
+            dg->in_query_size=enc_decode(key, cl_st->http->in_query_string,in_query_size,dg->in_query,DAP_ENC_DATA_TYPE_B64);
             log_it(L_DEBUG,"Query string after decode '%s'",dg->in_query);
         }
         dg->response = calloc(1,cl_st->reply_size_max+1);
@@ -200,7 +203,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 
 void enc_http_reply_encode(struct dap_http_simple *cl_st,enc_http_delegate_t * dg)
 {
-    enc_key_t * key = dap_enc_ks_find_http(cl_st->http);
+    dap_enc_key_t * key = dap_enc_ks_find_http(cl_st->http);
     if( key == NULL )
     {
         log_it(L_ERROR, "Not find key");
@@ -239,7 +242,7 @@ void enc_http_reply_encode(struct dap_http_simple *cl_st,enc_http_delegate_t * d
                                          dg->response_str + i,
                                          copy_size,
                                          out_enc_buffer + enc_size,
-                                         ENC_DATA_TYPE_RAW);
+                                         DAP_ENC_DATA_TYPE_RAW);
 
                 }
                 cl_st->reply = calloc(1, enc_size);
@@ -254,13 +257,13 @@ void enc_http_reply_encode(struct dap_http_simple *cl_st,enc_http_delegate_t * d
                 if(cl_st->reply)
                     free(cl_st->reply);
 
-                if(key->type == ENC_KEY_RSA_SESSION){
+                if(key->type == ENC_KEY_RSA_SESSION){       //Добавить ключ в dap_enc_key.h ???
                     cl_st->reply=calloc(1, RSA_KEY_LENGTH / 8);
                 }
                 else {
                     cl_st->reply=calloc(1, dg->response_size * 3 + 1);
                 }
-                cl_st->reply_size = enc_code(dg->key,dg->response,dg->response_size,cl_st->reply,ENC_DATA_TYPE_RAW);
+                cl_st->reply_size = enc_code(dg->key,dg->response,dg->response_size,cl_st->reply,DAP_ENC_DATA_TYPE_RAW);
             }
     }
 
