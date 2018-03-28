@@ -38,7 +38,7 @@ struct stream_session {
 	unsigned int id;
 	unsigned int media_id;
 
-	enc_key_t * key;
+	dap_enc_key_t * key;
 
 	bool open_preview;
 	pthread_mutex_t mutex;

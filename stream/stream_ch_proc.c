@@ -32,7 +32,7 @@ stream_ch_proc_t proc[256]={0};
  */
 int stream_ch_proc_init()
 {
-    log_it(NOTICE, "Module stream channel types initialized");
+    log_it(L_NOTICE, "Module stream channel types initialized");
     return 0;
 }
 
