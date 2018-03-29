@@ -52,7 +52,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
  */
 int stream_ctl_init()
 {
-    log_it(NOTICE,"Initialized stream control module");
+    log_it(L_NOTICE,"Initialized stream control module");
     return 0;
 }
 
@@ -114,7 +114,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             for(int i = 0; i < sizeof(key_str); i++)
                 key_str[i] = 65 + rand() % 25;
 
-            ss->key=enc_key_create(key_str,ENC_KEY_TYPE_AES);
+            ss->key=enc_key_create(key_str,DAP_ENC_KEY_TYPE_AES);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
        //     log_it(L_DEBUG,"Stream AES key string %s",key_str);
@@ -127,7 +127,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             for(int i = 0; i < sizeof(key_str); i++)
                 key_str[i] = 65 + rand() % 25;
 
-            ss->key=enc_key_create(key_str,ENC_KEY_TYPE_AES);
+            ss->key=enc_key_create(key_str,DAP_ENC_KEY_TYPE_AES);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
             log_it(L_DEBUG,"Stream AES key string %s",key_str);
