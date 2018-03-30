@@ -102,68 +102,55 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
    // int raw_size;
     unsigned int id=0;
 
-    db_auth_info_t * ai = db_auth_info_by_cookie(cl_ht->in_cookie);
+    log_it(L_DEBUG,"Prepare data stream");
+    if(cl_ht->in_query_string[0]){
+        log_it(L_INFO,"Query string [%s]",cl_ht->in_query_string);
+        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
+            stream_session_t * ss=NULL;
+            ss=stream_session_id(id);
+            if(ss==NULL){
+                log_it(L_ERROR,"No session id %u was found",id);
+                cl_ht->reply_status_code=404;
+                strcpy(cl_ht->reply_reason_phrase,"Not found");
+            }else{
+                log_it(L_INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
+                if(stream_session_open(ss)==0){ // Create new stream
+                    stream_t * sid = stream_new(cl_ht);
+                    sid->session=ss;
+                    if(ss->create_empty){
+                        log_it(L_INFO, "Opened stream session with only technical channels");
 
-    if (ai == NULL)
-        ai = db_search_cookie_in_db(cl_ht->in_cookie);
+                        cl_ht->reply_status_code=200;
+                        strcpy(cl_ht->reply_reason_phrase,"OK");
+                        //cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
+                        //cl_ht->client->ready_to_write=true;
+                        cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+                        cl_ht->out_content_ready=true;
+                        stream_ch_new(sid,'s');
+                        stream_ch_new(sid,'t');
+                        stream_states_update(sid);
+                        dap_client_ready_to_read(cl_ht->client,true);
+                    }else{
+                        stream_ch_new(sid,'s');
+                        stream_ch_new(sid,'g');
 
-    if(ai){
-        log_it(L_DEBUG,"Prepare data stream");
-        if(cl_ht->in_query_string[0]){
-            log_it(L_INFO,"Query string [%s]",cl_ht->in_query_string);
-            if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
-                stream_session_t * ss=NULL;
-                ss=stream_session_id(id);
-                if(ss==NULL){
-                    log_it(L_ERROR,"No session id %u was found",id);
+                        cl_ht->reply_status_code=200;
+                        strcpy(cl_ht->reply_reason_phrase,"OK");
+                        cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+                        dap_client_ready_to_read(cl_ht->client,true);
+
+                        stream_states_update(sid);
+
+                    }
+                }else{
+                    log_it(L_ERROR,"Can't open session id %u",id);
                     cl_ht->reply_status_code=404;
                     strcpy(cl_ht->reply_reason_phrase,"Not found");
-                }else{
-                    log_it(L_INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
-                    if(stream_session_open(ss)==0){ // Create new stream
-                        stream_t * sid = stream_new(cl_ht);
-                        sid->session=ss;
-                        if(ss->create_empty){
-                            log_it(L_INFO, "Opened stream session with only technical channels");
-
-                            cl_ht->reply_status_code=200;
-                            strcpy(cl_ht->reply_reason_phrase,"OK");
-                            //cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
-                            //cl_ht->client->ready_to_write=true;
-                            cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                            cl_ht->out_content_ready=true;
-                            stream_ch_new(sid,'s');
-                            stream_ch_new(sid,'t');
-                            stream_states_update(sid);
-                            dap_client_ready_to_read(cl_ht->client,true);
-                        }else{
-                            stream_ch_new(sid,'s');
-                            stream_ch_new(sid,'g');
-
-                            cl_ht->reply_status_code=200;
-                            strcpy(cl_ht->reply_reason_phrase,"OK");
-                            cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                            dap_client_ready_to_read(cl_ht->client,true);
-
-                            stream_states_update(sid);
-
-                        }
-                    }else{
-                        log_it(L_ERROR,"Can't open session id %u",id);
-                        cl_ht->reply_status_code=404;
-                        strcpy(cl_ht->reply_reason_phrase,"Not found");
-                    }
                 }
             }
-        }else{
-            log_it(L_ERROR,"No query string");
         }
     }else{
-        log_it(L_WARNING,"Not authorized connection");
-        cl_ht->reply_status_code=505;
-        strcpy(cl_ht->reply_reason_phrase,"Not authorized");
-        cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
-        dap_client_ready_to_write(cl_ht->client,true);
+        log_it(L_ERROR,"No query string");
     }
 }
 
@@ -179,7 +166,7 @@ stream_t * stream_new(dap_http_client_t * sh)
     ret->conn_http=sh;
 
 
-    sh->internal=ret;
+    sh->_internal=ret;
 
     log_it(L_NOTICE,"New stream instance");
     return ret;
