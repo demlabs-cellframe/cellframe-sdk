@@ -44,6 +44,17 @@ void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
 void dap_chain_save(dap_chain_t * a_chain);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
+
+
+//работа с файлом
+void dap_chain_file_open(dap_chain_block_cache_t* last_g, dap_chain_block_cache_t* last_s, dap_chain_block_cache_t* last_c);
+void dap_chain_file_write(dap_chain_block_cache_t *l_block_cache);
+void dap_chain_update(dap_chain_block_cache_t *l_block_cache);
+void dap_chain_mine_stop();
+void dap_chain_settot();
+void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache);
+//работа с файлом
+
 dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain);
 
 
