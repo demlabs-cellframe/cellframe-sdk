@@ -9,8 +9,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <oqs/kex.h>
-#include <oqs/rand.h>
+#include "../kex/kex.h"
+#include "../crypto/rand/rand.h"
+//с симлинком беда какая-то, поэтому так пока
+
+/*#include <oqs/kex.h>
+#include <oqs/rand.h>*/
 
 OQS_KEX *OQS_KEX_rlwe_msrln16_new(OQS_RAND *rand);
 
