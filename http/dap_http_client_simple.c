@@ -287,7 +287,7 @@ static void* dap_http_client_thread(void * arg)
                               case CURLE_COULDNT_RESOLVE_HOST: l_err_code = 3 ; log_it(L_ERROR, "Couldn't resolve destination address"); break;
                               case CURLE_OPERATION_TIMEDOUT: l_err_code = 4 ; log_it(L_ERROR, "HTTP request timeout"); break;
                               case CURLE_URL_MALFORMAT: l_err_code = 5 ; log_it(L_ERROR, "Wrong URL format in the outgoing request"); break;
-                              case CURLE_WEIRD_SERVER_REPLY: l_err_code = 6 ; log_it(L_WARNING, "Weird server reply"); break;
+                              //case CURLE_WEIRD_SERVER_REPLY: l_err_code = 6 ; log_it(L_WARNING, "Weird server reply"); break;
                               case CURLE_OK:{
                                 l_is_ok = true;
                                 log_it(L_DEBUG, "Response size %u",l_client_internal->response_size);

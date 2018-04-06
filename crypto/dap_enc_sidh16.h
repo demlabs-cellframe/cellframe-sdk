@@ -1,27 +1,35 @@
 #ifndef _DAP_ENC_SIDH16_H_
 #define _DAP_ENC_SIDH16_H_
 
+#include <stdlib.h>
+#include <stdio.h>
 #include <stddef.h>
-#include "liboqs/kex/kex.h"
-#include "liboqs/crypto/rand/rand.h"
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+
+#include "dap_common.h"
+#include "dap_enc_key.h"
+
+#include "SIDH.h"
 
 struct dap_enc_key;
 
-// OQS_KEX_sidh_cln16_new
-int dap_enc_sidh16_key_new_generate(OQS_RAND *rand, const char *named_parameters);
+typedef struct dap_enc_sidh16_key{
+    OQS_RAND *rand;
+    void * user_curveIsogeny;
+    unsigned int alice_msg_len;
+    unsigned int bob_msg_len;
+    unsigned int key_len;
+} dap_enc_sidh16_key_t;
 
-// OQS_KEX_sidh_cln16_alice_1
-void dap_enc_sidh16_key_new_from_data(OQS_KEX *k, const void *alice_priv, const uint8_t *bob_msg, const size_t bob_msg_len, uint8_t **key, size_t *key_len);
+#define DAP_ENC_SIDH16_KEY(a) ((dap_enc_sidh16_key_t *)((a)->_inheritor))
 
-// OQS_KEX_sidh_cln16_alice_priv_free
-// OQS_KEX_sidh_cln16_free
-void dap_enc_sidh16_key_delete();
+dap_enc_key_t *dap_enc_sidh16_key_new_generate(OQS_RAND *rand, struct dap_enc_key* a_key, size_t a_size);                            // new
+void dap_enc_sidh16_key_new_from_data(struct dap_enc_key* a_key, const void* a_in, size_t a_in_size);     // alice_1
+void dap_enc_sidh16_key_delete(struct dap_enc_key* a_key);                                                // sidh_cln16_alice_priv_free // sidh_cln16_free
 
-// OQS_KEX_sidh_cln16_alice_0
-size_t dap_enc_sidh16_encode(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg, size_t *alice_msg_len);
-
-// OQS_KEX_sidh_cln16_bob
-size_t dap_enc_sidh16_decode(OQS_KEX *k, const uint8_t *alice_msg, const size_t alice_msg_len, uint8_t **bob_msg, size_t *bob_msg_len, uint8_t **key, size_t *key_len);
-
+size_t dap_enc_sidh16_encode(struct dap_enc_key* a_key, const void* a_in, size_t a_in_size, void* a_out); // alice_0
+size_t dap_enc_sidh16_decode(struct dap_enc_key* a_key, const void* a_in, size_t a_in_size, void* a_out); // bob
 
 #endif

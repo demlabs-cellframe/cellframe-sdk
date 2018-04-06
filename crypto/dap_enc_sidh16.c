@@ -7,115 +7,334 @@
 
 #include "dap_common.h"
 #include "dap_enc_sidh16.h"
+#include "kex_sidh_cln16.h"
 #include "dap_enc_key.h"
 
-#include "liboqs/kex/kex.h"
-#include "liboqs/crypto/rand/rand.h"
-#include "liboqs/kex_sidh_cln16/kex_sidh_cln16.h"
+#include "SIDH.h"
 
-OQS_KEX *k = NULL;
-int gen;
+static const char *P751 = "p751";
+static const char *CompressedP751 = "compressedp751";
 
-void *alignce_priv = NULL;
-uint8_t *alice_msg = NULL;
-size_t alice_msg_len;
-uint8_t *alice_key = NULL;
-size_t alice_key_len;
-
-uint8_t *bob_msg = NULL;
-size_t bob_msg_len;
-uint8_t *bob_key = NULL;
-size_t bob_key_len;
-
-
-struct  dap_enc_param{
-    enum OQS_KEX_alg_name alg_name;
-    char *named_parameters;
-    char *id;
-};
-
-typedef struct dap_enc_sidh16_key{
-} dap_enc_sidh16_key_t;
-
-
-#define PRINT_HEX_STRING(label, str, len)                        \
-    {   size_t i;                                                \
-        printf("%-20s (%4zu bytes):  ", (label), (size_t)(len)); \
-        for (i = 0; i < (len); i++) {                            \
-         printf("%02X", ((unsigned char *) (str))[i]);           \
-        }                                                        \
-        printf("\n");                                            \
+static int isCompressed(void *_inheritor) {
+    if (_inheritor != NULL && strcmp(_inheritor, CompressedP751) == 0) {
+        return 1;
     }
-
-int dap_enc_sidh16_key_new_generate(OQS_RAND *rand, const char *named_parameters) {
-
-    k = OQS_KEX_sidh_cln16_new(rand, named_parameters);
-    if(k == NULL) {
-        printf("новая пара не сгенерирована \n");
-        gen = 0;
-    }
-        printf("расчёт для обмена ключами методом  %s\n", k->method_name);
-}
-    /* Alice's initial message */
-size_t dap_enc_sidh16_encode(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg, size_t *alice_msg_len) {
-    gen = OQS_KEX_sidh_cln16_alice_0(k, &alice_priv, &alice_msg, &alice_msg_len);
-    if(gen != 1) {
-        printf("OQS_KEX_sidh_cln16_alice_0 lose..\n");
-        gen = 0;
-    }
-    PRINT_HEX_STRING("Alice message", alice_msg, alice_msg_len);
+    return 0;
 }
 
-    /* Bob's response */
-size_t dap_enc_sidh16_decode(OQS_KEX *k, const uint8_t *alice_msg, const size_t alice_msg_len, uint8_t **bob_msg, size_t *bob_msg_len, uint8_t **bob_key, size_t *bob_key_len) {
-    gen = OQS_KEX_sidh_cln16_bob(k, alice_msg, alice_msg_len, &bob_msg, &bob_msg_len, &bob_key, &bob_key_len);
-    if(gen != 1){
-        printf("OQS_KEX_sidh_cln16_bob lose..\n");
-        gen = 0;
+extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
+
+dap_enc_key_t *dap_enc_sidh16_key_new_generate(OQS_RAND *rand, struct dap_enc_key *a_key, size_t a_size) {
+    dap_enc_key_t *k = malloc(sizeof (dap_enc_key_t));
+    dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
+    if(k == NULL)
+        return NULL;
+    // инициализация системы изогенных кривых
+    PCurveIsogenyStruct curveIsogeny = oqs_sidh_cln16_curve_allocate(&CurveIsogeny_SIDHp751);
+    if(curveIsogeny == NULL || dap_sidh16_CurveIsogenyStruct_isnull(curveIsogeny)) {
+        free(k);   
+        // освобождаем память для изогении
+        oqs_sidh_cln16_curve_free(curveIsogeny);
+        return NULL;
     }
-    PRINT_HEX_STRING("Bob message", bob_msg, bob_msg_len);
-    PRINT_HEX_STRING("Bob session key", bob_key, bob_key_len);
+    // Инициализировать изогенную структуру кривой pCurveIsogeny со статическими данными, извлеченными из pCurveIsogenyData. 
+    // Это нужно вызвать после выделения памяти для pCurveIsogeny с помощью SIDH_curve_allocate()
+    if(oqs_sidh_cln16_curve_initialize(curveIsogeny, &CurveIsogeny_SIDHp751) != SIDH_CRYPTO_SUCCESS) {
+        free(k);
+        oqs_sidh_cln16_curve_free(curveIsogeny);
+        return NULL;
+    }
+    k->data ;
+    k->data_size;
+    k->type = DAP_ENC_KEY_TYPE_SIDH_CLN16;
+    k->last_used_timestamp;
+    k->enc = &dap_enc_sidh16_encode;
+    k->dec = &dap_enc_sidh16_decode;
+    k->delete_callback = &dap_enc_sidh16_key_delete;
+
+    sidh_a_key->rand = rand;
+    sidh_a_key->user_curveIsogeny;
+    return k;
+
 }
 
-    /* Alice processes Bob's response */
-void dap_enc_sidh16_key_new_from_data(OQS_KEX *k, const void *alice_priv, const uint8_t *bob_msg, const size_t bob_msg_len, uint8_t **key, size_t *key_len) {
-    gen = OQS_KEX_sidh_cln16_alice_1(k, alice_priv, bob_msg, bob_msg_len, &alice_key, &alice_key_len);
-    if(gen != 1) {
-        printf("OQS_KEX_sidh_cln16_alice_1 lose..\n");
-        gen = 0;
-    }
-    PRINT_HEX_STRING("Alice session key", alice_key, alice_key_len)
 
-
-    /*compare session key lengths and values*/
-    if(alice_key_len != bob_key_len) {
-        printf("ERROR: Alice's session key and Bob's session key are different lengths (%zu vs %zu)\n", alice_key_len, bob_key_len);
-        gen = 0;
-    }
-    gen = memcmp(alice_key, bob_key, alice_key_len);
-    if(gen != 0){
-        printf("ERROR: Alice's session key and Bob's session key are not equal\n");
-        PRINT_HEX_STRING("Alice session key", alice_key, alice_key_len);
-        PRINT_HEX_STRING("Bob session key", bob_key, bob_key_len);
-
-        // здесь сделать запись ключа в файл
-
-        gen = 0;
-    }
-     printf("Alice and Bob's session keys match.\n");
-     printf("\n\n");
-
-    gen = 1;
+void dap_enc_sidh16_key_new_from_data(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size) {
+    
 }
 
-void dap_enc_sidh16_key_delete() {
-    free(alice_msg);
-    free(alice_key);
-    free(bob_msg);
-    free(bob_key);
-    OQS_KEX_sidh_cln16_alice_priv_free(k, alignce_priv);
-    OQS_KEX_sidh_cln16_free(k);
+void dap_enc_sidh16_key_delete(struct dap_enc_key *a_key) {
+    dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
+    (void) a_key;
+    if(!a_key){
+        return;
+    }
+    oqs_sidh_cln16_curve_free((PCurveIsogenyStruct)sidh_a_key->user_curveIsogeny);
+    sidh_a_key->user_curveIsogeny = NULL;
+    free(a_key);
 }
+
+
+// alice_0
+size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size, void *a_out) {
+    int ret;
+    dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
+    // non-compressed public key
+    uint8_t *key_a_tmp_pub = NULL;
+    if(!a_key || !a_in || !a_in_size || !a_out)
+        return 0;
+
+    int compressed = isCompressed(a_key->_inheritor);
+    if(compressed) {
+        key_a_tmp_pub = malloc(SIDH_PUBKEY_LEN);
+        a_key->data = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
+        if(key_a_tmp_pub == NULL || a_in == NULL) {
+            ret = 0;
+            free(a_key->data);
+            a_in = NULL;
+            a_key->data = NULL;
+        }
+    }
+    else {
+        // non-compressed key
+         a_key->data = malloc(SIDH_PUBKEY_LEN);
+         if(a_key->data == NULL) {
+             ret = 0;
+             free(a_key->data = NULL);
+             a_key->data = NULL;
+             a_in = NULL;
+         }
+         key_a_tmp_pub = a_key->data;
+    }
+    a_in = malloc(SIDH_SECRETKEY_LEN);
+    if(a_in == NULL) {
+        ret = 0;
+        free(a_key->data = NULL);
+        a_key->data = NULL;
+        a_in = NULL;
+    }
+
+    // generate A key pair
+    if(oqs_sidh_cln16_EphemeralKeyGeneration_A((unsigned char *)a_in, (unsigned char *)key_a_tmp_pub, sidh_a_key->user_curveIsogeny, sidh_a_key->rand) != SIDH_CRYPTO_SUCCESS) {
+        ret = 0;
+        free(a_key->data = NULL);
+        a_key->data = NULL;
+        a_in = NULL;
+    }
+    if (compressed) {
+        // compress Alice's public key
+        oqs_sidh_cln16_PublicKeyCompression_A(key_a_tmp_pub, (unsigned char *) a_in, sidh_a_key->user_curveIsogeny);
+        a_in_size = SIDH_COMPRESSED_PUBKEY_LEN;
+    } else {
+        a_in_size = SIDH_PUBKEY_LEN;
+        key_a_tmp_pub = NULL;
+    }
+
+    ret = 1;
+    free(key_a_tmp_pub);
+    return ret;
+}
+
+
+
+// int OQS_KEX_sidh_cln16_bob(OQS_KEX *k, const uint8_t *alice_msg, const size_t alice_msg_len, uint8_t **bob_msg, size_t *bob_msg_len, uint8_t **key, size_t *key_len)
+size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size, void *a_out) {
+    int ret;
+    dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
+    uint8_t *bob_priv = NULL;
+    // non-compressed public key
+    uint8_t *bob_tmp_pub = NULL;
+    // decompession values
+    unsigned char *R = NULL, *A = NULL;
+
+    if(!a_key || !a_in || !a_out){
+        return 0;
+    }
+
+    a_out = NULL;
+    a_key->data = NULL;
+
+    int compressed = isCompressed(a_key->_inheritor);
+
+    if(compressed) {
+        if(sidh_a_key->alice_msg_len != SIDH_COMPRESSED_PUBKEY_LEN) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+        bob_tmp_pub = malloc(SIDH_PUBKEY_LEN);
+        a_out = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
+        if(bob_tmp_pub == NULL || a_out == NULL) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+        A = malloc(SIDH_COMPRESSED_A_LEN);
+        if(A == NULL) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+        R = malloc(SIDH_COMPRESSED_R_LEN);
+        if(R == NULL) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+    }
+    else {
+        if(sidh_a_key->alice_msg_len != SIDH_PUBKEY_LEN) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+        // non-compressed
+        a_out = malloc(SIDH_PUBKEY_LEN);
+        if(a_out == NULL) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+        bob_tmp_pub = a_out;    // point to the pub key
+    }
+
+    bob_priv = malloc(SIDH_SECRETKEY_LEN);
+    if(bob_priv == NULL){
+        ret = 0;
+        free(a_out);
+        a_out = NULL;
+        free(a_key->data);
+        a_key->data = NULL;
+    }
+    a_key->data = malloc(SIDH_SHAREDKEY_LEN);
+    if(a_key->data == NULL) {
+        ret = 0;
+        free(a_out);
+        a_out = NULL;
+        free(a_key->data);
+        a_key->data = NULL;
+    }
+
+    // generate Bob's key pair
+    if(oqs_sidh_cln16_EphemeralKeyGeneration_B((unsigned char *) bob_priv, (unsigned char *) bob_tmp_pub, sidh_a_key->user_curveIsogeny, sidh_a_key->rand) != SIDH_CRYPTO_SUCCESS) {
+        ret = 0;
+        free(a_out);
+        a_out = NULL;
+        free(a_key->data);
+        a_key->data = NULL;
+    }
+    if(compressed) {
+        // compress Bob's public key
+        oqs_sidh_cln16_PublicKeyCompression_B(bob_tmp_pub, (unsigned char *) a_out, sidh_a_key->user_curveIsogeny);
+        sidh_a_key->bob_msg_len = SIDH_COMPRESSED_PUBKEY_LEN;
+        // decompress Alice's public key
+        oqs_sidh_cln16_PublicKeyADecompression_B((unsigned char *) bob_priv, (unsigned char *) a_in, R, A, sidh_a_key->user_curveIsogeny);
+        // compute Bob's shared secret
+        if(oqs_sidh_cln16_EphemeralSecretAgreement_Compression_B((unsigned char *) bob_priv, R, A, (unsigned char *) a_key->data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+    } else {
+       sidh_a_key->bob_msg_len = SIDH_PUBKEY_LEN;
+        bob_tmp_pub = NULL;  // we do not want to double-free it
+        // compute Bob's shared secret
+        if(oqs_sidh_cln16_EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_in, (unsigned char *) a_key->data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
+            ret = 0;
+            free(a_out);
+            a_out = NULL;
+            free(a_key->data);
+            a_key->data = NULL;
+        }
+    }
+    sidh_a_key->key_len = SIDH_SHAREDKEY_LEN;
+    ret = 1;
+    free(bob_tmp_pub);
+    free(bob_priv);
+    free(A);
+    free(R);
+
+    return ret;
+}
+
+
+int OQS_KEX_sidh_cln16_alice_1(OQS_KEX *k, const void *alice_priv, const uint8_t *bob_msg, const size_t bob_msg_len, uint8_t **key, size_t *key_len) {
+
+    int ret;
+    // decompression values
+    unsigned char *R = NULL, *A = NULL;
+
+    if (!k || !alice_priv || !bob_msg || !key || !key_len) {
+        return 0;
+    }
+
+    *key = NULL;
+
+    int compressed = isCompressed(k->named_parameters);
+
+    *key = malloc(SIDH_SHAREDKEY_LEN);
+    if (*key == NULL) {
+        goto err;
+    }
+    *key_len = SIDH_SHAREDKEY_LEN;
+
+    if (compressed) {
+        if (bob_msg_len != SIDH_COMPRESSED_PUBKEY_LEN) {
+            goto err;
+        }
+        A = malloc(SIDH_COMPRESSED_A_LEN);
+        if (A == NULL) {
+            goto err;
+        }
+        R = malloc(SIDH_COMPRESSED_R_LEN);
+        if (R == NULL) {
+            goto err;
+        }
+        // compute Alice's shared secret
+        oqs_sidh_cln16_PublicKeyBDecompression_A((unsigned char *) alice_priv, (unsigned char *) bob_msg, R, A, k->ctx);
+        if (oqs_sidh_cln16_EphemeralSecretAgreement_Compression_A((unsigned char *) alice_priv, R, A, (unsigned char *) *key, k->ctx) != SIDH_CRYPTO_SUCCESS) {
+            goto err;
+        }
+    } else {
+        if (bob_msg_len != SIDH_PUBKEY_LEN) {
+            goto err;
+        }
+        if (oqs_sidh_cln16_EphemeralSecretAgreement_A((unsigned char *) alice_priv, (unsigned char *) bob_msg, (unsigned char *) *key, k->ctx) != SIDH_CRYPTO_SUCCESS) {
+            goto err;
+        }
+    }
+
+    ret = 1;
+    goto cleanup;
+
+err:
+    ret = 0;
+    free(*key);
+    *key = NULL;
+
+cleanup:
+    free(A);
+    free(R);
+
+    return ret;
+}
+
+
+
 
 
 
