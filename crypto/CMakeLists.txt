@@ -6,7 +6,7 @@ set(CRYPTO_SRCS
         dap_enc_base64.c
         dap_enc_aes.c
         dap_enc_newhope.c
-
+        dap_enc_msrln16.c
         dap_enc_key.c
     )
 
@@ -15,7 +15,7 @@ set(CRYPTO_HEADERS
     dap_enc_base64.h
     dap_enc_aes.h
     dap_enc_newhope.h
-
+    dap_enc_msrln16.h
     dap_enc_key.h
 
     )
