@@ -25,7 +25,7 @@
 #include <time.h>
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
                                DAP_ENC_DATA_TYPE_B64,
-                               DAP_ENC_DATA_TYPE_RLWE_MSRLN16//а оно мне надо?
+                               //DAP_ENC_DATA_TYPE_RLWE_MSRLN16//а оно мне надо?
                                } dap_enc_data_type_t;
 
 typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES

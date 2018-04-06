@@ -73,10 +73,10 @@ size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_s
             case DAP_ENC_DATA_TYPE_RAW:{
                 proc_buf=buf_out;
             }break;
-            case DAP_ENC_DATA_TYPE_RLWE_MSRLN16:{
+/*            case DAP_ENC_DATA_TYPE_RLWE_MSRLN16:{
                 //надо посмотреть алгоритм
             }
-            break;
+            break;*/
         }
         size_t ret=key->enc(key,buf,buf_size,proc_buf);
         if(data_type_out==DAP_ENC_DATA_TYPE_B64){
@@ -114,10 +114,10 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
             proc_buf_const=buf;
             proc_buf_size=buf_size;
         }break;
-        case DAP_ENC_DATA_TYPE_RLWE_MSRLN16:{
+/*        case DAP_ENC_DATA_TYPE_RLWE_MSRLN16:{
             //надобно алгоритм смотреть штолЕ?!
         }
-        break;
+        break;*/
     }
 
     if(key->dec){
