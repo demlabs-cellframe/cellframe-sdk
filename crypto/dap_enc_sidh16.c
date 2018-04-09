@@ -24,15 +24,15 @@ static int isCompressed(void *_inheritor) {
 
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
-dap_enc_key_t *dap_enc_sidh16_key_new_generate(OQS_RAND *rand, struct dap_enc_key *a_key, size_t a_size) {
-    dap_enc_key_t *k = malloc(sizeof (dap_enc_key_t));
+dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
+    dap_enc_key_t *k = DAP_NEW(dap_enc_key_t);
     dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
     if(k == NULL)
         return NULL;
     // инициализация системы изогенных кривых
     PCurveIsogenyStruct curveIsogeny = oqs_sidh_cln16_curve_allocate(&CurveIsogeny_SIDHp751);
     if(curveIsogeny == NULL || dap_sidh16_CurveIsogenyStruct_isnull(curveIsogeny)) {
-        free(k);   
+        DAP_DELETE(k);
         // освобождаем память для изогении
         oqs_sidh_cln16_curve_free(curveIsogeny);
         return NULL;
@@ -40,7 +40,7 @@ dap_enc_key_t *dap_enc_sidh16_key_new_generate(OQS_RAND *rand, struct dap_enc_ke
     // Инициализировать изогенную структуру кривой pCurveIsogeny со статическими данными, извлеченными из pCurveIsogenyData. 
     // Это нужно вызвать после выделения памяти для pCurveIsogeny с помощью SIDH_curve_allocate()
     if(oqs_sidh_cln16_curve_initialize(curveIsogeny, &CurveIsogeny_SIDHp751) != SIDH_CRYPTO_SUCCESS) {
-        free(k);
+        DAP_DELETE(k);
         oqs_sidh_cln16_curve_free(curveIsogeny);
         return NULL;
     }
@@ -52,7 +52,7 @@ dap_enc_key_t *dap_enc_sidh16_key_new_generate(OQS_RAND *rand, struct dap_enc_ke
     k->dec = &dap_enc_sidh16_decode;
     k->delete_callback = &dap_enc_sidh16_key_delete;
 
-    sidh_a_key->rand = rand;
+    sidh_a_key->rand;
     sidh_a_key->user_curveIsogeny;
     return k;
 
@@ -71,7 +71,7 @@ void dap_enc_sidh16_key_delete(struct dap_enc_key *a_key) {
     }
     oqs_sidh_cln16_curve_free((PCurveIsogenyStruct)sidh_a_key->user_curveIsogeny);
     sidh_a_key->user_curveIsogeny = NULL;
-    free(a_key);
+    DAP_DELETE(a_key);
 }
 
 
@@ -90,7 +90,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
         a_key->data = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
         if(key_a_tmp_pub == NULL || a_in == NULL) {
             ret = 0;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_in = NULL;
             a_key->data = NULL;
         }
@@ -100,7 +100,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
          a_key->data = malloc(SIDH_PUBKEY_LEN);
          if(a_key->data == NULL) {
              ret = 0;
-             free(a_key->data = NULL);
+             DAP_DELETE(a_key->data = NULL);
              a_key->data = NULL;
              a_in = NULL;
          }
@@ -109,7 +109,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
     a_in = malloc(SIDH_SECRETKEY_LEN);
     if(a_in == NULL) {
         ret = 0;
-        free(a_key->data = NULL);
+        DAP_DELETE(a_key->data = NULL);
         a_key->data = NULL;
         a_in = NULL;
     }
@@ -117,7 +117,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
     // generate A key pair
     if(oqs_sidh_cln16_EphemeralKeyGeneration_A((unsigned char *)a_in, (unsigned char *)key_a_tmp_pub, sidh_a_key->user_curveIsogeny, sidh_a_key->rand) != SIDH_CRYPTO_SUCCESS) {
         ret = 0;
-        free(a_key->data = NULL);
+        DAP_DELETE(a_key->data = NULL);
         a_key->data = NULL;
         a_in = NULL;
     }
@@ -131,7 +131,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
     }
 
     ret = 1;
-    free(key_a_tmp_pub);
+    DAP_DELETE(key_a_tmp_pub);
     return ret;
 }
 
@@ -159,52 +159,52 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
     if(compressed) {
         if(sidh_a_key->alice_msg_len != SIDH_COMPRESSED_PUBKEY_LEN) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
         bob_tmp_pub = malloc(SIDH_PUBKEY_LEN);
         a_out = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
         if(bob_tmp_pub == NULL || a_out == NULL) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
         A = malloc(SIDH_COMPRESSED_A_LEN);
         if(A == NULL) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
         R = malloc(SIDH_COMPRESSED_R_LEN);
         if(R == NULL) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
     }
     else {
         if(sidh_a_key->alice_msg_len != SIDH_PUBKEY_LEN) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
         // non-compressed
         a_out = malloc(SIDH_PUBKEY_LEN);
         if(a_out == NULL) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
         bob_tmp_pub = a_out;    // point to the pub key
@@ -213,26 +213,26 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
     bob_priv = malloc(SIDH_SECRETKEY_LEN);
     if(bob_priv == NULL){
         ret = 0;
-        free(a_out);
+        DAP_DELETE(a_out);
         a_out = NULL;
-        free(a_key->data);
+        DAP_DELETE(a_key->data);
         a_key->data = NULL;
     }
     a_key->data = malloc(SIDH_SHAREDKEY_LEN);
     if(a_key->data == NULL) {
         ret = 0;
-        free(a_out);
+        DAP_DELETE(a_out);
         a_out = NULL;
-        free(a_key->data);
+        DAP_DELETE(a_key->data);
         a_key->data = NULL;
     }
 
     // generate Bob's key pair
     if(oqs_sidh_cln16_EphemeralKeyGeneration_B((unsigned char *) bob_priv, (unsigned char *) bob_tmp_pub, sidh_a_key->user_curveIsogeny, sidh_a_key->rand) != SIDH_CRYPTO_SUCCESS) {
         ret = 0;
-        free(a_out);
+        DAP_DELETE(a_out);
         a_out = NULL;
-        free(a_key->data);
+        DAP_DELETE(a_key->data);
         a_key->data = NULL;
     }
     if(compressed) {
@@ -244,9 +244,9 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
         // compute Bob's shared secret
         if(oqs_sidh_cln16_EphemeralSecretAgreement_Compression_B((unsigned char *) bob_priv, R, A, (unsigned char *) a_key->data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
     } else {
@@ -255,18 +255,18 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
         // compute Bob's shared secret
         if(oqs_sidh_cln16_EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_in, (unsigned char *) a_key->data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
             ret = 0;
-            free(a_out);
+            DAP_DELETE(a_out);
             a_out = NULL;
-            free(a_key->data);
+            DAP_DELETE(a_key->data);
             a_key->data = NULL;
         }
     }
     sidh_a_key->key_len = SIDH_SHAREDKEY_LEN;
     ret = 1;
-    free(bob_tmp_pub);
-    free(bob_priv);
-    free(A);
-    free(R);
+    DAP_DELETE(bob_tmp_pub);
+    DAP_DELETE(bob_priv);
+    DAP_DELETE(A);
+    DAP_DELETE(R);
 
     return ret;
 }
@@ -323,12 +323,12 @@ int OQS_KEX_sidh_cln16_alice_1(OQS_KEX *k, const void *alice_priv, const uint8_t
 
 err:
     ret = 0;
-    free(*key);
+    DAP_DELETE(*key);
     *key = NULL;
 
 cleanup:
-    free(A);
-    free(R);
+    DAP_DELETE(A);
+    DAP_DELETE(R);
 
     return ret;
 }
