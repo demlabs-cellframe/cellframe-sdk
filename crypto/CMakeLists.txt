@@ -10,6 +10,10 @@ set(CRYPTO_SRCS
         dap_enc_key.c
     )
 
+set(RND_SRCS
+     libdap/crypto/liboqs/crypto/rand/rand.c
+    )
+
 set(CRYPTO_HEADERS
     dap_enc.h
     dap_enc_base64.h
@@ -17,6 +21,7 @@ set(CRYPTO_HEADERS
     dap_enc_newhope.h
     dap_enc_msrln16.h
     dap_enc_key.h
+
 
     )
 
