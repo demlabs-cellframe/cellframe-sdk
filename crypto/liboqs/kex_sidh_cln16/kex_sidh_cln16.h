@@ -9,8 +9,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <oqs/kex.h>
-#include <oqs/rand.h>
+//#include <oqs/kex.h>
+#include <../libdap/crypto/liboqs/kex/kex.h>
+//#include <oqs/rand.h>
+#include <../libdap/crypto/liboqs/crypto/rand/rand.h>
 
 OQS_KEX *OQS_KEX_sidh_cln16_new(OQS_RAND *rand, const char *named_parameters);
 

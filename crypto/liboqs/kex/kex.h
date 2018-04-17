@@ -9,10 +9,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <oqs/rand.h>
+//#include <oqs/rand.h>
+#include <../libdap/crypto/liboqs/crypto/rand/rand.h>
+
 
 #if !defined(WINDOWS)
-#include <oqs/config.h>
+//#include <oqs/config.h>
+#include <../libdap/crypto/liboqs/config.h>
 #endif
 
 enum OQS_KEX_alg_name {
@@ -93,7 +96,7 @@ typedef struct OQS_KEX {
 	 * @param alice_msg_len    Alice's message length
 	 * @return                 1 on success, or 0 on failure
 	 */
-	int (*alice_0)(OQS_KEX *k, void **alive_priv, uint8_t **alice_msg, size_t *alice_msg_len);
+        int (*alice_0)(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg, size_t *alice_msg_len);
 
 	/**
 	 * Pointer to a function for shared key generation by Bob.

@@ -10,10 +10,14 @@
 
 #include "dap_common.h"
 #include "dap_enc_key.h"
+#include <../libdap/crypto/liboqs/kex_sidh_cln16/SIDH.h>
+#include <../libdap/crypto/liboqs/kex/kex.h>
 
-#include "SIDH.h"
+
 
 struct dap_enc_key;
+
+extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
 typedef struct dap_enc_sidh16_key{
     OQS_RAND *rand;
@@ -21,7 +25,19 @@ typedef struct dap_enc_sidh16_key{
     unsigned int alice_msg_len;
     unsigned int bob_msg_len;
     unsigned int key_len;
+    uint16_t estimated_classical_security;
+    uint16_t estimated_quantum_security;
 } dap_enc_sidh16_key_t;
+
+struct dapenc_testcase {
+    enum OQS_KEX_alg_name alg_name;
+    unsigned char *seed;
+    size_t seed_len;
+    char *named_parameters;
+    char *id;
+    int run;
+    int iter;
+};
 
 #define DAP_ENC_SIDH16_KEY(a) ((dap_enc_sidh16_key_t *)((a)->_inheritor))
 

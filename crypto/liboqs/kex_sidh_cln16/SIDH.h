@@ -17,7 +17,8 @@
 extern "C" {
 #endif
 
-#include <oqs/rand.h>
+//#include <../libdap/crypto/rand.h>  //<oqs/rand.h>
+#include <../libdap/crypto/liboqs/crypto/rand/rand.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>

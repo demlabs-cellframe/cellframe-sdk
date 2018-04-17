@@ -5,12 +5,12 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "dap_common.h"
 #include "dap_enc_sidh16.h"
-#include "kex_sidh_cln16.h"
 #include "dap_enc_key.h"
 
-#include "SIDH.h"
+#include <../libdap/core/dap_common.h>
+#include <../libdap/crypto/liboqs/kex_sidh_cln16/kex_sidh_cln16.h>
+#include <../libdap/crypto/liboqs/kex_sidh_cln16/SIDH.h>
 
 static const char *P751 = "p751";
 static const char *CompressedP751 = "compressedp751";
@@ -44,7 +44,7 @@ dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t
         oqs_sidh_cln16_curve_free(curveIsogeny);
         return NULL;
     }
-    k->data ;
+    k->data;
     k->data_size;
     k->type = DAP_ENC_KEY_TYPE_SIDH_CLN16;
     k->last_used_timestamp;
@@ -139,7 +139,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
 
 // int OQS_KEX_sidh_cln16_bob(OQS_KEX *k, const uint8_t *alice_msg, const size_t alice_msg_len, uint8_t **bob_msg, size_t *bob_msg_len, uint8_t **key, size_t *key_len)
 size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size, void *a_out) {
-    int ret;
+    size_t ret;
     dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
     uint8_t *bob_priv = NULL;
     // non-compressed public key
