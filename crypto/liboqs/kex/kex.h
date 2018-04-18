@@ -9,13 +9,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-//#include <oqs/rand.h>
-#include <../libdap/crypto/liboqs/crypto/rand/rand.h>
-
-
 #if !defined(WINDOWS)
 //#include <oqs/config.h>
 #include <../libdap/crypto/liboqs/config.h>
+=======
+//#include <oqs/rand.h> //беда с симлинками, посему так пока
+#include "../crypto/rand/rand.h"
+
+#if !defined(WINDOWS)
+#include "../config.h"
+//#include <oqs/config.h>
 #endif
 
 enum OQS_KEX_alg_name {

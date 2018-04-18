@@ -26,6 +26,7 @@
 #include "dap_enc_aes.h"
 #include "dap_enc_newhope.h"
 #include "dap_enc_sidh16.h"
+#include "dap_enc_msrln16.h"
 
 #include "dap_enc_key.h"
 
@@ -69,7 +70,6 @@ struct dap_enc_key_callbacks{
                             .key_public_raw_callback = dap_enc_newhope_key_public_raw,
                             .new_from_data_public_callback = dap_enc_newhope_key_new_from_data_public
                            },
-
     [DAP_ENC_KEY_TYPE_SIDH_CLN16]={
                             .name = "SIDHCLN16",
                             .size_max = 64,
@@ -79,7 +79,19 @@ struct dap_enc_key_callbacks{
                             .delete_callback = NULL,
                             .new_generate_callback = dap_enc_sidh16_key_new_generate,
                             .new_from_data_callback = dap_enc_sidh16_key_new_from_data
-                           }
+                           },
+    [DAP_ENC_KEY_TYPE_RLWE_MSRLN16] = {
+                            .name = "MSRLN16",
+                            .size_max = 64,
+                            .enc = dap_enc_msrln16_encode,
+                            .dec = dap_enc_msrln16_decode,
+                            .new_callback = NULL,
+                            .delete_callback =NULL,
+                            .new_generate_callback = dap_enc_msrln16_key_new_generate,
+                            .new_from_data_callback = dap_enc_msrln16_key_new_from_data,
+                            .key_public_raw_callback = dap_enc_msrln16_key_public_raw,
+                            .new_from_data_public_callback = dap_enc_msrln16_key_new_from_data_public
+    }
 };
 
 const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);

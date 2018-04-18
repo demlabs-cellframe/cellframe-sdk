@@ -24,8 +24,14 @@
 #include <stddef.h>
 #include <time.h>
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
+
                                DAP_ENC_DATA_TYPE_B64,
+                               //DAP_ENC_DATA_TYPE_RLWE_MSRLN16//а оно мне надо?
                                } dap_enc_data_type_t;
+
+                              
+} dap_enc_data_type_t;
+
 
 typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
 
@@ -74,12 +80,13 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                // (Bos, Ducas, Kiltz, Lepoint, Lyubashevsky, Schwabe, Shanck, Stehlé)
                                                // Real World Crypto 2017, https://eprint.iacr.org/2017/634)
                                                // using the reference C implementation of Kyber from pq-crystals/kyber
-                           DAP_ENC_KEY_TYPE_SIG_PICNIC  // signature based on zero-knowledge proof as specified in
+                           DAP_ENC_KEY_TYPE_SIG_PICNIC,  // signature based on zero-knowledge proof as specified in
                                                // Post-Quantum Zero-Knowledge and Signatures from Symmetric-Key Primitives
                                                // (Melissa Chase and David Derler and Steven Goldfeder and Claudio Orlandi
                                                // and Sebastian Ramacher and Christian Rechberger and Daniel Slamanig and Greg Zaverucha
                                                // https://eprint.iacr.org/2017/279.pdf), using the optimized implemenation
                                                //  from https://github.com/IAIK/Picnic
+                               DAP_ENC_KEY_TYPE_FNAM2 //ХЗ ЧТО, ДОБАВИЛ ЧТОБЫ БЫЛО И НА МЕНЯ КОМПИЛЯТОР НЕ РУГАЛСЯ:(
                          } dap_enc_key_type_t;
 
 struct dap_enc_key;
