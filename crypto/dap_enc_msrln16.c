@@ -152,13 +152,32 @@ void dap_enc_msrln16_key_new_from_data_public(dap_enc_key_t * a_key, const void 
  */
 void dap_enc_msrln16_key_delete(struct dap_enc_key* a_key)
 {
+    //dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
+    dap_enc_msrln16_key_t* msrln_a_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(a_key);
+        (void) a_key;
+        if(!a_key){
+            return;
+        }
+      /*  oqs_sidh_cln16_curve_free((PCurveIsogenyStruct)sidh_a_key->user_curveIsogeny);
+        sidh_a_key->user_curveIsogeny = NULL;*/
+        DAP_DELETE(a_key);
  //   free();
-    free(alice_msg);
+    /*free(alice_msg);
     free(alice_key);
     free(bob_msg);
-    free(bob_key);
-    OQS_KEX_rlwe_msrln16_alice_priv_free(kex, alignce_priv);
-    OQS_KEX_rlwe_msrln16_free(kex);
+    free(bob_key);*/
+    /*if (alice_priv) {*/
+        //free(alice_priv);
+    /*}*/
+    //OQS_KEX k = a_key->
+//    if (!k) {
+//        return;
+//    }
+//    free(k->method_name);
+//    k->method_name = NULL;
+//    free(k);
+//    /*OQS_KEX_rlwe_msrln16_alice_priv_free(kex, alignce_priv);
+   /* OQS_KEX_rlwe_msrln16_free(kex);*/
 }
 
 /**
