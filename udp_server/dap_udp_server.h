@@ -31,6 +31,8 @@
 #include <sys/select.h>
 #include <sys/queue.h>
 #include "dap_udp_client.h"
+#include "dap_server.h"
+#include "dap_client_remote.h"
 
 struct dap_udp_server;
 
@@ -41,41 +43,20 @@ typedef struct dap_udp_thread{
 typedef void (*dap_udp_server_callback_t) (struct dap_udp_server *,void * arg); // Callback for specific server's operations
 
 typedef struct dap_udp_server{
-    uint16_t port; // Listen port
-    char * address; // Listen address
-
-    dap_udp_client_t * clients; // Hashmap of clients
+    dap_udp_client_t * clients;
     dap_udp_client_t * waiting_clients; // List clients for writing data
-
-    int socket_listener; // Socket for listener
-    int epoll_fd; // Epoll fd
-
-    struct sockaddr_in listener_addr; // Kernel structure for listener's binded address
-
-    void * _inheritor;  // Pointer to the internal data, HTTP for example
-
-    dap_udp_thread_t proc_thread;
-    pthread_mutex_t mutex_on_hash; 
-
-    dap_udp_server_callback_t server_delete_callback;
-
-    dap_udp_client_callback_t client_new_callback; // Create new client callback
-    dap_udp_client_callback_t client_delete_callback; // Delete client callback
-    dap_udp_client_callback_t client_read_callback; // Read function
-    dap_udp_client_callback_t client_write_callback; // Write function
-    dap_udp_client_callback_t client_error_callback; // Error processing function
-
+    pthread_mutex_t mutex_on_list;
+    void* _inheritor;
+    dap_server_t* dap_server;
 } dap_udp_server_t;
 
-extern int dap_udp_server_init(); // Init server module
+#define DAP_UDP_SERVER(a) ((dap_udp_server_t *) (a)->_inheritor)
 
-extern void dap_udp_server_deinit(); // Deinit server module
+extern void dap_udp_server_delete(dap_server_t * sh); 
 
-extern void dap_udp_server_delete(dap_udp_server_t * sh); 
+extern void dap_udp_server_loop(dap_server_t* udp_server);      // Start server event loop
 
-extern void dap_udp_server_loop(dap_udp_server_t* udp_server);      // Start server event loop
-
-extern dap_udp_server_t* dap_udp_server_listen(uint16_t port);      // Create and bind server
+extern dap_server_t* dap_udp_server_listen(uint16_t port);      // Create and bind server
 
 #endif
 
