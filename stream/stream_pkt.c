@@ -67,6 +67,13 @@ stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
     return ret;
 }
 
+size_t encode_dummy(const void * buf, const size_t buf_size, void * buf_out){
+    if(memcpy(buf_out,buf,buf_size) != NULL)
+        return buf_size;
+    else
+        return 0;
+}
+
 /**
  * @brief stream_pkt_read
  * @param sid
@@ -75,7 +82,8 @@ stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
  */
 size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out)
 {
-    size_t ds = enc_decode(sid->session->key,pkt->data,pkt->hdr.size,buf_out,DAP_ENC_DATA_TYPE_RAW);
+    //size_t ds = dap_enc_decode(sid->session->key,pkt->data,pkt->hdr.size,buf_out,DAP_ENC_DATA_TYPE_RAW);
+    size_t ds = encode_dummy(pkt->data,pkt->hdr.size,buf_out);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
 //           *((uint8_t *)buf_out+ds-4),*((uint8_t *)buf_out+ds-3),*((uint8_t *)buf_out+ds-2),*((uint8_t *)buf_out+ds-1)
 //           );
@@ -85,6 +93,8 @@ size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_o
 //           );
     return ds;
 }
+
+
 
 /**
  * @brief stream_ch_pkt_write
@@ -107,11 +117,33 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
     memset(&pkt_hdr,0,sizeof(pkt_hdr));
     memcpy(pkt_hdr.sig,dap_sig,sizeof(pkt_hdr.sig));
 
-    pkt_hdr.size = enc_code(sid->session->key,data,data_size,sid->buf,DAP_ENC_DATA_TYPE_RAW);
+    //pkt_hdr.size = dap_enc_code(sid->session->key,data,data_size,sid->buf,DAP_ENC_DATA_TYPE_RAW);
+    pkt_hdr.size = encode_dummy(data,data_size,sid->buf);
 
-    ret+=dap_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
-    ret+=dap_client_write(sid->conn,sid->buf,pkt_hdr.size);
+
+    if(sid->conn_udp){
+        ret+=dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
+        ret+=dap_udp_client_write(sid->conn,sid->buf,pkt_hdr.size);
+    }
+    else{
+        ret+=dap_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
+        ret+=dap_client_write(sid->conn,sid->buf,pkt_hdr.size);
+    }
     return ret;
+}
+
+
+extern void stream_send_keepalive(struct stream * sid)
+{
+    stream_pkt_hdr_t pkt_hdr;
+    memset(&pkt_hdr,0,sizeof(pkt_hdr));
+    memcpy(pkt_hdr.sig,dap_sig,sizeof(pkt_hdr.sig));
+    pkt_hdr.type = KEEPALIVE_PACKET;
+    if(sid->conn_udp)
+        dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
+    else
+        dap_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
+    dap_client_ready_to_write(sid->conn,true);
 }
 
 

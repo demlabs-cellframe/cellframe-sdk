@@ -5,6 +5,7 @@ set(STREAM_SRCS stream.c  stream_ch.c  stream_ch_pkt.c	stream_ch_proc.c  stream_
 
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
+include_directories("${INCLUDE_DIRECTORIES} ${dap_udp_server_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_session_INCLUDE_DIRS}")
@@ -15,6 +16,7 @@ include_directories("${INCLUDE_DIRECTORIES} ${MONGO_INCLUDE_DIRS}")
 
 add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_core_server_DEFINITIONS}")
+add_definitions ("${dap_udp_server_DEFINITIONS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
 add_definitions ("${dap_client_DEFINITIONS}")
 add_definitions ("${dap_http_server_DEFINITIONS}")
