@@ -120,7 +120,6 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
     //pkt_hdr.size = dap_enc_code(sid->session->key,data,data_size,sid->buf,DAP_ENC_DATA_TYPE_RAW);
     pkt_hdr.size = encode_dummy(data,data_size,sid->buf);
 
-
     if(sid->conn_udp){
         ret+=dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
         ret+=dap_udp_client_write(sid->conn,sid->buf,pkt_hdr.size);
@@ -135,15 +134,12 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
 
 extern void stream_send_keepalive(struct stream * sid)
 {
-    stream_pkt_hdr_t pkt_hdr;
-    memset(&pkt_hdr,0,sizeof(pkt_hdr));
-    memcpy(pkt_hdr.sig,dap_sig,sizeof(pkt_hdr.sig));
-    pkt_hdr.type = KEEPALIVE_PACKET;
-    if(sid->conn_udp)
-        dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
-    else
-        dap_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
-    dap_client_ready_to_write(sid->conn,true);
+    for(int i=0;i<sid->channel_count;i++)
+    if(sid->channel[i]->proc){
+        if(sid->channel[i]->proc->id == SERVICE_CHANNEL_ID)
+            stream_ch_send_keepalive(sid->channel[i]);
+            stream_ch_set_ready_to_write(sid->channel[i],true);            
+    }
 }
 
 

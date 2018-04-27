@@ -29,6 +29,9 @@ struct stream_pkt;
 struct stream_ch_proc;
 struct stream_ch;
 
+#define SERVICE_CHANNEL_ID 's'
+#define DATA_CHANNEL_ID 'd'
+
 typedef void (*stream_ch_callback_t) (struct stream_ch*,void*);
 
 typedef struct stream_ch{

@@ -169,12 +169,12 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
                         //cl_ht->client->ready_to_write=true;
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
                         cl_ht->out_content_ready=true;
-                        stream_ch_new(sid,'s');
+                        stream_ch_new(sid,SERVICE_CHANNEL_ID);
                         stream_ch_new(sid,'t');
                         stream_states_update(sid);
                         dap_client_ready_to_read(cl_ht->client,true);
                     }else{
-                        stream_ch_new(sid,'s');
+                        stream_ch_new(sid,SERVICE_CHANNEL_ID);
                         stream_ch_new(sid,'g');
 
                         cl_ht->reply_status_code=200;
@@ -233,26 +233,16 @@ void check_session(unsigned int id, dap_client_remote_t* cl){
             else
                 sid = STREAM(cl);
             sid->session=ss;
-            if(ss->create_empty){
-                log_it(L_INFO, "Opened stream session with only technical channels");
-                stream_ch_new(sid,'s');
-                stream_ch_new(sid,'t');
-                stream_states_update(sid);
-                if(STREAM(cl)->conn_udp)
-                    dap_udp_client_ready_to_read(cl,true);
-                else
-                    dap_client_ready_to_read(cl,true);
-            }else{
-                stream_ch_new(sid,'s');
-                stream_ch_new(sid,'g');
-
-                if(STREAM(cl)->conn_udp)
-                    dap_udp_client_ready_to_read(cl->_inheritor,true);
-                else
-                    dap_client_ready_to_read(cl,true);
-                stream_states_update(sid);
-
-            }
+            if(ss->create_empty)
+                log_it(L_INFO, "Session created empty");       
+            log_it(L_INFO, "Opened stream session technical and data channels");
+            stream_ch_new(sid,SERVICE_CHANNEL_ID);
+            stream_ch_new(sid,DATA_CHANNEL_ID);
+            stream_states_update(sid);
+            if(STREAM(cl)->conn_udp)
+                dap_udp_client_ready_to_read(cl,true);
+            else
+                dap_client_ready_to_read(cl,true);
             start_keepalive(sid);
         }else{
             log_it(L_ERROR,"Can't open session id %u",id);
@@ -471,7 +461,8 @@ void stream_proc_pkt_in(stream_t * sid)
             if(ch->proc)
                 if(ch->proc->packet_in_callback)
                     ch->proc->packet_in_callback(ch,ch_pkt);
-
+            if(ch->proc->id == SERVICE_CHANNEL_ID && ch_pkt->hdr.type == KEEPALIVE_PACKET)
+                stream_send_keepalive(sid);
         }else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
         }
@@ -485,13 +476,8 @@ void stream_proc_pkt_in(stream_t * sid)
         check_session(session_id,sid->conn);
         free(srv_pkt);
     }
-    else if(sid->pkt_buf_in->hdr.type == KEEPALIVE_PACKET)
-    {
-        //Send keepalive answer and restart timer
-        stream_send_keepalive(sid);
-        sid->keepalive_passed = 0;
-        ev_timer_again (keepalive_loop, &sid->keepalive_watcher);
-    }
+    sid->keepalive_passed = 0;
+    ev_timer_again (keepalive_loop, &sid->keepalive_watcher);
     free(sid->pkt_buf_in);
     sid->pkt_buf_in=NULL;
     sid->pkt_buf_in_data_size=0;

@@ -113,3 +113,27 @@ size_t stream_ch_pkt_write_f(struct stream_ch * ch, uint8_t type, const char * s
     size_t ret=stream_ch_pkt_write(ch,type,buf,strlen(buf));
     return ret;
 }
+
+/**
+ * @brief stream_ch_send_keepalive
+ * @param ch
+ * @return
+ */
+size_t stream_ch_send_keepalive(struct stream_ch * ch){
+    pthread_mutex_lock( &ch->mutex);
+
+    stream_ch_pkt_hdr_t hdr;
+
+    memset(&hdr,0,sizeof(hdr));
+    hdr.id = ch->proc->id;
+    hdr.size=0;
+    hdr.type=KEEPALIVE_PACKET;
+    hdr.enc_type = ch->proc->enc_type;
+    hdr.seq_id=0;
+
+    memcpy(ch->buf,&hdr,sizeof(hdr) );
+
+    size_t ret=stream_pkt_write(ch->stream,ch->buf,sizeof(hdr));
+    pthread_mutex_unlock( &ch->mutex);
+    return ret;
+}
