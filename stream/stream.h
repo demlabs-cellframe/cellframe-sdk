@@ -26,20 +26,26 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <ev.h>
 
 #include "stream_session.h"
 #include "stream_ch.h"
+#include "dap_udp_server.h"
 
 
 #define CHUNK_SIZE_MAX 3*1024
 
 struct dap_client_remote;
+struct dap_udp_server_t;
+
 
 struct dap_http_client;
 struct dap_http;
 struct stream;
 struct stream_pkt;
 #define STREAM_BUF_SIZE_MAX 10240
+#define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
+#define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
 typedef void (*stream_callback)(struct stream*,void*);
 
@@ -51,7 +57,12 @@ typedef struct stream {
 
     struct dap_http_client * conn_http; // HTTP-specific
 
+    struct dap_udp_client * conn_udp; // UDP-client
+
     bool is_live;
+
+    ev_timer keepalive_watcher;         // Watcher for keepalive loop
+    uint8_t keepalive_passed;           // Number of sended keepalive messages
 
     struct stream_pkt * in_pkt;
     struct stream_pkt *pkt_buf_in;
@@ -71,8 +82,11 @@ typedef struct stream {
 #define STREAM(a) ((stream_t *) (a)->_internal )
 
 extern int stream_init();
+
 extern void stream_deinit();
 
-extern void stream_add_proc(struct dap_http * sh, const char * url);
+extern void stream_add_proc_http(struct dap_http * sh, const char * url);
+
+extern void stream_add_proc_udp(dap_udp_server_t * sh);
 
 #endif

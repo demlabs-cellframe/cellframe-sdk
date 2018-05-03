@@ -22,6 +22,8 @@
 #ifndef _STREAM_CH_PKT_H_
 #define _STREAM_CH_PKT_H_
 
+#define KEEPALIVE_PACKET 0x11
+
 #include <stdint.h>
 #include <stddef.h>
 struct stream_ch;
@@ -46,5 +48,7 @@ extern void stream_ch_pkt_deinit();
 extern size_t stream_ch_pkt_write_f(struct stream_ch * ch, uint8_t type, const char * str,...);
 extern size_t stream_ch_pkt_write(struct stream_ch * ch,  uint8_t type, const void * data, uint32_t data_size);
 extern size_t stream_ch_pkt_write_seq_id(struct stream_ch * ch,  uint8_t type, uint64_t seq_id, const void * data, uint32_t data_size);
+
+extern size_t stream_ch_send_keepalive(struct stream_ch * ch);
 
 #endif

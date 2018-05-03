@@ -105,9 +105,12 @@ void stream_ch_set_ready_to_write(stream_ch_t * ch,bool is_ready)
     if(ch->ready_to_write!=is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         ch->ready_to_write=is_ready;
-        if(is_ready)
+        if(is_ready && ch->stream->conn_http)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
-        dap_client_ready_to_write(ch->stream->conn,is_ready);
+        if(ch->stream->conn_udp)
+            dap_udp_client_ready_to_write(ch->stream->conn,is_ready);
+        else
+            dap_client_ready_to_write(ch->stream->conn,is_ready);
     }
     pthread_mutex_unlock(&ch->mutex);
 }
