@@ -75,18 +75,18 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
 }
 
 
-/*enc_ks_key_t * enc_ks_new()
+dap_enc_ks_key_t * enc_ks_new()
 {
-    enc_ks_key_t * ret = DAP_NEW_Z(enc_ks_key_t);
-    ret->key=enc_key_new()
+    dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
+    ret->key=dap_enc_key_new(DAP_ENC_KEY_TYPE_RLWE_MSRLN16);
     int i;
     for(i=0;i<sizeof(ret->id)-1;i++)
         ret->id[i]=65+rand()%25;
     HASH_ADD_STR(ks,id,ret);
     return ret;
-}*/
+}
 
-dap_enc_ks_key_t * dap_enc_ks_add(struct enc_key * key)
+dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
 {
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
     ret->key=key;
@@ -111,7 +111,7 @@ void _enc_key_free(dap_enc_ks_key_t **ptr)
 {
     if (*ptr){
         if((*ptr)->key)
-            enc_key_delete((*ptr)->key);
+            dap_enc_key_delete((*ptr)->key);
         free (*ptr);
         //*ptr = NULL; //not need
     }
