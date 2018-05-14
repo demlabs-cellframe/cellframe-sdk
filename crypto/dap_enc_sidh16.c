@@ -22,6 +22,7 @@ static int isCompressed(void *_inheritor) {
     return 0;
 }
 
+
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
 dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
@@ -37,7 +38,7 @@ dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t
         oqs_sidh_cln16_curve_free(curveIsogeny);
         return NULL;
     }
-    // Инициализировать изогенную структуру кривой pCurveIsogeny со статическими данными, извлеченными из pCurveIsogenyData. 
+    // Инициализировать изогенную структуру кривой pCurveIsogeny со статическими данными, извлеченными из pCurveIsogenyData.
     // Это нужно вызвать после выделения памяти для pCurveIsogeny с помощью SIDH_curve_allocate()
     if(oqs_sidh_cln16_curve_initialize(curveIsogeny, &CurveIsogeny_SIDHp751) != SIDH_CRYPTO_SUCCESS) {
         DAP_DELETE(k);
@@ -60,7 +61,8 @@ dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t
 
 
 void dap_enc_sidh16_key_new_from_data(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size) {
-    
+
+
 }
 
 void dap_enc_sidh16_key_delete(struct dap_enc_key *a_key) {
@@ -332,40 +334,5 @@ cleanup:
 
     return ret;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

@@ -26,11 +26,9 @@
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
                                DAP_ENC_DATA_TYPE_B64,
-                               //DAP_ENC_DATA_TYPE_RLWE_MSRLN16//а оно мне надо?
+
                                } dap_enc_data_type_t;
 
-                              
-} dap_enc_data_type_t;
 
 
 typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
@@ -46,7 +44,8 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                 // from https://github.com/tpoeppelmann/newhop
                                                 // https://eprint.iacr.org/2015/1092
 
-                           DAP_ENC_KEY_TYPE_RLWE_MSRLN16, // Microsoft Research implementation of Peikert's ring-LWE key exchange
+                              DAP_ENC_KEY_TYPE_RLWE_MSRLN16,
+                           //DAP_ENC_KEY_TYPE_RLWE_MSRLN16, // Microsoft Research implementation of Peikert's ring-LWE key exchange
                                                // (Longa, Naehrig, CANS 2016, https://eprint.iacr.org/2016/504)
                                                // based on the implementation of Alkim, Ducas, Pöppelmann, and Schwabe,
                                                // with improvements from Longa and Naehrig,
@@ -87,7 +86,7 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                // https://eprint.iacr.org/2017/279.pdf), using the optimized implemenation
                                                //  from https://github.com/IAIK/Picnic
                                DAP_ENC_KEY_TYPE_FNAM2 //ХЗ ЧТО, ДОБАВИЛ ЧТОБЫ БЫЛО И НА МЕНЯ КОМПИЛЯТОР НЕ РУГАЛСЯ:(
-                         } dap_enc_key_type_t;
+                         }  dap_enc_key_type_t;
 
 struct dap_enc_key;
 
