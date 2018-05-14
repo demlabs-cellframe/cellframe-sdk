@@ -45,54 +45,20 @@ typedef struct dap_enc_sidh16_key{
  * @return
  */
 
-dap_enc_key_t* dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
-//void dap_enc_msrln16_key_new_generate(OQS_RAND *rand)
+size_t dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
 {
-    dap_enc_key_t *k = DAP_NEW(dap_enc_key_t);
-    dap_enc_msrln16_key_t *msrln16_a_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(a_key); //DAP_ENC_SIDH16_KEY(a_key);
-   // OQS_KEX *k = malloc(sizeof(OQS_KEX));
-    if (k == NULL) {
+    if (a_key == NULL) {
         return NULL;
     }
+    
+    a_key->_inheritor = (dap_enc_msrln16_key_t*)malloc(sizeof(dap_enc_msrln16_key_t));
 
-    k->data;
-    k->data_size;
-    k->type = DAP_ENC_KEY_TYPE_RLWE_MSRLN16;
-    k->last_used_timestamp;
-    k->enc = &dap_enc_msrln16_encode;
-    k->dec = &dap_enc_msrln16_decode;
-    k->delete_callback = &dap_enc_msrln16_key_delete;
+    a_key->type = DAP_ENC_KEY_TYPE_RLWE_MSRLN16;
+    a_key->last_used_timestamp;
+    dap_enc_msrln16_key_t *msrln16_a_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(a_key);
+    msrln16_a_key->private_key = NULL;
 
-    msrln16_a_key->rand;
-
-  /*  k->ctx = NULL;
-    k->method_name = strdup("RLWE MSR LN16");
-    k->estimated_classical_security = 128;
-    k->estimated_quantum_security = 128;
-    k->seed = NULL;
-    k->seed_len = 0;
-    k->named_parameters = NULL;
-    k->rand = rand;
-    k->params = NULL;
-    k->alice_0 = &OQS_KEX_rlwe_msrln16_alice_0;
-    k->bob = &OQS_KEX_rlwe_msrln16_bob;
-    k->alice_1 = &OQS_KEX_rlwe_msrln16_alice_1;
-    k->alice_priv_free = &OQS_KEX_rlwe_msrln16_alice_priv_free;
-    k->free = &OQS_KEX_rlwe_msrln16_free;*/
-
-    dap_enc_key_t* key;
-
-
-    return k;
-//dap_enc_key_t *k = DAP_NEW(dap_enc_key_t);
-    //rand = OQS_RAND_new(OQS_RAND_alg_default);
-  /*  kex = OQS_KEX_rlwe_msrln16_new(rand);
-    if(kex == NULL) {
-           printf("новая пара не сгенерирована \n");
-           //gen = 0;
-       }
-           printf("расчёт для обмена ключами методом  %s\n", kex->method_name);*/
-
+    return sizeof(a_key);
 }
 
 /**
@@ -143,6 +109,19 @@ void dap_enc_msrln16_key_new_from_data(OQS_KEX *k, const void * alice_priv, cons
  */
 void dap_enc_msrln16_key_new_from_data_public(dap_enc_key_t * a_key, const void * a_in, size_t a_in_size)
 {
+
+}
+
+OQS_KEX *dap_kex_rlwe_msrln16_new(OQS_RAND *rand){
+    return OQS_KEX_rlwe_msrln16_new(rand);
+}
+
+int dap_rlwe_msrln16_alice_0(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg, size_t *alice_msg_len){
+    return OQS_KEX_rlwe_msrln16_alice_0(k, alice_priv, alice_msg, alice_msg_len);
+}
+
+int dap_rlwe_msrln16_alice_1(OQS_KEX *k, const void *alice_priv, const uint8_t *bob_msg, const size_t bob_msg_len, uint8_t **key, size_t *key_len){
+    return OQS_KEX_rlwe_msrln16_alice_1(k,alice_priv,bob_msg,bob_msg_len,key,key_len);
 
 }
 
