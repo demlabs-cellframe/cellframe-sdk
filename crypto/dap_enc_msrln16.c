@@ -224,3 +224,11 @@ size_t dap_enc_msrln16_encode(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg
     }
    PRINT_HEX_STRING("Alice message", alice_msg, alice_msg_len);*/
 }
+
+
+void aes_key_from_msrln_pub(dap_enc_key_t* key){
+    //TODO: More difflicult aes generation
+    dap_enc_msrln16_key_t* msrln_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(key);
+    key->data = (unsigned char *)malloc(16);
+    memcpy(key->data,msrln_key->public_key,16);
+}

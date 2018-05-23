@@ -429,9 +429,7 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response,size_t a_res
             dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg);
             dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(s_key_domain);
             OQS_KEX_rlwe_msrln16_alice_1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, 2048,&msrln16_key->public_key,&msrln16_key->public_length);
-            uint8_t s;
-            for(int i=0; i < msrln16_key->public_length;i++)
-                s = msrln16_key->public_key[i];
+            aes_key_from_msrln_pub(s_key_domain);
             free(encoded_key);
             free(encoded_msg);
             l_client_internal->stage_status = DAP_CLIENT_STAGE_STATUS_DONE;
