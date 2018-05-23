@@ -27,6 +27,8 @@ typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
                                DAP_ENC_DATA_TYPE_B64,
 
+                               DAP_ENC_DATA_TYPE_B64_URLSAFE,
+
                                } dap_enc_data_type_t;
 
 

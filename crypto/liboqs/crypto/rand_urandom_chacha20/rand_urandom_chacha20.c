@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <oqs/rand.h>
-#include <oqs/rand_urandom_chacha20.h>
+#include "../rand/rand.h"
+#include "rand_urandom_chacha20.h"
 
 #include "external/chacha20.c"
 

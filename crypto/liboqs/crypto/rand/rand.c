@@ -10,9 +10,9 @@
 #include <stdlib.h>
 #endif
 
-#include <oqs/rand.h>
-#include <oqs/rand_urandom_aesctr.h>
-#include <oqs/rand_urandom_chacha20.h>
+#include "rand.h"
+#include "../rand_urandom_aesctr/rand_urandom_aesctr.h"
+#include "../rand_urandom_chacha20/rand_urandom_chacha20.h"
 
 OQS_RAND *OQS_RAND_new(enum OQS_RAND_alg_name alg_name) {
 	switch (alg_name) {

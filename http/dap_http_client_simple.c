@@ -49,18 +49,20 @@ void dap_http_client_internal_delete(dap_http_client_internal_t * a_client);
  * @brief dap_http_client_init
  * @return
  */
-int dap_http_client_init()
+int dap_http_client_simple_init()
 {
     curl_global_init(CURL_GLOBAL_ALL);
     m_curl_mh = curl_multi_init();
+    void* arg;
     pthread_create(&curl_pid,NULL,dap_http_client_thread,NULL );
     return 0;
 }
 
+
 /**
  * @brief dap_http_client_deinit
  */
-void dap_http_client_deinit()
+void dap_http_client_simple_deinit()
 {
     curl_multi_cleanup( m_curl_mh );
 }
@@ -94,7 +96,7 @@ void dap_http_client_internal_delete(dap_http_client_internal_t * a_client_inter
  * @param a_error_callback
  * @param a_obj
  */
-void dap_http_client_simple_request(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, dap_http_client_simple_callback_data_t a_response_callback,
+void dap_http_client_simple_request(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, char * a_cookie, dap_http_client_simple_callback_data_t a_response_callback,
                                    dap_http_client_simple_callback_error_t a_error_callback, void *a_obj, void * a_custom)
 {
     log_it(L_DEBUG,"Simple HTTP request with static predefined buffer (%lu bytes) on url '%s'",
@@ -126,6 +128,9 @@ void dap_http_client_simple_request(const char * a_url, const char * a_method, c
         if( a_custom )
             l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers,(char*) a_custom );
 
+        if( a_cookie )
+            l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers,(char*) a_cookie );
+
         snprintf(l_buf,sizeof(l_buf),"Content-Length: %lu", a_request_size );
         l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers, l_buf);
 
@@ -147,6 +152,7 @@ void dap_http_client_simple_request(const char * a_url, const char * a_method, c
     curl_easy_setopt( l_curl_h , CURLOPT_WRITEFUNCTION , dap_http_client_curl_response_callback );
 
     curl_multi_add_handle( m_curl_mh, l_curl_h );
+    //curl_multi_perform(m_curl_mh, &m_curl_cond);
     pthread_cond_signal( &m_curl_cond);
     send_select_break();
 }
@@ -287,7 +293,7 @@ static void* dap_http_client_thread(void * arg)
                               case CURLE_COULDNT_RESOLVE_HOST: l_err_code = 3 ; log_it(L_ERROR, "Couldn't resolve destination address"); break;
                               case CURLE_OPERATION_TIMEDOUT: l_err_code = 4 ; log_it(L_ERROR, "HTTP request timeout"); break;
                               case CURLE_URL_MALFORMAT: l_err_code = 5 ; log_it(L_ERROR, "Wrong URL format in the outgoing request"); break;
-                              //case CURLE_WEIRD_SERVER_REPLY: l_err_code = 6 ; log_it(L_WARNING, "Weird server reply"); break;
+                              case CURLE_FTP_WEIRD_SERVER_REPLY: l_err_code = 6 ; log_it(L_WARNING, "Weird server reply"); break;
                               case CURLE_OK:{
                                 l_is_ok = true;
                                 log_it(L_DEBUG, "Response size %u",l_client_internal->response_size);

@@ -10,14 +10,14 @@
  *
  * [1] C. Peikert, "Lattice cryptography for the internet", in Post-Quantum Cryptography -
  *     6th International Workshop (PQCrypto 2014), LNCS 8772, pp. 197-219. Springer, 2014.
- * [2] E. Alkim, L. Ducas, T. Pöppelmann and P. Schwabe, "Post-quantum key exchange - a new
+ * [2] E. Alkim, L. Ducas, T. Pï¿½ppelmann and P. Schwabe, "Post-quantum key exchange - a new
  *     hope", IACR Cryptology ePrint Archive, Report 2015/1092, 2015.
  *
  ******************************************************************************************/
 
 #include "LatticeCrypto_priv.h"
-#include "oqs/rand.h"
-#include <oqs/sha3.h>
+#include "../crypto/rand/rand.h"
+#include "../crypto/sha3/sha3.h"
 
 extern const int32_t psi_rev_ntt1024_12289[1024];
 extern const int32_t omegainv_rev_ntt1024_12289[1024];

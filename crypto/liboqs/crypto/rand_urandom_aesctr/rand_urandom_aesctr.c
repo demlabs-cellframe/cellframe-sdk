@@ -13,9 +13,9 @@
 #include <string.h> //memcpy
 
 #include <assert.h>
-#include <oqs/aes.h>
-#include <oqs/rand.h>
-#include <oqs/rand_urandom_aesctr.h>
+#include "../aes/aes.h"
+#include "../rand/rand.h"
+#include "rand_urandom_aesctr.h"
 
 #if defined(WINDOWS)
 #define strdup _strdup // for strdup deprecation warning

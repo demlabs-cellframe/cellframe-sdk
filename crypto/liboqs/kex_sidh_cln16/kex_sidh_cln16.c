@@ -15,8 +15,8 @@
 #include <unistd.h>
 #endif
 
-#include <oqs/kex.h>
-#include <oqs/rand.h>
+#include "../kex/kex.h"
+#include "../crypto/rand/rand.h"
 
 #include "SIDH.h"
 #include "kex_sidh_cln16.h"

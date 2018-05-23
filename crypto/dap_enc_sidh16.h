@@ -10,8 +10,8 @@
 
 #include "dap_common.h"
 #include "dap_enc_key.h"
-#include <../libdap/crypto/liboqs/kex_sidh_cln16/SIDH.h>
-#include <../libdap/crypto/liboqs/kex/kex.h>
+#include"liboqs/kex_sidh_cln16/SIDH.h"
+#include "liboqs/kex/kex.h"
 
 
 

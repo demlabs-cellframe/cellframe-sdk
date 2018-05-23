@@ -9,10 +9,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if !defined(WINDOWS)
-//#include <oqs/config.h>
-#include <../libdap/crypto/liboqs/config.h>
-=======
+//#if !defined(WINDOWS)
+//	#include <oqs/config.h>
+#include "../crypto/liboqs/config.h"
+
 //#include <oqs/rand.h> //беда с симлинками, посему так пока
 #include "../crypto/rand/rand.h"
 

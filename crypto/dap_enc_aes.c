@@ -17,7 +17,6 @@ static void print_bytes(uint8_t *bytes, size_t num_bytes) {
 	}
 }
 
-
 /**
  * @brief dap_enc_aes_key_delete
  * @param a_key

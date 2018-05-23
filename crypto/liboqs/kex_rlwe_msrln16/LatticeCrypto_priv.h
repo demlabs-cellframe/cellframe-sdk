@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 #include "LatticeCrypto.h"
-#include <oqs/rand.h>
+#include "../crypto/rand/rand.h"
 
 // Basic constants
 #define OQS_RLWE_MSRLN16_PARAMETER_N 1024

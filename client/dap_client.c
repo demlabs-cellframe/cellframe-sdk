@@ -6,8 +6,12 @@
 
 #include "dap_client.h"
 #include "dap_client_internal.h"
+#include "dap_enc_key.h"
+
 
 #define LOG_TAG "dap_client"
+
+void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg);
 
 /**
  * @brief dap_client_init
@@ -15,9 +19,14 @@
  */
 int dap_client_init()
 {
-    log_it(L_INFO, "Init DAP client module");
-    dap_http_client_init();
-    dap_client_internal_init();
+    static bool s_is_first_time=true;
+    if (s_is_first_time ){
+        log_it(L_INFO, "Init DAP client module");
+        dap_http_client_init();
+        dap_http_client_simple_init();
+        dap_client_internal_init();
+        s_is_first_time = false;
+    }
     return 0;
 }
 
@@ -70,6 +79,38 @@ MEM_ALLOC_ERR:
 }
 
 /**
+ * @brief sap_client_reset
+ * @param a_client
+ */
+void dap_client_reset(dap_client_t * a_client)
+{
+    dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
+    if(l_client_internal->auth_cookie){
+        free(l_client_internal->auth_cookie);
+        l_client_internal->auth_cookie = NULL;
+    }
+
+    if(l_client_internal->session_key){
+        dap_enc_key_delete(l_client_internal->session_key);
+        l_client_internal->session_key = NULL;
+
+    }
+    if(l_client_internal->session_key_id){
+        free(l_client_internal->session_key_id);
+        l_client_internal->session_key_id = NULL;
+    }
+    if ( l_client_internal->stream_key ){
+        dap_enc_key_delete(l_client_internal->stream_key );
+        l_client_internal->stream_key = NULL;
+    }
+    l_client_internal->es_stream = NULL;
+
+    l_client_internal->stage = DAP_CLIENT_STAGE_BEGIN;
+    l_client_internal->stage_status = DAP_CLIENT_STAGE_STATUS_DONE ;
+    l_client_internal->stage_target = DAP_CLIENT_STAGE_BEGIN ;
+}
+
+/**
  * @brief dap_client_delete
  * @param a_client
  */
@@ -98,6 +139,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
     dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
 
     l_client_internal->stage_target = a_stage_target;
+    l_client_internal->stage_target_done_callback = a_stage_end_callback;
 
     if(a_stage_target != l_client_internal->stage ){ // Going to stages downstairs
         switch(l_client_internal->stage_status ){
@@ -112,14 +154,42 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
             case DAP_CLIENT_STAGE_STATUS_DONE:
             case DAP_CLIENT_STAGE_STATUS_ERROR:
             default: {
-                log_it(L_DEBUG, "Start transitions chain to %");
+                log_it(L_DEBUG, "Start transitions chain to %",dap_client_stage_str(l_client_internal->stage_target) );
                 int step = (a_stage_target > l_client_internal->stage)?1:-1;
-                dap_client_internal_stage_transaction_begin(l_client_internal,l_client_internal->stage+step,a_stage_end_callback);
+                dap_client_internal_stage_transaction_begin(l_client_internal,l_client_internal->stage+step,m_stage_fsm_operator);
             }
         }
     }else{  // Same stage
         log_it(L_ERROR,"We're already on stage %s",dap_client_stage_str(a_stage_target));
     }
+}
+
+/**
+ * @brief m_stage_fsm_operator
+ * @param a_client
+ * @param a_arg
+ */
+void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
+{
+    (void *) a_arg;
+    dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
+    if (l_client_internal->stage_target == l_client_internal->stage){
+        log_it(L_WARNING, "FSM Op: current stage %s is same as target one, nothing to do",
+              dap_client_stage_str( l_client_internal->stage ) );
+        l_client_internal->stage_status_done_callback = NULL;
+
+        return;
+    }
+
+    int step = (l_client_internal->stage_target > l_client_internal->stage)?1:-1;
+    dap_client_stage_t l_stage_next = l_client_internal->stage+step;
+    log_it(L_NOTICE, "FSM Op: current stage %s, go to %s (target %s)"
+           ,dap_client_stage_str(l_client_internal->stage), dap_client_stage_str(l_stage_next)
+           ,dap_client_stage_str(l_client_internal->stage_target));
+    dap_client_internal_stage_transaction_begin(l_client_internal,
+                                                l_stage_next, m_stage_fsm_operator
+                                                );
+
 }
 
 /**
@@ -186,6 +256,7 @@ const char * dap_client_error_str(dap_client_error_t a_client_error)
     switch(a_client_error){
         case DAP_CLIENT_ERROR_ENC_NO_KEY: return "ENC_NO_KEY";
         case DAP_CLIENT_ERROR_ENC_WRONG_KEY: return "ENC_WRONG_KEY";
+        case DAP_CLIENT_ERROR_AUTH_WRONG_REPLY: return "AUTH_WRONG_REPLY";
         case DAP_CLIENT_ERROR_AUTH_WRONG_COOKIE: return "AUTH_WRONG_COOKIE";
         case DAP_CLIENT_ERROR_AUTH_WRONG_CREDENTIALS: return "AUTH_WRONG_CREDENTIALS";
         case DAP_CLIENT_ERROR_NETWORK_CONNECTION_TIMEOUT: return "NETWORK_CONNECTION_TIMEOUT";
@@ -194,6 +265,10 @@ const char * dap_client_error_str(dap_client_error_t a_client_error)
         case DAP_CLIENT_ERROR_STREAM_RESPONSE_WRONG: return "STREAM_RESPONSE_WRONG";
         case DAP_CLIENT_ERROR_STREAM_RESPONSE_TIMEOUT: return "STREAM_RESPONSE_TIMEOUT";
         case DAP_CLIENT_ERROR_STREAM_FREEZED: return "STREAM_FREEZED";
+        case DAP_CLIENT_ERROR_STREAM_CTL_ERROR: return "STREAM_CTL_ERROR";
+        case DAP_CLIENT_ERROR_STREAM_CTL_ERROR_AUTH: return "STREAM_CTL_ERROR_AUTH";
+        case DAP_CLIENT_ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT: return "STREAM_CTL_ERROR_RESPONSE_FORMAT";
+
         case DAP_CLIENT_ERROR_LICENSE: return "LICENSE_ERROR";
         default : return "UNDEFINED";
     }
@@ -280,4 +355,54 @@ dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client)
 {
     return DAP_CLIENT_INTERNAL(a_client)->stage_status;
 }
+
+/**
+ * @brief dap_client_get_key_stream
+ * @param a_client
+ * @return
+ */
+dap_enc_key_t * dap_client_get_key_stream(dap_client_t * a_client){
+    return DAP_CLIENT_INTERNAL(a_client)->stream_key;
+}
+
+/**
+ * @brief sap_client_get_uplink_addr
+ * @param a_client
+ * @return
+ */
+const char* dap_client_get_uplink_addr(dap_client_t * a_client)
+{
+    return DAP_CLIENT_INTERNAL(a_client)->uplink_addr;
+}
+
+/**
+ * @brief dap_client_get_uplink_port
+ * @param a_client
+ * @return
+ */
+uint16_t dap_client_get_uplink_port(dap_client_t * a_client)
+{
+    return DAP_CLIENT_INTERNAL(a_client)->uplink_port;
+}
+
+/**
+ * @brief dap_client_get_auth_cookie
+ * @param a_client
+ * @return
+ */
+const char * dap_client_get_auth_cookie(dap_client_t * a_client)
+{
+    return DAP_CLIENT_INTERNAL(a_client)->auth_cookie;
+}
+
+/**
+ * @brief dap_client_get_stream_id
+ * @param a_client
+ * @return
+ */
+const char * dap_client_get_stream_id(dap_client_t * a_client)
+{
+    return DAP_CLIENT_INTERNAL(a_client)->stream_id;
+}
+
 

@@ -35,6 +35,8 @@
 #define DAP_DELETE(a)   free(a)
 #define DAP_DUP(a) (__typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 
+#define DAP_PROTOCOL_VERSION 21
+
 
 
 #if defined(__GNUC__) ||defined (__clang__)
