@@ -241,66 +241,7 @@ cleanup:
 	return ret;
 }
 
-int OQS_KEX_sidh_cln16_alice_1(OQS_KEX *k, const void *alice_priv, const uint8_t *bob_msg, const size_t bob_msg_len, uint8_t **key, size_t *key_len) {
 
-	int ret;
-	// decompression values
-	unsigned char *R = NULL, *A = NULL;
-
-	if (!k || !alice_priv || !bob_msg || !key || !key_len) {
-		return 0;
-	}
-
-	*key = NULL;
-
-	int compressed = isCompressed(k->named_parameters);
-
-	*key = malloc(SIDH_SHAREDKEY_LEN);
-	if (*key == NULL) {
-		goto err;
-	}
-	*key_len = SIDH_SHAREDKEY_LEN;
-
-	if (compressed) {
-		if (bob_msg_len != SIDH_COMPRESSED_PUBKEY_LEN) {
-			goto err;
-		}
-		A = malloc(SIDH_COMPRESSED_A_LEN);
-		if (A == NULL) {
-			goto err;
-		}
-		R = malloc(SIDH_COMPRESSED_R_LEN);
-		if (R == NULL) {
-			goto err;
-		}
-		// compute Alice's shared secret
-		oqs_sidh_cln16_PublicKeyBDecompression_A((unsigned char *) alice_priv, (unsigned char *) bob_msg, R, A, k->ctx);
-		if (oqs_sidh_cln16_EphemeralSecretAgreement_Compression_A((unsigned char *) alice_priv, R, A, (unsigned char *) *key, k->ctx) != SIDH_CRYPTO_SUCCESS) {
-			goto err;
-		}
-	} else {
-		if (bob_msg_len != SIDH_PUBKEY_LEN) {
-			goto err;
-		}
-		if (oqs_sidh_cln16_EphemeralSecretAgreement_A((unsigned char *) alice_priv, (unsigned char *) bob_msg, (unsigned char *) *key, k->ctx) != SIDH_CRYPTO_SUCCESS) {
-			goto err;
-		}
-	}
-
-	ret = 1;
-	goto cleanup;
-
-err:
-	ret = 0;
-	free(*key);
-	*key = NULL;
-
-cleanup:
-	free(A);
-	free(R);
-
-	return ret;
-}
 
 void OQS_KEX_sidh_cln16_alice_priv_free(UNUSED OQS_KEX *k, void *alice_priv) {
 	if (alice_priv) {

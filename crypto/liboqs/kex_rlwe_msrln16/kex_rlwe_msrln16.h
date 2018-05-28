@@ -16,6 +16,10 @@
 /*#include <oqs/kex.h>
 #include <oqs/rand.h>*/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 OQS_KEX *OQS_KEX_rlwe_msrln16_new(OQS_RAND *rand);
 
 int OQS_KEX_rlwe_msrln16_alice_0(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg, size_t *alice_msg_len);
@@ -24,5 +28,9 @@ int OQS_KEX_rlwe_msrln16_alice_1(OQS_KEX *k, const void *alice_priv, const uint8
 
 void OQS_KEX_rlwe_msrln16_alice_priv_free(OQS_KEX *k, void *alice_priv);
 void OQS_KEX_rlwe_msrln16_free(OQS_KEX *k);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -2,6 +2,7 @@
 #define __OQS_COMMON_H
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #define OQS_SUCCESS 1
 #define OQS_ERROR 0
