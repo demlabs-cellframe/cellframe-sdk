@@ -8,8 +8,10 @@ target_link_libraries(${PROJECT_NAME}  curl)
 
 include_directories("${dap_core_INCLUDE_DIRS}")
 include_directories("${dap_client_INCLUDE_DIRS}")
+include_directories("${dap_http_server_INCLUDE_DIRS}")
 add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_client_DEFINITIONS}")
+add_definitions ("${dap_http_server_DEFINITIONS}")
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 

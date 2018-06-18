@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define AES_BLOCK_SIZE 16
+
 struct dap_enc_key;
 
 void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size);

@@ -2,7 +2,7 @@
 
 #include "dap_common.h"
 
-#include "../http/dap_http_client.h"
+#include "dap_http_client.h"
 
 #include "dap_client.h"
 #include "dap_client_internal.h"

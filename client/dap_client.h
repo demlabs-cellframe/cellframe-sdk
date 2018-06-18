@@ -12,11 +12,11 @@ typedef struct dap_enc_key dap_enc_key_t;
 typedef enum dap_client_stage {
     DAP_CLIENT_STAGE_BEGIN=0,
     DAP_CLIENT_STAGE_ENC=1,
-    DAP_CLIENT_STAGE_AUTH=2,
-    DAP_CLIENT_STAGE_STREAM_CTL=3,
-    DAP_CLIENT_STAGE_STREAM=4,
-    DAP_CLIENT_STAGE_NETCONF=5,
-    DAP_CLIENT_STAGE_TUNNEL=6,
+    DAP_CLIENT_STAGE_STREAM_CTL=2,
+    DAP_CLIENT_STAGE_STREAM=3,
+    DAP_CLIENT_STAGE_NETCONF=4,
+    DAP_CLIENT_STAGE_TUNNEL=5,
+    DAP_CLIENT_STAGE_AUTH=6
 } dap_client_stage_t;
 
 typedef enum dap_client_stage_status {
@@ -60,10 +60,10 @@ typedef void (*dap_client_callback_t) (dap_client_t *, void*);
 typedef void (*dap_client_callback_int_t) (dap_client_t *, int);
 typedef void (*dap_client_callback_data_size_t) (dap_client_t *, void *, size_t);
 
-#define DAP_UPLINK_PATH_ENC_INIT "handshake"
-#define DAP_UPLINK_PATH_DB "db"
-#define DAP_UPLINK_PATH_STREAM_CTL "stream_ctl"
-#define DAP_UPLINK_PATH_STREAM "stream"
+#define DAP_UPLINK_PATH_ENC_INIT "1901248124123459"
+#define DAP_UPLINK_PATH_DB "01094787531354"
+#define DAP_UPLINK_PATH_STREAM_CTL "091348758013553"
+#define DAP_UPLINK_PATH_STREAM "874751843144"
 #define DAP_UPLINK_PATH_LICENSE "license"
 
 #ifdef __cplusplus
