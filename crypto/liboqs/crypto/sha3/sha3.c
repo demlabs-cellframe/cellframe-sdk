@@ -10,7 +10,7 @@
 #endif
 
 #include <assert.h>
-#include <oqs/sha3.h>
+#include "sha3.h"
 #include <stdint.h>
 
 #define SHAKE128_RATE OQS_SHA3_SHAKE128_RATE

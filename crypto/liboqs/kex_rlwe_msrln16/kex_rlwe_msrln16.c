@@ -11,8 +11,8 @@
 #include <unistd.h>
 #endif
 
-#include <oqs/kex.h>
-#include <oqs/rand.h>
+#include "../kex/kex.h"
+#include "../crypto/rand/rand.h"
 
 #include "LatticeCrypto.h"
 #include "LatticeCrypto_priv.h"

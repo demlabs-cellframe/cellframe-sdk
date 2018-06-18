@@ -17,7 +17,7 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+#pragma once
 #ifndef _DAP_CLIENT_H
 #define _DAP_CLIENT_H
 
@@ -59,6 +59,7 @@ typedef struct dap_client_remote{
 
     UT_hash_handle hh;
 
+    void * _internal;
     void * _inheritor; // Internal data to specific client type, usualy states for state machine
 } dap_client_remote_t; // Node of bidirectional list of clients
 

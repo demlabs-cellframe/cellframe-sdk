@@ -74,7 +74,7 @@ int dap_common_init( const char * a_log_file )
 	return 0;
 }
 
-void common_deinit()
+void dap_common_deinit()
 {
     if(s_log_file) fclose(s_log_file);
 }

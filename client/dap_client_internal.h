@@ -18,15 +18,25 @@ typedef struct dap_client_internal
     dap_events_socket_t * es_stream;
 
     dap_enc_key_t * session_key;
+    dap_enc_key_t * stream_key;
+    char stream_id[25];
+
     char  * session_key_id;
+    char * auth_cookie;
 
     char  * uplink_addr;
     uint16_t uplink_port;
     char  * uplink_user;
     char  * uplink_password;
 
+    uint32_t uplink_protocol_version;
+
+    char * last_parsed_node;
+
 
     dap_client_stage_t stage_target;
+    dap_client_callback_t stage_target_done_callback;
+
     dap_client_stage_t stage;
     dap_client_stage_status_t stage_status;
     dap_client_error_t last_error;

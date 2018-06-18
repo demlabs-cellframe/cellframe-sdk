@@ -8,9 +8,9 @@
 #include "dap_enc_sidh16.h"
 #include "dap_enc_key.h"
 
-#include <../libdap/core/dap_common.h>
-#include <../libdap/crypto/liboqs/kex_sidh_cln16/kex_sidh_cln16.h>
-#include <../libdap/crypto/liboqs/kex_sidh_cln16/SIDH.h>
+#include "dap_common.h"
+#include "liboqs/kex_sidh_cln16/kex_sidh_cln16.h"
+#include "liboqs/kex_sidh_cln16/SIDH.h"
 
 static const char *P751 = "p751";
 static const char *CompressedP751 = "compressedp751";
@@ -22,6 +22,12 @@ static int isCompressed(void *_inheritor) {
     return 0;
 }
 
+void test(){
+ 
+}
+
+
+
 
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
@@ -32,7 +38,7 @@ dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t
         return NULL;
     // инициализация системы изогенных кривых
     PCurveIsogenyStruct curveIsogeny = oqs_sidh_cln16_curve_allocate(&CurveIsogeny_SIDHp751);
-    if(curveIsogeny == NULL || dap_sidh16_CurveIsogenyStruct_isnull(curveIsogeny)) {
+    if(curveIsogeny == NULL /*|| dap_sidh16_CurveIsogenyStruct_isnull(curveIsogeny)*/) {
         DAP_DELETE(k);
         // освобождаем память для изогении
         oqs_sidh_cln16_curve_free(curveIsogeny);

@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <oqs/rand.h>
+#include "../rand/rand.h"
 
 OQS_RAND *OQS_RAND_urandom_aesctr_new();
 

@@ -23,7 +23,7 @@ extern "C" {
 #define UNUSED __attribute__((unused))
 #endif
 
-#include <../libdap/crypto/liboqs/kex_sidh_cln16/SIDH.h>
+#include "../kex_sidh_cln16/SIDH.h"
 
 // Basic constants
 

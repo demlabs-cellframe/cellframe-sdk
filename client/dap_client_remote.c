@@ -35,6 +35,8 @@
 #include "dap_server.h"
 #endif
 
+
+
 #define LOG_TAG "dap_client_remote"
 
 
@@ -42,7 +44,7 @@
  * @brief dap_client_init Init clients module
  * @return Zero if ok others if no
  */
-int dap_client_init()
+int dap_client_remote_init()
 {
     log_it(L_NOTICE,"Initialized socket client module");
     return 0;
@@ -51,7 +53,7 @@ int dap_client_init()
 /**
  * @brief dap_client_deinit Deinit clients module
  */
-void dap_client_deinit()
+void dap_client_remote_deinit()
 {
 
 }
@@ -62,7 +64,7 @@ void dap_client_deinit()
  * @param s Client's socket
  * @return Pointer to the new list's node
  */
-dap_client_remote_t * dap_client_remote_create(dap_server_t * sh, int s, ev_io* w_client)
+dap_client_remote_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_client)
 {
 #ifdef DAP_SERVER
     pthread_mutex_lock(&sh->mutex_on_hash);
@@ -146,7 +148,6 @@ void dap_client_ready_to_write(dap_client_remote_t * sc,bool is_ready)
 
         ev_io_set(sc->watcher_client, sc->socket, events );
     }
-
 }
 
 
@@ -159,13 +160,13 @@ void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh)
 #ifdef DAP_SERVER
     pthread_mutex_lock(&sh->mutex_on_hash);
 
-    log_it(L_DEBUGUG, "Client structure remove");
+    log_it(L_DEBUG, "Client structure remove");
     HASH_DEL(sc->server->clients,sc);
 
     if(sc->server->client_delete_callback)
         sc->server->client_delete_callback(sc,NULL); // Init internal structure
-    if(sc->internal)
-        free(sc->internal);
+    if(sc->_inheritor)
+        free(sc->_inheritor);
 
     if(sc->socket)
         close(sc->socket);
