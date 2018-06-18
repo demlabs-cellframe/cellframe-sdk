@@ -74,7 +74,6 @@ typedef struct dap_http_client
     struct dap_http_url_proc * proc;
 
     void * _inheritor;
-    void * _internal;
 
 } dap_http_client_t;
 
