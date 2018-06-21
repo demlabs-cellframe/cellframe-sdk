@@ -25,6 +25,7 @@
 #include "stream.h"
 
 #include "dap_enc_http.h"
+#include "dap_enc_key.h"
 
 #include "dap_http.h"
 #include "dap_http_client.h"
@@ -114,7 +115,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             for(int i = 0; i < sizeof(key_str); i++)
                 key_str[i] = 65 + rand() % 25;
 
-            ss->key=enc_key_create(key_str,DAP_ENC_KEY_TYPE_AES);
+            ss->key=dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES,key_str);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
        //     log_it(L_DEBUG,"Stream AES key string %s",key_str);
@@ -127,7 +128,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             for(int i = 0; i < sizeof(key_str); i++)
                 key_str[i] = 65 + rand() % 25;
 
-            ss->key=enc_key_create(key_str,DAP_ENC_KEY_TYPE_AES);
+            ss->key=dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES,key_str);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
             log_it(L_DEBUG,"Stream AES key string %s",key_str);
