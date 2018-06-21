@@ -45,10 +45,6 @@
 #define RSA_KEY_LENGTH 4096
 #define AES_KEY_LENGTH 16 // 128 ???
 
-
-RSA* public_key_server = NULL;
-RSA* private_key_server = NULL;
-
 int enc_http_init()
 {
    /* BIO *bio = BIO_new(BIO_s_mem());
@@ -113,6 +109,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         strcpy(sendMsg,encrypt_id);
         strcat(sendMsg," ");
         strcat(sendMsg,encrypt_msg);
+ 
 
         dap_http_simple_reply_f(cl_st,"%s",sendMsg);
         free(encrypt_msg);
@@ -133,25 +130,26 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         char *msg_index = strchr(cl_st->request,' ');
         int key_size = (void*)msg_index - cl_st->request;
         int msg_size = cl_st->request_size - key_size - 1;
-        //char* encoded_key = malloc(key_size/2);
-        char *encoded_msg = malloc(msg_size/2);
-        //dap_enc_base64_decode(cl_st->request,key_size,encoded_key);
-        dap_enc_base64_decode(msg_index,msg_size,encoded_msg);
+        uint8_t *encoded_msg = malloc(cl_st->request_size);
+        dap_enc_base64_decode(cl_st->request,cl_st->request_size,encoded_msg);
 
-        OQS_KEX_rlwe_msrln16_bob(msrln16_key->kex,encoded_msg,msg_size/2,out_msg,out_msg_size,msrln16_key->public_key,msrln16_key->public_length);
+        OQS_KEX_rlwe_msrln16_bob(msrln16_key->kex,encoded_msg,1824,&out_msg,&out_msg_size,&msrln16_key->public_key,&msrln16_key->public_length);
+        aes_key_from_msrln_pub(key_ks->key);
+
+        char encrypt_id[strlen(key_ks->id) * 2];
+        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id);
 
         char* encrypt_msg = malloc(out_msg_size * 2);
         dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg);
 
-        char *sendMsg = malloc(out_msg_size * 2 + key_size + 1024);
-        memcpy(sendMsg,cl_st->request,key_size);
+        char *sendMsg = malloc(out_msg_size * 2 + strlen(key_ks->id) * 2 + 1024);
+        strcpy(sendMsg,encrypt_id);
         strcat(sendMsg," ");
         strcat(sendMsg,encrypt_msg);
 
         dap_http_simple_reply_f(cl_st,"%s",sendMsg);
         free(encrypt_msg);
         free(sendMsg);
-        //free(encoded_key);
         free(encoded_msg);
 
         *isOk=true;
@@ -159,18 +157,18 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         //Stage 3 : generate alice public key
         uint8_t* out_msg = NULL;
         size_t out_msg_size = 0;
-
         char *msg_index = strchr(cl_st->request,' ');
         int key_size = (void*)msg_index - cl_st->request;
         int msg_size = cl_st->request_size - key_size - 1;
-        char* encoded_key = malloc(key_size/2);
-        char *encoded_msg = malloc(msg_size/2);
+        char* encoded_key = malloc(key_size);
+        memset(encoded_key,0,key_size);
+        uint8_t *encoded_msg = malloc(msg_size);
         dap_enc_base64_decode(cl_st->request,key_size,encoded_key);
-        dap_enc_base64_decode(msg_index,msg_size,encoded_msg);
+        dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg);
         dap_enc_ks_key_t *ks_key = dap_enc_ks_find(encoded_key);
         dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(ks_key->key);
-        OQS_KEX_rlwe_msrln16_alice1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, msg_size/2,msrln16_key->public_key,msrln16_key->public_length);
-
+        OQS_KEX_rlwe_msrln16_alice_1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, 2048,&msrln16_key->public_key,&msrln16_key->public_length);
+        aes_key_from_msrln_pub(ks_key->key);
         free(encoded_key);
         free(encoded_msg);
 

@@ -65,7 +65,7 @@ static dap_config_t * s_config = NULL;
 
 int dap_http_simple_module_init()
 {
-    s_config = dap_config_open("http_simple");
+    //s_config = dap_config_open("http_simple");
 
     pthread_mutex_init(&mutex_on_queue_http_response, NULL);
     http_simple_loop = ev_loop_new(0);
