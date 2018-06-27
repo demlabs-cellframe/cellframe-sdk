@@ -22,6 +22,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
+#include "../../sources/config.h"
 
 #include "dap_common.h"
 #include "dap_http.h"
@@ -30,7 +31,6 @@
 #include "dap_enc_key.h"
 #include "dap_enc_ks.h"
 #include "dap_enc_http.h"
-#include "dap_config.h"
 #include <ev.h>
 #include <sys/queue.h>
 
@@ -61,12 +61,10 @@ TAILQ_HEAD(, tailq_entry) tailq_head;
 static struct ev_loop* http_simple_loop;
 static ev_async async_watcher_http_simple;
 static pthread_mutex_t mutex_on_queue_http_response = PTHREAD_MUTEX_INITIALIZER;
-static dap_config_t * s_config = NULL;
+
 
 int dap_http_simple_module_init()
 {
-    //s_config = dap_config_open("http_simple");
-
     pthread_mutex_init(&mutex_on_queue_http_response, NULL);
     http_simple_loop = ev_loop_new(0);
 
@@ -134,7 +132,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
     dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
     if(key){
         if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
-                                          > dap_config_get_item_int32(s_config,"session","key_ttl") ) ) {
+                                          > my_config.TTL_session_key ) ) {
 
             enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
 

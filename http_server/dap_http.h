@@ -20,10 +20,10 @@
 
 #ifndef _SERVER_HTTP_H_
 #define _SERVER_HTTP_H_
-#include "dap_server.h"
+#include "../../libdap-server/core_server/dap_server.h"
 #include "dap_client.h"
-#include "dap_http_header.h"
-#include "dap_http_client.h"
+#include "../../libdap/http/dap_http_header.h"
+#include "../../libdap/http/dap_http_client.h"
 #include "uthash.h"
 
 struct dap_http;

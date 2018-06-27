@@ -100,12 +100,12 @@ int dap_http_folder_add(dap_http_t *sh, const char * url_path, const char * loca
          return -1;
      }
 
-     if( 0!= magic_load(up_folder->mime_detector, NULL)){
+    /* if( 0!= magic_load(up_folder->mime_detector, NULL)){
          log_it(L_CRITICAL, "Can't load MIME magic detection database");
          magic_close(up_folder->mime_detector);
          free(up_folder);
          return -2;
-     }
+     }*/
 
 
     dap_http_add_proc(sh,url_path,up_folder,NULL,NULL,dap_http_folder_headers_read,dap_http_folder_headers_write,
