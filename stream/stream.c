@@ -277,7 +277,7 @@ void stream_headers_write(dap_http_client_t * sh, void *arg)
 {
     (void) arg;
     if(sh->reply_status_code==200){
-        stream_t *sid=STREAM(sh);
+        stream_t *sid=STREAM(sh->client);
 
         dap_http_out_header_add(sh,"Content-Type","application/octet-stream");
         dap_http_out_header_add(sh,"Connnection","keep-alive");
@@ -372,6 +372,7 @@ void stream_dap_data_read(dap_client_remote_t* sh, void * arg){
                 }else{
                     log_it(L_DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",sid->pkt_buf_in->hdr.size,read_bytes_to);
                 }
+                *ret = bytes_ready;
                 return;
             }else
                 break;
