@@ -9,6 +9,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum OQS_RAND_alg_name {
 	OQS_RAND_alg_default,
 	OQS_RAND_alg_urandom_chacha20,
@@ -95,4 +99,9 @@ double OQS_RAND_zscore_deviation_from_uniform(const unsigned long occurrences[25
 void OQS_RAND_report_statistics(const unsigned long occurrences[256], const char *indent);
 
 int OQS_RAND_get_system_entropy(uint8_t *buf, size_t n);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

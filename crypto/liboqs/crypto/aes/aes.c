@@ -3,6 +3,10 @@
 #include "aes.h"
 #include "aes_local.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void OQS_AES128_load_schedule(const uint8_t *key, void **schedule, int for_encryption) {
 #ifdef USE_OPENSSL
 	oqs_aes128_load_schedule_ossl(key, schedule, for_encryption);
@@ -191,4 +195,10 @@ inline void oqs_aes128_ecb_dec_sch_ossl(const uint8_t *ciphertext, const size_t 
 	assert(1 == EVP_DecryptFinal_ex((EVP_CIPHER_CTX *) schedule, plaintext, &outlen));
 }
 
+
+
+#endif
+
+#ifdef __cplusplus
+}
 #endif

@@ -5,9 +5,11 @@
 #include "dap_enc_aes.h"
 #include "dap_enc_key.h"
 
-uint8_t tail_block[] =  {21,27,20,36,16,20,27,31,22,41,27,33,30,21,32,28};
 
+#define AES_BLOCKSIZE 16
 #define AES_KEYSIZE 16
+
+uint8_t tail_block[] =  {21,27,20,36,16,20,27,31,22,41,27,33,30,21,32,28};
 
 #define DAP_ENC_AES_KEY(a) ((dap_enc_aes_key_t *)((a)->_inheritor) )
 
