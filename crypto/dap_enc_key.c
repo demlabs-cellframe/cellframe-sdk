@@ -43,6 +43,7 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_data_t new_from_data_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
     dap_enc_callback_size_t new_generate_callback;
+    dap_enc_callback_str_t new_from_str_callback;
 
     dap_enc_callback_t delete_callback;
 } s_callbacks[]={
@@ -55,7 +56,8 @@ struct dap_enc_key_callbacks{
                             .new_callback = NULL,
                             .delete_callback = NULL,
                             .new_generate_callback = dap_enc_aes_key_new_generate,
-                            .new_from_data_callback = dap_enc_aes_key_new_from_data
+                            .new_from_data_callback = dap_enc_aes_key_new_from_data,
+                            .new_from_str_callback = dap_enc_aes_key_new_from_str
                            },
     // NEW HOPE
     [DAP_ENC_KEY_TYPE_RLWE_NEWHOPE]={
@@ -163,6 +165,9 @@ dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const cha
 
     if(a_key_type< c_callbacks_size ){
         ret = DAP_NEW_Z(dap_enc_key_t);
+        if(s_callbacks[a_key_type].new_from_str_callback){
+            s_callbacks[a_key_type].new_from_str_callback(ret,a_key_str);
+        }
     }
     return ret;
 }

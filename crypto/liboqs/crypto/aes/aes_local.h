@@ -9,10 +9,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void oqs_aes128_load_schedule_ni(const uint8_t *key, void **schedule);
 void oqs_aes128_free_schedule_ni(void *schedule);
 void oqs_aes128_enc_ni(const uint8_t *plaintext, const void *schedule, uint8_t *ciphertext);
@@ -38,10 +34,6 @@ void oqs_aes128_ecb_enc_ossl(const uint8_t *plaintext, const size_t plaintext_le
 void oqs_aes128_ecb_dec_ossl(const uint8_t *ciphertext, const size_t ciphertext_len, const uint8_t *key, uint8_t *plaintext);
 void oqs_aes128_ecb_enc_sch_ossl(const uint8_t *plaintext, const size_t plaintext_len, const void *schedule, uint8_t *ciphertext);
 void oqs_aes128_ecb_dec_sch_ossl(const uint8_t *ciphertext, const size_t ciphertext_len, const void *schedule, uint8_t *plaintext);
-#endif
-
-#ifdef __cplusplus
-}
 #endif
 
 #endif

@@ -10,6 +10,7 @@ struct dap_enc_key;
 
 void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size);
 void dap_enc_aes_key_new_from_data(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size);
+void dap_enc_aes_key_new_from_str(struct dap_enc_key * a_key, const char * a_in);
 void dap_enc_aes_key_delete(struct dap_enc_key *a_key);
 int test_key_aes();
 
