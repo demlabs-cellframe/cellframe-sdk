@@ -5,9 +5,11 @@
 #include "dap_enc_aes.h"
 #include "dap_enc_key.h"
 
-uint8_t tail_block[] =  {21,27,20,36,16,20,27,31,22,41,27,33,30,21,32,28};
 
+#define AES_BLOCKSIZE 16
 #define AES_KEYSIZE 16
+
+uint8_t tail_block[] =  {21,27,20,36,16,20,27,31,22,41,27,33,30,21,32,28};
 
 #define DAP_ENC_AES_KEY(a) ((dap_enc_aes_key_t *)((a)->_inheritor) )
 
@@ -101,15 +103,15 @@ void dap_enc_aes_key_new_from_data(struct dap_enc_key * a_key, const void * a_in
  * @return
  */
 size_t dap_enc_aes_decode(struct dap_enc_key* a_key, const void * a_in, size_t a_in_size,void * a_out)
-{
-	if(a_in_size % 16 != 0)
-		return 0;
+{    
+    if(a_in_size % 16 != 0)
+        return 0;
     OQS_AES128_ECB_dec(a_in,a_in_size,a_key->data,a_out);
     int tail = 0;
-	for(int i =a_in_size-1; i > a_in_size-15; i--)
-		if(*(char*)(a_out + i) == (char)tail_block[i%16])
-			tail++;  
-	return a_in_size - tail;
+    for(int i =a_in_size-1; i > a_in_size-15; i--)
+        if(*(char*)(a_out + i) == (char)tail_block[i%16])
+            tail++;
+    return a_in_size - tail;
 }
 
 /**

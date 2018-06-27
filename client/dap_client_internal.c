@@ -13,7 +13,7 @@
 #include "liboqs/kex/kex.h"
 #include "dap_enc_msrln16.h"
 
-#include "dap_http_client_simple.h"
+#include "../http/dap_http_client_simple.h"
 #include "dap_client_internal.h"
 
 #define LOG_TAG "dap_client_internal"
@@ -176,26 +176,8 @@ static void s_stage_status_after(dap_client_internal_t * a_client_internal)
                              a_client_internal->uplink_password, DAP_CLIENT_PROTOCOL_VERSION);
                     log_it(L_DEBUG,"STREAM_CTL request size %u",strlen(l_request));
 
-                    a_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
-
                     dap_client_internal_request_enc(a_client_internal,
                                                    DAP_UPLINK_PATH_STREAM_CTL,
-                                                    "socket_forward","sf=1",l_request,l_request_size,
-                                                    m_stream_ctl_response, m_stream_ctl_error);
-                }break;
-                case DAP_CLIENT_STAGE_STREAM:{
-                    log_it(L_INFO,"Go to stage STREAM: prepare the request");
-
-                    size_t l_request_size = strlen( a_client_internal->uplink_user)
-                            + strlen( a_client_internal->uplink_password)+2+10;
-                    char *l_request = DAP_NEW_Z_SIZE (char,l_request_size) ;
-
-                    snprintf(l_request, l_request_size,"%s %s %d",a_client_internal->uplink_user,
-                             a_client_internal->uplink_password, DAP_CLIENT_PROTOCOL_VERSION);
-                    log_it(L_DEBUG,"STREAM request size %u",strlen(l_request));
-
-                    dap_client_internal_request_enc(a_client_internal,
-                                                   DAP_UPLINK_PATH_STREAM,
                                                     "socket_forward","sf=1",l_request,l_request_size,
                                                     m_stream_ctl_response, m_stream_ctl_error);
                 }break;
@@ -314,10 +296,10 @@ void dap_client_internal_request_enc(dap_client_internal_t * a_client_internal, 
     snprintf(l_url,1024,"http://%s:%u",a_client_internal->uplink_addr, a_client_internal->uplink_port );
     l_url_size = strlen(l_url);
 
-    char *l_sub_url_enc = l_sub_url_size ? (char*) calloc(1,2*(l_sub_url_size+16) ): NULL;
-    char *l_query_enc = l_query_size ? (char*) calloc(1,(l_query_size+16)*2):NULL;
+    char *l_sub_url_enc = l_sub_url_size ? (char*) calloc(1,2*l_sub_url_size+16 ): NULL;
+    char *l_query_enc = l_query_size ? (char*) calloc(1,l_query_size*2+16 ):NULL;
 
-    size_t l_url_full_size_max  = 2*l_sub_url_size + 2*(l_query_size+16) + 5 + l_url_size;
+    size_t l_url_full_size_max  = 2*l_sub_url_size + 2*l_query_size + 5 + l_url_size;
     char * l_url_full = (char*) calloc(1, l_url_full_size_max);
 
     size_t l_request_enc_size_max = a_request_size ?a_request_size*2+16 : 0;
@@ -448,10 +430,6 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response,size_t a_res
             dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(s_key_domain);
             OQS_KEX_rlwe_msrln16_alice_1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, 2048,&msrln16_key->public_key,&msrln16_key->public_length);
             aes_key_from_msrln_pub(s_key_domain);
-            l_client_internal->session_key_id = (char*)malloc(33);
-            memcpy(l_client_internal->session_key_id,encoded_key,33);
-            l_client_internal->session_key_id[32] = 0;
-            l_client_internal->session_key = s_key_domain;
             free(encoded_key);
             free(encoded_msg);
             l_client_internal->stage_status = DAP_CLIENT_STAGE_STATUS_DONE;

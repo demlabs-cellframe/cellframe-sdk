@@ -12,11 +12,11 @@ typedef struct dap_enc_key dap_enc_key_t;
 typedef enum dap_client_stage {
     DAP_CLIENT_STAGE_BEGIN=0,
     DAP_CLIENT_STAGE_ENC=1,
-    DAP_CLIENT_STAGE_STREAM_CTL=2,
-    DAP_CLIENT_STAGE_STREAM=3,
-    DAP_CLIENT_STAGE_NETCONF=4,
-    DAP_CLIENT_STAGE_TUNNEL=5,
-    DAP_CLIENT_STAGE_AUTH=6
+    DAP_CLIENT_STAGE_AUTH=2,
+    DAP_CLIENT_STAGE_STREAM_CTL=3,
+    DAP_CLIENT_STAGE_STREAM=4,
+    DAP_CLIENT_STAGE_NETCONF=5,
+    DAP_CLIENT_STAGE_TUNNEL=6,
 } dap_client_stage_t;
 
 typedef enum dap_client_stage_status {

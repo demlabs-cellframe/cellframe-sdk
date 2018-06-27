@@ -25,10 +25,10 @@
 #include <libgen.h>
 #include "dap_common.h"
 #include "dap_client_remote.h"
-#include "dap_http.h"
 
 #ifdef DAP_SERVER
-#include "../../libdap-server/core_server/dap_server.h"
+#include "dap_server.h"
+#include "dap_http.h"
 #endif
 #include "dap_http_header.h"
 #include "dap_http_client.h"
@@ -223,7 +223,7 @@ cnt:switch(cl_ht->state_read){
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_HEADERS;
                     }
                     else{
-                        log_it(L_WARNING, "Input: unprocessed URL request %s is rejected", d_name);
+                        log_it(L_WARNINGNG, "Input: unprocessed URL request %s is rejected", d_name);
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
                         dap_client_ready_to_read(cl_ht->client,true);
                         dap_client_ready_to_write(cl_ht->client,true);
