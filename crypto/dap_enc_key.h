@@ -23,11 +23,6 @@
 
 #include <stddef.h>
 #include <time.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
                                DAP_ENC_DATA_TYPE_B64,
@@ -130,9 +125,5 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_
 dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
 dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str);
 void dap_enc_key_delete(dap_enc_key_t * a_key);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

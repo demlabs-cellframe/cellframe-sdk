@@ -1,12 +1,12 @@
 #include <string.h>
 
-#include "core/dap_common.h"
+#include "dap_common.h"
 
-#include "../http/dap_http_client.h"
+#include "dap_http_client.h"
 
 #include "dap_client.h"
 #include "dap_client_internal.h"
-#include "crypto/dap_enc_key.h"
+#include "dap_enc_key.h"
 
 
 #define LOG_TAG "dap_client"

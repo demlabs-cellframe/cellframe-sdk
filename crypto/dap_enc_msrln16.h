@@ -43,8 +43,8 @@ void dap_enc_msrln16_key_delete(struct dap_enc_key* a_key);
 /*?*/size_t dap_enc_msrln16_key_public_raw(dap_enc_key_t *a_key, void ** a_key_public);
 
 //size_t dap_enc_msrln16_decode(dap_enc_key_t* a_key, const void * a_in, size_t a_in_size,void * a_out);
-size_t dap_enc_msrln16_decode(OQS_KEX *k, const uint8_t *alice_msg, const size_t alice_msg_len, uint8_t **bob_msg, size_t *bob_msg_len, uint8_t **key, size_t *key_len);
-size_t dap_enc_msrln16_encode(OQS_KEX *k, void **alice_priv, uint8_t **alice_msg, size_t *alice_msg_len);
+size_t dap_enc_msrln16_decode(struct dap_enc_key* a_key, const void * a_in, size_t a_in_size,void * a_out);
+size_t dap_enc_msrln16_encode(struct dap_enc_key* a_key, const void * a_in, size_t a_in_size,void * a_out);
 //size_t dap_enc_msrln16_encode(dap_enc_key_t* a_key, const void * a_in, size_t a_in_size,void * a_out);
 void aes_key_from_msrln_pub(dap_enc_key_t* key);
 
