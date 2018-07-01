@@ -5,9 +5,11 @@
 #include "dap_enc_aes.h"
 #include "dap_enc_key.h"
 
-uint8_t tail_block[] =  {21,27,20,36,16,20,27,31,22,41,27,33,30,21,32,28};
 
+#define AES_BLOCKSIZE 16
 #define AES_KEYSIZE 16
+
+uint8_t tail_block[] =  {21,27,20,36,16,20,27,31,22,41,27,33,30,21,32,28};
 
 #define DAP_ENC_AES_KEY(a) ((dap_enc_aes_key_t *)((a)->_inheritor) )
 
@@ -78,6 +80,28 @@ void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size)
 void dap_enc_aes_key_new_from_data(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size)
 {
 	if(a_in_size < AES_KEYSIZE)
+		return;
+
+    a_key->last_used_timestamp = time(NULL);
+	a_key->data = (unsigned char*)malloc(AES_KEYSIZE);
+	memcpy(a_key->data,a_in,AES_KEYSIZE);
+	//a_key->data[16]='\0';
+	a_key->data_size = AES_KEYSIZE;
+    a_key->type=DAP_ENC_KEY_TYPE_AES;
+    a_key->enc=dap_enc_aes_encode;
+    a_key->dec=dap_enc_aes_decode;
+    a_key->delete_callback=dap_enc_aes_key_delete;
+}
+
+/**
+ * @brief dap_enc_aes_key_new_from_str
+ * @param a_key
+ * @param a_in
+ * @param a_in_size
+ */
+void dap_enc_aes_key_new_from_str(struct dap_enc_key * a_key, const char * a_in)
+{
+	if(strlen(a_in) < AES_KEYSIZE)
 		return;
 
     a_key->last_used_timestamp = time(NULL);

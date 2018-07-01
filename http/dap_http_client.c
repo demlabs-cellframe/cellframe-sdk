@@ -25,11 +25,12 @@
 #include <libgen.h>
 #include "dap_common.h"
 #include "dap_client_remote.h"
-#include "dap_http.h"
 
 #ifdef DAP_SERVER
-#include "../../libdap-server/core_server/dap_server.h"
+#include "dap_server.h"
+#include "dap_http.h"
 #endif
+
 #include "dap_http_header.h"
 #include "dap_http_client.h"
 
