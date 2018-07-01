@@ -61,6 +61,7 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
 {
     dap_http_header_t * hdr_key_id=dap_http_header_find(http->in_headers,"KeyID");
     if(hdr_key_id){
+        
         dap_enc_ks_key_t * ks_key=dap_enc_ks_find(hdr_key_id->value);
         if(ks_key)
             return ks_key->key;

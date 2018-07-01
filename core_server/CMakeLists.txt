@@ -3,17 +3,19 @@ project (dap_core_server C)
   
 set(DAP_CORE_SERVER_SRCS  dap_server.c  )
 
+include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_enc_server_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
+
 
 add_definitions ("-DDAP_SERVER")
 
+add_definitions ("${dap_client_DEFINITIONS}")
 add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
 add_definitions ("${dap_enc_server_DEFINITIONS}")
-add_definitions ("${dap_client_DEFINITIONS}")
+
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CORE_SERVER_SRCS})
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
