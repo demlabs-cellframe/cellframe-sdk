@@ -100,10 +100,10 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         char *sendMsg = malloc(out_msg_size * 2 + strlen(key_ks->id) * 2 + 1024);
         char encrypt_id[strlen(key_ks->id) * 2];
 
-        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id);
+        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id,DAP_ENC_STANDARD_B64);
 
         char* encrypt_msg = malloc(out_msg_size * 2);
-        dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg);
+        dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg,DAP_ENC_STANDARD_B64);
 
         strcpy(sendMsg,encrypt_id);
         strcat(sendMsg," ");
@@ -130,17 +130,17 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         int key_size = (void*)msg_index - cl_st->request;
         int msg_size = cl_st->request_size - key_size - 1;
         uint8_t *encoded_msg = malloc(cl_st->request_size);
-        dap_enc_base64_decode(cl_st->request,cl_st->request_size,encoded_msg);
+        dap_enc_base64_decode(cl_st->request,cl_st->request_size,encoded_msg,DAP_ENC_STANDARD_B64);
 
 
         OQS_KEX_rlwe_msrln16_bob(msrln16_key->kex,encoded_msg,1824,&out_msg,&out_msg_size,&msrln16_key->public_key,&msrln16_key->public_length);
         aes_key_from_msrln_pub(key_ks->key);
 
         char encrypt_id[strlen(key_ks->id) * 2];
-        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id);
+        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id,DAP_ENC_STANDARD_B64);
 
         char* encrypt_msg = malloc(out_msg_size * 2);
-        dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg);
+        dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg,DAP_ENC_STANDARD_B64);
 
         char *sendMsg = malloc(out_msg_size * 2 + strlen(key_ks->id) * 2 + 1024);
         strcpy(sendMsg,encrypt_id);
@@ -163,8 +163,8 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         char* encoded_key = malloc(key_size);
         memset(encoded_key,0,key_size);
         uint8_t *encoded_msg = malloc(msg_size);
-        dap_enc_base64_decode(cl_st->request,key_size,encoded_key);
-        dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg);
+        dap_enc_base64_decode(cl_st->request,key_size,encoded_key,DAP_ENC_STANDARD_B64);
+        dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg,DAP_ENC_STANDARD_B64);
         dap_enc_ks_key_t *ks_key = dap_enc_ks_find(encoded_key);
         dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(ks_key->key);
         OQS_KEX_rlwe_msrln16_alice_1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, 2048,&msrln16_key->public_key,&msrln16_key->public_length);
