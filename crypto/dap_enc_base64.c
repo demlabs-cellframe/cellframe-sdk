@@ -85,7 +85,7 @@ b64_decode_ex (const char *, size_t, size_t *);
  * @param out
  * @return
  */
-size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out)
+size_t dap_enc_base64_decode(const char * in_raw, size_t in_size,void * out, dap_enc_b64_standard_t standard)
 {
     //B64_Decode( in, in_size, (byte*) out );
     //return B64_GetSize( in_size,0 );
@@ -97,6 +97,18 @@ size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out)
     size_t l_size = 0;
     unsigned char buf[3];
     unsigned char tmp[4];
+
+    char* in = (char*)malloc(in_size);
+    memcpy(in,in_raw,in_size);
+
+    if(standard == DAP_ENC_STANDARD_B64_URLSAFE)
+        for(int i=0; i < in_size; i++)
+        {
+            if(in[i] == '_')
+                in[i] = '/';
+            else if(in[i] == '-')
+                in[i] = '+';
+        }
 
     // alloc
     //dec = (unsigned char *) b64_malloc(1);
@@ -181,7 +193,7 @@ size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out)
  * @param a_out
  * @return
  */
-size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out)
+size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, dap_enc_b64_standard_t standard)
 {
   int i = 0;
   int j = 0;
@@ -240,6 +252,16 @@ size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out)
 
   // Make sure we have enough space to add '\0' character at end.
   a_out[size] = '\0';
+
+    if(standard == DAP_ENC_STANDARD_B64_URLSAFE)
+    for(int i=0; i < size; i++)
+    {
+        if(a_out[i] == '/')
+            a_out[i] = '_';
+        else if(a_out[i] == '+')
+            a_out[i] = '-';
+    }
+
   return size;
 }
 

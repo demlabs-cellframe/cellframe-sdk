@@ -64,28 +64,19 @@ size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_s
 {
     if(key->enc){
         void *proc_buf = NULL;
-        switch(data_type_out){
-            case DAP_ENC_DATA_TYPE_B64_URLSAFE:
-            case DAP_ENC_DATA_TYPE_B64:{
-                proc_buf=calloc(1,buf_size*2);
-            }break;
-            case DAP_ENC_DATA_TYPE_RAW:{
-                proc_buf=buf_out;
-            }break;
-        }
+        if(data_type_out == DAP_ENC_DATA_TYPE_RAW)
+            proc_buf=buf_out;
+        else
+            proc_buf=calloc(1,buf_size*2);
         size_t ret=key->enc(key,buf,buf_size,proc_buf);
-        if( (data_type_out==DAP_ENC_DATA_TYPE_B64) ||( data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE ) ){
-            ret=dap_enc_base64_encode(proc_buf,ret,buf_out);
+        if(data_type_out==DAP_ENC_DATA_TYPE_B64){
+            ret=dap_enc_base64_encode(proc_buf,ret,buf_out,DAP_ENC_STANDARD_B64);
             if (proc_buf)
             	free(proc_buf);
-            if( data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE ){
-                size_t i;
-                for(i=0;i<ret;i++)
-                    if( ((char*)buf_out)[i] == '/' )
-                        ((char*)buf_out)[i] = '_';
-            }
-
-            return ret;
+        }else if(data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE){
+            ret=dap_enc_base64_encode(proc_buf,ret,buf_out,DAP_ENC_STANDARD_B64_URLSAFE);
+            if (proc_buf)
+            	free(proc_buf);
         }
         return ret;
     }else{
@@ -109,14 +100,13 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
     size_t proc_buf_size = 0;
     switch(data_type_in){
         case DAP_ENC_DATA_TYPE_B64_URLSAFE:{
-            size_t i;
-            for(i=0;i<buf_size;i++)
-                if( ((char*)buf)[i] == '_' )
-                    ((char*)buf)[i] = '/';
-        }
+            proc_buf=calloc(1,buf_size);
+            proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf,DAP_ENC_STANDARD_B64_URLSAFE);
+            proc_buf_const=proc_buf;
+        }break;
         case DAP_ENC_DATA_TYPE_B64:{
             proc_buf=calloc(1,buf_size);
-            proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf);
+            proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf,DAP_ENC_STANDARD_B64);
             proc_buf_const=proc_buf;
         }break;
         case DAP_ENC_DATA_TYPE_RAW:{
@@ -127,7 +117,7 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
 
     if(key->dec){
         size_t ret=key->dec(key,proc_buf_const,proc_buf_size,buf_out);
-        if(data_type_in==DAP_ENC_DATA_TYPE_B64)
+        if(data_type_in==DAP_ENC_DATA_TYPE_B64 || DAP_ENC_DATA_TYPE_B64_URLSAFE)
         	if (proc_buf)
         		free(proc_buf);
         return ret;
