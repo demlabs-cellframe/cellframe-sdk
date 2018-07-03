@@ -105,7 +105,7 @@ static void s_stage_status_after(dap_client_internal_t * a_client_internal)
                     char *sendMsg = malloc(out_msg_size * 2  + 1024);
 
                     char* encrypt_msg = malloc(out_msg_size * 2);
-                    dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg);
+                    dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg,DAP_ENC_STANDARD_B64);
 
                     strcat(sendMsg,encrypt_msg);
 
@@ -443,8 +443,8 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response,size_t a_res
             char* encoded_key = malloc(key_size);
             memset(encoded_key,0,key_size);
             uint8_t *encoded_msg = malloc(msg_size);
-            dap_enc_base64_decode(a_response,key_size,encoded_key);
-            dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg);
+            dap_enc_base64_decode(a_response,key_size,encoded_key,DAP_ENC_STANDARD_B64);
+            dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg,DAP_ENC_STANDARD_B64);
             dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(s_key_domain);
             OQS_KEX_rlwe_msrln16_alice_1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, 2048,&msrln16_key->public_key,&msrln16_key->public_length);
             aes_key_from_msrln_pub(s_key_domain);
