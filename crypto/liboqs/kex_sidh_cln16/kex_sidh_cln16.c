@@ -65,7 +65,7 @@ OQS_KEX *OQS_KEX_sidh_cln16_new(OQS_RAND *rand, const char *named_parameters) {
 	k->estimated_quantum_security = 128;
 	k->seed = NULL;
 	k->seed_len = 0;
-	k->named_parameters = compressed ? CompressedP751 : P751;
+	k->named_parameters = compressed ? (char*)CompressedP751 : (char*)P751;
 	k->rand = rand;
 	k->params = NULL;
 	k->alice_0 = &OQS_KEX_sidh_cln16_alice_0;

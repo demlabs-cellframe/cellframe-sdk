@@ -53,7 +53,6 @@ int dap_http_client_simple_init()
 {
     curl_global_init(CURL_GLOBAL_ALL);
     m_curl_mh = curl_multi_init();
-    void* arg;
     pthread_create(&curl_pid,NULL,dap_http_client_thread,NULL );
     return 0;
 }

@@ -3,6 +3,7 @@
 #include "dap_common.h"
 
 #include "dap_http_client.h"
+#include "dap_http_client_simple.h"
 
 #include "dap_client.h"
 #include "dap_client_internal.h"
@@ -75,7 +76,7 @@ MEM_ALLOC_ERR:
 
     if (l_client)
         free (l_client);
-
+    return NULL;
 }
 
 /**
@@ -171,7 +172,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
  */
 void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
 {
-    (void *) a_arg;
+    (void)a_arg;
     dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL(a_client);
     if (l_client_internal->stage_target == l_client_internal->stage){
         log_it(L_WARNING, "FSM Op: current stage %s is same as target one, nothing to do",

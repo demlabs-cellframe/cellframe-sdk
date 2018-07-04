@@ -327,7 +327,6 @@ void dap_client_internal_request_enc(dap_client_internal_t * a_client_internal, 
     a_client_internal->request_response_callback = a_response_proc;
     a_client_internal->request_error_callback = a_response_error;
     a_client_internal->is_encrypted = true;
-    size_t i;
     dap_enc_data_type_t l_enc_type;
 
     if( a_client_internal->uplink_protocol_version >= 21  )
@@ -555,10 +554,10 @@ void m_auth_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
  */
 int m_auth_response_parse(XMLEvent event, const XMLNode* node, SXML_CHAR* text, const int n, SAX_Data* sd)
 {
+    (void)n;
     dap_client_t * l_client = (dap_client_t *) sd->user;
     dap_client_internal_t * l_client_internal = DAP_CLIENT_INTERNAL( l_client );
 
-    char * l_node_text =node ? (  node->text? node->text : "(NULL)") : "(NULL)"  ;
     switch (event) {
         //case XML_EVENT_START_NODE: last_parsed_node = strdup ( node->text) return start_node(node, sd);
         case XML_EVENT_TEXT:
@@ -649,7 +648,6 @@ void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data
         char l_stream_id[25]={0};
         char *l_stream_key = DAP_NEW_Z_SIZE(char,4096*3);
         void * l_stream_key_raw = DAP_NEW_Z_SIZE(char,4096);
-        size_t l_stream_key_raw_size = 0;
         uint32_t l_remote_protocol_version;
 
         l_arg_count = sscanf(l_response_str,"%25s %4096s %u"

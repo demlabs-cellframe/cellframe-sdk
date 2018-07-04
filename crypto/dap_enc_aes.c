@@ -47,6 +47,7 @@ int test_key_aes(){
 
 void dap_enc_aes_key_delete(struct dap_enc_key *a_key)
 {
+    (void)a_key;
     //No need any specific actions
 }
 
@@ -57,6 +58,7 @@ void dap_enc_aes_key_delete(struct dap_enc_key *a_key)
  */
 void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size)
 {
+    (void)a_size;
 	uint8_t key[AES_KEYSIZE];
 	OQS_RAND *rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
 	OQS_RAND_n(rand, key, AES_KEYSIZE);
@@ -130,7 +132,7 @@ size_t dap_enc_aes_decode(struct dap_enc_key* a_key, const void * a_in, size_t a
 		return 0;
     OQS_AES128_ECB_dec(a_in,a_in_size,a_key->data,a_out);
     int tail = 0;
-	for(int i =a_in_size-1; i > a_in_size-15; i--)
+    for(size_t i =a_in_size-1; i > a_in_size-15; i--)
 		if(*(char*)(a_out + i) == (char)tail_block[i%16])
 			tail++;  
 	return a_in_size - tail;

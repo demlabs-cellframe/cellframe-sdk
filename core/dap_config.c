@@ -48,7 +48,9 @@ int dap_config_init(const char * a_configs_path)
         char cmd[1024];
         snprintf(cmd,sizeof(cmd),"test -d %s || mkdir -p %s",a_configs_path,a_configs_path);
         system(cmd);
+        return 0;
     }
+    return -1;
 }
 
 /**
@@ -248,7 +250,9 @@ void dap_config_close(dap_config_t * a_config)
  */
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-
+    (void)a_config;
+    (void)a_section_path;
+    (void)a_item_name;
     return 0;
 }
 
@@ -300,6 +304,9 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
+    (void)a_config;
+    (void)a_section_path;
+    (void)a_item_name;
     return false;
 }
 
@@ -312,6 +319,9 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
  */
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
+    (void)a_config;
+    (void)a_section_path;
+    (void)a_item_name;
     return 0.0;
 }
 
