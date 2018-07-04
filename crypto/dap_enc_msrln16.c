@@ -5,6 +5,7 @@
 #include "liboqs/crypto/rand/rand.h"
 #include "liboqs/kex_rlwe_msrln16/kex_rlwe_msrln16.h"
 #include "liboqs/kex/kex.h"
+#include <string.h>
 
 #define LOG_TAG "dap_enc_msrln16"
 
@@ -42,14 +43,14 @@ size_t bob_key_len;
 
 size_t dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
 {
+    (void)a_size;
     if (a_key == NULL) {
-        return NULL;
+        return 0;
     }
     
     a_key->_inheritor = (dap_enc_msrln16_key_t*)malloc(sizeof(dap_enc_msrln16_key_t));
 
     a_key->type = DAP_ENC_KEY_TYPE_RLWE_MSRLN16;
-    a_key->last_used_timestamp;
     a_key->dec=dap_enc_aes_decode;
     a_key->enc=dap_enc_aes_encode;
     dap_enc_msrln16_key_t *msrln16_a_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(a_key);
@@ -68,10 +69,11 @@ size_t dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size
  * @param key_len
  */
 
-void dap_enc_msrln16_key_new_from_data(OQS_KEX *k, const void * alice_priv, const uint8_t *bob_msg, const size_t bob_msg_len, uint8_t **key, size_t *key_len)
+void dap_enc_msrln16_key_new_from_data(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size)
 {
-
-
+    (void)a_key;
+    (void)a_in;
+    (void)a_in_size;
 }
 
 /**
@@ -82,7 +84,9 @@ void dap_enc_msrln16_key_new_from_data(OQS_KEX *k, const void * alice_priv, cons
  */
 void dap_enc_msrln16_key_new_from_data_public(dap_enc_key_t * a_key, const void * a_in, size_t a_in_size)
 {
-
+    (void)a_key;
+    (void)a_in;
+    (void)a_in_size;
 }
 
 /**
@@ -121,7 +125,6 @@ int dap_rlwe_msrln16_alice_1(OQS_KEX *k, const void *alice_priv, const uint8_t *
  */
 void dap_enc_msrln16_key_delete(struct dap_enc_key* a_key)
 {
-    dap_enc_msrln16_key_t* msrln_a_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(a_key);
     (void) a_key;
     if(!a_key){
         return;
@@ -136,7 +139,8 @@ void dap_enc_msrln16_key_delete(struct dap_enc_key* a_key)
  */
 char* dap_enc_msrln16_key_public_base64(dap_enc_key_t *a_key)
 {
-
+    (void)a_key;
+    return NULL;
 }
 
 /**
@@ -147,7 +151,9 @@ char* dap_enc_msrln16_key_public_base64(dap_enc_key_t *a_key)
  */
 size_t dap_enc_msrln16_key_public_raw(dap_enc_key_t *a_key, void ** a_key_public)
 {
-
+    (void)a_key;
+    (void)a_key_public;
+    return NULL;
 }
 
 /**

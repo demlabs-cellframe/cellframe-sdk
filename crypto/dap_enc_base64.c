@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dap_enc_base64.h"
 
@@ -102,7 +103,7 @@ size_t dap_enc_base64_decode(const char * in_raw, size_t in_size,void * out, dap
     memcpy(in,in_raw,in_size);
 
     if(standard == DAP_ENC_STANDARD_B64_URLSAFE)
-        for(int i=0; i < in_size; i++)
+        for(size_t i=0; i < in_size; i++)
         {
             if(in[i] == '_')
                 in[i] = '/';
@@ -254,7 +255,7 @@ size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, 
   a_out[size] = '\0';
 
     if(standard == DAP_ENC_STANDARD_B64_URLSAFE)
-    for(int i=0; i < size; i++)
+    for(size_t i=0; i < size; i++)
     {
         if(a_out[i] == '/')
             a_out[i] = '_';

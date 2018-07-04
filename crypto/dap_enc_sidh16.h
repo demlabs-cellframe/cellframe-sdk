@@ -41,7 +41,7 @@ struct dapenc_testcase {
 
 #define DAP_ENC_SIDH16_KEY(a) ((dap_enc_sidh16_key_t *)((a)->_inheritor))
 
-dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key* a_key, size_t a_size);                            // new
+void dap_enc_sidh16_key_new_generate(struct dap_enc_key* a_key, size_t a_size);                            // new
 void dap_enc_sidh16_key_new_from_data(struct dap_enc_key* a_key, const void* a_in, size_t a_in_size);     // alice_1
 void dap_enc_sidh16_key_delete(struct dap_enc_key* a_key);                                                // sidh_cln16_alice_priv_free // sidh_cln16_free
 

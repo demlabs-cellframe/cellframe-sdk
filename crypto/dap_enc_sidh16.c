@@ -31,44 +31,37 @@ void test(){
 
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
-dap_enc_key_t *dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
-    dap_enc_key_t *k = DAP_NEW(dap_enc_key_t);
-    dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
-    if(k == NULL)
-        return NULL;
+void dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
+    (void)a_size;
+    a_key = DAP_NEW(dap_enc_key_t);
+    if(a_key == NULL)
+        return;
     // инициализация системы изогенных кривых
     PCurveIsogenyStruct curveIsogeny = oqs_sidh_cln16_curve_allocate(&CurveIsogeny_SIDHp751);
     if(curveIsogeny == NULL /*|| dap_sidh16_CurveIsogenyStruct_isnull(curveIsogeny)*/) {
-        DAP_DELETE(k);
+        DAP_DELETE(a_key);
         // освобождаем память для изогении
         oqs_sidh_cln16_curve_free(curveIsogeny);
-        return NULL;
+        return;
     }
     // Инициализировать изогенную структуру кривой pCurveIsogeny со статическими данными, извлеченными из pCurveIsogenyData.
     // Это нужно вызвать после выделения памяти для pCurveIsogeny с помощью SIDH_curve_allocate()
     if(oqs_sidh_cln16_curve_initialize(curveIsogeny, &CurveIsogeny_SIDHp751) != SIDH_CRYPTO_SUCCESS) {
-        DAP_DELETE(k);
+        DAP_DELETE(a_key);
         oqs_sidh_cln16_curve_free(curveIsogeny);
-        return NULL;
+        return;
     }
-    k->data;
-    k->data_size;
-    k->type = DAP_ENC_KEY_TYPE_SIDH_CLN16;
-    k->last_used_timestamp;
-    k->enc = &dap_enc_sidh16_encode;
-    k->dec = &dap_enc_sidh16_decode;
-    k->delete_callback = &dap_enc_sidh16_key_delete;
-
-    sidh_a_key->rand;
-    sidh_a_key->user_curveIsogeny;
-    return k;
-
+    a_key->type = DAP_ENC_KEY_TYPE_SIDH_CLN16;
+    a_key->enc = &dap_enc_sidh16_encode;
+    a_key->dec = &dap_enc_sidh16_decode;
+    a_key->delete_callback = &dap_enc_sidh16_key_delete;
 }
 
 
 void dap_enc_sidh16_key_new_from_data(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size) {
-
-
+    (void)a_key;
+    (void)a_in;
+    (void)a_in_size;
 }
 
 void dap_enc_sidh16_key_delete(struct dap_enc_key *a_key) {
@@ -147,6 +140,7 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
 
 // int OQS_KEX_sidh_cln16_bob(OQS_KEX *k, const uint8_t *alice_msg, const size_t alice_msg_len, uint8_t **bob_msg, size_t *bob_msg_len, uint8_t **key, size_t *key_len)
 size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size, void *a_out) {
+    (void)a_in_size;
     size_t ret;
     dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
     uint8_t *bob_priv = NULL;

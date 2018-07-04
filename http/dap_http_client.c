@@ -150,6 +150,8 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
                     p_st=PS_TYPE;
                     pos_kw_begin=pos+1;
                 }break;
+                default:
+                    break;
             }
         }else{
             switch(p_st){
@@ -157,6 +159,7 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
                     p_st=PS_ACTION;
                     pos_kw_begin=pos;
                 };break;
+                default:break;
             }
         }
     }
@@ -205,16 +208,18 @@ cnt:switch(cl_ht->state_read){
                         }
                     }
                     //log_it(NOTICE, "Input: %s request for %s document (query string '%s')",cl_ht->action,cl_ht->url_path, cl_ht->in_query_string? cl_ht->in_query_string: "");
-                    char * d_name, *b_name;
+                    char *b_name;
                     char * url_cpy1, *url_cpy2;
                     url_cpy1=strdup(cl_ht->url_path);
                     url_cpy2=strdup(cl_ht->url_path);
 
-                    d_name=dirname(url_cpy1);
+
                     b_name=basename(url_cpy2);
 
                     strncpy(cl_ht->url_path,b_name,sizeof(cl_ht->url_path));
 #ifdef DAP_SERVER
+                    char * d_name;
+                    d_name=dirname(url_cpy1);
                     dap_http_url_proc_t * url_proc;
 
                     HASH_FIND_STR(cl_ht->http->url_proc, d_name , url_proc);  // Find URL processor
@@ -313,8 +318,9 @@ cnt:switch(cl_ht->state_read){
         }break;
         case DAP_HTTP_CLIENT_STATE_DATA:{//Read the data
          //   log_it(L_WARNINGNG, "DBG_#002 [%s] [%s]",             cl_ht->in_query_string, cl_ht->url_path);
-            int read_bytes=0;
+
 #ifdef DAP_SERVER
+            int read_bytes=0;
             if(cl_ht->proc->data_read_callback){
                 //while(cl_ht->client->buf_in_size){
                     cl_ht->proc->data_read_callback(cl_ht,&read_bytes);
@@ -432,8 +438,8 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
 void dap_http_client_error(struct dap_client_remote * cl,void * arg)
 {
     (void) arg;
-    dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
 #ifdef DAP_SERVER
+    dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
     if(cl_ht->proc)
         if(cl_ht->proc->error_callback)
         cl_ht->proc->error_callback(cl_ht,arg);
