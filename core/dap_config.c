@@ -20,8 +20,13 @@ typedef struct dap_config_item{
         bool data_bool;
         double data_double;
         int32_t data_int32;
+        struct {
+            char **data_str_array;
+            uint16_t array_length;
+        };
     };
-    UT_hash_handle hh;;
+    bool is_array;
+    UT_hash_handle hh;
 } dap_config_item_t;
 
 
@@ -31,9 +36,7 @@ typedef struct dap_config_internal
 } dap_config_internal_t;
 #define DAP_CONFIG_INTERNAL(a) ( (dap_config_internal_t* ) a->_internal )
 
-char *s_configs_path = "/opt/dap/etc";
-
-
+static char *s_configs_path = "/opt/dap/etc";
 
 
 /**
@@ -61,6 +64,22 @@ void dap_config_deinit()
 
 }
 
+
+/**
+ * @brief get_array_length
+ * @param value
+ * @details internal function parse string and return array length
+ * @return
+ */
+static uint16_t get_array_length(const char* str) {
+    uint16_t array_length = 1; // by default if not find ','
+    while (*str) {
+        if (*str == ',')
+            array_length++;
+        str++;
+    }
+    return array_length;
+}
 /**
  * @brief dap_config_open
  * @param a_name
@@ -179,6 +198,43 @@ dap_config_t * dap_config_open(const char * a_name)
                                         }
                                         log_it(L_DEBUG,"  Param '%s' = '%s'", l_param_name, l_param_value);
                                         if (l_section_current){
+
+                                            if (l_param_value[0] == '[') {
+                                                if(l_param_value[1] == ']') {
+                                                    log_it(L_WARNING, "Empty array!");
+                                                    continue;
+                                                }
+
+                                                // delete '[' and ']'
+                                                char* values = l_param_value + 1;
+                                                values[l_param_value_size-2] = 0;
+
+                                                dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
+
+                                                strncpy(l_item->name,l_param_name,sizeof(l_item->name));
+                                                l_item->item_next = l_section_current->childs;
+                                                l_item->is_array = true;
+                                                l_section_current->childs = l_item;
+                                                l_item->array_length = get_array_length(l_param_value);
+                                                l_item->data_str_array = (char**) malloc (sizeof(char*) * l_item->array_length);
+
+                                                // parsing items in array
+                                                int j = 0;
+                                                char *token = strtok(values, ",");
+                                                while(token) {
+
+                                                    // trim token whitespace
+                                                    if (isspace(token[0]))
+                                                        token = token + 1;
+                                                    if (isspace(token[strlen(token) - 1]))
+                                                        token[strlen(token) - 1] = 0;
+
+                                                    l_item->data_str_array[j] = strdup(token);
+                                                    token = strtok(NULL, ",");
+                                                    j++;
+                                                }
+
+                                            }
                                             dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
 
                                             strncpy(l_item->name,l_param_name,sizeof(l_item->name));
@@ -204,6 +260,7 @@ dap_config_t * dap_config_open(const char * a_name)
                     }
                 }
             }
+            fclose(f);
         }else{
             log_it(L_ERROR,"Can't open config file '%s' (%s)",l_config_path,strerror(errno));
         }
@@ -221,23 +278,32 @@ dap_config_t * dap_config_open(const char * a_name)
 void dap_config_close(dap_config_t * a_config)
 {
     dap_config_item_t * l_item = DAP_CONFIG_INTERNAL(a_config)->item_root ;
-    while(l_item){
+    while(l_item) {
         dap_config_item_t * l_item_child = l_item->childs;
         DAP_CONFIG_INTERNAL(a_config)->item_root = l_item->item_next;
 
-        while( l_item_child ){
+        while(l_item_child) {
             l_item->childs = l_item_child->item_next;
-            if(l_item_child->data_str)
+            if(l_item_child->is_array) {
+                for(int i = 0; i< l_item_child->array_length; i++)
+                    free(l_item_child->data_str_array[i]);
+                free(l_item_child->data_str_array);
+            } else if (l_item_child->data_str) {
                 DAP_DELETE(l_item_child->data_str);
+            }
             DAP_DELETE(l_item_child);
             l_item_child = l_item->childs;
         }
-        if( l_item->data_str )
-            DAP_DELETE(l_item->data_str);
-        DAP_DELETE(l_item);
 
+        if(l_item->data_str) {
+            DAP_DELETE(l_item->data_str);
+        }
+        DAP_DELETE(l_item);
         l_item = DAP_CONFIG_INTERNAL(a_config)->item_root;
     }
+
+    free(a_config->_internal);
+    free(a_config);
 
 }
 
@@ -256,6 +322,31 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
     return 0;
 }
 
+/**
+ * @brief dap_config_get_item
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @return
+ */
+static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    dap_config_item_t * l_item_section = DAP_CONFIG_INTERNAL(a_config)->item_root ;
+    while(l_item_section){
+        if (strcmp(l_item_section->name,a_section_path)==0){
+            dap_config_item_t * l_item = l_item_section->childs;
+            while (l_item){
+                if (strcmp(l_item->name,a_item_name)==0){
+                    return l_item;
+                }
+                l_item = l_item->item_next;
+            }
+        }
+        l_item_section = l_item_section->item_next;
+    }
+    return NULL;
+}
+
 
 /**
  * @brief dap_config_get_item_str
@@ -266,8 +357,30 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
  */
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    return dap_config_get_item_str_default(a_config,a_section_path,a_item_name, NULL);
+    dap_config_item_t * item = dap_config_get_item(a_config, a_section_path, a_item_name);
+    if (item == NULL)
+        return NULL;
+    return item->data_str;
 }
+
+
+/**
+ * @brief dap_config_get_array_str
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @return
+ */
+const char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
+                                      const char * a_item_name, uint16_t * array_length) {
+    dap_config_item_t * item = dap_config_get_item(a_config, a_section_path, a_item_name);
+    if (item == NULL)
+        return NULL;
+    if (array_length != NULL)
+        *array_length = item->array_length;
+    return (const char**)item->data_str_array;
+}
+
 
 /**
  * @brief dap_config_get_item_str_default
