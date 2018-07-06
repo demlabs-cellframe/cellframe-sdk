@@ -28,7 +28,6 @@ private:
     QFile configFile;
 private slots:
     void initTestCase() {
-        qDebug() << "initTestCase";
         configFile.setFileName(testconfigName + ".cfg");
         if(!configFile.open(QIODevice::WriteOnly))
         {
@@ -90,7 +89,6 @@ private slots:
     }
 
     void cleanupTestCase() {
-        qDebug() << "cleanupTestCase";
         configFile.remove();
         dap_config_close(m_cfg);
     }
