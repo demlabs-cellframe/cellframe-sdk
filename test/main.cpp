@@ -1,5 +1,6 @@
 #include <QTest>
 #include <QDebug>
+#include "dap_common.h"
 
 #define RUN_TESTS(TestObject) { \
     TestObject tc; \
@@ -20,10 +21,13 @@ void run_all_tests() {
 
 int main(int argc, char *argv[])
 {
+
     QCoreApplication app(argc, argv);
     app.setAttribute(Qt::AA_Use96Dpi, true);
     QTEST_SET_MAIN_SOURCE_PATH
 #ifdef RUN_ALL_TESTS
+    // switch off debug info from library
+    set_log_level(L_CRITICAL);
     run_all_tests();
 #endif
 }

@@ -21,6 +21,8 @@ void dap_config_close(dap_config_t * a_config);
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);
 const char * dap_config_get_item_str_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, const char * a_value_default);
+char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
+                                      const char * a_item_name, uint16_t * array_length);
 
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);

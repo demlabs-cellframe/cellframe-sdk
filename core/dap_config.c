@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include "uthash.h"
 #include "dap_common.h"
 #include "dap_config.h"
@@ -142,7 +143,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                         char * l_section_name = strdup(l_line+1);
                                         size_t l_section_name_length = (l_line_length - 2);
                                         l_section_name[l_section_name_length]='\0';
-                                        log_it(L_DEBUG,"Config section '%s'",l_section_name);
+                                        // log_it(L_DEBUG,"Config section '%s'",l_section_name);
 
                                         dap_config_item_t * l_item_section = DAP_NEW_Z(dap_config_item_t);
                                         strncpy(l_item_section->name,l_section_name,sizeof(l_item_section->name)-1);
@@ -196,7 +197,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                                 }
                                             }
                                         }
-                                        log_it(L_DEBUG,"  Param '%s' = '%s'", l_param_name, l_param_value);
+                                    //    log_it(L_DEBUG,"  Param '%s' = '%s'", l_param_name, l_param_value);
                                         if (l_section_current){
 
                                             if (l_param_value[0] == '[') {
@@ -217,7 +218,6 @@ dap_config_t * dap_config_open(const char * a_name)
                                                 l_section_current->childs = l_item;
                                                 l_item->array_length = get_array_length(l_param_value);
                                                 l_item->data_str_array = (char**) malloc (sizeof(char*) * l_item->array_length);
-
                                                 // parsing items in array
                                                 int j = 0;
                                                 char *token = strtok(values, ",");
@@ -226,22 +226,25 @@ dap_config_t * dap_config_open(const char * a_name)
                                                     // trim token whitespace
                                                     if (isspace(token[0]))
                                                         token = token + 1;
-                                                    if (isspace(token[strlen(token) - 1]))
+                                                    if (isspace(token[strlen(token) - 1])
+                                                            || token[strlen(token) - 1] == ']' /* last item in array */)
                                                         token[strlen(token) - 1] = 0;
 
                                                     l_item->data_str_array[j] = strdup(token);
+
                                                     token = strtok(NULL, ",");
                                                     j++;
                                                 }
 
+                                            } else {
+                                                dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
+
+                                                strncpy(l_item->name,l_param_name,sizeof(l_item->name));
+                                                l_item->item_next = l_section_current->childs;
+                                                l_item->data_str = strdup (l_param_value);
+
+                                                l_section_current->childs = l_item;
                                             }
-                                            dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
-
-                                            strncpy(l_item->name,l_param_name,sizeof(l_item->name));
-                                            l_item->item_next = l_section_current->childs;
-                                            l_item->data_str = strdup (l_param_value);
-
-                                            l_section_current->childs = l_item;
                                         }else{
                                             log_it(L_ERROR,"Can't add param to a tree without current section");
                                         }
@@ -316,10 +319,7 @@ void dap_config_close(dap_config_t * a_config)
  */
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    (void)a_config;
-    (void)a_section_path;
-    (void)a_item_name;
-    return 0;
+    return atoi(dap_config_get_item_str(a_config,a_section_path,a_item_name));
 }
 
 /**
@@ -371,14 +371,14 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
  * @param a_item_name
  * @return
  */
-const char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
-                                      const char * a_item_name, uint16_t * array_length) {
+char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
+                                const char * a_item_name, uint16_t * array_length) {
     dap_config_item_t * item = dap_config_get_item(a_config, a_section_path, a_item_name);
     if (item == NULL)
         return NULL;
     if (array_length != NULL)
         *array_length = item->array_length;
-    return (const char**)item->data_str_array;
+    return item->data_str_array;
 }
 
 
@@ -417,10 +417,7 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    (void)a_config;
-    (void)a_section_path;
-    (void)a_item_name;
-    return false;
+    return strcmp(dap_config_get_item_str(a_config,a_section_path,a_item_name),"true") == 0;
 }
 
 /**
@@ -432,9 +429,6 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
  */
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    (void)a_config;
-    (void)a_section_path;
-    (void)a_item_name;
-    return 0.0;
+    return atof(dap_config_get_item_str(a_config,a_section_path,a_item_name));
 }
 
