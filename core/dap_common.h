@@ -45,7 +45,7 @@
 
 
 enum log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0};
-extern enum log_level log_level;
+//extern enum log_level log_level;
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,9 +60,7 @@ void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list
 #define vlog_it(a_log_level,a_format,a_ap) _vlog_it(LOG_TAG,a_log_level,a_format,a_ap)
 
 const char * log_error();
-
-
-
+void set_log_level(enum log_level ll);
 
 #ifdef __GNUC__
 char *itoa(int i);

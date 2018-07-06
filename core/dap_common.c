@@ -56,9 +56,13 @@ int pthread_mutex_unlock(HANDLE *obj) {
 
 #define LOG_TAG "dap_common"
 
-char last_error[LAST_ERROR_MAX]={0};
-enum log_level log_level=L_DEBUG;
-static FILE * s_log_file=NULL;
+char last_error[LAST_ERROR_MAX] = {0};
+enum log_level static log_level = L_DEBUG;
+static FILE * s_log_file = NULL;
+
+void set_log_level(enum log_level ll) {
+    log_level = ll;
+}
 
 int dap_common_init( const char * a_log_file )
 {
@@ -71,7 +75,7 @@ int dap_common_init( const char * a_log_file )
         }
     }
 
-	return 0;
+    return 0;
 }
 
 void dap_common_deinit()
@@ -87,7 +91,7 @@ void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
     va_list ap;
 
 
-        
+
     va_start(ap,format);
     _vlog_it(log_tag,ll, format,ap);
     va_end(ap);
@@ -104,22 +108,22 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
     char buf[4096];
     vsnprintf(buf,sizeof(buf),format,ap);
     switch (ll) {
-        case L_INFO:
-            __android_log_write(ANDROID_LOG_INFO,DAP_BRAND,buf);
+    case L_INFO:
+        __android_log_write(ANDROID_LOG_INFO,DAP_BRAND,buf);
         break;
-        case L_WARNING:
-            __android_log_write(ANDROID_LOG_WARN,DAP_BRAND,buf);
+    case L_WARNING:
+        __android_log_write(ANDROID_LOG_WARN,DAP_BRAND,buf);
         break;
-        case L_ERROR:
-            __android_log_write(ANDROID_LOG_ERROR,DAP_BRAND,buf);
+    case L_ERROR:
+        __android_log_write(ANDROID_LOG_ERROR,DAP_BRAND,buf);
         break;
-        case L_CRITICAL:
-            __android_log_write(ANDROID_LOG_FATAL,DAP_BRAND,buf);
-            abort();
+    case L_CRITICAL:
+        __android_log_write(ANDROID_LOG_FATAL,DAP_BRAND,buf);
+        abort();
         break;
-        case L_DEBUG:
-        default:
-            __android_log_write(ANDROID_LOG_DEBUG,DAP_BRAND,buf);
+    case L_DEBUG:
+    default:
+        __android_log_write(ANDROID_LOG_DEBUG,DAP_BRAND,buf);
     }
 #endif
 
@@ -134,22 +138,22 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
         printf("[%s] ",s_time);
     }
-	/*if(ll>=ERROR){
-		vsnprintf(last_error,LAST_ERROR_MAX,format,ap);
-	}*/
+    /*if(ll>=ERROR){
+        vsnprintf(last_error,LAST_ERROR_MAX,format,ap);
+    }*/
 
     if(ll==L_DEBUG){
         if (s_log_file ) fprintf(s_log_file,"[DBG] ");
-		printf(	"\x1b[37;2m[DBG] ");
+        printf(	"\x1b[37;2m[DBG] ");
     }else if(ll==L_INFO){
         if (s_log_file ) fprintf(s_log_file,"[   ] ");
-		printf("\x1b[32;2m[   ] ");
+        printf("\x1b[32;2m[   ] ");
     }else if(ll==L_NOTICE){
         if (s_log_file ) fprintf(s_log_file,"[ * ] ");
-		printf("\x1b[32m[ * ] ");
+        printf("\x1b[32m[ * ] ");
     }else if(ll==L_WARNING){
         if (s_log_file ) fprintf(s_log_file,"[WRN] ");
-		printf("\x1b[31;2m[WRN] ");
+        printf("\x1b[31;2m[WRN] ");
     }else if(ll==L_ERROR){
         if (s_log_file ) fprintf(s_log_file,"[ERR] ");
         printf("\x1b[31m[ERR] ");
@@ -161,42 +165,42 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
     printf("[%8s]\t",log_tag);
 
     if (s_log_file ) vfprintf(s_log_file,format,ap);
-	vprintf(format,ap2);
+    vprintf(format,ap2);
     if (s_log_file ) fprintf(s_log_file,"\n");
-	printf("\x1b[0m\n");
-	va_end(ap2);
+    printf("\x1b[0m\n");
+    va_end(ap2);
     if (s_log_file ) fflush(s_log_file);
-	fflush(stdout);
+    fflush(stdout);
     pthread_mutex_unlock(&mutex);
 }
 
 const char * log_error()
 {
-	return last_error;
+    return last_error;
 }
 
 #define INT_DIGITS 19		/* enough for 64 bit integer */
 
 char *itoa(int i)
 {
-  /* Room for INT_DIGITS digits, - and '\0' */
-  static char buf[INT_DIGITS + 2];
-  char *p = buf + INT_DIGITS + 1;	/* points to terminating '\0' */
-  if (i >= 0) {
-    do {
-      *--p = '0' + (i % 10);
-      i /= 10;
-    } while (i != 0);
+    /* Room for INT_DIGITS digits, - and '\0' */
+    static char buf[INT_DIGITS + 2];
+    char *p = buf + INT_DIGITS + 1;	/* points to terminating '\0' */
+    if (i >= 0) {
+        do {
+            *--p = '0' + (i % 10);
+            i /= 10;
+        } while (i != 0);
+        return p;
+    }
+    else {			/* i < 0 */
+        do {
+            *--p = '0' - (i % 10);
+            i /= 10;
+        } while (i != 0);
+        *--p = '-';
+    }
     return p;
-  }
-  else {			/* i < 0 */
-    do {
-      *--p = '0' - (i % 10);
-      i /= 10;
-    } while (i != 0);
-    *--p = '-';
-  }
-  return p;
 }
 
 /**
@@ -236,8 +240,8 @@ int get_select_breaker()
 {
     if (!initialized)
     {
-    if (pipe(breaker_set) < 0) return -1;
-    else initialized = 1;
+        if (pipe(breaker_set) < 0) return -1;
+        else initialized = 1;
     }
 
     return breaker_set[0];

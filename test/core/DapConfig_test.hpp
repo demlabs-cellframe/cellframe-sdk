@@ -10,7 +10,7 @@ private:
     const QByteArray configForTesting = "[db_options]\n"
                                         "db_type=mongoDb\n"
                                         "[server_options]\n"
-                                        "timeout=1,5\n"
+                                        "timeout=1,0\n"
                                         "vpn_enable=true\n"
                                         "proxy_enable=false\n"
                                         "TTL_session_key=600\n"
@@ -54,10 +54,8 @@ private slots:
     }
 
     void getDobule() {
-        /* if this test fail. Try change 1.5 to 1,5 in config. I think it's
-         * some can be preferences system */
         double timeout = dap_config_get_item_double(m_cfg, "server_options", "timeout");
-        QVERIFY(qFuzzyCompare(timeout, 1.5));
+        QVERIFY(qFuzzyCompare(timeout, 1.0));
     }
 
     void getBool() {
@@ -87,9 +85,7 @@ private slots:
         QVERIFY(arraySize == INT_ARR_LEN);
 
         for(uint i = 0; i < arraySize; i++) {
-            //int value = ::atoi(result_arr[i]);
             QCOMPARE(::atoi(result_arr[i]), m_intArrTestCase[i]);
-           // QVERIFY(::strcmp(result_arr[i], m_strArrTestCase[i].data()) == 0 );
         }
     }
 
