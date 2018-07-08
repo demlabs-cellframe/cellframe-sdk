@@ -5,6 +5,7 @@ project(libdap-test)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_FLAGS "-Wall -Wextra")
+set(CMAKE_C_FLAGS "-std=c11")
 
 # Tell CMake to run moc when necessary:
 set(CMAKE_AUTOMOC ON)
