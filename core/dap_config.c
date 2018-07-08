@@ -189,7 +189,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                             }
                                             strncpy(l_param_value,l_line +j, l_param_value_size);
                                             l_param_value[l_param_value_size] = '\0';
-                                            for(j=l_param_value_size-1; j>=0; j--){
+                                            for(int j=(int)l_param_value_size-1; j>=0; j--){
                                                 if( (l_param_value[j] ==' ') || (l_param_value[j] =='\t') ){
                                                     l_param_value[j] = '\0';
                                                 }else{

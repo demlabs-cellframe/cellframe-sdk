@@ -56,8 +56,8 @@ int pthread_mutex_unlock(HANDLE *obj) {
 
 #define LOG_TAG "dap_common"
 
-char last_error[LAST_ERROR_MAX] = {0};
-enum log_level static log_level = L_DEBUG;
+static char last_error[LAST_ERROR_MAX] = {0};
+static enum log_level log_level = L_DEBUG;
 static FILE * s_log_file = NULL;
 
 void set_log_level(enum log_level ll) {
@@ -89,8 +89,6 @@ void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
         return;
 
     va_list ap;
-
-
 
     va_start(ap,format);
     _vlog_it(log_tag,ll, format,ap);
