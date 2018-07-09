@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_FLAGS "-Wall -Wextra")
 set(CMAKE_C_FLAGS "-std=c11")
 
+# fix implicit declaration warnings
+add_definitions ("-D_GNU_SOURCE")
+
 # Tell CMake to run moc when necessary:
 set(CMAKE_AUTOMOC ON)
 
@@ -38,4 +41,3 @@ add_executable(${PROJECT_NAME} ${TEST_FILES} ${SRC} ${HEADERS}) # ${SRC} ${HEADE
 
 target_include_directories(${PROJECT_NAME} PUBLIC ../core)
 target_link_libraries(${PROJECT_NAME} Qt5::Test)
-
