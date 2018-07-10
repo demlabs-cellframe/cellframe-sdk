@@ -27,7 +27,6 @@
 #include "dap_client_remote.h"
 
 #ifdef DAP_SERVER
-#include "dap_server.h"
 #include "dap_http.h"
 #endif
 
