@@ -1,14 +1,23 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_http_server C)
   
-set(HTTP_SERVER_SRCS dap_http.c dap_http_folder.c  dap_http_simple.c dap_http_simple.h )
-
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_http_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_enc_server_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
+include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}/client")
+include_directories(http_client)
+
+set(HTTP_SERVER_SRCS
+    dap_http.c
+    dap_http_folder.c
+    dap_http_simple.c
+    dap_http_simple.h
+    http_client/dap_http_client.c
+    http_client/dap_http_client_simple.c
+    http_client/dap_http_header.c)
 
 add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_http_DEFINITIONS}")

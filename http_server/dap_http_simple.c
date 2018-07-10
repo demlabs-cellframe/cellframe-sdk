@@ -29,8 +29,8 @@
 #include "dap_http_client.h"
 #include "dap_http_simple.h"
 #include "dap_enc_key.h"
-#include "dap_enc_ks.h"
-#include "dap_enc_http.h"
+#include "../enc_server/dap_enc_ks.h"
+#include "../enc_server/dap_enc_http.h"
 #include <ev.h>
 #include <sys/queue.h>
 

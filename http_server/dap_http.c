@@ -37,7 +37,7 @@
 #include <netdb.h>
 
 #include "dap_common.h"
-#include "dap_client.h"
+#include "../core_server/client/dap_client.h"
 #include "dap_server.h"
 
 #include "dap_http.h"
