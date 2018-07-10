@@ -230,9 +230,9 @@ void dap_http_simple_data_read(dap_http_client_t * cl_ht,void * arg)
     {
        // bool isOK=true;
         log_it(L_DEBUG,"Data collected");
-        *ret=cl_ht->client->buf_in_size;
         queue_http_request_put(shs);
     }
+    *ret=cl_ht->client->buf_in_size;
 }
 
 
