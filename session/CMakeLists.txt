@@ -8,6 +8,9 @@ include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_auth_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_db_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
+
+#include_directories(${dap_core_server_INCLUDE_DIRS}/client)
+
 include_directories("${INCLUDE_DIRECTORIES} ${dap_http_server_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_http_INCLUDE_DIRS}")
 add_definitions ("${dap_core_DEFINITIONS}")

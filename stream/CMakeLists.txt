@@ -3,6 +3,8 @@ project (dap_stream)
   
 set(STREAM_SRCS stream.c  stream_ch.c  stream_ch_pkt.c	stream_ch_proc.c  stream_ctl.c	stream_pkt.c )
 
+include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}/client")
+include_directories("${INCLUDE_DIRECTORIES} ${dap_http_server_INCLUDE_DIRS}/http_client")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_udp_server_INCLUDE_DIRS}")
