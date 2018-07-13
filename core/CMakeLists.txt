@@ -1,15 +1,13 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_core)
-  
-include_directories(common/)
 
-set(CORE_SRCS dap_common.c dap_config.c common/memwipe.c)
-set(CORE_HEADERS dap_common.h dap_config.h dap_math_ops.h common/memwipe.h common/int-util.h)
+file(GLOB CORE_SRCS *.c)
+file(GLOB CORE_HEADERS *.h)
 
 add_library(${PROJECT_NAME} STATIC ${CORE_SRCS} ${CORE_HEADERS})
 
-target_link_libraries(${PROJECT_NAME}  ev)
+target_link_libraries(${PROJECT_NAME} ev)
 
-set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
-
-set(${PROJECT_NAME}_INCLUDE_DIRS ${PROJECT_SOURCE_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
+#This paths will be used by project-dependent project libraries
+target_include_directories(dap_core INTERFACE .)
+target_include_directories(dap_core INTERFACE common)
