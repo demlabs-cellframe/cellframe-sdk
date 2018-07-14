@@ -10,4 +10,3 @@ target_link_libraries(${PROJECT_NAME} ev)
 
 #This paths will be used by project-dependent project libraries
 target_include_directories(dap_core INTERFACE .)
-target_include_directories(dap_core INTERFACE common)
