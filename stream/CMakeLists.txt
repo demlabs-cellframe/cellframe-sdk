@@ -27,5 +27,9 @@ add_definitions ("${dap_http_DEFINITIONS}")
 add_definitions ("${dap_session_DEFINITIONS}")
 
 add_library(${PROJECT_NAME} STATIC ${STREAM_SRCS})
+
+target_link_libraries(dap_stream dap_core)
+target_link_libraries(dap_stream dap_crypto)
+
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 set(${PROJECT_NAME}_INCLUDE_DIRS ${PROJECT_SOURCE_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)

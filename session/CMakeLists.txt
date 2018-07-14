@@ -23,6 +23,8 @@ add_definitions ("${dap_http_DEFINITIONS}")
 add_definitions ("${dap_http_server_DEFINITIONS}")
 add_library(${PROJECT_NAME} STATIC ${SESSION_SRCS})
 
+target_link_libraries(dap_session dap_core)
+target_link_libraries(dap_session dap_crypto)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
