@@ -20,8 +20,8 @@ add_definitions ("${dap_core_server_DEFINITIONS}")
 add_definitions ("${dap_http_server_DEFINITIONS}")
 
 add_library(${PROJECT_NAME} STATIC ${DAP_ENC_SERVER_SRCS})
-set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
-set(${PROJECT_NAME}_INCLUDE_DIRS ${PROJECT_SOURCE_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
-
+target_link_libraries(dap_enc_server dap_http_server)
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_core_server dap_http_server)
+
+target_include_directories(dap_core_server INTERFACE .)

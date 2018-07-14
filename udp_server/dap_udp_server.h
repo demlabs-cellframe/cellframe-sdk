@@ -31,8 +31,8 @@
 #include <sys/select.h>
 #include <sys/queue.h>
 #include "dap_udp_client.h"
-#include "../../libdap-server/core_server/dap_server.h"
-#include "../core_server/client/dap_client_remote.h"
+#include "dap_server.h"
+#include "dap_client_remote.h"
 
 struct dap_udp_server;
 
