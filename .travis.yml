@@ -1,19 +1,29 @@
+sudo: required
 language: cpp
+compiler: gcc
 dist: trusty
 notifications:
   email: false
 
 before_install:
+ - sudo apt-get install libev-dev
  - sudo add-apt-repository ppa:beineri/opt-qt-5.10.1-trusty -y
  - sudo apt-get update -q
  - sudo apt-get install -qq qt510base 
  - source /opt/qt510/bin/qt510-env.sh
 
 script:
-    - cd test
+    - export CC=gcc-5
     - mkdir build
     - cd build 
     - cmake ../
-    - make
-    - ./libdap-test
+    - make libdap-test
+    - ./test/libdap-test
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-5
 
