@@ -30,12 +30,7 @@
 #include "dap_common.h"
 #include "dap_loop.h"
 #include "dap_client_remote.h"
-
-#ifdef DAP_SERVER
 #include "../dap_server.h"
-#endif
-
-
 
 #define LOG_TAG "dap_client_remote"
 
@@ -66,26 +61,20 @@ void dap_client_remote_deinit()
  */
 dap_client_remote_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_client)
 {
-#ifdef DAP_SERVER
     pthread_mutex_lock(&sh->mutex_on_hash);
-#endif
-    log_it(L_DEBUG,"Client structure create");
+    log_it(L_DEBUG, "Client structure create");
 
-    dap_client_remote_t * ret=DAP_NEW_Z(dap_client_remote_t);
-    ret->socket=s;
-#ifdef DAP_SERVER
-    ret->server=sh;
-#endif
+    dap_client_remote_t * ret = DAP_NEW_Z(dap_client_remote_t);
+    ret->socket = s;
+    ret->server = sh;
     ret->watcher_client = w_client;
-    ret->_ready_to_read=true;
+    ret->_ready_to_read = true;
 
-#ifdef DAP_SERVER
-    HASH_ADD_INT( sh->clients, socket, ret);
+    HASH_ADD_INT(sh->clients, socket, ret);
     if(sh->client_new_callback)
         sh->client_new_callback(ret,NULL); // Init internal structure
 
     pthread_mutex_unlock(&sh->mutex_on_hash);
-#endif
     return ret;
 }
 
@@ -97,12 +86,10 @@ dap_client_remote_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_clien
  */
 dap_client_remote_t * dap_client_find(int sock, struct dap_server * sh)
 {
-    dap_client_remote_t * ret=NULL;
-#ifdef DAP_SERVER
+    dap_client_remote_t * ret = NULL;
     pthread_mutex_lock(&sh->mutex_on_hash);
-    HASH_FIND_INT(sh->clients,&sock,ret);
+    HASH_FIND_INT(sh->clients, &sock, ret);
     pthread_mutex_unlock(&sh->mutex_on_hash);
-#endif
     return ret;
 }
 
@@ -157,7 +144,6 @@ void dap_client_ready_to_write(dap_client_remote_t * sc,bool is_ready)
  */
 void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh)
 {
-#ifdef DAP_SERVER
     pthread_mutex_lock(&sh->mutex_on_hash);
 
     log_it(L_DEBUG, "Client structure remove");
@@ -172,7 +158,6 @@ void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh)
         close(sc->socket);
     free(sc);
     pthread_mutex_unlock(&sh->mutex_on_hash);
-#endif
 }
 
 /**
@@ -204,8 +189,8 @@ size_t dap_client_write_f(dap_client_remote_t *a_client, const char * a_format,.
     int ret=vsnprintf(a_client->buf_out+a_client->buf_out_size,max_data_size,a_format,ap);
     va_end(ap);
     if(ret>0){
-        a_client->buf_out_size+=ret;
-        return ret;
+        a_client->buf_out_size += (unsigned long)ret;
+        return (size_t)ret;
     }else{
         log_it(L_ERROR,"Can't write out formatted data '%s'",a_format);
         return 0;
@@ -248,7 +233,6 @@ size_t dap_client_read(dap_client_remote_t *sc, void * data, size_t data_size)
 void dap_client_shrink_buf_in(dap_client_remote_t * cl, size_t shrink_size)
 {
     if((shrink_size==0)||(cl->buf_in_size==0) ){
-        //log_it(L_WARNINGNG, "DBG_#003");
         return;
     }else if(cl->buf_in_size>shrink_size){
         size_t buf_size=cl->buf_in_size-shrink_size;
@@ -256,10 +240,8 @@ void dap_client_shrink_buf_in(dap_client_remote_t * cl, size_t shrink_size)
         memcpy(buf,cl->buf_in+ shrink_size,buf_size );
         memcpy(cl->buf_in,buf,buf_size);
         cl->buf_in_size=buf_size;
-        //log_it(L_WARNINGNG, "DBG_#004");
         free(buf);
     }else {
-        //log_it(L_WARNINGNG, "DBG_#005");
         cl->buf_in_size=0;
     }
 

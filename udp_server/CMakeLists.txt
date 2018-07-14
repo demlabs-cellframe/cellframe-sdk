@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_udp_server C)
   
-set(DAP_UDP_SERVER_SRCS  dap_udp_server.c dap_udp_client.h dap_udp_client.c )
-
+set(DAP_UDP_SERVER_SRCS  dap_udp_server.c dap_udp_client.h dap_udp_client.c)
 
 include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")
