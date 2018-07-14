@@ -4,8 +4,7 @@ project(libdap C)
 # fix implicit declaration warnings
 add_definitions ("-D_GNU_SOURCE")
 
-set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS "-std=c11")
+set(CMAKE_C_FLAGS "-std=c11 -Wall -Wextra")
 
 add_subdirectory(core)
 add_subdirectory(crypto)

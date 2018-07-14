@@ -1,4 +1,6 @@
+sudo: required
 language: cpp
+compiler: gcc
 dist: trusty
 notifications:
   email: false
@@ -11,9 +13,17 @@ before_install:
  - source /opt/qt510/bin/qt510-env.sh
 
 script:
+    - export CC=gcc-5
     - mkdir build
     - cd build 
     - cmake ../
     - make libdap-test
     - ./test/libdap-test
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-5
 
