@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 project(libdap-test)
 
@@ -14,14 +14,4 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Qt5Test REQUIRED)
 
-file(GLOB TEST_FILES *.hpp *.cpp core/*.hpp)
-add_executable(${PROJECT_NAME} ${TEST_FILES} ${SRC} ${HEADERS})
-
-target_link_libraries(${PROJECT_NAME} Qt5::Test)
-target_link_libraries(${PROJECT_NAME} dap_core)
-target_link_libraries(${PROJECT_NAME} dap_crypto)
-
-add_test(
-    NAME libdap-test
-    COMMAND libdap-test
-)
+add_subdirectory(core)
