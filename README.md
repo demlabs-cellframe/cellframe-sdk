@@ -8,7 +8,7 @@ Deus Applications Prototypes: core library
 mkdir build
 cd build
 cmake ../
-make libdap-test
-./test/libdap-test
+make
+make test
 ```
 

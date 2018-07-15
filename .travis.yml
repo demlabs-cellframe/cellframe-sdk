@@ -17,8 +17,8 @@ script:
     - mkdir build
     - cd build 
     - cmake ../
-    - make libdap-test
-    - ./test/libdap-test
+    - make
+    - make test
 
 addons:
   apt:

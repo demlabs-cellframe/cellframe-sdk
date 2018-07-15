@@ -20,3 +20,8 @@ add_executable(${PROJECT_NAME} ${TEST_FILES} ${SRC} ${HEADERS})
 target_link_libraries(${PROJECT_NAME} Qt5::Test)
 target_link_libraries(${PROJECT_NAME} dap_core)
 target_link_libraries(${PROJECT_NAME} dap_crypto)
+
+add_test(
+    NAME libdap-test
+    COMMAND libdap-test
+)
