@@ -6,5 +6,4 @@
 #include "stdio.h"
 #include "string.h"
 
-
 extern void dap_config_tests_run(void);

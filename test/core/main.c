@@ -1,4 +1,4 @@
-#include "test_headers.h"
+#include "dap_config_test.h"
 #include "dap_common.h"
 
 int main(void) {
