@@ -30,7 +30,6 @@
 #include <ev.h>
 #include "utlist.h"
 #include "dap_common.h"
-#include "dap_loop.h"
 #include "dap_udp_server.h"
 
 #define LOG_TAG "udp_client"

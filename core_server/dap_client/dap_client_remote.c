@@ -28,7 +28,6 @@
 #include <ev.h>
 
 #include "dap_common.h"
-#include "dap_loop.h"
 #include "dap_client_remote.h"
 #include "../dap_server.h"
 
