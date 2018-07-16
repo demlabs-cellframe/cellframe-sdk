@@ -1,35 +1,17 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_stream)
   
-set(STREAM_SRCS stream.c  stream_ch.c  stream_ch_pkt.c	stream_ch_proc.c  stream_ctl.c	stream_pkt.c )
-
-include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}/client")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_http_server_INCLUDE_DIRS}/http_client")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_core_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_udp_server_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_crypto_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_client_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_session_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_http_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_http_server_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${dap_enc_server_INCLUDE_DIRS}")
-include_directories("${INCLUDE_DIRECTORIES} ${MONGO_INCLUDE_DIRS}")
-
-add_definitions ("${dap_core_DEFINITIONS}")
-add_definitions ("${dap_core_server_DEFINITIONS}")
-add_definitions ("${dap_udp_server_DEFINITIONS}")
-add_definitions ("${dap_crypto_DEFINITIONS}")
-add_definitions ("${dap_client_DEFINITIONS}")
-add_definitions ("${dap_http_server_DEFINITIONS}")
-add_definitions ("${dap_enc_server_DEFINITIONS}")
-add_definitions ("${dap_http_DEFINITIONS}")
-add_definitions ("${dap_session_DEFINITIONS}")
+set(STREAM_SRCS
+    stream.c
+    stream_ch.c
+    stream_ch_pkt.c
+    stream_ch_proc.c
+    stream_ctl.c
+    stream_pkt.c )
 
 add_library(${PROJECT_NAME} STATIC ${STREAM_SRCS})
 
 target_link_libraries(dap_stream dap_core dap_udp_server
-    dap_crypto dap_http_server dap_enc_server)
+    dap_crypto dap_http_server dap_enc_server dap_session)
 
-set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
-set(${PROJECT_NAME}_INCLUDE_DIRS ${PROJECT_SOURCE_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
+target_include_directories(dap_stream INTERFACE .)
