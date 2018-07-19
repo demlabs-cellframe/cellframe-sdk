@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(libdap-test)
-
+project(test)
+add_subdirectory(libdap-test)
 add_subdirectory(core)

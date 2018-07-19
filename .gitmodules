@@ -1,0 +1,3 @@
+[submodule "libdap-test"]
+	path = libdap-test
+	url = https://github.com/kelvinblockchain/libdap-test

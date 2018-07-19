@@ -4,10 +4,11 @@ void test_put_int() {
     const int INT_VAL = 10;
     const char * EXPECTED_RESULT = "10";
     char * result_arr = itoa(INT_VAL);
-    assert(strcmp(result_arr, EXPECTED_RESULT) == 0 && "test_put_int failed");
+    dap_assert(strcmp(result_arr, EXPECTED_RESULT) == 0,
+               "Check string result from itoa");
 }
 
 void dap_common_test_run() {
-    printf("Start running dap_common_test\n");
+    dap_print_module_name("dap_common");
     test_put_int();
 }
