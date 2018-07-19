@@ -26,7 +26,7 @@
 #include "dap_common.h"
 
 #include "dap_http.h"
-#include "../http_server/http_client/dap_http_client.h"
+#include "dap_http_client.h"
 #include "dap_http_simple.h"
 
 #include "dap_enc.h"
