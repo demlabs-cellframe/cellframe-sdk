@@ -130,7 +130,7 @@ size_t dap_enc_aes_decode(struct dap_enc_key* a_key, const void * a_in, size_t a
 		return 0;
     OQS_AES128_ECB_dec(a_in,a_in_size,a_key->data,a_out);
     int tail = 0;
-    for(size_t i =a_in_size-1; i > a_in_size-15; i--)
+    for(size_t i =a_in_size-1; i >= a_in_size-16; i--)
 	{
         if(*(char*)(a_out + i) == (char)0)
 			tail++;
@@ -153,8 +153,8 @@ size_t dap_enc_aes_encode(struct dap_enc_key* a_key, const void * a_in, size_t a
     int tail = 0;
     if(a_in_size < 16)
         tail = 16 - a_in_size;
-    else
-        tail = 16 - a_in_size % 16;
+    else if(a_in_size%16 > 0)
+		tail = 16 - a_in_size % 16;
     void * a_in_new = (void*)malloc(a_in_size + tail);
     memcpy(a_in_new,a_in,a_in_size);
     memset(a_in_new+a_in_size,0,tail);
