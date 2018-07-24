@@ -1,0 +1,6 @@
+#pragma once
+#include "dap_enc_aes.h"
+#include "dap_enc_key.h"
+#include "dap_test.h"
+
+extern void dap_enc_aes_tests_run(void);
