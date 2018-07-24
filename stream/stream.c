@@ -345,29 +345,75 @@ void stream_dap_data_read(dap_client_remote_t* sh, void * arg){
     int * ret = (int *) arg;
     int bytes_ready = 0;
 
-    if(sid->pkt_buf_in){
-        size_t read_bytes_to=( ((sid->pkt_buf_in->hdr.size-sid->pkt_buf_in_data_size) > sid->conn->buf_in_size )
+    // Если имеем хотя бы целый заголовок
+    if(sid->pkt_buf_in && sid->pkt_buf_in_data_size >= sizeof(stream_pkt_hdr_t)){
+        //Ищем в полученном куске данных следующий пакет
+        stream_pkt_t* packet_test = stream_pkt_detect( sh->buf_in, sid->conn->buf_in_size);
+        if(packet_test){
+            // Если нашли - рассчитываем размер блока памяти до найденного пакета
+            int offset = (uint8_t*)packet_test - (uint8_t*)sh->buf_in;
+            // Если этот размер совпал с размером недостающего куска - будем считать что мы получили нужный пакет
+            if(offset != sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size){
+                // Если не совпал - выбрасываем предыдущий пакет и переходим к следующему
+                log_it(L_WARNING,"WRONG NEXT PACKET, OFFSET IS %i, BUT NEED %i",offset,sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size);
+                sid->pkt_buf_in_data_size = 0;
+                sid->pkt_buf_in = NULL;
+                return;
+            }
+            else
+                log_it(L_DEBUG,"Next packet true");
+        }
+        // Если всё верно - читаем следующий блок
+        size_t read_bytes_to=( ((sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size) > sid->conn->buf_in_size )
                                ? sid->conn->buf_in_size
-                              :(sid->pkt_buf_in->hdr.size-sid->pkt_buf_in_data_size));
-        memcpy(sid->pkt_buf_in->data+sid->pkt_buf_in_data_size,sh->buf_in,read_bytes_to);
+                              :(sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size));
+        memcpy((uint8_t*)sid->pkt_buf_in+sid->pkt_buf_in_data_size,sh->buf_in,read_bytes_to);
         sid->pkt_buf_in_data_size+=read_bytes_to;
-        if(sid->pkt_buf_in_data_size>=(sid->pkt_buf_in->hdr.size) ){
+        if(sid->pkt_buf_in_data_size>=(sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)) ){
             stream_proc_pkt_in(sid);
         }
         bytes_ready+=read_bytes_to;
+    // Если имеем только часть заголовка
+    }else if(sid->pkt_buf_in){
+        // Если имеется хотя бы размер пакета - делаем аналогичную проверку
+        stream_pkt_t* packet_test = stream_pkt_detect( sh->buf_in, sid->conn->buf_in_size);
+        if(packet_test){
+            int offset = (uint8_t*)packet_test - (uint8_t*)sh->buf_in;
+            // Это условие также будет срабатывать если полученный кусок не содержит поле size (из-за этого происходило падение)
+            if(offset != sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size){
+                log_it(L_WARNING,"WRONG NEXT PACKET, OFFSET IS %i, BUT NEED %i",offset,sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size);
+                sid->pkt_buf_in_data_size = 0;
+                sid->pkt_buf_in = NULL;
+                return;
+            }
+            else
+                log_it(L_DEBUG,"Next packet true");
+        }
+        // Если всё верно - читаем только заголовок
+        size_t read_bytes_to=(sizeof(stream_pkt_hdr_t) - sid->pkt_buf_in_data_size > sid->conn->buf_in_size 
+                                ? sid->conn->buf_in_size
+                                :sizeof(stream_pkt_hdr_t) - sid->pkt_buf_in_data_size);
+        log_it(L_WARNING,"Special condition used, additionla part: %u",read_bytes_to);
+        memcpy((uint8_t*)sid->pkt_buf_in+sid->pkt_buf_in_data_size,sh->buf_in,read_bytes_to);
+        sid->pkt_buf_in_data_size+=read_bytes_to;
+
+        bytes_ready+=read_bytes_to;
     }else{
         stream_pkt_t * pkt;
+        // Try to detect packet header in dap_client buf
         while(pkt=stream_pkt_detect( sh->buf_in + bytes_ready, (sh->buf_in_size - ((size_t) bytes_ready) ))){
             size_t read_bytes_to=( (pkt->hdr.size+sizeof(stream_pkt_hdr_t)) > sid->conn->buf_in_size
                                    ?sid->conn->buf_in_size
                                    :(pkt->hdr.size+sizeof(stream_pkt_hdr_t) ) );
             if(read_bytes_to){
-                sid->pkt_buf_in=(stream_pkt_t *) calloc(1,pkt->hdr.size+sizeof(stream_pkt_hdr_t));
+                 sid->pkt_buf_in=(stream_pkt_t *) calloc(1,pkt->hdr.size+sizeof(stream_pkt_hdr_t));
                 memcpy(sid->pkt_buf_in,pkt,read_bytes_to);
                 bytes_ready = (bytes_ready)+ read_bytes_to;
-                sid->pkt_buf_in_data_size=read_bytes_to-sizeof(stream_pkt_hdr_t);
+                if(read_bytes_to < sizeof(stream_pkt_hdr_t))
+                    log_it(L_WARNING,"Packet size less than header");
+                sid->pkt_buf_in_data_size=read_bytes_to;
 
-                if(read_bytes_to>=(pkt->hdr.size)){
+                if(read_bytes_to>=(pkt->hdr.size + sizeof(stream_pkt_hdr_t))){
                     stream_proc_pkt_in(sid);
                 }else{
                     log_it(L_DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",sid->pkt_buf_in->hdr.size,read_bytes_to);
@@ -377,7 +423,7 @@ void stream_dap_data_read(dap_client_remote_t* sh, void * arg){
             }else
                 break;
         }
-        bytes_ready += sh->buf_in_size;
+        bytes_ready += sh->buf_in_size; // Эта строчка по-моему также неверная, если придут два слипшихся пакета - прочитаем только один
     }
     if(ret)
         *ret = bytes_ready;
@@ -447,7 +493,7 @@ void stream_proc_pkt_in(stream_t * sid)
 {
     if(sid->pkt_buf_in->hdr.type == DATA_PACKET)
     {
-        stream_ch_pkt_t * ch_pkt= (stream_ch_pkt_t*) calloc(1,sid->pkt_buf_in->hdr.size+sizeof(stream_ch_pkt_hdr_t)+16 );
+        stream_ch_pkt_t * ch_pkt= (stream_ch_pkt_t*) calloc(1,sid->pkt_buf_in->hdr.size);
         stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt);
         stream_ch_t * ch = NULL;
         size_t i;
