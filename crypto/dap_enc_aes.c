@@ -11,38 +11,6 @@
 
 #define DAP_ENC_AES_KEY(a) ((dap_enc_aes_key_t *)((a)->_inheritor) )
 
-static void print_bytes(uint8_t *bytes, size_t num_bytes) {
-	for (size_t i = 0; i < num_bytes; i++) {
-		printf("%02x", (unsigned) bytes[i]);
-	}
-}
-
-/**
- * @brief dap_enc_aes_key_delete
- * @param a_key
- */
-
-int test_key_aes(){
-    OQS_RAND *rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
-    uint8_t key[16], plaintext[16], ciphertext[16], decrypted[16];
-	void *schedule = NULL;
-	OQS_RAND_n(rand, key, 16);
-	OQS_RAND_n(rand, plaintext, 16);
-	oqs_aes128_load_schedule_c(key, &schedule);
-	oqs_aes128_enc_c(plaintext, schedule, ciphertext);
-	oqs_aes128_dec_c(ciphertext, schedule, decrypted);
-	oqs_aes128_free_schedule_c(schedule);
-	if (memcmp(plaintext, decrypted, 16) == 0) {
-		return EXIT_SUCCESS;
-	} else {
-		print_bytes(plaintext, 16);
-		printf("\n");
-		print_bytes(decrypted, 16);
-		printf("\n");
-		return EXIT_FAILURE;
-	}
-}
-
 void dap_enc_aes_key_delete(struct dap_enc_key *a_key)
 {
     (void)a_key;
@@ -69,6 +37,7 @@ void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size)
     a_key->enc=dap_enc_aes_encode;
     a_key->dec=dap_enc_aes_decode;
     a_key->delete_callback=dap_enc_aes_key_delete;
+    OQS_RAND_free(rand);
 }
 
 /**

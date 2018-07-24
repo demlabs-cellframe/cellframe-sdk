@@ -146,7 +146,7 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_
 
     if(a_key_type< c_callbacks_size ){
         ret = dap_enc_key_new (a_key_type);
-        if( s_callbacks[a_key_type].new_generate_callback ){
+        if( s_callbacks[a_key_type].new_generate_callback) {
             s_callbacks[a_key_type].new_generate_callback(ret,a_key_size);
         }
     }
@@ -173,6 +173,24 @@ dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const cha
 }
 
 /**
+ * @brief dap_enc_key_delete
+ * @param a_key
+ */
+void dap_enc_key_delete(dap_enc_key_t * a_key)
+{
+    if( a_key->delete_callback )
+        a_key->delete_callback( a_key );
+
+    if( a_key->data )
+        free( a_key->data );
+
+    if( a_key->_inheritor )
+        free( a_key->_inheritor );
+
+    free(a_key);
+}
+
+/**
  * @brief dap_enc_key_new_from_data
  * @param a_key_type
  * @param a_key_input
@@ -190,23 +208,5 @@ dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a
     return ret;
 }
 
-
-/**
- * @brief dap_enc_key_delete
- * @param a_key
- */
-void dap_enc_key_delete(dap_enc_key_t * a_key)
-{
-    if( a_key->delete_callback )
-        a_key->delete_callback( a_key );
-
-    if( a_key->data )
-        free( a_key->data );
-
-    if( a_key->_inheritor )
-        free( a_key->_inheritor );
-
-    free(a_key);
-}
 
 
