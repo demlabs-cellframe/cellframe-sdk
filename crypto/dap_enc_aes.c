@@ -160,6 +160,6 @@ size_t dap_enc_aes_encode(struct dap_enc_key* a_key, const void * a_in, size_t a
     memcpy(a_in_new,a_in,a_in_size);
     memset(a_in_new+a_in_size,0,tail);
     OQS_AES128_ECB_enc(a_in_new,a_in_size+tail,a_key->data,a_out);
-	//free(a_in_new);
+	free(a_in_new);
     return a_in_size + tail;
 }
