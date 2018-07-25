@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "liboqs/crypto/rand/rand.h"
+#include "liboqs/crypto/aes/aes.h"
 #include "dap_enc_aes.h"
 #include "dap_enc_key.h"
 

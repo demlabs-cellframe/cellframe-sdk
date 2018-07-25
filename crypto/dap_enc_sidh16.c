@@ -12,7 +12,8 @@
 #include "liboqs/kex_sidh_cln16/kex_sidh_cln16.h"
 #include "liboqs/kex_sidh_cln16/SIDH.h"
 
-static const char *P751 = "p751";
+//static const char *P751 = "p751";
+
 static const char *CompressedP751 = "compressedp751";
 
 static int isCompressed(void *_inheritor) {

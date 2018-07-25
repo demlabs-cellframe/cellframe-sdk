@@ -38,14 +38,13 @@ size_t bob_key_len;
  * @brief dap_enc_msrln16_key_new_generate
  * @param a_key Struct for new key
  * @param a_size Not used
- * @return Size of a new key
  */
 
-size_t dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
+void dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
 {
     (void)a_size;
     if (a_key == NULL) {
-        return 0;
+        return;
     }
     
     a_key->_inheritor = (dap_enc_msrln16_key_t*)malloc(sizeof(dap_enc_msrln16_key_t));
@@ -55,8 +54,6 @@ size_t dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size
     a_key->enc=dap_enc_aes_encode;
     dap_enc_msrln16_key_t *msrln16_a_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(a_key);
     msrln16_a_key->private_key = NULL;
-
-    return sizeof(a_key);
 }
 
 /**
@@ -153,7 +150,7 @@ size_t dap_enc_msrln16_key_public_raw(dap_enc_key_t *a_key, void ** a_key_public
 {
     (void)a_key;
     (void)a_key_public;
-    return NULL;
+    return 0;
 }
 
 /**

@@ -22,7 +22,7 @@ typedef struct dap_enc_msrln16_key{
 
 //void dap_enc_msrln16_key_new_generate(OQS_RAND *rand);
 //dap_enc_key_t* dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size);
-size_t dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size);//(OQS_RAND* rand);
+void dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size);//(OQS_RAND* rand);
 // OQS_KEX_rlwe_msrln16_alice_1
 void dap_enc_msrln16_key_new_from_data(struct dap_enc_key *a_key, const void *a_in, size_t a_in_size);
 //void dap_enc_msrln16_key_new_from_data(dap_enc_key_t * a_key, const void * a_in, size_t a_in_size);
