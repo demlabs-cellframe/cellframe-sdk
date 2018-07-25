@@ -38,6 +38,8 @@ void test_encode_decode(int count_steps) {
 
         dap_enc_key_delete(key);
     }
+
+    dap_pass_msg("Encode and decode")
 }
 
 void init_test_case() {
