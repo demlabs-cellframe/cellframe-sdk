@@ -21,8 +21,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include <openssl/bio.h>
-#include <openssl/obj_mac.h>
 #include "dap_common.h"
 
 #include "dap_http.h"
