@@ -57,7 +57,7 @@ stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
         if(memcmp(sig_start,dap_sig,sizeof(dap_sig))==0){
             ret=sig_start;
             if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
-                log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
+                //log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
                 ret=NULL;
             }
             break;

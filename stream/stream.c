@@ -36,6 +36,7 @@
 #include "dap_udp_server.h"
 
 
+
 #define LOG_TAG "stream"
 
 // Callbacks for HTTP client
@@ -207,6 +208,7 @@ stream_t * stream_new_udp(dap_client_remote_t * sh)
 
     ret->conn = sh;
     ret->conn_udp=sh->_inheritor;
+    ret->buf_defrag_size = 0;
 
     sh->_internal=ret;
 
@@ -260,6 +262,7 @@ stream_t * stream_new(dap_http_client_t * sh)
 
     ret->conn = sh->client;
     ret->conn_http=sh;
+    ret->buf_defrag_size = 0;
 
     ret->conn->_internal=ret;
 
@@ -335,99 +338,180 @@ void stream_data_write(dap_http_client_t * sh, void * arg)
     }
 }
 
-/**
- * @brief stream_dap_data_read Read callback for UDP client
- * @param sh DAP client instance
- * @param arg Not used
- */
-void stream_dap_data_read(dap_client_remote_t* sh, void * arg){
-    stream_t * sid =STREAM(sh);
+
+
+void stream_dap_data_read(dap_client_remote_t* sh, void * arg)
+{
+    stream_t * a_stream =STREAM(sh);
     int * ret = (int *) arg;
-    int bytes_ready = 0;
-
-    // Если имеем хотя бы целый заголовок
-    if(sid->pkt_buf_in && sid->pkt_buf_in_data_size >= sizeof(stream_pkt_hdr_t)){
-        //Ищем в полученном куске данных следующий пакет
-        stream_pkt_t* packet_test = stream_pkt_detect( sh->buf_in, sid->conn->buf_in_size);
-        if(packet_test){
-            // Если нашли - рассчитываем размер блока памяти до найденного пакета
-            int offset = (uint8_t*)packet_test - (uint8_t*)sh->buf_in;
-            // Если этот размер совпал с размером недостающего куска - будем считать что мы получили нужный пакет
-            if(offset != sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size){
-                // Если не совпал - выбрасываем предыдущий пакет и переходим к следующему
-                log_it(L_WARNING,"WRONG NEXT PACKET, OFFSET IS %i, BUT NEED %i",offset,sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size);
-                sid->pkt_buf_in_data_size = 0;
-                sid->pkt_buf_in = NULL;
+    bool found_sig=false;
+    stream_pkt_t * pkt=NULL;
+    uint8_t * proc_data=  a_stream->conn->buf_in;
+    bool proc_data_defrag=false; // We are or not in defrag buffer
+    size_t read_bytes_to=0;
+    size_t bytes_left_to_read=a_stream->conn->buf_in_size;
+    if(bytes_left_to_read > 100000)
+        bytes_left_to_read = 100000;
+    // Process prebuffered packets or glue defragmented data with the current input
+    if(pkt=a_stream->pkt_buf_in){ // Complete prebuffered packet
+        if(a_stream->pkt_buf_in_data_size < sizeof(stream_pkt_hdr_t))
+        {
+            stream_pkt_t* check_pkt = stream_pkt_detect( proc_data , sizeof(stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size);
+            if(check_pkt){
+                //log_it(L_DEBUG, "Drop incorrect packet");
+                a_stream->pkt_buf_in = NULL;
+                a_stream->pkt_buf_in_data_size=0;
                 return;
             }
-            else
-                log_it(L_DEBUG,"Next packet true");
-        }
-        // Если всё верно - читаем следующий блок
-        size_t read_bytes_to=( ((sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size) > sid->conn->buf_in_size )
-                               ? sid->conn->buf_in_size
-                              :(sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size));
-        memcpy((uint8_t*)sid->pkt_buf_in+sid->pkt_buf_in_data_size,sh->buf_in,read_bytes_to);
-        sid->pkt_buf_in_data_size+=read_bytes_to;
-        if(sid->pkt_buf_in_data_size>=(sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)) ){
-            stream_proc_pkt_in(sid);
-        }
-        bytes_ready+=read_bytes_to;
-    // Если имеем только часть заголовка
-    }else if(sid->pkt_buf_in){
-        // Если имеется хотя бы размер пакета - делаем аналогичную проверку
-        stream_pkt_t* packet_test = stream_pkt_detect( sh->buf_in, sid->conn->buf_in_size);
-        if(packet_test){
-            int offset = (uint8_t*)packet_test - (uint8_t*)sh->buf_in;
-            // Это условие также будет срабатывать если полученный кусок не содержит поле size (из-за этого происходило падение)
-            if(offset != sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size){
-                log_it(L_WARNING,"WRONG NEXT PACKET, OFFSET IS %i, BUT NEED %i",offset,sid->pkt_buf_in->hdr.size+sizeof(stream_pkt_hdr_t)-sid->pkt_buf_in_data_size);
-                sid->pkt_buf_in_data_size = 0;
-                sid->pkt_buf_in = NULL;
-                return;
+            if(sizeof(stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size > bytes_left_to_read)
+            {
+                read_bytes_to = bytes_left_to_read;
+                //log_it(L_DEBUG, "Cannot read header");
             }
             else
-                log_it(L_DEBUG,"Next packet true");
+                read_bytes_to = sizeof(stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size;
+            memcpy((uint8_t*)a_stream->pkt_buf_in+a_stream->pkt_buf_in_data_size,proc_data,read_bytes_to);
+            bytes_left_to_read-=read_bytes_to;
+            a_stream->pkt_buf_in_data_size += read_bytes_to;
+            proc_data += read_bytes_to;
+            read_bytes_to = 0;
         }
-        // Если всё верно - читаем только заголовок
-        size_t read_bytes_to=(sizeof(stream_pkt_hdr_t) - sid->pkt_buf_in_data_size > sid->conn->buf_in_size 
-                                ? sid->conn->buf_in_size
-                                :sizeof(stream_pkt_hdr_t) - sid->pkt_buf_in_data_size);
-        log_it(L_WARNING,"Special condition used, additionla part: %u",read_bytes_to);
-        memcpy((uint8_t*)sid->pkt_buf_in+sid->pkt_buf_in_data_size,sh->buf_in,read_bytes_to);
-        sid->pkt_buf_in_data_size+=read_bytes_to;
 
-        bytes_ready+=read_bytes_to;
-    }else{
-        stream_pkt_t * pkt;
-        // Try to detect packet header in dap_client buf
-        while(pkt=stream_pkt_detect( sh->buf_in + bytes_ready, (sh->buf_in_size - ((size_t) bytes_ready) ))){
-            size_t read_bytes_to=( (pkt->hdr.size+sizeof(stream_pkt_hdr_t)) > sid->conn->buf_in_size
-                                   ?sid->conn->buf_in_size
-                                   :(pkt->hdr.size+sizeof(stream_pkt_hdr_t) ) );
-            if(read_bytes_to){
-                 sid->pkt_buf_in=(stream_pkt_t *) calloc(1,pkt->hdr.size+sizeof(stream_pkt_hdr_t));
-                memcpy(sid->pkt_buf_in,pkt,read_bytes_to);
-                bytes_ready = (bytes_ready)+ read_bytes_to;
-                if(read_bytes_to < sizeof(stream_pkt_hdr_t))
-                    log_it(L_WARNING,"Packet size less than header");
-                sid->pkt_buf_in_data_size=read_bytes_to;
-
-                if(read_bytes_to>=(pkt->hdr.size + sizeof(stream_pkt_hdr_t))){
-                    stream_proc_pkt_in(sid);
-                }else{
-                    log_it(L_DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",sid->pkt_buf_in->hdr.size,read_bytes_to);
-                }
-                *ret = bytes_ready;
-                return;
-            }else
-                break;
+        if  ((pkt->hdr.size + sizeof(stream_pkt_hdr_t) -a_stream->pkt_buf_in_data_size) < bytes_left_to_read ) { // Looks the all packet is present in buffer
+            read_bytes_to=(a_stream->pkt_buf_in->hdr.size + sizeof(stream_pkt_hdr_t) -a_stream->pkt_buf_in_data_size);
+        }else{
+            //log_it(L_DEBUG, "Cannot read full packet");
+            read_bytes_to=bytes_left_to_read;
         }
-        bytes_ready += sh->buf_in_size; // Эта строчка по-моему также неверная, если придут два слипшихся пакета - прочитаем только один
+        memcpy((uint8_t*)a_stream->pkt_buf_in+a_stream->pkt_buf_in_data_size,proc_data,read_bytes_to);
+        a_stream->pkt_buf_in_data_size+=read_bytes_to;
+        bytes_left_to_read-=read_bytes_to;
+        //log_it(DEBUG, "Prefilled packet buffer on %u bytes", read_bytes_to);
+        read_bytes_to=0;
+        if(a_stream->pkt_buf_in_data_size>=(a_stream->pkt_buf_in->hdr.size + sizeof(stream_pkt_hdr_t)) ){ // If we have all the packet in packet buffer
+            if(a_stream->pkt_buf_in_data_size > a_stream->pkt_buf_in->hdr.size + sizeof(stream_pkt_hdr_t)){ // If we have little more data then we need for packet buffer
+                //log_it(L_WARNING,"Prefilled packet buffer has %u bytes more than we need, they're lost",a_stream->pkt_buf_in_data_size-a_stream->pkt_buf_in->hdr.size);
+                a_stream->pkt_buf_in_data_size = 0;
+                a_stream->pkt_buf_in = NULL;
+            }
+            else{
+                stream_proc_pkt_in(a_stream);
+            }
+        }
+        proc_data=(a_stream->conn->buf_in + a_stream->conn->buf_in_size - bytes_left_to_read);
+
+    }else if( a_stream->buf_defrag_size>0){ // If smth is present in defrag buffer - we glue everything together in it
+        if( bytes_left_to_read  > 0){ // If there is smth to process in input buffer
+            read_bytes_to=bytes_left_to_read;
+            if( (read_bytes_to + a_stream->buf_defrag_size) > sizeof(a_stream->buf_defrag)   ){
+                //log_it(L_WARNING,"Defrag buffer is overfilled, drop that" );
+                if(read_bytes_to>sizeof(a_stream->buf_defrag))
+                    read_bytes_to=sizeof(a_stream->buf_defrag);
+                a_stream->buf_defrag_size=0;
+            }
+         //   log_it(DEBUG,"Glue together defrag %u bytes and current %u bytes", sid->buf_defrag_size, read_bytes_to);
+            memcpy(a_stream->buf_defrag+a_stream->buf_defrag_size,proc_data,read_bytes_to );
+            bytes_left_to_read=a_stream->buf_defrag_size+read_bytes_to; // Then we have to read em all
+            read_bytes_to=0;
+        }else{
+            bytes_left_to_read=a_stream->buf_defrag_size;
+       //     log_it(DEBUG,"Nothing to glue with defrag buffer, going to process just that (%u bytes)", bytes_left_to_read);
+        }
+        //log_it(L_WARNING,"Switch to defrag buffer");   
+        proc_data=a_stream->buf_defrag;
+        proc_data_defrag=true;
+    }//else
+     //   log_it(DEBUG,"No prefill or defrag buffer, process directly buf_in");
+    // Now lets see how many packets we have in buffer now
+    while(pkt=stream_pkt_detect( proc_data , bytes_left_to_read)){
+        if(pkt->hdr.size > STREAM_PKT_SIZE_MAX ){
+            //log_it(L_ERROR, "stream_pkt_detect() Too big packet size %u",
+                   //pkt->hdr.size);
+            bytes_left_to_read=0;
+            break;
+        }
+        size_t pkt_offset=( ((uint8_t*)pkt)- proc_data );
+        //if(pkt_offset > 0){
+        //    log_it(L_ERROR, "Packet offset detected:%i",pkt_offset);
+        //}
+        bytes_left_to_read -= pkt_offset ;
+        found_sig=true;
+        stream_pkt_t* temp_pkt = stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
+        //if(temp_pkt){
+        //    log_it(L_ERROR, "UNPROCESSED PKT DETECTED");
+        ///}
+        if(bytes_left_to_read  <(pkt->hdr.size+sizeof(stream_pkt_hdr_t) )){ // Is all the packet in da buf?
+            read_bytes_to=bytes_left_to_read;
+        }else{
+            read_bytes_to=pkt->hdr.size+sizeof(stream_pkt_hdr_t);
+        }
+        //if(read_bytes_to < sizeof(stream_pkt_hdr_t))
+            //log_it(L_DEBUG,"Read bytes less then HEADER SIZE, bytes = %i",read_bytes_to);
+        //log_it(L_DEBUG, "Detected packet signature pkt->hdr.size=%u read_bytes_to=%u bytes_left_to_read=%u pkt_offset=%u"
+        //      ,pkt->hdr.size, read_bytes_to, bytes_left_to_read,pkt_offset);
+        if(read_bytes_to>12){ // We have smth to read, right?
+            a_stream->pkt_buf_in_size_expected =( pkt->hdr.size+sizeof(stream_pkt_hdr_t));
+            size_t pkt_buf_in_size_expected=a_stream->pkt_buf_in_size_expected;
+            a_stream->pkt_buf_in=(stream_pkt_t *) malloc(pkt_buf_in_size_expected);
+            if(read_bytes_to>(pkt->hdr.size+sizeof(stream_pkt_hdr_t) )){
+                //log_it(L_WARNING,"For some strange reasons we have read_bytes_to=%u is bigger than expected pkt length(%u bytes). Dropped %u bytes",
+                       //pkt->hdr.size+sizeof(stream_pkt_hdr_t),read_bytes_to- pkt->hdr.size+sizeof(stream_pkt_hdr_t));
+                read_bytes_to=(pkt->hdr.size+sizeof(stream_pkt_hdr_t));
+            }
+            if(read_bytes_to>bytes_left_to_read){
+                //log_it(L_WARNING,"For some strange reasons we have read_bytes_to=%u is bigger that's left in input buffer (%u bytes). Dropped %u bytes",
+                       //read_bytes_to,bytes_left_to_read);
+                read_bytes_to=bytes_left_to_read;
+            }
+            memcpy(a_stream->pkt_buf_in,pkt,read_bytes_to);
+            proc_data+=(read_bytes_to + pkt_offset);
+            bytes_left_to_read-=read_bytes_to;
+            a_stream->pkt_buf_in_data_size=(read_bytes_to);
+            if(a_stream->pkt_buf_in_data_size==(pkt->hdr.size + sizeof(stream_pkt_hdr_t))){
+            //    log_it(INFO,"All the packet is present in da buffer (hdr.size=%u read_bytes_to=%u buf_in_size=%u)"
+            //           ,sid->pkt_buf_in->hdr.size,read_bytes_to,sid->conn->buf_in_size);
+                stream_proc_pkt_in(a_stream);
+            }else if(a_stream->pkt_buf_in_data_size>pkt->hdr.size + sizeof(stream_pkt_hdr_t)){
+                //log_it(L_WARNING,"Input: packet buffer has %u bytes more than we need, they're lost",a_stream->pkt_buf_in_data_size-pkt->hdr.size);
+            }else{
+          //      log_it(DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",sid->pkt_buf_in->hdr.size,read_bytes_to);
+            }
+        }else{
+            //log_it(DEBUG,"Input: read_bytes_to is zero inside the process loop, going to breaking out that");
+            proc_data+=(read_bytes_to + pkt_offset);
+            bytes_left_to_read-=read_bytes_to;
+        }
+        //if(proc_data_defrag==true)
+           //log_it(L_WARNING,"End read defrag buffer");
     }
-    if(ret)
-        *ret = bytes_ready;
+    if(!found_sig){
+        //log_it(DEBUG,"Input: Not found signature in the incomming data ( client->buf_in_size = %u   *ret = %u )",
+        //       sh->client->buf_in_size, *ret);
+    }
+    if(bytes_left_to_read>0){
+        if(proc_data_defrag){ 
+            //log_it(L_WARNING,"Move data in defrag buffer, bytes left: %i",bytes_left_to_read);           
+            memmove(a_stream->buf_defrag, proc_data, bytes_left_to_read);
+            a_stream->buf_defrag_size=bytes_left_to_read;
+        //    log_it(INFO,"Fragment of %u bytes shifted in the begining the defrag buffer",bytes_left_to_read);
+        }else{
+            //log_it(L_WARNING,"Copy data to defrag buffer, bytes left: %i",bytes_left_to_read);   
+            memcpy(a_stream->buf_defrag, proc_data, bytes_left_to_read);
+            a_stream->buf_defrag_size=bytes_left_to_read;
+         //   log_it(INFO,"Fragment of %u bytes stored in defrag buffer",bytes_left_to_read);
+        }
+    }else if(proc_data_defrag){
+        a_stream->buf_defrag_size=0;
+    }
+
+    *ret = a_stream->conn->buf_in_size;
+
+//    log_it(DEBUG,"Stream read data from HTTP client: %u",sh->client->buf_in_size);
+//    if(sh->client->buf_in_size )
 }
+
+
+
 
 /**
  * @brief stream_dap_data_write Write callback for UDP client
@@ -491,6 +575,9 @@ void stream_dap_new(dap_client_remote_t* sh, void * arg){
  */
 void stream_proc_pkt_in(stream_t * sid)
 {
+    //if(sid->pkt_buf_in->hdr.timestamp != pkt_num + 1)
+    //    log_it(L_WARNING,"PACKET SEQUENCE WRONG, NEED %i, BUT GOT %i C4",pkt_num+1,sid->pkt_buf_in->hdr.timestamp);
+    //pkt_num = sid->pkt_buf_in->hdr.timestamp;
     if(sid->pkt_buf_in->hdr.type == DATA_PACKET)
     {
         stream_ch_pkt_t * ch_pkt= (stream_ch_pkt_t*) calloc(1,sid->pkt_buf_in->hdr.size);
