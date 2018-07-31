@@ -70,7 +70,7 @@ typedef struct stream {
     size_t pkt_buf_in_data_size;
     size_t pkt_buf_in_size_expected;
 
-    uint8_t buf_defrag[100000];
+    uint8_t buf_defrag[500000];
     uint64_t buf_defrag_size;
 
     uint8_t buf[500000];
