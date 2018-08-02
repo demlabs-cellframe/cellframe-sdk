@@ -37,7 +37,7 @@
 
 
 #define LOG_TAG "stream"
-#define HEADER_WITH_SIZE 12
+#define HEADER_WITH_SIZE_FIELD 12  //This count of bytes enough for allocate memory for stream packet
 
 // Callbacks for HTTP client
 void stream_headers_read(dap_http_client_t * sh, void * arg); // Prepare stream when all headers are read
@@ -437,7 +437,7 @@ void stream_dap_data_read(dap_client_remote_t* sh, void * arg)
         }
         //log_it(L_DEBUG, "Detected packet signature pkt->hdr.size=%u read_bytes_to=%u bytes_left_to_read=%u pkt_offset=%u"
         //      ,pkt->hdr.size, read_bytes_to, bytes_left_to_read,pkt_offset);
-        if(read_bytes_to > HEADER_WITH_SIZE){ // If we have size field, we can allocate memory
+        if(read_bytes_to > HEADER_WITH_SIZE_FIELD){ // If we have size field, we can allocate memory
             a_stream->pkt_buf_in_size_expected =( pkt->hdr.size+sizeof(stream_pkt_hdr_t));
             size_t pkt_buf_in_size_expected=a_stream->pkt_buf_in_size_expected;
             a_stream->pkt_buf_in=(stream_pkt_t *) malloc(pkt_buf_in_size_expected);
