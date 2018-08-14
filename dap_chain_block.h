@@ -44,22 +44,22 @@ typedef struct  dap_chain_block{
         int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
         uint32_t size; /// @param size of the whole block
         uint64_t timestamp; /// @param timestamp @brief Block create time timestamp
-	uint64_t difficulty; /// difficulty level
-	uint64_t nonce; /// Nonce value to allow header variation for mining
-	union{
-	    struct{ // Zero-level block without sharding
-	        dap_chain_hash_t prev_block; /// @param prev_block Hash of the previous block
-	        dap_chain_hash_t padding0; // 
-		uint32_t padding1; //
-		uint64_t padding2; // Always zero (should be well compresed) 
-	    };
-	    struct{
-	        dap_chain_hash_t prev_block_0lvl; /// @param prev_block Hash of the previous block
-	        dap_chain_hash_t prev_block_shard; /// @param prev_block Hash of the previous block
-		uint32_t shard_id; // Shard id
-		uint64_t nonce2; // Second NonCE for block mining inside the shard
-	    }
-	}
+        uint64_t difficulty; /// difficulty level
+        uint64_t nonce; /// Nonce value to allow header variation for mining
+        union{
+            struct{ // Zero-level block without sharding
+                dap_chain_hash_t prev_block; /// @param prev_block Hash of the previous block
+                dap_chain_hash_t padding0; //
+            uint32_t padding1; //
+            uint64_t padding2; // Always zero (should be well compresed)
+            };
+            struct{
+                dap_chain_hash_t prev_block_0lvl; /// @param prev_block Hash of the previous block
+                dap_chain_hash_t prev_block_shard; /// @param prev_block Hash of the previous block
+            uint32_t shard_id; // Shard id
+            uint64_t nonce2; // Second NonCE for block mining inside the shard
+            };
+        };
         dap_chain_hash_t root_sections;/// @param root_main Main tree's root for all sections's hashes
     } DAP_ALIGN_PACKED header;
     uint8_t sections[]; // Sections

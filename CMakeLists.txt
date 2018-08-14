@@ -14,7 +14,9 @@ set(DAP_CHAIN_SRCS
         dap_chain.c
         dap_chain_ops.c
         dap_chain_coin.c
+        dap_chain_node.c
 	dap_chain_srv.c  
+        dap_chain_srv_pkt.c
         dap_hash.c
         dap_hash_fusion.c
         dap_hash_keccak.c
@@ -32,7 +34,9 @@ set(DAP_CHAIN_HEADERS
         dap_chain_internal.h
         dap_chain_common.h
 	dap_chain_coin.h
+        dap_chain_node.h
 	dap_chain_srv.h
+        dap_chain_srv_pkt.h
 	dap_chain_section.h
 	dap_chain_section_roots.h
 	dap_chain_section_tx.h

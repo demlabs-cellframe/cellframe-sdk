@@ -138,7 +138,7 @@ void dap_chain_save(dap_chain_t * a_chain)
  */
 
 void dap_chain_file_write(dap_chain_block_cache_t *l_block_cache){
-    if (dap_chain_hash_kind_check(l_block_cache, l_block_cache->block->header.difficulty)==HASH_GOLD){
+    if (dap_chain_hash_kind_check(&l_block_cache->block_hash, l_block_cache->block->header.difficulty)==HASH_GOLD){
                                                fwrite(l_block_cache->block->header.size, 64, 1, my_file_to_wite_gold);
                                                fwrite(l_block_cache->block, l_block_cache->block->header.size, 1, my_file_to_wite_gold);
                                                blocks_mined_gold += 1;

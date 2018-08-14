@@ -21,25 +21,15 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #pragma once
 
-#include "dap_chain_node.h"
-#include "dap_chain_srv_pkt.h"
+#include <stdint.h>
 
-typedef struct dap_chain_srv
-{
-    dap_chain_node_t * node;
-    dap_chain_srv_uid_t uid; // Unique ID for service.
-
-    void * _internal;
-    void * _inhertor;
-} dap_chain_srv_t;
-
-int dap_chain_srv_init();
-void dap_chain_srv_deinit();
-
-void dap_chain_srv_add(dap_chain_srv_t * a_srv);
-dap_chain_srv_t * dap_chain_srv_get( dap_chain_srv_uid_t a_uid);
-const size_t dap_chain_srv_count();
-const dap_chain_srv_uid_t * dap_chain_srv_list();
-
+typedef uint64_t dap_chain_srv_uid_t;
+typedef struct dap_chain_srv_pkt{
+    struct {
+        dap_chain_srv_uid_t uid;
+    } __attribute__((packed)) header ;
+    uint8_t data[];
+} __attribute__((packed)) dap_chain_srv_pkt_t;
