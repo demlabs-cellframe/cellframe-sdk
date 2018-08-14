@@ -64,17 +64,16 @@ void set_log_level(enum log_level ll) {
     log_level = ll;
 }
 
-int dap_common_init( const char * a_log_file )
+int dap_common_init(const char * a_log_file)
 {
-    if ( a_log_file ) {
-        s_log_file=fopen( a_log_file , "a");
-        if(s_log_file==NULL){
+    if (a_log_file) {
+        s_log_file = fopen(a_log_file , "a");
+        if(s_log_file == NULL) {
             fprintf(stderr,"Can't open log file %s to append\n", a_log_file);
             s_log_file=stdout;
             return -1;
         }
     }
-
     return 0;
 }
 
@@ -144,8 +143,8 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[DBG] ");
         printf(	"\x1b[37;2m[DBG] ");
     }else if(ll==L_INFO){
-        if (s_log_file ) fprintf(s_log_file,"[   ] ");
-        printf("\x1b[32;2m[   ] ");
+        if (s_log_file ) fprintf(s_log_file,"[INF] ");
+        printf("\x1b[32;2m[INF] ");
     }else if(ll==L_NOTICE){
         if (s_log_file ) fprintf(s_log_file,"[ * ] ");
         printf("\x1b[32m[ * ] ");
