@@ -60,12 +60,29 @@ static char last_error[LAST_ERROR_MAX] = {0};
 static enum log_level log_level = L_DEBUG;
 static FILE * s_log_file = NULL;
 
+static char log_tag_fmt_str[10];
+
 void set_log_level(enum log_level ll) {
     log_level = ll;
 }
 
+void dap_set_log_tag_width(size_t width) {
+    if (width > 99) {
+        fprintf(stderr,"Can't set width %zd", width);
+        return;
+    }
+
+    // construct new log_tag_fmt_str
+    strcpy(log_tag_fmt_str, "[%");
+    strcat(log_tag_fmt_str, itoa((int)width));
+    strcat(log_tag_fmt_str, "s]\t");
+}
+
 int dap_common_init(const char * a_log_file)
 {
+    // init default log tag 8 width
+    strcpy(log_tag_fmt_str, "[%8s]\t");
+
     if (a_log_file) {
         s_log_file = fopen(a_log_file , "a");
         if(s_log_file == NULL) {
@@ -135,9 +152,6 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
         printf("[%s] ",s_time);
     }
-    /*if(ll>=ERROR){
-        vsnprintf(last_error,LAST_ERROR_MAX,format,ap);
-    }*/
 
     if(ll==L_DEBUG){
         if (s_log_file ) fprintf(s_log_file,"[DBG] ");
@@ -158,8 +172,8 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[!!!] ");
         printf("\x1b[1;5;31m[!!!] ");
     }
-    if (s_log_file ) fprintf(s_log_file,"[%8s]\t",log_tag);
-    printf("[%8s]\t",log_tag);
+    if (s_log_file ) fprintf(s_log_file,log_tag_fmt_str,log_tag);
+    printf(log_tag_fmt_str,log_tag);
 
     if (s_log_file ) vfprintf(s_log_file,format,ap);
     vprintf(format,ap2);

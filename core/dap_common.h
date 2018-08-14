@@ -58,6 +58,7 @@ void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list
 
 const char * log_error(void);
 void set_log_level(enum log_level ll);
+void dap_set_log_tag_width(size_t width);
 
 #ifdef __GNUC__
 char *itoa(int i);
