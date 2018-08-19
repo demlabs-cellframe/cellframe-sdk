@@ -57,7 +57,7 @@ typedef struct enc_http_delegate{
     size_t response_size;
     size_t response_size_max;
 
-    struct enc_key * key;
+    struct dap_enc_key * key;
 
     struct dap_http_client *http;
 } enc_http_delegate_t;
