@@ -369,7 +369,7 @@ void dap_http_client_write(dap_client_remote_t * cl,void * arg)
                 dap_client_ready_to_read(cl,true);
             }else{
                 //log_it(L_DEBUGUG,"Output: header %s: %s",hdr->name,hdr->value);
-                dap_client_write_f(cl,"%s: %s\n",hdr->name,hdr->value);
+                dap_client_write_f(cl,"%s: %s\r\n",hdr->name,hdr->value);
                 dap_http_header_remove(&cl_ht->out_headers, hdr);
             }
         }break;
