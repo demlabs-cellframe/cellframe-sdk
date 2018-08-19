@@ -86,7 +86,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
     if(strcmp(cl_st->http->url_path,"hsd9jslagd92abgjalp9h") == 0 )
     {
         //Stage 1 : generate private key and alice message
-        OQS_RAND* rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);        
+        OQS_RAND* rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
         dap_enc_key_t* key_session = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_RLWE_MSRLN16,16);
         dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(key_session);
         msrln16_key->kex = OQS_KEX_rlwe_msrln16_new(rand);
@@ -106,7 +106,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         strcpy(sendMsg,encrypt_id);
         strcat(sendMsg," ");
         strcat(sendMsg,encrypt_msg);
- 
+
 
         dap_http_simple_reply_f(cl_st,"%s",sendMsg);
         free(encrypt_msg);
@@ -114,8 +114,13 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 
         *isOk=true;
     }else if(strcmp(cl_st->http->url_path,"gd4y5yh78w42aaagh")==0 ){
+        if(cl_st->request == NULL) {
+            log_it(L_WARNING, "Received an empty request");
+            *isOk = false;
+            return;
+        }
         //Stage 2 : generate bob public key and bob message
-        OQS_RAND* rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);        
+        OQS_RAND* rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
         dap_enc_key_t* key_session = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_RLWE_MSRLN16,16);
         dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(key_session);
         msrln16_key->kex = OQS_KEX_rlwe_msrln16_new(rand);
@@ -123,7 +128,6 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 
         uint8_t* out_msg = NULL;
         size_t out_msg_size = 0;
-
         char *msg_index = strchr(cl_st->request,' ');
         int key_size = (void*)msg_index - cl_st->request;
         int msg_size = cl_st->request_size - key_size - 1;
