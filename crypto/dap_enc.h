@@ -29,8 +29,8 @@
 extern "C" {
 #endif
 
-int dap_enc_init();
-void dap_enc_deinit();
+int dap_enc_init(void);
+void dap_enc_deinit(void);
 
 size_t dap_enc_code(struct dap_enc_key * key, const void * buf, const size_t buf_size, void * buf_out,
                     dap_enc_data_type_t data_type_out);

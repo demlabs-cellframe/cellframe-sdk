@@ -13,8 +13,6 @@
 #include"liboqs/kex_sidh_cln16/SIDH.h"
 #include "liboqs/kex/kex.h"
 
-
-
 struct dap_enc_key;
 
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
