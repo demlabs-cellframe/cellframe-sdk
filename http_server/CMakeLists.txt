@@ -14,7 +14,7 @@ set(HTTP_SERVER_SRCS
 
 add_library(${PROJECT_NAME} STATIC ${HTTP_SERVER_SRCS})
 
-target_include_directories(dap_core_server INTERFACE . http_client)
+target_include_directories(dap_http_server INTERFACE . http_client)
 
 target_link_libraries(dap_http_server dap_core dap_crypto dap_core_server)
 
