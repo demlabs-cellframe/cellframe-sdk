@@ -27,7 +27,7 @@
 #include <pthread.h>
 #include "uthash.h"
 
-#include "dap_client_remote.h"
+#include "dap_server_client.h"
 
 typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
 
