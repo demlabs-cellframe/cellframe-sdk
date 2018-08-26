@@ -8,4 +8,4 @@ file(GLOB HEADERS *.h)
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} ev curl dap_core dap_crypto)
+target_link_libraries(${PROJECT_NAME} ev dap_core dap_crypto)
