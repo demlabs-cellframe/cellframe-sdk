@@ -49,4 +49,4 @@ add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS}
 
 target_include_directories(dap_crypto INTERFACE .)
 
-target_link_libraries(dap_crypto dap_core)
+target_link_libraries(dap_crypto dap_core m)
