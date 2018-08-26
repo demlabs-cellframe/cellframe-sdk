@@ -1,0 +1,3 @@
+[submodule "dapclient"]
+	path = dapclient
+	url = https://github.com/kelvinblockchain/dapclient
