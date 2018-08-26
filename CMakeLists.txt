@@ -57,15 +57,11 @@ add_subdirectory(monero_crypto)
 include_directories("${monero_crypto_INCLUDE_DIRS}")
 add_definitions ("${monero_crypto_DEFINITIONS}")
 
-include_directories("${dap_core_INCLUDE_DIRS}")
-include_directories("${dap_crypto_INCLUDE_DIRS}")
-
-add_definitions ("${dap_core_DEFINITIONS}")
-add_definitions ("${dap_crypto_DEFINITIONS}")
-
-
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
+
+
+target_link_libraries(dap-chain dap_core dap_crypto)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
