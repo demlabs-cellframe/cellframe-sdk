@@ -18,10 +18,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <sys/epoll.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
 
