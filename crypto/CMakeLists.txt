@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
+if(TARGET dap_crypto)
+    return() # The project has already been built.
+endif()
 project (dap_crypto)
 
 file(GLOB CRYPTO_SRCS *.c)
