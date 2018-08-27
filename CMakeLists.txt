@@ -8,5 +8,5 @@ file(GLOB HEADERS *.h)
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} ev dapclient)
+target_link_libraries(${PROJECT_NAME} ev dap_crypto dap_common)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
