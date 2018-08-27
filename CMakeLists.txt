@@ -6,7 +6,7 @@ add_definitions ("-D_GNU_SOURCE")
 
 set(CMAKE_C_FLAGS "-std=c11 -Wall -Wextra")
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test/libdap-test/CMakeLists.txt")
+if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
