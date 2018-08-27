@@ -32,7 +32,7 @@
 #include <sys/queue.h>
 #include "dap_udp_client.h"
 #include "dap_server.h"
-#include "dap_client_remote.h"
+#include "dap_server_client.h"
 
 struct dap_udp_server;
 

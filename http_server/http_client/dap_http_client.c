@@ -24,9 +24,9 @@
 #include <ctype.h>
 #include <libgen.h>
 #include "dap_common.h"
-#include "dap_client_remote.h"
+#include "dap_server_client.h"
 
-#include "../http_server/dap_http.h"
+#include "../dap_http.h"
 
 #include "dap_http_header.h"
 #include "dap_http_client.h"
