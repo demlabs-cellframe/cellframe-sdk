@@ -6,7 +6,7 @@ add_definitions ("-D_GNU_SOURCE")
 
 set(CMAKE_C_FLAGS "-std=c11 -Wall -Wextra")
 
-if(BUILD_TESTS)
+if(BUILD_DAP_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
