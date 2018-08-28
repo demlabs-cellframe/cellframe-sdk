@@ -3,6 +3,11 @@ project (dap_core_server C)
 
 add_subdirectory(libdap)
 
+if(BUILD_DAP_CORE_SERVER_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()
+
 file(GLOB SOURCES *.c)
 file(GLOB HEADERS *.h)
 

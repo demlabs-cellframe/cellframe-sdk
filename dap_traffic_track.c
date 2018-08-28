@@ -3,14 +3,18 @@
 
 #define LOG_TAG "dap_traffic_track"
 
-static dap_traffic_callback_t callback;
+static dap_traffic_callback_t callback = NULL;
 static dap_server_client_t * server_clients;
 static ev_timer timeout_watcher;
 static struct ev_loop *loop;
 
 static void timeout_cb()
 {
-    log_it(L_DEBUG, "timeout_cb CB");
+    if(callback != NULL) {
+        callback(NULL, NULL);
+        return;
+    }
+    log_it(L_WARNING, "Callback is NULL!");
 }
 
 void dap_traffic_track_init(dap_server_client_t * clients,
@@ -26,7 +30,7 @@ void dap_traffic_track_init(dap_server_client_t * clients,
 
 void dap_traffic_track_deinit()
 {
-    ev_timer_stop (loop, &timeout_watcher);
+    ev_timer_stop(loop, &timeout_watcher);
     log_it(L_NOTICE, "Deinitialized traffic track module");
 }
 
