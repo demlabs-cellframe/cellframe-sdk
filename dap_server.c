@@ -100,7 +100,7 @@ dap_server_t * dap_server_new()
  */
 void dap_server_delete(dap_server_t * sh)
 {
-    dap_client_remote_t * dap_cur, * tmp;
+    dap_server_client_t * dap_cur, * tmp;
     if(sh->address)
         free(sh->address);
 
@@ -141,17 +141,16 @@ static void async_cb (EV_P_ ev_async *w, int revents)
 static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int revents)
 {
     dap_server_t* sh = watcher->data;
-    dap_client_remote_t* dap_cur = dap_client_find(watcher->fd, sh);
+    dap_server_client_t* dap_cur = dap_client_find(watcher->fd, sh);
 
     if ( revents & EV_READ )
     {
         if(dap_cur)
         {
-            int bytes_read = recv(dap_cur->socket,
+            ssize_t bytes_read = recv(dap_cur->socket,
                                   dap_cur->buf_in + dap_cur->buf_in_size,
                                   sizeof(dap_cur->buf_in) - dap_cur->buf_in_size,
                                   0);
-
             if(bytes_read > 0)
             {
                 dap_cur->buf_in_size += bytes_read;
@@ -182,7 +181,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
         {
             for(size_t total_sent = 0; total_sent < dap_cur->buf_out_size;) {
                 //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent, dap_cur->buf_out_size);
-                int bytes_sent = send(dap_cur->socket,
+                ssize_t bytes_sent = send(dap_cur->socket,
                                       dap_cur->buf_out + total_sent,
                                       dap_cur->buf_out_size - total_sent,
                                       MSG_DONTWAIT | MSG_NOSIGNAL );
@@ -280,6 +279,7 @@ dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_typ
 
 void* thread_loop(void * arg)
 {
+    (void)arg;
     log_it(L_NOTICE, "Start loop listener socket thread");
     ev_loop(listener_clients_loop, 0);
     return NULL;

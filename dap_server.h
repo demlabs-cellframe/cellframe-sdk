@@ -44,7 +44,7 @@ typedef struct dap_server{
     uint16_t port; // Listen port
     char * address; // Listen address
 
-    dap_client_remote_t * clients; // Hashmap of clients
+    dap_server_client_t * clients; // Hashmap of clients
 
     int socket_listener; // Socket for listener
     int epoll_fd; // Epoll fd

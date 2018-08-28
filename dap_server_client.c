@@ -31,7 +31,6 @@
 
 #define LOG_TAG "dap_client_remote"
 
-
 /**
  * @brief dap_client_init Init clients module
  * @return Zero if ok others if no
@@ -56,12 +55,12 @@ void dap_client_remote_deinit()
  * @param s Client's socket
  * @return Pointer to the new list's node
  */
-dap_client_remote_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_client)
+dap_server_client_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_client)
 {
     pthread_mutex_lock(&sh->mutex_on_hash);
     log_it(L_DEBUG, "Client structure create");
 
-    dap_client_remote_t * ret = DAP_NEW_Z(dap_client_remote_t);
+    dap_server_client_t * ret = DAP_NEW_Z(dap_server_client_t);
     ret->socket = s;
     ret->server = sh;
     ret->watcher_client = w_client;
@@ -81,9 +80,9 @@ dap_client_remote_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_clien
  * @param sh
  * @return
  */
-dap_client_remote_t * dap_client_find(int sock, struct dap_server * sh)
+dap_server_client_t * dap_client_find(int sock, struct dap_server * sh)
 {
-    dap_client_remote_t * ret = NULL;
+    dap_server_client_t * ret = NULL;
     pthread_mutex_lock(&sh->mutex_on_hash);
     HASH_FIND_INT(sh->clients, &sock, ret);
     pthread_mutex_unlock(&sh->mutex_on_hash);
@@ -95,11 +94,10 @@ dap_client_remote_t * dap_client_find(int sock, struct dap_server * sh)
  * @param sc
  * @param isReady
  */
-void dap_client_ready_to_read(dap_client_remote_t * sc,bool is_ready)
+void dap_client_ready_to_read(dap_server_client_t * sc,bool is_ready)
 {
     if(is_ready != sc->_ready_to_read) {
-
-        uint32_t events = 0;
+        int events = 0;
         sc->_ready_to_read=is_ready;
 
         if(sc->_ready_to_read)
@@ -117,11 +115,10 @@ void dap_client_ready_to_read(dap_client_remote_t * sc,bool is_ready)
  * @param sc
  * @param isReady
  */
-void dap_client_ready_to_write(dap_client_remote_t * sc,bool is_ready)
+void dap_client_ready_to_write(dap_server_client_t * sc,bool is_ready)
 {
     if(is_ready != sc->_ready_to_write) {
-
-        uint32_t events = 0;
+        int events = 0;
         sc->_ready_to_write=is_ready;
 
         if(sc->_ready_to_read)
@@ -139,7 +136,7 @@ void dap_client_ready_to_write(dap_client_remote_t * sc,bool is_ready)
  * @brief safe_client_remove Removes the client from the list
  * @param sc Client instance
  */
-void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh)
+void dap_client_remove(dap_server_client_t *sc, struct dap_server * sh)
 {
     pthread_mutex_lock(&sh->mutex_on_hash);
 
@@ -164,7 +161,7 @@ void dap_client_remove(dap_client_remote_t *sc, struct dap_server * sh)
  * @param data_size Size of data to write
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_client_write(dap_client_remote_t *sc, const void * data, size_t data_size)
+size_t dap_client_write(dap_server_client_t *sc, const void * data, size_t data_size)
 {
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
@@ -178,7 +175,7 @@ size_t dap_client_write(dap_client_remote_t *sc, const void * data, size_t data_
  * @param a_format Format
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_client_write_f(dap_client_remote_t *a_client, const char * a_format,...)
+size_t dap_client_write_f(dap_server_client_t *a_client, const char * a_format,...)
 {
     size_t max_data_size = sizeof(a_client->buf_out)-a_client->buf_out_size;
     va_list ap;
@@ -201,13 +198,8 @@ size_t dap_client_write_f(dap_client_remote_t *a_client, const char * a_format,.
  * @param data_size Size of data to read
  * @return Actual bytes number that were read
  */
-size_t dap_client_read(dap_client_remote_t *sc, void * data, size_t data_size)
+size_t dap_client_read(dap_server_client_t *sc, void * data, size_t data_size)
 {
-	
-    //log_it(L_DEBUG, "Size of package: %d\n", (int)data_size);
-    //
-    // hexdump(data, data_size);  packet dump
-
     if (data_size < sc->buf_in_size) {
         memcpy(data, sc->buf_in, data_size);
         memmove(data, sc->buf_in + data_size, sc->buf_in_size - data_size);
@@ -227,7 +219,7 @@ size_t dap_client_read(dap_client_remote_t *sc, void * data, size_t data_size)
  * @param cl Client instance
  * @param shrink_size Size on wich we shrink the buffer with shifting it left
  */
-void dap_client_shrink_buf_in(dap_client_remote_t * cl, size_t shrink_size)
+void dap_client_shrink_buf_in(dap_server_client_t * cl, size_t shrink_size)
 {
     if((shrink_size==0)||(cl->buf_in_size==0) ){
         return;
