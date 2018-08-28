@@ -11,7 +11,7 @@ static struct ev_loop *loop;
 static void timeout_cb()
 {
     if(callback != NULL) {
-        callback(NULL, NULL);
+        callback(NULL, 0);
         return;
     }
     log_it(L_WARNING, "Callback is NULL!");
