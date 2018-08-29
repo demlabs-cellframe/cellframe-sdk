@@ -44,14 +44,24 @@ typedef struct dap_server_client{
 
     uint32_t buf_out_zero_count;
     char buf_in[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for input data
+
     size_t buf_in_size; // size of data that is in the input buffer
+
+    size_t buf_in_size_total_old;
+    size_t buf_in_size_total;
+    double upload_speed_bytes; // fills if module dap_traffic_track initialized
 
     char buf_out[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for output data
 
     char hostaddr[1024]; // Address
     char service[128];
 
+
     size_t buf_out_size; // size of data that is in the output buffer
+
+    size_t buf_out_size_total_old;
+    size_t buf_out_size_total;
+    double download_speed_bytes; // fills if module dap_traffic_track initialized
 
     ev_io* watcher_client;
 

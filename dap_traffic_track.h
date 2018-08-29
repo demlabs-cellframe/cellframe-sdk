@@ -1,11 +1,7 @@
 #ifndef _TRAFFIC_TRACK_H_
 #define _TRAFFIC_TRACK_H_
 #include "dap_server_client.h"
-
-typedef struct dap_traffic_info {
-   dap_server_client_t * client;
-   size_t traffic_speed_bytes;
-} dap_traffic_info_t;
+#include "dap_server.h"
 
 typedef void (*dap_traffic_callback_t) (struct dap_traffic_info *, size_t count_info); // Callback for specific server's operations
 
@@ -14,7 +10,7 @@ typedef void (*dap_traffic_callback_t) (struct dap_traffic_info *, size_t count_
  * @param clients
  * @param timeout callback
  */
-void dap_traffic_track_init(dap_server_client_t * clients,
+void dap_traffic_track_init(dap_server_t * server,
                             time_t timeout);
 
 /**

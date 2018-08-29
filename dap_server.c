@@ -52,7 +52,7 @@
 
 #define LOG_TAG "dap_server"
 
-static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int revents);
+static void read_write_cb (struct ev_loop* _loop, struct ev_io* watcher, int revents);
 
 static struct ev_loop* listener_clients_loop;
 static ev_async async_watcher;
@@ -153,8 +153,9 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                                   0);
             if(bytes_read > 0)
             {
+                dap_cur->buf_in_size_total += bytes_read;
                 dap_cur->buf_in_size += bytes_read;
-                sh->client_read_callback(dap_cur,NULL);
+                sh->client_read_callback(dap_cur, NULL);
             }
             else if(bytes_read < 0)
             {
@@ -186,11 +187,12 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                                       dap_cur->buf_out_size - total_sent,
                                       MSG_DONTWAIT | MSG_NOSIGNAL );
                 if(bytes_sent < 0) {
-                    log_it(L_ERROR,"Some error occured in send() function");
+                    log_it(L_ERROR, "Some error occured in send() function");
                     break;
                 }
                 total_sent += bytes_sent;
             }
+            dap_cur->buf_out_size_total += dap_cur->buf_out_size;
             dap_cur->buf_out_size = 0;
         }
     }
