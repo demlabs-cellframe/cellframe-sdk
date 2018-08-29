@@ -16,10 +16,10 @@ static struct ev_loop *loop;
  * @return mbs speed
  */
 static double calculate_mbs_speed(size_t count_bytes) {
-    size_t bytes_per_sec = count_bytes / (size_t)_timeout_watcher.repeat;
-    log_it(L_DEBUG, "TIMEOUT: %d, bytes_per_sec: %d",
-           (size_t)_timeout_watcher.repeat, bytes_per_sec);
-    return bytes_per_sec / BYTES_IN_MB;
+    size_t bytes_per_timeout = count_bytes / (size_t)_timeout_watcher.repeat;
+//    log_it(L_DEBUG, "TIMEOUT: %d, bytes_per_timeout: %d",
+//           (size_t)_timeout_watcher.repeat, bytes_per_timeout);
+    return bytes_per_timeout / BYTES_IN_MB;
 }
 
 static void timeout_cb()
@@ -28,8 +28,8 @@ static void timeout_cb()
 
     dap_server_client_t *dap_cur, *tmp;
     HASH_ITER(hh,_dap_server->clients,dap_cur,tmp) {
-        log_it(L_DEBUG, "hash iter socket: %d buf_in_total_new: %d, buf_in_total_old: %d",
-               dap_cur->socket, dap_cur->buf_in_size_total, dap_cur->buf_in_size_total_old);
+//        log_it(L_DEBUG, "hash iter socket: %d buf_in_total_new: %d, buf_in_total_old: %d",
+//               dap_cur->socket, dap_cur->buf_in_size_total, dap_cur->buf_in_size_total_old);
 
         dap_cur->upload_speed_bytes =
                 calculate_mbs_speed(dap_cur->buf_in_size_total - dap_cur->buf_in_size_total_old);
@@ -39,17 +39,15 @@ static void timeout_cb()
                 calculate_mbs_speed(dap_cur->buf_out_size_total - dap_cur->buf_out_size_total_old);
         dap_cur->buf_out_size_total_old = dap_cur->buf_out_size_total;
 
-        log_it(L_DEBUG, "upload_mbs: %f, download_mbs: %f", dap_cur->upload_speed_bytes, dap_cur->download_speed_bytes);
-
+        // log_it(L_DEBUG, "upload_mbs: %f, download_mbs: %f", dap_cur->upload_speed_bytes, dap_cur->download_speed_bytes);
     }
 
     pthread_mutex_unlock(&_dap_server->mutex_on_hash);
 
-//    if(callback != NULL) {
-//        callback(NULL, 0);
-//        return;
-//    }
-//    log_it(L_WARNING, "Callback is NULL!");
+    if(callback != NULL) {
+        callback(_dap_server);
+        return;
+    }
 }
 
 void dap_traffic_track_init(dap_server_t * server,
