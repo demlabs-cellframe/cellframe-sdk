@@ -153,7 +153,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                                   0);
             if(bytes_read > 0)
             {
-                dap_cur->buf_in_size_total += bytes_read;
+                dap_cur->upload_stat.buf_size_total += bytes_read;
                 dap_cur->buf_in_size += bytes_read;
                 sh->client_read_callback(dap_cur, NULL);
             }
@@ -192,7 +192,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                 }
                 total_sent += bytes_sent;
             }
-            dap_cur->buf_out_size_total += dap_cur->buf_out_size;
+            dap_cur->download_stat.buf_size_total += dap_cur->buf_out_size;
             dap_cur->buf_out_size = 0;
         }
     }

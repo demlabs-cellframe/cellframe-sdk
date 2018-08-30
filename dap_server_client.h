@@ -35,6 +35,12 @@ typedef void (*dap_client_remote_callback_t) (struct dap_server_client *,void * 
 
 #define DAP_CLIENT_REMOTE_BUF 10000
 
+typedef struct traffic_stats {
+    size_t buf_size_total;
+    size_t buf_size_total_old; // for calculate speed
+    double speed_mbs; // MegaBits per second
+} traffic_stats_t;
+
 typedef struct dap_server_client{
     int socket;
     bool signal_close;
@@ -47,9 +53,8 @@ typedef struct dap_server_client{
 
     size_t buf_in_size; // size of data that is in the input buffer
 
-    size_t buf_in_size_total_old;
-    size_t buf_in_size_total;
-    double upload_speed_bytes; // fills if module dap_traffic_track initialized
+    traffic_stats_t upload_stat;
+    traffic_stats_t download_stat;
 
     char buf_out[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for output data
 
@@ -58,11 +63,6 @@ typedef struct dap_server_client{
 
 
     size_t buf_out_size; // size of data that is in the output buffer
-
-    size_t buf_out_size_total_old;
-    size_t buf_out_size_total;
-    double download_speed_bytes; // fills if module dap_traffic_track initialized
-
     ev_io* watcher_client;
 
     struct dap_server * server;

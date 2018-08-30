@@ -2,7 +2,7 @@
 #include "dap_common.h"
 
 #define LOG_TAG "dap_traffic_track"
-#define BYTES_IN_MB 1048576.0
+#define BITS_IN_BYTE 8
 
 static dap_traffic_callback_t callback = NULL;
 static dap_server_t * _dap_server;
@@ -10,16 +10,16 @@ static ev_timer _timeout_watcher;
 static struct ev_loop *loop;
 
 /**
- * @brief calculate_mbs_speed
+ * @brief calculate_mbits_speed
  * @param count_bytes
  * @details timeout we gots from _timeout_watcher.repeat
- * @return mbs speed
+ * @return mbit/second speed
  */
-static double calculate_mbs_speed(size_t count_bytes) {
-    size_t bytes_per_timeout = count_bytes / (size_t)_timeout_watcher.repeat;
-//    log_it(L_DEBUG, "TIMEOUT: %d, bytes_per_timeout: %d",
-//           (size_t)_timeout_watcher.repeat, bytes_per_timeout);
-    return bytes_per_timeout / BYTES_IN_MB;
+static double calculate_mbits_speed(size_t count_bytes) {
+    size_t bits_per_second = (count_bytes / (size_t)_timeout_watcher.repeat) * BITS_IN_BYTE;
+//    log_it(L_DEBUG, "TIMEOUT: %d, bits_per_second: %d mbits: %f",
+//           (size_t)_timeout_watcher.repeat, bits_per_second, bits_per_second / 1000000.0);
+    return bits_per_second / 1000000.0; // convert to mbits
 }
 
 static void timeout_cb()
@@ -28,18 +28,18 @@ static void timeout_cb()
 
     dap_server_client_t *dap_cur, *tmp;
     HASH_ITER(hh,_dap_server->clients,dap_cur,tmp) {
-//        log_it(L_DEBUG, "hash iter socket: %d buf_in_total_new: %d, buf_in_total_old: %d",
-//               dap_cur->socket, dap_cur->buf_in_size_total, dap_cur->buf_in_size_total_old);
+        dap_cur->upload_stat.speed_mbs =
+                calculate_mbits_speed(dap_cur->upload_stat.buf_size_total -
+                                      dap_cur->upload_stat.buf_size_total_old);
+        dap_cur->upload_stat.buf_size_total_old = dap_cur->upload_stat.buf_size_total;
 
-        dap_cur->upload_speed_bytes =
-                calculate_mbs_speed(dap_cur->buf_in_size_total - dap_cur->buf_in_size_total_old);
-        dap_cur->buf_in_size_total_old = dap_cur->buf_in_size_total;
+        dap_cur->download_stat.speed_mbs =
+                calculate_mbits_speed(dap_cur->download_stat.buf_size_total -
+                                      dap_cur->download_stat.buf_size_total_old);
+        dap_cur->download_stat.buf_size_total_old = dap_cur->download_stat.buf_size_total;
 
-        dap_cur->download_speed_bytes =
-                calculate_mbs_speed(dap_cur->buf_out_size_total - dap_cur->buf_out_size_total_old);
-        dap_cur->buf_out_size_total_old = dap_cur->buf_out_size_total;
-
-        // log_it(L_DEBUG, "upload_mbs: %f, download_mbs: %f", dap_cur->upload_speed_bytes, dap_cur->download_speed_bytes);
+//        log_it(L_DEBUG, "upload_mbs: %f download_mbs: %f", dap_cur->upload_stat.speed_mbs,
+//               dap_cur->download_stat.speed_mbs);
     }
 
     pthread_mutex_unlock(&_dap_server->mutex_on_hash);
