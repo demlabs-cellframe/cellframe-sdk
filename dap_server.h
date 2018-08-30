@@ -66,10 +66,9 @@ typedef struct dap_server{
 
 } dap_server_t;
 
-extern int dap_server_init(void); // Init server module
+extern int dap_server_init(size_t count_threads); // Init server module
 extern void dap_server_deinit(void); // Deinit server module
 
-extern void dap_thread_wake_up(dap_thread_t * th);
 extern dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_type_t type);
 
 extern int dap_server_loop(dap_server_t * sh);
