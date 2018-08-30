@@ -46,10 +46,10 @@ void stream_headers_write(dap_http_client_t * sh, void * arg); // Output headers
 void stream_data_write(dap_http_client_t * sh, void * arg); // Write the data
 void stream_data_read(dap_http_client_t * sh, void * arg); // Read the data
 
-void stream_dap_data_read(dap_client_remote_t* sh, void * arg);
-void stream_dap_data_write(dap_client_remote_t* sh, void * arg);
-void stream_dap_delete(dap_client_remote_t* sh, void * arg);
-void stream_dap_new(dap_client_remote_t* sh,void * arg);
+void stream_dap_data_read(dap_server_client_t* sh, void * arg);
+void stream_dap_data_write(dap_server_client_t* sh, void * arg);
+void stream_dap_delete(dap_server_client_t* sh, void * arg);
+void stream_dap_new(dap_server_client_t* sh,void * arg);
 
 // Internal functions
 stream_t * stream_new(dap_http_client_t * sh); // Create new stream
@@ -202,7 +202,7 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
  * @brief stream_new_udp Create new stream instance for UDP client
  * @param sh DAP client structure
  */
-stream_t * stream_new_udp(dap_client_remote_t * sh)
+stream_t * stream_new_udp(dap_server_client_t * sh)
 {
     stream_t * ret=(stream_t*) calloc(1,sizeof(stream_t));
 
@@ -221,7 +221,7 @@ stream_t * stream_new_udp(dap_client_remote_t * sh)
  * @param id session id
  * @param cl DAP client structure
  */
-void check_session(unsigned int id, dap_client_remote_t* cl){
+void check_session(unsigned int id, dap_server_client_t* cl){
     stream_session_t * ss=NULL;
     ss=stream_session_id(id);
     if(ss==NULL){
@@ -340,7 +340,7 @@ void stream_data_write(dap_http_client_t * sh, void * arg)
 
 
 
-void stream_dap_data_read(dap_client_remote_t* sh, void * arg)
+void stream_dap_data_read(dap_server_client_t* sh, void * arg)
 {
     stream_t * a_stream =STREAM(sh);
     int * ret = (int *) arg;
@@ -518,7 +518,7 @@ void stream_dap_data_read(dap_client_remote_t* sh, void * arg)
  * @param sh DAP client instance
  * @param arg Not used
  */
-void stream_dap_data_write(dap_client_remote_t* sh, void * arg){
+void stream_dap_data_write(dap_server_client_t* sh, void * arg){
     size_t i;
     bool ready_to_write=false;
     //  log_it(L_DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
@@ -545,7 +545,7 @@ void stream_dap_data_write(dap_client_remote_t* sh, void * arg){
  * @param sh DAP client instance
  * @param arg Not used
  */
-void stream_dap_delete(dap_client_remote_t* sh, void * arg){
+void stream_dap_delete(dap_server_client_t* sh, void * arg){
     stream_t * sid = STREAM(sh);
     if(sid == NULL)
         return;
@@ -564,7 +564,7 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
  * @param sh DAP client instance
  * @param arg Not used
  */
-void stream_dap_new(dap_client_remote_t* sh, void * arg){
+void stream_dap_new(dap_server_client_t* sh, void * arg){
     stream_t * sid = stream_new_udp(sh);
 }
 

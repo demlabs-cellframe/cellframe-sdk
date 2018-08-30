@@ -36,7 +36,7 @@
 
 #define CHUNK_SIZE_MAX 3*1024
 
-struct dap_client_remote;
+struct dap_server_client;
 struct dap_udp_server_t;
 
 
@@ -54,7 +54,7 @@ typedef struct stream {
 
     int id;
     stream_session_t * session;
-    struct dap_client_remote * conn; // Connection
+    struct dap_server_client * conn; // Connection
 
     struct dap_http_client * conn_http; // HTTP-specific
 
