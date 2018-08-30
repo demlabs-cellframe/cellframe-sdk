@@ -53,7 +53,7 @@ uint64_t get_key(unsigned long host,unsigned short port){
  * @param port Client port
  * @return Pointer to the new list's node
  */
-dap_client_remote_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, unsigned long host, unsigned short port)
+dap_server_client_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, unsigned long host, unsigned short port)
 {
     dap_udp_server_t* udp_server = DAP_UDP_SERVER(sh);
     log_it(L_DEBUG,"Client structure create");
@@ -61,7 +61,7 @@ dap_client_remote_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, 
     dap_udp_client_t * inh=DAP_NEW_Z(dap_udp_client_t);
     inh->host_key = get_key(host,port);
 
-    dap_client_remote_t * ret=DAP_NEW_Z(dap_client_remote_t);
+    dap_server_client_t * ret=DAP_NEW_Z(dap_server_client_t);
     inh->client = ret;
     ret->server = sh;
     ret->watcher_client = w_client;
@@ -87,7 +87,7 @@ dap_client_remote_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, 
  * @param host Variable for host address
  * @param host Variable for port
  */
-void dap_udp_client_get_address(dap_client_remote_t *client, unsigned long* host,unsigned short* port){
+void dap_udp_client_get_address(dap_server_client_t *client, unsigned long* host,unsigned short* port){
     dap_udp_client_t* udp_client = DAP_UDP_CLIENT(client);    
     *host = udp_client->host_key >> 32;
     *port = udp_client->host_key - (*host<<32);
@@ -100,7 +100,7 @@ void dap_udp_client_get_address(dap_client_remote_t *client, unsigned long* host
  * @param port Source port
  * @return Pointer to client or NULL if not found
  */
-dap_client_remote_t * dap_udp_client_find(dap_server_t * sh, unsigned long host,unsigned short port)
+dap_server_client_t * dap_udp_client_find(dap_server_t * sh, unsigned long host,unsigned short port)
 {
     dap_udp_server_t* udp_server = DAP_UDP_SERVER(sh);
     pthread_mutex_lock(&udp_server->mutex_on_list);
@@ -121,7 +121,7 @@ dap_client_remote_t * dap_udp_client_find(dap_server_t * sh, unsigned long host,
  * @param sc Client structure
  * @param is_ready Flag value
  */
-void dap_udp_client_ready_to_read(dap_client_remote_t * sc,bool is_ready)
+void dap_udp_client_ready_to_read(dap_server_client_t * sc,bool is_ready)
 {
     if(is_ready != sc->_ready_to_read) {
 
@@ -145,7 +145,7 @@ void dap_udp_client_ready_to_read(dap_client_remote_t * sc,bool is_ready)
  * @param sc Client structure
  * @param is_ready Flag value
  */
-void dap_udp_client_ready_to_write(dap_client_remote_t * sc,bool is_ready)
+void dap_udp_client_ready_to_write(dap_server_client_t * sc,bool is_ready)
 {
    // if(is_ready)
    //     add_waiting_client(sc); // Add client to writing queue
@@ -169,7 +169,7 @@ void dap_udp_client_ready_to_write(dap_client_remote_t * sc,bool is_ready)
  * @brief add_waiting_client Add Client to write queue
  * @param client Client instance
  */
-void add_waiting_client(dap_client_remote_t* client){
+void add_waiting_client(dap_server_client_t* client){
     dap_server_t* sh = client->server;
     dap_udp_server_t* udp_server = DAP_UDP_SERVER(sh);
     dap_udp_client_t* udp_client = DAP_UDP_CLIENT(client);
@@ -187,13 +187,13 @@ void add_waiting_client(dap_client_remote_t* client){
 
 }
 
-size_t dap_udp_client_write(dap_client_remote_t *sc, const void * data, size_t data_size){
+size_t dap_udp_client_write(dap_server_client_t *sc, const void * data, size_t data_size){
     size_t size = dap_client_write(sc,data,data_size);
     add_waiting_client(sc);
     return size;
 }
 
-size_t dap_udp_client_write_f(dap_client_remote_t *a_client, const char * a_format,...){
+size_t dap_udp_client_write_f(dap_server_client_t *a_client, const char * a_format,...){
     size_t size = 0;
     va_list ap;
     va_start(ap,a_format);

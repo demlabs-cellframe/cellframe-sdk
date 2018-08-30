@@ -25,7 +25,8 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
-typedef struct dap_client_remote dap_client_remote_t;
+#include "dap_server_client.h"
+
 struct dap_http_client;
 struct dap_http;
 struct dap_http_url_proc;
@@ -64,7 +65,7 @@ typedef struct dap_http_client
     bool out_connection_close;
 
 
-    dap_client_remote_t * client;
+    dap_server_client_t * client;
     struct dap_http * http;
 
     uint32_t reply_status_code;
@@ -88,12 +89,12 @@ int dap_http_client_init();
 void dap_http_client_deinit();
 
 
-void dap_http_client_new(dap_client_remote_t * cl,void * arg); // Creates HTTP client's internal structure
-void dap_http_client_delete(dap_client_remote_t * cl,void * arg); // Free memory for HTTP client's internal structure
+void dap_http_client_new(dap_server_client_t * cl,void * arg); // Creates HTTP client's internal structure
+void dap_http_client_delete(dap_server_client_t * cl,void * arg); // Free memory for HTTP client's internal structure
 
-void dap_http_client_read( dap_client_remote_t * cl,void * arg); // Process read event
-void dap_http_client_write( dap_client_remote_t * cl,void * arg); // Process write event
-void dap_http_client_error( dap_client_remote_t * cl,void * arg); // Process error event
+void dap_http_client_read( dap_server_client_t * cl,void * arg); // Process read event
+void dap_http_client_write( dap_server_client_t * cl,void * arg); // Process write event
+void dap_http_client_error( dap_server_client_t * cl,void * arg); // Process error event
 
 #ifdef __cplusplus
 }

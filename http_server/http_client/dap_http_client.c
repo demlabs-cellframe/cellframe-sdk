@@ -60,7 +60,7 @@ void dap_http_client_deinit()
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_new(dap_client_remote_t * cl,void * arg)
+void dap_http_client_new(dap_server_client_t * cl,void * arg)
 {
     (void) arg;
     cl->_inheritor = DAP_NEW_Z(dap_http_client_t);
@@ -77,7 +77,7 @@ void dap_http_client_new(dap_client_remote_t * cl,void * arg)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_delete(dap_client_remote_t * cl,void * arg)
+void dap_http_client_delete(dap_server_client_t * cl,void * arg)
 {
     dap_http_client_t * cl_ht = DAP_HTTP_CLIENT(cl);
     while(cl_ht->in_headers)
@@ -164,7 +164,7 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_read(dap_client_remote_t * cl,void * arg)
+void dap_http_client_read(dap_server_client_t * cl,void * arg)
 {
 
     (void) arg;
@@ -334,7 +334,7 @@ cnt:switch(cl_ht->state_read){
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_write(dap_client_remote_t * cl,void * arg)
+void dap_http_client_write(dap_server_client_t * cl,void * arg)
 {
 
     (void) arg;
@@ -417,7 +417,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_error(struct dap_client_remote * cl,void * arg)
+void dap_http_client_error(struct dap_server_client * cl,void * arg)
 {
     (void) arg;
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);
