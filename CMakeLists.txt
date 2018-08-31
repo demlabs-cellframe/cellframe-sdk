@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 project (dap_core_server C)
-
+set(CMAKE_C_STANDARD 11)
 add_definitions ("-D_GNU_SOURCE")
 
 add_subdirectory(libdap)
