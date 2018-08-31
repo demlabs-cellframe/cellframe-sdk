@@ -3,7 +3,13 @@
 #include "dap_server_client.h"
 #include "dap_server.h"
 
-typedef void (*dap_traffic_callback_t) (struct dap_server *); // Callback for specific server's operations
+typedef struct dap_traffic_track_result {
+    dap_server_client_id client_id;
+    double download_speed;
+    double upload_speed;
+} dap_traffic_track_result_t;
+
+typedef void (*dap_traffic_callback_t) (dap_traffic_track_result_t[], size_t result_length); // Callback for specific server's operations
 
 /**
  * @brief dap_traffic_track_init

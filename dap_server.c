@@ -189,6 +189,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
             if(bytes_read > 0)
             {
                 dap_cur->buf_in_size += (size_t)bytes_read;
+                dap_cur->upload_stat.buf_size_total += (size_t)bytes_read;
                 _current_run_server->client_read_callback(dap_cur,NULL);
             }
             else if(bytes_read < 0)
@@ -226,6 +227,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                     break;
                 }
                 total_sent += (size_t)bytes_sent;
+                dap_cur->download_stat.buf_size_total += (size_t)bytes_sent;
             }
             dap_cur->buf_out_size = 0;
         }
@@ -263,7 +265,6 @@ static inline uint8_t get_thread_index_min_connections()
 
 static inline void print_online()
 {
-    // TODO ATOMIC VARIABLE
     for(uint8_t i = 0; i < _count_threads; i++)
     {
         log_it(L_INFO, "Thread number: %d, count: %d",

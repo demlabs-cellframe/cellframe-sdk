@@ -4,9 +4,9 @@
 static struct ev_loop *loop;
 #define LOG_TAG "DTTT"
 
-static void success_callback(dap_server_t * serv) {
+static void success_callback(dap_traffic_track_result_t res[], size_t result_length) {
    // this causes the innermost ev_run to stop iterating
-   (void)serv;
+   (void)res; (void)result_length;
    dap_pass_msg("Call callback function");
    ev_break (EV_A_ EVBREAK_ONE);
 }

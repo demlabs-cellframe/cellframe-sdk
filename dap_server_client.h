@@ -34,6 +34,8 @@ struct dap_server_client;
 typedef void (*dap_client_remote_callback_t) (struct dap_server_client *,void * arg); // Callback for specific client operations
 
 #define DAP_CLIENT_REMOTE_BUF 10000
+#define CLIENT_ID_SIZE 12
+typedef char dap_server_client_id[CLIENT_ID_SIZE];
 
 typedef struct traffic_stats {
     size_t buf_size_total;
@@ -41,10 +43,12 @@ typedef struct traffic_stats {
     double speed_mbs; // MegaBits per second
 } traffic_stats_t;
 
+
 typedef struct dap_server_client{
     int socket;
-    bool signal_close;
+    dap_server_client_id id;
 
+    bool signal_close;
     bool _ready_to_write;
     bool _ready_to_read;
 
@@ -60,7 +64,6 @@ typedef struct dap_server_client{
 
     char hostaddr[1024]; // Address
     char service[128];
-
 
     size_t buf_out_size; // size of data that is in the output buffer
     ev_io* watcher_client;

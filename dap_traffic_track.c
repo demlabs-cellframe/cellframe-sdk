@@ -45,7 +45,7 @@ static void timeout_cb()
     pthread_mutex_unlock(&_dap_server->mutex_on_hash);
 
     if(callback != NULL) {
-        callback(_dap_server);
+        callback(NULL, 0);
         return;
     }
 }

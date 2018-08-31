@@ -22,12 +22,12 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-
 #include <ev.h>
 
 #include "dap_common.h"
 #include "dap_server_client.h"
 #include "dap_server.h"
+
 
 #define LOG_TAG "dap_client_remote"
 
@@ -58,20 +58,44 @@ void dap_client_remote_deinit()
 dap_server_client_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_client)
 {
     pthread_mutex_lock(&sh->mutex_on_hash);
-    log_it(L_DEBUG, "Client structure create");
 
-    dap_server_client_t * ret = DAP_NEW_Z(dap_server_client_t);
-    ret->socket = s;
-    ret->server = sh;
-    ret->watcher_client = w_client;
-    ret->_ready_to_read = true;
+    dap_server_client_t * dsc = DAP_NEW_Z(dap_server_client_t);
+    dap_random_string_fill(dsc->id, CLIENT_ID_SIZE);
+    dsc->socket = s;
+    dsc->server = sh;
+    dsc->watcher_client = w_client;
+    dsc->_ready_to_read = true;
 
-    HASH_ADD_INT(sh->clients, socket, ret);
+    HASH_ADD_INT(sh->clients, socket, dsc);
     if(sh->client_new_callback)
-        sh->client_new_callback(ret,NULL); // Init internal structure
+        sh->client_new_callback(dsc, NULL); // Init internal structure
 
     pthread_mutex_unlock(&sh->mutex_on_hash);
-    return ret;
+
+    log_it(L_DEBUG, "Create new client. ID: %s", dsc->id);
+    return dsc;
+}
+
+/**
+ * @brief safe_client_remove Removes the client from the list
+ * @param sc Client instance
+ */
+void dap_client_remove(dap_server_client_t *sc, struct dap_server * sh)
+{
+    pthread_mutex_lock(&sh->mutex_on_hash);
+
+    log_it(L_DEBUG, "Client structure remove");
+    HASH_DEL(sc->server->clients,sc);
+
+    if(sc->server->client_delete_callback)
+        sc->server->client_delete_callback(sc,NULL); // Init internal structure
+    if(sc->_inheritor)
+        free(sc->_inheritor);
+
+    if(sc->socket)
+        close(sc->socket);
+    free(sc);
+    pthread_mutex_unlock(&sh->mutex_on_hash);
 }
 
 /**
@@ -129,29 +153,6 @@ void dap_client_ready_to_write(dap_server_client_t * sc,bool is_ready)
 
         ev_io_set(sc->watcher_client, sc->socket, events );
     }
-}
-
-
-/**
- * @brief safe_client_remove Removes the client from the list
- * @param sc Client instance
- */
-void dap_client_remove(dap_server_client_t *sc, struct dap_server * sh)
-{
-    pthread_mutex_lock(&sh->mutex_on_hash);
-
-    log_it(L_DEBUG, "Client structure remove");
-    HASH_DEL(sc->server->clients,sc);
-
-    if(sc->server->client_delete_callback)
-        sc->server->client_delete_callback(sc,NULL); // Init internal structure
-    if(sc->_inheritor)
-        free(sc->_inheritor);
-
-    if(sc->socket)
-        close(sc->socket);
-    free(sc);
-    pthread_mutex_unlock(&sh->mutex_on_hash);
 }
 
 /**
