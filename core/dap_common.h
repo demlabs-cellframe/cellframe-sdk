@@ -73,7 +73,8 @@ int get_select_breaker(void);
 int send_select_break(void);
 char * exec_with_ret(const char * a_cmd);
 char * exec_with_ret_multistring(const char * a_cmd);
-char * random_string_create(size_t a_length);
+char * dap_random_string_create_alloc(size_t a_length);
+void dap_random_string_fill(char *str, size_t length);
 
 #ifdef __cplusplus
 }

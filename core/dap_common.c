@@ -80,6 +80,7 @@ void dap_set_log_tag_width(size_t width) {
 
 int dap_common_init(const char * a_log_file)
 {
+    srand((unsigned int)time(NULL));
     // init default log tag 8 width
     strcpy(log_tag_fmt_str, "[%8s]\t");
 
@@ -345,15 +346,25 @@ FIN:
     return strdup(retbuf);
 }
 
+static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/**
+ * @brief random_string_fill
+ * @param str
+ * @param length
+ */
+void dap_random_string_fill(char *str, size_t length) {
+    for(size_t i = 0; i < length; i++)
+        str[i] = rand() % (sizeof(l_possible_chars) - 1);
+}
+
 /**
  * @brief random_string_create
  * @param a_length
  * @return
  */
-char * random_string_create(size_t a_length)
+char * dap_random_string_create_alloc(size_t a_length)
 {
-    const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
     char * ret = (char*) malloc(a_length+1);
     size_t i;
     for(i=0; i<a_length; ++i) {
