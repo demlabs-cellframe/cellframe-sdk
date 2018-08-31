@@ -236,10 +236,9 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
         log_it(L_INFO, "Close Socket %d", watcher->fd);
 
         atomic_fetch_sub(&thread_inform[DAP_EV_DATA(watcher)->thread_number].count_open_connections, 1);
-
         ev_io_stop(listener_clients_loops[DAP_EV_DATA(watcher)->thread_number], watcher);
         dap_client_remove(dap_cur, _current_run_server);
-        free(watcher);
+        free(watcher->data); free(watcher);
         return;
     }
 }
