@@ -355,7 +355,8 @@ static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop
  */
 void dap_random_string_fill(char *str, size_t length) {
     for(size_t i = 0; i < length; i++)
-        str[i] = rand() % (sizeof(l_possible_chars) - 1);
+        str[i] = l_possible_chars[
+                rand() % (sizeof(l_possible_chars) - 1)];
 }
 
 /**
