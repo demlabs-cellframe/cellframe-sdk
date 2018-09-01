@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ev.h>
+#include <arpa/inet.h>
 
 #include "dap_common.h"
 #include "dap_server_client.h"
@@ -50,6 +51,21 @@ void dap_client_remote_deinit()
 }
 
 /**
+ * @brief _save_ip_and_port
+ * @param cl
+ */
+void _save_ip_and_port(dap_server_client_t * cl)
+{
+    struct sockaddr_in ip_adr_get;
+    socklen_t ip_adr_len;
+
+    getpeername(cl->socket, &ip_adr_get, &ip_adr_len);
+
+    cl->port = ntohs(ip_adr_get.sin_port);
+    strcpy(cl->s_ip, inet_ntoa(ip_adr_get.sin_addr));
+}
+
+/**
  * @brief dap_client_remote_create Create new client and add it to the list
  * @param sh Server instance
  * @param s Client's socket
@@ -65,14 +81,15 @@ dap_server_client_t * dap_client_create(dap_server_t * sh, int s, ev_io* w_clien
     dsc->server = sh;
     dsc->watcher_client = w_client;
     dsc->_ready_to_read = true;
+    _save_ip_and_port(dsc);
 
     HASH_ADD_INT(sh->clients, socket, dsc);
     if(sh->client_new_callback)
         sh->client_new_callback(dsc, NULL); // Init internal structure
 
     pthread_mutex_unlock(&sh->mutex_on_hash);
-
-    log_it(L_DEBUG, "Create new client. ID: %s", dsc->id);
+    log_it(L_DEBUG, "Connected client ip: %s port %d", dsc->s_ip, dsc->port);
+    //log_it(L_DEBUG, "Create new client. ID: %s", dsc->id);
     return dsc;
 }
 
