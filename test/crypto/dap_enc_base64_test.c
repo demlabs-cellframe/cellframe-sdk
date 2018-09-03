@@ -11,15 +11,16 @@ void test_encode_decode_base64(int count_steps) {
         source_size += BYTE_SIZE;
 
         uint8_t source[source_size];
-        char in[source_size];
-        uint8_t out[source_size];
+        char encode_result[DAP_ENC_BASE64_ENCODE_SIZE(source_size)];
+        uint8_t decode_result[source_size];
         generate_random_byte_array(source, source_size, BYTE_SIZE);
 
-        size_t encrypted_size = dap_enc_base64_encode(source, source_size, in, DAP_ENC_STANDARD_B64);
-        size_t out_size = dap_enc_base64_decode(in, encrypted_size, out, DAP_ENC_STANDARD_B64);
+        size_t encrypted_size = dap_enc_base64_encode(source, source_size, encode_result, DAP_ENC_STANDARD_B64);
+        size_t out_size = dap_enc_base64_decode(encode_result, encrypted_size, decode_result, DAP_ENC_STANDARD_B64);
 
+        dap_assert_PIF(encrypted_size == DAP_ENC_BASE64_ENCODE_SIZE(source_size), "Calculate encrypted_size");
         dap_assert_PIF(source_size == out_size, "Check result decode size");
-        dap_assert_PIF(memcmp(source, out, out_size) != 0, "Check source and encode->decode data");
+        dap_assert_PIF(memcmp(source, decode_result, out_size) == 0, "Check source and encode->decode data");
     }
 
     dap_pass_msg("Encode and decode")
