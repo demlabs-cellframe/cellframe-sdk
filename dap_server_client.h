@@ -27,6 +27,7 @@
 #include "uthash.h"
 #include <ev.h>
 
+typedef char str_ip[16];
 
 typedef struct dap_server dap_server_t;
 struct dap_server_client;
@@ -51,6 +52,9 @@ typedef struct dap_server_client{
     bool signal_close;
     bool _ready_to_write;
     bool _ready_to_read;
+
+    uint16_t port;
+    str_ip s_ip;
 
     uint32_t buf_out_zero_count;
     char buf_in[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for input data
