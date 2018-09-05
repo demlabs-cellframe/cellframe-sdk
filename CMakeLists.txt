@@ -15,5 +15,5 @@ file(GLOB HEADERS *.h)
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} ev dap_crypto)
+target_link_libraries(${PROJECT_NAME} pthread ev dap_crypto)
 target_include_directories(${PROJECT_NAME} INTERFACE .)

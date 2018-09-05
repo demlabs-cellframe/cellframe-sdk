@@ -1,19 +1,20 @@
 #include "dap_traffic_track.h"
 #include "dap_common.h"
 
+#include <pthread.h>
+
 #define LOG_TAG "dap_traffic_track"
 #define BITS_IN_BYTE 8
 #define ALLOC_STEP 100
 
-static dap_traffic_callback_t callback = NULL;
+static dap_traffic_callback_t _callback = NULL;
 static dap_server_t * _dap_server;
 static ev_timer _timeout_watcher;
 static struct ev_loop *loop;
-
-static struct callback_result {
-    dap_traffic_track_result_t * res;
-    size_t allocated_counter;
-} _callback_result;
+static pthread_mutex_t _mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t _cond = PTHREAD_COND_INITIALIZER;
+static pthread_t worker_thread;
+static bool _stop_worker_signal = false;
 
 /**
  * @brief calculate_mbits_speed
@@ -29,17 +30,43 @@ static double _calculate_mbits_speed(size_t count_bytes)
     return bits_per_second / 1000000.0; // convert to mbits
 }
 
-
-static void _realloc_callback_result(size_t count_users)
+void* _worker_run(void * a)
 {
-    // rounding to multiple ALLOC_STEP
-    size_t new_size = (count_users + ALLOC_STEP) - (count_users % ALLOC_STEP);
+    (void)a;
+    pthread_mutex_lock(&_mutex);
+    while (true) {
+        pthread_cond_wait(&_cond, &_mutex);
+        if(_stop_worker_signal) {
+            log_it(L_INFO, "Dap traffic track worker stopped");
+            _stop_worker_signal = false;
+            break;
+        }
+        _callback(_dap_server);
+    }
+    pthread_mutex_unlock(&_mutex);
+    pthread_exit(NULL);
+}
 
-    _callback_result.res = (dap_traffic_track_result_t *) realloc
-            (_callback_result.res, new_size * sizeof(dap_traffic_track_result_t));
-    _callback_result.allocated_counter = new_size;
+void _worker_start()
+{
+    pthread_mutex_init(&_mutex, NULL);
+    pthread_cond_init(&_cond, NULL);
+    pthread_create(&worker_thread, NULL, _worker_run, NULL);
+}
 
-    log_it(L_DEBUG, "Reallocated memory for _callback_result to: %d", _callback_result.allocated_counter);
+void _worker_stop()
+{
+    pthread_mutex_lock(&_mutex);
+    _stop_worker_signal = true;
+    pthread_cond_signal(&_cond);
+    pthread_mutex_unlock(&_mutex);
+
+    // wait for exit worker_thread
+    pthread_join(worker_thread, NULL);
+
+    pthread_mutex_destroy(&_mutex);
+    pthread_cond_destroy(&_cond);
+    _callback = NULL;
 }
 
 static void _timeout_cb()
@@ -48,11 +75,6 @@ static void _timeout_cb()
 
     size_t count_users = HASH_COUNT(_dap_server->clients);
 
-    if(_callback_result.allocated_counter < count_users ||
-            _callback_result.allocated_counter - ALLOC_STEP > count_users) {
-        _realloc_callback_result(count_users);
-    }
-
     if(count_users) {
         size_t idx = 0;
         dap_server_client_t *dap_cur, *tmp;
@@ -60,37 +82,31 @@ static void _timeout_cb()
 
             dap_cur->upload_stat.speed_mbs =
                     _calculate_mbits_speed(dap_cur->upload_stat.buf_size_total -
-                                          dap_cur->upload_stat.buf_size_total_old);
+                                           dap_cur->upload_stat.buf_size_total_old);
             dap_cur->upload_stat.buf_size_total_old = dap_cur->upload_stat.buf_size_total;
 
             dap_cur->download_stat.speed_mbs =
                     _calculate_mbits_speed(dap_cur->download_stat.buf_size_total -
-                                          dap_cur->download_stat.buf_size_total_old);
+                                           dap_cur->download_stat.buf_size_total_old);
 
             dap_cur->download_stat.buf_size_total_old = dap_cur->download_stat.buf_size_total;
 
-            //        log_it(L_DEBUG, "upload_mbs: %f download_mbs: %f", dap_cur->upload_stat.speed_mbs,
-            //               dap_cur->download_stat.speed_mbs);
-            strcpy(_callback_result.res[idx].client_id, dap_cur->id);
-            _callback_result.res[idx].upload_speed_mbs = dap_cur->upload_stat.speed_mbs;
-            _callback_result.res[idx].download_speed_mbs = dap_cur->download_stat.speed_mbs;
             idx++;
         }
     }
 
     pthread_mutex_unlock(&_dap_server->mutex_on_hash);
 
-    if(callback != NULL) {
-        callback(_callback_result.res, count_users);
+    if(_callback != NULL) {
+        pthread_mutex_lock(&_mutex);
+        pthread_cond_signal(&_cond);
+        pthread_mutex_unlock(&_mutex);
     }
 }
 
 void dap_traffic_track_init(dap_server_t * server,
                             time_t timeout)
 {
-    _callback_result.allocated_counter = ALLOC_STEP;
-    _callback_result.res = calloc(_callback_result.allocated_counter, sizeof (dap_traffic_track_result_t));
-
     _dap_server = server;
     _timeout_watcher.repeat = timeout;
     loop = EV_DEFAULT;
@@ -101,14 +117,29 @@ void dap_traffic_track_init(dap_server_t * server,
 
 void dap_traffic_track_deinit()
 {
-    _callback_result.allocated_counter = 0;
-    free(_callback_result.res);
+    if(_callback != NULL)
+        _worker_stop();
+
     ev_timer_stop(loop, &_timeout_watcher);
     ev_loop_destroy(loop);
     log_it(L_NOTICE, "Deinitialized traffic track module");
 }
 
-void dap_traffic_set_callback(dap_traffic_callback_t cb)
+void dap_traffic_callback_stop() {
+    if(_callback == NULL) {
+        log_it(L_WARNING, "worker not running");
+        return;
+    }
+    _worker_stop();
+}
+
+void dap_traffic_callback_set(dap_traffic_callback_t cb)
 {
-    callback = cb;
+    if(_callback == NULL) {
+        _callback = cb;
+        _worker_start();
+        return;
+    }
+
+    log_it(L_WARNING, "Callback already setted");
 }
