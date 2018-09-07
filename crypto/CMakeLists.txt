@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
+if(TARGET dap_crypto)
+    return() # The project has already been built.
+endif()
 project (dap_crypto)
 
 file(GLOB CRYPTO_SRCS *.c)
@@ -49,4 +52,4 @@ add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS}
 
 target_include_directories(dap_crypto INTERFACE .)
 
-target_link_libraries(dap_crypto dap_core)
+target_link_libraries(dap_crypto dap_core m)

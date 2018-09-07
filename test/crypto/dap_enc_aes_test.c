@@ -2,15 +2,7 @@
 
 static const int BYTE_SIZE = 256;
 
-void generate_random_byte_array(uint8_t* array, const size_t size) {
-    for(size_t i = 0; i < size; i++) {
-        array[i] = (uint8_t)rand() % BYTE_SIZE;
-    }
 
-    // Last byte not should be 0
-    if (array[size - 1] == 0)
-        array[size - 1] = 1;
-}
 
 void test_encode_decode(int count_steps) {
     size_t source_size = 0;
@@ -23,7 +15,7 @@ void test_encode_decode(int count_steps) {
         uint8_t source[source_size];
         uint8_t encrypted[source_size + AES_BLOCK_SIZE];
         uint8_t result[source_size + AES_BLOCK_SIZE];
-        generate_random_byte_array(source, source_size);
+        generate_random_byte_array(source, source_size, BYTE_SIZE);
 
         size_t encrypted_size = dap_enc_aes_encode(key, source,
                                                    source_size, encrypted);

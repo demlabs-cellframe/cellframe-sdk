@@ -7,7 +7,7 @@ Deus Applications Prototypes: core library
 ```
 mkdir build
 cd build
-cmake ../
+cmake -DBUILD_DAP_TESTS=ON ../
 make
 ctest --verbose
 ```

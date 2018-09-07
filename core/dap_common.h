@@ -58,6 +58,7 @@ void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list
 
 const char * log_error(void);
 void set_log_level(enum log_level ll);
+void dap_set_log_tag_width(size_t width);
 
 #ifdef __GNUC__
 char *itoa(int i);
@@ -72,7 +73,8 @@ int get_select_breaker(void);
 int send_select_break(void);
 char * exec_with_ret(const char * a_cmd);
 char * exec_with_ret_multistring(const char * a_cmd);
-char * random_string_create(size_t a_length);
+char * dap_random_string_create_alloc(size_t a_length);
+void dap_random_string_fill(char *str, size_t length);
 
 #ifdef __cplusplus
 }

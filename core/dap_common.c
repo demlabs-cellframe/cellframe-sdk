@@ -60,21 +60,38 @@ static char last_error[LAST_ERROR_MAX] = {0};
 static enum log_level log_level = L_DEBUG;
 static FILE * s_log_file = NULL;
 
+static char log_tag_fmt_str[10];
+
 void set_log_level(enum log_level ll) {
     log_level = ll;
 }
 
-int dap_common_init( const char * a_log_file )
+void dap_set_log_tag_width(size_t width) {
+    if (width > 99) {
+        fprintf(stderr,"Can't set width %zd", width);
+        return;
+    }
+
+    // construct new log_tag_fmt_str
+    strcpy(log_tag_fmt_str, "[%");
+    strcat(log_tag_fmt_str, itoa((int)width));
+    strcat(log_tag_fmt_str, "s]\t");
+}
+
+int dap_common_init(const char * a_log_file)
 {
-    if ( a_log_file ) {
-        s_log_file=fopen( a_log_file , "a");
-        if(s_log_file==NULL){
+    srand((unsigned int)time(NULL));
+    // init default log tag 8 width
+    strcpy(log_tag_fmt_str, "[%8s]\t");
+
+    if (a_log_file) {
+        s_log_file = fopen(a_log_file , "a");
+        if(s_log_file == NULL) {
             fprintf(stderr,"Can't open log file %s to append\n", a_log_file);
             s_log_file=stdout;
             return -1;
         }
     }
-
     return 0;
 }
 
@@ -136,16 +153,13 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
         printf("[%s] ",s_time);
     }
-    /*if(ll>=ERROR){
-        vsnprintf(last_error,LAST_ERROR_MAX,format,ap);
-    }*/
 
     if(ll==L_DEBUG){
         if (s_log_file ) fprintf(s_log_file,"[DBG] ");
         printf(	"\x1b[37;2m[DBG] ");
     }else if(ll==L_INFO){
-        if (s_log_file ) fprintf(s_log_file,"[   ] ");
-        printf("\x1b[32;2m[   ] ");
+        if (s_log_file ) fprintf(s_log_file,"[INF] ");
+        printf("\x1b[32;2m[INF] ");
     }else if(ll==L_NOTICE){
         if (s_log_file ) fprintf(s_log_file,"[ * ] ");
         printf("\x1b[32m[ * ] ");
@@ -159,8 +173,8 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[!!!] ");
         printf("\x1b[1;5;31m[!!!] ");
     }
-    if (s_log_file ) fprintf(s_log_file,"[%8s]\t",log_tag);
-    printf("[%8s]\t",log_tag);
+    if (s_log_file ) fprintf(s_log_file,log_tag_fmt_str,log_tag);
+    printf(log_tag_fmt_str,log_tag);
 
     if (s_log_file ) vfprintf(s_log_file,format,ap);
     vprintf(format,ap2);
@@ -332,15 +346,26 @@ FIN:
     return strdup(retbuf);
 }
 
+static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/**
+ * @brief random_string_fill
+ * @param str
+ * @param length
+ */
+void dap_random_string_fill(char *str, size_t length) {
+    for(size_t i = 0; i < length; i++)
+        str[i] = l_possible_chars[
+                rand() % (sizeof(l_possible_chars) - 1)];
+}
+
 /**
  * @brief random_string_create
  * @param a_length
  * @return
  */
-char * random_string_create(size_t a_length)
+char * dap_random_string_create_alloc(size_t a_length)
 {
-    const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
     char * ret = (char*) malloc(a_length+1);
     size_t i;
     for(i=0; i<a_length; ++i) {

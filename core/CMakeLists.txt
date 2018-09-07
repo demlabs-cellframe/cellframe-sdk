@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
+if(TARGET dap_core)
+    return() # The project has already been built.
+endif()
 project (dap_core)
 
 file(GLOB CORE_SRCS *.c)

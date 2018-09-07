@@ -47,14 +47,14 @@ byte B64_DecodeByte( byte b );
  */
 
 static const char b64_table[] = {
-  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-  'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-  'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-  'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-  'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
-  'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-  'w', 'x', 'y', 'z', '0', '1', '2', '3',
-  '4', '5', '6', '7', '8', '9', '+', '/'
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+    'w', 'x', 'y', 'z', '0', '1', '2', '3',
+    '4', '5', '6', '7', '8', '9', '+', '/'
 };
 
 /**
@@ -117,72 +117,70 @@ size_t dap_enc_base64_decode(const char * in_raw, size_t in_size,void * out, dap
 
     // parse until end of source
     while (in_size--) {
-      // break if char is `=' or not base64 char
-      if ('=' == in[j]) { break; }
-      if (!(isalnum(in[j]) || '+' == in[j] || '/' == in[j])) { break; }
+        // break if char is `=' or not base64 char
+        if ('=' == in[j]) { break; }
+        if (!(isalnum(in[j]) || '+' == in[j] || '/' == in[j])) { break; }
 
-      // read up to 4 bytes at a time into `tmp'
-      tmp[i++] = in[j++];
+        // read up to 4 bytes at a time into `tmp'
+        tmp[i++] = in[j++];
 
-      // if 4 bytes read then decode into `buf'
-      if (4 == i) {
-        // translate values in `tmp' from table
-        for (i = 0; i < 4; ++i) {
-          // find translation char in `b64_table'
-          for (l = 0; l < 64; ++l) {
-            if (tmp[i] == b64_table[l]) {
-              tmp[i] = l;
-              break;
+        // if 4 bytes read then decode into `buf'
+        if (4 == i) {
+            // translate values in `tmp' from table
+            for (i = 0; i < 4; ++i) {
+                // find translation char in `b64_table'
+                for (l = 0; l < 64; ++l) {
+                    if (tmp[i] == b64_table[l]) {
+                        tmp[i] = l;
+                        break;
+                    }
+                }
             }
-          }
+
+            // decode
+            buf[0] = (tmp[0] << 2) + ((tmp[1] & 0x30) >> 4);
+            buf[1] = ((tmp[1] & 0xf) << 4) + ((tmp[2] & 0x3c) >> 2);
+            buf[2] = ((tmp[2] & 0x3) << 6) + tmp[3];
+
+            // write decoded buffer to `dec'
+            for (i = 0; i < 3; ++i) {
+                out_bytes[l_size++] = buf[i];
+            }
+
+            // reset
+            i = 0;
         }
-
-        // decode
-        buf[0] = (tmp[0] << 2) + ((tmp[1] & 0x30) >> 4);
-        buf[1] = ((tmp[1] & 0xf) << 4) + ((tmp[2] & 0x3c) >> 2);
-        buf[2] = ((tmp[2] & 0x3) << 6) + tmp[3];
-
-        // write decoded buffer to `dec'
-          for (i = 0; i < 3; ++i) {
-            out_bytes[l_size++] = buf[i];
-          }
-
-        // reset
-        i = 0;
-      }
     }
 
     // remainder
     if (i > 0) {
-      // fill `tmp' with `\0' at most 4 times
-      for (j = i; j < 4; ++j) {
-        tmp[j] = '\0';
-      }
+        // fill `tmp' with `\0' at most 4 times
+        for (j = i; j < 4; ++j) {
+            tmp[j] = '\0';
+        }
 
-      // translate remainder
-      for (j = 0; j < 4; ++j) {
-          // find translation char in `b64_table'
-          for (l = 0; l < 64; ++l) {
-            if (tmp[j] == b64_table[l]) {
-              tmp[j] = l;
-              break;
+        // translate remainder
+        for (j = 0; j < 4; ++j) {
+            // find translation char in `b64_table'
+            for (l = 0; l < 64; ++l) {
+                if (tmp[j] == b64_table[l]) {
+                    tmp[j] = l;
+                    break;
+                }
             }
-          }
-      }
+        }
 
-      // decode remainder
-      buf[0] = (tmp[0] << 2) + ((tmp[1] & 0x30) >> 4);
-      buf[1] = ((tmp[1] & 0xf) << 4) + ((tmp[2] & 0x3c) >> 2);
-      buf[2] = ((tmp[2] & 0x3) << 6) + tmp[3];
+        // decode remainder
+        buf[0] = (tmp[0] << 2) + ((tmp[1] & 0x30) >> 4);
+        buf[1] = ((tmp[1] & 0xf) << 4) + ((tmp[2] & 0x3c) >> 2);
+        buf[2] = ((tmp[2] & 0x3) << 6) + tmp[3];
 
-      // write remainer decoded buffer to `dec'
+        // write remainer decoded buffer to `dec'
         for (j = 0; (j < i - 1); ++j) {
-          out_bytes[l_size++] = buf[j];
+            out_bytes[l_size++] = buf[j];
         }
 
     }
-
-//    out[l_size] = '\0';
 
     return l_size;
 }
@@ -196,74 +194,72 @@ size_t dap_enc_base64_decode(const char * in_raw, size_t in_size,void * out, dap
  */
 size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, dap_enc_b64_standard_t standard)
 {
-  int i = 0;
-  int j = 0;
-  size_t size = 0;
-  unsigned char buf[4];
-  unsigned char tmp[3];
-  const unsigned char * l_in_bytes = (const unsigned char*) a_in;
+    int i = 0;
+    int j = 0;
+    size_t size = 0;
+    unsigned char buf[4];
+    unsigned char tmp[3];
+    const unsigned char * l_in_bytes = (const unsigned char*) a_in;
 
-  if (NULL == a_out) { return 0; }
+    if (NULL == a_out) { return 0; }
 
-  // parse until end of source
-  while (a_in_size--) {
-    // read up to 3 bytes at a time into `tmp'
-    tmp[i++] = *(  l_in_bytes++);
+    // parse until end of source
+    while (a_in_size--) {
+        // read up to 3 bytes at a time into `tmp'
+        tmp[i++] = *(  l_in_bytes++);
 
-    // if 3 bytes read then encode into `buf'
-    if (3 == i) {
-      buf[0] = (tmp[0] & 0xfc) >> 2;
-      buf[1] = ((tmp[0] & 0x03) << 4) + ((tmp[1] & 0xf0) >> 4);
-      buf[2] = ((tmp[1] & 0x0f) << 2) + ((tmp[2] & 0xc0) >> 6);
-      buf[3] = tmp[2] & 0x3f;
+        // if 3 bytes read then encode into `buf'
+        if (3 == i) {
+            buf[0] = (tmp[0] & 0xfc) >> 2;
+            buf[1] = ((tmp[0] & 0x03) << 4) + ((tmp[1] & 0xf0) >> 4);
+            buf[2] = ((tmp[1] & 0x0f) << 2) + ((tmp[2] & 0xc0) >> 6);
+            buf[3] = tmp[2] & 0x3f;
 
-      for (i = 0; i < 4; ++i) {
-        a_out[size++] = b64_table[buf[i]];
-      }
+            for (i = 0; i < 4; ++i) {
+                a_out[size++] = b64_table[buf[i]];
+            }
 
-      // reset index
-      i = 0;
-    }
-  }
-
-  // remainder
-  if (i > 0) {
-    // fill `tmp' with `\0' at most 3 times
-    for (j = i; j < 3; ++j) {
-      tmp[j] = '\0';
+            // reset index
+            i = 0;
+        }
     }
 
-    // perform same codec as above
-    buf[0] = (tmp[0] & 0xfc) >> 2;
-    buf[1] = ((tmp[0] & 0x03) << 4) + ((tmp[1] & 0xf0) >> 4);
-    buf[2] = ((tmp[1] & 0x0f) << 2) + ((tmp[2] & 0xc0) >> 6);
-    buf[3] = tmp[2] & 0x3f;
+    // remainder
+    if (i > 0) {
+        // fill `tmp' with `\0' at most 3 times
+        for (j = i; j < 3; ++j) {
+            tmp[j] = '\0';
+        }
 
-    // perform same write to `enc` with new allocation
-    for (j = 0; (j < i + 1); ++j) {
-      a_out[size++] = b64_table[buf[j]];
+        // perform same codec as above
+        buf[0] = (tmp[0] & 0xfc) >> 2;
+        buf[1] = ((tmp[0] & 0x03) << 4) + ((tmp[1] & 0xf0) >> 4);
+        buf[2] = ((tmp[1] & 0x0f) << 2) + ((tmp[2] & 0xc0) >> 6);
+        buf[3] = tmp[2] & 0x3f;
+
+        // perform same write to `enc` with new allocation
+        for (j = 0; (j < i + 1); ++j) {
+            a_out[size++] = b64_table[buf[j]];
+        }
+
+        // while there is still a remainder
+        // append `=' to `enc'
+        while ((i++ < 3)) {
+            a_out[size++] = '=';
+        }
     }
 
-    // while there is still a remainder
-    // append `=' to `enc'
-    while ((i++ < 3)) {
-      a_out[size++] = '=';
-    }
-  }
-
-  // Make sure we have enough space to add '\0' character at end.
-  a_out[size] = '\0';
-
-    if(standard == DAP_ENC_STANDARD_B64_URLSAFE)
-    for(size_t i=0; i < size; i++)
-    {
-        if(a_out[i] == '/')
-            a_out[i] = '_';
-        else if(a_out[i] == '+')
-            a_out[i] = '-';
+    if(standard == DAP_ENC_STANDARD_B64_URLSAFE) {
+        for(size_t i=0; i < size; i++)
+        {
+            if(a_out[i] == '/')
+                a_out[i] = '_';
+            else if(a_out[i] == '+')
+                a_out[i] = '-';
+        }
     }
 
-  return size;
+    return size;
 }
 
 

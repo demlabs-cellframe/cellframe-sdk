@@ -121,8 +121,8 @@ typedef struct dap_enc_key{
     void * _inheritor;
 } dap_enc_key_t;
 
-int dap_enc_key_init();
-void dap_enc_key_deinit();
+int dap_enc_key_init(void);
+void dap_enc_key_deinit(void);
 
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);
 

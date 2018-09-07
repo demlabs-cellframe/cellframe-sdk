@@ -13,7 +13,7 @@ script:
     - export CC=gcc-5
     - mkdir build
     - cd build 
-    - cmake ../
+    - cmake -DBUILD_DAP_TESTS=ON ../
     - make
     - ctest --verbose
 

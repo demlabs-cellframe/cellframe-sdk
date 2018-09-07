@@ -23,13 +23,6 @@ static int isCompressed(void *_inheritor) {
     return 0;
 }
 
-void test(){
- 
-}
-
-
-
-
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
 void dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
