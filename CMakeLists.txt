@@ -57,8 +57,8 @@ add_subdirectory(monero_crypto)
 include_directories("${monero_crypto_INCLUDE_DIRS}")
 add_definitions ("${monero_crypto_DEFINITIONS}")
 
-include_directories("${dap_core_INCLUDE_DIRS}")
-include_directories("${dap_crypto_INCLUDE_DIRS}")
+#include_directories("${dap_core_INCLUDE_DIRS}")
+#include_directories("${dap_crypto_INCLUDE_DIRS}")
 
 add_definitions ("${dap_core_DEFINITIONS}")
 add_definitions ("${dap_crypto_DEFINITIONS}")
