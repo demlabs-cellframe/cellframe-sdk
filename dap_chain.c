@@ -176,64 +176,6 @@ void dap_chain_file_open(dap_chain_block_cache_t* last_g, dap_chain_block_cache_
                    uint32_t size_of_gold, size_of_silver, size_of_copper;
                    size_t result;
 
-                   my_file_to_wite_gold = fopen("my_block_gold.txt", "a+");// тестовый файл создам если есть добавим
-
-                   if (my_file_to_wite_gold==NULL){
-                       log_it(L_INFO, "Everything is lost! File not opened!");
-                       exit(1);
-
-                   }
-                   else {
-/*                       result = fread(l_block_gold, size_of_gold, 1, my_file_to_wite_gold);
-                       while ((l_block_gold->block!=0)&&result!=0){
-                           result = fread(my_file_to_wite_gold,size_of_gold, 64, 1, my_file_to_wite_gold);
-                           if (result!=0){
-                                result = fread(my_file_to_wite_gold,l_block_gold, size_of_gold, 1, my_file_to_wite_gold);
-                           }
-                        }
-                       last_g =l_block_gold;
-                        //l_block_gold =*/
-                   }
-
-
-
-                   my_file_to_wite_silver = fopen("my_block_silver.txt", "a+");
-                   if (my_file_to_wite_silver==NULL){
-                       log_it(L_INFO, "Everything is lost! File not opened!");
-                       exit(1);
-
-                   }
-                   else {
-
-                       result = fread(size_of_silver, 64, 1, my_file_to_wite_silver);
-                       result = fread(l_block_silver, size_of_silver, 1, my_file_to_wite_silver);
-                       while ((l_block_silver->block!=0)&&result!=0){
-                           result = fread(size_of_silver, 64, 1, my_file_to_wite_silver);
-                           if (result!=0){
-                                result = fread(l_block_silver, size_of_silver, 1, my_file_to_wite_silver);
-                           }
-                        }
-                       last_s =l_block_silver;
-                   }
-
-                   my_file_to_wite_copper = fopen("my_block_copper.txt", "a+");
-                   if (my_file_to_wite_copper==NULL){
-                       log_it(L_INFO, "Everything is lost! File not opened!");
-                       exit(1);
-
-                   }
-                   else {
-
-                       result = fread(size_of_copper, 64, 1, my_file_to_wite_copper);
-                       result = fread(l_block_copper, size_of_copper, 1, my_file_to_wite_copper);
-                       while (l_block_copper->block!=0){
-                           result = fread(size_of_copper, 64, 1, my_file_to_wite_gold);
-                           if (result!=0){
-                            fread(l_block_copper, size_of_copper, 1, my_file_to_wite_copper);
-                           }
-                        }
-                       last_c = l_block_copper;
-                   }
 }
 
 
