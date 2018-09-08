@@ -139,24 +139,21 @@ void dap_chain_save(dap_chain_t * a_chain)
 
 void dap_chain_file_write(dap_chain_block_cache_t *l_block_cache){
     if (dap_chain_hash_kind_check(&l_block_cache->block_hash, l_block_cache->block->header.difficulty)==HASH_GOLD){
-                                               fwrite(l_block_cache->block->header.size, 64, 1, my_file_to_wite_gold);
-                                               fwrite(l_block_cache->block, l_block_cache->block->header.size, 1, my_file_to_wite_gold);
+                                               fwrite(l_block_cache->block, l_block_cache->block->header.size+sizeof(l_block_cache->block->header), 1, my_file_to_wite_gold);
                                                blocks_mined_gold += 1;
                                                /*gold_mem=mmap(0, l_block_cache->block->header.size, PROT_WRITE, MAP_SHARED, my_file_to_wite_gold, 0);
                                                memcpy(gold_mem, l_block_cache, l_block_cache->block->header.size);
                                                munmap(gold_mem, l_block_cache->block->header.size);*/
                                            }
-                                           else if (dap_chain_hash_kind_check(l_block_cache, l_block_cache->block->header.difficulty)==HASH_SILVER){
-                                               fwrite(l_block_cache->block->header.size, 64, 1, my_file_to_wite_silver);
-                                               fwrite(l_block_cache->block, l_block_cache->block->header.size, 1, my_file_to_wite_silver);
+                                           else if (dap_chain_hash_kind_check(&l_block_cache->block_hash, l_block_cache->block->header.difficulty)==HASH_SILVER){
+                                               fwrite(l_block_cache->block, l_block_cache->block->header.size+sizeof(l_block_cache->block->header), 1, my_file_to_wite_silver);
                                                blocks_mined_silver += 1;
                                                /*silver_mem=mmap(0, l_block_cache->block->header.size, PROT_WRITE, MAP_SHARED, my_file_to_wite_silver, 0);
                                                memcpy(silver_mem, l_block_cache, l_block_cache->block->header.size);
                                                munmap(silver_mem, l_block_cache->block->header.size);*/
                                            }
                                            else {
-                                               fwrite(l_block_cache->block->header.size, 64, 1, my_file_to_wite_copper);
-                                               fwrite(l_block_cache->block, l_block_cache->block->header.size, 1, my_file_to_wite_copper);
+                                               fwrite(l_block_cache->block, l_block_cache->block->header.size+sizeof(l_block_cache->block->header), 1, my_file_to_wite_copper);
                                                blocks_mined_copper += 1;
                                                /*copper_mem=mmap(0, l_block_cache->block->header.size, PROT_WRITE, MAP_SHARED, my_file_to_wite_copper, 0);
                                                memcpy(copper_mem, l_block_cache, l_block_cache->block->header.size);
@@ -187,17 +184,15 @@ void dap_chain_file_open(dap_chain_block_cache_t* last_g, dap_chain_block_cache_
 
                    }
                    else {
-
-                       result =fread(size_of_gold, 64, 1, my_file_to_wite_gold);
-                       result = fread(l_block_gold, size_of_gold, 1, my_file_to_wite_gold);
+/*                       result = fread(l_block_gold, size_of_gold, 1, my_file_to_wite_gold);
                        while ((l_block_gold->block!=0)&&result!=0){
-                           result = fread(size_of_gold, 64, 1, my_file_to_wite_gold);
+                           result = fread(my_file_to_wite_gold,size_of_gold, 64, 1, my_file_to_wite_gold);
                            if (result!=0){
-                                result = fread(l_block_gold, size_of_gold, 1, my_file_to_wite_gold);
+                                result = fread(my_file_to_wite_gold,l_block_gold, size_of_gold, 1, my_file_to_wite_gold);
                            }
                         }
                        last_g =l_block_gold;
-                        //l_block_gold =
+                        //l_block_gold =*/
                    }
 
 
