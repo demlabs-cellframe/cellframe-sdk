@@ -20,7 +20,7 @@
 
 #include "dap_common.h"
 
-#include "dap_client.h"
+#include "dap_server_client.h"
 #include "dap_http_client.h"
 
 #include "stream.h"

@@ -25,7 +25,7 @@
 #include "dap_enc.h"
 #include "dap_enc_key.h"
 
-#include "dap_client.h"
+#include "dap_server_client.h"
 #include "stream.h"
 #include "stream_ch.h"
 #include "stream_ch_pkt.h"

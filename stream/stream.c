@@ -29,7 +29,7 @@
 #include "stream_ch_pkt.h"
 #include "stream_session.h"
 
-#include "dap_client.h"
+#include "dap_server_client.h"
 #include "dap_http.h"
 #include "dap_http_client.h"
 #include "dap_http_header.h"
@@ -38,6 +38,8 @@
 
 #define LOG_TAG "stream"
 #define HEADER_WITH_SIZE_FIELD 12  //This count of bytes enough for allocate memory for stream packet
+
+void stream_proc_pkt_in(stream_t * sid);
 
 // Callbacks for HTTP client
 void stream_headers_read(dap_http_client_t * sh, void * arg); // Prepare stream when all headers are read
@@ -57,6 +59,8 @@ void stream_delete(dap_http_client_t * sh, void * arg);
 
 struct ev_loop *keepalive_loop;
 pthread_t keepalive_thread;
+
+void start_keepalive(struct stream *sid);
 
 // Start keepalive stream
 void* stream_loop(void * arg)

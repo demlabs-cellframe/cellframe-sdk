@@ -29,7 +29,7 @@
 
 #include "dap_http.h"
 #include "dap_http_client.h"
-#include "dap_client.h"
+#include "dap_server_client.h"
 #include "dap_http_simple.h"
 
 #include "stream_session.h"
