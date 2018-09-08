@@ -21,7 +21,7 @@
 #ifndef _SERVER_HTTP_H_
 #define _SERVER_HTTP_H_
 #include "dap_server.h"
-#include "dap_client.h"
+#include "dap_server_client.h"
 #include "http_client/dap_http_header.h"
 #include "http_client/dap_http_client.h"
 #include "uthash.h"

@@ -87,7 +87,7 @@ dap_server_client_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, 
  * @param host Variable for host address
  * @param host Variable for port
  */
-void dap_udp_client_get_address(dap_server_client_t *client, unsigned long* host,unsigned short* port){
+void dap_udp_client_get_address(dap_server_client_t *client, unsigned int* host,unsigned short* port){
     dap_udp_client_t* udp_client = DAP_UDP_CLIENT(client);    
     *host = udp_client->host_key >> 32;
     *port = udp_client->host_key - (*host<<32);

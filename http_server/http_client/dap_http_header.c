@@ -24,7 +24,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "dap_common.h"
-#include "dap_client.h"
+#include "dap_server_client.h"
 #include "dap_http_client.h"
 #include "dap_http_header.h"
 

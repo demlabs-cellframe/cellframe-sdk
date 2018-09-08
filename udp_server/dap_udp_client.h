@@ -61,5 +61,6 @@ size_t dap_udp_client_write_f(dap_server_client_t *a_client, const char * a_form
 
 void add_waiting_client(dap_server_client_t* client); // Add client to writing queue
 
+void dap_udp_client_get_address(dap_server_client_t *client, unsigned int* host,unsigned short* port);
 
 #endif

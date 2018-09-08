@@ -17,6 +17,7 @@ struct ev_io w_read;
 struct ev_io w_write;
 
 static void write_cb(struct ev_loop* _loop, struct ev_io* watcher, int revents);
+int check_close(dap_server_client_t* client);
 
 /**
  */
