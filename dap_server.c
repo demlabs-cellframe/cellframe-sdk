@@ -98,7 +98,7 @@ int dap_server_init(size_t count_threads)
     pthread_mutex_init(&mutex_on_cnt_connections, NULL);
 
     log_it(L_NOTICE,"Initialized socket server module");
-
+    dap_server_client_init();
     return 0;
 }
 
@@ -107,6 +107,7 @@ int dap_server_init(size_t count_threads)
  */
 void dap_server_deinit()
 {
+    dap_server_client_deinit();
     for(size_t i = 0; i < _count_threads; i++)
         free (async_watchers[i].data);
 

@@ -82,8 +82,8 @@ typedef struct dap_server_client{
 
 
 
-int dap_client_remote_init(void); //  Init clients module
-void dap_client_remote_deinit(void); // Deinit clients module
+int dap_server_client_init(void); //  Init clients module
+void dap_server_client_deinit(void); // Deinit clients module
 
 dap_server_client_t * dap_client_create(struct dap_server * sh, int s, ev_io* w_client); // Create new client and add it to the list
 dap_server_client_t * dap_client_find(int sock, struct dap_server * sh); // Find client by socket

@@ -36,7 +36,7 @@
  * @brief dap_client_init Init clients module
  * @return Zero if ok others if no
  */
-int dap_client_remote_init()
+int dap_server_client_init()
 {
     log_it(L_NOTICE,"Initialized socket client module");
     return 0;
@@ -45,7 +45,7 @@ int dap_client_remote_init()
 /**
  * @brief dap_client_deinit Deinit clients module
  */
-void dap_client_remote_deinit()
+void dap_server_client_deinit()
 {
 
 }

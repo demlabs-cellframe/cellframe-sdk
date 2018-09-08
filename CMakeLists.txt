@@ -10,10 +10,10 @@ if(BUILD_DAP_CORE_SERVER_TESTS)
     add_subdirectory(test)
 endif()
 
-file(GLOB SOURCES *.c)
-file(GLOB HEADERS *.h)
+file(GLOB CORE_SERVER_SOURCES *.c)
+file(GLOB CORE_SERVER_HEADERS *.h)
 
-add_library(${PROJECT_NAME} STATIC ${SOURCES} ${HEADERS})
+add_library(${PROJECT_NAME} STATIC ${CORE_SERVER_SOURCES} ${CORE_SERVER_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} pthread ev dap_crypto)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
