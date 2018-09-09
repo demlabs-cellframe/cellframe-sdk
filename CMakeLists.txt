@@ -24,7 +24,7 @@ add_definitions ("${monero_crypto_DEFINITIONS}")
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_CRYPTO_SRCS} ${DAP_CHAIN_CRYPTO_HEADERS})
 
 
-target_link_libraries(dap_chain_crypto dap_core dap_crypto)
+target_link_libraries(dap_chain_crypto dap_core dap_crypto dap_chain monero_crypto)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
