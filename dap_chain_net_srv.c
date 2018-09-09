@@ -24,65 +24,65 @@
 
 #include "utlist.h"
 
-#include "dap_chain_srv.h"
+#include "dap_chain_net_srv.h"
 
-#define LOG_TAG "chain_srv"
+#define LOG_TAG "chain_net_srv"
 
 size_t m_uid_count;
-dap_chain_srv_uid_t * m_uid;
+dap_chain_net_srv_uid_t * m_uid;
 
 /**
- * @brief dap_chain_srv_init
+ * @brief dap_chain_net_srv_init
  * @return
  */
-int dap_chain_srv_init()
+int dap_chain_net_srv_init()
 {
     m_uid = NULL;
-    m_uid_count = NULL;
+    m_uid_count = 0;
     return 0;
 }
 
 /**
- * @brief dap_chain_srv_deinit
+ * @brief dap_chain_net_srv_deinit
  */
-void dap_chain_srv_deinit()
+void dap_chain_net_srv_deinit()
 {
 
 }
 
 /**
- * @brief dap_chain_srv_add
+ * @brief dap_chain_net_srv_add
  * @param a_srv
  */
-void dap_chain_srv_add(dap_chain_srv_t * a_srv)
+void dap_chain_net_srv_add(dap_chain_net_srv_t * a_srv)
 {
 
 }
 
 /**
- * @brief dap_chain_srv_get
+ * @brief dap_chain_net_srv_get
  * @param a_uid
  * @return
  */
-dap_chain_srv_t * dap_chain_srv_get( dap_chain_srv_uid_t a_uid)
+dap_chain_net_srv_t * dap_chain_net_srv_get( dap_chain_net_srv_uid_t a_uid)
 {
 
 }
 
 /**
- * @brief dap_chain_srv_count
+ * @brief dap_chain_net_srv_count
  * @return
  */
-const size_t dap_chain_srv_count()
+const size_t dap_chain_net_srv_count()
 {
 
 }
 
 /**
- * @brief dap_chain_srv_list
+ * @brief dap_chain_net_srv_list
  * @return
  */
-const dap_chain_srv_uid_t * dap_chain_srv_list()
+const dap_chain_net_srv_uid_t * dap_chain_net_srv_list()
 {
 
 }

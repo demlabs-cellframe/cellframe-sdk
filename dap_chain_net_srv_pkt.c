@@ -1,3 +1,3 @@
-#include "dap_chain_srv_pkt.h"
+#include "dap_chain_net_srv_pkt.h"
 
-#define LOG_TAG "srv_pkt"
+#define LOG_TAG "chain_net_srv_pkt"

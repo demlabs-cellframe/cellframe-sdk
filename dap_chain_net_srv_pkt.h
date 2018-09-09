@@ -26,10 +26,10 @@
 
 #include <stdint.h>
 
-typedef uint64_t dap_chain_srv_uid_t;
-typedef struct dap_chain_srv_pkt{
+typedef uint64_t dap_chain_net_srv_uid_t;
+typedef struct dap_chain_net_srv_pkt{
     struct {
-        dap_chain_srv_uid_t uid;
+        dap_chain_net_srv_uid_t uid;
     } __attribute__((packed)) header ;
     uint8_t data[];
-} __attribute__((packed)) dap_chain_srv_pkt_t;
+} __attribute__((packed)) dap_chain_net_srv_pkt_t;
