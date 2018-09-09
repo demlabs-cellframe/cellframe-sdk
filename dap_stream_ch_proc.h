@@ -22,7 +22,7 @@
 #define _STREAM_CH_TYPE_H_
 
 #include <stdint.h>
-#include "stream_ch.h"
+#include "dap_stream_ch.h"
 
 
 typedef struct stream_ch_proc{

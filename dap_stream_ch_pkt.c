@@ -27,11 +27,12 @@
 
 #include "dap_server_client.h"
 #include "stream.h"
-#include "stream_ch.h"
-#include "stream_ch_pkt.h"
-#include "stream_ch_proc.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_proc.h"
 #include "stream_pkt.h"
-#define LOG_TAG "stream_ch_pkt"
+
+#define LOG_TAG "dap_stream_ch_pkt"
 
 /**
  * @brief stream_ch_pkt_init

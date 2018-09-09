@@ -19,10 +19,10 @@
 */
 
 #include "dap_common.h"
-#include "stream_ch_proc.h"
+#include "dap_stream_ch_proc.h"
 
 
-#define LOG_TAG "stream_ch_type"
+#define LOG_TAG "dap_stream_ch_proc"
 
 stream_ch_proc_t proc[256]={0};
 
