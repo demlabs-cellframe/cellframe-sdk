@@ -323,6 +323,21 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
 }
 
 /**
+ * @brief dap_config_get_item_int32_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_default
+ * @return
+ */
+int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int32_t a_default)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    return l_str_ret?atoi(l_str_ret):a_default;
+}
+
+
+/**
  * @brief dap_config_get_item
  * @param a_config
  * @param a_section_path
@@ -418,6 +433,22 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
     return strcmp(dap_config_get_item_str(a_config,a_section_path,a_item_name),"true") == 0;
+}
+
+
+/**
+ * @brief dap_config_get_item_bool_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_default
+ * @return
+ */
+bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_section_path,
+                                      const char * a_item_name, bool a_default)
+{
+    return strcmp(dap_config_get_item_str_default(a_config,a_section_path,a_item_name,
+                                                  a_default?"true":"false"),"true") == 0;
 }
 
 /**
