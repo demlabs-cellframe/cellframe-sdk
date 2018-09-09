@@ -19,5 +19,5 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_node.h"
+#include "dap_chain_net_node.h"
 

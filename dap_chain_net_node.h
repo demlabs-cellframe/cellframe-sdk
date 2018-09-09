@@ -37,4 +37,4 @@ typedef struct dap_chain_node{
     dap_chain_node_addr_t *downlinks;
     struct in_addr *ipv4_addrs;
     struct in6_addr *ipv6_addrs;
-} dap_chain_node_t;
+} dap_chain_net_node_t;
