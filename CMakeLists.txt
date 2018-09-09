@@ -1,69 +1,34 @@
 cmake_minimum_required(VERSION 2.8)
-project (dap-chain)
+project (dap_chain)
   
 set(DAP_CHAIN_SRCS 
 	dap_chain_common.c
-        dap_chain_mine.c
-	dap_chain_block.c 
-        dap_chain_block_cache.c
-        dap_chain_block_txs.c
-	dap_chain_section.c 
-	dap_chain_section_roots.c
-        dap_chain_section_tx.c
-        dap_chain_section_coin.c
+	dap_chain_datum.c 
+	dap_chain_datum_roots.c
+        dap_chain_datum_tx.c
+        dap_chain_datum_coin.c
         dap_chain.c
         dap_chain_ops.c
-        dap_chain_coin.c
-        dap_chain_node.c
-	dap_chain_srv.c  
-        dap_chain_srv_pkt.c
-        dap_hash.c
-        dap_hash_fusion.c
-        dap_hash_keccak.c
-        dap_hash_slow.c
-        dap_chain_wallet.c
         )
 
 set(DAP_CHAIN_HEADERS
         dap_chain_ops.h
         dap_chain.h
-        dap_chain_mine.h
-        dap_chain_mine_task.h
-        dap_chain_block.h
-        dap_chain_block_cache.h
         dap_chain_internal.h
         dap_chain_common.h
-	dap_chain_coin.h
-        dap_chain_node.h
-	dap_chain_srv.h
-        dap_chain_srv_pkt.h
-	dap_chain_section.h
-	dap_chain_section_roots.h
-	dap_chain_section_tx.h
-        dap_chain_section_tx_in.h
-        dap_chain_section_tx_out.h
-        dap_chain_section_tx_pkey.h
-        dap_chain_section_tx_sig.h
-        dap_hash.h
-        dap_hash_fusion.h
-        dap_hash_keccak.h
-        dap_hash_slow.h
-        dap_chain_wallet.h
-        dap_chain_wallet_internal.h
+	dap_chain_datum.h
+	dap_chain_datum_roots.h
+	dap_chain_datum_tx.h
+        dap_chain_datum_tx_in.h
+        dap_chain_datum_tx_out.h
+        dap_chain_datum_tx_pkey.h
+        dap_chain_datum_tx_sig.h
     )
-
-add_subdirectory(monero_crypto)
-
-include_directories("${monero_crypto_INCLUDE_DIRS}")
-add_definitions ("${monero_crypto_DEFINITIONS}")
-
-#include_directories("${dap_core_INCLUDE_DIRS}")
-#include_directories("${dap_crypto_INCLUDE_DIRS}")
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 
 
-target_link_libraries(dap-chain dap_core dap_crypto)
+target_link_libraries(dap_chain dap_core )
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
