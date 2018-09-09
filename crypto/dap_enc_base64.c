@@ -7,9 +7,6 @@
 
 #include "dap_enc_base64.h"
 
-#define B64_TRUE	1
-#define B64_FALSE	0
-
 typedef unsigned char byte;
 
 // get the size of the result buffer required for Base-64
@@ -46,7 +43,7 @@ byte B64_DecodeByte( byte b );
  * Base64 index table.
  */
 
-static const char b64_table[] = {
+static const char b64_standart_table[] = {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
     'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
     'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -55,6 +52,17 @@ static const char b64_table[] = {
     'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
     'w', 'x', 'y', 'z', '0', '1', '2', '3',
     '4', '5', '6', '7', '8', '9', '+', '/'
+};
+
+static const char b64_table_url_safe[] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+    'w', 'x', 'y', 'z', '0', '1', '2', '3',
+    '4', '5', '6', '7', '8', '9', '-', '_'
 };
 
 /**
@@ -80,46 +88,54 @@ unsigned char *
 b64_decode_ex (const char *, size_t, size_t *);
 
 /**
+ * @brief b64_table_by_standard
+ * @param standard
+ * @return
+ */
+static const char* b64_table_by_standard(dap_enc_b64_standard_t standard)
+{
+
+    switch (standard) {
+    case DAP_ENC_STANDARD_B64:
+        return b64_standart_table;
+    case DAP_ENC_STANDARD_B64_URLSAFE:
+        return b64_table_url_safe;
+    default:
+        perror("Unknown base64 standard");
+        abort();
+    }
+}
+
+/**
  * @brief dap_enc_base64_decode
  * @param in
  * @param in_size
  * @param out
  * @return
  */
-size_t dap_enc_base64_decode(const char * in_raw, size_t in_size,void * out, dap_enc_b64_standard_t standard)
+size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc_b64_standard_t standard)
 {
     //B64_Decode( in, in_size, (byte*) out );
     //return B64_GetSize( in_size,0 );
     uint8_t * out_bytes = (uint8_t*) out;
 
-    int i = 0;
     int j = 0;
-    int l = 0;
+    int8_t l = 0, i = 0;
     size_t l_size = 0;
     unsigned char buf[3];
     unsigned char tmp[4];
 
-    char* in = (char*)malloc(in_size);
-    memcpy(in,in_raw,in_size);
+    const char* b64_table = b64_table_by_standard(standard);
 
-    if(standard == DAP_ENC_STANDARD_B64_URLSAFE)
-        for(size_t i=0; i < in_size; i++)
-        {
-            if(in[i] == '_')
-                in[i] = '/';
-            else if(in[i] == '-')
-                in[i] = '+';
-        }
-
-    // alloc
-    //dec = (unsigned char *) b64_malloc(1);
     if (NULL == out) { return 0; }
 
     // parse until end of source
     while (in_size--) {
         // break if char is `=' or not base64 char
         if ('=' == in[j]) { break; }
-        if (!(isalnum(in[j]) || '+' == in[j] || '/' == in[j])) { break; }
+
+        if (!(isalnum(in[j]) || in[j] == b64_table[62] || in[j] == b64_table[63]))
+            break;
 
         // read up to 4 bytes at a time into `tmp'
         tmp[i++] = in[j++];
@@ -194,12 +210,14 @@ size_t dap_enc_base64_decode(const char * in_raw, size_t in_size,void * out, dap
  */
 size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, dap_enc_b64_standard_t standard)
 {
-    int i = 0;
+    uint8_t i = 0;
     int j = 0;
     size_t size = 0;
     unsigned char buf[4];
     unsigned char tmp[3];
     const unsigned char * l_in_bytes = (const unsigned char*) a_in;
+
+    const char* b64_table = b64_table_by_standard(standard);
 
     if (NULL == a_out) { return 0; }
 
@@ -246,16 +264,6 @@ size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, 
         // append `=' to `enc'
         while ((i++ < 3)) {
             a_out[size++] = '=';
-        }
-    }
-
-    if(standard == DAP_ENC_STANDARD_B64_URLSAFE) {
-        for(size_t i=0; i < size; i++)
-        {
-            if(a_out[i] == '/')
-                a_out[i] = '_';
-            else if(a_out[i] == '+')
-                a_out[i] = '-';
         }
     }
 
@@ -381,7 +389,7 @@ char B64_EncodeByte( byte b )
         return (byte)( b - 52 + '0' );
     if( b == 62 )
         return (byte)'-';
-    //if( b == 63 )
+
     return (byte)'_';
 }
 
