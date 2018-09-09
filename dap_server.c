@@ -377,29 +377,30 @@ void* thread_loop(void * arg)
 
 /**
  * @brief dap_server_loop Main server loop
- * @param sh Server instance
+ * @param a_server Server instance
  * @return Zero if ok others if not
  */
-int dap_server_loop(dap_server_t * sh)
+int dap_server_loop(dap_server_t * a_server)
 {
     int thread_arg[_count_threads];
     pthread_t thread_listener[_count_threads];
-
-    for(size_t i = 0; i < _count_threads; i++)
-    {
-        thread_arg[i] = (int)i;
-        listener_clients_loops[i] = ev_loop_new(0);
-        async_watchers[i].data = sh;
-        ev_async_init(&async_watchers[i], set_client_thread_cb);
-        ev_async_start(listener_clients_loops[i], &async_watchers[i]);
-        pthread_create(&thread_listener[i], NULL, thread_loop, &thread_arg[i]);
-    }
-
-    _current_run_server = sh;
     struct ev_loop * ev_main_loop = ev_default_loop(0);
-    struct ev_io w_accept; w_accept.data = sh;
-    ev_io_init(&w_accept, accept_cb, sh->socket_listener, EV_READ);
-    ev_io_start(ev_main_loop, &w_accept);
+
+    if ( a_server ) {
+        for(size_t i = 0; i < _count_threads; i++)
+        {
+            thread_arg[i] = (int)i;
+            listener_clients_loops[i] = ev_loop_new(0);
+            async_watchers[i].data = a_server;
+            ev_async_init(&async_watchers[i], set_client_thread_cb);
+            ev_async_start(listener_clients_loops[i], &async_watchers[i]);
+            pthread_create(&thread_listener[i], NULL, thread_loop, &thread_arg[i]);
+        }
+        _current_run_server = a_server;
+        struct ev_io w_accept; w_accept.data = a_server;
+        ev_io_init(&w_accept, accept_cb, a_server->socket_listener, EV_READ);
+        ev_io_start(ev_main_loop, &w_accept);
+    }
     ev_run(ev_main_loop, 0);
 
     return 0;
