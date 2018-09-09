@@ -12,7 +12,7 @@ set(DAP_CHAIN_NET_SRV_VPN_HEADERS
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
 
 
-target_link_libraries(dap_chain_net_srv_cpn dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv )
+target_link_libraries(dap_chain_net_srv_vpn dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv )
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
