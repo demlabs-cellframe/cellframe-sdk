@@ -24,9 +24,9 @@
 
 #include "stream.h"
 #include "stream_pkt.h"
-#include "stream_ch.h"
-#include "stream_ch_proc.h"
-#include "stream_ch_pkt.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_stream_ch_pkt.h"
 #include "stream_session.h"
 
 #include "dap_server_client.h"

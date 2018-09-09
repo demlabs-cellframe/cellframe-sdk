@@ -29,7 +29,7 @@
 #include <ev.h>
 
 #include "stream_session.h"
-#include "stream_ch.h"
+#include "dap_stream_ch.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
 
