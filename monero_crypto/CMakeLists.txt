@@ -397,6 +397,8 @@ endif()
 
 
 add_library(${PROJECT_NAME} STATIC ${monero_crypto_sources})
+target_include_directories(monero_crypto INTERFACE .)
+
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
