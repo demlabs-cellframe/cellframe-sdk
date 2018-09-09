@@ -23,9 +23,9 @@
 */
 
 #include "dap_common.h"
-#include "dap_chain_section.h"
-#include "dap_chain_section_tx.h"
-#include "dap_chain_section_roots.h"
-#include "dap_chain_section_coin.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_hashtree_roots.h"
+#include "dap_chain_datum_coin.h"
 
 #define LOG_TAG "dap_chain_secion"

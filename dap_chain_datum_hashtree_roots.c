@@ -24,6 +24,6 @@
 
 
 #include "dap_common.h"
-#include "dap_chain_section_roots.h"
+#include "dap_chain_datum_hashtree_roots.h"
 
-#define LOG_TAG "dap_chain_section_roots"
+#define LOG_TAG "dap_chain_datum_hashtree_roots"

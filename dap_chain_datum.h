@@ -28,42 +28,42 @@
 #include "dap_chain_common.h"
 
 /// End section, means all the rest of the block is empty
-#define DAP_CHAIN_SECTION_END                 0x0000
+#define dap_chain_datum_END                 0x0000
 /// Section with additional roots, for example transaction roots
-#define DAP_CHAIN_SECTION_ROOTS 0x0001
+#define dap_chain_datum_hashtree_roots 0x0001
 
 /// Transaction header section
-#define DAP_CHAIN_SECTION_TX                  0x0100
+#define dap_chain_datum_TX                  0x0100
 
 /// Transaction request section
-#define DAP_CHAIN_SECTION_TX_REQUEST          0x0300
+#define dap_chain_datum_TX_REQUEST          0x0300
 
 /// Smart contract: DVM code section
-#define DAP_CHAIN_SECTION_DVM_CODE            0x0900
+#define dap_chain_datum_DVM_CODE            0x0900
 /// Smart contract: DVM code section
-#define DAP_CHAIN_SECTION_DVM_DATA            0x0901
+#define dap_chain_datum_DVM_DATA            0x0901
 
 /// Smart contract: EVM code section
-#define DAP_CHAIN_SECTION_EVM_CODE            0x0910
+#define dap_chain_datum_EVM_CODE            0x0910
 
 /// Smart contract: EVM data section
-#define DAP_CHAIN_SECTION_EVM_DATA            0x0911
+#define dap_chain_datum_EVM_DATA            0x0911
 
 /// Pub key section, with sign and address
-#define DAP_CHAIN_SECTION_PKEY                0x0c00
+#define dap_chain_datum_PKEY                0x0c00
 
 
 /// Coin
-#define DAP_CHAIN_SECTION_COIN                0xf000
+#define dap_chain_datum_COIN                0xf000
 
 /**
   * @struct dap_chain_block_section
   * @brief section inside the block
   */
 
-typedef struct dap_chain_section{
+typedef struct dap_chain_datum{
     uint16_t type; // Section type
     uint8_t data[]; // data
-} DAP_ALIGN_PACKED dap_chain_section_t;
+} DAP_ALIGN_PACKED dap_chain_datum_t;
 
 

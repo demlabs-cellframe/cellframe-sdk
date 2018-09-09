@@ -23,6 +23,6 @@
 */
 
 #include "dap_common.h"
-#include "dap_chain_section_tx.h"
+#include "dap_chain_datum_tx.h"
 
-#define LOG_TAG "dap_chain_section_tx"
+#define LOG_TAG "dap_chain_datum_tx"

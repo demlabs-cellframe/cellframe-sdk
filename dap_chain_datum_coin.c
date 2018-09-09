@@ -21,4 +21,4 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_coin.h"
+#include "dap_chain_datum_coin.h"

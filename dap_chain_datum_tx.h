@@ -23,7 +23,7 @@
 */
 #pragma once
 #include "dap_chain_common.h"
-#include "dap_chain_section.h"
+#include "dap_chain_datum.h"
 
 typedef enum dap_chain_tx_item_type{
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction inputs
@@ -33,14 +33,14 @@ typedef enum dap_chain_tx_item_type{
 } dap_chain_tx_item_type_t;
 
 /**
-  * @struct dap_chain_section_tx
+  * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
   */
-typedef struct dap_chain_section_tx{
+typedef struct dap_chain_datum_tx{
     struct {
         uint64_t lock_time;
         uint32_t tx_items_size; // size of next sequencly lying tx_item sections would be decided to belong this transaction
     } DAP_ALIGN_PACKED header;
     uint8_t tx_items[];
-} DAP_ALIGN_PACKED dap_chain_section_tx_t;
+} DAP_ALIGN_PACKED dap_chain_datum_tx_t;
 

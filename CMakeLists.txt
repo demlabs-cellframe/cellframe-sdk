@@ -8,11 +8,9 @@ set(DAP_CHAIN_SRCS
         dap_chain_datum_tx.c
         dap_chain_datum_coin.c
         dap_chain.c
-        dap_chain_ops.c
         )
 
 set(DAP_CHAIN_HEADERS
-        dap_chain_ops.h
         dap_chain.h
         dap_chain_internal.h
         dap_chain_common.h
@@ -28,7 +26,9 @@ set(DAP_CHAIN_HEADERS
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 
 
-target_link_libraries(dap_chain dap_core )
+target_link_libraries(dap_chain dap_core dap_chain_block )
+target_include_directories(dap_chain INTERFACE .)
+
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
