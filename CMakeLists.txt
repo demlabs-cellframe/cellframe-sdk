@@ -4,7 +4,7 @@ project (dap_chain)
 set(DAP_CHAIN_SRCS 
 	dap_chain_common.c
 	dap_chain_datum.c 
-	dap_chain_datum_roots.c
+        dap_chain_datum_hashtree_roots.c
         dap_chain_datum_tx.c
         dap_chain_datum_coin.c
         dap_chain.c
@@ -17,7 +17,7 @@ set(DAP_CHAIN_HEADERS
         dap_chain_internal.h
         dap_chain_common.h
 	dap_chain_datum.h
-	dap_chain_datum_roots.h
+        dap_chain_datum_hashtree_roots.h
 	dap_chain_datum_tx.h
         dap_chain_datum_tx_in.h
         dap_chain_datum_tx_out.h
