@@ -1,18 +1,18 @@
 cmake_minimum_required(VERSION 2.8)
-project (dap_chain_net_srv_tx)
+project (dap_chain_net_srv_datum)
   
-set(DAP_CHAIN_NET_SRV_TX_SRCS 
-	dap_chain_net_srv_tx.c 
+set(DAP_CHAIN_NET_SRV_DATUM_SRCS 
+	dap_chain_net_srv_datum.c 
         )
 
-set(DAP_CHAIN_NET_SRV_TX_HEADERS
-        dap_chain_net_srv_tx.h
+set(DAP_CHAIN_NET_SRV_DATUM_HEADERS
+        dap_chain_net_srv_datum.h
     )
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_TX_SRCS} ${DAP_CHAIN_NET_SRV_TX_HEADERS})
+add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_DATUM_SRCS} ${DAP_CHAIN_NET_SRV_DATUM_HEADERS})
 
 
-target_link_libraries(dap_chain_net_srv_tx dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv )
+target_link_libraries(dap_chain_net_srv_datum dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv )
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
