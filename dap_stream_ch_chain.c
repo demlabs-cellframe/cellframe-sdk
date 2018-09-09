@@ -36,7 +36,8 @@
  */
 int dap_stream_ch_chain_init()
 {
-
+    log_it(L_NOTICE,"Chain blocks and datums exchange channel initialized");
+    return 0;
 }
 
 /**
