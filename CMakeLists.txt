@@ -15,6 +15,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV
 
 
 target_link_libraries(dap_chain_net_srv dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net )
+target_include_directories(dap_chain_net_srv INTERFACE .)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
