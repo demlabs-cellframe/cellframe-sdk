@@ -13,6 +13,8 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_DATUM_POOL_SRCS} ${DAP_CH
 
 
 target_link_libraries(dap_chain_net_srv_datum_pool dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv dap_chain_net_srv_datum )
+target_include_directories(dap_chain_net_srv_datum_pool INTERFACE .)
+
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
