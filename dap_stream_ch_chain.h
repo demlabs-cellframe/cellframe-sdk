@@ -24,6 +24,6 @@
 
 #pragma once
 
-int dap_stream_ch_chain_init(const char * a_network_name, const char * a_network_type);
+int dap_stream_ch_chain_init();
 void dap_stream_ch_chain_deinit();
 

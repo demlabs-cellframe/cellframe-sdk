@@ -28,13 +28,13 @@
 
 #include "dap_stream_ch_chain.h"
 
+#define LOG_TAG "stream_ch_chain"
+
 /**
  * @brief dap_stream_ch_chain_init
- * @param a_network_name
- * @param a_network_type
  * @return
  */
-int dap_stream_ch_chain_init(const char * a_network_name, const char * a_network_type)
+int dap_stream_ch_chain_init()
 {
 
 }
