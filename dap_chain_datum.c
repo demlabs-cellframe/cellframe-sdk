@@ -1,8 +1,8 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://github.com/demlabsinc
+ * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
