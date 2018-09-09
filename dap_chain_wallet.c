@@ -29,6 +29,24 @@
 #define LOG_TAG "dap_chain_wallet"
 
 /**
+ * @brief dap_chain_wallet_init
+ * @return
+ */
+int dap_chain_wallet_init()
+{
+   return 0;
+}
+
+/**
+ * @brief dap_chain_wallet_deinit
+ */
+void dap_chain_wallet_deinit()
+{
+
+}
+
+
+/**
  * @brief dap_chain_wallet_open
  * @param a_file_name
  * @param a_sig_type

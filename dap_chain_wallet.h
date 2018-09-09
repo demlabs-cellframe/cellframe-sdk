@@ -29,6 +29,10 @@ typedef struct dap_chain_wallet{
     void * _inheritor;
 } dap_chain_wallet_t;
 
+
+int dap_chain_wallet_init();
+void dap_chain_wallet_deinit();
+
 dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sig_type_t a_sig_type); // Creates new one if not found
 void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet);
 
