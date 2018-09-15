@@ -4,7 +4,7 @@
 #include <signal.h>
 
 #include "dap_process_manager.h"
-#include "dap_common.h"
+#include "../dap_common.h"
 
 #undef LOG_TAG
 #define LOG_TAG "dap_process_manager"
