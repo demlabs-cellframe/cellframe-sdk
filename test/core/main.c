@@ -9,6 +9,8 @@ int main(void) {
     dap_common_test_run();
 #ifdef __linux__
 #include "dap_process_mem_test.h"
+#include "dap_cpu_monitor_test.h"
     dap_process_mem_test_run();
+    dap_cpu_monitor_test_run();
 #endif
 }
