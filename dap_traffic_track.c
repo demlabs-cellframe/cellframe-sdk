@@ -1,5 +1,6 @@
 #include "dap_traffic_track.h"
 #include "dap_common.h"
+#include "dap_cpu_monitor.h"
 
 #include <pthread.h>
 
@@ -95,6 +96,9 @@ static void _timeout_cb()
         }
     }
 
+    /* TODO find some better solution and place for this line */
+    _dap_server->cpu_stats = dap_cpu_get_stats();
+
     pthread_mutex_unlock(&_dap_server->mutex_on_hash);
 
     if(_callback != NULL) {
@@ -107,6 +111,8 @@ static void _timeout_cb()
 void dap_traffic_track_init(dap_server_t * server,
                             time_t timeout)
 {
+    dap_cpu_monitor_init();
+
     _dap_server = server;
     _timeout_watcher.repeat = timeout;
     loop = EV_DEFAULT;
@@ -123,6 +129,7 @@ void dap_traffic_track_deinit()
     ev_timer_stop(loop, &_timeout_watcher);
     ev_loop_destroy(loop);
     log_it(L_NOTICE, "Deinitialized traffic track module");
+    dap_cpu_monitor_deinit();
 }
 
 void dap_traffic_callback_stop() {

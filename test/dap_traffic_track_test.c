@@ -16,11 +16,11 @@ static bool is_callback_result_success = false;
 
 static void success_callback(dap_server_t* server)
 {
-    dap_pass_msg("call success_callback");
+    dap_pass_msg("Call success_callback");
     pthread_mutex_lock(&_dap_server->mutex_on_hash);
     size_t cnt = HASH_COUNT(server->clients);
     pthread_mutex_unlock(&_dap_server->mutex_on_hash);
-    dap_assert(cnt == moc_dap_server_clients.count, "dap server amount clients");
+    dap_assert(cnt == moc_dap_server_clients.count, "Dap server amount clients");
     is_callback_result_success = true;
 }
 
@@ -33,7 +33,7 @@ static void test_callback() {
     ev_run(loop, EVRUN_ONCE);
 
     usleep(1000); // wait for callback
-    dap_assert(is_callback_result_success, "callback_result");
+    dap_assert(is_callback_result_success, "Callback_result");
     dap_traffic_callback_stop();
 }
 

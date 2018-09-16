@@ -27,7 +27,9 @@
 #include <pthread.h>
 #include "uthash.h"
 
+#include "dap_cpu_monitor.h"
 #include "dap_server_client.h"
+
 
 typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
 
@@ -55,6 +57,8 @@ typedef struct dap_server{
 
     dap_thread_t proc_thread;
     pthread_mutex_t mutex_on_hash;
+
+    dap_cpu_stats_t cpu_stats;
 
     dap_server_callback_t server_delete_callback;
 
