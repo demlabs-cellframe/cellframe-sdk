@@ -41,8 +41,8 @@ static char *s_configs_path = "/opt/dap/etc";
 
 
 /**
- * @brief dap_config_init
- * @param a_configs_path If NULL path is set to default
+ * @brief dap_config_init Initialization settings
+ * @param[in] a_configs_path If NULL path is set to default
  * @return
  */
 int dap_config_init(const char * a_configs_path)
@@ -58,7 +58,7 @@ int dap_config_init(const char * a_configs_path)
 }
 
 /**
- * @brief dap_config_deinit
+ * @brief dap_config_deinit Deinitialize settings
  */
 void dap_config_deinit()
 {
@@ -67,8 +67,8 @@ void dap_config_deinit()
 
 
 /**
- * @brief get_array_length
- * @param value
+ * @brief get_array_length Function parse string and return array length
+ * @param[in] value
  * @details internal function parse string and return array length
  * @return
  */
@@ -82,9 +82,9 @@ static uint16_t get_array_length(const char* str) {
     return array_length;
 }
 /**
- * @brief dap_config_open
- * @param a_name
- * @return
+ * @brief dap_config_open Open the configuration settings
+ * @param[in] a_name Configuration name
+ * @return dap_config_t Configuration
  */
 dap_config_t * dap_config_open(const char * a_name)
 {
@@ -275,8 +275,8 @@ dap_config_t * dap_config_open(const char * a_name)
 }
 
 /**
- * @brief dap_config_close
- * @param a_config
+ * @brief dap_config_close Closing the configuration
+ * @param[in] a_config Configuration
  */
 void dap_config_close(dap_config_t * a_config)
 {
@@ -311,10 +311,10 @@ void dap_config_close(dap_config_t * a_config)
 }
 
 /**
- * @brief dap_config_get_item_int32
- * @param a_config
- * @param a_section_path
- * @param a_item_name
+ * @brief dap_config_get_item_int32 Getting a configuration item as a int32
+ * @param[in] a_config
+ * @param[in] a_section_path
+ * @param[in] a_item_name
  * @return
  */
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
@@ -323,11 +323,11 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
 }
 
 /**
- * @brief dap_config_get_item_int32_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
+ * @brief dap_config_get_item_int32_default Getting a configuration item as a int32
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
+ * @param[in] a_default
  * @return
  */
 int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int32_t a_default)
@@ -338,10 +338,10 @@ int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * 
 
 
 /**
- * @brief dap_config_get_item
- * @param a_config
- * @param a_section_path
- * @param a_item_name
+ * @brief dap_config_get_item Get the configuration as a item
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
  * @return
  */
 static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
@@ -364,10 +364,10 @@ static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const ch
 
 
 /**
- * @brief dap_config_get_item_str
- * @param a_config
- * @param a_section_path
- * @param a_item_name
+ * @brief dap_config_get_item_str Getting a configuration item as a string
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
  * @return
  */
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
@@ -380,10 +380,10 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
 
 
 /**
- * @brief dap_config_get_array_str
- * @param a_config
- * @param a_section_path
- * @param a_item_name
+ * @brief dap_config_get_array_str Getting an array of configuration items as a string
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
  * @return
  */
 char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
@@ -398,11 +398,11 @@ char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_
 
 
 /**
- * @brief dap_config_get_item_str_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_value_default
+ * @brief dap_config_get_item_str_default Getting an array of configuration items as a string
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
+ * @param[in] a_value_default Default
  * @return
  */
 const char * dap_config_get_item_str_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, const char * a_value_default)
@@ -424,10 +424,10 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
 }
 
 /**
- * @brief dap_config_get_item_bool
- * @param a_config
- * @param a_section_path
- * @param a_item_name
+ * @brief dap_config_get_item_bool Getting a configuration item as a boolean
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name Setting
  * @return
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
@@ -437,11 +437,11 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
 
 
 /**
- * @brief dap_config_get_item_bool_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
+ * @brief dap_config_get_item_bool_default Getting a configuration item as a boolean
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name Setting
+ * @param[in] a_default Default
  * @return
  */
 bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_section_path,
@@ -452,10 +452,10 @@ bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_se
 }
 
 /**
- * @brief dap_config_get_item_double
- * @param a_config
- * @param a_section_path
- * @param a_item_name
+ * @brief dap_config_get_item_double Getting a configuration item as a floating-point value
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name Setting
  * @return
  */
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)

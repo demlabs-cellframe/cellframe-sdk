@@ -62,10 +62,18 @@ static FILE * s_log_file = NULL;
 
 static char log_tag_fmt_str[10];
 
+/**
+ * @brief set_log_level Sets the logging level
+ * @param[in] ll logging level
+ */
 void set_log_level(enum log_level ll) {
     log_level = ll;
 }
 
+/**
+ * @brief dap_set_log_tag_width Sets the length of the label
+ * @param[in] width Length not more than 99
+ */
 void dap_set_log_tag_width(size_t width) {
     if (width > 99) {
         fprintf(stderr,"Can't set width %zd", width);
@@ -78,6 +86,11 @@ void dap_set_log_tag_width(size_t width) {
     strcat(log_tag_fmt_str, "s]\t");
 }
 
+/**
+ * @brief dap_common_init initialise
+ * @param[in] a_log_file
+ * @return
+ */
 int dap_common_init(const char * a_log_file)
 {
     srand((unsigned int)time(NULL));
@@ -95,11 +108,20 @@ int dap_common_init(const char * a_log_file)
     return 0;
 }
 
+/**
+ * @brief dap_common_deinit Deinitialise
+ */
 void dap_common_deinit()
 {
     if(s_log_file) fclose(s_log_file);
 }
 
+/**
+ * @brief _log_it Writes information to the log
+ * @param[in] log_tag Tag
+ * @param[in] ll Log level
+ * @param[in] format
+ */
 void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
 {
     if(ll<log_level)
@@ -186,13 +208,23 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
     pthread_mutex_unlock(&mutex);
 }
 
+/**
+ * @brief log_error Error log
+ * @return
+ */
 const char * log_error()
 {
     return last_error;
 }
 
+
 #define INT_DIGITS 19		/* enough for 64 bit integer */
 
+/**
+ * @brief itoa  The function converts an integer num to a string equivalent and places the result in a string
+ * @param[in] i number
+ * @return
+ */
 char *itoa(int i)
 {
     /* Room for INT_DIGITS digits, - and '\0' */
@@ -217,9 +249,9 @@ char *itoa(int i)
 
 /**
  * @brief time_to_rfc822 Convert time_t to string with RFC822 formatted date and time
- * @param out Output buffer
- * @param out_size_mac Maximum size of output buffer
- * @param t UNIX time
+ * @param[out] out Output buffer
+ * @param[out] out_size_mac Maximum size of output buffer
+ * @param[in] t UNIX time
  * @return Length of resulting string if ok or lesser than zero if not
  */
 int time_to_rfc822(char * out, size_t out_size_max, time_t t)
@@ -258,7 +290,6 @@ int get_select_breaker()
 
     return breaker_set[0];
 }
-
 int send_select_break()
 {
     if (!initialized) return -1;
@@ -303,9 +334,9 @@ void srand(u_int seed)
 #endif
 
 /**
- * @brief exec_with_ret
- * @param a_cmd
- * @return
+ * @brief exec_with_ret Executes a command with result return
+ * @param[in] a_cmd Command
+ * @return Result
  */
 char * exec_with_ret(const char * a_cmd)
 {
@@ -325,6 +356,11 @@ FIN:
     return strdup(buf);
 }
 
+/**
+ * @brief exec_with_ret_multistring performs a command with a result return in the form of a multistring
+ * @param[in] a_cmd Coomand
+ * @return Return
+ */
 char * exec_with_ret_multistring(const char * a_cmd)
 {
     FILE * fp;
@@ -349,9 +385,9 @@ FIN:
 static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 /**
- * @brief random_string_fill
- * @param str
- * @param length
+ * @brief random_string_fill Filling a string with random characters
+ * @param[out] str A pointer to a char array
+ * @param[in] length The length of the array or string
  */
 void dap_random_string_fill(char *str, size_t length) {
     for(size_t i = 0; i < length; i++)
@@ -360,9 +396,9 @@ void dap_random_string_fill(char *str, size_t length) {
 }
 
 /**
- * @brief random_string_create
- * @param a_length
- * @return
+ * @brief random_string_create Generates a random string
+ * @param[in] a_length lenght
+ * @return a pointer to an array
  */
 char * dap_random_string_create_alloc(size_t a_length)
 {

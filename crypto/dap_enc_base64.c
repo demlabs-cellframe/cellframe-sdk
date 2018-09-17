@@ -40,7 +40,7 @@ byte B64_DecodeByte( byte b );
 #endif
 
 /**
- * Base64 index table.
+ * @breif Base64 index table.
  */
 
 static const char b64_standart_table[] = {
@@ -54,6 +54,9 @@ static const char b64_standart_table[] = {
     '4', '5', '6', '7', '8', '9', '+', '/'
 };
 
+/**
+ * @breif Base64 url safe index table.
+ */
 static const char b64_table_url_safe[] = {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
     'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -88,9 +91,9 @@ unsigned char *
 b64_decode_ex (const char *, size_t, size_t *);
 
 /**
- * @brief b64_table_by_standard
- * @param standard
- * @return
+ * @brief b64_table_by_standard The function returns the corresponding table of indices
+ * @param[in] standard Base64 or Base64 URLSAFE encoding
+ * @return index table
  */
 static const char* b64_table_by_standard(dap_enc_b64_standard_t standard)
 {
@@ -107,11 +110,11 @@ static const char* b64_table_by_standard(dap_enc_b64_standard_t standard)
 }
 
 /**
- * @brief dap_enc_base64_decode
- * @param in
- * @param in_size
- * @param out
- * @return
+ * @brief dap_enc_base64_decode Function of reverse transformation of base64 algorithm
+ * @param[in] in Pointer to an array with incoming data
+ * @param[in] in_size Size of the array with outgoing data
+ * @param[out] out Pointer to an array with outgoing data
+ * @return Size of the array with outgoing data
  */
 size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc_b64_standard_t standard)
 {
@@ -202,11 +205,11 @@ size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc
 }
 
 /**
- * @brief dap_enc_base64_encode
- * @param a_in
- * @param a_in_size
- * @param a_out
- * @return
+ * @brief dap_enc_base64_encode The function encodes the array according to the base64 algorithm
+ * @param[in] a_in Array with incoming data
+ * @param[in] a_in_size The size of the deviance array in the a_in parameter
+ * @param[out] a_out A pointer to an array in which the data will be after encoding
+ * @return Size of the array with outgoing data
  */
 size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, dap_enc_b64_standard_t standard)
 {

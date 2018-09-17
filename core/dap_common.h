@@ -41,7 +41,9 @@
 #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #endif
 
-
+/**
+ * @brief The log_level enum
+ */
 enum log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0};
 
 #ifdef __cplusplus

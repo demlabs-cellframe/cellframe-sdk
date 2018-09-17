@@ -19,18 +19,18 @@ typedef struct dap_cpu_stats
 } dap_cpu_stats_t;
 
 /**
- * @brief dap_cpu_monitor_init
+ * @brief dap_cpu_monitor_init Monitor CPU initialization
  * @return
  */
 int dap_cpu_monitor_init(void);
 
 /**
- * @brief dap_cpu_monitor_deinit
+ * @brief dap_cpu_monitor_deinit Monitor CPU deinitialization
  */
 void dap_cpu_monitor_deinit(void);
 
 /**
- * @brief dap_cpu_get_stats
+ * @brief dap_cpu_get_stats Getting processor information
  * @return
  */
 dap_cpu_stats_t dap_cpu_get_stats(void);

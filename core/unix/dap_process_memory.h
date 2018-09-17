@@ -9,14 +9,14 @@ typedef struct dap_process_memory {
 
 
 /**
- * @brief get_proc_mem_current
+ * @brief get_proc_mem_current Get information about the amount of RAM consumed for the current process
  * @return
  */
 dap_process_memory_t get_proc_mem_current(void);
 
 /**
- * @brief get_proc_mem_by_pid
- * @param pid
+ * @brief get_proc_mem_by_pid Obtain information about the amount of RAM consumed for a particular process
+ * @param[in] pid PID
  * @return
  */
 dap_process_memory_t get_proc_mem_by_pid(pid_t pid);
