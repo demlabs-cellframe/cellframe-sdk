@@ -1,7 +1,5 @@
 #include "dap_enc_base64_test.h"
 
-static const int BYTE_SIZE = 255;
-
 void test_encode_decode_base64(int count_steps, dap_enc_b64_standard_t standard)
 {
     size_t source_size = 0;
@@ -12,7 +10,7 @@ void test_encode_decode_base64(int count_steps, dap_enc_b64_standard_t standard)
         uint8_t source[source_size];
         char encode_result[DAP_ENC_BASE64_ENCODE_SIZE(source_size)];
         uint8_t decode_result[source_size];
-        generate_random_byte_array(source, source_size, BYTE_SIZE);
+        generate_random_byte_array(source, source_size);
 
         size_t encrypted_size = dap_enc_base64_encode(source, source_size, encode_result, standard);
         size_t out_size = dap_enc_base64_decode(encode_result, encrypted_size, decode_result, standard);
