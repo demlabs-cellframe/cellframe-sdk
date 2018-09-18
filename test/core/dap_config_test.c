@@ -48,6 +48,7 @@ void cleanup_test_case() {
     dap_assert(remove("test_dap_config.cfg") == 0,
            "Remove config file");
     dap_config_close(config);
+    dap_config_deinit();
 }
 
 void test_config_open_fail() {
@@ -60,6 +61,22 @@ void test_get_int() {
                                                   "server_options",
                                                   "TTL_session_key");
     dap_assert(resultTTL == 600, "Get int from config");
+
+}
+
+void test_get_int_default()
+{
+    int32_t resultTTLDefault = dap_config_get_item_int32_default(config,
+                                                                 "server_options",
+                                                                 "TTL_session_key",
+                                                                 650);
+    dap_assert(resultTTLDefault == 600, "The correct valid int value is obtained from the default function");
+
+    int32_t resultTTLDefault1 = dap_config_get_item_int32_default(config,
+                                                                 "server_options",
+                                                                 "TTL_session_key2",
+                                                                 650);
+    dap_assert(resultTTLDefault1 == 650, "The correct default value of int from the default function is obtained");
 }
 
 void test_get_double() {
@@ -69,6 +86,21 @@ void test_get_double() {
     dap_assert(timeout == 1.0, "Get double from config");
 }
 
+void test_get_double_default()
+{
+    double timeoutDefault = dap_config_get_item_double_default(config,
+                                                                "server_options",
+                                                                "timeout",
+                                                                1.0);
+    dap_assert(timeoutDefault == 1.0, "The correct valid double value is obtained from the default function");
+
+    double timeoutDefault2 = dap_config_get_item_double_default(config,
+                                                                "server_options",
+                                                                "ghsdgfyhj",
+                                                                1.5);
+    dap_assert(timeoutDefault2 == 1.5, "The correct default value of double from the default function is obtained");
+}
+
 void test_get_bool() {
     bool rBool = dap_config_get_item_bool(config, "server_options", "vpn_enable");
     dap_assert(rBool == true, "Get bool from config");
@@ -76,7 +108,16 @@ void test_get_bool() {
     dap_assert(rBool == false, "Get bool from config");
 }
 
-void test_array_str() {
+void test_get_bool_default()
+{
+    bool rBool = dap_config_get_item_bool_default(config, "server_options", "proxy_enable", true);
+    dap_assert(rBool == false, "received true true bool value from a function default");
+    rBool = dap_config_get_item_bool_default(config, "server_options", "proxy_enable2", false);
+    dap_assert(rBool == false, "the correct default value of bool is obtained from the default function");
+}
+
+void test_array_str()
+{
     uint16_t arraySize;
     char ** result_arr = dap_config_get_array_str(config, "server_options", "str_arr", &arraySize);
 
@@ -101,16 +142,43 @@ void test_array_int() {
     }
 }
 
+void test_get_item_str()
+{
+    const char* dct = dap_config_get_item_str(config, "db_options", "db_type");
+    const char* E1 = "mongoDb";
+    dap_assert(memcmp(dct,E1,7) == 0, "The function returns const char*");
+}
 
-void dap_config_tests_run() {
+void test_get_item_str_default()
+{
+    const char* E1 = "mongoDb";
+    const char* E2 = "EDb";
+
+    const char* dct2 = dap_config_get_item_str_default(config, "db_options", "db_type", "EDb");
+    dap_assert(memcmp(dct2,E1,7) == 0, "The function returns the true value of const char *");
+
+    const char* dct3 = dap_config_get_item_str_default(config, "db_options", "db_type2", "EDb");
+    dap_assert(memcmp(dct3,E2,3) == 0, "The function returns the default const char *");
+}
+
+
+void dap_config_tests_run()
+{
     dap_print_module_name("dap_config");
 
     init_test_case();
+
     test_config_open_fail();
     test_get_int();
+    test_get_int_default();
     test_get_bool();
+    test_get_bool_default();
     test_array_str();
     test_array_int();
+    test_get_item_str();
+    test_get_item_str_default();
+    test_get_double();
+    test_get_double_default();
 
     cleanup_test_case();
 }

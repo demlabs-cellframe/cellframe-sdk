@@ -29,6 +29,7 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
 bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, bool a_default);
 
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);
+double dap_config_get_item_double_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, double a_default);
 
 #ifdef __cplusplus
 }

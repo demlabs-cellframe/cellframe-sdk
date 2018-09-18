@@ -37,7 +37,8 @@ typedef struct dap_config_internal
 } dap_config_internal_t;
 #define DAP_CONFIG_INTERNAL(a) ( (dap_config_internal_t* ) a->_internal )
 
-static char *s_configs_path = "/opt/dap/etc";
+#define MAX_CONFIG_PATH 256
+static char s_configs_path[MAX_CONFIG_PATH] = "/opt/dap/etc";
 
 
 /**
@@ -47,8 +48,8 @@ static char *s_configs_path = "/opt/dap/etc";
  */
 int dap_config_init(const char * a_configs_path)
 {
-    if( a_configs_path ){
-        s_configs_path = strdup(a_configs_path);
+    if( a_configs_path ) {
+        strcpy(s_configs_path, a_configs_path);
         char cmd[1024];
         snprintf(cmd,sizeof(cmd),"test -d %s || mkdir -p %s",a_configs_path,a_configs_path);
         system(cmd);
@@ -461,5 +462,19 @@ bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_se
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
     return atof(dap_config_get_item_str(a_config,a_section_path,a_item_name));
+}
+
+/**
+ * @brief dap_config_get_item_double Getting a configuration item as a floating-point value
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name Setting
+ * @param[in] a_default Defailt
+ * @return
+ */
+double dap_config_get_item_double_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, double a_default)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    return l_str_ret?atof(l_str_ret):a_default;
 }
 
