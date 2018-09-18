@@ -105,7 +105,6 @@ const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
  */
 int dap_enc_key_init()
 {
-
     return 0;
 }
 

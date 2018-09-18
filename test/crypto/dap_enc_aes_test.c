@@ -1,10 +1,7 @@
 #include "dap_enc_aes_test.h"
 
-static const int BYTE_SIZE = 256;
-
-
-
-void test_encode_decode(int count_steps) {
+void test_encode_decode(int count_steps)
+{
     size_t source_size = 0;
 
     for(int i = 1; i <= count_steps; i++) {
@@ -34,16 +31,19 @@ void test_encode_decode(int count_steps) {
     dap_pass_msg("Encode and decode")
 }
 
-void init_test_case() {
+void init_test_case()
+{
     srand((uint)time(NULL));
     dap_enc_key_init();
 }
 
-void cleanup_test_case() {
+void cleanup_test_case()
+{
     dap_enc_key_deinit();
 }
 
-void dap_enc_aes_tests_run() {
+void dap_enc_aes_tests_run()
+{
     dap_print_module_name("dap_enc_aes");
     init_test_case();
 
