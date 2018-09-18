@@ -15,7 +15,7 @@ void test_encode_decode(int count_steps) {
         uint8_t source[source_size];
         uint8_t encrypted[source_size + AES_BLOCK_SIZE];
         uint8_t result[source_size + AES_BLOCK_SIZE];
-        generate_random_byte_array(source, source_size, BYTE_SIZE);
+        generate_random_byte_array(source, source_size);
 
         size_t encrypted_size = dap_enc_aes_encode(key, source,
                                                    source_size, encrypted);
