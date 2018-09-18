@@ -12,6 +12,8 @@
 #include "liboqs/kex_sidh_cln16/kex_sidh_cln16.h"
 #include "liboqs/kex_sidh_cln16/SIDH.h"
 
+#define DAFAULT_SIDH16_KEY_SIZE 0 // TODO
+
 //static const char *P751 = "p751";
 
 static const char *CompressedP751 = "compressedp751";
@@ -25,7 +27,12 @@ static int isCompressed(void *_inheritor) {
 
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
-void dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
+void dap_enc_sidh16_key_new(struct dap_enc_key* a_key)
+{
+    dap_enc_sidh16_key_new_size(a_key, DAFAULT_SIDH16_KEY_SIZE);
+}
+
+void dap_enc_sidh16_key_new_size(struct dap_enc_key *a_key, size_t a_size) {
     (void)a_size;
     a_key = DAP_NEW(dap_enc_key_t);
     if(a_key == NULL)

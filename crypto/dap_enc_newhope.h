@@ -5,7 +5,8 @@
 
 typedef struct dap_enc_key dap_enc_key_t;
 
-void dap_enc_newhope_key_new_generate(dap_enc_key_t * a_key, size_t a_size);
+void dap_enc_newhope_key_new(dap_enc_key_t * a_key);
+void dap_enc_newhope_key_new_size(dap_enc_key_t * a_key, size_t a_size);
 void dap_enc_newhope_key_new_from_data(dap_enc_key_t * a_key, const void * a_in, size_t a_in_size);
 void dap_enc_newhope_key_new_from_data_public(dap_enc_key_t* a_key, const void * a_in, size_t a_in_size);
 

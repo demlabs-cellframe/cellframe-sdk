@@ -40,9 +40,9 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_pptr_r_size_t key_public_raw_callback;
 
     dap_enc_callback_t new_callback;
+    dap_enc_callback_size_t new_calllback_size;
     dap_enc_callback_data_t new_from_data_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
-    dap_enc_callback_size_t new_generate_callback;
     dap_enc_callback_str_t new_from_str_callback;
 
     dap_enc_callback_t delete_callback;
@@ -53,9 +53,9 @@ struct dap_enc_key_callbacks{
                             .size_max = 8,
                             .enc = dap_enc_aes_encode,
                             .dec = dap_enc_aes_decode,
-                            .new_callback = NULL,
+                            .new_callback = dap_enc_aes_key_new,
                             .delete_callback = NULL,
-                            .new_generate_callback = dap_enc_aes_key_new_generate,
+                            .new_calllback_size = dap_enc_aes_key_new_size,
                             .new_from_data_callback = dap_enc_aes_key_new_from_data,
                             .new_from_str_callback = dap_enc_aes_key_new_from_str
                            },
@@ -65,9 +65,9 @@ struct dap_enc_key_callbacks{
                             .size_max = 64,
                             .enc = dap_enc_newhope_encode,
                             .dec = dap_enc_newhope_decode,
-                            .new_callback = NULL,
+                            .new_callback = dap_enc_newhope_key_new,
                             .delete_callback = NULL,
-                            .new_generate_callback = dap_enc_newhope_key_new_generate,
+                            .new_calllback_size = dap_enc_newhope_key_new_size,
                             .new_from_data_callback = dap_enc_newhope_key_new_from_data,
                             .key_public_raw_callback = dap_enc_newhope_key_public_raw,
                             .new_from_data_public_callback = dap_enc_newhope_key_new_from_data_public
@@ -77,9 +77,9 @@ struct dap_enc_key_callbacks{
                             .size_max = 64,
                             .enc = dap_enc_sidh16_encode,
                             .dec = dap_enc_sidh16_decode,
-                            .new_callback = NULL,
+                            .new_callback = dap_enc_sidh16_key_new,
                             .delete_callback = NULL,
-                            .new_generate_callback = dap_enc_sidh16_key_new_generate,
+                            .new_calllback_size = dap_enc_sidh16_key_new_size,
                             .new_from_data_callback = dap_enc_sidh16_key_new_from_data
                            },
     [DAP_ENC_KEY_TYPE_RLWE_MSRLN16] = {
@@ -87,9 +87,9 @@ struct dap_enc_key_callbacks{
                             .size_max = 64,
                             .enc = dap_enc_msrln16_encode,
                             .dec = dap_enc_msrln16_decode,
-                            .new_callback = NULL,
+                            .new_callback = dap_enc_msrln16_key_new,
                             .delete_callback =NULL,
-                            .new_generate_callback = dap_enc_msrln16_key_new_generate,
+                            .new_calllback_size = dap_enc_msrln16_key_new_size,
                             .new_from_data_callback = dap_enc_msrln16_key_new_from_data,
                             .key_public_raw_callback = dap_enc_msrln16_key_public_raw,
                             .new_from_data_public_callback = dap_enc_msrln16_key_new_from_data_public
@@ -146,8 +146,8 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_
 
     if(a_key_type< c_callbacks_size ){
         ret = dap_enc_key_new (a_key_type);
-        if( s_callbacks[a_key_type].new_generate_callback) {
-            s_callbacks[a_key_type].new_generate_callback(ret,a_key_size);
+        if( s_callbacks[a_key_type].new_calllback_size) {
+            s_callbacks[a_key_type].new_calllback_size(ret,a_key_size);
         }
     }
     return ret;

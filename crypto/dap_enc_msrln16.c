@@ -9,38 +9,18 @@
 
 #define LOG_TAG "dap_enc_msrln16"
 
-
-OQS_KEX *kex = NULL;
-
-void *alignce_priv = NULL;
-uint8_t *alice_msg = NULL;
-size_t alice_msg_len;
-uint8_t *alice_key = NULL;
-size_t alice_key_len;
-
-uint8_t *bob_msg = NULL;
-size_t bob_msg_len;
-uint8_t *bob_key = NULL;
-size_t bob_key_len;
-
-
-#define PRINT_HEX_STRING(label, str, len)                        \
-    {   size_t i;                                                \
-        printf("%-20s (%4zu bytes):  ", (label), (size_t)(len)); \
-        for (i = 0; i < (len); i++) {                            \
-         printf("%02X", ((unsigned char *) (str))[i]);           \
-        }                                                        \
-        printf("\n");                                            \
-    }
-
+void dap_enc_msrln16_key_new(struct dap_enc_key* a_key)
+{
+    // TODO
+    dap_enc_msrln16_key_new_size(a_key, 0);
+}
 
 /**
  * @brief dap_enc_msrln16_key_new_generate
  * @param a_key Struct for new key
  * @param a_size Not used
  */
-
-void dap_enc_msrln16_key_new_generate(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
+void dap_enc_msrln16_key_new_size(struct dap_enc_key* a_key, size_t a_size)//(OQS_RAND* rand)
 {
     (void)a_size;
     if (a_key == NULL) {
@@ -186,7 +166,7 @@ size_t dap_enc_msrln16_encode(struct dap_enc_key* a_key, const void * a_in, size
  * @brief aes_key_from_msrln_pub
  * @param key Key for conversion
  */
-void aes_key_from_msrln_pub(dap_enc_key_t* key){
+void aes_key_from_msrln_pub(dap_enc_key_t* key) {
     dap_enc_msrln16_key_t* msrln_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(key);
     key->data = (unsigned char *)malloc(16);
     memcpy(key->data,msrln_key->public_key,16);
