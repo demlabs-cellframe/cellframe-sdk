@@ -124,11 +124,13 @@ void dap_enc_key_deinit()
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
 {
     dap_enc_key_t * ret = NULL;
-    if(a_key_type< c_callbacks_size ){
+    if(a_key_type < c_callbacks_size ) {
         ret = DAP_NEW_Z(dap_enc_key_t);
         if(s_callbacks[a_key_type].new_callback){
             s_callbacks[a_key_type].new_callback(ret);
         }
+    } else {
+        log_it(L_WARNING, "Bad key type");
     }
     return ret;
 }
