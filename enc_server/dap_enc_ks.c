@@ -60,6 +60,7 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
 dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
 {
     dap_http_header_t * hdr_key_id=dap_http_header_find(http->in_headers,"KeyID");
+
     if(hdr_key_id){
         
         dap_enc_ks_key_t * ks_key=dap_enc_ks_find(hdr_key_id->value);
@@ -78,11 +79,13 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
 
 dap_enc_ks_key_t * enc_ks_new()
 {
+    log_it(L_WARNING, "enc_ks_new");
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
     ret->key=dap_enc_key_new(DAP_ENC_KEY_TYPE_RLWE_MSRLN16);
-    int i;
-    for(i=0;i<sizeof(ret->id)-1;i++)
-        ret->id[i]=65+rand()%25;
+
+    for(short i = 0; i < sizeof(ret->id); i++)
+        ret->id[i] = 65 + rand() % 25;
+
     HASH_ADD_STR(ks,id,ret);
     return ret;
 }
@@ -92,9 +95,10 @@ dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
     ret->key=key;
     pthread_mutex_init(&ret->mutex,NULL);
-    int i;
-    for(i=0;i<sizeof(ret->id)-1;i++)
+
+    for(short i = 0; i < sizeof(ret->id); i++)
         ret->id[i]=65+rand()%25;
+
     HASH_ADD_STR(ks,id,ret);
     return ret;
 }

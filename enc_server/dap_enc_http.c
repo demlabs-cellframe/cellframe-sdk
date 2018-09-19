@@ -194,6 +194,7 @@ void enc_http_add_proc(struct dap_http * sh, const char * url)
 
 enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 {
+
     dap_enc_key_t * key= dap_enc_ks_find_http(cl_st->http);
     if(key){
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
