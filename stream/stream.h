@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <ev.h>
@@ -86,12 +87,12 @@ typedef struct stream {
 
 #define STREAM(a) ((stream_t *) (a)->_internal )
 
-extern int stream_init();
+int stream_init();
 
-extern void stream_deinit();
+void stream_deinit();
 
-extern void stream_add_proc_http(struct dap_http * sh, const char * url);
+void stream_add_proc_http(struct dap_http * sh, const char * url);
 
-extern void stream_add_proc_udp(dap_udp_server_t * sh);
+void stream_add_proc_udp(dap_udp_server_t * sh);
 
 #endif
