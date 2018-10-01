@@ -40,7 +40,8 @@ typedef struct dap_chain{
 int dap_chain_init();
 void dap_chain_deinit();
 
-dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
+//dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
+int dap_chain_open();
 void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
 void dap_chain_save(dap_chain_t * a_chain);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
@@ -48,11 +49,11 @@ void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 
 //работа с файлом
-void dap_chain_file_open(dap_chain_block_cache_t* last_g, dap_chain_block_cache_t* last_s, dap_chain_block_cache_t* last_c);
-void dap_chain_file_write(dap_chain_block_cache_t *l_block_cache);
-void dap_chain_update(dap_chain_block_cache_t *l_block_cache);
+int dap_chain_files_open();
+void dap_chain_block_write   (dap_chain_block_cache_t *l_block_cache);
+void dap_chain_update       (dap_chain_block_cache_t *l_block_cache);
 void dap_chain_mine_stop();
-void dap_chain_settot();
+void dap_chain_set_default(bool a_is_gold);
 void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache);
 //работа с файлом
 
