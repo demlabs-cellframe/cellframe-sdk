@@ -29,12 +29,28 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 
+#define DAP_CHAIN_ID_SIZE 8
+#define DAP_CHAIN_NET_ID_SIZE 8
 #define DAP_CHAIN_HASH_SIZE 32
+#define DAP_CHAIN_HASH_FAST_SIZE 64
 #define DAP_CHAIN_ADDR_HASH_SIZE 32
+
+// Chain ID of the whole system
+typedef union dap_chain_id{
+    uint8_t data[DAP_CHAIN_ID_SIZE];
+} DAP_ALIGN_PACKED dap_chain_id_t;
+
+typedef union dap_chain_net_id{
+    uint8_t data[DAP_CHAIN_NET_ID_SIZE];
+} DAP_ALIGN_PACKED dap_chain_net_id_t;
 
 typedef union dap_chain_hash{
     uint8_t data[DAP_CHAIN_HASH_SIZE];
 } DAP_ALIGN_PACKED dap_chain_hash_t;
+
+typedef union dap_chain_hash_fast{
+    uint8_t data[DAP_CHAIN_HASH_FAST_SIZE];
+} DAP_ALIGN_PACKED dap_chain_hash_fast_t;
 
 typedef enum dap_chain_hash_kind {
     HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1

@@ -28,43 +28,60 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 
+
+
 /// End section, means all the rest of the block is empty
 #define dap_chain_datum_END                 0x0000
 /// Section with additional roots, for example transaction roots
 #define dap_chain_datum_hashtree_roots 0x0001
 
 /// Transaction header section
-#define dap_chain_datum_TX                  0x0100
+#define DAP_CHAIN_DATUM_TX                  0x0100
 
 /// Transaction request section
-#define dap_chain_datum_TX_REQUEST          0x0300
+#define DAP_CHAIN_DATUM_TX_REQUEST          0x0300
 
 /// Smart contract: DVM code section
-#define dap_chain_datum_DVM_CODE            0x0900
+#define DAP_CHAIN_DATUM_DVM_CODE            0x0900
 /// Smart contract: DVM code section
-#define dap_chain_datum_DVM_DATA            0x0901
+#define DAP_CHAIN_DATUM_DVM_DATA            0x0901
 
 /// Smart contract: EVM code section
-#define dap_chain_datum_EVM_CODE            0x0910
+#define DAP_CHAIN_DATUM_EVM_CODE            0x0910
 
 /// Smart contract: EVM data section
-#define dap_chain_datum_EVM_DATA            0x0911
+#define DAP_CHAIN_DATUM_EVM_DATA            0x0911
 
 /// Pub key section, with sign and address
-#define dap_chain_datum_PKEY                0x0c00
+#define DAP_CHAIN_DATUM_PKEY                0x0c00
 
 
-/// Coin
-#define dap_chain_datum_COIN                0xf000
+/// Token
+#define DAP_CHAIN_DATUM_TOKEN                0xf000
+
+
+#define DAP_CHAIN_DATUM_ID_SIZE 4
+
+// Datum subchain type id
+typedef union dap_chain_datum_typeid{
+    uint8_t data[DAP_CHAIN_DATUM_ID_SIZE];
+} DAP_ALIGN_PACKED dap_chain_datum_typeid_t;
+
 
 /**
   * @struct dap_chain_block_section
   * @brief section inside the block
   */
-
 typedef struct dap_chain_datum{
-    uint16_t type; // Section type
-    uint8_t data[]; // data
+    uint8_t version_id; // Datum version
+    uint8_t hash_type_id; // Hash type id
+    uint16_t type_id; // Section type id
+    uint16_t hashes_count; // Hashes_number
+    uint8_t hashes_n_signs_n_data[]; // datum stored data goes after the last sign
+                       // Sign block goes after the last hash, every sign type
+                      // has its own predefined size or stores its inside.
+                      // After signs goes data block and and till the end of datum.
 } DAP_ALIGN_PACKED dap_chain_datum_t;
+
 
 
