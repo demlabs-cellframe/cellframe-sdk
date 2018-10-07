@@ -52,7 +52,10 @@ dap_chain_file_header_t g_silver_header;
  */
 int dap_chain_init()
 {
-    dap_chain_open();
+    dap_chain_prepare_env();
+
+    //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
+    //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
 }
 
@@ -78,7 +81,7 @@ void dap_chain_mine_stop(){
 
 void dap_chain_set_default(bool a_is_gold){
 
-    if (a_is_gold = true){
+    if (true == a_is_gold){
         g_gold_chain.difficulty = 1;
         g_gold_chain.blocks_count = 0;
 
@@ -119,15 +122,15 @@ void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache)
  * @param a_file_cache
  * @return
  */
-int dap_chain_open()
+int dap_chain_prepare_env()
 {
     dap_chain_block_t *l_new_block = dap_chain_block_new(NULL);
     dap_chain_block_cache_t *l_new_block_cache = dap_chain_block_cache_new(l_new_block);
-    g_gold_chain.block_first = l_new_block_cache;
+    g_gold_chain.block_cache_first = l_new_block_cache;
 
     l_new_block = dap_chain_block_new(NULL);
     l_new_block_cache = dap_chain_block_cache_new(l_new_block);
-    g_gold_chain.block_last = l_new_block_cache;
+    g_gold_chain.block_cache_last = l_new_block_cache;
 
     g_gold_chain.difficulty = 1;
     //DAP_CHAIN_INTERNAL_LOCAL_NEW(g_gold_chain);
@@ -135,11 +138,11 @@ int dap_chain_open()
 
     l_new_block = dap_chain_block_new(NULL);
     l_new_block_cache = dap_chain_block_cache_new(l_new_block);
-    g_silver_chain.block_first = l_new_block_cache;
+    g_silver_chain.block_cache_first = l_new_block_cache;
 
     l_new_block = dap_chain_block_new(NULL);
     l_new_block_cache = dap_chain_block_cache_new(l_new_block);
-    g_silver_chain.block_last = l_new_block_cache;
+    g_silver_chain.block_cache_last = l_new_block_cache;
 
     g_silver_chain.difficulty = 1;
     //DAP_CHAIN_INTERNAL_LOCAL_NEW(g_silver_chain);
@@ -190,12 +193,13 @@ void dap_chain_block_write(dap_chain_block_cache_t *l_block_cache){
     l_hash_type_chain->blocks_count++;
 
     fseek(l_hash_type_file, 0, SEEK_END);
-    fwrite(l_block_cache->block, sizeof(l_block_cache->block->header), 1, l_hash_type_file);
+    int ret = fwrite(&(l_block_cache->block->header), sizeof(l_block_cache->block->header), 1, l_hash_type_file);
+    //log_it(L_ERROR, "Dap_chain_write_block - %d blocks written", ret);
 
-    memcpy(l_hash_type_chain->block_last->block, l_block_cache->block, sizeof l_block_cache->block->header);
-    l_hash_type_chain->block_last->block_hash = l_block_cache->block_hash;
-    l_hash_type_chain->block_last->block_mine_time = l_block_cache->block_mine_time;
-    l_hash_type_chain->block_last->sections_size = l_block_cache->sections_size;
+    memcpy(l_hash_type_chain->block_cache_last->block, l_block_cache->block, sizeof (dap_chain_block_t));
+    l_hash_type_chain->block_cache_last->block_hash = l_block_cache->block_hash;
+    l_hash_type_chain->block_cache_last->block_mine_time = l_block_cache->block_mine_time;
+    l_hash_type_chain->block_cache_last->sections_size = l_block_cache->sections_size;
 }
 
 /**
@@ -207,9 +211,9 @@ void dap_chain_block_write(dap_chain_block_cache_t *l_block_cache){
 int dap_chain_files_open()
 {
     //bool l_is_need_set_gold = false, l_is_need_set_silver = false;
-    size_t l_header_size = sizeof(g_gold_chain.blocks_count) + sizeof(g_gold_chain.difficulty)
+    size_t l_file_header_size = sizeof(g_gold_chain.blocks_count) + sizeof(g_gold_chain.difficulty)
                  + sizeof(dap_chain_file_header_t);
-
+    log_it(L_ERROR, "Dap_chain_size of header - %u Bytes", l_file_header_size);
     //--------------------------------------------------------------------
     //Init/load gold_hash_file
     //if( access( GOLD_HASH_FILE_NAME, F_OK ) == -1 )
@@ -222,7 +226,7 @@ int dap_chain_files_open()
     }
 
     fseek(g_gold_hash_blocks_file, 0, SEEK_END);
-    if (ftell(g_gold_hash_blocks_file) < l_header_size){
+    if (ftell(g_gold_hash_blocks_file) < l_file_header_size){
         fseek(g_gold_hash_blocks_file, 0, SEEK_SET);
         dap_chain_set_default(true);
     }else{
@@ -233,22 +237,25 @@ int dap_chain_files_open()
     }
 
     fseek(g_gold_hash_blocks_file, 0, SEEK_END);
-    size_t l_file_blocks_sz = ftell(g_gold_hash_blocks_file) - l_header_size;
-    if (0 != l_file_blocks_sz %  sizeof (dap_chain_block_t)){
+    long int l_file_blocks_sz = ftell(g_gold_hash_blocks_file) - (long int)l_file_header_size;
+    long int l_block_header_size = sizeof (g_gold_chain.block_cache_first->block->header);
+    if (0 != l_file_blocks_sz % l_block_header_size){
         log_it(L_ERROR, "Gold hash file is corrupted!");
-        return -2;
+
+        // to get rid of extra trash bytes at the end of the file
+        ftruncate( fileno(g_gold_hash_blocks_file), (l_file_blocks_sz - l_file_blocks_sz % l_block_header_size ) + l_file_header_size);
+
+        // or just return an error
+        //return -2;
     }
     if (l_file_blocks_sz > 0) {
-        fseek(g_gold_hash_blocks_file, l_header_size, SEEK_SET);
-        fread(g_gold_chain.block_first->block, sizeof(dap_chain_block_t), 1, g_gold_hash_blocks_file);
-        dap_chain_block_cache_dump(g_gold_chain.block_first);
+        fseek(g_gold_hash_blocks_file, l_file_header_size, SEEK_SET);
+        fread(&g_gold_chain.block_cache_first->block->header, l_block_header_size, 1, g_gold_hash_blocks_file);
+        dap_chain_block_cache_dump(g_gold_chain.block_cache_first);
 
-        fseek(g_gold_hash_blocks_file, -(int)sizeof(dap_chain_block_t), SEEK_END);
-        fread(g_gold_chain.block_last->block, sizeof(dap_chain_block_t), 1, g_gold_hash_blocks_file);
-        dap_chain_block_cache_dump(g_gold_chain.block_last);
-    } else {
-        memset(g_gold_chain.block_first, 0, sizeof(dap_chain_block_t));
-        memset(g_gold_chain.block_first, 0, sizeof(dap_chain_block_t));
+        fseek(g_gold_hash_blocks_file, -l_block_header_size, SEEK_END);
+        fread(&g_gold_chain.block_cache_last->block->header, l_block_header_size, 1, g_gold_hash_blocks_file);
+        dap_chain_block_cache_dump(g_gold_chain.block_cache_last);
     }
     //log_it(L_INFO, "Header size - %d. Header and hash size - %d. Total file size - %d.",
     //       l_header_size, l_header_and_hash_size, ftell(file_gold_hash_blocks));
@@ -269,7 +276,7 @@ int dap_chain_files_open()
     }
 
     fseek(g_silver_hash_blocks_file, 0, SEEK_END);
-    if (ftell(g_silver_hash_blocks_file) < l_header_size){
+    if (ftell(g_silver_hash_blocks_file) < l_file_header_size){
         fseek(g_silver_hash_blocks_file, 0, SEEK_SET);
         dap_chain_set_default(false);
     }else{
@@ -280,22 +287,24 @@ int dap_chain_files_open()
     }
 
     fseek(g_silver_hash_blocks_file, 0, SEEK_END);
-    l_file_blocks_sz = ftell(g_silver_hash_blocks_file) - l_header_size;
-    if (0 != l_file_blocks_sz %  sizeof (dap_chain_block_t)){
+    l_file_blocks_sz = ftell(g_silver_hash_blocks_file) - (long int)l_file_header_size;
+    if (0 != l_file_blocks_sz % l_block_header_size){
         log_it(L_ERROR, "Silver hash file is corrupted!");
-        return -4;
+
+        // to get rid of extra trash bytes at the end of the file
+        ftruncate( fileno(g_silver_hash_blocks_file), (l_file_blocks_sz - l_file_blocks_sz % l_block_header_size ) + l_file_header_size);
+
+        // or just return an error
+        //return -4;
     }
     if (l_file_blocks_sz > 0) {
-        fseek(g_silver_hash_blocks_file, l_header_size, SEEK_SET);
-        fread(g_silver_chain.block_first->block, sizeof(dap_chain_block_t), 1, g_silver_hash_blocks_file);
-        dap_chain_block_cache_dump(g_silver_chain.block_first);
+        fseek(g_silver_hash_blocks_file, l_file_header_size, SEEK_SET);
+        fread(g_silver_chain.block_cache_first->block, sizeof(dap_chain_block_t), 1, g_silver_hash_blocks_file);
+        dap_chain_block_cache_dump(g_silver_chain.block_cache_first);
 
         fseek(g_silver_hash_blocks_file, -(int)sizeof(dap_chain_block_t), SEEK_END);
-        fread(g_silver_chain.block_last->block, sizeof(dap_chain_block_t), 1, g_silver_hash_blocks_file);
-        dap_chain_block_cache_dump(g_silver_chain.block_last);
-    } else {
-        memset(g_silver_chain.block_first, 0, sizeof(dap_chain_block_t));
-        memset(g_silver_chain.block_first, 0, sizeof(dap_chain_block_t));
+        fread(g_silver_chain.block_cache_last->block, sizeof(dap_chain_block_t), 1, g_silver_hash_blocks_file);
+        dap_chain_block_cache_dump(g_silver_chain.block_cache_last);
     }
     //log_it(L_INFO, "Header size - %d. Header and hash size - %d. Total file size - %d.",
     //       l_header_size, l_header_and_hash_size, ftell(file_silver_hash_blocks));
@@ -338,8 +347,8 @@ dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain)
 {
     dap_chain_block_t* l_block = NULL;
     dap_chain_block_cache_t* l_block_cache = NULL;
-    if ( a_chain->block_last )
-        l_block = dap_chain_block_new( &a_chain->block_last->block_hash );
+    if ( a_chain->block_cache_last )
+        l_block = dap_chain_block_new( &a_chain->block_cache_last->block_hash );
     else
         l_block = dap_chain_block_new( NULL );
 
@@ -351,4 +360,47 @@ dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain)
         log_it(L_ERROR, "Can't allocate next block!");
         return NULL;
     }
+}
+
+void dap_chain_show_hash_blocks_file(FILE *a_hash_blocks_file)
+{
+    if (NULL == a_hash_blocks_file)
+        return;
+
+    dap_chain_t l_chain;
+    dap_chain_file_header_t l_header;
+    dap_chain_block_t l_block;
+
+    fseek(a_hash_blocks_file, 0, SEEK_SET);
+    fread(&l_chain.blocks_count, sizeof(l_chain.blocks_count), 1, a_hash_blocks_file);
+    fread(&l_chain.difficulty, sizeof(l_chain.difficulty), 1, a_hash_blocks_file);
+    fread(&l_header, sizeof(l_header), 1, a_hash_blocks_file);
+
+    fseek(a_hash_blocks_file, 40, SEEK_SET);
+    char buf[PATH_MAX];
+    snprintf(buf, sizeof buf, "/proc/self/fd/%d", fileno(a_hash_blocks_file));
+    readlink(buf, buf, sizeof buf);
+    log_it(L_INFO, " Start of hash sequense from file %s", buf);
+
+    size_t l_ret_sz = fread(&l_block, sizeof(l_block.header), 1, a_hash_blocks_file);
+    while (l_ret_sz > 0){
+        char * l_prev_hash_str = dap_chain_hash_to_str_new(&l_block.header.prev_block);
+        log_it(L_INFO, "  **    prev_block      %s", l_prev_hash_str);
+        DAP_DELETE(l_prev_hash_str);
+        l_ret_sz = fread(&l_block, sizeof(l_block.header), 1, a_hash_blocks_file);
+    }
+    log_it(L_INFO, " End of hash sequense!\n");
+
+}
+
+dap_chain_block_t *dap_chain_get_last_mined_block(bool a_is_gold)
+{
+    dap_chain_block_t *l_new_block = dap_chain_block_new(NULL);
+
+    if (true == a_is_gold)
+        memcpy(l_new_block, g_gold_chain.block_cache_last->block, sizeof (dap_chain_block_t));
+    else
+        memcpy(l_new_block, g_silver_chain.block_cache_last->block, sizeof (dap_chain_block_t));
+
+    return l_new_block;
 }
