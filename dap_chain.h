@@ -56,6 +56,7 @@ void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache);
 void dap_chain_show_hash_blocks_file(FILE *a_hash_blocks_file);
 
 dap_chain_block_t* dap_chain_get_last_mined_block(bool a_is_gold);
+int dap_chain_get_mined_block_count(bool a_is_gold);
 
 dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain);
 

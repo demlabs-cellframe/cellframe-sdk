@@ -26,6 +26,7 @@
 
 #include "dap_chain_internal.h"
 #include "dap_chain.h"
+#include <pthread.h>
 
 #define LOG_TAG "dap_chain"
 
@@ -46,13 +47,15 @@ dap_chain_file_header_t g_silver_header;
 #define GOLD_HASH_FILE_NAME "/opt/"NODE_NETNAME"-node/data/goldhash.bin"
 #define SILVER_HASH_FILE_NAME "/opt/"NODE_NETNAME"-node/data/silverhash.bin"
 
+static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /**
  * @brief dap_chain_init
  * @return
  */
 int dap_chain_init()
 {
-    dap_chain_prepare_env();
+    int ret = dap_chain_prepare_env();
 
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
@@ -151,7 +154,8 @@ int dap_chain_prepare_env()
     //l_chain_internal->file_storage_type = 0x0000; // TODO compressed format
     //l_chain_internal->file_storage = fopen(a_file_storage,"a+");
 
-    dap_chain_files_open();
+    int ret = dap_chain_files_open();
+    return ret;
 }
 
 /**
@@ -190,16 +194,23 @@ void dap_chain_block_write(dap_chain_block_cache_t *l_block_cache){
     } else
         return;
 
+    pthread_mutex_lock(&s_mutex);
+
+    fseek(l_hash_type_file, 0, SEEK_SET);
     l_hash_type_chain->blocks_count++;
+    fwrite(&l_hash_type_chain->blocks_count, sizeof(l_hash_type_chain->blocks_count), 1, l_hash_type_file);
 
     fseek(l_hash_type_file, 0, SEEK_END);
     int ret = fwrite(&(l_block_cache->block->header), sizeof(l_block_cache->block->header), 1, l_hash_type_file);
     //log_it(L_ERROR, "Dap_chain_write_block - %d blocks written", ret);
 
     memcpy(l_hash_type_chain->block_cache_last->block, l_block_cache->block, sizeof (dap_chain_block_t));
+
     l_hash_type_chain->block_cache_last->block_hash = l_block_cache->block_hash;
     l_hash_type_chain->block_cache_last->block_mine_time = l_block_cache->block_mine_time;
     l_hash_type_chain->block_cache_last->sections_size = l_block_cache->sections_size;
+
+    pthread_mutex_unlock(&s_mutex);
 }
 
 /**
@@ -213,15 +224,16 @@ int dap_chain_files_open()
     //bool l_is_need_set_gold = false, l_is_need_set_silver = false;
     size_t l_file_header_size = sizeof(g_gold_chain.blocks_count) + sizeof(g_gold_chain.difficulty)
                  + sizeof(dap_chain_file_header_t);
-    log_it(L_ERROR, "Dap_chain_size of header - %u Bytes", l_file_header_size);
+    //log_it(L_ERROR, "Dap_chain_size of header - %u Bytes", l_file_header_size);
+
     //--------------------------------------------------------------------
     //Init/load gold_hash_file
-    //if( access( GOLD_HASH_FILE_NAME, F_OK ) == -1 )
-    //    l_is_need_set_gold = true;
-
-    g_gold_hash_blocks_file = fopen(GOLD_HASH_FILE_NAME, "a+b");
+    if( access( GOLD_HASH_FILE_NAME, F_OK ) == -1 )
+        g_gold_hash_blocks_file = fopen(GOLD_HASH_FILE_NAME, "w+b");
+    else
+        g_gold_hash_blocks_file = fopen(GOLD_HASH_FILE_NAME, "r+b");
     if (g_gold_hash_blocks_file == NULL){
-        log_it(L_ERROR, "Can't open goldhash file block!");
+        log_it(L_ERROR, "Can't open goldhash block file!");
         return -1;
     }
 
@@ -266,10 +278,10 @@ int dap_chain_files_open()
 
     //--------------------------------------------------------------------
     //Init/load silver_hash_file
-    //if( access( SILVER_HASH_FILE_NAME, F_OK ) == -1 )
-    //    l_is_need_set_gold = true;
-
-    g_silver_hash_blocks_file = fopen(SILVER_HASH_FILE_NAME, "a+b");
+    if( access( SILVER_HASH_FILE_NAME, F_OK ) == -1 )
+        g_silver_hash_blocks_file = fopen(SILVER_HASH_FILE_NAME, "w+b");
+    else
+        g_silver_hash_blocks_file = fopen(SILVER_HASH_FILE_NAME, "r+b");
     if (g_silver_hash_blocks_file == NULL){
         log_it(L_ERROR, "Can't open silverhash file block!");
         return -3;
@@ -371,6 +383,8 @@ void dap_chain_show_hash_blocks_file(FILE *a_hash_blocks_file)
     dap_chain_file_header_t l_header;
     dap_chain_block_t l_block;
 
+    pthread_mutex_lock(&s_mutex);
+
     fseek(a_hash_blocks_file, 0, SEEK_SET);
     fread(&l_chain.blocks_count, sizeof(l_chain.blocks_count), 1, a_hash_blocks_file);
     fread(&l_chain.difficulty, sizeof(l_chain.difficulty), 1, a_hash_blocks_file);
@@ -391,16 +405,28 @@ void dap_chain_show_hash_blocks_file(FILE *a_hash_blocks_file)
     }
     log_it(L_INFO, " End of hash sequense!\n");
 
+    pthread_mutex_unlock(&s_mutex);
+
 }
 
 dap_chain_block_t *dap_chain_get_last_mined_block(bool a_is_gold)
 {
     dap_chain_block_t *l_new_block = dap_chain_block_new(NULL);
 
+    pthread_mutex_lock(&s_mutex);
     if (true == a_is_gold)
         memcpy(l_new_block, g_gold_chain.block_cache_last->block, sizeof (dap_chain_block_t));
     else
         memcpy(l_new_block, g_silver_chain.block_cache_last->block, sizeof (dap_chain_block_t));
+    pthread_mutex_unlock(&s_mutex);
 
     return l_new_block;
+}
+
+int dap_chain_get_mined_block_count(bool a_is_gold)
+{
+    if (true == a_is_gold)
+        return g_gold_chain.blocks_count;
+    else
+        return g_silver_chain.blocks_count;
 }
