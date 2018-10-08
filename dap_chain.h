@@ -28,6 +28,7 @@
 #include "dap_chain_block_cache.h"
 
 typedef struct dap_chain{
+    dap_chain_id_t id;
     dap_chain_block_cache_t * block_cache_first; // Mapped area start
     dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
     uint64_t blocks_count;
