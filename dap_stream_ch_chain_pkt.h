@@ -34,11 +34,6 @@
 #define STREAM_CH_CHAIN_PKT_TYPE_DATUM         0x02
 #define STREAM_CH_CHAIN_PKT_TYPE_GLOVAL_DB     0xff
 
-#define max(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a > _b ? _a : _b; })
-
 typedef struct stream_ch_chain_pkt_hdr{
     dap_chain_id_t chain_id;
     uint8_t type; // Chain data type
