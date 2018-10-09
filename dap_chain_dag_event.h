@@ -22,11 +22,24 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-typedef struct dap_chain_dag
-{
-    void * _internal;
-    void * _iheritor;
-} dap_chain_dag_t;
 
-int dap_chain_dag_init();
-void dap_chain_dag_deinit();
+#include "dap_chain_common.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_dag.h"
+
+typedef struct dap_chain_dag_event {
+    struct {
+        uint8_t version;
+        uint64_t timestamp;
+        uint16_t hash_count; // Number of hashes
+        uint16_t signs_count; // Number of signs nested with event
+    } header;
+    uint8_t hashes_n_signs_n_datum[]; // Hashes, signes and datum
+} dap_chain_dag_event_t;
+
+dap_chain_dag_event_t * dap_chain_dag_event_new(dap_chain_dag_t * a_dag, dap_chain_datum_t * a_datum);
+void dap_chain_dag_event_delete(dap_chain_dag_t * a_dag, dap_chain_dag_event_t * a_event);
+
+int dap_chain_dag_event_verify(dap_chain_dag_event_t * a_event);
+dap_chain_datum_t* dap_chain_dag_event_get_datum(dap_chain_dag_event_t * a_event);
+

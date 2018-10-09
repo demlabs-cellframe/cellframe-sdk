@@ -3,10 +3,12 @@ project (dap_chain_dag)
   
 set(DAP_CHAIN_DAG_SRCS 
 	dap_chain_dag.c 
+        dap_chain_dag_event.c
         )
 
 set(DAP_CHAIN_DAG_HEADERS
         dap_chain_dag.h
+        dap_chain_dag_event.h
     )
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DAG_SRCS} ${DAP_CHAIN_DAG_HEADERS})
