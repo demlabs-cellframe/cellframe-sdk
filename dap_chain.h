@@ -27,6 +27,12 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
+struct dap_chain;
+
+typedef void (*dap_chain_callback_t)(struct dap_chain *);
+typedef void (*dap_chain_callback_ptr_t)(struct dap_chain *, void * );
+typedef size_t (*dap_chain_callback_dataop_t)(struct dap_chain *, const void * , const size_t ,void *);
+
 typedef struct dap_chain{
     dap_chain_id_t id;
     dap_chain_block_cache_t * block_first; // Mapped area start
@@ -34,9 +40,12 @@ typedef struct dap_chain{
     uint64_t blocks_count;
     uint64_t difficulty;
 
+    dap_chain_callback_t callback_delete;
     void * _internal;
     void * _inhertor;
 } dap_chain_t;
+
+#define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
 
 int dap_chain_init();
 void dap_chain_deinit();

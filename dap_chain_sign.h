@@ -1,7 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Inc.   https://demlabs.net    https:/gitlab.com/demlabs
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
  * All rights reserved.
@@ -22,29 +22,30 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <string.h>
-#include "dap_common.h"
-#include "dap_chain_common.h"
+#pragma once
 
-#define LOG_TAG "chain_common"
+#include <stdint.h>
+#include "dap_common.h"
+
+typedef union dap_chain_sign_type{
+    enum {
+        SIG_TYPE_PICNIC = 0x0000,
+        SIG_TYPE_DEFO = 0x0001, /// @brief key image for anonymous transaction
+        SIG_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different signatures and sign composed with all of them
+
+    } type: 16;
+    uint16_t raw;
+} dap_chain_sign_type_t;
 
 /**
- * @brief dap_chain_hash_to_str
- * @param a_hash
- * @param a_str
- * @param a_str_max
- * @return
- */
-size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max)
-{
-    const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
-    if (a_str_max < c_hash_str_size ){
-        log_it(L_ERROR,"String for hash too small, need %u but have only %u",c_hash_str_size,a_str_max);
-    }
-    size_t i;
-    snprintf(a_str,3,"0x");
-    for (i = 0; i< sizeof(a_hash->data); ++i)
-        snprintf(a_str+i*2+2,3,"%02x",a_hash->data[i]);
-    a_str[c_hash_str_size]='\0';
-    return  strlen(a_str);
-}
+  * @struct dap_chain_sign
+  * @brief Chain storage format for digital signature
+  */
+typedef struct dap_chain_sign{
+    struct {
+        dap_chain_sign_type_t type; /// Signature type
+        uint16_t sign_size; /// Signature size
+        uint32_t sign_pkey_size; /// Signature public key size
+    } header; /// Only header's hash is used for verification
+    uint8_t pkey_n_sign[]; /// @param sig @brief raw signature data
+} DAP_ALIGN_PACKED dap_chain_sign_t;

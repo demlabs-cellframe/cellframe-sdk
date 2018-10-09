@@ -27,7 +27,7 @@
 #include "dap_chain_internal.h"
 #include "dap_chain.h"
 
-#define LOG_TAG "dap_chain"
+#define LOG_TAG "chain"
 
 
 FILE* my_file_to_wite_gold;
@@ -185,7 +185,11 @@ void dap_chain_file_open(dap_chain_block_cache_t* last_g, dap_chain_block_cache_
  */
 void dap_chain_close(dap_chain_t * a_chain)
 {
-
+    if(a_chain){
+        if(a_chain->callback_delete)
+            a_chain->callback_delete(a_chain);
+    }else
+        log_it(L_WARNING,"Tried to close null pointer");
 }
 
 /**

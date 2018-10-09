@@ -1,7 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Inc.   https://demlabs.net    https:/gitlab.com/demlabs
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
  * All rights reserved.
@@ -28,6 +28,8 @@
 
 #include "dap_common.h"
 #include "dap_math_ops.h"
+#include "dap_chain_sign.h"
+#include "dap_chain_pkey.h"
 
 #define DAP_CHAIN_ID_SIZE 8
 #define DAP_CHAIN_NET_ID_SIZE 8
@@ -57,18 +59,8 @@ typedef enum dap_chain_hash_kind {
 } dap_chain_hash_kind_t;
 
 
-typedef union dap_chain_sig_type{
-    enum {
-        SIG_TYPE_NEWHOPE = 0x0000,
-        SIG_TYPE_KEY_IMAGE = 0xf000, /// @brief key image for anonymous transaction
-        SIG_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different signatures and sign composed with all of them
-
-    } type: 16;
-    uint16_t raw;
-} dap_chain_sig_type_t;
-
 typedef struct dap_chain_addr{
-    dap_chain_sig_type_t sig_type;
+    dap_chain_sign_type_t sig_type;
     uint8_t hash[DAP_CHAIN_ADDR_HASH_SIZE];
     uint64_t checksum;
 } dap_chain_addr_t;
