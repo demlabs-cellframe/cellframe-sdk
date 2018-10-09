@@ -33,7 +33,7 @@ typedef struct dap_chain_wallet{
 int dap_chain_wallet_init();
 void dap_chain_wallet_deinit();
 
-dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sig_type_t a_sig_type); // Creates new one if not found
+dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sign_type_t a_sig_type); // Creates new one if not found
 void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet);
 
 int dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx, void * a_pkey, size_t a_pkey_size_max);

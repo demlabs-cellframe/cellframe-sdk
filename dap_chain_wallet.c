@@ -53,7 +53,7 @@ void dap_chain_wallet_deinit()
  * @details Creates new one if not found
  * @return Wallet, new wallet or NULL if errors
  */
-dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sig_type_t a_sig_type)
+dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sign_type_t a_sig_type)
 {
     dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);

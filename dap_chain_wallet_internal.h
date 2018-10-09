@@ -33,7 +33,7 @@
 
 typedef struct dap_chain_wallet_key{
     struct {
-        dap_chain_sig_type_t sig_type; /// Signature type
+        dap_chain_sign_type_t sig_type; /// Signature type
         uint32_t key_size; /// Private key size
     } header;
     uint8_t key_raw[]; /// Raw data of the private key
