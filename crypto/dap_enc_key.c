@@ -209,5 +209,24 @@ dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a
     return ret;
 }
 
+/**
+ * @brief dap_enc_key_new_wrap_data
+ * @param a_key_type
+ * @param a_key_input
+ * @param a_key_input_size
+ * @return
+ */
+dap_enc_key_t *dap_enc_key_new_wrap_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size)
+{
+    dap_enc_key_t * ret = NULL;
 
+    if(a_key_type< c_callbacks_size ){
+        ret = DAP_NEW_Z(dap_enc_key_t);
+        ret->data =  (uint8_t *) a_key_input;
+        ret->data_size =  (uint8_t *) a_key_input_size;
+        ret->type = a_key_type;
+
+    }
+    return ret;
+}
 

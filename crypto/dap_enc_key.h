@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <time.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -112,7 +113,7 @@ typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *, const void * ,
 typedef struct dap_enc_key{
     size_t data_size;
     time_t last_used_timestamp;
-    unsigned char * data;
+    uint8_t * data;
     dap_enc_key_type_t type;
 
     dap_enc_callback_dataop_t enc;
@@ -128,6 +129,7 @@ dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);
 
 dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_key_size);
 dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
+dap_enc_key_t *dap_enc_key_new_wrap_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
 dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str);
 void dap_enc_key_delete(dap_enc_key_t * a_key);
 
