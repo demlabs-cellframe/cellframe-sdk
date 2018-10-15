@@ -28,7 +28,7 @@
 #include "dap_chain.h"
 #include <pthread.h>
 
-#define LOG_TAG "dap_chain"
+#define LOG_TAG "chain"
 
 
 FILE* g_gold_hash_blocks_file;
@@ -338,7 +338,11 @@ int dap_chain_files_open()
  */
 void dap_chain_close(dap_chain_t * a_chain)
 {
-
+    if(a_chain){
+        if(a_chain->callback_delete)
+            a_chain->callback_delete(a_chain);
+    }else
+        log_it(L_WARNING,"Tried to close null pointer");
 }
 
 /**

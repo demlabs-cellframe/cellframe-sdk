@@ -26,7 +26,7 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 
-#define LOG_TAG "dap_chain_common"
+#define LOG_TAG "chain_common"
 
 /**
  * @brief dap_chain_hash_to_str
