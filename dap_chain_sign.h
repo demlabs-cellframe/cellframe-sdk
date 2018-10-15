@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include "dap_common.h"
+#include "dap_enc_ca.h"
 
 typedef union dap_chain_sign_type{
     enum {
@@ -50,6 +51,4 @@ typedef struct dap_chain_sign{
     uint8_t pkey_n_sign[]; /// @param sig @brief raw signature data
 } DAP_ALIGN_PACKED dap_chain_sign_t;
 
-dap_chain_sign_t* dap_chain_sign_new_generate(dap_chain_sign_t a_type, uint32_t a_sign_size, uint32_t a_sign_pkey_size);
-size_t dap_chain_sign_enc_get_buf_out_size(dap_chain_pkey_t * a_pkey);
-int dap_chain_pkey_enc(dap_chain_pkey_t a_type,const void * a_buf_in, uint32_t a_buf_in_size, void * a_buf_out); // 0 if success
+//int dap_chain_sign_data(dap_chain_si, )

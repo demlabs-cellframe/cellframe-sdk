@@ -56,8 +56,7 @@ size_t dap_chain_pkey_enc_get_buf_out_size(dap_chain_pkey_t * a_pkey)
  * @param a_buf_out
  * @return
  */
-int dap_chain_pkey_enc(dap_chain_pkey_t a_type,const void * a_buf_in, uint32_t a_buf_in_size, void * a_buf_out); // 0 if success
-
+int dap_chain_pkey_enc(dap_chain_pkey_t a_type,const void * a_buf_in, uint32_t a_buf_in_size, void * a_buf_out) // 0 if success
 {
     log_it(L_WARNING,"NOT DEFINED: dap_chain_pkey_enc");
     return -1;
