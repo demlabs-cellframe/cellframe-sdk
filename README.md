@@ -1,1 +1,2 @@
-# libdap-chain-global-db
+# libdap-chain-mine
+DapChain mining library for PoW tokens
