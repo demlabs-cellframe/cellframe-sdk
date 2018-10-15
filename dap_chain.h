@@ -27,15 +27,18 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
-typedef struct dap_chain{
-    dap_chain_id_t id;
+typedef struct dap_chain_blocks{
     dap_chain_block_cache_t * block_cache_first; // Mapped area start
     dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
     uint64_t blocks_count;
     uint64_t difficulty;
+} dap_chain_blocks_t;
+
+typedef struct dap_chain{
+    dap_chain_id_t id;
 
     void * _internal;
-    void * _inhertor;
+    dap_chain_blocks_t * _inheritor;
 } dap_chain_t;
 
 int dap_chain_init();
