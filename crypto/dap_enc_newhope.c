@@ -3,23 +3,12 @@
 
 #define LOG_TAG "dap_enc_newhope"
 
-#define DEFAULT_NEWHOPE_KEY_SIZE 0 // TODO
-
-/**
- * @brief dap_enc_newhope_key_new
- * @param a_key
- */
-void dap_enc_newhope_key_new(dap_enc_key_t * a_key)
-{
-    dap_enc_newhope_key_new_size(a_key, DEFAULT_NEWHOPE_KEY_SIZE);
-}
-
 /**
  * @brief dap_enc_newhope_key_new_generate
  * @param a_key
  * @param a_size
  */
-void dap_enc_newhope_key_new_size(dap_enc_key_t * a_key, size_t a_size)
+void dap_enc_newhope_key_new_generate(dap_enc_key_t * a_key, size_t a_size)
 {
     (void)a_key;
     (void)a_size;

@@ -10,7 +10,7 @@
 
 #include "dap_common.h"
 #include "dap_enc_key.h"
-#include"liboqs/kex_sidh_cln16/SIDH.h"
+#include "liboqs/kex_sidh_cln16/SIDH.h"
 #include "liboqs/kex/kex.h"
 
 struct dap_enc_key;
@@ -39,8 +39,7 @@ struct dapenc_testcase {
 
 #define DAP_ENC_SIDH16_KEY(a) ((dap_enc_sidh16_key_t *)((a)->_inheritor))
 
-void dap_enc_sidh16_key_new(struct dap_enc_key* a_key);
-void dap_enc_sidh16_key_new_size(struct dap_enc_key* a_key, size_t a_size);                            // new
+void dap_enc_sidh16_key_new_generate(struct dap_enc_key* a_key, size_t a_size);                            // new
 void dap_enc_sidh16_key_new_from_data(struct dap_enc_key* a_key, const void* a_in, size_t a_in_size);     // alice_1
 void dap_enc_sidh16_key_delete(struct dap_enc_key* a_key);                                                // sidh_cln16_alice_priv_free // sidh_cln16_free
 

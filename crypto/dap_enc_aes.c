@@ -19,28 +19,20 @@ void dap_enc_aes_key_delete(struct dap_enc_key *a_key)
 }
 
 /**
- * @brief dap_enc_aes_key_new
- * @param key
- */
-void dap_enc_aes_key_new(struct dap_enc_key * key)
-{
-    dap_enc_aes_key_new_size(key, AES_KEYSIZE);
-}
-
-/**
  * @brief dap_enc_aes_key_new_generate
  * @param a_key
  * @param a_size
  */
-void dap_enc_aes_key_new_size(struct dap_enc_key * a_key,size_t a_size)
+void dap_enc_aes_key_new_generate(struct dap_enc_key * a_key,size_t a_size)
 {
-    uint8_t key[a_size];
+    (void)a_size;
+	uint8_t key[AES_KEYSIZE];
 	OQS_RAND *rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
-    OQS_RAND_n(rand, key, a_size);
+	OQS_RAND_n(rand, key, AES_KEYSIZE);
 
     a_key->last_used_timestamp = time(NULL);
-    a_key->data = (unsigned char*)malloc(a_size);
-    memcpy(a_key->data,&key,a_size);
+	a_key->data = (unsigned char*)malloc(AES_KEYSIZE);
+	memcpy(a_key->data,&key,AES_KEYSIZE);
 	a_key->data_size = sizeof(key);
     a_key->type=DAP_ENC_KEY_TYPE_AES;
     a_key->enc=dap_enc_aes_encode;
@@ -109,7 +101,8 @@ size_t dap_enc_aes_decode(struct dap_enc_key* a_key, const void * a_in, size_t a
     OQS_AES128_ECB_dec(a_in,a_in_size,a_key->data,a_out);
     int tail = 0;
 	size_t end = a_in_size-16 > 0 ? a_in_size-16 : 0;
-    for(size_t i =a_in_size-1; i >= end; i--)
+    size_t i;
+    for( i = a_in_size-1; i >= end; i--)
 	{
         if(*(char*)(a_out + i) == (char)0)
 			tail++;

@@ -12,8 +12,6 @@
 #include "liboqs/kex_sidh_cln16/kex_sidh_cln16.h"
 #include "liboqs/kex_sidh_cln16/SIDH.h"
 
-#define DAFAULT_SIDH16_KEY_SIZE 0 // TODO
-
 //static const char *P751 = "p751";
 
 static const char *CompressedP751 = "compressedp751";
@@ -27,14 +25,10 @@ static int isCompressed(void *_inheritor) {
 
 extern bool dap_sidh16_CurveIsogenyStruct_isnull(PCurveIsogenyStruct pCurveIsogeny);
 
-void dap_enc_sidh16_key_new(struct dap_enc_key* a_key)
-{
-    dap_enc_sidh16_key_new_size(a_key, DAFAULT_SIDH16_KEY_SIZE);
-}
-
-void dap_enc_sidh16_key_new_size(struct dap_enc_key *a_key, size_t a_size) {
+void dap_enc_sidh16_key_new_generate(struct dap_enc_key *a_key, size_t a_size) {
     (void)a_size;
     a_key = DAP_NEW(dap_enc_key_t);
+    //a_key = malloc(sizeof(dap_enc_key_t));
     if(a_key == NULL)
         return;
     // инициализация системы изогенных кривых
@@ -83,8 +77,8 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
     dap_enc_sidh16_key_t *sidh_a_key = DAP_ENC_SIDH16_KEY(a_key);
     // non-compressed public key
     uint8_t *key_a_tmp_pub = NULL;
-    if(!a_key || !a_in || !a_in_size || !a_out)
-        return 0;
+    //if(!a_key || !a_in || !a_in_size)// || !a_out)
+     //   return 0;
 
     int compressed = isCompressed(a_key->_inheritor);
     if(compressed) {
@@ -150,12 +144,12 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
     // decompession values
     unsigned char *R = NULL, *A = NULL;
 
-    if(!a_key || !a_in || !a_out){
-        return 0;
-    }
+    //if(!a_key || !a_in || !a_out){
+    //    return 0;
+    //}
 
     a_out = NULL;
-    a_key->data = NULL;
+    //a_key->data = NULL;
 
     int compressed = isCompressed(a_key->_inheritor);
 
@@ -194,13 +188,13 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
         }
     }
     else {
-        if(sidh_a_key->alice_msg_len != SIDH_PUBKEY_LEN) {
+        /*if(sidh_a_key->alice_msg_len != SIDH_PUBKEY_LEN) {
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
             DAP_DELETE(a_key->data);
             a_key->data = NULL;
-        }
+        }*/
         // non-compressed
         a_out = malloc(SIDH_PUBKEY_LEN);
         if(a_out == NULL) {

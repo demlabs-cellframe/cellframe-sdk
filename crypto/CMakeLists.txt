@@ -4,8 +4,12 @@ if(TARGET dap_crypto)
 endif()
 project (dap_crypto)
 
+include(FindPkgConfig)
+
 file(GLOB CRYPTO_SRCS *.c)
 file(GLOB CRYPTO_HEADERS *.h)
+
+pkg_check_modules(BOTAN REQUIRED botan-1.10)
 
 set(LIBOQS_SRCS
     liboqs/kex_sidh_cln16/kex_sidh_cln16.c
@@ -51,5 +55,4 @@ add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS}
     ${LIBOQS_SRCS} ${CRYPTO_HEADERS} ${LIBOQS_HEADERS})
 
 target_include_directories(dap_crypto INTERFACE .)
-
-target_link_libraries(dap_crypto dap_core m)
+target_link_libraries(dap_crypto dap_core m )
