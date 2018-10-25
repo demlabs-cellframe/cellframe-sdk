@@ -9,7 +9,7 @@ include(FindPkgConfig)
 file(GLOB CRYPTO_SRCS *.c)
 file(GLOB CRYPTO_HEADERS *.h)
 
-pkg_check_modules(BOTAN REQUIRED botan-1.10)
+#pkg_check_modules(BOTAN REQUIRED botan-1.10)
 
 set(LIBOQS_SRCS
     liboqs/kex_sidh_cln16/kex_sidh_cln16.c
