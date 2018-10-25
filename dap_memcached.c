@@ -4,13 +4,6 @@
 static memcached_st *_memc;
 static time_t _expiration;
 
-/**
- * @brief dap_memcached_init
- * @param server_host
- * @param port
- * @param expiration
- * @return
- */
 int dap_memcached_init(const char *server_host, uint16_t port, time_t expiration)
 {
     _expiration = expiration;
@@ -41,13 +34,7 @@ int dap_memcached_init(const char *server_host, uint16_t port, time_t expiration
     return 0;
 }
 
-/**
- * @brief dap_memcache_put
- * @param key
- * @param value
- * @param value_size
- * @return
- */
+
 bool dap_memcache_put(const char* key, void *value, size_t value_size)
 {
     memcached_return rc;
@@ -57,6 +44,13 @@ bool dap_memcache_put(const char* key, void *value, size_t value_size)
         return false;
     }
     return true;
+}
+
+bool dap_memcache_get(const char* key, size_t * value_size, void ** result)
+{
+    memcached_return rc;
+    *result = memcached_get(_memc, key, strlen(key), value_size, NULL, &rc);
+    return rc == MEMCACHED_SUCCESS;
 }
 
 /**

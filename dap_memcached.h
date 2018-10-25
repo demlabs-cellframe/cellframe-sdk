@@ -16,6 +16,24 @@
  * @return
  */
 int dap_memcached_init(const char *server_host, uint16_t port, time_t expiration);
+
+/**
+ * @brief dap_memcached_deinit
+ */
 void dap_memcached_deinit(void);
 
+/**
+ * @brief dap_memcache_put
+ * @param key
+ * @param value
+ * @param value_size
+ * @return
+ */
 bool dap_memcache_put(const char* key, void *value, size_t value_size);
+
+/**
+ * @brief dap_memcache_get
+ * @param key
+ * @return true if key found
+ */
+bool dap_memcache_get(const char* key, size_t * value_size, void ** result);
