@@ -3,6 +3,7 @@
 
 static memcached_st *_memc;
 static time_t _expiration;
+static bool _is_module_enable = false;
 
 int dap_memcached_init(const char *server_host, uint16_t port, time_t expiration)
 {
@@ -31,9 +32,14 @@ int dap_memcached_init(const char *server_host, uint16_t port, time_t expiration
         log_it(L_WARNING, "Init memcached module without expiration value");
     }
 
+    _is_module_enable = true;
     return 0;
 }
 
+bool dap_memcache_is_enable()
+{
+    return _is_module_enable;
+}
 
 bool dap_memcache_put(const char* key, void *value, size_t value_size)
 {
@@ -58,5 +64,5 @@ bool dap_memcache_get(const char* key, size_t * value_size, void ** result)
  */
 void dap_memcached_deinit()
 {
-
+    _is_module_enable = false;
 }

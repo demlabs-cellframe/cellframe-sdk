@@ -18,6 +18,12 @@
 int dap_memcached_init(const char *server_host, uint16_t port, time_t expiration);
 
 /**
+ * @brief is_dap_memcache_enable
+ * @return
+ */
+bool dap_memcache_is_enable(void);
+
+/**
  * @brief dap_memcached_deinit
  */
 void dap_memcached_deinit(void);
