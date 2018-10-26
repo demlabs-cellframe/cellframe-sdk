@@ -18,6 +18,16 @@ void dap_enc_aes_key_delete(struct dap_enc_key *a_key)
     //No need any specific actions
 }
 
+
+/**
+ * @brief dap_enc_aes_key_new
+ * @param key
+ */
+void dap_enc_aes_key_new(struct dap_enc_key * key)
+{
+    dap_enc_aes_key_new_generate(key, AES_KEYSIZE);
+}
+
 /**
  * @brief dap_enc_aes_key_new_generate
  * @param a_key

@@ -54,7 +54,7 @@ struct dap_enc_key_callbacks{
                             .size_max = 8,
                             .enc = dap_enc_aes_encode,
                             .dec = dap_enc_aes_decode,
-                            .new_callback = NULL,
+                            .new_callback = dap_enc_aes_key_new,
                             .delete_callback = NULL,
                             .new_generate_callback = dap_enc_aes_key_new_generate,
                             .new_from_data_callback = dap_enc_aes_key_new_from_data,

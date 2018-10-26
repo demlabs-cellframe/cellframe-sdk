@@ -115,13 +115,14 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
         }break;
     }
 
-    if(key->dec){
+    if(key->dec) {
         size_t ret=key->dec(key,proc_buf_const,proc_buf_size,buf_out);
         if(data_type_in==DAP_ENC_DATA_TYPE_B64 || data_type_in == DAP_ENC_DATA_TYPE_B64_URLSAFE)
         	if (proc_buf)
         		free(proc_buf);
         return ret;
-    }else{
+    } else {
+        log_it(L_WARNING, "key->dec is NULL");
         return 0;
     }
 }
