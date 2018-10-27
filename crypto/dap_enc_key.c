@@ -40,13 +40,13 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_pptr_r_size_t key_public_raw_callback;
 
-    dap_enc_callback_t new_callback;
+    dap_enc_callback_new new_callback;
     dap_enc_callback_data_t new_from_data_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
     dap_enc_callback_size_t new_generate_callback;
     dap_enc_callback_str_t new_from_str_callback;
 
-    dap_enc_callback_t delete_callback;
+    dap_enc_callback_delete delete_callback;
 } s_callbacks[]={
     // AES
     [DAP_ENC_KEY_TYPE_AES]={
@@ -54,7 +54,7 @@ struct dap_enc_key_callbacks{
                             .size_max = 8,
                             .enc = dap_enc_aes_encode,
                             .dec = dap_enc_aes_decode,
-                            .new_callback = dap_enc_aes_key_new,
+                            .new_callback = NULL,
                             .delete_callback = NULL,
                             .new_generate_callback = dap_enc_aes_key_new_generate,
                             .new_from_data_callback = dap_enc_aes_key_new_from_data,
@@ -137,12 +137,13 @@ void dap_enc_key_deinit()
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
 {
     dap_enc_key_t * ret = NULL;
-    if(a_key_type< c_callbacks_size ){
-        ret = DAP_NEW_Z(dap_enc_key_t);
-        if(s_callbacks[a_key_type].new_callback){
-            s_callbacks[a_key_type].new_callback(ret);
-        }
-    }
+    ret = DAP_NEW_Z(dap_enc_key_t);
+//    if(a_key_type< c_callbacks_size ){
+//        ret = DAP_NEW_Z(dap_enc_key_t);
+//        if(s_callbacks[a_key_type].new_callback){
+//            s_callbacks[a_key_type].new_callback(ret);
+//        }
+//    }
     ret->type = a_key_type;
     return ret;
 }

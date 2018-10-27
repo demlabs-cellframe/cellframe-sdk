@@ -9,7 +9,7 @@ void test_encode_decode_raw(int count_steps)
 {
     size_t source_size = 1;
     for (int i = 0; i < count_steps; i++) {
-        int step = 1 + (rand() % 20 );
+        int step = 1 + (rand() % 20);
         source_size += (size_t)step;
 
         dap_enc_key_t * key = dap_enc_key_new(DAP_ENC_KEY_TYPE_AES);

@@ -99,7 +99,11 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
 
 struct dap_enc_key;
 
-typedef void (*dap_enc_callback_t)(struct dap_enc_key *);
+typedef void (*dap_enc_callback_new)(struct dap_enc_key*, void* seed,
+                                     size_t seed_size, size_t key_size);
+
+typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
+
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
 typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , size_t);
@@ -119,7 +123,7 @@ typedef struct dap_enc_key{
 
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    dap_enc_callback_t delete_callback;
+    dap_enc_callback_delete delete_callback;
     void * _inheritor;
 } dap_enc_key_t;
 

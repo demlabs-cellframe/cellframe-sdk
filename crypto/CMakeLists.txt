@@ -6,8 +6,8 @@ project (dap_crypto)
 
 include(FindPkgConfig)
 
-file(GLOB CRYPTO_SRCS *.c rand/*.c)
-file(GLOB CRYPTO_HEADERS *.h rand/*.h)
+file(GLOB CRYPTO_SRCS *.c rand/*.c IAES/*.c)
+file(GLOB CRYPTO_HEADERS *.h rand/*.h IAES/*.h)
 
 set(LIBOQS_SRCS
     liboqs/kex_sidh_cln16/kex_sidh_cln16.c
@@ -52,5 +52,5 @@ set(LIBOQS_HEADERS
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS}
     ${LIBOQS_SRCS} ${CRYPTO_HEADERS} ${LIBOQS_HEADERS})
 
-target_include_directories(dap_crypto INTERFACE . rand)
+target_include_directories(dap_crypto INTERFACE . rand IAES)
 target_link_libraries(dap_crypto dap_core m )
