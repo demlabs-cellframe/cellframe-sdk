@@ -10,7 +10,7 @@
 
 #include "../LatticeCrypto_priv.h"
 
-const uint32_t mask12 = ((uint64_t) 1 << 12) - 1;
+static const uint32_t mask12 = ((uint64_t) 1 << 12) - 1;
 
 int32_t oqs_rlwe_msrln16_reduce12289(int64_t a) { // Reduction modulo q
 	int32_t c0, c1;

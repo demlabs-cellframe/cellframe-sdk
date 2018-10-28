@@ -52,6 +52,8 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                // https://www.microsoft.com/en-us/research/project/sidh-library/
                            DAP_ENC_KEY_TYPE_DEFEO , // Key exchange from the supersingular isogeny Diffie-Hellman problem
 
+                           DAP_ENC_KEY_TYPE_MSRLN,
+
                            DAP_ENC_KEY_TYPE_RLWE_MSRLN16,
                             //DAP_ENC_KEY_TYPE_RLWE_MSRLN16, // Microsoft Research implementation of Peikert's ring-LWE key exchange
                                                 // (Longa, Naehrig, CANS 2016, https://eprint.iacr.org/2016/504)
@@ -99,16 +101,18 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
 
 struct dap_enc_key;
 
-typedef void (*dap_enc_callback_new)(struct dap_enc_key*, void* seed,
+// allocates memory and sets callbacks
+typedef void (*dap_enc_callback_new)(struct dap_enc_key*);
+// generates key data
+typedef void (*dap_enc_callback_generate)(struct dap_enc_key*, void* seed,
                                      size_t seed_size, size_t key_size);
-
+// free memory
 typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
 
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
 typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , size_t);
 typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
-
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
 
