@@ -1,21 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "tables.h"
 
-size_t Block128_Padding(uint8_t *data, uint8_t **data_new, unsigned long length_data)
+size_t block128_padding(const void *data, uint8_t **data_new, size_t length_data)
 {
     int padding = 0;
-    int length_data_new;
 
-    if(length_data < 16)
+    if(length_data < 16) {
         padding = 16 - length_data;
-    else if(length_data%16)
-        padding = 16 - length_data%16;
-    length_data_new = length_data + padding;
+    }
+    else if(length_data % 16) {
+        padding = 16 - length_data % 16;
+    }
+
+    size_t length_data_new = length_data + padding;
 
     *data_new = (uint8_t *) malloc(length_data_new);
-    memcpy(*data_new,data,(length_data));
-    memset(*data_new +(length_data),0x0,padding);
+    memcpy(*data_new, data, length_data);
+    memset(*data_new + length_data, 0x0, padding);
 
     return length_data_new;
 }
@@ -178,7 +181,7 @@ void AES256_enc_cernelT(uint32_t * in, uint32_t * out, uint32_t * masterkey)
 
 
 
-void IAES256_CBC_encrypt(const uint8_t *data, uint8_t *cdata, uint8_t *ivec, unsigned long length, uint8_t *masterkey)
+void IAES_256_CBC_encrypt(const uint8_t *data, uint8_t *cdata, uint8_t *ivec, unsigned long length, uint8_t *masterkey)
 {
     uint32_t in[4], feedback[4], masterkey32[8];
 
@@ -461,7 +464,7 @@ out[3] = (h_td4[(t3 >> 24) & 0xff] & 0xff000000) ^ (h_td4[(t2 >> 16) & 0xff] & 0
 }
 
 
-void IAES256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, unsigned long length, uint8_t *masterkey)
+void IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, unsigned long length, uint8_t *masterkey)
  {
     uint32_t feedback[4], masterkey32[8], round_decrypt_key[60];
     uint32_t out[4], in[4];

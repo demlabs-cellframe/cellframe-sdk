@@ -2,23 +2,10 @@
 #include <windows.h>
 #else
 #endif
-#include <bcrypt.h>
+#include "../rand/dap_rand.h"
 #include "config.h"
 #include "P768_internal.h"
 
-//===============================================================================================================
-int randombytes(unsigned char* random_array, unsigned long long nbytes)
-{
-    //BCryptGenRandom(NULL, random_array, (unsigned long)nbytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    // Generation of "nbytes" of random values
-    if (!BCRYPT_SUCCESS(BCryptGenRandom(NULL, random_array, (unsigned long)nbytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
-    {
-        return FAILED;
-    }
-
-    return PASSED;
-}
-//===============================================================================================================
 // Encoding of field elements, elements over Z_order, elements over GF(p^2) and elliptic curve points:
 // --------------------------------------------------------------------------------------------------
 // Elements over GF(p) and Z_order are encoded with the least significant octet (and digit) located at the leftmost position (i.e., little endian format).

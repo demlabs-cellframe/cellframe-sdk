@@ -96,18 +96,21 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                // and Sebastian Ramacher and Christian Rechberger and Daniel Slamanig and Greg Zaverucha
                                                // https://eprint.iacr.org/2017/279.pdf), using the optimized implemenation
                                                //  from https://github.com/IAIK/Picnic
-                               DAP_ENC_KEY_TYPE_FNAM2 //ХЗ ЧТО, ДОБАВИЛ ЧТОБЫ БЫЛО И НА МЕНЯ КОМПИЛЯТОР НЕ РУГАЛСЯ:(
+                               DAP_ENC_KEY_TYPE_FNAM2
                          }  dap_enc_key_type_t;
 
 struct dap_enc_key;
 
 // allocates memory and sets callbacks
 typedef void (*dap_enc_callback_new)(struct dap_enc_key*);
-// generates key data
-typedef void (*dap_enc_callback_generate)(struct dap_enc_key*, void* seed,
-                                     size_t seed_size, size_t key_size);
+
+// generates key data from seed
+typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, struct dap_enc_key* kex_key,
+                                          void* seed, size_t seed_size, size_t key_size);
 // free memory
 typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
+
+
 
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
@@ -115,14 +118,14 @@ typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , siz
 typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
-
-
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *, const void * , const size_t ,void *);
 
 typedef struct dap_enc_key{
     size_t data_size;
+    size_t ivec_size;
     time_t last_used_timestamp;
     unsigned char * data;
+    unsigned char * ivec;
     dap_enc_key_type_t type;
 
     dap_enc_callback_dataop_t enc;
@@ -136,9 +139,13 @@ void dap_enc_key_deinit(void);
 
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);
 
-dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_key_size);
-dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
-dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str);
+dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, const void *kex_buf,
+                                                      size_t kex_size, void* seed,
+                                                      size_t seed_size, size_t key_size);
+void dap_enc_key_delete(dap_enc_key_t * a_key);
+
+// dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
+//dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str);
 void dap_enc_key_delete(dap_enc_key_t * a_key);
 
 #ifdef __cplusplus

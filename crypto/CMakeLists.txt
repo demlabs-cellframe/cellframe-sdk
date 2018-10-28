@@ -6,8 +6,8 @@ project (dap_crypto)
 
 include(FindPkgConfig)
 
-file(GLOB CRYPTO_SRCS *.c rand/*.c IAES/*.c sha3/*.c MSRLN/*.c)
-file(GLOB CRYPTO_HEADERS *.h rand/*.h IAES/*.h sha3/*.h MSRLN/*.h)
+file(GLOB CRYPTO_SRCS *.c rand/*.c IAES/*.c sha3/*.c MSRLN/*.c DeFeo_Scheme/*.c)
+file(GLOB CRYPTO_HEADERS *.h rand/*.h IAES/*.h sha3/*.h MSRLN/*.h DeFeo_Scheme/*.h)
 
 set(LIBOQS_SRCS
     liboqs/kex_sidh_cln16/kex_sidh_cln16.c
