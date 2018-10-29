@@ -12,5 +12,5 @@ int main(void)
     dap_enc_aes_tests_run();
     dap_enc_base64_tests_run();
  //   dap_enc_msrln_tests_run();
- //   dap_enc_tests_run();
+    dap_enc_tests_run();
 }
