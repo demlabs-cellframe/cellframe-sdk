@@ -95,13 +95,12 @@ b64_decode_ex (const char *, size_t, size_t *);
  * @param[in] standard Base64 or Base64 URLSAFE encoding
  * @return index table
  */
-static const char* b64_table_by_standard(dap_enc_b64_standard_t standard)
+static const char* b64_table_by_standard(dap_enc_data_type_t standard)
 {
-
     switch (standard) {
-    case DAP_ENC_STANDARD_B64:
+    case DAP_ENC_DATA_TYPE_B64:
         return b64_standart_table;
-    case DAP_ENC_STANDARD_B64_URLSAFE:
+    case DAP_ENC_DATA_TYPE_B64_URLSAFE:
         return b64_table_url_safe;
     default:
         perror("Unknown base64 standard");
@@ -116,7 +115,7 @@ static const char* b64_table_by_standard(dap_enc_b64_standard_t standard)
  * @param[out] out Pointer to an array with outgoing data
  * @return Size of the array with outgoing data
  */
-size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc_b64_standard_t standard)
+size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc_data_type_t standard)
 {
     //B64_Decode( in, in_size, (byte*) out );
     //return B64_GetSize( in_size,0 );
@@ -211,7 +210,7 @@ size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc
  * @param[out] a_out A pointer to an array in which the data will be after encoding
  * @return Size of the array with outgoing data
  */
-size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, dap_enc_b64_standard_t standard)
+size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, dap_enc_data_type_t standard)
 {
     uint8_t i = 0;
     int j = 0;

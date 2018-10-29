@@ -1,6 +1,6 @@
 #include "dap_enc_base64_test.h"
 
-void test_encode_decode_base64(int count_steps, dap_enc_b64_standard_t standard)
+void test_encode_decode_base64(int count_steps, dap_enc_data_type_t standard)
 {
     size_t source_size = 0;
 
@@ -23,8 +23,8 @@ void test_encode_decode_base64(int count_steps, dap_enc_b64_standard_t standard)
 
 void dap_enc_base64_tests_run() {
     dap_print_module_name("dap_enc_base64");
-    test_encode_decode_base64(100, DAP_ENC_STANDARD_B64);
+    test_encode_decode_base64(100, DAP_ENC_DATA_TYPE_B64);
     dap_pass_msg("Encode and decode DAP_ENC_STANDARD_B64");
-    test_encode_decode_base64(100, DAP_ENC_STANDARD_B64_URLSAFE);
+    test_encode_decode_base64(100, DAP_ENC_DATA_TYPE_B64_URLSAFE);
     dap_pass_msg("Encode and decode DAP_ENC_STANDARD_B64_URLSAFE");
 }
