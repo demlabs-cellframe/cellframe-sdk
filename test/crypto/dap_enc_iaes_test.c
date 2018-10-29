@@ -4,13 +4,12 @@ void test_encode_decode(int count_steps)
 {
     size_t source_size = 0;
 
-    while (true)
     for(int i = 1; i <= count_steps; i++) {
         int step = 1 + (rand() % 20);
         source_size += (size_t)step;
 
         const char *kex_data = "123";
-        size_t kex_size = 3;
+        size_t kex_size = strlen(kex_data);
         const size_t seed_size = 1 + (rand() % 1000);
         uint8_t seed[seed_size];
 

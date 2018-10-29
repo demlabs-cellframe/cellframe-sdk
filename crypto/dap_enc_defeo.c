@@ -28,7 +28,7 @@ void dap_enc_defeo_key_new(struct dap_enc_key* a_key)
 
 // key pair generation of Alice
 // OUTPUT:
-// a_key->data  --- Alice's public key
+// a_key->priv_key_data  --- Alice's public key
 // alice_priv  ---  Alice's private key
 // alice_msg_len --- Alice's private key length
 void dap_enc_defeo_key_new_from_data(struct dap_enc_key *a_key, void **alice_priv, size_t *alice_msg_len) {
@@ -40,19 +40,19 @@ void dap_enc_defeo_key_new_from_data(struct dap_enc_key *a_key, void **alice_pri
     //if(!a_key || !a_in)
     //    return;
 
-    a_key->data = malloc(DEFEO_PUBLICKEYBYTES);
-    if(a_key->data == NULL) {
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+    a_key->priv_key_data = malloc(DEFEO_PUBLICKEYBYTES);
+    if(a_key->priv_key_data == NULL) {
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         *alice_priv = NULL;
     }
-    key_a_tmp_pub = a_key->data;
+    key_a_tmp_pub = a_key->priv_key_data;
 
     *alice_priv = NULL;
     *alice_priv = malloc(DEFEO_SECRETKEYBYTES);
     if (*alice_priv == NULL) {
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         *alice_priv = NULL;
     }
     //key_a_tmp_priv = a_in;
@@ -60,13 +60,13 @@ void dap_enc_defeo_key_new_from_data(struct dap_enc_key *a_key, void **alice_pri
     // generate A key pair
     random_mod_order_A((unsigned char *) *alice_priv);
     if(EphemeralKeyGeneration_A((unsigned char *) *alice_priv, (unsigned char *) key_a_tmp_pub) != 0) {
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         *alice_priv = NULL;
     }
 
     //defeo_a_key->alice_msg_len = DEFEO_PUBLICKEYBYTES;
-    a_key->data_size = DEFEO_PUBLICKEYBYTES;
+    a_key->priv_key_data_size = DEFEO_PUBLICKEYBYTES;
     *alice_msg_len = DEFEO_PUBLICKEYBYTES;
     key_a_tmp_pub = NULL;
     key_a_tmp_priv = NULL;
@@ -106,22 +106,22 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, unsigned char *a_pub, siz
     //}
 
     *b_pub = NULL;
-    b_key->data = NULL;
+    b_key->priv_key_data = NULL;
 
     if(*a_pub_size != DEFEO_PUBLICKEYBYTES) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
     }
     *b_pub = malloc(DEFEO_PUBLICKEYBYTES);
     if(b_pub == NULL) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
     }
     bob_tmp_pub = *b_pub;
 
@@ -130,16 +130,16 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, unsigned char *a_pub, siz
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
     }
-    b_key->data = malloc(DEFEO_BYTES);
-    if(b_key->data == NULL) {
+    b_key->priv_key_data = malloc(DEFEO_BYTES);
+    if(b_key->priv_key_data == NULL) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
     }
 
     // generate Bob's key pair
@@ -148,23 +148,23 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, unsigned char *a_pub, siz
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
     }
 
     //defeo_a_key->bob_msg_len = DEFEO_PUBLICKEYBYTES;
     bob_tmp_pub = NULL;  // we do not want to double-free it
     // compute Bob's shared secret
-    if(EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_pub, (unsigned char *) b_key->data) != 0) {
+    if(EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_pub, (unsigned char *) b_key->priv_key_data) != 0) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
     }
 
     //defeo_a_key->key_len = DEFEO_BYTES;
-    b_key->data_size = DEFEO_BYTES;
+    b_key->priv_key_data_size = DEFEO_BYTES;
     *a_pub_size = DEFEO_BYTES;
     ret = 1;
     DAP_DELETE(bob_tmp_pub);
@@ -180,7 +180,7 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, unsigned char *a_pub, siz
 // a_priv  --- Alice's private key
 // b_pub  ---  Bob's public key
 // OUTPUT:
-// a_key->data  --- shared key
+// a_key->priv_key_data  --- shared key
 // a_key_len --- shared key length
 size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_t *a_key_len, unsigned char *b_pub)
 {
@@ -192,26 +192,26 @@ size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_
      //   return 0;
     //}
 
-    a_key->data = NULL;
-    a_key->data = malloc(DEFEO_BYTES);
-    if(a_key->data == NULL) {
+    a_key->priv_key_data = NULL;
+    a_key->priv_key_data = malloc(DEFEO_BYTES);
+    if(a_key->priv_key_data == NULL) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
         DAP_DELETE(a_priv);
         a_priv = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
 
-    if(EphemeralSecretAgreement_A((unsigned char *) a_priv, (unsigned char *) b_pub, (unsigned char *) a_key->data) != 0) {
+    if(EphemeralSecretAgreement_A((unsigned char *) a_priv, (unsigned char *) b_pub, (unsigned char *) a_key->priv_key_data) != 0) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
         DAP_DELETE(a_priv);
         a_priv = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
 
     //defeo_a_key->key_len = DEFEO_BYTES;

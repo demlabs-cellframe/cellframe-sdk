@@ -23,7 +23,7 @@
 #include <string.h>
 #include "dap_common.h"
 
-#include "dap_enc_aes.h"
+#include "dap_enc_iaes.h"
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
 
@@ -60,7 +60,7 @@ struct dap_enc_key_callbacks{
                             .enc = dap_enc_defeo_encode,
                             .dec = dap_enc_defeo_decode,
                             .new_callback = NULL,
-                            .delete_callback = dap_enc_defeo_key_new,
+                            .delete_callback = NULL,
                             .new_generate_callback = dap_enc_defeo_key_new_from_data
                            },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
@@ -118,23 +118,22 @@ dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
 /**
  * @brief dap_enc_key_new_generate
  * @param a_key_type
- * @param a_key_size
+ * @param kex_buf
+ * @param kex_size
+ * @param seed
+ * @param seed_size
+ * @param key_size - can be NULL ( generate size by default )
  * @return
  */
 dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const void *kex_buf,
-                                                      size_t kex_size, void* seed,
+                                                      size_t kex_size, const void* seed,
                                                       size_t seed_size, size_t key_size)
 {
     dap_enc_key_t * ret = NULL;
-
     if(a_key_type< c_callbacks_size ) {
         ret = dap_enc_key_new(a_key_type);
-        dap_enc_key_t kex_key = {
-            .data = kex_buf,
-            .data_size = kex_size
-        };
         if(s_callbacks[a_key_type].new_generate_callback) {
-            s_callbacks[a_key_type].new_generate_callback(ret,&kex_key, seed, seed_size, key_size);
+            s_callbacks[a_key_type].new_generate_callback(ret,kex_buf, kex_size, seed, seed_size, key_size);
         }
     }
     return ret;
@@ -147,9 +146,14 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const voi
  */
 void dap_enc_key_delete(dap_enc_key_t * a_key)
 {
-    free(a_key->data);
-    free(a_key->ivec);
-    free(a_key->_inheritor);
+    if(s_callbacks[a_key->type].delete_callback) {
+        s_callbacks[a_key->type].delete_callback(a_key);
+    } else {
+        log_it(L_ERROR, "delete callback is null. Can be leak memory!");
+    }
+    /* a_key->_inheritor must be cleaned in delete_callback func */
+
+    free(a_key->priv_key_data);
     free(a_key);
 }
 

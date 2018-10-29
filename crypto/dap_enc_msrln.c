@@ -41,21 +41,21 @@ void dap_enc_msrln_key_new_from_data(struct dap_enc_key *a_key, void **alice_pri
     uint8_t *key_a_tmp_pub = NULL;
 
     /* alice_msg is alice's public key */
-    a_key->data = NULL;
-    a_key->data = malloc(MSRLN_PKA_BYTES);
-    if(a_key->data == NULL) {
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+    a_key->priv_key_data = NULL;
+    a_key->priv_key_data = malloc(MSRLN_PKA_BYTES);
+    if(a_key->priv_key_data == NULL) {
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         *alice_priv = NULL;
         return;
     }
-    key_a_tmp_pub = a_key->data;
+    key_a_tmp_pub = a_key->priv_key_data;
 
     *alice_priv = NULL;
     *alice_priv = malloc(1024 * sizeof(uint32_t));
     if (*alice_priv == NULL) {
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         *alice_priv = NULL;
         return;
     }
@@ -64,13 +64,13 @@ void dap_enc_msrln_key_new_from_data(struct dap_enc_key *a_key, void **alice_pri
     LatticeCrypto_initialize(PLCS, randombytes, MSRLN_generate_a, MSRLN_get_error);
 
     if (MSRLN_KeyGeneration_A((int32_t *) *alice_priv, (unsigned char *) key_a_tmp_pub, PLCS) != CRYPTO_MSRLN_SUCCESS) {
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         *alice_priv = NULL;
         return;
     }
     *alice_msg_len = MSRLN_PKA_BYTES;
-    a_key->data_size = MSRLN_PKA_BYTES;
+    a_key->priv_key_data_size = MSRLN_PKA_BYTES;
 
     key_a_tmp_pub = NULL;
     DAP_DELETE(key_a_tmp_pub);
@@ -96,14 +96,14 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, siz
     uint8_t *bob_tmp_pub = NULL;
 
     *b_pub = NULL;
-    b_key->data = NULL;
+    b_key->priv_key_data = NULL;
 
     if(*a_pub_size != MSRLN_PKA_BYTES) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
         return ret;
     }
 
@@ -112,34 +112,34 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, siz
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
         return ret;
     }
     bob_tmp_pub = *b_pub;
 
-    b_key->data = malloc(MSRLN_SHAREDKEY_BYTES);
-    if(b_key->data == NULL) {
+    b_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+    if(b_key->priv_key_data == NULL) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
         return ret;
     }
 
     PLatticeCryptoStruct PLCS = LatticeCrypto_allocate();
     LatticeCrypto_initialize(PLCS, randombytes, MSRLN_generate_a, MSRLN_get_error);
-    if (MSRLN_SecretAgreement_B((unsigned char *) a_pub, (unsigned char *) b_key->data, (unsigned char *) bob_tmp_pub, PLCS) != CRYPTO_MSRLN_SUCCESS) {
+    if (MSRLN_SecretAgreement_B((unsigned char *) a_pub, (unsigned char *) b_key->priv_key_data, (unsigned char *) bob_tmp_pub, PLCS) != CRYPTO_MSRLN_SUCCESS) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->data);
-        b_key->data = NULL;
+        DAP_DELETE(b_key->priv_key_data);
+        b_key->priv_key_data = NULL;
         return ret;
     }
 
-    b_key->data_size = MSRLN_SHAREDKEY_BYTES;
+    b_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
     *a_pub_size = MSRLN_PKB_BYTES;
 
     ret = 1;
@@ -161,27 +161,27 @@ size_t dap_enc_msrln_decode(struct dap_enc_key* a_key, const void* a_priv, size_
 {
     size_t ret = 1;
 
-    a_key->data = NULL;
-    a_key->data = malloc(MSRLN_SHAREDKEY_BYTES);
-    if(a_key->data == NULL || *a_key_len != MSRLN_PKB_BYTES) {
+    a_key->priv_key_data = NULL;
+    a_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+    if(a_key->priv_key_data == NULL || *a_key_len != MSRLN_PKB_BYTES) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
         a_priv = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
 
-    if (MSRLN_SecretAgreement_A((unsigned char *) b_pub, (int32_t *) a_priv, (unsigned char *) a_key->data) != CRYPTO_MSRLN_SUCCESS) {
+    if (MSRLN_SecretAgreement_A((unsigned char *) b_pub, (int32_t *) a_priv, (unsigned char *) a_key->priv_key_data) != CRYPTO_MSRLN_SUCCESS) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
         a_priv = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
 
-    a_key->data_size = MSRLN_SHAREDKEY_BYTES;
+    a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
 
     return ret;
 }

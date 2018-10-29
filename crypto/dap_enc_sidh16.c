@@ -83,38 +83,38 @@ size_t dap_enc_sidh16_encode(struct dap_enc_key *a_key, const void *a_in, size_t
     int compressed = isCompressed(a_key->_inheritor);
     if(compressed) {
         key_a_tmp_pub = malloc(SIDH_PUBKEY_LEN);
-        a_key->data = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
+        a_key->priv_key_data = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
         if(key_a_tmp_pub == NULL || a_in == NULL) {
             ret = 0;
-            DAP_DELETE(a_key->data);
+            DAP_DELETE(a_key->priv_key_data);
             a_in = NULL;
-            a_key->data = NULL;
+            a_key->priv_key_data = NULL;
         }
     }
     else {
         // non-compressed key
-         a_key->data = malloc(SIDH_PUBKEY_LEN);
-         if(a_key->data == NULL) {
+         a_key->priv_key_data = malloc(SIDH_PUBKEY_LEN);
+         if(a_key->priv_key_data == NULL) {
              ret = 0;
-             DAP_DELETE(a_key->data = NULL);
-             a_key->data = NULL;
+             DAP_DELETE(a_key->priv_key_data = NULL);
+             a_key->priv_key_data = NULL;
              a_in = NULL;
          }
-         key_a_tmp_pub = a_key->data;
+         key_a_tmp_pub = a_key->priv_key_data;
     }
     a_in = malloc(SIDH_SECRETKEY_LEN);
     if(a_in == NULL) {
         ret = 0;
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         a_in = NULL;
     }
 
     // generate A key pair
     if(oqs_sidh_cln16_EphemeralKeyGeneration_A((unsigned char *)a_in, (unsigned char *)key_a_tmp_pub, sidh_a_key->user_curveIsogeny, sidh_a_key->rand) != SIDH_CRYPTO_SUCCESS) {
         ret = 0;
-        DAP_DELETE(a_key->data = NULL);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data = NULL);
+        a_key->priv_key_data = NULL;
         a_in = NULL;
     }
     if (compressed) {
@@ -158,8 +158,8 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
         bob_tmp_pub = malloc(SIDH_PUBKEY_LEN);
         a_out = malloc(SIDH_COMPRESSED_PUBKEY_LEN);
@@ -167,24 +167,24 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
         A = malloc(SIDH_COMPRESSED_A_LEN);
         if(A == NULL) {
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
         R = malloc(SIDH_COMPRESSED_R_LEN);
         if(R == NULL) {
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
     }
     else {
@@ -201,8 +201,8 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
         bob_tmp_pub = a_out;    // point to the pub key
     }
@@ -212,16 +212,16 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
         ret = 0;
         DAP_DELETE(a_out);
         a_out = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
-    a_key->data = malloc(SIDH_SHAREDKEY_LEN);
-    if(a_key->data == NULL) {
+    a_key->priv_key_data = malloc(SIDH_SHAREDKEY_LEN);
+    if(a_key->priv_key_data == NULL) {
         ret = 0;
         DAP_DELETE(a_out);
         a_out = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
 
     // generate Bob's key pair
@@ -229,8 +229,8 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
         ret = 0;
         DAP_DELETE(a_out);
         a_out = NULL;
-        DAP_DELETE(a_key->data);
-        a_key->data = NULL;
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
     }
     if(compressed) {
         // compress Bob's public key
@@ -239,23 +239,26 @@ size_t dap_enc_sidh16_decode(struct dap_enc_key *a_key, const void *a_in, size_t
         // decompress Alice's public key
         oqs_sidh_cln16_PublicKeyADecompression_B((unsigned char *) bob_priv, (unsigned char *) a_in, R, A, sidh_a_key->user_curveIsogeny);
         // compute Bob's shared secret
-        if(oqs_sidh_cln16_EphemeralSecretAgreement_Compression_B((unsigned char *) bob_priv, R, A, (unsigned char *) a_key->data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
+        if(oqs_sidh_cln16_EphemeralSecretAgreement_Compression_B((unsigned char *) bob_priv, R, A, (unsigned char *) a_key->priv_key_data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
     } else {
        sidh_a_key->bob_msg_len = SIDH_PUBKEY_LEN;
         bob_tmp_pub = NULL;  // we do not want to double-free it
         // compute Bob's shared secret
-        if(oqs_sidh_cln16_EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_in, (unsigned char *) a_key->data, sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
+        if(oqs_sidh_cln16_EphemeralSecretAgreement_B((unsigned char *) bob_priv,
+                                                     (unsigned char *) a_in,
+                                                     (unsigned char *) a_key->priv_key_data,
+                                                     sidh_a_key->user_curveIsogeny) != SIDH_CRYPTO_SUCCESS) {
             ret = 0;
             DAP_DELETE(a_out);
             a_out = NULL;
-            DAP_DELETE(a_key->data);
-            a_key->data = NULL;
+            DAP_DELETE(a_key->priv_key_data);
+            a_key->priv_key_data = NULL;
         }
     }
     sidh_a_key->key_len = SIDH_SHAREDKEY_LEN;

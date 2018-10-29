@@ -2,7 +2,6 @@
 #define _DAP_ENC_MSRLN_H_
 
 #include <stddef.h>
-//#include "libdap_crypto/rand/Dap_rand.h"
 #include "MSRLN/MSRLN.h"
 #include "dap_enc_key.h"
 
