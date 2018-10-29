@@ -48,8 +48,8 @@ struct dap_enc_key_callbacks{
     [DAP_ENC_KEY_TYPE_AES]={
                             .name = "IAES",
                             .size_max = 8,
-                            .enc = dap_enc_aes256_cbc_encrypt,
-                            .dec = dap_enc_aes256_cbc_decrypt,
+                            .enc = dap_enc_iaes256_cbc_encrypt,
+                            .dec = dap_enc_iaes256_cbc_decrypt,
                             .new_callback = dap_enc_aes_key_new,
                             .delete_callback = dap_enc_aes_key_delete,
                             .new_generate_callback = dap_enc_aes_key_generate_from_kex_and_seed,

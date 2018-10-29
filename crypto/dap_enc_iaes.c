@@ -33,8 +33,8 @@ void dap_enc_aes_key_new(struct dap_enc_key * a_key)
 {
     a_key->_inheritor = DAP_NEW_Z(dap_enc_aes_key_t);
     a_key->type = DAP_ENC_KEY_TYPE_AES;
-    a_key->enc = dap_enc_aes256_cbc_encrypt;
-    a_key->dec = dap_enc_aes256_cbc_decrypt;
+    a_key->enc = dap_enc_iaes256_cbc_encrypt;
+    a_key->dec = dap_enc_iaes256_cbc_decrypt;
     a_key->delete_callback = dap_enc_aes_key_delete;
 
     a_key->priv_key_data = (uint8_t *)malloc(AES_KEYSIZE);
@@ -66,7 +66,7 @@ void dap_enc_aes_key_generate_from_kex_and_seed(struct dap_enc_key * a_key, cons
  * @return
  */
 
-size_t dap_enc_aes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
+size_t dap_enc_iaes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     if (a_in_size % 16) {
         log_it(L_ERROR, "Bad in size");
@@ -95,7 +95,7 @@ size_t dap_enc_aes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in,
     return a_in_size - padding;
 }
 
-size_t dap_enc_aes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
+size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     size_t length_data_new;
     uint8_t *data_new;
