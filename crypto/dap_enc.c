@@ -59,27 +59,31 @@ void dap_enc_deinit()
  * @param buf_out Output buffer
  * @return bytes actualy written in the output buffer
  */
-size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_size, void ** buf_out, dap_enc_data_type_t data_type_out)
+size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_size,
+                    void ** buf_out, dap_enc_data_type_t data_type_out)
 {
-    if(key->enc){
-        void **proc_buf = NULL;
-        if(data_type_out == DAP_ENC_DATA_TYPE_RAW)
-            proc_buf=buf_out;
-        else {
-           // *proc_buf = calloc(1,buf_size*2);
+    if(key->enc) {
+        if(data_type_out == DAP_ENC_DATA_TYPE_RAW) {
+            return key->enc(key, buf, buf_size, buf_out);
         }
-        size_t ret=key->enc(key,buf,buf_size,proc_buf);
-        if(data_type_out==DAP_ENC_DATA_TYPE_B64){
-            ret=dap_enc_base64_encode(proc_buf,ret,(char*)buf_out,DAP_ENC_STANDARD_B64);
-            if (proc_buf)
-            	free(proc_buf);
+
+        void *proc_buf = NULL;
+
+        size_t ret = key->enc(key, buf, buf_size, &proc_buf);
+
+        if(data_type_out == DAP_ENC_DATA_TYPE_B64 ){
+            *buf_out = malloc(DAP_ENC_BASE64_ENCODE_SIZE(ret));
+            ret=dap_enc_base64_encode(proc_buf,ret,(char*)*buf_out,DAP_ENC_STANDARD_B64);
+            free(proc_buf);
         }else if(data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE){
-            ret=dap_enc_base64_encode(proc_buf,ret,(char*)buf_out,DAP_ENC_STANDARD_B64_URLSAFE);
-            if (proc_buf)
-            	free(proc_buf);
+            *buf_out = malloc(DAP_ENC_BASE64_ENCODE_SIZE(ret));
+            ret=dap_enc_base64_encode(proc_buf,ret,(char*)*buf_out,DAP_ENC_STANDARD_B64_URLSAFE);
+            free(proc_buf);
         }
+
         return ret;
-    }else{
+    } else {
+        log_it(L_ERROR, "key->enc is NULL");
         return 0;
     }
 }

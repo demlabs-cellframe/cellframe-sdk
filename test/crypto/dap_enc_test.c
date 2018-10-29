@@ -26,7 +26,7 @@ static void _encrypt_decrypt(enum dap_enc_key_type key_type,
 
         uint8_t source[source_size];
         uint8_t *decode_result;
-        uint8_t *encrypt_result = "123";
+        uint8_t *encrypt_result;
 
         generate_random_byte_array(source, source_size);
 
@@ -61,6 +61,13 @@ void test_encode_decode_raw(size_t count_steps)
 void test_encode_decode_raw_b64(size_t count_steps)
 {
     _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_B64, count_steps);
+    dap_pass_msg("Test encode->decode raw base64");
+}
+
+void test_encode_decode_raw_b64_url_safe(size_t count_steps)
+{
+    _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_B64_URLSAFE, count_steps);
+    dap_pass_msg("Test encode->decode raw base64 url safe");
 }
 
 static void init_test_case()
@@ -77,6 +84,7 @@ void dap_enc_tests_run() {
     dap_print_module_name("dap_enc");
     init_test_case();
     test_encode_decode_raw(50);
-    // test_encode_decode_raw_b64(50);
+    test_encode_decode_raw_b64(50);
+    test_encode_decode_raw_b64_url_safe(50);
     cleanup_test_case();
 }
