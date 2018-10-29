@@ -42,16 +42,18 @@ void dap_enc_aes_key_new(struct dap_enc_key * a_key)
 }
 
 void dap_enc_aes_key_generate_from_kex_and_seed(struct dap_enc_key * a_key, const void *kex_buf,
-                                              size_t kex_size, const void * id_session, size_t id_size)
+                                                size_t kex_size, const void * seed, size_t seed_size,
+                                                size_t key_size)
 {
+    (void)key_size;
     a_key->last_used_timestamp = time(NULL);
 
-    uint8_t * id_concat_kex = (uint8_t *) malloc(kex_size + id_size);
+    uint8_t * id_concat_kex = (uint8_t *) malloc(kex_size + seed_size);
 
-    memcpy(id_concat_kex,id_session, id_size);
-    memcpy(id_concat_kex + id_size, kex_buf, kex_size);
-    shake256(a_key->priv_key_data, AES_KEYSIZE, id_concat_kex, (kex_size + id_size));
-    shake128(DAP_ENC_AES_KEY(a_key)->ivec, AES_BLOCKSIZE, id_session, id_size);
+    memcpy(id_concat_kex,seed, seed_size);
+    memcpy(id_concat_kex + seed_size, kex_buf, kex_size);
+    shake256(a_key->priv_key_data, AES_KEYSIZE, id_concat_kex, (kex_size + seed_size));
+    shake128(DAP_ENC_AES_KEY(a_key)->ivec, AES_BLOCKSIZE, seed, seed_size);
 
     free(id_concat_kex);
 }

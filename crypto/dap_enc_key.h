@@ -106,7 +106,7 @@ typedef void (*dap_enc_callback_new)(struct dap_enc_key*);
 
 // generates key data from seed
 typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, const void *kex_buf,
-                                              size_t kex_size, void* seed, size_t seed_size,
+                                              size_t kex_size, const void* seed, size_t seed_size,
                                               size_t key_size);
 // free memory
 typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
