@@ -85,7 +85,7 @@ typedef struct stream {
 
 } dap_stream_t;
 
-#define STREAM(a) ((stream_t *) (a)->_internal )
+#define STREAM(a) ((dap_stream_t *) (a)->_internal )
 
 int stream_init();
 
