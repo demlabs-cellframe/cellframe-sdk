@@ -23,7 +23,7 @@ void dap_enc_defeo_key_new(struct dap_enc_key* a_key)
     a_key->type = DAP_ENC_KEY_TYPE_DEFEO;
     a_key->enc = &dap_enc_defeo_encode;
     a_key->dec = &dap_enc_defeo_decode;
-    a_key->delete_callback = &dap_enc_defeo_key_delete;
+ //   a_key->delete_callback = &dap_enc_defeo_key_delete;
 }
 
 // key pair generation of Alice

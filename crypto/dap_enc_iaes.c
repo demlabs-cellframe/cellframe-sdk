@@ -35,13 +35,13 @@ void dap_enc_aes_key_new(struct dap_enc_key * a_key)
     a_key->type = DAP_ENC_KEY_TYPE_AES;
     a_key->enc = dap_enc_iaes256_cbc_encrypt;
     a_key->dec = dap_enc_iaes256_cbc_decrypt;
-    a_key->delete_callback = dap_enc_aes_key_delete;
+    //a_key->delete_callback = dap_enc_aes_key_delete;
 
     a_key->priv_key_data = (uint8_t *)malloc(AES_KEYSIZE);
     a_key->priv_key_data_size = AES_KEYSIZE;
 }
 
-void dap_enc_aes_key_generate_from_kex_and_seed(struct dap_enc_key * a_key, const void *kex_buf,
+void dap_enc_aes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
                                                 size_t kex_size, const void * seed, size_t seed_size,
                                                 size_t key_size)
 {

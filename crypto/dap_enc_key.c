@@ -36,7 +36,7 @@ struct dap_enc_key_callbacks{
     size_t size_max;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    dap_enc_callback_pptr_r_size_t key_public_raw_callback;
+  //  dap_enc_callback_pptr_r_size_t key_public_raw_callback;
 
     dap_enc_callback_new new_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
@@ -52,33 +52,30 @@ struct dap_enc_key_callbacks{
                             .dec = dap_enc_iaes256_cbc_decrypt,
                             .new_callback = dap_enc_aes_key_new,
                             .delete_callback = dap_enc_aes_key_delete,
-                            .new_generate_callback = dap_enc_aes_key_generate_from_kex_and_seed,
-                           },
-    [DAP_ENC_KEY_TYPE_DEFEO]={
-                            .name = "DEFEO",
-                            .size_max = 64,
-                            .enc = dap_enc_defeo_encode,
-                            .dec = dap_enc_defeo_decode,
-                            .new_callback = NULL,
-                            .delete_callback = NULL,
-                            .new_generate_callback = dap_enc_defeo_key_new_from_data
+                            .new_generate_callback = dap_enc_aes_key_generate,
                            },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
                             .name = "MSRLN",
                             .size_max = 64,
                             .enc = dap_enc_msrln_encode,
                             .dec = dap_enc_msrln_decode,
-                            .new_callback = NULL,
-                            .delete_callback =NULL,
-                            .new_generate_callback = dap_enc_msrln_key_new_generate,
-                            .new_generate_callback = dap_enc_msrln_key_new_from_data,
-                            .key_public_raw_callback = dap_enc_msrln_key_public_raw,
+                            .new_callback = dap_enc_msrln_key_new,
+                            .delete_callback =NULL, // TODO
+                            .new_generate_callback = dap_enc_msrln_key_generate,
                             .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
     },
+    [DAP_ENC_KEY_TYPE_DEFEO]={
+                            .name = "DEFEO",
+                            .size_max = 64,
+                            .enc = dap_enc_defeo_encode,
+                            .dec = dap_enc_defeo_decode,
+                            .new_callback = NULL,
+                            .delete_callback = dap_enc_defeo_key_delete,
+                            .new_generate_callback = dap_enc_defeo_key_new_from_data,
+                           },
 };
 
 const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
-
 
 /**
  * @brief dap_enc_key_init
@@ -153,6 +150,7 @@ void dap_enc_key_delete(dap_enc_key_t * a_key)
     }
     /* a_key->_inheritor must be cleaned in delete_callback func */
 
+    free(a_key->pub_key_data);
     free(a_key->priv_key_data);
     free(a_key);
 }

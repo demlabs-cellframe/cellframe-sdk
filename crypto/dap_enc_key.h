@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <time.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,7 +110,7 @@ typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, const voi
                                               size_t kex_size, const void* seed, size_t seed_size,
                                               size_t key_size);
 // free memory
-typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
+typedef void (*dap_enc_callback_delete)(struct dap_enc_key*); 
 
 // encrypt->decrypt functions. Allocates Memory for out
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
@@ -127,11 +128,13 @@ typedef struct dap_enc_key{
     size_t priv_key_data_size;
     unsigned char * priv_key_data;
 
+    size_t pub_key_data_size;
+    unsigned char * pub_key_data; // can be null if enc symmetric
+
     time_t last_used_timestamp;
     dap_enc_key_type_t type;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    dap_enc_callback_delete delete_callback;
     void * _inheritor;
 } dap_enc_key_t;
 

@@ -43,8 +43,7 @@ static void _encrypt_decrypt(enum dap_enc_key_type key_type,
 
         dap_assert_PIF(source_size == out_size, "Check result decode size");
 
-        dap_assert_PIF(memcmp(source, decode_result, source_size) == 0,
-"Check source and encode->decode data");
+        dap_assert_PIF(memcmp(source, decode_result, source_size) == 0, "Check source and encode->decode data");
 
         free(encrypt_result);
         free(decode_result);
@@ -55,19 +54,19 @@ static void _encrypt_decrypt(enum dap_enc_key_type key_type,
 void test_encode_decode_raw(size_t count_steps)
 {
     _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_RAW, count_steps);
-    dap_pass_msg("Test encode->decode raw");
+    dap_pass_msg("Encode->decode raw");
 }
 
 void test_encode_decode_raw_b64(size_t count_steps)
 {
     _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_B64, count_steps);
-    dap_pass_msg("Test encode->decode raw base64");
+    dap_pass_msg("Encode->decode raw base64");
 }
 
 void test_encode_decode_raw_b64_url_safe(size_t count_steps)
 {
     _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_B64_URLSAFE, count_steps);
-    dap_pass_msg("Test encode->decode raw base64 url safe");
+    dap_pass_msg("Encode->decode raw base64 url safe");
 }
 
 static void init_test_case()
