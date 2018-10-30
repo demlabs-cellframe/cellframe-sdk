@@ -20,7 +20,7 @@
 
 #include "dap_common.h"
 
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 #include "dap_http_client.h"
 
 #include "stream.h"
@@ -60,11 +60,11 @@ void stream_ch_deinit()
  * @param direction Direction of channel (input to the server, output to the client)
  * @return
  */
-stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
+dap_stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
 {
     stream_ch_proc_t * proc=stream_ch_proc_find(id);
     if(proc){
-        stream_ch_t * ret= DAP_NEW_Z(stream_ch_t);
+        dap_stream_ch_t * ret= DAP_NEW_Z(dap_stream_ch_t);
         ret->stream=stream;
         ret->proc=proc;
         ret->ready_to_read=true;
@@ -84,7 +84,7 @@ stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
  * @brief stream_ch_delete Delete channel instance
  * @param ch Channel delete
  */
-void stream_ch_delete(stream_ch_t*ch)
+void stream_ch_delete(dap_stream_ch_t*ch)
 {
     if(ch->proc)
         if(ch->proc->delete_callback)
@@ -99,7 +99,7 @@ void stream_ch_delete(stream_ch_t*ch)
 }
 
 
-void stream_ch_set_ready_to_write(stream_ch_t * ch,bool is_ready)
+void stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
     if(ch->ready_to_write!=is_ready){
@@ -110,7 +110,7 @@ void stream_ch_set_ready_to_write(stream_ch_t * ch,bool is_ready)
         if(ch->stream->conn_udp)
             dap_udp_client_ready_to_write(ch->stream->conn,is_ready);
         else
-            dap_client_ready_to_write(ch->stream->conn,is_ready);
+            dap_client_remote_ready_to_write(ch->stream->conn,is_ready);
     }
     pthread_mutex_unlock(&ch->mutex);
 }

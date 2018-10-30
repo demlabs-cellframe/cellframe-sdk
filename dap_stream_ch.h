@@ -49,15 +49,15 @@ typedef struct stream_ch{
 
     struct stream_ch_proc * proc;
     void * internal;  // Internal structure, GStreamer for example
-} stream_ch_t;
+} dap_stream_ch_t;
 
 extern int stream_ch_init();
 extern void stream_ch_deinit();
 
-extern stream_ch_t* stream_ch_new(struct stream*stream,uint8_t id);
+extern dap_stream_ch_t* stream_ch_new(struct stream*stream,uint8_t id);
 
-extern void stream_ch_set_ready_to_write(stream_ch_t * ch,bool is_ready);
+extern void stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready);
 
-extern void stream_ch_delete(stream_ch_t*ch);
+extern void stream_ch_delete(dap_stream_ch_t*ch);
 
 #endif
