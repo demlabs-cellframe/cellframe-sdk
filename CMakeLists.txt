@@ -21,7 +21,7 @@ file(GLOB CORE_SERVER_HEADERS *.h)
 
 add_library(${PROJECT_NAME} STATIC ${CORE_SERVER_SOURCES} ${CORE_SERVER_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} pthread ev dap_crypto)
+target_link_libraries(${PROJECT_NAME} pthread ev memcached dap_crypto)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
