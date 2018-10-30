@@ -3,12 +3,8 @@ HEADERS += $$PWD/dap_enc.h \
     $$PWD/dap_enc_aes.h \
     $$PWD/dap_enc_newhope.h \
     $$PWD/dap_enc_msrln16.h \
-    $$PWD/dap_enc_defeo.h \
     $$PWD/dap_enc_key.h \
     $$PWD/dap_enc_sidh16.h \
-    $$PWD/DeFeo_Scheme/P768_internal.h \
-    $$PWD/DeFeo_Scheme/defeo_kex.c \
-    $$PWD/DeFeo_Scheme/config.h \
     $$PWD/liboqs/kex_sidh_cln16/kex_sidh_cln16.h \
     $$PWD/liboqs/kex_sidh_cln16/SIDH.h \
     $$PWD/liboqs/kex_sidh_cln16/SIDH_internal.h \
@@ -29,8 +25,6 @@ SOURCES += $$PWD/dap_enc.c \
     $$PWD/dap_enc_msrln16.c \
     $$PWD/dap_enc_key.c \
     $$PWD/dap_enc_sidh16.c \
-    $$PWD/dap_enc_defeo.c \
-    $$PWD/DeFeo_Scheme/defeo_kex.c \
     $$PWD/liboqs/kex_sidh_cln16/kex_sidh_cln16.c \
     $$PWD/liboqs/kex_sidh_cln16/SIDH.c \
     $$PWD/liboqs/kex_sidh_cln16/SIDH_setup.c \
@@ -49,7 +43,6 @@ SOURCES += $$PWD/dap_enc.c \
     $$PWD/liboqs/crypto/aes/aes_c.c \
     $$PWD/liboqs/crypto/aes/aes_ni.c \
     $$PWD/liboqs/crypto/aes/aes.c 
-
 
 
 INCLUDEPATH += $$PWD
