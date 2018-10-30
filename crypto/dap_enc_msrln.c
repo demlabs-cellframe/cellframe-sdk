@@ -8,16 +8,11 @@
 
 void dap_enc_msrln_key_new(struct dap_enc_key* a_key)
 {
-    a_key = DAP_NEW(dap_enc_key_t);
-    if(a_key == NULL) {
-        log_it(L_ERROR, "Can't allocate memory for key");
-        return;
-    }
-
     a_key->type = DAP_ENC_KEY_TYPE_MSRLN;
     a_key->dec = dap_enc_msrln_decode;
     a_key->enc = dap_enc_msrln_encode;
-    a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
+    a_key->priv_key_data_size = 0;
+    a_key->pub_key_data_size = 0;
 }
 
 ///**
@@ -41,40 +36,43 @@ void dap_enc_msrln_key_new(struct dap_enc_key* a_key)
 //    //a_key->delete_callback = dap_enc_msrln_key_delete;
 //}
 
+/**
+ * @brief dap_enc_msrln_key_generate
+ * @param a_key
+ * @param kex_buf
+ * @param kex_size
+ * @param seed
+ * @param seed_size
+ * @param key_size
+ * @details allocate memory and generate private and public key
+ */
 void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
                                 size_t kex_size, const void * seed, size_t seed_size,
                                 size_t key_size)
 {
     (void)kex_buf; (void)kex_size;
     (void)seed; (void)seed_size; (void)key_size;
-    uint8_t *key_a_tmp_pub = NULL;
 
     /* alice_msg is alice's public key */
     a_key->pub_key_data = NULL;
     a_key->pub_key_data = malloc(MSRLN_PKA_BYTES);
+    a_key->pub_key_data_size = MSRLN_PKA_BYTES;
     if(a_key->pub_key_data == NULL) {
         abort();
     }
-    key_a_tmp_pub = a_key->pub_key_data;
 
-    a_key->priv_key_data = NULL;
-    a_key->priv_key_data = malloc(1024 * sizeof(uint32_t));
-//    if (*alice_priv == NULL) {
-//        abort();
-//    }
+    a_key->priv_key_data = malloc(MSRLN_PKA_BYTES * sizeof(uint32_t));
 
     PLatticeCryptoStruct PLCS = LatticeCrypto_allocate();
     LatticeCrypto_initialize(PLCS, randombytes, MSRLN_generate_a, MSRLN_get_error);
 
     if (MSRLN_KeyGeneration_A((int32_t *) a_key->priv_key_data,
-                              (unsigned char *) key_a_tmp_pub, PLCS) != CRYPTO_MSRLN_SUCCESS) {
+                              (unsigned char *) a_key->pub_key_data, PLCS) != CRYPTO_MSRLN_SUCCESS) {
         abort();
     }
-    a_key->priv_key_data_size = MSRLN_PKA_BYTES;
-    a_key->pub_key_data_size = MSRLN_PKA_BYTES;
+    free(PLCS);
+    a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
 
-    key_a_tmp_pub = NULL;
-    DAP_DELETE(key_a_tmp_pub);
     return;
 }
 
@@ -87,16 +85,20 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
  * @param alice_msg_len
  * @return
  */
-size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, size_t *a_pub_size, unsigned char **b_pub)
+size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, const size_t a_pub_size, unsigned char **b_pub)
 {
     size_t ret;
 
     uint8_t *bob_tmp_pub = NULL;
 
     *b_pub = NULL;
-    b_key->priv_key_data = NULL;
+    if(b_key->priv_key_data_size == 0) { // need allocate mamory for priv key
+        b_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+        b_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
+    }
+ //   b_key->priv_key_data = NULL;
 
-    if(*a_pub_size != MSRLN_PKA_BYTES) {
+    if(a_pub_size != MSRLN_PKA_BYTES) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
@@ -116,7 +118,7 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, siz
     }
     bob_tmp_pub = *b_pub;
 
-    b_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+//    b_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
     if(b_key->priv_key_data == NULL) {
         ret = 0;
         DAP_DELETE(b_pub);
@@ -136,10 +138,11 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, siz
         b_key->priv_key_data = NULL;
         return ret;
     }
+    free(PLCS);
 
     b_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
     b_key->pub_key_data_size = MSRLN_PKB_BYTES;
-    *a_pub_size = MSRLN_PKB_BYTES;
+ //   *a_pub_size = MSRLN_PKB_BYTES;
 
     ret = 1;
     return ret;
@@ -156,13 +159,18 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, siz
  * @param key_len
  * @return
  */
-size_t dap_enc_msrln_decode(struct dap_enc_key* a_key, const void* a_priv, size_t *a_key_len, unsigned char * b_pub)
+size_t dap_enc_msrln_decode(struct dap_enc_key* a_key, const void* a_priv, const size_t b_key_len, unsigned char * b_pub)
 {
     size_t ret = 1;
 
-    a_key->priv_key_data = NULL;
-    a_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
-    if(a_key->priv_key_data == NULL || *a_key_len != MSRLN_PKB_BYTES) {
+    if(a_key->priv_key_data_size == 0) { // need allocate mamory for priv key
+        a_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+        a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
+    }
+
+//    a_key->priv_key_data = NULL;
+//    a_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+    if(a_key->priv_key_data == NULL || b_key_len != MSRLN_PKB_BYTES) {
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
@@ -208,7 +216,7 @@ void dap_enc_msrln_key_delete(struct dap_enc_key* a_key)
     if(!a_key){
         return;
     }
-    DAP_DELETE(a_key);
+//    DAP_DELETE(a_key);
 }
 
 /**

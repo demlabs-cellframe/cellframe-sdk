@@ -112,7 +112,7 @@ typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, const voi
 // free memory
 typedef void (*dap_enc_callback_delete)(struct dap_enc_key*); 
 
-// encrypt->decrypt functions. Allocates Memory for out
+// encrypt and decrypt functions. Allocates Memory for out
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
                                             const size_t in_size,void ** out);
 
