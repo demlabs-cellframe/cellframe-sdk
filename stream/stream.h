@@ -37,7 +37,7 @@
 
 #define CHUNK_SIZE_MAX 3*1024
 
-struct dap_server_client;
+struct dap_client_remote;
 struct dap_udp_server_t;
 
 
@@ -54,8 +54,8 @@ typedef void (*stream_callback)(struct stream*,void*);
 typedef struct stream {
 
     int id;
-    stream_session_t * session;
-    struct dap_server_client * conn; // Connection
+    dap_stream_session_t * session;
+    struct dap_client_remote * conn; // Connection
 
     struct dap_http_client * conn_http; // HTTP-specific
 
@@ -76,14 +76,14 @@ typedef struct stream {
 
     uint8_t buf[500000];
 
-    stream_ch_t * channel[255]; // TODO reduce channels to 16 to economy memory
+    dap_stream_ch_t * channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;
 
     size_t frame_sent; // Frame counter
 
     size_t stream_size;
 
-} stream_t;
+} dap_stream_t;
 
 #define STREAM(a) ((stream_t *) (a)->_internal )
 

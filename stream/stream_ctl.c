@@ -29,7 +29,7 @@
 
 #include "dap_http.h"
 #include "dap_http_client.h"
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 #include "dap_http_simple.h"
 
 #include "stream_session.h"
@@ -87,7 +87,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 
 	unsigned int db_id=0;
    // unsigned int proto_version;
-	stream_session_t * ss=NULL;
+	dap_stream_session_t * ss=NULL;
    // unsigned int action_cmd=0;
     bool openPreview;
     bool socket_forward=false;
@@ -109,7 +109,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         }
         if(socket_forward){
             log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
-            ss=stream_session_pure_new();
+            ss=dap_stream_session_pure_new();
 
             char key_str[255];
             for(int i = 0; i < sizeof(key_str); i++)
@@ -122,7 +122,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 
         }else if(sscanf( dg->in_query ,"db_id=%u",&db_id)==1){
             log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
-            ss=stream_session_new(db_id,openPreview);
+            ss=dap_stream_session_new(db_id,openPreview);
 
             char key_str[255];
             for(int i = 0; i < sizeof(key_str); i++)

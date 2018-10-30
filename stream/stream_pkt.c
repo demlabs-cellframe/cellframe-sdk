@@ -24,7 +24,7 @@
 //#include "config.h"
 
 
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 #include "dap_http_client.h"
 
 #include "dap_enc.h"
@@ -123,8 +123,8 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
         ret+=dap_udp_client_write(sid->conn,sid->buf,pkt_hdr.size);
     }
     else{
-        ret+=dap_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
-        ret+=dap_client_write(sid->conn,sid->buf,pkt_hdr.size);
+        ret+=dap_client_remote_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
+        ret+=dap_client_remote_write(sid->conn,sid->buf,pkt_hdr.size);
     }
     return ret;
 }

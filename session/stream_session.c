@@ -24,20 +24,20 @@
 
 #define LOG_TAG "stream_session"
 
-stream_session_t * sessions=NULL;
+dap_stream_session_t * sessions=NULL;
 
-int stream_session_close2(stream_session_t * s);
+int stream_session_close2(dap_stream_session_t * s);
 static void * session_check(void * data);
 
-void stream_session_init()
+void dap_stream_session_init()
 {
     log_it(L_INFO,"[session] Init module");
     srand ( time(NULL) );
 }
 
-void stream_session_deinit()
+void dap_stream_session_deinit()
 {
-    stream_session_t *current, *tmp;
+    dap_stream_session_t *current, *tmp;
     log_it(L_INFO,"[session] Destroy everything");
 
       HASH_ITER(hh, sessions, current, tmp) {
@@ -52,16 +52,16 @@ static void * session_check(void * data)
 }
 
 
-stream_session_t * stream_session_pure_new()
+dap_stream_session_t * dap_stream_session_pure_new()
 {
-    stream_session_t * ret=NULL;
+    dap_stream_session_t * ret=NULL;
     unsigned int session_id=0,session_id_new=0;
     do{
         session_id_new=session_id=rand()+rand()*0x100+rand()*0x10000+rand()*0x01000000;
         HASH_FIND_INT(sessions,&session_id_new,ret);
     }while(ret);
     log_it(L_INFO,"[session] Creating new with id %u",session_id);
-    ret=(stream_session_t*) calloc(1,sizeof(stream_session_t));
+    ret=(dap_stream_session_t*) calloc(1,sizeof(dap_stream_session_t));
     pthread_mutex_init(&ret->mutex, NULL);
     ret->id=session_id;
     ret->time_created=time(NULL);
@@ -72,29 +72,29 @@ stream_session_t * stream_session_pure_new()
     return ret;
 }
 
-stream_session_t * stream_session_new(unsigned int media_id, bool open_preview)
+dap_stream_session_t * dap_stream_session_new(unsigned int media_id, bool open_preview)
 {
-    stream_session_t * ret=stream_session_pure_new();
+    dap_stream_session_t * ret=dap_stream_session_pure_new();
     ret->media_id=media_id;
     ret->open_preview=open_preview;
     ret->create_empty=false;
     return ret;
 }
 
-stream_session_t * stream_session_id(unsigned int id)
+dap_stream_session_t * dap_stream_session_id(unsigned int id)
 {
-    stream_session_t * ret;
+    dap_stream_session_t * ret;
     HASH_FIND_INT(sessions,&id,ret);
     return ret;
 }
 
 
-int stream_session_close(unsigned int id)
+int dap_stream_session_close(unsigned int id)
 {
-    return stream_session_close2(stream_session_id(id));
+    return stream_session_close2(dap_stream_session_id(id));
 }
 
-int stream_session_close2(stream_session_t * s)
+int stream_session_close2(dap_stream_session_t * s)
 {
     log_it(L_INFO,"[session] Close");
     HASH_DEL(sessions,s);
@@ -102,7 +102,7 @@ int stream_session_close2(stream_session_t * s)
     return 0;
 }
 
-int stream_session_open(stream_session_t * ss)
+int dap_stream_session_open(dap_stream_session_t * ss)
 {
     int ret;
     pthread_mutex_lock(&ss->mutex);
