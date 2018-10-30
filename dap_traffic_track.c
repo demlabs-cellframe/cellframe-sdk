@@ -1,3 +1,27 @@
+/*
+ * Authors:
+ * Anatoliy Kurotich <anatoliy.kurotich@demlabs.net>
+ * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2017-2018
+ * All rights reserved.
+
+ This file is part of DAP (Deus Applications Prototypes) the open source project
+
+    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    DAP is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include "dap_traffic_track.h"
 #include "dap_common.h"
 #include "dap_cpu_monitor.h"
@@ -78,7 +102,7 @@ static void _timeout_cb()
 
     if(count_users) {
         size_t idx = 0;
-        dap_server_client_t *dap_cur, *tmp;
+        dap_client_remote_t *dap_cur, *tmp;
         HASH_ITER(hh, _dap_server->clients, dap_cur,tmp) {
 
             dap_cur->upload_stat.speed_mbs =
