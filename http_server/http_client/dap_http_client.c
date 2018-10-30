@@ -24,7 +24,7 @@
 #include <ctype.h>
 #include <libgen.h>
 #include "dap_common.h"
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 
 #include "../dap_http.h"
 
@@ -60,7 +60,7 @@ void dap_http_client_deinit()
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_new(dap_server_client_t * cl,void * arg)
+void dap_http_client_new(dap_client_remote_t * cl,void * arg)
 {
     (void) arg;
     cl->_inheritor = DAP_NEW_Z(dap_http_client_t);
@@ -77,7 +77,7 @@ void dap_http_client_new(dap_server_client_t * cl,void * arg)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_delete(dap_server_client_t * cl,void * arg)
+void dap_http_client_delete(dap_client_remote_t * cl,void * arg)
 {
     dap_http_client_t * cl_ht = DAP_HTTP_CLIENT(cl);
     while(cl_ht->in_headers)
@@ -164,7 +164,7 @@ bool dap_http_request_line_parse(dap_http_client_t * cl_ht, char * buf, size_t b
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_read(dap_server_client_t * cl,void * arg)
+void dap_http_client_read(dap_client_remote_t * cl,void * arg)
 {
 
     (void) arg;
@@ -178,7 +178,7 @@ cnt:switch(cl_ht->state_read){
                 return;
             }else if((eol+3)<sizeof(buf_line) ){
                 memcpy(buf_line,cl->buf_in,eol+1);
-                dap_client_shrink_buf_in(cl,eol+1);
+                dap_client_remote_shrink_buf_in(cl,eol+1);
                 buf_line[eol+2]='\0';
                 if( dap_http_request_line_parse(cl_ht,buf_line,eol+1) ){
                     char * query_string;
@@ -223,8 +223,8 @@ cnt:switch(cl_ht->state_read){
                     else{
                         log_it(L_WARNING, "Input: unprocessed URL request %s is rejected", d_name);
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
-                        dap_client_ready_to_read(cl_ht->client,true);
-                        dap_client_ready_to_write(cl_ht->client,true);
+                        dap_client_remote_ready_to_read(cl_ht->client,true);
+                        dap_client_remote_ready_to_write(cl_ht->client,true);
                         cl_ht->reply_status_code=505;
                         strcpy(cl_ht->reply_reason_phrase,"Error");
                         cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -244,8 +244,8 @@ cnt:switch(cl_ht->state_read){
                     log_it(L_WARNING, "Input: Wrong request line '%s'",buf_line);
                     cl->buf_in_size=0;
                     cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
-                    dap_client_ready_to_read(cl_ht->client,false);
-                    dap_client_ready_to_write(cl_ht->client,true);
+                    dap_client_remote_ready_to_read(cl_ht->client,false);
+                    dap_client_remote_ready_to_write(cl_ht->client,true);
                     cl_ht->reply_status_code=505;
                     strcpy(cl_ht->reply_reason_phrase,"Error");
                     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -254,8 +254,8 @@ cnt:switch(cl_ht->state_read){
                 log_it(L_WARNING,"Too big line in request, more than %llu symbols - thats very strange",sizeof(buf_line)-3);
                 cl->buf_in_size=0;
                 cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
-                dap_client_ready_to_read(cl_ht->client,false);
-                dap_client_ready_to_write(cl_ht->client,true);
+                dap_client_remote_ready_to_read(cl_ht->client,false);
+                dap_client_remote_ready_to_write(cl_ht->client,true);
                 cl_ht->reply_status_code=505;
                 strcpy(cl_ht->reply_reason_phrase,"Error");
                 cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -282,8 +282,8 @@ cnt:switch(cl_ht->state_read){
                         if(!isOk){
                             log_it(L_NOTICE,"Access restricted");
                             cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
-                            dap_client_ready_to_read(cl_ht->client,false);
-                            dap_client_ready_to_write(cl_ht->client,true);
+                            dap_client_remote_ready_to_read(cl_ht->client,false);
+                            dap_client_remote_ready_to_write(cl_ht->client,true);
                             cl_ht->reply_status_code=505;
                             strcpy(cl_ht->reply_reason_phrase,"Error");
                             cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -303,7 +303,7 @@ cnt:switch(cl_ht->state_read){
                     }
 
                 }
-                dap_client_shrink_buf_in(cl,eol+1);
+                dap_client_remote_shrink_buf_in(cl,eol+1);
             }
         }break;
         case DAP_HTTP_CLIENT_STATE_DATA:{//Read the data
@@ -313,7 +313,7 @@ cnt:switch(cl_ht->state_read){
             if(cl_ht->proc->data_read_callback){
                 //while(cl_ht->client->buf_in_size){
                     cl_ht->proc->data_read_callback(cl_ht,&read_bytes);
-                    dap_client_shrink_buf_in(cl,read_bytes);
+                    dap_client_remote_shrink_buf_in(cl,read_bytes);
                 //}
             }else
                 cl->buf_in_size=0;
@@ -334,7 +334,7 @@ cnt:switch(cl_ht->state_read){
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_write(dap_server_client_t * cl,void * arg)
+void dap_http_client_write(dap_client_remote_t * cl,void * arg)
 {
 
     (void) arg;
@@ -347,7 +347,7 @@ void dap_http_client_write(dap_server_client_t * cl,void * arg)
                 if(cl_ht->proc->headers_write_callback)
                     cl_ht->proc->headers_write_callback(cl_ht,NULL);
             log_it(L_DEBUG,"Output: HTTP response with %u status code",cl_ht->reply_status_code);
-            dap_client_write_f(cl,"HTTP/1.1 %u %s\r\n",cl_ht->reply_status_code, cl_ht->reply_reason_phrase[0]?cl_ht->reply_reason_phrase:"UNDEFINED");
+            dap_client_remote_write_f(cl,"HTTP/1.1 %u %s\r\n",cl_ht->reply_status_code, cl_ht->reply_reason_phrase[0]?cl_ht->reply_reason_phrase:"UNDEFINED");
             dap_http_client_out_header_generate(cl_ht);
 
             cl_ht->state_write=DAP_HTTP_CLIENT_STATE_HEADERS;
@@ -356,20 +356,20 @@ void dap_http_client_write(dap_server_client_t * cl,void * arg)
             dap_http_header_t * hdr=cl_ht->out_headers;
             if(hdr==NULL){
                 log_it(L_DEBUG, "Output: headers are over (reply status code %u)",cl_ht->reply_status_code);
-                dap_client_write_f(cl,"\r\n");
+                dap_client_remote_write_f(cl,"\r\n");
                 if(cl_ht->out_content_length || cl_ht->out_content_ready){
                     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_DATA;
                 }else{
                     log_it(L_DEBUG,"Nothing to output");
                     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_NONE;
-                    dap_client_ready_to_write(cl,false);
+                    dap_client_remote_ready_to_write(cl,false);
 
                     cl->signal_close=true;
                 }
-                dap_client_ready_to_read(cl,true);
+                dap_client_remote_ready_to_read(cl,true);
             }else{
                 //log_it(L_DEBUGUG,"Output: header %s: %s",hdr->name,hdr->value);
-                dap_client_write_f(cl,"%s: %s\r\n",hdr->name,hdr->value);
+                dap_client_remote_write_f(cl,"%s: %s\r\n",hdr->name,hdr->value);
                 dap_http_header_remove(&cl_ht->out_headers, hdr);
             }
         }break;
@@ -417,7 +417,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_error(struct dap_server_client * cl,void * arg)
+void dap_http_client_error(struct dap_client_remote * cl,void * arg)
 {
     (void) arg;
     dap_http_client_t * cl_ht=DAP_HTTP_CLIENT(cl);

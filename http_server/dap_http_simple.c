@@ -180,10 +180,10 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
         //cl_sh->http->client->ready_to_read=false;
         //cl_sh->http->client->ready_to_write=false;
     }
-    dap_client_ready_to_read(cl_sh->http->client,false);
+    dap_client_remote_ready_to_read(cl_sh->http->client,false);
     cl_sh->http->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
-    dap_client_ready_to_write(cl_sh->http->client,true);
+    dap_client_remote_ready_to_write(cl_sh->http->client,true);
     cl_sh->http->state_write=DAP_HTTP_CLIENT_STATE_START;
 }
 
@@ -247,7 +247,7 @@ void dap_http_simple_data_write(dap_http_client_t * a_http_client,void * a_arg)
     (void) a_arg;
     dap_http_simple_t * cl_st = DAP_HTTP_SIMPLE(a_http_client);
 
-    cl_st->reply_sent += dap_client_write(a_http_client->client,
+    cl_st->reply_sent += dap_client_remote_write(a_http_client->client,
                                           cl_st->reply + cl_st->reply_sent,
                                           a_http_client->out_content_length - cl_st->reply_sent);
 

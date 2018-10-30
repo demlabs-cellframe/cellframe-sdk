@@ -39,7 +39,7 @@
 #include "dap_common.h"
 
 #include "dap_server.h"
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 
 #include "dap_http.h"
 #include "dap_http_header.h"

@@ -27,7 +27,7 @@
 #include <errno.h>
 
 #include "dap_common.h"
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 #include "dap_http.h"
 #include "dap_http_client.h"
 #include "dap_http_folder.h"
@@ -123,8 +123,8 @@ void dap_http_folder_headers_read(dap_http_client_t * cl_ht, void * arg)
     (void) arg;
     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
     cl_ht->state_read=cl_ht->keep_alive?DAP_HTTP_CLIENT_STATE_START:DAP_HTTP_CLIENT_STATE_NONE;
-    dap_client_ready_to_write(cl_ht->client,true);
-    dap_client_ready_to_read(cl_ht->client, cl_ht->keep_alive);
+    dap_client_remote_ready_to_write(cl_ht->client,true);
+    dap_client_remote_ready_to_read(cl_ht->client, cl_ht->keep_alive);
 }
 
 /**
@@ -204,7 +204,7 @@ void dap_http_folder_data_write(dap_http_client_t * cl_ht, void * arg)
         log_it(L_INFO, "All the file %s is sent out",cl_ht_file->local_path);
         //strncat(cl_ht->client->buf_out+cl_ht->client->buf_out_size,"\r\n",sizeof(cl_ht->client->buf_out));
         fclose(cl_ht_file->fd);
-        dap_client_ready_to_write(cl_ht->client,false);
+        dap_client_remote_ready_to_write(cl_ht->client,false);
         cl_ht->client->signal_close=!cl_ht->keep_alive;
         cl_ht->state_write=DAP_HTTP_CLIENT_STATE_NONE;
     }
