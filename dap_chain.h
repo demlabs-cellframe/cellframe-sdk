@@ -33,16 +33,19 @@ typedef void (*dap_chain_callback_t)(struct dap_chain *);
 typedef void (*dap_chain_callback_ptr_t)(struct dap_chain *, void * );
 typedef size_t (*dap_chain_callback_dataop_t)(struct dap_chain *, const void * , const size_t ,void *);
 
-typedef struct dap_chain{
-    dap_chain_id_t id;
-    dap_chain_block_cache_t * block_first; // Mapped area start
-    dap_chain_block_cache_t * block_last; // Last block in mapped area
+typedef struct dap_chain_blocks{
+    dap_chain_block_cache_t * block_cache_first; // Mapped area start
+    dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
     uint64_t blocks_count;
     uint64_t difficulty;
+} dap_chain_blocks_t;
+
+typedef struct dap_chain{
+    dap_chain_id_t id;
 
     dap_chain_callback_t callback_delete;
     void * _internal;
-    void * _inhertor;
+    dap_chain_blocks_t * _inheritor;
 } dap_chain_t;
 
 #define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
@@ -50,21 +53,23 @@ typedef struct dap_chain{
 int dap_chain_init();
 void dap_chain_deinit();
 
-dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
+//dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
+int dap_chain_prepare_env();
 void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
 void dap_chain_save(dap_chain_t * a_chain);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 
-
-//работа с файлом
-void dap_chain_file_open(dap_chain_block_cache_t* last_g, dap_chain_block_cache_t* last_s, dap_chain_block_cache_t* last_c);
-void dap_chain_file_write(dap_chain_block_cache_t *l_block_cache);
-void dap_chain_update(dap_chain_block_cache_t *l_block_cache);
+int dap_chain_files_open();
+void dap_chain_block_write   (dap_chain_block_cache_t *l_block_cache);
+void dap_chain_update       (dap_chain_block_cache_t *l_block_cache);
 void dap_chain_mine_stop();
-void dap_chain_settot();
+void dap_chain_set_default(bool a_is_gold);
 void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache);
-//работа с файлом
+void dap_chain_show_hash_blocks_file(FILE *a_hash_blocks_file);
+
+dap_chain_block_t* dap_chain_get_last_mined_block(bool a_is_gold);
+int dap_chain_get_mined_block_count(bool a_is_gold);
 
 dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain);
 
