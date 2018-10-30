@@ -69,6 +69,39 @@ void test_encode_decode_raw_b64_url_safe(size_t count_steps)
     dap_pass_msg("Encode->decode raw base64 url safe");
 }
 
+void test_key_transfer_msrln()
+{
+    uint8_t *alice_msg;
+    size_t alice_msg_len;
+
+    uint8_t *bob_msg;
+    size_t bob_msg_len;
+
+    dap_enc_key_t* alice_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
+
+    // generate Alice msg
+    alice_msg = alice_key->pub_key_data;
+    alice_msg_len = alice_key->pub_key_data_size;
+
+    /* generate Bob's response */
+    dap_enc_key_t* bob_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
+    bob_key->enc(bob_key, (unsigned char *) alice_msg, alice_msg_len,
+                         (void **) &bob_key->pub_key_data);
+    bob_msg = bob_key->pub_key_data;
+    bob_msg_len = bob_key->pub_key_data_size;
+
+    /* Alice processes Bob's response */
+    bob_key->dec(alice_key, alice_key->priv_key_data, bob_msg_len, (void**)bob_msg);
+
+    /* compare session key values */
+    dap_assert(memcmp(alice_key->priv_key_data, bob_key->priv_key_data, alice_key->priv_key_data_size) == 0, "Session keys equals");
+
+    dap_enc_key_delete(alice_key);
+    dap_enc_key_delete(bob_key);
+
+    dap_pass_msg("Key transfer simulation");
+}
+
 static void init_test_case()
 {
     dap_enc_key_init();
@@ -85,5 +118,6 @@ void dap_enc_tests_run() {
     test_encode_decode_raw(50);
     test_encode_decode_raw_b64(50);
     test_encode_decode_raw_b64_url_safe(50);
+    test_key_transfer_msrln();
     cleanup_test_case();
 }
