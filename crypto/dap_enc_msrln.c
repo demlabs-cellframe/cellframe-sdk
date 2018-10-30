@@ -17,6 +17,7 @@ void dap_enc_msrln_key_new(struct dap_enc_key* a_key)
     a_key->type = DAP_ENC_KEY_TYPE_MSRLN;
     a_key->dec = dap_enc_msrln_decode;
     a_key->enc = dap_enc_msrln_encode;
+    a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
 }
 
 ///**
@@ -137,6 +138,7 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, siz
     }
 
     b_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
+    b_key->pub_key_data_size = MSRLN_PKB_BYTES;
     *a_pub_size = MSRLN_PKB_BYTES;
 
     ret = 1;
