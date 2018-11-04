@@ -95,6 +95,56 @@ void dap_enc_key_deinit()
 }
 
 /**
+ * @brief dap_enc_key_serealize
+ * @param key
+ * @return allocates dap_enc_key_serealize_t* dont remember use free()
+ */
+dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
+{
+    log_it(L_DEBUG, "serealize struct size : %d", sizeof (dap_enc_key_serealize_t));
+    dap_enc_key_serealize_t *result = DAP_NEW_Z(dap_enc_key_serealize_t);
+    result->priv_key_data_size = key->priv_key_data_size;
+    result->pub_key_data_size = key->pub_key_data_size;
+    result->last_used_timestamp = key->last_used_timestamp;
+    result->inheritor_size = key->_inheritor_size;
+    result->type = key->type;
+    memcpy(result->priv_key_data, key->priv_key_data, key->priv_key_data_size);
+    memcpy(result->pub_key_data, key->pub_key_data, key->pub_key_data_size);
+    memcpy(result->inheritor, key->_inheritor, key->_inheritor_size);
+
+    return result;
+}
+
+/**
+ * @brief dap_enc_key_deserealize
+ * @param buf
+ * @param buf_size
+ * @return allocates dap_enc_key_t*. Use dap_enc_key_delete for free memory
+ */
+dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size)
+{
+    if(buf_size != sizeof (dap_enc_key_serealize_t)) {
+        log_it(L_ERROR, "Key can't be deserealize. buf_size != sizeof (dap_enc_key_serealize_t)");
+        return NULL;
+    }
+    dap_enc_key_serealize_t *in_key = (dap_enc_key_serealize_t *)buf;
+    dap_enc_key_t *result = dap_enc_key_new(in_key->type);
+    result->last_used_timestamp = in_key->last_used_timestamp;
+    result->priv_key_data_size = in_key->priv_key_data_size;
+    result->pub_key_data_size = in_key->pub_key_data_size;
+    result->_inheritor_size = in_key->inheritor_size;
+    memcpy(result->priv_key_data, in_key->priv_key_data, result->priv_key_data_size);
+    memcpy(result->pub_key_data, in_key->pub_key_data, result->pub_key_data_size);
+
+    if(in_key->inheritor_size)
+        memcpy(result->_inheritor, in_key->inheritor, in_key->inheritor_size);
+    else
+        result->_inheritor = NULL;
+
+    return result;
+}
+
+/**
  * @brief dap_enc_key_new
  * @param a_key_type
  * @return

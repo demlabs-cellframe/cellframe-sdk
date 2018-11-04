@@ -86,7 +86,7 @@ void test_key_transfer_msrln()
     /* generate Bob's response */
     dap_enc_key_t* bob_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
     bob_key->enc(bob_key, (unsigned char *) alice_msg, alice_msg_len,
-                         (void **) &bob_key->pub_key_data);
+                 (void **) &bob_key->pub_key_data);
     bob_msg = bob_key->pub_key_data;
     bob_msg_len = bob_key->pub_key_data_size;
 
@@ -112,6 +112,93 @@ static void cleanup_test_case()
     dap_enc_key_deinit();
 }
 
+#define TEST_SER_FILE_NAME "keystorage.txt"
+static void _write_key_in_file(dap_enc_key_serealize_t* key,
+                               const char* file_name)
+{
+    FILE *f = fopen(TEST_SER_FILE_NAME, "w");
+    dap_assert(f, "Can't create file");
+    fwrite(key, sizeof (dap_enc_key_serealize_t), 1, f);
+    fclose(f);
+}
+
+dap_enc_key_serealize_t* _read_key_from_file(const char* file_name)
+{
+    FILE *f = fopen(TEST_SER_FILE_NAME, "r");
+    dap_assert(f, "Can't open key file");
+    dap_enc_key_serealize_t* resut_key = calloc(1, sizeof(dap_enc_key_serealize_t));
+    fread(resut_key, sizeof(dap_enc_key_serealize_t), 1, f);
+    fclose(f);
+
+    return resut_key;
+}
+
+static void test_serealize_deserealize()
+{
+    const char *kex_data = "123";
+    size_t kex_size = strlen(kex_data);
+    const size_t seed_size = 1 + (rand() % 1000);
+    uint8_t seed[seed_size];
+
+    generate_random_byte_array(seed, seed_size);
+
+    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_AES, kex_data, kex_size, seed, seed_size, 0);
+    dap_enc_key_serealize_t* serealize_key = dap_enc_key_serealize(key);
+    _write_key_in_file(serealize_key, TEST_SER_FILE_NAME);
+    dap_enc_key_serealize_t* deserealize_key = _read_key_from_file(TEST_SER_FILE_NAME);
+    dap_assert(memcmp(serealize_key, deserealize_key, sizeof(dap_enc_key_serealize_t)) == 0,
+               "dap_enc_key_serealize_t equals");
+
+    dap_enc_key_t* key2 = dap_enc_key_deserealize(deserealize_key, sizeof (*deserealize_key));
+
+    dap_assert(key->type == key2->type, "Key type");
+    dap_assert(key->last_used_timestamp == key2->last_used_timestamp,
+               "Last used timestamp");
+    dap_assert(key->priv_key_data_size == key2->priv_key_data_size, "Priv key data size");
+    dap_assert(key->pub_key_data_size == key2->pub_key_data_size, "Pub key data size");
+
+    dap_assert(memcmp(key->priv_key_data, key2->priv_key_data, key2->priv_key_data_size) == 0,
+               "Priv key data");
+
+    if(key->pub_key_data_size) {
+        dap_assert(memcmp(key->pub_key_data, key2->pub_key_data, key2->pub_key_data_size) == 0,
+                   "Pub key data");
+    }
+    dap_assert(key->enc == key2->enc, "Enc callback");
+    dap_assert(key->dec == key2->dec, "Dec callback");
+
+    const char* source = "simple test";
+    size_t source_size = strlen(source);
+
+    uint8_t * encrypt_result = NULL;
+    uint8_t * decode_result = NULL;
+
+    size_t encrypted_size = dap_enc_code(key2, source,
+                                         source_size,
+                                         (void**)&encrypt_result,
+                                         DAP_ENC_DATA_TYPE_RAW);
+
+    size_t decode_size = dap_enc_decode(key,
+                                     encrypt_result,
+                                     encrypted_size,
+                                     (void**)&decode_result,
+                                     DAP_ENC_DATA_TYPE_RAW);
+
+    dap_assert_PIF(source_size == decode_size, "Check result decode size");
+
+    dap_assert_PIF(memcmp(source, decode_result, source_size) == 0,
+                   "Check source and encode->decode data");
+
+    free(encrypt_result);
+    free(decode_result);
+    free(serealize_key);
+    free(deserealize_key);
+    dap_enc_key_delete(key);
+    dap_enc_key_delete(key2);
+
+    dap_pass_msg("Key serealize->deserealize");
+}
+
 void dap_enc_tests_run() {
     dap_print_module_name("dap_enc");
     init_test_case();
@@ -119,5 +206,6 @@ void dap_enc_tests_run() {
     test_encode_decode_raw_b64(50);
     test_encode_decode_raw_b64_url_safe(50);
     test_key_transfer_msrln();
+    test_serealize_deserealize();
     cleanup_test_case();
 }

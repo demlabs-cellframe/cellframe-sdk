@@ -116,7 +116,6 @@ typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
                                             const size_t in_size,void ** out);
 
-
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
 typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , size_t);
@@ -135,12 +134,35 @@ typedef struct dap_enc_key{
     dap_enc_key_type_t type;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    void * _inheritor;
+
+    void * _inheritor; // WARNING! Inheritor must have only serealizeble/deserializeble data (copy)
+    size_t _inheritor_size;
 } dap_enc_key_t;
+
+#define MAX_ENC_KEY_SIZE 16384
+#define MAX_INHERITOR_SIZE 2048
+
+// struct for serelization/deseralization keys in binary storage
+typedef struct dap_enc_key_serealize {
+    size_t priv_key_data_size;
+    size_t pub_key_data_size;
+    size_t inheritor_size;
+    time_t last_used_timestamp;
+    dap_enc_key_type_t type;
+
+    unsigned char priv_key_data[MAX_ENC_KEY_SIZE];
+    unsigned char pub_key_data[MAX_ENC_KEY_SIZE];
+    unsigned char inheritor[MAX_INHERITOR_SIZE];
+} dap_enc_key_serealize_t;
 
 int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
+
+dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key);
+dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size);
+
+// allocate memory for key struct
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);
 
 // default gen key
