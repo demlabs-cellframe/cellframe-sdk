@@ -27,7 +27,7 @@
 #include <stdbool.h>
 #include <sys/queue.h>
 #include "uthash.h"
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 #include <ev.h>
 
 
