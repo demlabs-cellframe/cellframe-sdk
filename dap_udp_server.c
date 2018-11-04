@@ -17,7 +17,7 @@ struct ev_io w_read;
 struct ev_io w_write;
 
 static void write_cb(struct ev_loop* _loop, struct ev_io* watcher, int revents);
-int check_close(dap_server_client_t* client);
+int check_close(dap_client_remote_t* client);
 
 /**
  */
@@ -64,7 +64,7 @@ void dap_udp_server_delete(dap_server_t * sh)
     if(sh->address)
         free(sh->address);
 
-    dap_server_client_t * client, * tmp;
+    dap_client_remote_t * client, * tmp;
     HASH_ITER(hh,sh->clients,client,tmp)
         dap_client_remove(client, sh);    
 
@@ -123,7 +123,7 @@ static void write_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
         {            
             //log_it(L_INFO,"write_cb");
             //pthread_mutex_lock(&udp_client->mutex_on_client);
-            dap_server_client_t* client = udp_client->client;
+            dap_client_remote_t* client = udp_client->client;
             if(client != NULL && check_close(client) == 0 && client->_ready_to_write)
             {
                 if(sh->client_write_callback)
@@ -161,7 +161,7 @@ static void write_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
  * @param client Client structure
  * @return 1 if client deleted, 0 if client is no need to delete
  */
-int check_close(dap_server_client_t* client){
+int check_close(dap_client_remote_t* client){
     if(client->signal_close)
     {
         dap_udp_client_t* udp_client = DAP_UDP_CLIENT(client);
@@ -190,7 +190,7 @@ static void read_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
         dap_server_t* sh = watcher->data;
         bzero(buf, BUFSIZE);
         socklen_t bytes = recvfrom(sh->socket_listener, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, &clientlen);
-        dap_server_client_t *client = dap_udp_client_find(sh,clientaddr.sin_addr.s_addr,clientaddr.sin_port);
+        dap_client_remote_t *client = dap_udp_client_find(sh,clientaddr.sin_addr.s_addr,clientaddr.sin_port);
         if(client != NULL && check_close(client) != 0)
             return;
         if(bytes > 0){
