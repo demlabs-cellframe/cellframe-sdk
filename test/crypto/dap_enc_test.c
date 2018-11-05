@@ -55,19 +55,19 @@ static void _encrypt_decrypt(enum dap_enc_key_type key_type,
 
 void test_encode_decode_raw(size_t count_steps)
 {
-    _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_RAW, count_steps);
+    _encrypt_decrypt(DAP_ENC_KEY_TYPE_IAES, DAP_ENC_DATA_TYPE_RAW, count_steps);
     dap_pass_msg("Encode->decode raw");
 }
 
 void test_encode_decode_raw_b64(size_t count_steps)
 {
-    _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_B64, count_steps);
+    _encrypt_decrypt(DAP_ENC_KEY_TYPE_IAES, DAP_ENC_DATA_TYPE_B64, count_steps);
     dap_pass_msg("Encode->decode raw base64");
 }
 
 void test_encode_decode_raw_b64_url_safe(size_t count_steps)
 {
-    _encrypt_decrypt(DAP_ENC_KEY_TYPE_AES, DAP_ENC_DATA_TYPE_B64_URLSAFE, count_steps);
+    _encrypt_decrypt(DAP_ENC_KEY_TYPE_IAES, DAP_ENC_DATA_TYPE_B64_URLSAFE, count_steps);
     dap_pass_msg("Encode->decode raw base64 url safe");
 }
 
@@ -142,7 +142,7 @@ static void test_serealize_deserealize()
 
     generate_random_byte_array(seed, seed_size);
 
-    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_AES, kex_data, kex_size, seed, seed_size, 0);
+    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, kex_data, kex_size, seed, seed_size, 0);
     dap_enc_key_serealize_t* serealize_key = dap_enc_key_serealize(key);
     _write_key_in_file(serealize_key, TEST_SER_FILE_NAME);
     dap_enc_key_serealize_t* deserealize_key = _read_key_from_file(TEST_SER_FILE_NAME);

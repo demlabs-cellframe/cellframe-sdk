@@ -33,7 +33,7 @@ void dap_enc_aes_key_new(struct dap_enc_key * a_key)
 {
     a_key->_inheritor = DAP_NEW_Z(dap_enc_aes_key_t);
     a_key->_inheritor_size = sizeof (dap_enc_aes_key_t);
-    a_key->type = DAP_ENC_KEY_TYPE_AES;
+    a_key->type = DAP_ENC_KEY_TYPE_IAES;
     a_key->enc = dap_enc_iaes256_cbc_encrypt;
     a_key->dec = dap_enc_iaes256_cbc_decrypt;
     //a_key->delete_callback = dap_enc_aes_key_delete;

@@ -45,7 +45,7 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_delete delete_callback;
 } s_callbacks[]={
     // AES
-    [DAP_ENC_KEY_TYPE_AES]={
+    [DAP_ENC_KEY_TYPE_IAES]={
                             .name = "IAES",
                             .size_max = 8,
                             .enc = dap_enc_iaes256_cbc_encrypt,

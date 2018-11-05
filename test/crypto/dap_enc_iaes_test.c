@@ -15,7 +15,7 @@ void test_encode_decode(int count_steps)
 
         generate_random_byte_array(seed, seed_size);
 
-        dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_AES, kex_data, kex_size, seed, seed_size, 0);
+        dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, kex_data, kex_size, seed, seed_size, 0);
 
         uint8_t source[source_size];
         generate_random_byte_array(source, source_size);
