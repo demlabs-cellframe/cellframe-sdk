@@ -5,6 +5,8 @@
 #include "dap_enc_base64.h"
 #include "dap_enc.h"
 
+#define TEST_SER_FILE_NAME "keystorage.txt"
+
 static void _encrypt_decrypt(enum dap_enc_key_type key_type,
                              enum dap_enc_data_type data_type,
                              size_t count_steps)
@@ -112,11 +114,10 @@ static void cleanup_test_case()
     dap_enc_key_deinit();
 }
 
-#define TEST_SER_FILE_NAME "keystorage.txt"
 static void _write_key_in_file(dap_enc_key_serealize_t* key,
                                const char* file_name)
 {
-    FILE *f = fopen(TEST_SER_FILE_NAME, "w");
+    FILE *f = fopen(file_name, "w");
     dap_assert(f, "Can't create file");
     fwrite(key, sizeof (dap_enc_key_serealize_t), 1, f);
     fclose(f);
@@ -129,7 +130,6 @@ dap_enc_key_serealize_t* _read_key_from_file(const char* file_name)
     dap_enc_key_serealize_t* resut_key = calloc(1, sizeof(dap_enc_key_serealize_t));
     fread(resut_key, sizeof(dap_enc_key_serealize_t), 1, f);
     fclose(f);
-
     return resut_key;
 }
 
