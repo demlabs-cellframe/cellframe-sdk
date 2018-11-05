@@ -176,10 +176,6 @@ dap_enc_key_t *dap_enc_gen_pub_key_from_priv(struct dap_enc_key *a_key, void **p
 
 void dap_enc_key_delete(dap_enc_key_t * a_key);
 
-// dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
-//dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str);
-void dap_enc_key_delete(dap_enc_key_t * a_key);
-
 #ifdef __cplusplus
 }
 #endif
