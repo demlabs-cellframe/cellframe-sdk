@@ -105,7 +105,6 @@ dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
     memcpy(result->priv_key_data, key->priv_key_data, key->priv_key_data_size);
     memcpy(result->pub_key_data, key->pub_key_data, key->pub_key_data_size);
     memcpy(result->inheritor, key->_inheritor, key->_inheritor_size);
-
     return result;
 }
 

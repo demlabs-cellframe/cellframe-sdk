@@ -206,6 +206,7 @@ void dap_enc_tests_run() {
     test_encode_decode_raw_b64(50);
     test_encode_decode_raw_b64_url_safe(50);
     test_key_transfer_msrln();
+    dap_print_module_name("dap_enc serealize->deserealize");
     test_serealize_deserealize();
     cleanup_test_case();
 }

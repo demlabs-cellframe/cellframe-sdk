@@ -85,7 +85,7 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
  * @param alice_msg_len
  * @return
  */
-size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, const size_t a_pub_size, unsigned char **b_pub)
+size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, const void* a_pub, const size_t a_pub_size, void ** b_pub)
 {
     size_t ret;
 

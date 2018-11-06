@@ -28,7 +28,7 @@ void dap_enc_msrln_key_delete(struct dap_enc_key* a_key);
 
 size_t dap_enc_msrln_key_public_raw(dap_enc_key_t *a_key, void ** a_key_public);
 
-size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, const size_t a_pub_size, unsigned char **b_pub);
+size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, const void *a_pub, const size_t a_pub_size, void **b_pub);
 size_t dap_enc_msrln_decode(struct dap_enc_key* a_key, const void* a_priv, const size_t b_key_len, unsigned char * b_pub);
 
 #endif

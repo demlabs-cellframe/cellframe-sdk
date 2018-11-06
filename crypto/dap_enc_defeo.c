@@ -128,7 +128,7 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
 size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_t b_pub_size, unsigned char *b_pub)
 {
     if(b_pub_size != DEFEO_PUBLICKEYBYTES) {
-        log_it(L_ERROR, "public key not equal DEFEO_PUBLICKEYBYTES");
+        log_it(L_ERROR, "public key size not equal DEFEO_PUBLICKEYBYTES");
         return 1;
     }
 
@@ -138,7 +138,8 @@ size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_
         return 2;
     }
 
-    if(EphemeralSecretAgreement_A((unsigned char *) a_priv, (unsigned char *) b_pub, (unsigned char *) a_key->priv_key_data) != 0) {
+    if(EphemeralSecretAgreement_A((unsigned char *) a_priv, (unsigned char *) b_pub,
+                                  (unsigned char *) a_key->priv_key_data) != 0) {
         log_it(L_ERROR, "Error EphemeralSecretAgreement_A");
         return 3;
     }
