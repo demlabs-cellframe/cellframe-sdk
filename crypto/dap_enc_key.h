@@ -123,9 +123,9 @@ typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
 
-typedef struct dap_enc_key{
+typedef struct dap_enc_key {
     size_t priv_key_data_size;
-    unsigned char * priv_key_data;
+    unsigned char * priv_key_data; // can be shared key in assymetric alghoritms
 
     size_t pub_key_data_size;
     unsigned char * pub_key_data; // can be null if enc symmetric

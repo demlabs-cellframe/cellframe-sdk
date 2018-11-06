@@ -33,10 +33,8 @@
 
 struct dap_enc_key_callbacks{
     const char * name;
-    size_t size_max;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-  //  dap_enc_callback_pptr_r_size_t key_public_raw_callback;
 
     dap_enc_callback_new new_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
@@ -47,7 +45,6 @@ struct dap_enc_key_callbacks{
     // AES
     [DAP_ENC_KEY_TYPE_IAES]={
                             .name = "IAES",
-                            .size_max = 8,
                             .enc = dap_enc_iaes256_cbc_encrypt,
                             .dec = dap_enc_iaes256_cbc_decrypt,
                             .new_callback = dap_enc_aes_key_new,
@@ -56,22 +53,20 @@ struct dap_enc_key_callbacks{
                            },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
                             .name = "MSRLN",
-                            .size_max = 64,
                             .enc = dap_enc_msrln_encode,
                             .dec = dap_enc_msrln_decode,
                             .new_callback = dap_enc_msrln_key_new,
-                            .delete_callback =NULL, // TODO
+                            .delete_callback = dap_enc_msrln_key_delete,
                             .new_generate_callback = dap_enc_msrln_key_generate,
                             .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
     },
     [DAP_ENC_KEY_TYPE_DEFEO]={
                             .name = "DEFEO",
-                            .size_max = 64,
                             .enc = dap_enc_defeo_encode,
                             .dec = dap_enc_defeo_decode,
-                            .new_callback = NULL,
+                            .new_callback = dap_enc_defeo_key_new,
                             .delete_callback = dap_enc_defeo_key_delete,
-                            .new_generate_callback = dap_enc_defeo_key_new_from_data,
+                            .new_generate_callback = dap_enc_defeo_key_new_generate,
                            },
 };
 
@@ -101,7 +96,6 @@ void dap_enc_key_deinit()
  */
 dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
 {
-    log_it(L_DEBUG, "serealize struct size : %d", sizeof (dap_enc_key_serealize_t));
     dap_enc_key_serealize_t *result = DAP_NEW_Z(dap_enc_key_serealize_t);
     result->priv_key_data_size = key->priv_key_data_size;
     result->pub_key_data_size = key->pub_key_data_size;

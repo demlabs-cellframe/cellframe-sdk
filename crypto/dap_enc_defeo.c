@@ -13,75 +13,52 @@
 #include "DeFeo_Scheme/config.h"
 #include "DeFeo_Scheme/P768_internal.h"
 
-void dap_enc_defeo_key_new(struct dap_enc_key* a_key)
-{
+
+void dap_enc_defeo_key_new(struct dap_enc_key *a_key) {
     a_key = DAP_NEW(dap_enc_key_t);
     if(a_key == NULL)
         return;
 
-    //a_key->_inheritor = (dap_enc_defeo_key_t*)malloc(sizeof(dap_enc_defeo_key_t));
     a_key->type = DAP_ENC_KEY_TYPE_DEFEO;
-    a_key->enc = &dap_enc_defeo_encode;
-    a_key->dec = &dap_enc_defeo_decode;
- //   a_key->delete_callback = &dap_enc_defeo_key_delete;
+    a_key->enc = dap_enc_defeo_encode;
+    a_key->dec = dap_enc_defeo_decode;
 }
 
 // key pair generation of Alice
 // OUTPUT:
-// a_key->priv_key_data  --- Alice's public key
+// a_key->data  --- Alice's public key
 // alice_priv  ---  Alice's private key
 // alice_msg_len --- Alice's private key length
-void dap_enc_defeo_key_new_from_data(struct dap_enc_key *a_key, void **alice_priv, size_t *alice_msg_len) {
+void dap_enc_defeo_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf,
+                                    size_t kex_size, const void * seed, size_t seed_size,
+                                    size_t key_size)
+{
+    (void) kex_buf; (void) kex_size;
+    (void) seed; (void) seed_size;
+    (void)key_size;
 
-    //dap_enc_defeo_key_t *defeo_a_key = DAP_ENC_DEFEO_KEY(a_key);
+    dap_enc_defeo_key_new(a_key);
 
-    uint8_t *key_a_tmp_pub = NULL;
-    uint8_t *key_a_tmp_priv = NULL;
-    //if(!a_key || !a_in)
-    //    return;
-
-    a_key->priv_key_data = malloc(DEFEO_PUBLICKEYBYTES);
-    if(a_key->priv_key_data == NULL) {
-        DAP_DELETE(a_key->priv_key_data = NULL);
-        a_key->priv_key_data = NULL;
-        *alice_priv = NULL;
+    a_key->pub_key_data = malloc(DEFEO_PUBLICKEYBYTES);
+    a_key->pub_key_data_size = DEFEO_PUBLICKEYBYTES;
+    if(a_key->pub_key_data == NULL) {
+        log_it(L_CRITICAL, "Error malloc");
+        return;
     }
-    key_a_tmp_pub = a_key->priv_key_data;
 
-    *alice_priv = NULL;
-    *alice_priv = malloc(DEFEO_SECRETKEYBYTES);
-    if (*alice_priv == NULL) {
-        DAP_DELETE(a_key->priv_key_data = NULL);
-        a_key->priv_key_data = NULL;
-        *alice_priv = NULL;
-    }
-    //key_a_tmp_priv = a_in;
+    a_key->priv_key_data = malloc(DEFEO_SECRETKEYBYTES);
+    a_key->priv_key_data_size = DEFEO_SECRETKEYBYTES;
 
     // generate A key pair
-    random_mod_order_A((unsigned char *) *alice_priv);
-    if(EphemeralKeyGeneration_A((unsigned char *) *alice_priv, (unsigned char *) key_a_tmp_pub) != 0) {
-        DAP_DELETE(a_key->priv_key_data = NULL);
-        a_key->priv_key_data = NULL;
-        *alice_priv = NULL;
+    random_mod_order_A((unsigned char *) a_key->priv_key_data);
+    if(EphemeralKeyGeneration_A((unsigned char *) a_key->priv_key_data, (unsigned char *) a_key->pub_key_data) != 0) {
+        log_it(L_CRITICAL, "Error malloc");
     }
 
-    //defeo_a_key->alice_msg_len = DEFEO_PUBLICKEYBYTES;
-    a_key->priv_key_data_size = DEFEO_PUBLICKEYBYTES;
-    *alice_msg_len = DEFEO_PUBLICKEYBYTES;
-    key_a_tmp_pub = NULL;
-    key_a_tmp_priv = NULL;
-
-    DAP_DELETE(key_a_tmp_pub);
-    DAP_DELETE(key_a_tmp_priv);
 }
 
 void dap_enc_defeo_key_delete(struct dap_enc_key *a_key) {
-    dap_enc_defeo_key_t *defeo_a_key = DAP_ENC_DEFEO_KEY(a_key);
-    (void) a_key;
-    if(!a_key){
-        return;
-    }
-    DAP_DELETE(a_key);
+    (void)a_key;
 }
 
 
@@ -93,85 +70,51 @@ void dap_enc_defeo_key_delete(struct dap_enc_key *a_key) {
 // b_pub  --- Bob's public key
 // b_key->data  --- shared key
 // a_pub_size --- shared key length
-size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, unsigned char *a_pub, size_t *a_pub_size, unsigned char **b_pub) {
+size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
+                            size_t a_pub_size, void **b_pub)
+{
 
     size_t ret;
-    //dap_enc_defeo_key_t *defeo_a_key = DAP_ENC_DEFEO_KEY(b_key);
-    //dap_enc_defeo_key_t *defeo_a_key = b_key->_inheritor;
-    uint8_t *bob_priv = NULL;
-    uint8_t *bob_tmp_pub = NULL;
-
-    //if(!a_key || !a_in || !a_out){
-    //    return 0;
-    //}
 
     *b_pub = NULL;
-    b_key->priv_key_data = NULL;
 
-    if(*a_pub_size != DEFEO_PUBLICKEYBYTES) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
+    if(a_pub_size != DEFEO_PUBLICKEYBYTES) {
+        return 1;
     }
+
     *b_pub = malloc(DEFEO_PUBLICKEYBYTES);
     if(b_pub == NULL) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
+        log_it(L_CRITICAL, "Error malloc");
+        return 2;
     }
-    bob_tmp_pub = *b_pub;
 
-    bob_priv = malloc(DEFEO_SECRETKEYBYTES);
-    if(bob_priv == NULL){
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
-    }
     b_key->priv_key_data = malloc(DEFEO_BYTES);
     if(b_key->priv_key_data == NULL) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
+        log_it(L_CRITICAL, "Error malloc");
+        return 3;
     }
+
+    uint8_t *bob_priv = malloc(DEFEO_SECRETKEYBYTES);
 
     // generate Bob's key pair
     random_mod_order_B((unsigned char *)bob_priv);
-    if(EphemeralKeyGeneration_B((unsigned char *) bob_priv, (unsigned char *) bob_tmp_pub) != 0) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
+    if(EphemeralKeyGeneration_B((unsigned char *) bob_priv, (unsigned char *) b_key->pub_key_data) != 0) {
+        log_it(L_CRITICAL, "Error malloc");
+        return 1;
     }
 
-    //defeo_a_key->bob_msg_len = DEFEO_PUBLICKEYBYTES;
-    bob_tmp_pub = NULL;  // we do not want to double-free it
     // compute Bob's shared secret
-    if(EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_pub, (unsigned char *) b_key->priv_key_data) != 0) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
+    if(EphemeralSecretAgreement_B((unsigned char *) bob_priv, (unsigned char *) a_pub,
+                                  (unsigned char *) b_key->priv_key_data) != 0) {
+        log_it(L_CRITICAL, "Error malloc");
+        return 2;
     }
 
-    //defeo_a_key->key_len = DEFEO_BYTES;
+    free(bob_priv);
     b_key->priv_key_data_size = DEFEO_BYTES;
-    *a_pub_size = DEFEO_BYTES;
-    ret = 1;
-    DAP_DELETE(bob_tmp_pub);
-    DAP_DELETE(bob_priv);
+    b_key->pub_key_data_size = DEFEO_PUBLICKEYBYTES;
 
-    return ret;
-
+    return 0;
 }
 
 
@@ -180,46 +123,27 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, unsigned char *a_pub, siz
 // a_priv  --- Alice's private key
 // b_pub  ---  Bob's public key
 // OUTPUT:
-// a_key->priv_key_data  --- shared key
+// a_key->data  --- shared key
 // a_key_len --- shared key length
-size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_t *a_key_len, unsigned char *b_pub)
+size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_t b_pub_size, unsigned char *b_pub)
 {
+    if(b_pub_size != DEFEO_PUBLICKEYBYTES) {
+        log_it(L_ERROR, "public key not equal DEFEO_PUBLICKEYBYTES");
+        return 1;
+    }
 
-    size_t ret = 1;
-    //dap_enc_defeo_key_t *defeo_a_key = DAP_ENC_DEFEO_KEY(a_key);
-
-   // if(!a_key || !a_in || !a_out){
-     //   return 0;
-    //}
-
-    a_key->priv_key_data = NULL;
     a_key->priv_key_data = malloc(DEFEO_BYTES);
     if(a_key->priv_key_data == NULL) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(a_priv);
-        a_priv = NULL;
-        DAP_DELETE(a_key->priv_key_data);
-        a_key->priv_key_data = NULL;
+        log_it(L_CRITICAL, "Error malloc");
+        return 2;
     }
 
     if(EphemeralSecretAgreement_A((unsigned char *) a_priv, (unsigned char *) b_pub, (unsigned char *) a_key->priv_key_data) != 0) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        DAP_DELETE(a_priv);
-        a_priv = NULL;
-        DAP_DELETE(a_key->priv_key_data);
-        a_key->priv_key_data = NULL;
+        log_it(L_ERROR, "Error EphemeralSecretAgreement_A");
+        return 3;
     }
 
-    //defeo_a_key->key_len = DEFEO_BYTES;
-    *a_key_len = DEFEO_BYTES;
-    ret = 1;
+    a_key->priv_key_data_size = DEFEO_BYTES;
 
-    return ret;
+    return 0;
 }
-
-
-

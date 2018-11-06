@@ -149,7 +149,7 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, unsigned char *a_pub, con
 }
 
 /**
- * @brief dap_enc_msrln16_decode
+ * @brief dap_enc_msrln_decode
  * @param k
  * @param alice_msg
  * @param alice_msg_len
@@ -168,8 +168,7 @@ size_t dap_enc_msrln_decode(struct dap_enc_key* a_key, const void* a_priv, const
         a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
     }
 
-//    a_key->priv_key_data = NULL;
-//    a_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
+
     if(a_key->priv_key_data == NULL || b_key_len != MSRLN_PKB_BYTES) {
         ret = 0;
         DAP_DELETE(b_pub);

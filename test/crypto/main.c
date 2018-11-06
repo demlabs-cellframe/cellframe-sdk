@@ -2,6 +2,7 @@
 #include "dap_enc_base64_test.h"
 #include "dap_enc_test.h"
 #include "dap_enc_msrln_test.h"
+#include "dap_enc_defeo_test.h"
 
 #include "dap_common.h"
 
@@ -13,4 +14,5 @@ int main(void)
     dap_enc_base64_tests_run();
     dap_enc_msrln_tests_run();
     dap_enc_tests_run();
+    dap_enc_defeo_tests_run();
 }
