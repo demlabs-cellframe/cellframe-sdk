@@ -22,7 +22,7 @@ extern "C" {
 #if defined(_WIN32)        // Microsoft Windows OS
     #define OS_TARGET OS_WIN
 #elif defined(__linux__)        // Linux OS
-    #define OS_TARGET OS_LINUX 
+    #define OS_TARGET OS_LINUX
 #else
     #error -- "Unsupported OS"
 #endif
@@ -37,9 +37,9 @@ extern "C" {
 #if defined(_MSC_VER)           // Microsoft Visual C compiler
     #define COMPILER COMPILER_VC
 #elif defined(__GNUC__)         // GNU GCC compiler
-    #define COMPILER COMPILER_GCC   
+    #define COMPILER COMPILER_GCC
 #elif defined(__clang__)        // Clang compiler
-    #define COMPILER COMPILER_CLANG   
+    #define COMPILER COMPILER_CLANG
 #else
     #error -- "Unsupported COMPILER"
 #endif
@@ -53,13 +53,13 @@ extern "C" {
 
 #if defined(_AMD64_) || defined(__x86_64__)
     #define TARGET TARGET_AMD64
-    #define RADIX           64
-    #define LOG2RADIX       6
-    typedef uint64_t        digit_t;        // Unsigned 64-bit digit
-    typedef int64_t         sdigit_t;       // Signed 64-bit digit
-    typedef uint32_t        hdigit_t; // Unsigned 32-bit digit
-    #define NWORDS_FIELD    12    // Number of words of a 751-bit field element
-    #define p751_ZERO_WORDS 5  // Number of "0" digits in the least significant part of p751 + 1
+    #define RADIX           32
+    #define LOG2RADIX       5
+    typedef uint32_t        digit_t;        // Unsigned 32-bit digit
+    typedef int32_t         sdigit_t;       // Signed 32-bit digit
+    typedef uint16_t        hdigit_t; // Unsigned 16-bit digit
+    #define NWORDS_FIELD    24
+    #define p751_ZERO_WORDS 11
 #elif defined(_X86_)
     #define TARGET TARGET_x86
     #define RADIX           32
@@ -100,9 +100,9 @@ extern "C" {
 #define AVX2_SUPPORT    2
 
 #if defined(_AVX2_)
-    #define SIMD_SUPPORT AVX2_SUPPORT       // AVX2 support selection 
+    #define SIMD_SUPPORT AVX2_SUPPORT       // AVX2 support selection
 #elif defined(_AVX_)
-    #define SIMD_SUPPORT AVX_SUPPORT        // AVX support selection 
+    #define SIMD_SUPPORT AVX_SUPPORT        // AVX support selection
 #else
     #define SIMD_SUPPORT NO_SIMD_SUPPORT
 #endif
@@ -117,7 +117,7 @@ extern "C" {
 
 
 // Unsupported configurations
-                         
+
 #if defined(ASM_SUPPORT) && (OS_TARGET == OS_WIN)
     #error -- "Assembly is not supported on this platform"
 #endif        
