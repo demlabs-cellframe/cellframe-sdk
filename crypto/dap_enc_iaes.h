@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "IAES/dap_iaes_proto.h"
+#include "iaes/dap_iaes_proto.h"
 
 #define AES_BLOCK_SIZE 16
 

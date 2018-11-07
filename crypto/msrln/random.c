@@ -1,4 +1,4 @@
-#include "MSRLN_priv.h"
+#include "msrln_priv.h"
 
 CRYPTO_MSRLN_STATUS MSRLN_generate_a(const unsigned char* seed, unsigned int seed_nbytes, unsigned int array_ndigits, uint32_t* a)
 {

@@ -1,4 +1,4 @@
-#include "../MSRLN_priv.h"
+#include "../msrln_priv.h"
 
 const uint32_t mask12 = ((uint64_t)1 << 12) - 1;
 

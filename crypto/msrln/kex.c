@@ -1,4 +1,4 @@
-﻿#include "MSRLN_priv.h"
+﻿#include "msrln_priv.h"
 #include <malloc.h>
 
 //extern const int32_t MSRLN_psi_rev_ntt1024_12289[1024];

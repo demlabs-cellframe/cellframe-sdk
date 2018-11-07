@@ -2,7 +2,7 @@
 #define _DAP_ENC_MSRLN_H_
 
 #include <stddef.h>
-#include "MSRLN/MSRLN.h"
+#include "msrln/msrln.h"
 #include "dap_enc_key.h"
 
 //typedef struct dap_enc_key dap_enc_key_t;

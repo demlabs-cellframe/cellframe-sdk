@@ -1,7 +1,7 @@
 #include <string.h>
 #include "dap_common.h"
 #include "dap_enc_msrln.h"
-#include "MSRLN/MSRLN.h"
+#include "msrln/msrln.h"
 
 
 #define LOG_TAG "dap_enc_msrln"

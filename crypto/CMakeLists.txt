@@ -6,8 +6,8 @@ project (dap_crypto)
 
 include(FindPkgConfig)
 
-file(GLOB CRYPTO_SRCS *.c rand/*.c IAES/*.c sha3/*.c MSRLN/*.c DeFeo_Scheme/*.c)
-file(GLOB CRYPTO_HEADERS *.h rand/*.h IAES/*.h sha3/*.h MSRLN/*.h DeFeo_Scheme/*.h)
+file(GLOB CRYPTO_SRCS *.c rand/*.c iaes/*.c sha3/*.c msrln/*.c defeo_scheme/*.c)
+file(GLOB CRYPTO_HEADERS *.h rand/*.h iaes/*.h sha3/*.h msrln/*.h defeo_scheme/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS}
     ${LIBOQS_SRCS} ${CRYPTO_HEADERS} ${LIBOQS_HEADERS})

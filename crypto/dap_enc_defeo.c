@@ -10,8 +10,8 @@
 #include "dap_enc_key.h"
 
 #include "dap_common.h"
-#include "DeFeo_Scheme/config.h"
-#include "DeFeo_Scheme/P768_internal.h"
+#include "defeo_scheme/config.h"
+#include "defeo_scheme/defeo_P768_internal.h"
 
 
 void dap_enc_defeo_key_new(struct dap_enc_key *a_key) {

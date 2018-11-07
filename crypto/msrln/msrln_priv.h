@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#include "MSRLN.h"
+#include "msrln.h"
 
 // Basic constants            
 #define PARAMETER_N         1024 
