@@ -9,8 +9,10 @@
 void dap_enc_msrln_key_new(struct dap_enc_key* a_key)
 {
     a_key->type = DAP_ENC_KEY_TYPE_MSRLN;
-    a_key->dec = dap_enc_msrln_decode;
-    a_key->enc = dap_enc_msrln_encode;
+    a_key->dec = NULL;
+    a_key->enc = NULL;
+    a_key->gen_bob_shared_key = dap_enc_msrln_gen_bob_shared_key;
+    a_key->gen_alice_shared_key = dap_enc_msrln_gen_alice_shared_key;
     a_key->priv_key_data_size = 0;
     a_key->pub_key_data_size = 0;
 }
@@ -85,7 +87,7 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
  * @param alice_msg_len
  * @return
  */
-size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, const void* a_pub, const size_t a_pub_size, void ** b_pub)
+size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a_pub, size_t a_pub_size, void ** b_pub)
 {
     size_t ret;
 
@@ -159,7 +161,7 @@ size_t dap_enc_msrln_encode(struct dap_enc_key* b_key, const void* a_pub, const 
  * @param key_len
  * @return
  */
-size_t dap_enc_msrln_decode(struct dap_enc_key* a_key, const void* a_priv, const size_t b_key_len, unsigned char * b_pub)
+size_t dap_enc_msrln_gen_alice_shared_key(struct dap_enc_key* a_key, const void* a_priv, const size_t b_key_len, unsigned char * b_pub)
 {
     size_t ret = 1;
 

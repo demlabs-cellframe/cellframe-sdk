@@ -32,7 +32,7 @@ void dap_enc_defeo_key_new_generate(struct dap_enc_key * a_key, const void *kex_
 void dap_enc_defeo_key_new_from_data(struct dap_enc_key* a_key, void **a_priv, size_t a_in_size);
 void dap_enc_defeo_key_delete(struct dap_enc_key* a_key);
 
-size_t dap_enc_defeo_encode(struct dap_enc_key* b_key, const void* a_pub, size_t a_pub_size, void **b_pub);
-size_t dap_enc_defeo_decode(struct dap_enc_key* a_key, const void* a_priv, size_t b_pub_size, unsigned char * b_pub);
+size_t dap_enc_defeo_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a_pub, size_t a_pub_size, void **b_pub);
+size_t dap_enc_defeo_gen_alice_shared_key(struct dap_enc_key* a_key, const void* a_priv, size_t b_pub_size, unsigned char * b_pub);
 
 #endif

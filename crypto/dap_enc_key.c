@@ -36,6 +36,9 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
 
+    dap_enc_gen_bob_shared_key gen_bob_shared_key;
+    dap_enc_gen_alice_shared_key gen_alice_shared_key;
+
     dap_enc_callback_new new_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
     dap_enc_callback_new_generate new_generate_callback;
@@ -53,17 +56,21 @@ struct dap_enc_key_callbacks{
                            },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
                             .name = "MSRLN",
-                            .enc = dap_enc_msrln_encode,
-                            .dec = dap_enc_msrln_decode,
+                            .enc = NULL,
+                            .dec = NULL,
                             .new_callback = dap_enc_msrln_key_new,
                             .delete_callback = dap_enc_msrln_key_delete,
                             .new_generate_callback = dap_enc_msrln_key_generate,
+                            .gen_bob_shared_key = dap_enc_msrln_gen_bob_shared_key,
+                            .gen_alice_shared_key = dap_enc_msrln_gen_alice_shared_key,
                             .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
     },
     [DAP_ENC_KEY_TYPE_DEFEO]={
                             .name = "DEFEO",
-                            .enc = dap_enc_defeo_encode,
-                            .dec = dap_enc_defeo_decode,
+                            .enc = NULL,
+                            .dec = NULL,
+                            .gen_bob_shared_key = dap_enc_defeo_gen_bob_shared_key,
+                            .gen_alice_shared_key = dap_enc_defeo_gen_alice_shared_key,
                             .new_callback = dap_enc_defeo_key_new,
                             .delete_callback = dap_enc_defeo_key_delete,
                             .new_generate_callback = dap_enc_defeo_key_new_generate,

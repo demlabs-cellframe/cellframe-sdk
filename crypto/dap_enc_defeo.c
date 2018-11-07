@@ -15,13 +15,11 @@
 
 
 void dap_enc_defeo_key_new(struct dap_enc_key *a_key) {
-    a_key = DAP_NEW(dap_enc_key_t);
-    if(a_key == NULL)
-        return;
 
     a_key->type = DAP_ENC_KEY_TYPE_DEFEO;
-    a_key->enc = dap_enc_defeo_encode;
-    a_key->dec = dap_enc_defeo_decode;
+    a_key->enc = NULL;
+    a_key->gen_bob_shared_key = dap_enc_defeo_gen_bob_shared_key;
+    a_key->gen_alice_shared_key = dap_enc_defeo_gen_alice_shared_key;
 }
 
 // key pair generation of Alice
@@ -57,7 +55,8 @@ void dap_enc_defeo_key_new_generate(struct dap_enc_key * a_key, const void *kex_
 
 }
 
-void dap_enc_defeo_key_delete(struct dap_enc_key *a_key) {
+void dap_enc_defeo_key_delete(struct dap_enc_key *a_key)
+{
     (void)a_key;
 }
 
@@ -70,7 +69,7 @@ void dap_enc_defeo_key_delete(struct dap_enc_key *a_key) {
 // b_pub  --- Bob's public key
 // b_key->data  --- shared key
 // a_pub_size --- shared key length
-size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
+size_t dap_enc_defeo_gen_bob_shared_key(struct dap_enc_key *b_key, const void *a_pub,
                             size_t a_pub_size, void **b_pub)
 {
 
@@ -123,9 +122,9 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
 // a_priv  --- Alice's private key
 // b_pub  ---  Bob's public key
 // OUTPUT:
-// a_key->data  --- shared key
+// a_key->priv_key_data  --- shared key
 // a_key_len --- shared key length
-size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_t b_pub_size, unsigned char *b_pub)
+size_t dap_enc_defeo_gen_alice_shared_key(struct dap_enc_key *a_key, const void *a_priv, size_t b_pub_size, unsigned char *b_pub)
 {
     if(b_pub_size != DEFEO_PUBLICK_KEY_LEN) {
         log_it(L_ERROR, "public key size not equal DEFEO_PUBLICKEYBYTES");

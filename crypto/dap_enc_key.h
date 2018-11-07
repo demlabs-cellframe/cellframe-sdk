@@ -116,6 +116,31 @@ typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
                                             const size_t in_size,void ** out);
 
+// key pair generation and generation of shared key at Bob's side
+// INPUT:
+// dap_enc_key *b_key
+// a_pub  ---  Alice's public key
+// a_pub_size --- Alice's public key length
+// OUTPUT:
+// b_pub  --- Bob's public key
+// b_key->priv_key_data --- shared key
+// b_key->priv_key_data_size --- shared key length
+typedef int (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const void *a_pub,
+                                           size_t a_pub_size, void ** b_pub);
+
+// generation of shared key at Alice's side
+// INPUT:
+// dap_enc_key *b_key
+// a_priv  --- Alice's private key
+// b_pub  ---  Bob's public key
+// b_pub_size --- Bob public key size
+// OUTPUT:
+// a_key->priv_key_data  --- shared key
+// a_key->priv_key_data_size --- shared key length
+typedef int (*dap_enc_gen_alice_shared_key) (struct dap_enc_key *a_key, const void *a_priv,
+                                             size_t b_pub_size, unsigned char *b_pub);
+
+
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
 typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , size_t);
@@ -134,6 +159,8 @@ typedef struct dap_enc_key {
     dap_enc_key_type_t type;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
+    dap_enc_gen_alice_shared_key gen_alice_shared_key;
+    dap_enc_gen_bob_shared_key gen_bob_shared_key;
 
     void * _inheritor; // WARNING! Inheritor must have only serealizeble/deserializeble data (copy)
     size_t _inheritor_size;
