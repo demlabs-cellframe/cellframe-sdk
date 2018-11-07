@@ -44,9 +44,9 @@
 #define CRYPTO_BYTES               24
 #define CRYPTO_CIPHERTEXTBYTES    596    // CRYPTO_PUBLICKEYBYTES + MSG_BYTES bytes
 
-#define DEFEO_SECRETKEYBYTES      48
-#define DEFEO_PUBLICKEYBYTES     564
-#define DEFEO_BYTES              188
+#define DEFEO_SECRET_KEY_LEN      48
+#define DEFEO_PUBLICK_KEY_LEN     564
+#define DEFEO_SHARED_KEY_LEN      188
 
 
 // SIDH's basic element definitions and point representations

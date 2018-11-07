@@ -1368,9 +1368,9 @@ int EphemeralSecretAgreement_B(const unsigned char* PrivateKeyB, const unsigned 
 int cryptotest_kex()
 {
     // Testing key exchange
-    unsigned char PrivateKeyA[DEFEO_SECRETKEYBYTES], PrivateKeyB[DEFEO_SECRETKEYBYTES];
-    unsigned char PublicKeyA[DEFEO_PUBLICKEYBYTES], PublicKeyB[DEFEO_PUBLICKEYBYTES];
-    unsigned char SharedSecretA[DEFEO_BYTES], SharedSecretB[DEFEO_BYTES];
+    unsigned char PrivateKeyA[DEFEO_SECRET_KEY_LEN], PrivateKeyB[DEFEO_SECRET_KEY_LEN];
+    unsigned char PublicKeyA[DEFEO_PUBLICK_KEY_LEN], PublicKeyB[DEFEO_PUBLICK_KEY_LEN];
+    unsigned char SharedSecretA[DEFEO_SHARED_KEY_LEN], SharedSecretB[DEFEO_SHARED_KEY_LEN];
     bool passed = true;
 
     random_mod_order_A(PrivateKeyA);
@@ -1382,7 +1382,7 @@ int cryptotest_kex()
     EphemeralSecretAgreement_A(PrivateKeyA, PublicKeyB, SharedSecretA);           // Alice computes her shared secret using Bob's public key
     EphemeralSecretAgreement_B(PrivateKeyB, PublicKeyA, SharedSecretB);           // Bob computes his shared secret using Alice's public key
 
-    if (memcmp(SharedSecretA, SharedSecretB, DEFEO_BYTES) != 0)
+    if (memcmp(SharedSecretA, SharedSecretB, DEFEO_SHARED_KEY_LEN) != 0)
     {
         passed = false;        
     }

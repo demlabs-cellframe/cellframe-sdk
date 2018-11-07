@@ -39,15 +39,15 @@ void dap_enc_defeo_key_new_generate(struct dap_enc_key * a_key, const void *kex_
 
     dap_enc_defeo_key_new(a_key);
 
-    a_key->pub_key_data = malloc(DEFEO_PUBLICKEYBYTES);
-    a_key->pub_key_data_size = DEFEO_PUBLICKEYBYTES;
+    a_key->pub_key_data = malloc(DEFEO_PUBLICK_KEY_LEN);
+    a_key->pub_key_data_size = DEFEO_PUBLICK_KEY_LEN;
     if(a_key->pub_key_data == NULL) {
         log_it(L_CRITICAL, "Error malloc");
         return;
     }
 
-    a_key->priv_key_data = malloc(DEFEO_SECRETKEYBYTES);
-    a_key->priv_key_data_size = DEFEO_SECRETKEYBYTES;
+    a_key->priv_key_data = malloc(DEFEO_SECRET_KEY_LEN);
+    a_key->priv_key_data_size = DEFEO_SECRET_KEY_LEN;
 
     // generate A key pair
     random_mod_order_A((unsigned char *) a_key->priv_key_data);
@@ -78,23 +78,23 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
 
     *b_pub = NULL;
 
-    if(a_pub_size != DEFEO_PUBLICKEYBYTES) {
+    if(a_pub_size != DEFEO_PUBLICK_KEY_LEN) {
         return 1;
     }
 
-    *b_pub = malloc(DEFEO_PUBLICKEYBYTES);
+    *b_pub = malloc(DEFEO_PUBLICK_KEY_LEN);
     if(b_pub == NULL) {
         log_it(L_CRITICAL, "Error malloc");
         return 2;
     }
 
-    b_key->priv_key_data = malloc(DEFEO_BYTES);
+    b_key->priv_key_data = malloc(DEFEO_SHARED_KEY_LEN);
     if(b_key->priv_key_data == NULL) {
         log_it(L_CRITICAL, "Error malloc");
         return 3;
     }
 
-    uint8_t *bob_priv = malloc(DEFEO_SECRETKEYBYTES);
+    uint8_t *bob_priv = malloc(DEFEO_SECRET_KEY_LEN);
 
     // generate Bob's key pair
     random_mod_order_B((unsigned char *)bob_priv);
@@ -111,8 +111,8 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
     }
 
     free(bob_priv);
-    b_key->priv_key_data_size = DEFEO_BYTES;
-    b_key->pub_key_data_size = DEFEO_PUBLICKEYBYTES;
+    b_key->priv_key_data_size = DEFEO_SHARED_KEY_LEN;
+    b_key->pub_key_data_size = DEFEO_PUBLICK_KEY_LEN;
 
     return 0;
 }
@@ -127,12 +127,12 @@ size_t dap_enc_defeo_encode(struct dap_enc_key *b_key, const void *a_pub,
 // a_key_len --- shared key length
 size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_t b_pub_size, unsigned char *b_pub)
 {
-    if(b_pub_size != DEFEO_PUBLICKEYBYTES) {
+    if(b_pub_size != DEFEO_PUBLICK_KEY_LEN) {
         log_it(L_ERROR, "public key size not equal DEFEO_PUBLICKEYBYTES");
         return 1;
     }
 
-    a_key->priv_key_data = malloc(DEFEO_BYTES);
+    a_key->priv_key_data = malloc(DEFEO_SHARED_KEY_LEN);
     if(a_key->priv_key_data == NULL) {
         log_it(L_CRITICAL, "Error malloc");
         return 2;
@@ -144,7 +144,7 @@ size_t dap_enc_defeo_decode(struct dap_enc_key *a_key, const void *a_priv, size_
         return 3;
     }
 
-    a_key->priv_key_data_size = DEFEO_BYTES;
+    a_key->priv_key_data_size = DEFEO_SHARED_KEY_LEN;
 
     return 0;
 }
