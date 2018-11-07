@@ -2,6 +2,7 @@
 #include <windows.h>
 #else
 #endif
+#include "string.h"
 #include "../rand/dap_rand.h"
 #include "config.h"
 #include "P768_internal.h"
@@ -1384,8 +1385,8 @@ int cryptotest_kex()
 
     if (memcmp(SharedSecretA, SharedSecretB, DEFEO_SHARED_KEY_LEN) != 0)
     {
-        passed = false;        
+        passed = false;
     }
 
-    return PASSED;
+    return passed;
 }

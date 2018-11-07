@@ -235,5 +235,36 @@ void inv_3_way(f2elm_t z1, f2elm_t z2, f2elm_t z3);
 // Given the x-coordinates of P, Q, and R, returns the value A corresponding to the Montgomery curve E_A: y^2=x^3+A*x^2+x such that R=Q-P on E_A.
 void get_A(const f2elm_t xP, const f2elm_t xQ, const f2elm_t xR, f2elm_t A);
 
+// Alice's ephemeral shared secret computation
+// It produces a shared secret key SharedSecretA using her secret key PrivateKeyA and Bob's public key PublicKeyB
+// Inputs: Alice's PrivateKeyA is an integer in the range [0, 2^372 - 1], stored in 47 bytes.
+//         Bob's PublicKeyB consists of 3 GF(p751^2) elements encoded in 564 bytes.
+// Output: a shared secret SharedSecretA that consists of one element in GF(p751^2) encoded in 188 bytes.
+int EphemeralSecretAgreement_A(const unsigned char* PrivateKeyA, const unsigned char* PublicKeyB, unsigned char* SharedSecretA);
 
+// Generation of Alice's secret key
+// Outputs random value in [0, 2^372 - 1] to be used as Alice's private key
+void random_mod_order_A(unsigned char* random_digits);
+
+// Alice's ephemeral public key generation
+// Input:  a private key PrivateKeyA in the range [0, 2^372 - 1], stored in 47 bytes.
+// Output: the public key PublicKeyA consisting of 3 GF(p751^2) elements encoded in 564 bytes.
+int EphemeralKeyGeneration_A(const unsigned char* PrivateKeyA, unsigned char* PublicKeyA);
+
+// Generation of Bob's secret key
+// Outputs random value in [0, 2^Floor(Log(2,3^239)) - 1] to be used as Bob's private key
+void random_mod_order_B(unsigned char* random_digits);
+
+// Bob's ephemeral key-pair generation
+// It produces a private key PrivateKeyB and computes the public key PublicKeyB.
+// The private key is an integer in the range [0, 2^Floor(Log(2,3^239)) - 1], stored in 48 bytes.
+// The public key consists of 3 GF(p751^2) elements encoded in 564 bytes.
+int EphemeralKeyGeneration_B(const unsigned char* PrivateKeyB, unsigned char* PublicKeyB);
+
+// Bob's ephemeral shared secret computation
+// It produces a shared secret key SharedSecretB using his secret key PrivateKeyB and Alice's public key PublicKeyA
+// Inputs: Bob's PrivateKeyB is an integer in the range [0, 2^Floor(Log(2,3^239)) - 1], stored in 48 bytes.
+//         Alice's PublicKeyA consists of 3 GF(p751^2) elements encoded in 564 bytes.
+// Output: a shared secret SharedSecretB that consists of one element in GF(p751^2) encoded in 188 bytes.
+int EphemeralSecretAgreement_B(const unsigned char* PrivateKeyB, const unsigned char* PublicKeyA, unsigned char* SharedSecretB);
 #endif

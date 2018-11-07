@@ -48,7 +48,7 @@ typedef enum {
 
 
 // Definition of type "RandomBytes" to implement callback function outputting "nbytes" of random values to "random_array"
-typedef CRYPTO_MSRLN_STATUS (*RandomBytes)(unsigned int nbytes, unsigned char* random_array);
+typedef CRYPTO_MSRLN_STATUS (*RandomBytes)(unsigned char* random_array, unsigned int nbytes);
 
 // Definition of type "ExtendableOutput" to implement callback function outputting 32-bit "array_ndigits" of values to "extended_array"
 typedef CRYPTO_MSRLN_STATUS (*ExtendableOutput)(const unsigned char* seed, unsigned int seed_nbytes, unsigned int array_ndigits, uint32_t* extended_array);

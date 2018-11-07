@@ -47,7 +47,7 @@ CRYPTO_MSRLN_STATUS random_bytes(unsigned int nbytes, unsigned char* random_arra
         return CRYPTO_MSRLN_ERROR_INVALID_PARAMETER;
     }    
     
-    return (RandomBytesFunction)( random_array, nbytes);
+    return (RandomBytesFunction)(random_array, nbytes);
 }
 
 

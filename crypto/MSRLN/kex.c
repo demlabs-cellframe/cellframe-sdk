@@ -328,8 +328,9 @@ static __inline uint32_t Abs(int32_t value)
 
 CRYPTO_MSRLN_STATUS HelpRec(const uint32_t* x, uint32_t* rvec, const unsigned char* seed, unsigned int nonce, StreamOutput StreamOutputFunction)
 { // Reconciliation helper
+    (void)seed; (void)nonce; (void)StreamOutputFunction;
     unsigned int i, j, norm;
-    unsigned char bit, random_bits[32], nce[8] = {0};
+    unsigned char bit, random_bits[32];
     uint32_t v0[4], v1[4];
 
     randombytes( random_bits, 32);
@@ -428,7 +429,7 @@ void Rec(const uint32_t *x, const uint32_t* rvec, unsigned char *key)
 
 CRYPTO_MSRLN_STATUS get_error(int32_t* e, unsigned char* seed, unsigned int nonce, StreamOutput StreamOutputFunction)
 { // Error sampling
-
+    (void) seed; (void) nonce; (void) StreamOutputFunction;
     unsigned char stream[3 * PARAMETER_N];
     uint32_t *pstream = (uint32_t *) &stream;
     uint32_t acc1, acc2, temp;
@@ -505,7 +506,7 @@ CRYPTO_MSRLN_STATUS get_error(int32_t* e, unsigned char* seed, unsigned int nonc
 
 CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, ExtendableOutput ExtendableOutputFunction)
 { // Generation of parameter a
-
+    (void)ExtendableOutputFunction;
     unsigned int pos = 0, ctr = 0;
     uint16_t val;
     unsigned int nblocks = 16;

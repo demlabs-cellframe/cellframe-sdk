@@ -29,6 +29,7 @@
 
 #include "dap_enc_key.h"
 
+#undef LOG_TAG
 #define LOG_TAG "dap_enc_key"
 
 struct dap_enc_key_callbacks{
@@ -61,16 +62,16 @@ struct dap_enc_key_callbacks{
                             .new_callback = dap_enc_msrln_key_new,
                             .delete_callback = dap_enc_msrln_key_delete,
                             .new_generate_callback = dap_enc_msrln_key_generate,
-                            .gen_bob_shared_key = dap_enc_msrln_gen_bob_shared_key,
-                            .gen_alice_shared_key = dap_enc_msrln_gen_alice_shared_key,
+                            .gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_msrln_gen_bob_shared_key,
+                            .gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_msrln_gen_alice_shared_key,
                             .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
     },
     [DAP_ENC_KEY_TYPE_DEFEO]={
                             .name = "DEFEO",
                             .enc = NULL,
                             .dec = NULL,
-                            .gen_bob_shared_key = dap_enc_defeo_gen_bob_shared_key,
-                            .gen_alice_shared_key = dap_enc_defeo_gen_alice_shared_key,
+                            .gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_defeo_gen_bob_shared_key,
+                            .gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_defeo_gen_alice_shared_key,
                             .new_callback = dap_enc_defeo_key_new,
                             .delete_callback = dap_enc_defeo_key_delete,
                             .new_generate_callback = dap_enc_defeo_key_new_generate,

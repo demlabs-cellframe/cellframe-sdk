@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include "tables.h"
 
 size_t block128_padding(const void *data, uint8_t **data_new, size_t length_data)
@@ -194,7 +195,7 @@ void IAES_256_CBC_encrypt(const uint8_t *data, uint8_t *cdata, uint8_t *ivec, un
     for (key32word_size = 0; key32word_size < 8; key32word_size++)
         masterkey32[key32word_size] = (masterkey[key32word_size<<2] << 24) ^ (masterkey[(key32word_size<<2) + 1] << 16)
                                     ^ (masterkey[(key32word_size<<2) + 2] << 8) ^ (masterkey[(key32word_size<<2) + 3]);
-    int count_block;
+    size_t count_block;
     for(count_block = 0; count_block < (length >> 4); count_block++)
        {
         int count_byte_inINT;
@@ -484,7 +485,7 @@ void IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, un
                                     ^ (masterkey[(key32word_size<<2) + 2] << 8) ^ (masterkey[(key32word_size<<2) + 3]);
 
     Key_Shedule_for_decrypT(masterkey32, round_decrypt_key);
-    int count_block;
+    size_t count_block;
     for(count_block = 0; count_block < (length >> 4); count_block++){
         int count_byte_inINT;
         for (count_byte_inINT = 0; count_byte_inINT < 4; count_byte_inINT++){

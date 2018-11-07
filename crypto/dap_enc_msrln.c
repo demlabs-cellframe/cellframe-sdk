@@ -11,8 +11,8 @@ void dap_enc_msrln_key_new(struct dap_enc_key* a_key)
     a_key->type = DAP_ENC_KEY_TYPE_MSRLN;
     a_key->dec = NULL;
     a_key->enc = NULL;
-    a_key->gen_bob_shared_key = dap_enc_msrln_gen_bob_shared_key;
-    a_key->gen_alice_shared_key = dap_enc_msrln_gen_alice_shared_key;
+    a_key->gen_bob_shared_key = (dap_enc_gen_bob_shared_key)dap_enc_msrln_gen_bob_shared_key;
+    a_key->gen_alice_shared_key = (dap_enc_gen_alice_shared_key)dap_enc_msrln_gen_alice_shared_key;
     a_key->priv_key_data_size = 0;
     a_key->pub_key_data_size = 0;
 }
@@ -66,7 +66,7 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
     a_key->priv_key_data = malloc(MSRLN_PKA_BYTES * sizeof(uint32_t));
 
     PLatticeCryptoStruct PLCS = LatticeCrypto_allocate();
-    LatticeCrypto_initialize(PLCS, randombytes, MSRLN_generate_a, MSRLN_get_error);
+    LatticeCrypto_initialize(PLCS, (RandomBytes)randombytes, MSRLN_generate_a, MSRLN_get_error);
 
     if (MSRLN_KeyGeneration_A((int32_t *) a_key->priv_key_data,
                               (unsigned char *) a_key->pub_key_data, PLCS) != CRYPTO_MSRLN_SUCCESS) {
@@ -131,7 +131,7 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
     }
 
     PLatticeCryptoStruct PLCS = LatticeCrypto_allocate();
-    LatticeCrypto_initialize(PLCS, randombytes, MSRLN_generate_a, MSRLN_get_error);
+    LatticeCrypto_initialize(PLCS, (RandomBytes)randombytes, MSRLN_generate_a, MSRLN_get_error);
     if (MSRLN_SecretAgreement_B((unsigned char *) a_pub, (unsigned char *) b_key->priv_key_data, (unsigned char *) bob_tmp_pub, PLCS) != CRYPTO_MSRLN_SUCCESS) {
         ret = 0;
         DAP_DELETE(b_pub);

@@ -28,7 +28,7 @@ extern "C" {
 #define NBYTES_TO_NWORDS(nbytes)    (((nbytes)+sizeof(digit_t)-1)/sizeof(digit_t))           // Conversion macro from number of bytes to number of computer words
 
 // Macro to avoid compiler warnings when detecting unreferenced parameters
-#define UNREFERENCED_PARAMETER(PAR) (PAR)
+#define UNREFERENCED_PARAMETER(PAR) ((void)PAR)
 
 
 /******************** Function prototypes *******************/

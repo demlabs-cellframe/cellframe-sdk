@@ -18,8 +18,8 @@ void dap_enc_defeo_key_new(struct dap_enc_key *a_key) {
 
     a_key->type = DAP_ENC_KEY_TYPE_DEFEO;
     a_key->enc = NULL;
-    a_key->gen_bob_shared_key = dap_enc_defeo_gen_bob_shared_key;
-    a_key->gen_alice_shared_key = dap_enc_defeo_gen_alice_shared_key;
+    a_key->gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_defeo_gen_bob_shared_key;
+    a_key->gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_defeo_gen_alice_shared_key;
 }
 
 // key pair generation of Alice
@@ -70,11 +70,8 @@ void dap_enc_defeo_key_delete(struct dap_enc_key *a_key)
 // b_key->data  --- shared key
 // a_pub_size --- shared key length
 size_t dap_enc_defeo_gen_bob_shared_key(struct dap_enc_key *b_key, const void *a_pub,
-                            size_t a_pub_size, void **b_pub)
+                            size_t a_pub_size, void ** b_pub)
 {
-
-    size_t ret;
-
     *b_pub = NULL;
 
     if(a_pub_size != DEFEO_PUBLICK_KEY_LEN) {
