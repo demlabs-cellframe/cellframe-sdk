@@ -134,7 +134,7 @@ dap_client_remote_t * dap_client_remote_find(int sock, struct dap_server * sh)
 }
 
 /**
- * @brief dap_client_ready_to_read
+ * @brief dap_client_remote_ready_to_read
  * @param sc
  * @param isReady
  */
@@ -155,7 +155,7 @@ void dap_client_remote_ready_to_read(dap_client_remote_t * sc,bool is_ready)
 }
 
 /**
- * @brief dap_client_ready_to_write
+ * @brief dap_client_remote_ready_to_write
  * @param sc
  * @param isReady
  */
