@@ -288,13 +288,13 @@ static void accept_cb (struct ev_loop* loop, struct ev_io* watcher, int revents)
 
     atomic_fetch_add(&thread_inform[ev_data->thread_number].count_open_connections, 1);
 
-    // print_online();
     log_it(L_DEBUG, "Client send to thread %d", ev_data->thread_number);
     if ( ev_async_pending(&async_watchers[ev_data->thread_number]) == false ) { //the event has not yet been processed (or even noted) by the event loop? (i.e. Is it serviced? If yes then proceed to)
         log_it(L_INFO, "ev_async_pending");
         ev_async_send(listener_clients_loops[ev_data->thread_number], &async_watchers[ev_data->thread_number]); //Sends/signals/activates the given ev_async watcher, that is, feeds an EV_ASYNC event on the watcher into the event loop.
     }
     else {
+        atomic_fetch_sub(&thread_inform[DAP_EV_DATA(watcher)->thread_number].count_open_connections, 1);
         log_it(L_ERROR, "Ev async error pending");
     }
 }
