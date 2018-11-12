@@ -50,6 +50,7 @@ void dap_enc_deinit()
 
 }
 
+
 /**
  * @brief dap_enc_code Encode data with key
  * @param key_private Private key
@@ -70,7 +71,7 @@ size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_s
         size_t ret = key->enc(key, buf, buf_size, &proc_buf);
         if(data_type_out == DAP_ENC_DATA_TYPE_B64 || data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE) {
             *buf_out = malloc(DAP_ENC_BASE64_ENCODE_SIZE(ret));
-            ret=dap_enc_base64_encode(proc_buf, ret,(char*)*buf_out, data_type_out);
+            ret=dap_enc_base64_encode(proc_buf, ret, *buf_out, data_type_out);
             free(proc_buf);
         } else {
             log_it(L_ERROR, "Unknown dap_enc_data_type");
@@ -101,7 +102,7 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
     switch(data_type_in){
         case DAP_ENC_DATA_TYPE_B64:
         case DAP_ENC_DATA_TYPE_B64_URLSAFE:
-            proc_buf=calloc(1,buf_size);
+            proc_buf=calloc(1,DAP_ENC_BASE64_ENCODE_SIZE(buf_size));
             proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf,data_type_in);
             proc_buf_const=proc_buf;
         break;
@@ -112,12 +113,19 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
     }
 
     if(key->dec) {
-        size_t ret=key->dec(key,proc_buf_const,proc_buf_size,buf_out);
+        if(proc_buf_size == 0) {
+            log_it(L_ERROR, "Buf is null. dap_enc_base64_decode is failed");
+            return 0;
+        }
+        size_t ret = key->dec(key,proc_buf_const,proc_buf_size, buf_out);
+
         if(data_type_in==DAP_ENC_DATA_TYPE_B64 || data_type_in == DAP_ENC_DATA_TYPE_B64_URLSAFE)
             free(proc_buf);
         return ret;
     } else {
         log_it(L_WARNING, "key->dec is NULL");
+        if(proc_buf_size)
+            free(proc_buf);
         return 0;
     }
 }

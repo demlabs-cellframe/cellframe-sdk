@@ -6,12 +6,6 @@
 extern "C" {
 #endif
 
-
-typedef enum dap_enc_b64_standard {
-    DAP_ENC_STANDARD_B64,
-    DAP_ENC_STANDARD_B64_URLSAFE,
-} dap_enc_b64_standard_t;
-
 /*
  * Calculates encode size from input size
  */

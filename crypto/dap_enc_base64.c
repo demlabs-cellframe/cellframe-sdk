@@ -117,8 +117,6 @@ static const char* b64_table_by_standard(dap_enc_data_type_t standard)
  */
 size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc_data_type_t standard)
 {
-    //B64_Decode( in, in_size, (byte*) out );
-    //return B64_GetSize( in_size,0 );
     uint8_t * out_bytes = (uint8_t*) out;
 
     int j = 0;
