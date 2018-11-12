@@ -43,8 +43,8 @@ size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_s
     }
     size_t i;
     snprintf(a_str,3,"0x");
-    for (i = 0; i< sizeof(a_hash->data); ++i)
-        snprintf(a_str+i*2+2,3,"%02x",a_hash->data[i]);
+    for (i = 0; i< sizeof(a_hash->raw); ++i)
+        snprintf(a_str+i*2+2,3,"%02x",a_hash->raw[i]);
     a_str[c_hash_str_size]='\0';
     return  strlen(a_str);
 }

@@ -33,25 +33,46 @@
 
 #define DAP_CHAIN_ID_SIZE 8
 #define DAP_CHAIN_NET_ID_SIZE 8
+#define DAP_CHAIN_NODE_ROLE_SIZE 2
 #define DAP_CHAIN_HASH_SIZE 32
 #define DAP_CHAIN_HASH_FAST_SIZE 64
 #define DAP_CHAIN_ADDR_HASH_SIZE 32
 
 // Chain ID of the whole system
 typedef union dap_chain_id{
-    uint8_t data[DAP_CHAIN_ID_SIZE];
+    uint8_t raw[DAP_CHAIN_ID_SIZE];
 } DAP_ALIGN_PACKED dap_chain_id_t;
 
+/**
+  *
+  *
+  *
+  *
+  */
+typedef union dap_chain_node_role{
+    enum {
+        ROOT=0x00,
+        ROOT_DELEGATE=0x01,
+        SHARD_DELEGATE=0x02,
+        ARCHIVE=0x10,
+        MASTER = 0x20,
+        FULL=0xf0,
+        LIGHT=0xff } enums;
+    uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
+} DAP_ALIGN_PACKED dap_chain_node_role_t;
+
+
 typedef union dap_chain_net_id{
-    uint8_t data[DAP_CHAIN_NET_ID_SIZE];
+    uint64_t uint64;
+    uint8_t raw[DAP_CHAIN_NET_ID_SIZE];
 } DAP_ALIGN_PACKED dap_chain_net_id_t;
 
 typedef union dap_chain_hash{
-    uint8_t data[DAP_CHAIN_HASH_SIZE];
+    uint8_t raw[DAP_CHAIN_HASH_SIZE];
 } DAP_ALIGN_PACKED dap_chain_hash_t;
 
 typedef union dap_chain_hash_fast{
-    uint8_t data[DAP_CHAIN_HASH_FAST_SIZE];
+    uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
 } DAP_ALIGN_PACKED dap_chain_hash_fast_t;
 
 typedef enum dap_chain_hash_kind {
@@ -88,8 +109,8 @@ static inline char * dap_chain_hash_to_str_new(dap_chain_hash_t * a_hash)
 static inline dap_chain_hash_kind_t dap_chain_hash_kind_check(dap_chain_hash_t * a_hash, const uint8_t a_valuable_head  )
 {
     register uint8_t i;
-    register uint8_t l_hash_first = a_hash->data[0];
-    register uint8_t * l_hash_data = a_hash->data;
+    register uint8_t l_hash_first = a_hash->raw[0];
+    register uint8_t * l_hash_data = a_hash->raw;
     for ( i = 1; i < a_valuable_head; ++i ){
         if ( l_hash_data[i] != l_hash_first  )
             return HASH_USELESS;
