@@ -28,7 +28,7 @@
 #include "uthash.h"
 
 #include "dap_cpu_monitor.h"
-#include "dap_server_client.h"
+#include "dap_client_remote.h"
 
 
 typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
@@ -46,7 +46,7 @@ typedef struct dap_server{
     uint16_t port; // Listen port
     char * address; // Listen address
 
-    dap_server_client_t * clients; // Hashmap of clients
+    dap_client_remote_t * clients; // Hashmap of clients
 
     int socket_listener; // Socket for listener
     int epoll_fd; // Epoll fd
@@ -62,19 +62,19 @@ typedef struct dap_server{
 
     dap_server_callback_t server_delete_callback;
 
-    dap_client_remote_callback_t client_new_callback; // Create new client callback
-    dap_client_remote_callback_t client_delete_callback; // Delete client callback
-    dap_client_remote_callback_t client_read_callback; // Read function
-    dap_client_remote_callback_t client_write_callback; // Write function
-    dap_client_remote_callback_t client_error_callback; // Error processing function
+    dap_server_client_callback_t client_new_callback; // Create new client callback
+    dap_server_client_callback_t client_delete_callback; // Delete client callback
+    dap_server_client_callback_t client_read_callback; // Read function
+    dap_server_client_callback_t client_write_callback; // Write function
+    dap_server_client_callback_t client_error_callback; // Error processing function
 
 } dap_server_t;
 
-extern int dap_server_init(size_t count_threads); // Init server module
-extern void dap_server_deinit(void); // Deinit server module
+int dap_server_init(size_t count_threads); // Init server module
+void dap_server_deinit(void); // Deinit server module
 
-extern dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_type_t type);
+dap_server_t* dap_server_listen(const char * addr, uint16_t port, dap_server_type_t type);
 
-extern int dap_server_loop(dap_server_t * sh);
+int dap_server_loop(dap_server_t * sh);
 
 #endif

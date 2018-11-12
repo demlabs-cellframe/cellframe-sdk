@@ -98,7 +98,7 @@ int dap_server_init(size_t count_threads)
     pthread_mutex_init(&mutex_on_cnt_connections, NULL);
 
     log_it(L_NOTICE,"Initialized socket server module");
-    dap_server_client_init();
+    dap_client_remote_init();
     return 0;
 }
 
@@ -107,7 +107,7 @@ int dap_server_init(size_t count_threads)
  */
 void dap_server_deinit()
 {
-    dap_server_client_deinit();
+    dap_client_remote_deinit();
     for(size_t i = 0; i < _count_threads; i++)
         free (async_watchers[i].data);
 
@@ -132,12 +132,12 @@ dap_server_t * dap_server_new()
  */
 void dap_server_delete(dap_server_t * sh)
 {
-    dap_server_client_t * dap_cur, * tmp;
+    dap_client_remote_t * dap_cur, * tmp;
     if(sh->address)
         free(sh->address);
 
     HASH_ITER(hh,sh->clients,dap_cur,tmp)
-        dap_client_remove(dap_cur, sh);
+        dap_client_remote_remove(dap_cur, sh);
 
     if(sh->server_delete_callback)
         sh->server_delete_callback(sh,NULL);
@@ -167,7 +167,7 @@ static void set_client_thread_cb (EV_P_ ev_async *w, int revents)
 
     memcpy(w_client->data, w->data, sizeof(ev_async_data_t));
 
-    dap_client_create(_current_run_server, fd, w_client);
+    dap_client_remote_create(_current_run_server, fd, w_client);
 
     ev_io_start(listener_clients_loops[DAP_EV_DATA(w)->thread_number], w_client);
 
@@ -176,7 +176,7 @@ static void set_client_thread_cb (EV_P_ ev_async *w, int revents)
 
 static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int revents)
 {
-    dap_server_client_t* dap_cur = dap_client_find(watcher->fd, _current_run_server);
+    dap_client_remote_t* dap_cur = dap_client_remote_find(watcher->fd, _current_run_server);
 
     if ( revents & EV_READ )
     {
@@ -240,7 +240,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
 
         atomic_fetch_sub(&thread_inform[DAP_EV_DATA(watcher)->thread_number].count_open_connections, 1);
         ev_io_stop(listener_clients_loops[DAP_EV_DATA(watcher)->thread_number], watcher);
-        dap_client_remove(dap_cur, _current_run_server);
+        dap_client_remote_remove(dap_cur, _current_run_server);
         free(watcher->data); free(watcher);
         return;
     }
