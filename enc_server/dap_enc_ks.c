@@ -53,7 +53,11 @@ void dap_enc_ks_deinit()
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
 {
     dap_enc_ks_key_t * ret=NULL;
+    log_it(L_WARNING, "Trying fiend key with id: %s", v_id);
     HASH_FIND_STR(ks,v_id,ret);
+    if(ret == NULL) {
+        log_it(L_WARNING, "Key not found");
+    }
     return ret;
 }
 
@@ -67,7 +71,7 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
         if(ks_key)
             return ks_key->key;
         else{
-            //log_it(L_WARNING, "Not found keyID");
+            log_it(L_WARNING, "Not found keyID %s in storage", hdr_key_id->value);
             return NULL;
         }
     }else{
@@ -96,7 +100,8 @@ dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
     ret->key=key;
     pthread_mutex_init(&ret->mutex,NULL);
 
-    for(short i = 0; i < sizeof(ret->id); i++)
+    memset(ret->id, 0, DAP_ENC_KS_KEY_ID_SIZE);
+    for(short i = 0; i < DAP_ENC_KS_KEY_ID_SIZE; i++)
         ret->id[i]=65+rand()%25;
 
     HASH_ADD_STR(ks,id,ret);
@@ -105,11 +110,14 @@ dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
 
 void dap_enc_ks_delete(const char *id)
 {
+    log_it(L_WARNING, "dap_enc_ks_delete");
     dap_enc_ks_key_t *delItem = dap_enc_ks_find(id);
     if (delItem) {
         HASH_DEL (ks, delItem);
         _enc_key_free(&delItem);
+        return;
     }
+    log_it(L_WARNING, "Can't delete key by id: %s. Key not found", id);
 }
 
 void _enc_key_free(dap_enc_ks_key_t **ptr)

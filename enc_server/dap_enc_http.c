@@ -30,49 +30,23 @@
 #include "dap_enc.h"
 #include "dap_enc_ks.h"
 #include "dap_enc_key.h"
+#include "dap_enc_iaes.h"
 #include "dap_enc_http.h"
 #include "dap_enc_base64.h"
-#include "dap_enc_msrln16.h"
-//#include "liboqs/kex_rlwe_msrln16/kex_rlwe_msrln16.h"
-#include "liboqs/kex_rlwe_msrln16/kex_rlwe_msrln16.h"
-#include "liboqs/kex/kex.h"
+#include "dap_enc_msrln.h"
 
 
 #define LOG_TAG "dap_enc_http"
-#define RSA_KEY_LENGTH 4096
-#define AES_KEY_LENGTH 16 // 128 ???
 
 int enc_http_init()
 {
-   /* BIO *bio = BIO_new(BIO_s_mem());
-    BIO_write(bio, my_config.key_public, strlen(my_config.key_public));
-
-    PEM_read_bio_RSAPublicKey( bio, &public_key_server, NULL, NULL);
-
-    BIO_free_all(bio);
-
-    bio = BIO_new(BIO_s_mem());
-    BIO_write(bio, my_config.key_private,strlen(my_config.key_private));
-
-    PEM_read_bio_RSAPrivateKey(bio, &private_key_server, NULL, NULL);
-
-    BIO_free_all(bio);
-
-    if(public_key_server && private_key_server)
-        return 0;
-    else
-        return -1;*/
     return 0;
-
 }
 
 void enc_http_deinit()
 {
-  /*  if(public_key_server)
-        RSA_free(public_key_server);
-    if(private_key_server)
-        RSA_free(private_key_server);*/
 }
+
 
 /**
  * @brief enc_http_proc Enc http interface
@@ -83,100 +57,40 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 {
     log_it(L_DEBUG,"Proc enc http request");
     bool * isOk= (bool*)arg;
-    if(strcmp(cl_st->http->url_path,"hsd9jslagd92abgjalp9h") == 0 )
-    {
-        //Stage 1 : generate private key and alice message
-        OQS_RAND* rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
-        dap_enc_key_t* key_session = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_RLWE_MSRLN16,16);
-        dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(key_session);
-        msrln16_key->kex = OQS_KEX_rlwe_msrln16_new(rand);
-        uint8_t* out_msg = NULL;
-        size_t out_msg_size = 0;
-        OQS_KEX_rlwe_msrln16_alice_0(msrln16_key->kex,&msrln16_key->private_key,&out_msg,&out_msg_size);
-        dap_enc_ks_key_t * key_ks = dap_enc_ks_add(key_session);
 
-        char *sendMsg = malloc(out_msg_size * 2 + strlen(key_ks->id) * 2 + 1024);
-        char encrypt_id[strlen(key_ks->id) * 2];
+    if(strcmp(cl_st->http->url_path,"gd4y5yh78w42aaagh") == 0 ) {
 
-        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id,DAP_ENC_STANDARD_B64);
-
-        char* encrypt_msg = malloc(out_msg_size * 2);
-        dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg,DAP_ENC_STANDARD_B64);
-
-        strcpy(sendMsg,encrypt_id);
-        strcat(sendMsg," ");
-        strcat(sendMsg,encrypt_msg);
-
-
-        dap_http_simple_reply_f(cl_st,"%s",sendMsg);
-        free(encrypt_msg);
-        free(sendMsg);
-
-        *isOk=true;
-    }else if(strcmp(cl_st->http->url_path,"gd4y5yh78w42aaagh")==0 ){
-        if(cl_st->request == NULL) {
-            log_it(L_WARNING, "Received an empty request");
-            *isOk = false;
+        uint8_t alice_msg[cl_st->request_size];
+        size_t decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
+        if(decode_len != MSRLN_PKA_BYTES) {
+            log_it(L_WARNING, "Wrong http_enc request. Key not equal MSRLN_PKA_BYTES");
+            *isOk=false;
             return;
         }
-        //Stage 2 : generate bob public key and bob message
-        OQS_RAND* rand = OQS_RAND_new(OQS_RAND_alg_urandom_chacha20);
-        dap_enc_key_t* key_session = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_RLWE_MSRLN16,16);
-        dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(key_session);
-        msrln16_key->kex = OQS_KEX_rlwe_msrln16_new(rand);
-        dap_enc_ks_key_t * key_ks = dap_enc_ks_add(key_session);
 
-        uint8_t* out_msg = NULL;
-        size_t out_msg_size = 0;
-        char *msg_index = strchr(cl_st->request,' ');
-        int key_size = (void*)msg_index - cl_st->request;
-        int msg_size = cl_st->request_size - key_size - 1;
-        uint8_t *encoded_msg = malloc(cl_st->request_size);
-        dap_enc_base64_decode(cl_st->request,cl_st->request_size,encoded_msg,DAP_ENC_STANDARD_B64);
+        dap_enc_key_t* msrln_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
 
+        msrln_key->gen_bob_shared_key(msrln_key, alice_msg, MSRLN_PKA_BYTES, (void**)&msrln_key->pub_key_data);
 
-        OQS_KEX_rlwe_msrln16_bob(msrln16_key->kex,encoded_msg,1824,&out_msg,&out_msg_size,&msrln16_key->public_key,&msrln16_key->public_length);
-        aes_key_from_msrln_pub(key_ks->key);
+        dap_enc_ks_key_t * key_ks = dap_enc_ks_add(NULL);
 
-        char encrypt_id[strlen(key_ks->id) * 2];
-        dap_enc_base64_encode(key_ks->id,strlen(key_ks->id), encrypt_id,DAP_ENC_STANDARD_B64);
+        char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(msrln_key->pub_key_data_size)];
 
-        char* encrypt_msg = malloc(out_msg_size * 2);
-        dap_enc_base64_encode(out_msg,out_msg_size, encrypt_msg,DAP_ENC_STANDARD_B64);
+        dap_enc_base64_encode(msrln_key->pub_key_data, msrln_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
 
-        char *sendMsg = malloc(out_msg_size * 2 + strlen(key_ks->id) * 2 + 1024);
-        strcpy(sendMsg,encrypt_id);
-        strcat(sendMsg," ");
-        strcat(sendMsg,encrypt_msg);
+        key_ks->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES,
+                                               msrln_key->priv_key_data, // shared key
+                                               msrln_key->priv_key_data_size,
+                                               key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, 0);
 
-        dap_http_simple_reply_f(cl_st,"%s",sendMsg);
-        free(encrypt_msg);
-        free(sendMsg);
-        free(encoded_msg);
+        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE)];
 
-        *isOk=true;
-    }else if(strcmp(cl_st->http->url_path,"klfdgki45b4jbnjdf5")==0 ){
-        //Stage 3 : generate alice public key
-        uint8_t* out_msg = NULL;
-        size_t out_msg_size = 0;
-        char *msg_index = strchr(cl_st->request,' ');
-        int key_size = (void*)msg_index - cl_st->request;
-        int msg_size = cl_st->request_size - key_size - 1;
-        char* encoded_key = malloc(key_size);
-        memset(encoded_key,0,key_size);
-        uint8_t *encoded_msg = malloc(msg_size);
-        dap_enc_base64_decode(cl_st->request,key_size,encoded_key,DAP_ENC_STANDARD_B64);
-        dap_enc_base64_decode(msg_index+1,msg_size,encoded_msg,DAP_ENC_STANDARD_B64);
-        dap_enc_ks_key_t *ks_key = dap_enc_ks_find(encoded_key);
-        dap_enc_msrln16_key_t* msrln16_key = DAP_ENC_KEY_TYPE_RLWE_MSRLN16(ks_key->key);
-        OQS_KEX_rlwe_msrln16_alice_1(msrln16_key->kex, msrln16_key->private_key, encoded_msg, 2048,&msrln16_key->public_key,&msrln16_key->public_length);
-        aes_key_from_msrln_pub(ks_key->key);
-        free(encoded_key);
-        free(encoded_msg);
+        dap_enc_base64_encode(key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, encrypt_id, DAP_ENC_DATA_TYPE_B64);
 
-        *isOk=true;
+        dap_http_simple_reply_f(cl_st, "%s %s", encrypt_id, encrypt_msg);
 
-    }else{
+        dap_enc_key_delete(msrln_key);
+    } else{
         log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http->url_path);
         *isOk=false;
     }
@@ -207,11 +121,11 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
             dg->cookie=strdup(cl_st->http->in_cookie);
 
         if(cl_st->request_size){
-            dg->request=calloc(1,cl_st->request_size+1);
-            dg->request_size=dap_enc_decode(key, cl_st->request, cl_st->request_size,dg->request,DAP_ENC_DATA_TYPE_RAW);
+            //  dg->request=calloc(1,cl_st->request_size+1);
+            dg->request_size=dap_enc_decode(key, cl_st->request, cl_st->request_size,&dg->request,DAP_ENC_DATA_TYPE_RAW);
             dg->request_str[dg->request_size] = 0;
             log_it(L_DEBUG,"Request after decode '%s'",dg->request_str);
-           // log_it(L_DEBUG,"Request before decode: '%s' after decode '%s'",cl_st->request_str,dg->request_str);
+            // log_it(L_DEBUG,"Request before decode: '%s' after decode '%s'",cl_st->request_str,dg->request_str);
         }
 
         dap_enc_data_type_t l_enc_type;
@@ -223,8 +137,8 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 
         size_t url_path_size=strlen(cl_st->http->url_path);
         if(url_path_size){
-            dg->url_path=calloc(1,url_path_size+1);
-            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,dg->url_path,l_enc_type);
+            //    dg->url_path=calloc(1,url_path_size+1);
+            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,&dg->url_path,l_enc_type);
             dg->url_path[dg->url_path_size] = 0;
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
@@ -233,8 +147,8 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
         size_t in_query_size=strlen(cl_st->http->in_query_string);
 
         if(in_query_size){
-            dg->in_query=calloc(1,in_query_size+1);
-            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,dg->in_query,l_enc_type);
+            // dg->in_query=calloc(1,in_query_size+1);
+            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,&dg->in_query,l_enc_type);
             dg->in_query[dg->in_query_size] = 0;
             log_it(L_DEBUG,"Query string after decode '%s'",dg->in_query);
         }
@@ -251,67 +165,15 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 void enc_http_reply_encode(struct dap_http_simple *cl_st,enc_http_delegate_t * dg)
 {
     dap_enc_key_t * key = dap_enc_ks_find_http(cl_st->http);
-    if( key == NULL )
-    {
-        log_it(L_ERROR, "Not find key");
+    if( key == NULL ) {
+        log_it(L_ERROR, "Can't find http key.");
         return;
     }
     if(dg->response){
-            const size_t part = 255;
-            size_t out_enc_mem_size = (dg->response_size / part + 1) * (RSA_KEY_LENGTH / 8);
-#ifdef __GNUC__
-            if (__builtin_expect(dg->response_size > part, 0)) {
-#else
-            if (dg->response_size > part) {
-#endif
-                //log_it(L_DEBUG, "enc_http_reply_encode RSA WAY 1");
-                char *out_enc_buffer = calloc (out_enc_mem_size, sizeof(char));
-                size_t copy_size, enc_size = 0;
-                size_t end = dg->response_size;
-                for (size_t i = 0; i<dg->response_size; i += part) {
 
-                    end = dg->response_size - i;
-                    copy_size = (end <= part) ? end : part;
-
-                    if(enc_size > out_enc_mem_size) {
-                        log_it(L_WARNING, "Enc size > out_enc_mem_size");
-                        char *old = out_enc_buffer;
-                        out_enc_buffer = (char*)realloc(out_enc_buffer, out_enc_mem_size * 2);
-                        if(!out_enc_buffer) {
-                            free(old);
-                            log_it(L_ERROR, "Can not memmory allocate");
-                            return;
-                        }
-                        memset(out_enc_buffer + out_enc_mem_size, 0, out_enc_mem_size);
-                    }
-
-                    enc_size +=dap_enc_code(dg->key,
-                                         dg->response_str + i,
-                                         copy_size,
-                                         out_enc_buffer + enc_size,
-                                         DAP_ENC_DATA_TYPE_RAW);
-
-                }
-                cl_st->reply = calloc(1, enc_size);
-                cl_st->reply_size = enc_size;
-                //log_it(L_INFO, "\n\n\nCOLLECTED DATA is {%s} size={%d}",out_enc_buffer, _enc_size);
-                memcpy(cl_st->reply, out_enc_buffer, enc_size);
-                free (out_enc_buffer);
-
-            }
-            else if(dg->response_size>0){
-                //log_it(L_DEBUG, "enc_http_reply_encode RSA WAY 2");
-                if(cl_st->reply)
-                    free(cl_st->reply);
-
-                if(key->type == DAP_ENC_KEY_TYPE_AES){       //Добавить ключ в dap_enc_key.h ???
-                    cl_st->reply=calloc(1, AES_KEY_LENGTH / 8);
-                }
-                else {
-                    cl_st->reply=calloc(1, dg->response_size * 3 + 1);
-                }
-                cl_st->reply_size = dap_enc_code(dg->key,dg->response,dg->response_size,cl_st->reply,DAP_ENC_DATA_TYPE_RAW);
-            }
+        if(cl_st->reply)
+            free(cl_st->reply);
+        cl_st->reply_size = dap_enc_code(dg->key,dg->response,dg->response_size,&cl_st->reply,DAP_ENC_DATA_TYPE_RAW);
     }
 
 }
