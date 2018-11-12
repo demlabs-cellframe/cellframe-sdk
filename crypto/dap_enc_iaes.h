@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include "iaes/dap_iaes_proto.h"
 
-#define AES_BLOCK_SIZE 16
+#define IAES_BLOCK_SIZE 16
+#define IAES_KEYSIZE 32
 
 #ifdef __cplusplus
 extern "C" {

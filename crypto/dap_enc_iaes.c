@@ -7,13 +7,10 @@
 #include "dap_common.h"
 
 
-#define AES_BLOCKSIZE 16
-#define AES_KEYSIZE 32
-
 #define LOG_TAG "dap_enc_aes"
 
 typedef struct dap_enc_aes_key {
-    unsigned char ivec[AES_BLOCKSIZE];
+    unsigned char ivec[IAES_BLOCK_SIZE];
 } dap_enc_aes_key_t;
 
 #define DAP_ENC_AES_KEY(a) ((dap_enc_aes_key_t *)((a)->_inheritor) )
@@ -38,8 +35,8 @@ void dap_enc_aes_key_new(struct dap_enc_key * a_key)
     a_key->dec = dap_enc_iaes256_cbc_decrypt;
     //a_key->delete_callback = dap_enc_aes_key_delete;
 
-    a_key->priv_key_data = (uint8_t *)malloc(AES_KEYSIZE);
-    a_key->priv_key_data_size = AES_KEYSIZE;
+    a_key->priv_key_data = (uint8_t *)malloc(IAES_KEYSIZE);
+    a_key->priv_key_data_size = IAES_KEYSIZE;
 }
 
 void dap_enc_aes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
@@ -53,8 +50,8 @@ void dap_enc_aes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 
     memcpy(id_concat_kex,seed, seed_size);
     memcpy(id_concat_kex + seed_size, kex_buf, kex_size);
-    shake256(a_key->priv_key_data, AES_KEYSIZE, id_concat_kex, (kex_size + seed_size));
-    shake128(DAP_ENC_AES_KEY(a_key)->ivec, AES_BLOCKSIZE, seed, seed_size);
+    shake256(a_key->priv_key_data, IAES_KEYSIZE, id_concat_kex, (kex_size + seed_size));
+    shake128(DAP_ENC_AES_KEY(a_key)->ivec, IAES_BLOCK_SIZE, seed, seed_size);
 
     free(id_concat_kex);
 }
