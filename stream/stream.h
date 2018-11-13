@@ -71,10 +71,10 @@ typedef struct stream {
     size_t pkt_buf_in_data_size;
     size_t pkt_buf_in_size_expected;
 
-    uint8_t buf_defrag[500000];
+    uint8_t buf_defrag[STREAM_BUF_SIZE_MAX];
     uint64_t buf_defrag_size;
 
-    uint8_t buf[500000];
+    uint8_t buf[STREAM_BUF_SIZE_MAX];
 
     dap_stream_ch_t * channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;

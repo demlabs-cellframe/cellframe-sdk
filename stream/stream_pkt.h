@@ -22,6 +22,7 @@
 #define _STREAM_PKT_H_
 //#include <gst/gst.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #define STREAM_PKT_SIZE_MAX 100000
 struct stream;
@@ -55,7 +56,7 @@ extern const uint8_t dap_sig[8];
 
 extern stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size);
 
-extern size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out);
+extern size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out, size_t buf_out_size);
 
 extern size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_size);
 

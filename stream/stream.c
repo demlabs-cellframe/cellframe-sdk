@@ -560,7 +560,7 @@ void stream_proc_pkt_in(dap_stream_t * sid)
     if(sid->pkt_buf_in->hdr.type == DATA_PACKET)
     {
         stream_ch_pkt_t * ch_pkt= (stream_ch_pkt_t*) calloc(1,sid->pkt_buf_in->hdr.size);
-        stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt);
+        stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, sid->pkt_buf_in->hdr.size);
         dap_stream_ch_t * ch = NULL;
         size_t i;
         for(i=0;i<sid->channel_count;i++)

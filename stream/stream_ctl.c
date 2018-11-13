@@ -109,29 +109,28 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         }
         if(socket_forward){
             log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
-            ss=dap_stream_session_pure_new();
 
-            char key_str[255];
-            for(int i = 0; i < sizeof(key_str); i++)
-                key_str[i] = 65 + rand() % 25;
+            ss = dap_stream_session_pure_new();
 
-            ss->key=dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES,key_str);
+            char *key_str = calloc(1, KEX_KEY_STR_SIZE);
+            dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
+            ss->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, key_str, strlen(key_str), NULL, 0, 0);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             dg->isOk=true;
-       //     log_it(L_DEBUG,"Stream AES key string %s",key_str);
 
+            free(key_str);
         }else if(sscanf( dg->in_query ,"db_id=%u",&db_id)==1){
-            log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
-            ss=dap_stream_session_new(db_id,openPreview);
+//            log_it(L_INFO,"[ctl] Play request for db_id=%d",db_id);
+//            ss=dap_stream_session_new(db_id,openPreview);
 
-            char key_str[255];
-            for(int i = 0; i < sizeof(key_str); i++)
-                key_str[i] = 65 + rand() % 25;
+//            char key_str[255];
+//            for(int i = 0; i < sizeof(key_str); i++)
+//                key_str[i] = 65 + rand() % 25;
 
-            ss->key=dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES,key_str);
-            enc_http_reply_f(dg,"%u %s",ss->id,key_str);
-            dg->isOk=true;
-            log_it(L_DEBUG,"Stream AES key string %s",key_str);
+//            ss->key=dap_enc_key_new_from_str(DAP_ENC_KEY_TYPE_AES,key_str);
+//            enc_http_reply_f(dg,"%u %s",ss->id,key_str);
+//            dg->isOk=true;
+//            log_it(L_DEBUG,"Stream AES key string %s",key_str);
         }else{
             log_it(L_ERROR,"Wrong request: \"%s\"",dg->in_query);
             dg->isOk=false;

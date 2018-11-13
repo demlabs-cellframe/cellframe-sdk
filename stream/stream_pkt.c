@@ -36,6 +36,7 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
 
+#include "dap_enc_iaes.h"
 
 #define LOG_TAG "stream_pkt"
 
@@ -80,9 +81,9 @@ size_t encode_dummy(const void * buf, const size_t buf_size, void * buf_out){
  * @param pkt
  * @param buf_out
  */
-size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out)
+size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out, size_t buf_out_size)
 {
-    size_t ds = dap_enc_decode(sid->session->key,pkt->data,pkt->hdr.size,buf_out,DAP_ENC_DATA_TYPE_RAW);
+    size_t ds = dap_enc_iaes256_cbc_decrypt_fast(sid->session->key,pkt->data,pkt->hdr.size,buf_out, buf_out_size);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
 //           *((uint8_t *)buf_out+ds-4),*((uint8_t *)buf_out+ds-3),*((uint8_t *)buf_out+ds-2),*((uint8_t *)buf_out+ds-1)
 //           );
@@ -108,7 +109,7 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
     size_t ret=0;
     stream_pkt_hdr_t pkt_hdr;
 
-    if(data_size> sizeof(sid->buf) ){
+    if(data_size > STREAM_BUF_SIZE_MAX ){
         log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(sid->buf));
         data_size=sizeof(sid->buf);
     }
@@ -116,7 +117,7 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
     memset(&pkt_hdr,0,sizeof(pkt_hdr));
     memcpy(pkt_hdr.sig,dap_sig,sizeof(pkt_hdr.sig));
 
-    pkt_hdr.size = dap_enc_code(sid->session->key,data,data_size,sid->buf,DAP_ENC_DATA_TYPE_RAW);
+    pkt_hdr.size = dap_enc_iaes256_cbc_encrypt_fast(sid->session->key, data,data_size,sid->buf, STREAM_BUF_SIZE_MAX);
 
     if(sid->conn_udp){
         ret+=dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));

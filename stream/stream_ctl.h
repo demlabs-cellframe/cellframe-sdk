@@ -23,10 +23,9 @@
 
 struct dap_http;
 
+#define KEX_KEY_STR_SIZE 128
 extern int stream_ctl_init();
 extern void stream_ctl_deinit();
-
-
 extern void stream_ctl_add_proc(struct dap_http * sh, const char * url);
 
 #endif
