@@ -73,24 +73,20 @@ size_t dap_enc_iaes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in
         return 0;
     }
 
-    uint8_t *data = (uint8_t *)malloc(a_in_size);
+    *a_out = (uint8_t *) malloc(a_in_size);
 
-    IAES_256_CBC_decrypt(a_in, data, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size, a_key->priv_key_data);
+    IAES_256_CBC_decrypt(a_in, *a_out, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size, a_key->priv_key_data);
 
     size_t padding = 0;
     size_t end = a_in_size-16 > 0 ? a_in_size-16 : 0;
     size_t i;
     for( i = a_in_size-1; i >= end; i--)
     {
-        if(*(char*)(data + i) == (char)0)
+        if(*(char*)((*a_out) + i) == (char)0)
             padding++;
         else
             break;
     }
-
-    * a_out = (uint8_t *) malloc(a_in_size);
-    memcpy(* a_out, data,(a_in_size));
-    free(data);
 
     return a_in_size - padding;
 }
@@ -108,6 +104,18 @@ size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in
     free(data_new);
     return length_data_new;
 }
+
+//size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void * a_in,
+//                                        size_t a_in_size, void * a_out)
+//{
+
+//}
+
+//size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in,
+//                                        size_t a_in_size, void * a_out)
+//{
+
+//}
 
 ///**
 // * @brief dap_enc_aes_key_new_from_data
