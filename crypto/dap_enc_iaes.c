@@ -69,26 +69,28 @@ void dap_enc_aes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 size_t dap_enc_iaes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     if (a_in_size % 16) {
-        log_it(L_ERROR, "Bad in size");
+        log_it(L_ERROR, "Bad in data size");
         return 0;
     }
 
     *a_out = (uint8_t *) malloc(a_in_size);
 
-    IAES_256_CBC_decrypt(a_in, *a_out, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size, a_key->priv_key_data);
+    return IAES_256_CBC_decrypt(a_in, *a_out, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size, a_key->priv_key_data);
+}
 
-    size_t padding = 0;
-    size_t end = a_in_size-16 > 0 ? a_in_size-16 : 0;
-    size_t i;
-    for( i = a_in_size-1; i >= end; i--)
-    {
-        if(*(char*)((*a_out) + i) == (char)0)
-            padding++;
-        else
-            break;
+size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void * a_in,
+                                        size_t a_in_size, void * buf_out, size_t buf_out_size)
+{
+    if (a_in_size % 16) {
+        log_it(L_ERROR, "Bad in size");
+        return 0;
+    } else if(buf_out_size < a_in_size) {
+        log_it(L_ERROR, "buf_out_size < a_in_size");
+        return 0;
     }
 
-    return a_in_size - padding;
+    return IAES_256_CBC_decrypt(a_in, buf_out, DAP_ENC_AES_KEY(a_key)->ivec,
+                                a_in_size, a_key->priv_key_data);
 }
 
 size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
@@ -96,7 +98,7 @@ size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in
     size_t length_data_new;
     uint8_t *data_new;
 
-    length_data_new = block128_padding(a_in, &data_new, a_in_size);
+    length_data_new = iaes_block128_padding(a_in, &data_new, a_in_size);
     *a_out = (uint8_t *)malloc(length_data_new);
 
     IAES_256_CBC_encrypt(data_new, *a_out, DAP_ENC_AES_KEY(a_key)->ivec, length_data_new, a_key->priv_key_data);
@@ -105,53 +107,28 @@ size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in
     return length_data_new;
 }
 
-//size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void * a_in,
-//                                        size_t a_in_size, void * a_out)
-//{
 
-//}
+size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in,
+                                        size_t a_in_size, void * buf_out, size_t buf_out_size)
+{
+    size_t out_size = iaes_calc_block128_size(a_in_size);
 
-//size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in,
-//                                        size_t a_in_size, void * a_out)
-//{
+    if((a_in_size % IAES_BLOCK_SIZE) == 0) {
+        IAES_256_CBC_encrypt(a_in, buf_out, DAP_ENC_AES_KEY(a_key)->ivec, out_size, a_key->priv_key_data);
+        return out_size;
+    }
 
-//}
+    if(buf_out_size < out_size) {
+        log_it(L_ERROR, "buf_out_size less than expected encrypt out size data");
+        return 0;
+    }
+    uint8_t* data_in_new;
+    iaes_block128_padding(a_in, &data_in_new, a_in_size);
 
-///**
-// * @brief dap_enc_aes_key_new_from_data
-// * @param a_key
-// * @param a_in
-// * @param a_in_size
-// */
-//void dap_enc_aes_key_new_from_seed(struct dap_enc_key * a_key, const void * seed, size_t a_in_size)
-//{
-//    if(a_in_size < AES_KEYSIZE)
-//        return;
+    IAES_256_CBC_encrypt(data_in_new, buf_out, DAP_ENC_AES_KEY(a_key)->ivec,
+                         out_size, a_key->priv_key_data);
 
-//    a_key->last_used_timestamp = time(NULL);
-//    a_key->priv_key_data = (unsigned char*)malloc(AES_KEYSIZE);
-//    memcpy(a_key->priv_key_data,seed,AES_KEYSIZE);
-//    a_key->priv_key_data_size = AES_KEYSIZE;
-//    a_key->type=DAP_ENC_KEY_TYPE_AES;
-//    a_key->enc=dap_enc_aes256_cbc_encrypt;
-//    a_key->dec=dap_enc_aes256_cbc_decrypt;
-//    a_key->delete_callback=dap_enc_aes_key_delete;
-//}
+    free(data_in_new);
 
-///**
-// * @brief dap_enc_aes_key_new_from_str
-// * @param a_key
-// * @param a_in
-// * @param a_in_size
-// */
-//void dap_enc_aes_key_new_from_str(struct dap_enc_key * a_key, const char * a_in)
-//{
-//    if(strlen(a_in) < AES_KEYSIZE || a_key->priv_key_data_size != AES_KEYSIZE) {
-//        log_it(L_ERROR, "bad input parameters");
-//        return;
-//    }
-
-//    a_key->last_used_timestamp = time(NULL);
-//    memcpy(a_key->priv_key_data , a_in, AES_KEYSIZE);
-//}
-
+    return out_size;
+}

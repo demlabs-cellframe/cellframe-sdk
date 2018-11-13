@@ -3,23 +3,27 @@
 #include <stdlib.h>
 #include <string.h>
 #include "tables.h"
+#include "dap_iaes_proto.h"
 
-size_t block128_padding(const void *data, uint8_t **data_new, size_t length_data)
+size_t iaes_calc_block128_size(size_t length_data)
 {
-    int padding = 0;
-
-    if(length_data < 16) {
-        padding = 16 - length_data;
-    }
-    else if(length_data % 16) {
-        padding = 16 - length_data % 16;
+    if(length_data < IAES_BLOCK_SIZE) {
+        return IAES_BLOCK_SIZE;
+    } else if((length_data % IAES_BLOCK_SIZE) == 0) {
+        return length_data;
     }
 
-    size_t length_data_new = length_data + padding;
+    size_t padding = 16 - length_data % 16;
+    return length_data + padding;
+}
+
+size_t iaes_block128_padding(const void *data, uint8_t **data_new, size_t length_data)
+{
+    size_t length_data_new = iaes_calc_block128_size(length_data);
 
     *data_new = (uint8_t *) malloc(length_data_new);
     memcpy(*data_new, data, length_data);
-    memset(*data_new + length_data, 0x0, padding);
+    memset(*data_new + length_data, 0x0, length_data_new - length_data);
 
     return length_data_new;
 }
@@ -465,7 +469,7 @@ out[3] = (h_td4[(t3 >> 24) & 0xff] & 0xff000000) ^ (h_td4[(t2 >> 16) & 0xff] & 0
 }
 
 
-void IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, unsigned long length, uint8_t *masterkey)
+size_t IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, unsigned long length, uint8_t *masterkey)
  {
     uint32_t feedback[4], masterkey32[8], round_decrypt_key[60];
     uint32_t out[4], in[4];
@@ -506,6 +510,19 @@ void IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, un
         feedback[2] = in[2];
         feedback[3] = in[3];
     }
+
+
+    size_t padding = 0;
+    size_t end = length - 16 > 0 ? length - 16 : 0;
+    for(size_t i = length-1; i >= end; i--)
+    {
+        if(data[i] == 0)
+            padding++;
+        else
+            break;
+    }
+
+    return length - padding;
 }
 
 
