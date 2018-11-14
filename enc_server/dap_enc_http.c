@@ -138,7 +138,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
         size_t url_path_size=strlen(cl_st->http->url_path);
         if(url_path_size){
             //    dg->url_path=calloc(1,url_path_size+1);
-            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,&dg->url_path,l_enc_type);
+            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,(void **)&dg->url_path,l_enc_type);
             dg->url_path[dg->url_path_size] = 0;
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
@@ -148,7 +148,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 
         if(in_query_size){
             // dg->in_query=calloc(1,in_query_size+1);
-            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,&dg->in_query,l_enc_type);
+            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,(void**)&dg->in_query,l_enc_type);
             dg->in_query[dg->in_query_size] = 0;
             log_it(L_DEBUG,"Query string after decode '%s'",dg->in_query);
         }
