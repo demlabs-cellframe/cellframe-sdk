@@ -29,7 +29,6 @@
 #include "dap_enc_base64.h"
 #include "dap_enc_key.h"
 #include "dap_common.h"
-#include "dap_enc_msrln16.h"
 
 #define LOG_TAG "dap_enc"
 
@@ -40,7 +39,6 @@
 int dap_enc_init()
 {
     srand(time(NULL));
-
     return 0;
 }
 
@@ -52,6 +50,7 @@ void dap_enc_deinit()
 
 }
 
+
 /**
  * @brief dap_enc_code Encode data with key
  * @param key_private Private key
@@ -60,26 +59,27 @@ void dap_enc_deinit()
  * @param buf_out Output buffer
  * @return bytes actualy written in the output buffer
  */
-size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_size, void * buf_out, dap_enc_data_type_t data_type_out)
+size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_size,
+                    void ** buf_out, dap_enc_data_type_t data_type_out)
 {
-    if(key->enc){
-        void *proc_buf = NULL;
-        if(data_type_out == DAP_ENC_DATA_TYPE_RAW)
-            proc_buf=buf_out;
-        else
-            proc_buf=calloc(1,buf_size*2);
-        size_t ret=key->enc(key,buf,buf_size,proc_buf);
-        if(data_type_out==DAP_ENC_DATA_TYPE_B64){
-            ret=dap_enc_base64_encode(proc_buf,ret,buf_out,DAP_ENC_STANDARD_B64);
-            if (proc_buf)
-            	free(proc_buf);
-        }else if(data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE){
-            ret=dap_enc_base64_encode(proc_buf,ret,buf_out,DAP_ENC_STANDARD_B64_URLSAFE);
-            if (proc_buf)
-            	free(proc_buf);
+    if(key->enc) {
+        if(data_type_out == DAP_ENC_DATA_TYPE_RAW) {
+            return key->enc(key, buf, buf_size, buf_out);
+        }
+
+        void *proc_buf;
+        size_t ret = key->enc(key, buf, buf_size, &proc_buf);
+        if(data_type_out == DAP_ENC_DATA_TYPE_B64 || data_type_out == DAP_ENC_DATA_TYPE_B64_URLSAFE) {
+            *buf_out = malloc(DAP_ENC_BASE64_ENCODE_SIZE(ret));
+            ret=dap_enc_base64_encode(proc_buf, ret, *buf_out, data_type_out);
+            free(proc_buf);
+        } else {
+            log_it(L_ERROR, "Unknown dap_enc_data_type");
+            return 0;
         }
         return ret;
-    }else{
+    } else {
+        log_it(L_ERROR, "key->enc is NULL");
         return 0;
     }
 }
@@ -93,22 +93,19 @@ size_t dap_enc_code(struct dap_enc_key * key,const void * buf,const size_t buf_s
  * @param buf_out_max Maximum size of output buffer
  * @return bytes actualy written in the output buffer
  */
-size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t buf_size, void * buf_out, dap_enc_data_type_t data_type_in)
+size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t buf_size,
+                      void ** buf_out, dap_enc_data_type_t data_type_in)
 {
     void *proc_buf = NULL;
     const void *proc_buf_const = NULL;
     size_t proc_buf_size = 0;
     switch(data_type_in){
-        case DAP_ENC_DATA_TYPE_B64_URLSAFE:{
-            proc_buf=calloc(1,buf_size);
-            proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf,DAP_ENC_STANDARD_B64_URLSAFE);
+        case DAP_ENC_DATA_TYPE_B64:
+        case DAP_ENC_DATA_TYPE_B64_URLSAFE:
+            proc_buf=calloc(1,DAP_ENC_BASE64_ENCODE_SIZE(buf_size));
+            proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf,data_type_in);
             proc_buf_const=proc_buf;
-        }break;
-        case DAP_ENC_DATA_TYPE_B64:{
-            proc_buf=calloc(1,buf_size);
-            proc_buf_size= dap_enc_base64_decode((const char*) buf,buf_size,proc_buf,DAP_ENC_STANDARD_B64);
-            proc_buf_const=proc_buf;
-        }break;
+        break;
         case DAP_ENC_DATA_TYPE_RAW:{
             proc_buf_const=buf;
             proc_buf_size=buf_size;
@@ -116,13 +113,19 @@ size_t dap_enc_decode(struct dap_enc_key * key,const void * buf, const size_t bu
     }
 
     if(key->dec) {
-        size_t ret=key->dec(key,proc_buf_const,proc_buf_size,buf_out);
+        if(proc_buf_size == 0) {
+            log_it(L_ERROR, "Buf is null. dap_enc_base64_decode is failed");
+            return 0;
+        }
+        size_t ret = key->dec(key,proc_buf_const,proc_buf_size, buf_out);
+
         if(data_type_in==DAP_ENC_DATA_TYPE_B64 || data_type_in == DAP_ENC_DATA_TYPE_B64_URLSAFE)
-        	if (proc_buf)
-        		free(proc_buf);
+            free(proc_buf);
         return ret;
     } else {
         log_it(L_WARNING, "key->dec is NULL");
+        if(proc_buf_size)
+            free(proc_buf);
         return 0;
     }
 }

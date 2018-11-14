@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <time.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,7 +39,7 @@ typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
 
 
-typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES                           
+typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
 
                            DAP_ENC_KEY_TYPE_RLWE_NEWHOPE, // "NewHope": key exchange from the ring learning with errors problem
                                                 //  (Alkim, Ducas, Pöppelmann, Schwabe, USENIX Security 2016 )
@@ -51,6 +52,8 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                // using the implementation of Microsoft Research
                                                // https://www.microsoft.com/en-us/research/project/sidh-library/
                            DAP_ENC_KEY_TYPE_DEFEO , // Key exchange from the supersingular isogeny Diffie-Hellman problem
+
+                           DAP_ENC_KEY_TYPE_MSRLN,
 
                            DAP_ENC_KEY_TYPE_RLWE_MSRLN16,
                             //DAP_ENC_KEY_TYPE_RLWE_MSRLN16, // Microsoft Research implementation of Peikert's ring-LWE key exchange
@@ -94,43 +97,110 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_AES, // Symmetric AES
                                                // and Sebastian Ramacher and Christian Rechberger and Daniel Slamanig and Greg Zaverucha
                                                // https://eprint.iacr.org/2017/279.pdf), using the optimized implemenation
                                                //  from https://github.com/IAIK/Picnic
-                               DAP_ENC_KEY_TYPE_FNAM2 //ХЗ ЧТО, ДОБАВИЛ ЧТОБЫ БЫЛО И НА МЕНЯ КОМПИЛЯТОР НЕ РУГАЛСЯ:(
+                               DAP_ENC_KEY_TYPE_FNAM2
                          }  dap_enc_key_type_t;
 
 struct dap_enc_key;
 
-typedef void (*dap_enc_callback_t)(struct dap_enc_key *);
+// allocates memory and sets callbacks
+typedef void (*dap_enc_callback_new)(struct dap_enc_key*);
+
+// generates key data from seed
+typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, const void *kex_buf,
+                                              size_t kex_size, const void* seed, size_t seed_size,
+                                              size_t key_size);
+// free memory
+typedef void (*dap_enc_callback_delete)(struct dap_enc_key*); 
+
+// encrypt and decrypt functions. Allocates Memory for out
+typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
+                                            const size_t in_size,void ** out);
+
+// key pair generation and generation of shared key at Bob's side
+// INPUT:
+// dap_enc_key *b_key
+// a_pub  ---  Alice's public key
+// a_pub_size --- Alice's public key length
+// OUTPUT:
+// b_pub  --- Bob's public key
+// b_key->priv_key_data --- shared key
+// b_key->priv_key_data_size --- shared key length
+typedef int (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const void *a_pub,
+                                           size_t a_pub_size, void ** b_pub);
+
+// generation of shared key at Alice's side
+// INPUT:
+// dap_enc_key *b_key
+// a_priv  --- Alice's private key
+// b_pub  ---  Bob's public key
+// b_pub_size --- Bob public key size
+// OUTPUT:
+// a_key->priv_key_data  --- shared key
+// a_key->priv_key_data_size --- shared key length
+typedef int (*dap_enc_gen_alice_shared_key) (struct dap_enc_key *a_key, const void *a_priv,
+                                             size_t b_pub_size, unsigned char *b_pub);
+
+
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
 typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , size_t);
 typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
-
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
 
+typedef struct dap_enc_key {
+    size_t priv_key_data_size;
+    unsigned char * priv_key_data; // can be shared key in assymetric alghoritms
 
-typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *, const void * , const size_t ,void *);
+    size_t pub_key_data_size;
+    unsigned char * pub_key_data; // can be null if enc symmetric
 
-typedef struct dap_enc_key{
-    size_t data_size;
     time_t last_used_timestamp;
-    unsigned char * data;
     dap_enc_key_type_t type;
-
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    dap_enc_callback_t delete_callback;
-    void * _inheritor;
+    dap_enc_gen_alice_shared_key gen_alice_shared_key;
+    dap_enc_gen_bob_shared_key gen_bob_shared_key;
+
+    void * _inheritor; // WARNING! Inheritor must have only serealizeble/deserializeble data (copy)
+    size_t _inheritor_size;
 } dap_enc_key_t;
+
+#define MAX_ENC_KEY_SIZE 16384
+#define MAX_INHERITOR_SIZE 2048
+
+// struct for serelization/deseralization keys in binary storage
+typedef struct dap_enc_key_serealize {
+    size_t priv_key_data_size;
+    size_t pub_key_data_size;
+    size_t inheritor_size;
+    time_t last_used_timestamp;
+    dap_enc_key_type_t type;
+
+    unsigned char priv_key_data[MAX_ENC_KEY_SIZE];
+    unsigned char pub_key_data[MAX_ENC_KEY_SIZE];
+    unsigned char inheritor[MAX_INHERITOR_SIZE];
+} dap_enc_key_serealize_t;
 
 int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
+
+dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key);
+dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size);
+
+// allocate memory for key struct
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);
 
-dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, size_t a_key_size);
-dap_enc_key_t *dap_enc_key_new_from_data(dap_enc_key_type_t a_key_type, void * a_key_input, size_t a_key_input_size);
-dap_enc_key_t *dap_enc_key_new_from_str(dap_enc_key_type_t a_key_type, const char *a_key_str);
+// default gen key
+dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, const void *kex_buf,
+                                                      size_t kex_size, const void* seed,
+                                                      size_t seed_size, size_t key_size);
+
+// for asymmetric gen public key
+dap_enc_key_t *dap_enc_gen_pub_key_from_priv(struct dap_enc_key *a_key, void **priv_key, size_t *alice_msg_len);
+
+
 void dap_enc_key_delete(dap_enc_key_t * a_key);
 
 #ifdef __cplusplus
