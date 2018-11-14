@@ -23,21 +23,23 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
-typedef union dap_chain_node_addr{
-    uint64_t addr_raw;
-    uint8_t addr_oct[sizeof(uint64_t)]; // Access to selected octects
-} dap_chain_node_addr_t;
+#include "dap_chain_common.h"
+#include "dap_chain_node.h"
 
-typedef struct dap_chain_node{
-    dap_chain_node_addr_t addr;
-    dap_chain_node_addr_t *uplinks;
-    dap_chain_node_addr_t *downlinks;
 
-    struct in_addr *ipv4_addrs;
-    size_t ipv4_addrs_size;
-    struct in6_addr *ipv6_addrs;
-    size_t ipv6_addrs_size;
-} dap_chain_net_node_t;
+typedef struct dap_chain_node_ctl{
+    struct {
+        dap_chain_node_addr_t addr;
+        struct in_addr *ipv4_addrs;
+        size_t ipv4_addrs_size;
+        struct in6_addr *ipv6_addrs;
+        size_t ipv6_addrs_size;
+    } pub;
+    uint8_t pvt[];
+} dap_chain_node_ctl_t;
+
+dap_chain_node_ctl_t * dap_chain_node_ctl_new();
+dap_chain_node_ctl_t * dap_chain_node_ctl_open( const char * a_name );
+void dap_chain_node_ctl_delete(dap_chain_node_ctl_t * a_node);
+

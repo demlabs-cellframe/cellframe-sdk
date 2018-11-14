@@ -22,5 +22,24 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
+#include <stdint.h>
+#include "dap_chain_common.h"
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+typedef struct dap_chain_net{
+    struct {
+        dap_chain_net_id_t id;
+        char * name;
+    } pub;
+    uint8_t pvt[];
+} dap_chain_net_t;
+
 int dap_chain_net_init();
 void dap_chain_net_deinit();
+
+dap_chain_net_t * dap_chain_net_new (const char * a_id,  const char * a_name, const char* a_node_role );
+void dap_chain_net_delete( dap_chain_net_t * a_net);
+

@@ -19,5 +19,11 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_net_node.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#include "dap_chain_net.h"
+#include "dap_chain_node.h"
+
+#define LOG_TAG "chain_node"
 
