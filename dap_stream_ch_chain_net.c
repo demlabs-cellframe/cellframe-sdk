@@ -22,12 +22,21 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <pthread.h>
+#include <errno.h>
+#include <string.h>
 #include "dap_common.h"
 
 #include "dap_stream_ch_chain_net.h"
 
 #define LOG_TAG "stream_ch_chain_net"
 
+
+
+/**
+ * @brief dap_stream_ch_chain_net_init
+ * @return
+ */
 int dap_stream_ch_chain_net_init()
 {
     log_it(L_NOTICE,"Chain network channel initialized");
@@ -36,5 +45,4 @@ int dap_stream_ch_chain_net_init()
 
 void dap_stream_ch_chain_net_deinit()
 {
-
 }
