@@ -32,16 +32,22 @@
 #include "dap_chain_pkey.h"
 
 #define DAP_CHAIN_ID_SIZE 8
+#define DAP_CHAIN_SHARD_ID_SIZE 8
 #define DAP_CHAIN_NET_ID_SIZE 8
 #define DAP_CHAIN_NODE_ROLE_SIZE 2
 #define DAP_CHAIN_HASH_SIZE 32
 #define DAP_CHAIN_HASH_FAST_SIZE 64
 #define DAP_CHAIN_ADDR_HASH_SIZE 32
-
+#define DAP_CHAIN_TIMESTAMP_SIZE 8
 // Chain ID of the whole system
 typedef union dap_chain_id{
     uint8_t raw[DAP_CHAIN_ID_SIZE];
 } DAP_ALIGN_PACKED dap_chain_id_t;
+
+// Shard ID
+typedef union dap_chain_shard_id{
+    uint8_t raw[DAP_CHAIN_SHARD_ID_SIZE];
+} DAP_ALIGN_PACKED dap_chain_shard_id_t;
 
 /**
   *
@@ -67,6 +73,7 @@ typedef union dap_chain_net_id{
     uint8_t raw[DAP_CHAIN_NET_ID_SIZE];
 } DAP_ALIGN_PACKED dap_chain_net_id_t;
 
+
 typedef union dap_chain_hash{
     uint8_t raw[DAP_CHAIN_HASH_SIZE];
 } DAP_ALIGN_PACKED dap_chain_hash_t;
@@ -85,6 +92,7 @@ typedef struct dap_chain_addr{
     uint8_t hash[DAP_CHAIN_ADDR_HASH_SIZE];
     uint64_t checksum;
 } dap_chain_addr_t;
+
 
 size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max);
 
