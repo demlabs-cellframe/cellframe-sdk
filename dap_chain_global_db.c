@@ -106,7 +106,7 @@ pdap_store_obj_t dap_db_read_data(void) {
     }
     log_it(L_INFO, "Obtained binary data, %d entries", data_message->count);
 
-    pdap_store_obj_t store_data = (pdap_store_obj_t)malloc(data_message->count * sizeof(struct dap_store_obj));
+    pdap_store_obj_t store_data =DAP_NEW_Z_SIZE(dap_store_obj_t,data_message->count * sizeof(struct dap_store_obj) );
     if (store_data != NULL) {
         log_it(L_INFO, "We're about to put entries into store objects");
     }
@@ -121,8 +121,8 @@ pdap_store_obj_t dap_db_read_data(void) {
         store_data[q].section = "kelvin_nodes";
         store_data[q].group = "addrs_leased";
         store_data[q].type = 1;
-        store_data[q].key = ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", NULL);
-        store_data[q].value = ldb_msg_find_attr_as_string(data_message->msgs[q], "time", NULL);
+        store_data[q].key = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", NULL));
+        store_data[q].value = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "time", NULL));
         log_it(L_INFO, "Record %s stored successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn) );
     }
     talloc_free(data_message);
@@ -156,13 +156,13 @@ pdap_store_obj_t dap_db_read_file_data(const char *path) {
         /* if (ldif_msg->changetype == LDB_CHANGETYPE_ADD) {
           / ... /
         } */ // in case we gonna use extra LDIF functionality
-        char *key = ldb_msg_find_attr_as_string(ldif_msg->msg, "cn", NULL);
+        const char *key = ldb_msg_find_attr_as_string(ldif_msg->msg, "cn", NULL);
         if (key != NULL) {
             store_data[q].section = "kelvin_nodes";
             store_data[q].group = "addrs_leased";
             store_data[q].type = 1;
-            store_data[q].key = key;
-            store_data[q].value = ldb_msg_find_attr_as_string(ldif_msg->msg, "time", NULL);
+            store_data[q].key = strdup(key);
+            store_data[q].value = strdup(ldb_msg_find_attr_as_string(ldif_msg->msg, "time", NULL));
             log_it(L_INFO, "Record %s stored successfully", ldb_dn_get_linearized(ldif_msg->msg->dn) );
         }
         ldb_ldif_read_free(ldb, ldif_msg);
@@ -179,7 +179,7 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size) {
         log_it(L_ERROR, "Invalid Dap store objects passed");
         return -1;
     }
-    if (ldb_connect(ldb, dap_db_path, NULL, NULL) != LDB_SUCCESS) {
+    if (ldb_connect(ldb, dap_db_path, 0, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
