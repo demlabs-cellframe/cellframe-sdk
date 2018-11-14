@@ -39,6 +39,8 @@
 
 #if defined(__GNUC__) ||defined (__clang__)
 #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
+#else
+#define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #endif
 
 /**
