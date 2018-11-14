@@ -160,13 +160,6 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
     if(is_ok){
         log_it(L_DEBUG, "Request was processed well");
 
-        if(cl_sh->reply_proc_post_callback){
-            void * enc_data = calloc(1,cl_sh->reply_size*2);
-            cl_sh->reply_proc_post_callback(cl_sh,enc_data);
-            free(cl_sh->reply);
-            cl_sh->reply=enc_data;
-        }
-
         cl_sh->http->out_content_length=cl_sh->reply_size;
         strcpy(cl_sh->http->out_content_type, cl_sh->reply_mime);
 
@@ -257,6 +250,8 @@ void dap_http_simple_data_write(dap_http_client_t * a_http_client,void * a_arg)
         a_http_client->client->signal_close=true;
         //dap_client_ready_to_write(cl_ht->client,false);
     }
+
+    free(cl_st->reply);
 }
 
 /**

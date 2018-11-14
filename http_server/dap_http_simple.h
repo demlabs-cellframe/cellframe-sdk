@@ -46,7 +46,7 @@ typedef struct dap_http_simple{
     size_t reply_sent;
     char reply_mime[256];
 
-    dap_http_simple_callback_t reply_proc_post_callback;
+   // dap_http_simple_callback_t reply_proc_post_callback;
 } dap_http_simple_t;
 
 #define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->_inheritor )

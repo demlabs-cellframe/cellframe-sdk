@@ -25,10 +25,11 @@
 #include "uthash.h"
 #include "dap_enc_key.h"
 
+#define DAP_ENC_KS_KEY_ID_SIZE 33
 struct dap_http_client;
 typedef struct dap_enc_key dap_enc_key_t;
 typedef struct dap_enc_ks_key{
-    char id[33];
+    char id[DAP_ENC_KS_KEY_ID_SIZE];
     dap_enc_key_t *key;
     time_t time_created;
     pthread_mutex_t mutex;
