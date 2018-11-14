@@ -23,12 +23,12 @@
 */
 #pragma once
 
-#include "dap_chain_net_node.h"
+#include "dap_chain_node_ctl.h"
 #include "dap_chain_net_srv_common.h"
 
 typedef struct dap_chain_net_srv
 {
-    dap_chain_net_node_t * node;
+    dap_chain_node_ctl_t * node;
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
 
     void * _internal;
