@@ -74,18 +74,19 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 
         dap_enc_ks_key_t * key_ks = dap_enc_ks_add(NULL);
 
-        char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(msrln_key->pub_key_data_size)];
-
-        dap_enc_base64_encode(msrln_key->pub_key_data, msrln_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
+        char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(msrln_key->pub_key_data_size) + 1];
+        size_t encrypt_msg_size = dap_enc_base64_encode(msrln_key->pub_key_data, msrln_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
+        encrypt_msg[encrypt_msg_size] = '\0';
 
         key_ks->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES,
                                                msrln_key->priv_key_data, // shared key
                                                msrln_key->priv_key_data_size,
                                                key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, 0);
 
-        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE)];
+        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1];
 
-        dap_enc_base64_encode(key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, encrypt_id, DAP_ENC_DATA_TYPE_B64);
+        size_t encrypt_id_size = dap_enc_base64_encode(key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, encrypt_id, DAP_ENC_DATA_TYPE_B64);
+        encrypt_id[encrypt_id_size] = '\0';
 
         dap_http_simple_reply_f(cl_st, "%s %s", encrypt_id, encrypt_msg);
 
@@ -138,7 +139,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
         size_t url_path_size=strlen(cl_st->http->url_path);
         if(url_path_size){
             //    dg->url_path=calloc(1,url_path_size+1);
-            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,(void **)&dg->url_path,l_enc_type);
+            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,&dg->url_path,l_enc_type);
             dg->url_path[dg->url_path_size] = 0;
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
@@ -148,7 +149,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
 
         if(in_query_size){
             // dg->in_query=calloc(1,in_query_size+1);
-            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,(void**)&dg->in_query,l_enc_type);
+            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,&dg->in_query,l_enc_type);
             dg->in_query[dg->in_query_size] = 0;
             log_it(L_DEBUG,"Query string after decode '%s'",dg->in_query);
         }
