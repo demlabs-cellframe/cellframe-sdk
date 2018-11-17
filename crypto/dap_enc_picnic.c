@@ -48,8 +48,8 @@ void dap_enc_picnic_key_new(dap_enc_key_t* a_key)
  * @param seed_size
  * @param key_size
  */
-void dap_enc_picnic_key_generate(dap_enc_key_t * a_key,  size_t seed_size,
-                                size_t key_size)
+void dap_enc_picnic_key_generate(dap_enc_key_t * a_key, const void* a_seed, size_t a_seed_size,
+                                 size_t a_key_size)
 {
 
 }
