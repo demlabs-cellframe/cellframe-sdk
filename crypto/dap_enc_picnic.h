@@ -26,8 +26,11 @@
 #define DAP_ENC_KEY_TYPE_PICNIC(a) ((dap_enc_picnic_key_t *)((a)->_inheritor))
 
 void dap_enc_picnic_key_new(dap_enc_key_t* a_key);
-void dap_enc_picnic_key_generate(dap_enc_key_t * a_key,  size_t seed_size,
-                                size_t key_size);
+void dap_enc_picnic_key_generate(dap_enc_key_t * a_key, const void* a_seed, size_t a_seed_size,
+                                size_t a_key_size);
+
+void dap_enc_picnic_key_make_public(dap_enc_key_t * a_key, void * a_key_raw, const size_t a_key_size);
+void dap_enc_picnic_key_make_public_inside(dap_enc_key_t * a_key); // saves public part inside the dap_enc_picnic_key_t
 
 void dap_enc_picnic_key_new_from_raw_public(dap_enc_key_t* a_key, const void * a_in, size_t a_in_size);
 void dap_enc_picnic_key_new_from_raw_private(dap_enc_key_t* a_key, const void * a_in, size_t a_in_size);
