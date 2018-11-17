@@ -116,6 +116,8 @@ typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
                                             const size_t in_size,void ** out);
 
+typedef size_t (*dap_enc_callback_dataop_na_t)(struct dap_enc_key *key, const void *in,
+                                            const size_t in_size,void * out, const size_t out_size_max);
 // key pair generation and generation of shared key at Bob's side
 // INPUT:
 // dap_enc_key *b_key
@@ -159,6 +161,9 @@ typedef struct dap_enc_key {
     dap_enc_key_type_t type;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
+    dap_enc_callback_dataop_t enc_na;
+    dap_enc_callback_dataop_t dec_na;
+
     dap_enc_gen_alice_shared_key gen_alice_shared_key;
     dap_enc_gen_bob_shared_key gen_bob_shared_key;
 

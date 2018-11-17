@@ -26,6 +26,7 @@
 #include "dap_enc_iaes.h"
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
+#include "dap_enc_picnic.h"
 
 #include "dap_enc_key.h"
 
@@ -36,6 +37,8 @@ struct dap_enc_key_callbacks{
     const char * name;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
+    dap_enc_callback_dataop_na_t enc_na;
+    dap_enc_callback_dataop_na_t dec_na;
 
     dap_enc_gen_bob_shared_key gen_bob_shared_key;
     dap_enc_gen_alice_shared_key gen_alice_shared_key;
@@ -76,6 +79,17 @@ struct dap_enc_key_callbacks{
                             .delete_callback = dap_enc_defeo_key_delete,
                             .new_generate_callback = dap_enc_defeo_key_new_generate,
                            },
+    [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
+        .name = "PICNIC",
+        .enc_na = dap_enc_picnic_enc_na,
+        .dec_na = dap_enc_picnic_dec_na,
+        .gen_bob_shared_key = NULL,
+        .gen_alice_shared_key = NULL,
+        .new_callback = dap_enc_defeo_key_new,
+        .delete_callback = dap_enc_defeo_key_delete,
+        .new_generate_callback = dap_enc_defeo_key_new_generate,
+
+    }
 };
 
 const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
