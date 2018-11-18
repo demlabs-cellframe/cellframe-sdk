@@ -27,6 +27,7 @@
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
 #include "dap_enc_picnic.h"
+#include "dap_enc_bliss.h"
 
 #include "dap_enc_key.h"
 
@@ -51,34 +52,34 @@ struct dap_enc_key_callbacks{
 } s_callbacks[]={
     // AES
     [DAP_ENC_KEY_TYPE_IAES]={
-                            .name = "IAES",
-                            .enc = dap_enc_iaes256_cbc_encrypt,
-                            .dec = dap_enc_iaes256_cbc_decrypt,
-                            .new_callback = dap_enc_aes_key_new,
-                            .delete_callback = dap_enc_aes_key_delete,
-                            .new_generate_callback = dap_enc_aes_key_generate,
-                           },
+        .name = "IAES",
+        .enc = dap_enc_iaes256_cbc_encrypt,
+        .dec = dap_enc_iaes256_cbc_decrypt,
+        .new_callback = dap_enc_aes_key_new,
+        .delete_callback = dap_enc_aes_key_delete,
+        .new_generate_callback = dap_enc_aes_key_generate,
+    },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
-                            .name = "MSRLN",
-                            .enc = NULL,
-                            .dec = NULL,
-                            .new_callback = dap_enc_msrln_key_new,
-                            .delete_callback = dap_enc_msrln_key_delete,
-                            .new_generate_callback = dap_enc_msrln_key_generate,
-                            .gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_msrln_gen_bob_shared_key,
-                            .gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_msrln_gen_alice_shared_key,
-                            .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
+        .name = "MSRLN",
+        .enc = NULL,
+        .dec = NULL,
+        .new_callback = dap_enc_msrln_key_new,
+        .delete_callback = dap_enc_msrln_key_delete,
+        .new_generate_callback = dap_enc_msrln_key_generate,
+        .gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_msrln_gen_bob_shared_key,
+        .gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_msrln_gen_alice_shared_key,
+        .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
     },
     [DAP_ENC_KEY_TYPE_DEFEO]={
-                            .name = "DEFEO",
-                            .enc = NULL,
-                            .dec = NULL,
-                            .gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_defeo_gen_bob_shared_key,
-                            .gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_defeo_gen_alice_shared_key,
-                            .new_callback = dap_enc_defeo_key_new,
-                            .delete_callback = dap_enc_defeo_key_delete,
-                            .new_generate_callback = dap_enc_defeo_key_new_generate,
-                           },
+        .name = "DEFEO",
+        .enc = NULL,
+        .dec = NULL,
+        .gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_defeo_gen_bob_shared_key,
+        .gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_defeo_gen_alice_shared_key,
+        .new_callback = dap_enc_defeo_key_new,
+        .delete_callback = dap_enc_defeo_key_delete,
+        .new_generate_callback = dap_enc_defeo_key_new_generate,
+    },
     [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
         .name = "PICNIC",
         .enc_na = dap_enc_picnic_enc_na,
@@ -89,6 +90,16 @@ struct dap_enc_key_callbacks{
         .delete_callback = dap_enc_defeo_key_delete,
         .new_generate_callback = dap_enc_defeo_key_new_generate,
 
+    },
+    [DAP_ENC_KEY_TYPE_SIG_BLISS]={
+        .name = "SIG_BLISS",
+        .enc = NULL,
+        .dec = NULL,
+        .gen_bob_shared_key = dap_enc_sig_bliss_get_sign,
+        .gen_alice_shared_key = dap_enc_sig_bliss_verify_sign,
+        .new_callback = dap_enc_sig_bliss_key_new,
+        .delete_callback = dap_enc_sig_bliss_key_delete,
+        .new_generate_callback = dap_enc_sig_bliss_key_new_generate,
     }
 };
 
@@ -188,14 +199,14 @@ dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
  * @return
  */
 dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const void *kex_buf,
-                                                      size_t kex_size, const void* seed,
-                                                      size_t seed_size, size_t key_size)
+                                        size_t kex_size, const void* seed,
+                                        size_t seed_size, size_t key_size)
 {
     dap_enc_key_t * ret = NULL;
     if(a_key_type< c_callbacks_size ) {
         ret = dap_enc_key_new(a_key_type);
         if(s_callbacks[a_key_type].new_generate_callback) {
-            s_callbacks[a_key_type].new_generate_callback(ret,kex_buf, kex_size, seed, seed_size, key_size);
+            s_callbacks[a_key_type].new_generate_callback( ret, kex_buf, kex_size, seed, seed_size, key_size);
         }
     }
     return ret;
@@ -219,7 +230,3 @@ void dap_enc_key_delete(dap_enc_key_t * a_key)
     free(a_key->priv_key_data);
     free(a_key);
 }
-
-
-
-

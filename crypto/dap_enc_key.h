@@ -45,7 +45,7 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                                                 //  (Alkim, Ducas, Pöppelmann, Schwabe, USENIX Security 2016 )
                                                 //  Using the reference C implementation of NewHope
                                                 // from https://github.com/tpoeppelmann/newhop
-                                                // https://eprint.iacr.org/2015/1092         
+                                                // https://eprint.iacr.org/2015/1092
 
                            DAP_ENC_KEY_TYPE_SIDH_CLN16 , // Key exchange from the supersingular isogeny Diffie-Hellman problem
                                                // (Costello, Naehrig, Longa, CRYPTO 2016, https://eprint.iacr.org/2016/413)
@@ -97,6 +97,9 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                                                // and Sebastian Ramacher and Christian Rechberger and Daniel Slamanig and Greg Zaverucha
                                                // https://eprint.iacr.org/2017/279.pdf), using the optimized implemenation
                                                //  from https://github.com/IAIK/Picnic
+                           DAP_ENC_KEY_TYPE_SIG_BLISS,  // signature based on zero-knowledge proof as specified in
+                                               // Post-Quantum Zero-Knowledge and Signatures from Symmetric-Key Primitives
+
                                DAP_ENC_KEY_TYPE_FNAM2
                          }  dap_enc_key_type_t;
 
@@ -110,7 +113,7 @@ typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, const voi
                                               size_t kex_size, const void* seed, size_t seed_size,
                                               size_t key_size);
 // free memory
-typedef void (*dap_enc_callback_delete)(struct dap_enc_key*); 
+typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
 
 // encrypt and decrypt functions. Allocates Memory for out
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
@@ -132,7 +135,7 @@ typedef int (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const void
 
 // generation of shared key at Alice's side
 // INPUT:
-// dap_enc_key *b_key
+// dap_enc_key *a_key
 // a_priv  --- Alice's private key
 // b_pub  ---  Bob's public key
 // b_pub_size --- Bob public key size
@@ -152,10 +155,12 @@ typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
 
 typedef struct dap_enc_key {
     size_t priv_key_data_size;
-    unsigned char * priv_key_data; // can be shared key in assymetric alghoritms
+    //unsigned char * priv_key_data; // can be shared key in assymetric alghoritms
+    void * priv_key_data; // can be shared key in assymetric alghoritms or secret key in signature alghoritms
 
     size_t pub_key_data_size;
-    unsigned char * pub_key_data; // can be null if enc symmetric
+    //unsigned char * pub_key_data; // can be null if enc symmetric
+    void * pub_key_data; // can be null if enc symmetric
 
     time_t last_used_timestamp;
     dap_enc_key_type_t type;

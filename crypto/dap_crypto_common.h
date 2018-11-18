@@ -51,15 +51,23 @@ extern "C" {
 #define TARGET_ARM          3
 #define TARGET_ARM64        4
 
-#if defined(_AMD64_) || defined(__x86_64__)
+#if (defined(__x86_64__) || defined(__x86_64) || defined(__arch64__) || defined(_M_AMD64) || defined(_M_X64) || defined(_WIN64) || !defined(__LP64__))
+    #define _AMD64_
+#elif (defined(__aarch64__))
+    #define _ARM64_
+#else
+    #define _X86_
+#endif
+
+#if defined(_AMD64_)
     #define TARGET TARGET_AMD64
-    #define RADIX           32
-    #define LOG2RADIX       5
-    typedef uint32_t        digit_t;        // Unsigned 32-bit digit
-    typedef int32_t         sdigit_t;       // Signed 32-bit digit
-    typedef uint16_t        hdigit_t; // Unsigned 16-bit digit
-    #define NWORDS_FIELD    24
-    #define p751_ZERO_WORDS 11
+    #define RADIX           64
+    #define LOG2RADIX       6
+    typedef uint64_t        digit_t;  // Unsigned 64-bit digit
+    typedef int64_t         sdigit_t;  // Signed 64-bit digit
+    typedef uint32_t        hdigit_t; // Unsigned 32-bit digit
+    #define NWORDS_FIELD    12    // Number of words of a 751-bit field element
+    #define p751_ZERO_WORDS 5  // Number of "0" digits in the least significant part of p751 + 1
 #elif defined(_X86_)
     #define TARGET TARGET_x86
     #define RADIX           32
@@ -99,32 +107,31 @@ extern "C" {
 #define AVX_SUPPORT     1
 #define AVX2_SUPPORT    2
 
-#if defined(_AVX2_)
+#if defined(__AVX2__)
     #define SIMD_SUPPORT AVX2_SUPPORT       // AVX2 support selection
-#elif defined(_AVX_)
+#elif defined(__AVX__)
     #define SIMD_SUPPORT AVX_SUPPORT        // AVX support selection
 #else
     #define SIMD_SUPPORT NO_SIMD_SUPPORT
 #endif
 
-#if defined(_ASM_)                          // Assembly support selection
+#if defined(__ASM__)                          // Assembly support selection
     #define ASM_SUPPORT
 #endif
 
-//#if defined(_GENERIC_)                      // Selection of generic, portable implementation
+#if (SIMD_SUPPORT == NO_SIMD_SUPPORT)                      // Selection of generic, portable implementation
     #define GENERIC_IMPLEMENTATION
-//#endif
-
+#endif
 
 // Unsupported configurations
 
 #if defined(ASM_SUPPORT) && (OS_TARGET == OS_WIN)
     #error -- "Assembly is not supported on this platform"
-#endif        
+#endif
 
 #if defined(ASM_SUPPORT) && defined(GENERIC_IMPLEMENTATION)
     #error -- "Unsupported configuration"
-#endif        
+#endif
 
 #if (SIMD_SUPPORT != NO_SIMD_SUPPORT) && defined(GENERIC_IMPLEMENTATION)
     #error -- "Unsupported configuration"
@@ -154,7 +161,7 @@ extern "C" {
     CRYPTO_MSRLN_ERROR_END_OF_LIST
 } CRYPTO_MSRLN_STATUS;
 
-#define CRYPTO_STATUS_TYPE_SIZE (CRYPTO_ERROR_END_OF_LIST)       
+#define CRYPTO_STATUS_TYPE_SIZE (CRYPTO_ERROR_END_OF_LIST)
 
 
 // Definitions of the error messages
@@ -168,7 +175,7 @@ extern "C" {
 #define CRYPTO_MSG_ERROR_NO_MEMORY                        "CRYPTO_ERROR_NO_MEMORY"
 #define CRYPTO_MSG_ERROR_INVALID_PARAMETER                "CRYPTO_ERROR_INVALID_PARAMETER"
 #define CRYPTO_MSG_ERROR_SHARED_KEY                       "CRYPTO_ERROR_SHARED_KEY"
-#define CRYPTO_MSG_ERROR_TOO_MANY_ITERATIONS              "CRYPTO_ERROR_TOO_MANY_ITERATIONS"                                                            
+#define CRYPTO_MSG_ERROR_TOO_MANY_ITERATIONS              "CRYPTO_ERROR_TOO_MANY_ITERATIONS"
 */
 
 #ifdef __cplusplus
