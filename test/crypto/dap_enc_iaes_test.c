@@ -59,7 +59,7 @@ void test_encode_decode_fast(size_t count_steps)
 
     dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, kex_data, kex_size, seed, seed_size, 0);
 
-    for(int i = 1; i <= count_steps; i++) {
+    for(size_t i = 1; i <= count_steps; i++) {
         int step = 1;
         source_size += (size_t)step;
 

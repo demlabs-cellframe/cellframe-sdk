@@ -150,9 +150,9 @@ static int32_t bliss_b_private_key_init(bliss_private_key_t *private_key, bliss_
 
 /* Bliss-b public and sign key generation sign key is f, g small and f invertible
  *        public key is  a_q = -(2g-1)/f mod q = (2g'+1)/f  */
-int32_t bliss_b_private_key_gen(bliss_private_key_t *private_key, bliss_kind_t kind, entropy_t *entropy){
+int32_t bliss_b_private_key_gen(bliss_private_key_t *private_key, bliss_kind_t kind, entropy_t *entropy) {
   int32_t retcode;
-  int32_t i, j;
+  uint32_t i, j;
   int32_t *t = NULL, *u = NULL;
   ntt_state_t state;
   bliss_param_t p;
@@ -237,6 +237,8 @@ int32_t bliss_b_private_key_gen(bliss_private_key_t *private_key, bliss_kind_t k
     delete_ntt_state(state);
     return BLISS_B_NO_ERROR;
   }
+
+  return retcode;
 }
 
 void bliss_b_private_key_delete(bliss_private_key_t *private_key){

@@ -130,7 +130,7 @@ typedef size_t (*dap_enc_callback_dataop_na_t)(struct dap_enc_key *key, const vo
 // b_pub  --- Bob's public key
 // b_key->priv_key_data --- shared key
 // b_key->priv_key_data_size --- shared key length
-typedef int (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const void *a_pub,
+typedef size_t (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const void *a_pub,
                                            size_t a_pub_size, void ** b_pub);
 
 // generation of shared key at Alice's side
@@ -142,7 +142,7 @@ typedef int (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const void
 // OUTPUT:
 // a_key->priv_key_data  --- shared key
 // a_key->priv_key_data_size --- shared key length
-typedef int (*dap_enc_gen_alice_shared_key) (struct dap_enc_key *a_key, const void *a_priv,
+typedef size_t (*dap_enc_gen_alice_shared_key) (struct dap_enc_key *a_key, const void *a_priv,
                                              size_t b_pub_size, unsigned char *b_pub);
 
 

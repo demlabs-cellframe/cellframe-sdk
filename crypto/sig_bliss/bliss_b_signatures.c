@@ -623,18 +623,18 @@ int32_t bliss_b_sign(bliss_signature_t *signature,  const bliss_private_key_t *p
       }
   
       /* 8: Also need to check norms akin to what happens in the entry to verify for BLISS-0, BLISS-3 and BLISS-4 */
-      if (vector_max_norm(z1, n) > p.b_inf) {
+      if (vector_max_norm(z1, n) > (int32_t)p.b_inf) {
         if(VERBOSE_RESTARTS){ fprintf(stdout, "--> norm z1 too high\n"); }
         //goto restart;
         continue;
       }
       mul2d(y2, z2, n, p.d);
-      if (vector_max_norm(y2, n) > p.b_inf) {
+      if (vector_max_norm(y2, n) > (int32_t) p.b_inf) {
         if(VERBOSE_RESTARTS){ fprintf(stdout, "--> norm z2*2^d too high\n"); }
         //goto restart;
         continue;
       }
-      if (vector_norm2(z1,  n) + vector_norm2(y2, n) > p.b_l2){
+      if (vector_norm2(z1,  n) + vector_norm2(y2, n) > (int32_t) p.b_l2){
         if(VERBOSE_RESTARTS){ fprintf(stdout, "--> euclidean norm too high\n"); }
         //goto restart;
         continue;
@@ -734,7 +734,7 @@ int32_t bliss_b_verify(const bliss_signature_t *signature,  const bliss_public_k
     }
 
   /* first check the norms */
-    if (vector_max_norm(z1, n) > p.b_inf){
+    if (vector_max_norm(z1, n) > (int32_t)p.b_inf){
         retval = BLISS_B_BAD_DATA;
         delete_ntt_state(state);
         free(tz2);
@@ -750,7 +750,7 @@ int32_t bliss_b_verify(const bliss_signature_t *signature,  const bliss_public_k
 
     mul2d(tz2, z2, n, p.d);
 
-    if(vector_max_norm(tz2, n) > p.b_inf){
+    if(vector_max_norm(tz2, n) > (int32_t) p.b_inf){
         retval = BLISS_B_BAD_DATA;
         delete_ntt_state(state);
         free(tz2);
@@ -764,7 +764,7 @@ int32_t bliss_b_verify(const bliss_signature_t *signature,  const bliss_public_k
         return retval;
     }
 
-    if (vector_norm2(z1, n) + vector_norm2(tz2, n) > p.b_l2){
+    if (vector_norm2(z1, n) + vector_norm2(tz2, n) > (int32_t)p.b_l2){
         retval = BLISS_B_BAD_DATA;
         delete_ntt_state(state);
         free(tz2);

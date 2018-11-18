@@ -6,6 +6,12 @@
 #include "dap_common.h"
 #include "dap_rand.h"
 
+static enum DAP_BLISS_SIGN_SECURITY _bliss_type = MAX_SECURITY; // by default
+
+void dap_enc_sig_bliss_set_type(enum DAP_BLISS_SIGN_SECURITY type)
+{
+    _bliss_type = type;
+}
 
 void dap_enc_sig_bliss_key_new(struct dap_enc_key *key) {
 
@@ -45,39 +51,53 @@ void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * key, const void *ke
      * type = 3 - good speed and good security (160 bits)
      * type = 4 - max securiry                 (192 bits)
     */
-    int32_t type = 4;
+    //int32_t type = 4;
     key->priv_key_data = malloc(sizeof(bliss_private_key_t));
-    retcode = bliss_b_private_key_gen( (bliss_private_key_t *) &(*key->priv_key_data), type, &entropy);
+    retcode = bliss_b_private_key_gen((bliss_private_key_t *) key->priv_key_data, _bliss_type, &entropy);
     if (retcode != BLISS_B_NO_ERROR) {
-        bliss_b_private_key_delete( &(*key->priv_key_data));
+        bliss_b_private_key_delete(key->priv_key_data);
         log_it(L_CRITICAL, "Error");
         return;
     }
 
     key->pub_key_data = malloc(sizeof(bliss_public_key_t));
-    retcode = bliss_b_public_key_extract( (bliss_public_key_t *) &(*key->pub_key_data), (bliss_public_key_t *) &(*key->priv_key_data));
+    retcode = bliss_b_public_key_extract( (bliss_public_key_t *) key->pub_key_data, (const bliss_private_key_t *) key->priv_key_data);
     if (retcode != BLISS_B_NO_ERROR) {
-        bliss_b_private_key_delete(&(*key->priv_key_data));
-        bliss_b_public_key_delete(&(*key->pub_key_data));
+        bliss_b_private_key_delete(key->priv_key_data);
+        bliss_b_public_key_delete(key->pub_key_data);
         log_it(L_CRITICAL, "Error");
         return;
     }
 }
 
 
-size_t dap_enc_sig_bliss_get_sign(struct dap_enc_key * key, const void * msg, size_t msg_size, void ** signature)
+size_t dap_enc_sig_bliss_get_sign(struct dap_enc_key * key,const void * msg,
+                                  const size_t msg_size, void * signature, const size_t signature_size)
 {
+    if(signature_size < sizeof (bliss_signature_t)) {
+        log_it(L_ERROR, "bad signature size");
+        return 0;
+    }
     uint8_t seed_tmp[SHA3_512_DIGEST_LENGTH];
     entropy_t entropy;
-    randombytes( &seed_tmp, 64);
-    entropy_init( &entropy, seed_tmp);
+    randombytes(&seed_tmp, 64);
+    entropy_init(&entropy, seed_tmp);
 
-    return bliss_b_sign( &(*signature), &(*key->priv_key_data), msg, msg_size, &entropy);
+    return bliss_b_sign((bliss_signature_t *)signature,
+                        (const bliss_private_key_t *)key->priv_key_data,
+                        (const uint8_t *)msg,
+                        msg_size,
+                        &entropy);
 }
 
-size_t dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key, const void * msg, size_t msg_size, void ** signature)
+size_t dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key,const void * msg,
+                                     const size_t msg_size, void * signature, const size_t signature_size)
 {
-    return bliss_b_verify( &(*signature), &(*key->pub_key_data), msg, msg_size);
+    if(signature_size < sizeof (bliss_signature_t)) {
+        log_it(L_ERROR, "bad signature size");
+        return 0;
+    }
+    return bliss_b_verify(signature, key->pub_key_data, msg, msg_size);
 }
 
 void dap_enc_sig_bliss_key_delete(struct dap_enc_key *key)

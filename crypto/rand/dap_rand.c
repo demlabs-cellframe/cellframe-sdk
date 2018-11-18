@@ -20,7 +20,7 @@ static __inline void delay(unsigned int count)
 }
 
 
-int randombytes(unsigned char* random_array, unsigned int nbytes)
+int randombytes(void* random_array, unsigned int nbytes)
 { // Generation of "nbytes" of random values
     
 #if defined(_WIN32)
