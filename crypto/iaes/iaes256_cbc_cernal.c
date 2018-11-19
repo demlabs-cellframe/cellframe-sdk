@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "tables.h"
+#include "iaes_tables.h"
 #include "dap_iaes_proto.h"
 
 size_t iaes_calc_block128_size(size_t length_data)

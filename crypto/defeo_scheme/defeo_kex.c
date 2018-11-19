@@ -4,7 +4,7 @@
 #endif
 #include "string.h"
 #include "../rand/dap_rand.h"
-#include "config.h"
+#include "defeo_config.h"
 #include "defeo_P768_internal.h"
 
 // Encoding of field elements, elements over Z_order, elements over GF(p^2) and elliptic curve points:

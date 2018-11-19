@@ -1,7 +1,7 @@
 #ifndef __P768_INTERNAL_H__
 #define __P768_INTERNAL_H__
 
-#include "config.h"
+#include "defeo_config.h"
 
 #define NWORDS_FIELD    24
 #define p751_ZERO_WORDS 11

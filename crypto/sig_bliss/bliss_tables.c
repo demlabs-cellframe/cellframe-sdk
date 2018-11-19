@@ -1,6 +1,6 @@
 #include <stdlib.h> // for NULL
 
-#include "tables.h"
+#include "bliss_tables.h"
 
 /*  BLISS 0:
  *  sigma = 100, ell = 19, precision = 64, 128

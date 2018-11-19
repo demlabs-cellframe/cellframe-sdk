@@ -10,7 +10,7 @@
 #include "dap_enc_key.h"
 
 #include "dap_common.h"
-#include "defeo_scheme/config.h"
+#include "defeo_config.h"
 #include "defeo_scheme/defeo_P768_internal.h"
 
 

@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "sampler.h"
-#include "tables.h"
+#include "bliss_tables.h"
 
 /* Initialize sampler:
  * - return true if success/false if error
