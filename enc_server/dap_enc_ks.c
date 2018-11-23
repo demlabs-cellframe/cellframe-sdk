@@ -53,7 +53,6 @@ void dap_enc_ks_deinit()
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
 {
     dap_enc_ks_key_t * ret=NULL;
-    log_it(L_WARNING, "Trying fiend key with id: %s", v_id);
     HASH_FIND_STR(ks,v_id,ret);
     if(ret == NULL) {
         log_it(L_WARNING, "Key not found");
@@ -83,7 +82,6 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
 
 dap_enc_ks_key_t * enc_ks_new()
 {
-    log_it(L_WARNING, "enc_ks_new");
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
     ret->key=dap_enc_key_new(DAP_ENC_KEY_TYPE_RLWE_MSRLN16);
 
@@ -110,7 +108,6 @@ dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
 
 void dap_enc_ks_delete(const char *id)
 {
-    log_it(L_WARNING, "dap_enc_ks_delete");
     dap_enc_ks_key_t *delItem = dap_enc_ks_find(id);
     if (delItem) {
         HASH_DEL (ks, delItem);
