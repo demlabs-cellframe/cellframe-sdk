@@ -45,7 +45,7 @@ struct dap_http_client;
 struct dap_http;
 struct stream;
 struct stream_pkt;
-#define STREAM_BUF_SIZE_MAX 10240
+#define STREAM_BUF_SIZE_MAX 20480
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 #define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
@@ -75,6 +75,7 @@ typedef struct stream {
     uint64_t buf_defrag_size;
 
     uint8_t buf[STREAM_BUF_SIZE_MAX];
+    uint8_t buf_pkt_in[STREAM_BUF_SIZE_MAX];
 
     dap_stream_ch_t * channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;

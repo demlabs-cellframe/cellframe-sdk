@@ -559,8 +559,10 @@ void stream_proc_pkt_in(dap_stream_t * sid)
 {
     if(sid->pkt_buf_in->hdr.type == DATA_PACKET)
     {
-        stream_ch_pkt_t * ch_pkt= (stream_ch_pkt_t*) calloc(1,sid->pkt_buf_in->hdr.size);
-        stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, sid->pkt_buf_in->hdr.size);
+        stream_ch_pkt_t * ch_pkt = (stream_ch_pkt_t *) sid->buf_pkt_in;
+
+        stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, STREAM_BUF_SIZE_MAX);
+
         dap_stream_ch_t * ch = NULL;
         size_t i;
         for(i=0;i<sid->channel_count;i++)
@@ -579,15 +581,14 @@ void stream_proc_pkt_in(dap_stream_t * sid)
         }else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
         }
-        free(ch_pkt);
-    }
-    else if(sid->pkt_buf_in->hdr.type == SERVICE_PACKET)
-    {
+    } else if(sid->pkt_buf_in->hdr.type == SERVICE_PACKET) {
         stream_srv_pkt_t * srv_pkt = (stream_srv_pkt_t *)malloc(sizeof(stream_srv_pkt_t));
         memcpy(srv_pkt,sid->pkt_buf_in->data,sizeof(stream_srv_pkt_t));
         uint32_t session_id = srv_pkt->session_id;
         check_session(session_id,sid->conn);
         free(srv_pkt);
+    } else {
+        log_it(L_WARNING, "Unknown header type");
     }
     sid->keepalive_passed = 0;
     ev_timer_again (keepalive_loop, &sid->keepalive_watcher);
