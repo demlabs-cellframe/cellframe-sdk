@@ -1,5 +1,10 @@
 ﻿#include "msrln_priv.h"
-#include <malloc.h>
+#if (OS_TARGET == OS_MACOS)
+    #include <stdio.h>
+#else
+    #include <malloc.h>
+#endif
+
 
 //extern const int32_t MSRLN_psi_rev_ntt1024_12289[1024];
 //extern const int32_t MSRLN_omegainv_rev_ntt1024_12289[1024];

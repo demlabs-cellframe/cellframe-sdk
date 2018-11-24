@@ -18,11 +18,14 @@ extern "C" {
 
 #define OS_WIN       1
 #define OS_LINUX     2
+#define OS_MACOS     3
 
 #if defined(_WIN32)        // Microsoft Windows OS
     #define OS_TARGET OS_WIN
 #elif defined(__linux__)        // Linux OS
     #define OS_TARGET OS_LINUX
+#elif defined(__APPLE__)         // MACOS
+    #define OS_TARGET OS_MACOS
 #else
     #error -- "Unsupported OS"
 #endif
