@@ -83,7 +83,7 @@ void dap_set_log_tag_width(size_t width) {
 
     // construct new log_tag_fmt_str
     strcpy(log_tag_fmt_str, "[%");
-    strcat(log_tag_fmt_str, itoa((int)width));
+    strcat(log_tag_fmt_str, dap_itoa((int)width));
     strcat(log_tag_fmt_str, "s]\t");
 }
 
@@ -226,7 +226,7 @@ const char * log_error()
  * @param[in] i number
  * @return
  */
-char *itoa(int i)
+char *dap_itoa(int i)
 {
     /* Room for INT_DIGITS digits, - and '\0' */
     static char buf[INT_DIGITS + 2];

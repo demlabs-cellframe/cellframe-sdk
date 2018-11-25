@@ -65,7 +65,7 @@ void set_log_level(enum log_level ll);
 void dap_set_log_tag_width(size_t width);
 
 #ifdef __GNUC__
-char *itoa(int i);
+char *dap_itoa(int i);
 
 
 #elif _MSC_VER

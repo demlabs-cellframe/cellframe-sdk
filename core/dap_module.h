@@ -23,8 +23,8 @@
 */
 #pragma once
 
-typedef int (*dap_module_callback_init_t)(void * arg0,...);
-typedef void (*dap_module_callback_deinit_t)();
+typedef int (*dap_module_callback_init_t)(void * arg0, ...);
+typedef void (*dap_module_callback_deinit_t)(void);
 
 typedef struct dap_module {
     const char * name;
@@ -40,7 +40,7 @@ typedef struct dap_module_args {
 
 int dap_module_add(const char * a_name, unsigned int a_version, const char * a_dependensies,
                    dap_module_callback_init_t a_init_callback, dap_module_args_t a_init_args[],
-                        dap_module_callback_deinit_t a_deinit_callback );
+                   dap_module_callback_deinit_t a_deinit_callback );
 
-int dap_module_init_all();
-void dap_module_deinit_all();
+int dap_module_init_all(void);
+void dap_module_deinit_all(void);
