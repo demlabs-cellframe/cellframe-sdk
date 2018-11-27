@@ -124,7 +124,7 @@ void test_array_str()
     dap_assert(result_arr != NULL, "Get array str from config");
     dap_assert(arraySize == STR_ARR_LEN, "Check array length");
 
-    for(uint i = 0; i < arraySize; i++) {
+    for(uint32_t i = 0; i < arraySize; i++) {
         assert(strcmp(result_arr[i], str_add_test_case[i]) == 0 && "test_array_str failed");
     }
 }
@@ -137,7 +137,7 @@ void test_array_int() {
     dap_assert(arraySize == INT_ARR_LEN, "Check array int length");
 
     dap_test_msg("Testing array int values.");
-    for(uint i = 0; i < arraySize; i++) {
+    for(uint32_t i = 0; i < arraySize; i++) {
         dap_assert_PIF(atoi(result_arr[i]) == int_arr_test_cases[i], "Check array int");
     }
 }

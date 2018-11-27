@@ -19,7 +19,9 @@
 */
 
 
+#ifndef _WIN32
 #include <arpa/inet.h>
+#endif
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>

@@ -86,7 +86,7 @@ void test_encode_decode_fast(size_t count_steps)
 
 void init_test_case()
 {
-    srand((uint)time(NULL));
+    srand((uint32_t)time(NULL));
     dap_enc_key_init();
 }
 

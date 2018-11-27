@@ -4,6 +4,7 @@
 #include "dap_enc_msrln_test.h"
 #include "dap_enc_defeo_test.h"
 #include "dap_enc_sig_bliss_test.h"
+#include "rand/dap_rand.h"
 
 #include "dap_common.h"
 

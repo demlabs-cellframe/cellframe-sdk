@@ -64,13 +64,10 @@ const char * log_error(void);
 void set_log_level(enum log_level ll);
 void dap_set_log_tag_width(size_t width);
 
-#ifdef __GNUC__
 char *dap_itoa(int i);
 
-
-#elif _MSC_VER
 char *strndup(const char *s, size_t n);
-#endif
+
 int time_to_rfc822(char * out, size_t out_size_max, time_t t);
 
 int get_select_breaker(void);
@@ -79,8 +76,13 @@ char * exec_with_ret(const char * a_cmd);
 char * exec_with_ret_multistring(const char * a_cmd);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
-
+void *memzero(void *mem, size_t n);
 void dap_dump_hex(const void* data, size_t size);
+
+#ifdef __MINGW32__
+int exec_silent(const char *a_cmd);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
