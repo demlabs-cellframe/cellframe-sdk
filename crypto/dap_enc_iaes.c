@@ -33,6 +33,8 @@ void dap_enc_aes_key_new(struct dap_enc_key * a_key)
     a_key->type = DAP_ENC_KEY_TYPE_IAES;
     a_key->enc = dap_enc_iaes256_cbc_encrypt;
     a_key->dec = dap_enc_iaes256_cbc_decrypt;
+    a_key->enc_na = dap_enc_iaes256_cbc_encrypt_fast;
+    a_key->dec_na = dap_enc_iaes256_cbc_decrypt_fast;
     //a_key->delete_callback = dap_enc_aes_key_delete;
 
     a_key->priv_key_data = (uint8_t *)malloc(IAES_KEYSIZE);
@@ -107,6 +109,15 @@ size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in
     return length_data_new;
 }
 
+size_t dap_enc_iaes256_calc_encode_size(const size_t size_in)
+{
+    return iaes_calc_block128_size(size_in);
+}
+
+size_t dap_enc_iaes256_calc_decode_size(const size_t size_in)
+{
+    return size_in;
+}
 
 size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in,
                                         size_t a_in_size, void * buf_out, size_t buf_out_size)

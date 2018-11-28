@@ -32,10 +32,15 @@ extern "C" {
 int dap_enc_init(void);
 void dap_enc_deinit(void);
 
-size_t dap_enc_code(struct dap_enc_key * key, const void * buf, const size_t buf_size, void ** buf_out,
-                    dap_enc_data_type_t data_type_out);
-size_t dap_enc_decode(struct dap_enc_key * key, const void * buf, const size_t buf_size, void ** buf_out,
-                     dap_enc_data_type_t data_type_in);
+// if include_base64 == true. Calc out size with base64 encoding
+size_t dap_enc_code_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size, dap_enc_data_type_t type);
+size_t dap_enc_decode_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size, dap_enc_data_type_t type);
+
+size_t dap_enc_code(struct dap_enc_key * a_key, const void * a_buf_in, const size_t a_buf_in_size, void * a_buf_out, const size_t a_buf_out_size_max,
+                    dap_enc_data_type_t a_data_type_out);
+
+size_t dap_enc_decode(struct dap_enc_key * a_key, const void * a_buf_in, const size_t a_buf_in_size, void * a_buf_out, const size_t a_buf_out_size_max,
+                     dap_enc_data_type_t a_data_type_in);
 
 #ifdef __cplusplus
 }

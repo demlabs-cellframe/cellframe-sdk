@@ -266,7 +266,6 @@ size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, 
             a_out[size++] = '=';
         }
     }
-
     return size;
 }
 

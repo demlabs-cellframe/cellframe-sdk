@@ -152,6 +152,7 @@ typedef void (*dap_enc_callback_data_t)(struct dap_enc_key *, const void * , siz
 typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
+typedef size_t (*dap_enc_callback_calc_out_size)(const size_t);
 
 typedef struct dap_enc_key {
     size_t priv_key_data_size;
@@ -166,8 +167,8 @@ typedef struct dap_enc_key {
     dap_enc_key_type_t type;
     dap_enc_callback_dataop_t enc;
     dap_enc_callback_dataop_t dec;
-    dap_enc_callback_dataop_t enc_na;
-    dap_enc_callback_dataop_t dec_na;
+    dap_enc_callback_dataop_na_t enc_na;
+    dap_enc_callback_dataop_na_t dec_na;
 
     dap_enc_gen_alice_shared_key gen_alice_shared_key;
     dap_enc_gen_bob_shared_key gen_bob_shared_key;
@@ -195,6 +196,9 @@ typedef struct dap_enc_key_serealize {
 int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
+
+size_t dap_enc_key_get_enc_size(dap_enc_key_t * a_key, const size_t buf_in_size);
+size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 
 dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key);
 dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size);

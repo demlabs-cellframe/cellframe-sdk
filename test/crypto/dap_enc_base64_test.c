@@ -1,4 +1,5 @@
 #include "dap_enc_base64_test.h"
+#include "dap_common.h"
 
 void test_encode_decode_base64(int count_steps, dap_enc_data_type_t standard)
 {
