@@ -146,7 +146,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
         size_t l_url_path_size_max = strlen(a_http_simple->http->url_path);
         if(l_url_path_size_max){
             dg->url_path= DAP_NEW_SIZE(char,l_url_path_size_max+1);
-            dg->url_path_size=dap_enc_decode(l_key, a_http_simple->http->url_path,l_url_path_size_max,dg->url_path, dg->url_path_size, l_enc_type);
+            dg->url_path_size=dap_enc_decode(l_key, a_http_simple->http->url_path,l_url_path_size_max,dg->url_path, l_url_path_size_max, l_enc_type);
             dg->url_path[dg->url_path_size] = 0;
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
