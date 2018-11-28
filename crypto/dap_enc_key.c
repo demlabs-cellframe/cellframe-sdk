@@ -54,7 +54,9 @@ struct dap_enc_key_callbacks{
     [DAP_ENC_KEY_TYPE_IAES]={
         .name = "IAES",
         .enc = dap_enc_iaes256_cbc_encrypt,
+        .enc_na = dap_enc_iaes256_cbc_encrypt_fast ,
         .dec = dap_enc_iaes256_cbc_decrypt,
+        .dec_na = dap_enc_iaes256_cbc_decrypt_fast ,
         .new_callback = dap_enc_aes_key_new,
         .delete_callback = dap_enc_aes_key_delete,
         .new_generate_callback = dap_enc_aes_key_generate,
