@@ -240,18 +240,23 @@ void dap_http_simple_data_write(dap_http_client_t * a_http_client,void * a_arg)
     (void) a_arg;
     dap_http_simple_t * cl_st = DAP_HTTP_SIMPLE(a_http_client);
 
-    cl_st->reply_sent += dap_client_remote_write(a_http_client->client,
-                                          cl_st->reply + cl_st->reply_sent,
-                                          a_http_client->out_content_length - cl_st->reply_sent);
+    if ( cl_st->reply ) {
+        cl_st->reply_sent += dap_client_remote_write(a_http_client->client,
+                                              cl_st->reply + cl_st->reply_sent,
+                                              a_http_client->out_content_length - cl_st->reply_sent);
 
-    if(cl_st->reply_sent>=a_http_client->out_content_length) {
-        log_it(L_INFO, "All the reply (%u) is sent out",a_http_client->out_content_length);
-        //cl_ht->client->signal_close=cl_ht->keep_alive;
+        if(cl_st->reply_sent>=a_http_client->out_content_length) {
+            log_it(L_INFO, "All the reply (%u) is sent out",a_http_client->out_content_length);
+            //cl_ht->client->signal_close=cl_ht->keep_alive;
+            a_http_client->client->signal_close=true;
+            //dap_client_ready_to_write(cl_ht->client,false);
+        }
+
+        free(cl_st->reply);
+    }else{
         a_http_client->client->signal_close=true;
-        //dap_client_ready_to_write(cl_ht->client,false);
+        log_it(L_WARNING,"No reply to write, close connection");
     }
-
-    free(cl_st->reply);
 }
 
 /**

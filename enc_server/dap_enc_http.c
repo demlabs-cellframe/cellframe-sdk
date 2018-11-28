@@ -107,23 +107,30 @@ void enc_http_add_proc(struct dap_http * sh, const char * url)
     dap_http_simple_proc_add(sh,url,40000,enc_http_proc);
 }
 
-enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
+/**
+ * @brief enc_http_request_decode
+ * @param a_http_simple
+ * @return
+ */
+enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simple)
 {
 
-    dap_enc_key_t * key= dap_enc_ks_find_http(cl_st->http);
-    if(key){
+    dap_enc_key_t * l_key= dap_enc_ks_find_http(a_http_simple->http);
+    if(l_key){
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
-        dg->key=key;
-        dg->http=cl_st->http;
+        dg->key=l_key;
+        dg->http=a_http_simple->http;
         dg->isOk=true;
 
-        strncpy(dg->action,cl_st->http->action,sizeof(dg->action)-1);
-        if(cl_st->http->in_cookie[0])
-            dg->cookie=strdup(cl_st->http->in_cookie);
+        strncpy(dg->action,a_http_simple->http->action,sizeof(dg->action)-1);
+        if(a_http_simple->http->in_cookie[0])
+            dg->cookie=strdup(a_http_simple->http->in_cookie);
 
-        if(cl_st->request_size){
-            //  dg->request=calloc(1,cl_st->request_size+1);
-            dg->request_size=dap_enc_decode(key, cl_st->request, cl_st->request_size,&dg->request,DAP_ENC_DATA_TYPE_RAW);
+        if(a_http_simple->request_size){
+            size_t l_dg_request_size_max = a_http_simple->request_size;
+            dg->request= DAP_NEW_SIZE( void , l_dg_request_size_max+1);
+            dg->request_size=dap_enc_decode(l_key, a_http_simple->request, a_http_simple->request_size,dg->request,
+                                            l_dg_request_size_max, DAP_ENC_DATA_TYPE_RAW);
             dg->request_str[dg->request_size] = 0;
             log_it(L_DEBUG,"Request after decode '%s'",dg->request_str);
             // log_it(L_DEBUG,"Request before decode: '%s' after decode '%s'",cl_st->request_str,dg->request_str);
@@ -136,25 +143,25 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
         else
             l_enc_type = DAP_ENC_DATA_TYPE_B64;
 
-        size_t url_path_size=strlen(cl_st->http->url_path);
-        if(url_path_size){
-            //    dg->url_path=calloc(1,url_path_size+1);
-            dg->url_path_size=dap_enc_decode(key, cl_st->http->url_path,url_path_size,&dg->url_path,l_enc_type);
+        size_t l_url_path_size_max = strlen(a_http_simple->http->url_path);
+        if(l_url_path_size_max){
+            dg->url_path= DAP_NEW_SIZE(char,l_url_path_size_max+1);
+            dg->url_path_size=dap_enc_decode(l_key, a_http_simple->http->url_path,l_url_path_size_max,dg->url_path, dg->url_path_size, l_enc_type);
             dg->url_path[dg->url_path_size] = 0;
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
         }
 
-        size_t in_query_size=strlen(cl_st->http->in_query_string);
+        size_t l_in_query_size=strlen(a_http_simple->http->in_query_string);
 
-        if(in_query_size){
-            // dg->in_query=calloc(1,in_query_size+1);
-            dg->in_query_size=dap_enc_decode(key, cl_st->http->in_query_string,in_query_size,&dg->in_query,l_enc_type);
+        if(l_in_query_size){
+            dg->in_query= DAP_NEW_SIZE(char, l_in_query_size+1);
+            dg->in_query_size=dap_enc_decode(l_key, a_http_simple->http->in_query_string,l_in_query_size,dg->in_query,l_in_query_size,  l_enc_type);
             dg->in_query[dg->in_query_size] = 0;
             log_it(L_DEBUG,"Query string after decode '%s'",dg->in_query);
         }
-        dg->response = calloc(1,cl_st->reply_size_max+1);
-        dg->response_size_max=cl_st->reply_size_max;
+        dg->response = calloc(1,a_http_simple->reply_size_max+1);
+        dg->response_size_max=a_http_simple->reply_size_max;
 
         return dg;
     }else{
@@ -163,18 +170,29 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st)
     }
 }
 
-void enc_http_reply_encode(struct dap_http_simple *cl_st,enc_http_delegate_t * dg)
+/**
+ * @brief enc_http_reply_encode
+ * @param a_http_simple
+ * @param a_http_delegate
+ */
+void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delegate_t * a_http_delegate)
 {
-    dap_enc_key_t * key = dap_enc_ks_find_http(cl_st->http);
+    dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http);
     if( key == NULL ) {
         log_it(L_ERROR, "Can't find http key.");
         return;
     }
-    if(dg->response){
+    if(a_http_delegate->response){
 
-        if(cl_st->reply)
-            free(cl_st->reply);
-        cl_st->reply_size = dap_enc_code(dg->key,dg->response,dg->response_size,&cl_st->reply,DAP_ENC_DATA_TYPE_RAW);
+        if(a_http_simple->reply)
+            free(a_http_simple->reply);
+
+        size_t l_reply_size_max = a_http_delegate->response_size*2; // TODO make proper size calculations
+        a_http_simple->reply = DAP_NEW_SIZE(void,l_reply_size_max);
+        a_http_simple->reply_size = dap_enc_code( a_http_delegate->key,
+                                                  a_http_delegate->response, a_http_delegate->response_size,
+                                                  a_http_simple->reply, l_reply_size_max,
+                                                  DAP_ENC_DATA_TYPE_RAW);
     }
 
 }
