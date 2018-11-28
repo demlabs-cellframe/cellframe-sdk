@@ -15,7 +15,7 @@ static void key_transfer_simulation_test()
     alice_msg = alice_key->pub_key_data;
     alice_msg_len = alice_key->pub_key_data_size;
 
-//    /* generate Bob's response */
+    /* generate Bob's response */
     dap_enc_key_t* bob_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
     bob_key->gen_bob_shared_key(bob_key, alice_msg, alice_msg_len, (void**)&bob_key->pub_key_data);
     bob_msg = bob_key->pub_key_data;
@@ -38,6 +38,4 @@ void dap_enc_msrln_tests_run(void)
     dap_print_module_name("dap_enc_msrln_test");
 
     key_transfer_simulation_test();
-  //  return rc;
-
 }

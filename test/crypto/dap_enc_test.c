@@ -26,29 +26,32 @@ static void _encrypt_decrypt(enum dap_enc_key_type key_type,
 
         dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex_data, kex_size, seed, seed_size, 0);
 
+
         uint8_t source[source_size];
-        uint8_t *decode_result;
-        uint8_t *encrypt_result;
+        size_t encrypt_buff_size = dap_enc_code_out_size(key, source_size, data_type);
+        uint8_t encrypt_result[encrypt_buff_size];
 
         generate_random_byte_array(source, source_size);
 
         size_t encrypted_size = dap_enc_code(key, source,
                                              source_size,
-                                             (void**)&encrypt_result,
+                                             encrypt_result,
+                                             encrypt_buff_size,
                                              data_type);
 
+        size_t min_decode_buff_size = dap_enc_decode_out_size(key, encrypt_buff_size, data_type);
+        uint8_t decode_result[min_decode_buff_size];
         size_t out_size = dap_enc_decode(key,
                                          encrypt_result,
                                          encrypted_size,
-                                         (void**)&decode_result,
+                                         decode_result,
+                                         min_decode_buff_size,
                                          data_type);
 
         dap_assert_PIF(source_size == out_size, "Check result decode size");
 
         dap_assert_PIF(memcmp(source, decode_result, source_size) == 0, "Check source and encode->decode data");
 
-        free(encrypt_result);
-        free(decode_result);
         dap_enc_key_delete(key);
     }
 }
@@ -88,7 +91,7 @@ void test_key_transfer_msrln()
     /* generate Bob's response */
     dap_enc_key_t* bob_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
     bob_key->gen_bob_shared_key(bob_key, (unsigned char *) alice_msg, alice_msg_len,
-                 (void **) &bob_key->pub_key_data);
+                                (void **) &bob_key->pub_key_data);
     bob_msg = bob_key->pub_key_data;
     bob_msg_len = bob_key->pub_key_data_size;
 
@@ -170,27 +173,31 @@ static void test_serealize_deserealize()
     const char* source = "simple test";
     size_t source_size = strlen(source);
 
-    uint8_t * encrypt_result = NULL;
-    uint8_t * decode_result = NULL;
+    size_t encrypt_size = dap_enc_code_out_size(key, source_size, DAP_ENC_DATA_TYPE_RAW);
+    uint8_t encrypt_result[encrypt_size];
+
 
     size_t encrypted_size = dap_enc_code(key2, source,
                                          source_size,
-                                         (void**)&encrypt_result,
+                                         encrypt_result,
+                                         encrypt_size,
                                          DAP_ENC_DATA_TYPE_RAW);
 
+    size_t min_decode_size = dap_enc_decode_out_size(key, encrypt_size, DAP_ENC_DATA_TYPE_RAW);
+
+    uint8_t decode_result[min_decode_size];
     size_t decode_size = dap_enc_decode(key,
-                                     encrypt_result,
-                                     encrypted_size,
-                                     (void**)&decode_result,
-                                     DAP_ENC_DATA_TYPE_RAW);
+                                        encrypt_result,
+                                        encrypted_size,
+                                        decode_result,
+                                        min_decode_size,
+                                        DAP_ENC_DATA_TYPE_RAW);
 
     dap_assert_PIF(source_size == decode_size, "Check result decode size");
 
     dap_assert_PIF(memcmp(source, decode_result, source_size) == 0,
                    "Check source and encode->decode data");
 
-    free(encrypt_result);
-    free(decode_result);
     free(serealize_key);
     free(deserealize_key);
     dap_enc_key_delete(key);

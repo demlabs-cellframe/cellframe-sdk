@@ -40,6 +40,8 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_dataop_na_t enc_na;
     dap_enc_callback_dataop_na_t dec_na;
+    dap_enc_callback_calc_out_size enc_out_size;
+    dap_enc_callback_calc_out_size dec_out_size;
 
     dap_enc_gen_bob_shared_key gen_bob_shared_key;
     dap_enc_gen_alice_shared_key gen_alice_shared_key;
@@ -60,6 +62,8 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_aes_key_new,
         .delete_callback = dap_enc_aes_key_delete,
         .new_generate_callback = dap_enc_aes_key_generate,
+        .enc_out_size = dap_enc_iaes256_calc_encode_size,
+        .dec_out_size = dap_enc_iaes256_calc_decode_size,
     },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
@@ -70,7 +74,9 @@ struct dap_enc_key_callbacks{
         .new_generate_callback = dap_enc_msrln_key_generate,
         .gen_bob_shared_key = dap_enc_msrln_gen_bob_shared_key,
         .gen_alice_shared_key = dap_enc_msrln_gen_alice_shared_key,
-        .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public
+        .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL
     },
     [DAP_ENC_KEY_TYPE_DEFEO]={
         .name = "DEFEO",
@@ -81,6 +87,8 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_defeo_key_new,
         .delete_callback = dap_enc_defeo_key_delete,
         .new_generate_callback = dap_enc_defeo_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL
     },
     [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
         .name = "PICNIC",
@@ -91,6 +99,8 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_defeo_key_new,
         .delete_callback = dap_enc_defeo_key_delete,
         .new_generate_callback = dap_enc_defeo_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL
 
     },
     [DAP_ENC_KEY_TYPE_SIG_BLISS]={
@@ -104,6 +114,8 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_sig_bliss_key_new,
         .delete_callback = dap_enc_sig_bliss_key_delete,
         .new_generate_callback = dap_enc_sig_bliss_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL
     }
 };
 
@@ -233,4 +245,22 @@ void dap_enc_key_delete(dap_enc_key_t * a_key)
     free(a_key->pub_key_data);
     free(a_key->priv_key_data);
     free(a_key);
+}
+
+size_t dap_enc_key_get_enc_size(dap_enc_key_t * a_key, const size_t buf_in_size)
+{
+    if(s_callbacks[a_key->type].enc_out_size) {
+        return s_callbacks[a_key->type].enc_out_size(buf_in_size);
+    }
+    log_it(L_ERROR, "enc_out_size not realize for current key type");
+    return 0;
+}
+
+size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size)
+{
+    if(s_callbacks[a_key->type].dec_out_size) {
+        return s_callbacks[a_key->type].dec_out_size(buf_in_size);
+    }
+    log_it(L_ERROR, "dec_out_size not realize for current key type");
+    return 0;
 }
