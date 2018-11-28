@@ -89,8 +89,8 @@ dap_client_remote_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, 
  */
 void dap_udp_client_get_address(dap_client_remote_t *client, unsigned int* host,unsigned short* port){
     dap_udp_client_t* udp_client = DAP_UDP_CLIENT(client);    
-    *host = udp_client->host_key >> 32;
-    *port = udp_client->host_key - (*host<<32);
+    *host =  udp_client->host_key >> 32;
+    *port =  udp_client->host_key - ( *host<<32);
 }
 
 /**

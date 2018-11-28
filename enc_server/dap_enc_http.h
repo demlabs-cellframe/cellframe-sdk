@@ -62,19 +62,19 @@ typedef struct enc_http_delegate{
     struct dap_http_client *http;
 } enc_http_delegate_t;
 
-extern int enc_http_init();
-extern void enc_http_deinit();
+int enc_http_init();
+void enc_http_deinit();
 
-extern size_t enc_http_reply(enc_http_delegate_t * dg, void * data, size_t data_size);
-extern size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...);
+size_t enc_http_reply(enc_http_delegate_t * dg, void * data, size_t data_size);
+size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...);
 
 
-extern enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *cl_st);
+enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simple);
 
-extern void enc_http_reply_encode(struct dap_http_simple *cl_st,enc_http_delegate_t * dg);
+void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delegate_t * a_http_delegate);
 
-extern void enc_http_delegate_delete(enc_http_delegate_t * dg);
+void enc_http_delegate_delete(enc_http_delegate_t * dg);
 
-extern void enc_http_add_proc(struct dap_http * sh, const char * url);
+void enc_http_add_proc(struct dap_http * sh, const char * url);
 
 #endif
