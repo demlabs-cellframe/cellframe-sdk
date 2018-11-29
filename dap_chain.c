@@ -198,6 +198,11 @@ void dap_chain_block_write(dap_chain_block_cache_t *l_block_cache){
     } else
         return;
 
+    if(l_hash_type_file == NULL) {
+        log_it(L_ERROR, "Error write block. Hash file is NULL");
+        return;
+    }
+
     pthread_mutex_lock(&s_mutex);
 
     fseek(l_hash_type_file, sizeof (dap_chain_file_header_t), SEEK_SET);
