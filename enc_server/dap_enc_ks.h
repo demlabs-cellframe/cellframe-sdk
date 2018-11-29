@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include "uthash.h"
 #include "dap_enc_key.h"
+#include "stdbool.h"
 
 #define DAP_ENC_KS_KEY_ID_SIZE 33
 struct dap_http_client;
@@ -36,14 +37,16 @@ typedef struct dap_enc_ks_key{
     UT_hash_handle hh; // makes this structure hashable with UTHASH library
 } dap_enc_ks_key_t;
 
-int dap_enc_ks_init();
+int dap_enc_ks_init(bool memcache_backup_enable);
 void dap_enc_ks_deinit();
 
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id);
 dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http);
 
-extern dap_enc_ks_key_t * enc_ks_new();
+dap_enc_ks_key_t * dap_enc_ks_new();
 dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key);
+
+bool dap_enc_ks_save_in_storage(dap_enc_ks_key_t* key);
 void dap_enc_ks_delete(const char *id);
 
 #endif

@@ -27,13 +27,23 @@
 #include "dap_enc.h"
 #include "dap_enc_ks.h"
 #include "dap_enc_key.h"
+#include "dap_memcached.h"
 
 #define LOG_TAG "enc_ks"
 
-dap_enc_ks_key_t * ks=NULL;
+static dap_enc_ks_key_t * _ks = NULL;
+static bool _memcache_enable = false;
 
-int dap_enc_ks_init()
+int dap_enc_ks_init(bool memcache_backup_enable)
 {
+    if(memcache_backup_enable) {
+        if(dap_memcache_is_enable()) {
+            _memcache_enable = true;
+        } else {
+            log_it(L_ERROR, "Can't init memcache backup. Memcache module is not activated.");
+            return -1;
+        }
+    }
     return 0;
 }
 
@@ -41,19 +51,31 @@ void _enc_key_free(dap_enc_ks_key_t **ptr);
 
 void dap_enc_ks_deinit()
 {
-    if (ks) {
+    if (_ks) {
         dap_enc_ks_key_t *cur_item, *tmp;
-        HASH_ITER(hh, ks, cur_item, tmp) {
-            HASH_DEL(ks, cur_item);
+        HASH_ITER(hh, _ks, cur_item, tmp) {
+            HASH_DEL(_ks, cur_item);
             _enc_key_free(&cur_item);
         }
     }
 }
 
+inline static void _gen_session_id(char id_buf[DAP_ENC_KS_KEY_ID_SIZE])
+{
+    for(short i = 0; i < DAP_ENC_KS_KEY_ID_SIZE; i++)
+        id_buf[i] = 65 + rand() % 25;
+}
+
+void _save_key_in_storge(dap_enc_ks_key_t *key)
+{
+    HASH_ADD_STR(_ks,id,key);
+}
+
+
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
 {
     dap_enc_ks_key_t * ret=NULL;
-    HASH_FIND_STR(ks,v_id,ret);
+    HASH_FIND_STR(_ks,v_id,ret);
     if(ret == NULL) {
         log_it(L_WARNING, "Key not found");
     }
@@ -79,30 +101,33 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * http)
     }
 }
 
-
-dap_enc_ks_key_t * enc_ks_new()
+dap_enc_ks_key_t * dap_enc_ks_new()
 {
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
-    ret->key=dap_enc_key_new(DAP_ENC_KEY_TYPE_RLWE_MSRLN16);
-
-    for(short i = 0; i < sizeof(ret->id); i++)
-        ret->id[i] = 65 + rand() % 25;
-
-    HASH_ADD_STR(ks,id,ret);
+    _gen_session_id(ret->id);
+    pthread_mutex_init(&ret->mutex,NULL);
     return ret;
+}
+
+bool dap_enc_ks_save_in_storage(dap_enc_ks_key_t* key)
+{
+    if(dap_enc_ks_find(key->id) != NULL) {
+        log_it(L_WARNING, "key is already saved in storage");
+        return false;
+    }
+    _save_key_in_storge(key);
+    return true;
 }
 
 dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
 {
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
-    ret->key=key;
-    pthread_mutex_init(&ret->mutex,NULL);
+    ret->key = key;
+    pthread_mutex_init(&ret->mutex, NULL);
 
-    memset(ret->id, 0, DAP_ENC_KS_KEY_ID_SIZE);
-    for(short i = 0; i < DAP_ENC_KS_KEY_ID_SIZE; i++)
-        ret->id[i]=65+rand()%25;
+    _gen_session_id(ret->id);
 
-    HASH_ADD_STR(ks,id,ret);
+    HASH_ADD_STR(_ks,id,ret);
     return ret;
 }
 
@@ -110,7 +135,7 @@ void dap_enc_ks_delete(const char *id)
 {
     dap_enc_ks_key_t *delItem = dap_enc_ks_find(id);
     if (delItem) {
-        HASH_DEL (ks, delItem);
+        HASH_DEL (_ks, delItem);
         _enc_key_free(&delItem);
         return;
     }

@@ -72,7 +72,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 
         msrln_key->gen_bob_shared_key(msrln_key, alice_msg, MSRLN_PKA_BYTES, (void**)&msrln_key->pub_key_data);
 
-        dap_enc_ks_key_t * key_ks = dap_enc_ks_add(NULL);
+        dap_enc_ks_key_t * key_ks = dap_enc_ks_new();
 
         char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(msrln_key->pub_key_data_size) + 1];
         size_t encrypt_msg_size = dap_enc_base64_encode(msrln_key->pub_key_data, msrln_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
@@ -82,6 +82,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
                                                msrln_key->priv_key_data, // shared key
                                                msrln_key->priv_key_data_size,
                                                key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, 0);
+        dap_enc_ks_save_in_storage(key_ks);
 
         char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1];
 
