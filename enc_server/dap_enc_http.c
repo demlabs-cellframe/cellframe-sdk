@@ -188,7 +188,10 @@ void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delega
         if(a_http_simple->reply)
             free(a_http_simple->reply);
 
-        size_t l_reply_size_max = a_http_delegate->response_size*2; // TODO make proper size calculations
+        size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
+                                                          a_http_delegate->response_size,
+                                                          DAP_ENC_DATA_TYPE_RAW);
+
         a_http_simple->reply = DAP_NEW_SIZE(void,l_reply_size_max);
         a_http_simple->reply_size = dap_enc_code( a_http_delegate->key,
                                                   a_http_delegate->response, a_http_delegate->response_size,
