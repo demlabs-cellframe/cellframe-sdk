@@ -69,14 +69,37 @@ inline static void _gen_session_id(char id_buf[DAP_ENC_KS_KEY_ID_SIZE])
 void _save_key_in_storge(dap_enc_ks_key_t *key)
 {
     HASH_ADD_STR(_ks,id,key);
+    if(_memcache_enable) {
+        dap_enc_key_serealize_t* serealize_key = dap_enc_key_serealize(key->key);
+        dap_memcache_put(key->id, serealize_key, sizeof (dap_enc_key_serealize_t), 0);
+        free(serealize_key);
+    }
 }
 
 
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
 {
-    dap_enc_ks_key_t * ret=NULL;
+    dap_enc_ks_key_t * ret = NULL;
     HASH_FIND_STR(_ks,v_id,ret);
     if(ret == NULL) {
+        if(_memcache_enable) {
+            void* key_buf;
+            size_t val_length;
+            bool find = dap_memcache_get(v_id, &val_length, (void**)&key_buf);
+            if(find) {
+                if(val_length != sizeof (dap_enc_key_serealize_t)) {
+                    log_it(L_WARNING, "Data can be broken");
+                }
+                dap_enc_key_t* key = dap_enc_key_deserealize(key_buf, val_length);
+                ret = DAP_NEW_Z(dap_enc_ks_key_t);
+                strncpy(ret->id, v_id, DAP_ENC_KS_KEY_ID_SIZE);
+                pthread_mutex_init(&ret->mutex,NULL);
+                ret->key = key;
+                HASH_ADD_STR(_ks,id,ret);
+                free(key_buf);
+                return ret;
+            }
+        }
         log_it(L_WARNING, "Key not found");
     }
     return ret;
@@ -124,10 +147,8 @@ dap_enc_ks_key_t * dap_enc_ks_add(struct dap_enc_key * key)
     dap_enc_ks_key_t * ret = DAP_NEW_Z(dap_enc_ks_key_t);
     ret->key = key;
     pthread_mutex_init(&ret->mutex, NULL);
-
     _gen_session_id(ret->id);
-
-    HASH_ADD_STR(_ks,id,ret);
+    dap_enc_ks_save_in_storage(ret);
     return ret;
 }
 
@@ -136,6 +157,9 @@ void dap_enc_ks_delete(const char *id)
     dap_enc_ks_key_t *delItem = dap_enc_ks_find(id);
     if (delItem) {
         HASH_DEL (_ks, delItem);
+        if(_memcache_enable && dap_memcache_delete(id) == false) {
+            log_it(L_WARNING, "Cant delete key from memcache. Not found");
+        }
         _enc_key_free(&delItem);
         return;
     }
