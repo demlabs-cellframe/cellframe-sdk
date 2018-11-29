@@ -89,7 +89,7 @@ size_t dap_enc_decode_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size,
     if(type != DAP_ENC_DATA_TYPE_RAW) {
         return (size_t)DAP_ENC_BASE64_ENCODE_SIZE(raw_decode_data_size);
     }
-    return dap_enc_decode_out_size;
+    return raw_decode_data_size;
 }
 
 
