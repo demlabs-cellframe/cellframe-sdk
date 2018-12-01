@@ -33,11 +33,13 @@
 
 static dap_enc_ks_key_t * _ks = NULL;
 static bool _memcache_enable = false;
+static time_t _memcache_expiration_key = 0;
 
-int dap_enc_ks_init(bool memcache_backup_enable)
+int dap_enc_ks_init(bool memcache_backup_enable, time_t memcache_expiration_key)
 {
     if(memcache_backup_enable) {
         if(dap_memcache_is_enable()) {
+            _memcache_expiration_key = memcache_expiration_key;
             _memcache_enable = true;
         } else {
             log_it(L_ERROR, "Can't init memcache backup. Memcache module is not activated.");
@@ -71,7 +73,7 @@ void _save_key_in_storge(dap_enc_ks_key_t *key)
     HASH_ADD_STR(_ks,id,key);
     if(_memcache_enable) {
         dap_enc_key_serealize_t* serealize_key = dap_enc_key_serealize(key->key);
-        dap_memcache_put(key->id, serealize_key, sizeof (dap_enc_key_serealize_t), 0);
+        dap_memcache_put(key->id, serealize_key, sizeof (dap_enc_key_serealize_t), _memcache_expiration_key);
         free(serealize_key);
     }
 }
