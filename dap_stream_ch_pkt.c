@@ -57,7 +57,7 @@ void stream_ch_pkt_deinit()
  * @param data_size
  * @return
  */
-size_t stream_ch_pkt_write_seq_id(struct stream_ch * ch, uint8_t type, uint64_t seq_id, const void * data, uint32_t data_size)
+size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch, uint8_t type, uint64_t seq_id, const void * data, uint32_t data_size)
 {
     pthread_mutex_lock( &ch->mutex);
 
@@ -93,7 +93,7 @@ size_t stream_ch_pkt_write_seq_id(struct stream_ch * ch, uint8_t type, uint64_t 
  * @param data_size
  * @return
  */
-size_t stream_ch_pkt_write(struct stream_ch * ch, uint8_t type, const void * data, uint32_t data_size)
+size_t stream_ch_pkt_write(struct dap_stream_ch * ch, uint8_t type, const void * data, uint32_t data_size)
 {
     return stream_ch_pkt_write_seq_id(ch,type,0,data,data_size);
 }
@@ -104,7 +104,7 @@ size_t stream_ch_pkt_write(struct stream_ch * ch, uint8_t type, const void * dat
  * @param str
  * @return
  */
-size_t stream_ch_pkt_write_f(struct stream_ch * ch, uint8_t type, const char * str,...)
+size_t stream_ch_pkt_write_f(struct dap_stream_ch * ch, uint8_t type, const char * str,...)
 {
     char buf[4096];
     va_list ap;
@@ -120,7 +120,7 @@ size_t stream_ch_pkt_write_f(struct stream_ch * ch, uint8_t type, const char * s
  * @param ch
  * @return
  */
-size_t stream_ch_send_keepalive(struct stream_ch * ch){
+size_t stream_ch_send_keepalive(struct dap_stream_ch * ch){
     pthread_mutex_lock( &ch->mutex);
 
     stream_ch_pkt_hdr_t hdr;
