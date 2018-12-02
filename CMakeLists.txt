@@ -3,12 +3,18 @@ project (dap_client)
 
 set(DAP_CLIENT_SRCS
         dap_client.c
+        dap_client_pvt.c
         dap_client_pool.c
+        dap_events.c
+        dap_events_socket.c
         )
 
 set(DAP_CLIENT_HEADERS
     dap_client.h
+    dap_client_pvt.h
     dap_client_pool.h
+    dap_events.h
+    dap_events_socket.h
 
     )
 

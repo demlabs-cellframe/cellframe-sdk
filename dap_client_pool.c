@@ -3,126 +3,59 @@
 #include <string.h>
 #include <errno.h>
 
-#include "sap_common.h"
-#include "sap_config.h"
-#include "sap_events.h"
-#include "sap_events_socket.h"
-#include "ch_sf.h"
-#include "ch_sf_tun.h"
-#include "sf_client.h"
-#include "mod_sf.h"
+#include "dap_common.h"
+#include "dap_config.h"
+#include "dap_events.h"
+#include "dap_events_socket.h"
+#include "dap_client.h"
+#include "dap_client_pool.h"
 
-#define LOG_TAG "mod_sf"
+#define LOG_TAG "dap_client_pool"
 
-static struct sap_events * s_events = NULL;
 
 // Single-linked peers list
-struct sf_client_list{
-    sf_client_t * item;
-    char * name;
-    struct sf_client_list * next;
+struct dap_client_list{
+    dap_client_t * item;
+    char * id;
+    struct dap_client_list * next;
 };
 
-static struct sf_client_list * s_peers = NULL;
 
-void m_sf_client_callback_connected(sf_client_t * a_client, void * arg);
-void m_sf_client_callback_disconnected(sf_client_t * a_client, void * arg);
-void m_sf_client_callback_error(sf_client_t * a_client, void * arg);
+void s_stage_status_callback(dap_client_t * a_client, void* a_arg);
+void s_stage_status_error_callback(dap_client_t * a_client, void* a_arg);
 
+dap_events_t * s_events = NULL:
 /**
- * @brief mod_sf_peer_start
+ * @brief dap_client_pool_init
  * @param a_events
- * @param a_worker
+ * @return
  */
-void mod_sf_peer_start(struct sap_events * a_events)
+int dap_client_pool_init(dap_events_t * a_events)
 {
-    if( s_events != NULL ){
-        log_it(L_WARNING, "Peering is already started");
-        return;
-    }
     s_events = a_events;
+}
 
-    // Prepare dir parse
-    DIR *d;
-    struct dirent *dir;
-    size_t buf_size = strlen(sap_configs_path())+1+strlen(SF_CLIENT_CONFIGS_PATH)+1;
-    char * buf = SAP_NEW_Z_SIZE(char,buf_size);
-    snprintf(buf,buf_size,"%s/%s",sap_configs_path(),SF_CLIENT_CONFIGS_PATH);
-    d = opendir(buf);
-    if (d) {
-        // Process every dir entry
-        while ((dir = readdir(d)) != NULL) {
-            if( dir->d_name[0]=='.' ) continue;
-            log_it(L_DEBUG,"Peer config '%s'", dir->d_name);
-            // List the peer in memory
-            struct  sf_client_list * l_peer = SAP_NEW_Z(struct sf_client_list);
-            l_peer->next = s_peers;
-            l_peer->name = SAP_NEW_Z_SIZE(char, strlen(dir->d_name));
-            strcpy(l_peer->name, dir->d_name);
-
-            s_peers = l_peer;
-
-            sf_client_t * l_sf_client = sf_client_new(a_events,dir->d_name);
-            if( l_sf_client == NULL){
-                SAP_DELETE(l_peer);
-                log_it(L_WARNING, "Can't init peer config '%s'",dir->d_name);
-                continue;
-            }
-            l_peer->item = l_sf_client;
-
-            // Setup callbacks
-            sf_client_set_callback_connected(l_sf_client,m_sf_client_callback_connected );
-            sf_client_set_callback_disconnected( l_sf_client,m_sf_client_callback_disconnected );
-            sf_client_set_callback_error(l_sf_client,m_sf_client_callback_error );
-        }
-        closedir(d);
-    }else{
-        log_it(L_ERROR, "Can't open path %s: %s",buf,strerror(errno));
-    }
+void dap_client_pool_deinit()
+{
 }
 
 /**
- * @brief mod_sf_peer_stop
+ * @brief dap_client_pool_new
+ * @param a_client_id
+ * @return
  */
-void mod_sf_peer_stop()
+dap_client_t * dap_client_pool_new(const char * a_client_id)
 {
-    struct sf_client_list * l_item = s_peers, *l_tmp;
-    while (l_item){
-        sf_client_delete(l_item->item);
-        l_tmp = l_item->next;
-        SAP_DELETE(l_item->name);
-        SAP_DELETE(l_item);
-        l_item = l_tmp;
-    }
+    dap_client_t * l_client = dap_client_new(s_events, s_stage_status_callback
+                                  , s_stage_status_error_callback );
 }
 
-/**
- * @brief m_sf_client_callback_connected
- * @param a_client
- * @param arg
- */
-void m_sf_client_callback_connected(sf_client_t * a_client, void * arg)
+void s_stage_status_callback(dap_client_t * a_client, void* a_arg)
 {
-    log_it(L_DEBUG,"mod_sf_client connected");
+
 }
 
-/**
- * @brief m_sf_client_callback_disconnected
- * @param a_client
- * @param arg
- */
-void m_sf_client_callback_disconnected(sf_client_t * a_client, void * arg)
+void s_stage_status_error_callback(dap_client_t * a_client, void* a_arg)
 {
-    log_it(L_DEBUG,"mod_sf_client disconnected");
-}
 
-/**
- * @brief m_sf_client_callback_error
- * @param a_client
- * @param arg
- */
-void m_sf_client_callback_error(sf_client_t * a_client, void * arg)
-{
-    log_it(L_WARNING,"mod_sf_client error");
 }
-
