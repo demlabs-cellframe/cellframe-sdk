@@ -22,6 +22,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <string.h>
+
 #include "dap_config.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_ctl.h"
@@ -65,12 +67,13 @@ dap_chain_node_ctl_t * dap_chain_node_ctl_open( const char * a_name )
 {
    dap_chain_node_ctl_t * l_node = NULL;
    const char c_node_folder[]="node";
-   size_t buf_size = 2+sizeof(a_name)+sizeof(c_node_folder);
+   size_t buf_size = 2+strlen(a_name)+strlen(c_node_folder);
    char *buf= DAP_NEW_SIZE(char, buf_size);
    snprintf(buf,buf_size,"%s/%s",c_node_folder,a_name);
    dap_config_t * l_node_cfg = dap_config_open(buf);
    if ( l_node_cfg ){
        //dap_config_get_item_str_default()
+        l_node = dap_chain_node_ctl_new();
    } else {
        log_it(L_ERROR,"Can't open node \"%s\". Check the configuration files path.",a_name);
    }

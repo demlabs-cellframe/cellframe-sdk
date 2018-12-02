@@ -28,6 +28,7 @@
 
 #include "dap_common.h"
 #include "dap_config.h"
+//#include "dap_
 #include "dap_chain_net.h"
 #include "dap_chain_node_ctl.h"
 #include "dap_module.h"
@@ -42,6 +43,7 @@ typedef struct dap_chain_net_pvt{
     pthread_t proc_tid;
     pthread_cond_t proc_cond;
     dap_chain_node_role_t node_role;
+    //dap_client_t client;
     dap_chain_node_ctl_t * node;
 } dap_chain_net_pvt_t;
 
@@ -49,6 +51,8 @@ typedef struct dap_chain_net_pvt{
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) a.pvt )
 
 size_t            s_net_configs_count = 0;
+pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * @brief s_net_proc_thread
@@ -59,6 +63,7 @@ size_t            s_net_configs_count = 0;
 static void * s_net_proc_thread ( void * a_net)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
+
     return NULL;
 }
 
@@ -114,9 +119,11 @@ static void s_net_proc_kill( dap_chain_net_t * a_net )
  * @param a_id
  * @param a_name
  * @param a_node_role
+ * @param a_node_name
  * @return
  */
-dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name , const char * a_node_role)
+dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
+                                    const char * a_node_role, const char * a_node_name)
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
@@ -126,10 +133,16 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name , con
             log_it (L_NOTICE, "Node role \"root\" selected");
         }
 
-        PVT(ret)->node = dap_chain_node_ctl_new();
+        PVT(ret)->node = dap_chain_node_ctl_open(a_node_name);
+        if ( PVT(ret)->node ){
+
+        } else {
+            log_it( L_ERROR, "Can't open \"%s\" node's config",a_node_name);
+        }
     } else {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
     }
+    return ret;
 
 }
 
@@ -158,7 +171,8 @@ int dap_chain_net_init()
         dap_chain_net_t * l_net = dap_chain_net_new(
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
-                                            dap_config_get_item_str(l_cfg , "general" , "node-role" )
+                                            dap_config_get_item_str(l_cfg , "general" , "node-role" ),
+                                            dap_config_get_item_str(l_cfg , "general" , "node-default" )
                                            );
         switch ( PVT( l_net )->node_role.enums ) {
             case ROOT:
