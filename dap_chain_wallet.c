@@ -53,7 +53,7 @@ void dap_chain_wallet_deinit()
  * @details Creates new one if not found
  * @return Wallet, new wallet or NULL if errors
  */
-dap_chain_wallet_t * dap_chain_wallet_open(const char * a_file_name, dap_chain_sign_type_t a_sig_type)
+dap_chain_wallet_t * dap_chain_wallet_create(const char * a_file_name, dap_chain_sign_type_t a_sig_type)
 {
     dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
@@ -75,14 +75,34 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
  * @brief dap_chain_wallet_get_pkey
  * @param a_wallet
  * @param a_pkey_idx
- * @param a_pkey
- * @param a_pkey_size_max
- * @return 0 if everything is ok, negative value if error
+ * @return serialized object if success, NULL if not
  */
-int dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx, void * a_pkey, size_t a_pkey_size_max)
+dap_chain_pkey_t* dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx )
 {
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
-    return 0;
+    if( l_wallet_internal->keys_count > a_pkey_idx ){
+        //return dap_enc_key_new()  l_wallet_internal->keys[a_pkey_idx];
+    }else{
+        log_it( L_WARNING, "No key with index %u in the wallet (total size %u)",a_pkey_idx,l_wallet_internal->keys_count);
+        return 0;
+    }
+}
+
+/**
+ * @brief dap_chain_wallet_get_key
+ * @param a_wallet
+ * @param a_pkey_idx
+ * @return
+ */
+dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx )
+{
+    DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
+    if( l_wallet_internal->keys_count > a_pkey_idx ){
+        return l_wallet_internal->keys[a_pkey_idx];
+    }else{
+        log_it( L_WARNING, "No key with index %u in the wallet (total size %u)",a_pkey_idx,l_wallet_internal->keys_count);
+        return 0;
+    }
 }
 
 /**
