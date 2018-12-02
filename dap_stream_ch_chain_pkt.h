@@ -44,7 +44,6 @@ typedef struct stream_ch_chain_pkt_hdr{
         }type_general;
         struct{
             dap_chain_datum_typeid_t datum_id;
-
         }type_block;
         struct{
             dap_chain_datum_typeid_t datum_id;
