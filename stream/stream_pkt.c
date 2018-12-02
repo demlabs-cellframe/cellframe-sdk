@@ -46,10 +46,10 @@ const size_t dap_hdr_size=8+2+1+1+4;
 const uint8_t dap_sig[8]={0xa0,0x95,0x96,0xa9,0x9e,0x5c,0xfb,0xfa};
 
 
-stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
+dap_stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
 {
     void * sig_start=data;
-    stream_pkt_t * ret=NULL;
+    dap_stream_pkt_t * ret=NULL;
     uint32_t length_left=data_size;
     while(sig_start=memchr(sig_start, dap_sig[0],length_left) ){
         length_left= data_size-( sig_start-data);
@@ -81,7 +81,7 @@ size_t encode_dummy(const void * buf, const size_t buf_size, void * buf_out){
  * @param pkt
  * @param buf_out
  */
-size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out, size_t buf_out_size)
+size_t stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size)
 {
     size_t ds = dap_enc_iaes256_cbc_decrypt_fast(sid->session->key,pkt->data,pkt->hdr.size,buf_out, buf_out_size);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
@@ -104,7 +104,7 @@ size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_o
  * @return
  */
 
-size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_size)
+size_t stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size)
 {
     size_t ret=0;
     stream_pkt_hdr_t pkt_hdr;
@@ -131,13 +131,13 @@ size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_si
 }
 
 
-extern void stream_send_keepalive(struct stream * sid)
+extern void stream_send_keepalive(struct dap_stream * sid)
 {
     for(int i=0;i<sid->channel_count;i++)
     if(sid->channel[i]->proc){
         if(sid->channel[i]->proc->id == SERVICE_CHANNEL_ID)
             stream_ch_send_keepalive(sid->channel[i]);
-            stream_ch_set_ready_to_write(sid->channel[i],true);            
+            dap_stream_ch_set_ready_to_write(sid->channel[i],true);            
     }
 }
 

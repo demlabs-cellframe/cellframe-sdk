@@ -25,7 +25,7 @@
 #include <stddef.h>
 
 #define STREAM_PKT_SIZE_MAX 100000
-struct stream;
+struct dap_stream;
 
 #define DATA_PACKET 0x00
 #define SERVICE_PACKET 0xff
@@ -40,10 +40,10 @@ typedef struct stream_pkt_hdr{
     uint64_t d_addr; // Destination address ( general#domain.net )
 }  __attribute__((packed)) stream_pkt_hdr_t;
 
-typedef struct stream_pkt{
+typedef struct dap_stream_pkt{
     stream_pkt_hdr_t hdr;
     uint8_t data[];
-}  __attribute__((packed)) stream_pkt_t;
+}  __attribute__((packed)) dap_stream_pkt_t;
 
 typedef struct stream_srv_pkt{
     uint32_t session_id;
@@ -54,12 +54,12 @@ typedef struct stream_srv_pkt{
 
 extern const uint8_t dap_sig[8];
 
-extern stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size);
+extern dap_stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size);
 
-extern size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out, size_t buf_out_size);
+extern size_t stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size);
 
-extern size_t stream_pkt_write(struct stream * sid, const void * data, uint32_t data_size);
+extern size_t stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size);
 
-extern void stream_send_keepalive(struct stream * sid);
+extern void stream_send_keepalive(struct dap_stream * sid);
 
 #endif

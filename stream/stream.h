@@ -33,25 +33,25 @@
 #include "dap_stream_ch.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
-
+#include "dap_events_socket.h"
 
 #define CHUNK_SIZE_MAX 3*1024
 
-struct dap_client_remote;
-struct dap_udp_server_t;
+typedef struct dap_client_remote dap_client_remote_t;
+typedef struct dap_udp_server dap_udp_server_t;
 
 
-struct dap_http_client;
-struct dap_http;
-struct stream;
-struct stream_pkt;
+typedef struct dap_http_client dap_http_client_t;
+typedef struct dap_http dap_http_t;
+typedef struct dap_stream dap_stream_t;
+typedef struct dap_stream_pkt dap_stream_pkt_t;
 #define STREAM_BUF_SIZE_MAX 20480
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 #define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
-typedef void (*stream_callback)(struct stream*,void*);
+typedef void (*stream_callback)(struct dap_stream*,void*);
 
-typedef struct stream {
+typedef struct dap_stream {
 
     int id;
     dap_stream_session_t * session;
@@ -61,13 +61,16 @@ typedef struct stream {
 
     struct dap_udp_client * conn_udp; // UDP-client
 
+    dap_events_socket_t * events_socket;
+
     bool is_live;
+    bool is_client_to_uplink ;
 
     ev_timer keepalive_watcher;         // Watcher for keepalive loop
     uint8_t keepalive_passed;           // Number of sended keepalive messages
 
-    struct stream_pkt * in_pkt;
-    struct stream_pkt *pkt_buf_in;
+    struct dap_stream_pkt * in_pkt;
+    struct dap_stream_pkt *pkt_buf_in;
     size_t pkt_buf_in_data_size;
     size_t pkt_buf_in_size_expected;
 
@@ -95,5 +98,14 @@ void stream_deinit();
 void stream_add_proc_http(struct dap_http * sh, const char * url);
 
 void stream_add_proc_udp(dap_udp_server_t * sh);
+
+dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es);
+size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
+size_t dap_stream_data_proc_write(dap_stream_t * a_stream);
+void dap_stream_delete(dap_stream_t * a_stream);
+void dap_stream_proc_pkt_in(dap_stream_t * sid);
+
+void dap_stream_es_rw_states_update(struct dap_stream *a_stream);
+
 
 #endif
