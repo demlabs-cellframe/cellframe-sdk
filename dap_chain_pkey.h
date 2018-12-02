@@ -47,6 +47,6 @@ typedef struct dap_chain_pkey{
     uint8_t pkey[]; /// @param pkey @brief raw pkey dat
 } DAP_ALIGN_PACKED dap_chain_pkey_t;
 
-dap_chain_pkey_t* dap_chain_pkey_new_generate(dap_chain_pkey_t a_type, uint32_t a_size);
+dap_chain_pkey_t* dap_chain_pkey_new_generate(dap_chain_pkey_type_t a_type, uint32_t a_size);
 size_t dap_chain_pkey_enc_get_buf_out_size(dap_chain_pkey_t * a_pkey);
-int dap_chain_pkey_enc(dap_chain_pkey_t a_type,const void * a_buf_in, uint32_t a_buf_in_size, void * a_buf_out); // 0 if success
+int dap_chain_pkey_enc(dap_chain_pkey_t *a_pkey,const void * a_buf_in, uint32_t a_buf_in_size, void * a_buf_out); // 0 if success
