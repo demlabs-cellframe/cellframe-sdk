@@ -32,6 +32,8 @@
 #include "dap_client_remote.h"
 #include "dap_http_simple.h"
 
+#include "http_status_code.h"
+
 #include "stream_session.h"
 #include "stream_ctl.h"
 
@@ -83,7 +85,7 @@ void stream_ctl_add_proc(struct dap_http * sh, const char * url)
  */
 void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 {
-    bool * isOk = (bool *) arg;
+    http_status_code_t * return_code = (http_status_code_t*)arg;
 
 	unsigned int db_id=0;
    // unsigned int proto_version;
@@ -104,7 +106,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         }else{
             log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
             enc_http_delegate_delete(dg);
-            *isOk=false;
+            *return_code = Http_Status_MethodNotAllowed;
             return;
         }
         if(socket_forward){
@@ -116,7 +118,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
             ss->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, key_str, strlen(key_str), NULL, 0, 0);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
-            dg->isOk=true;
+            *return_code = Http_Status_OK;
 
             free(key_str);
         }else if(sscanf( dg->in_query ,"db_id=%u",&db_id)==1){
@@ -133,9 +135,8 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 //            log_it(L_DEBUG,"Stream AES key string %s",key_str);
         }else{
             log_it(L_ERROR,"Wrong request: \"%s\"",dg->in_query);
-            dg->isOk=false;
+            *return_code = Http_Status_BadRequest;
         }
-        *isOk=dg->isOk;
 
         unsigned int conn_t = 0;
         char *ct_str = strstr(dg->in_query, "connection_type");
@@ -161,7 +162,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         enc_http_delegate_delete(dg);
     }else{
         log_it(L_ERROR,"No encryption layer was initialized well");
-        *isOk=false;
+        *return_code = Http_Status_BadRequest;
     }
 }
 
