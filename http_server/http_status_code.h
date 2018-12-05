@@ -1,3 +1,5 @@
+#include "stdio.h"
+
 #ifndef HTTP_STATUS_CODE_DEFINITIONS_H
 #define HTTP_STATUS_CODE_DEFINITIONS_H
 
@@ -112,7 +114,7 @@ static char http_status_is_error(int code)         { return (code >= 400); }    
  * \return The standard HTTP reason phrase for the given \p code or \c NULL if no standard
  * phrase for the given \p code is known.
  */
-static const char* http_status_reason_phrase(int code)
+static const char* http_status_reason_phrase(unsigned short code)
 {
     switch (code)
     {
@@ -187,7 +189,9 @@ static const char* http_status_reason_phrase(int code)
     case 510: return "Not Extended";
     case 511: return "Network Authentication Required";
 
-    default: return 0;
+    default:
+        fprintf(stderr, "Unknown status code %d\n", code);
+        return 0;
     }
 
 }

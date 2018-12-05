@@ -7,7 +7,6 @@ set(HTTP_SERVER_SRCS
     dap_http.c
     dap_http_folder.c
     dap_http_simple.c
-    dap_http_simple.h
     http_client/dap_http_client.c
     http_client/dap_http_client_simple.c
     http_client/dap_http_header.c)

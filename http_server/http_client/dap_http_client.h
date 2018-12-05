@@ -68,7 +68,7 @@ typedef struct dap_http_client
     dap_client_remote_t * client;
     struct dap_http * http;
 
-    uint32_t reply_status_code;
+    uint16_t reply_status_code;
     char reply_reason_phrase[256];
 
     struct dap_http_url_proc * proc;

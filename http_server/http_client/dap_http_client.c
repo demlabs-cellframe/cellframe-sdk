@@ -27,6 +27,7 @@
 #include "dap_client_remote.h"
 
 #include "../dap_http.h"
+#include "../http_status_code.h"
 
 #include "dap_http_header.h"
 #include "dap_http_client.h"
@@ -347,7 +348,8 @@ void dap_http_client_write(dap_client_remote_t * cl,void * arg)
                 if(cl_ht->proc->headers_write_callback)
                     cl_ht->proc->headers_write_callback(cl_ht,NULL);
             log_it(L_DEBUG,"Output: HTTP response with %u status code",cl_ht->reply_status_code);
-            dap_client_remote_write_f(cl,"HTTP/1.1 %u %s\r\n",cl_ht->reply_status_code, cl_ht->reply_reason_phrase[0]?cl_ht->reply_reason_phrase:"UNDEFINED");
+            dap_client_remote_write_f(cl,"HTTP/1.1 %u %s\r\n",cl_ht->reply_status_code, cl_ht->reply_reason_phrase[0] ?
+                        cl_ht->reply_reason_phrase : http_status_reason_phrase(cl_ht->reply_status_code));
             dap_http_client_out_header_generate(cl_ht);
 
             cl_ht->state_write=DAP_HTTP_CLIENT_STATE_HEADERS;

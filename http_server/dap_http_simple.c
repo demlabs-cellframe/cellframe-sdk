@@ -31,6 +31,7 @@
 #include "dap_enc_key.h"
 #include "../enc_server/dap_enc_ks.h"
 #include "../enc_server/dap_enc_http.h"
+#include "http_status_code.h"
 #include <ev.h>
 #include <sys/queue.h>
 
@@ -127,57 +128,54 @@ void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t repl
 void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 {
     log_it(L_INFO, "dap http simple proc");
-    bool is_ok=true;
-    bool key_is_expiried = false;
+    http_status_code_t return_code = (http_status_code_t)0;
+//    bool key_is_expiried = false;
 
-    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
-    if(key){
-        if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
-                                          > s_TTL_session_key ) ) {
+//    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
+//    if(key){
+//        if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
+//                                          > s_TTL_session_key ) ) {
 
-            enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
+//            enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
 
-            if( dg == NULL ) {
-                log_it(L_ERROR, "dg is NULL");
-                return NULL;
-            }
+//            if( dg == NULL ) {
+//                log_it(L_ERROR, "dg is NULL");
+//                return NULL;
+//            }
 
-            log_it(L_WARNING, "Key has been expiried");
-            strcpy(cl_sh->reply_mime,"text/plain");
-            enc_http_reply_f(dg,"Key has been expiried");
-            enc_http_reply_encode(cl_sh,dg);
-            enc_http_delegate_delete(dg);
-            key_is_expiried = true;
-        } else{
-            key->last_used_timestamp = time(NULL);
-        }
+//            log_it(L_WARNING, "Key has been expiried");
+//            strcpy(cl_sh->reply_mime,"text/plain");
+//            enc_http_reply_f(dg,"Key has been expiried");
+//            enc_http_reply_encode(cl_sh,dg);
+//            enc_http_delegate_delete(dg);
+//            key_is_expiried = true;
+//        } else{
+//            key->last_used_timestamp = time(NULL);
+//        }
+//    }
 
-    }
+//    if ( !key_is_expiried )
 
-    if ( !key_is_expiried )
-        DAP_HTTP_SIMPLE_URL_PROC(cl_sh->http->proc)->proc_callback(cl_sh,&is_ok);
+    DAP_HTTP_SIMPLE_URL_PROC(cl_sh->http->proc)->proc_callback(cl_sh,&return_code);
 
-    if(is_ok){
+    if(return_code) {
         log_it(L_DEBUG, "Request was processed well");
-
-        cl_sh->http->out_content_length=cl_sh->reply_size;
-        strcpy(cl_sh->http->out_content_type, cl_sh->reply_mime);
-
-        strcpy(cl_sh->http->reply_reason_phrase,"OK");
-        cl_sh->http->reply_status_code=200;
-        //cl_sh->http->client->ready_to_write=true;
+        cl_sh->http->reply_status_code = (uint16_t)return_code;
+        if(cl_sh->reply_size != 0) {
+            cl_sh->http->out_content_length=cl_sh->reply_size;
+            strcpy(cl_sh->http->out_content_type, cl_sh->reply_mime);
+        }
     }else{
         log_it(L_ERROR, "Request was processed with ERROR");
-        strcpy(cl_sh->http->reply_reason_phrase,"ERROR");
-        cl_sh->http->reply_status_code=500;
-        //cl_sh->http->client->ready_to_read=false;
-        //cl_sh->http->client->ready_to_write=false;
+        cl_sh->http->reply_status_code = Http_Status_InternalServerError;
     }
     dap_client_remote_ready_to_read(cl_sh->http->client,false);
     cl_sh->http->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
     dap_client_remote_ready_to_write(cl_sh->http->client,true);
     cl_sh->http->state_write=DAP_HTTP_CLIENT_STATE_START;
+
+    return NULL;
 }
 
 /**

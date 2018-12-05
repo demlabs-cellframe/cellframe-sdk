@@ -34,6 +34,7 @@
 #include "dap_enc_http.h"
 #include "dap_enc_base64.h"
 #include "dap_enc_msrln.h"
+#include "http_status_code.h"
 
 
 #define LOG_TAG "dap_enc_http"
@@ -56,7 +57,7 @@ void enc_http_deinit()
 void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 {
     log_it(L_DEBUG,"Proc enc http request");
-    bool * isOk= (bool*)arg;
+    http_status_code_t * return_code = (http_status_code_t*)arg;
 
     if(strcmp(cl_st->http->url_path,"gd4y5yh78w42aaagh") == 0 ) {
 
@@ -64,7 +65,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         size_t decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
         if(decode_len != MSRLN_PKA_BYTES) {
             log_it(L_WARNING, "Wrong http_enc request. Key not equal MSRLN_PKA_BYTES");
-            *isOk=false;
+            *return_code = Http_Status_BadRequest;
             return;
         }
 
@@ -92,9 +93,11 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_http_simple_reply_f(cl_st, "%s %s", encrypt_id, encrypt_msg);
 
         dap_enc_key_delete(msrln_key);
+
+        *return_code = Http_Status_OK;
     } else{
         log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http->url_path);
-        *isOk=false;
+        *return_code = Http_Status_NotFound;
     }
 }
 
@@ -121,7 +124,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
         dg->key=l_key;
         dg->http=a_http_simple->http;
-        dg->isOk=true;
+       // dg->isOk=true;
 
         strncpy(dg->action,a_http_simple->http->action,sizeof(dg->action)-1);
         if(a_http_simple->http->in_cookie[0])
