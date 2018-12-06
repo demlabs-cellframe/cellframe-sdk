@@ -53,7 +53,7 @@ int dap_config_init(const char * a_configs_path)
 #ifdef _WIN32
         // Check up under Windows, in Linux is not required
         if(!valid_ascii_symbols(a_configs_path)) {
-            printf("[dap_config_init] WARNING! Supported only ASCII symbols for directory path.\n");
+            log_it(L_ERROR, "Supported only ASCII symbols for directory path");
             return -1;
         }
 #endif
