@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include "uthash.h"
+#include "file_utils.h"
 #include "dap_common.h"
 #include "dap_config.h"
 
@@ -49,11 +50,17 @@ static char s_configs_path[MAX_CONFIG_PATH] = "/opt/dap/etc";
 int dap_config_init(const char * a_configs_path)
 {
     if( a_configs_path ) {
-        strcpy(s_configs_path, a_configs_path);
-        char cmd[1024];
-        snprintf(cmd,sizeof(cmd),"test -d %s || mkdir -p %s",a_configs_path,a_configs_path);
-        system(cmd);
-        return 0;
+#ifdef _WIN32
+        // Check up under Windows, in Linux is not required
+        if(!valid_ascii_symbols(a_configs_path)) {
+            printf("[dap_config_init] WARNING! Supported only ASCII symbols for directory path.\n");
+            return -1;
+        }
+#endif
+        if(dir_test(a_configs_path) || !mkdir_with_parents(a_configs_path)) {
+            strcpy(s_configs_path, a_configs_path);
+            return 0;
+        }
     }
     return -1;
 }
