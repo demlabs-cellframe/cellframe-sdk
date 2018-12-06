@@ -39,7 +39,7 @@ void test_encode_decode(int count_steps)
         dap_enc_key_delete(key);
     }
 
-    dap_pass_msg("Encode and decode")
+    dap_pass_msg("Encode and decode");
 }
 
 void test_encode_decode_fast(size_t count_steps)
@@ -81,7 +81,7 @@ void test_encode_decode_fast(size_t count_steps)
 
     dap_enc_key_delete(key);
 
-    dap_pass_msg("Encode and decode fast")
+    dap_pass_msg("Encode and decode fast");
 }
 
 void init_test_case()
