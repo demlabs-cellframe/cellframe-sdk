@@ -24,6 +24,7 @@
 #include "dap_common.h"
 
 #include "dap_enc_iaes.h"
+#include "dap_enc_oaes.h"
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
 #include "dap_enc_picnic.h"
@@ -64,6 +65,19 @@ struct dap_enc_key_callbacks{
         .new_generate_callback = dap_enc_aes_key_generate,
         .enc_out_size = dap_enc_iaes256_calc_encode_size,
         .dec_out_size = dap_enc_iaes256_calc_decode_size,
+    },
+    // OAES
+    [DAP_ENC_KEY_TYPE_OAES]={
+        .name = "OAES",
+        .enc = dap_enc_oaes_encrypt,
+        .enc_na = dap_enc_oaes_encrypt_fast ,
+        .dec = dap_enc_oaes_decrypt,
+        .dec_na = dap_enc_oaes_decrypt_fast ,
+        .new_callback = dap_enc_oaes_key_new,
+        .delete_callback = dap_enc_oaes_key_delete,
+        .new_generate_callback = dap_enc_oaes_key_generate,
+        .enc_out_size = dap_enc_oaes_calc_encode_size,
+        .dec_out_size = dap_enc_oaes_calc_decode_size,
     },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
