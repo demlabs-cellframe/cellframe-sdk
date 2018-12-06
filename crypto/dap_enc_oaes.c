@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+
 #include "oaes_lib.h"
 #include "dap_enc_oaes.h"
 #include "dap_common.h"
@@ -42,31 +44,27 @@ void dap_enc_oaes_key_delete(struct dap_enc_key *a_key)
 void dap_enc_oaes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
         size_t kex_size, const void * seed, size_t seed_size, size_t key_size)
 {
-    (void) kex_buf;
-    (void) kex_size;
-    (void) seed;
-    (void) seed_size;
-
     a_key->last_used_timestamp = time(NULL);
 
-    OAES_CTX *ctx = get_oaes_ctx(a_key);
-    if(!ctx)
+    oaes_ctx *ctx = get_oaes_ctx(a_key);
+
+    if(kex_size < key_size) {
+        log_it(L_ERROR, "kex_size can't be less than key_size");
         return;
-    switch (key_size)
-    {
-    case 16:
-        oaes_key_gen_128(ctx);
-        break;
-    case 24:
-        oaes_key_gen_192(ctx);
-        break;
-    case 32:
-        oaes_key_gen_256(ctx);
-        break;
-    default:
-        log_it(L_WARNING, "Bad OAES_KEYSIZE: %d (must be 16, 24 or 32)", key_size);
     }
 
+    if(seed_size < OAES_BLOCK_SIZE) {
+        log_it(L_ERROR, "seed_size can't be less than OAES_BLOCK_SIZE");
+        return;
+    }
+
+    OAES_RET r = oaes_key_import_data(ctx, kex_buf, key_size);
+    if(r != OAES_RET_SUCCESS) {
+        log_it(L_ERROR, "Error generate key");
+        return;
+    }
+
+    memcpy(ctx->iv, seed, OAES_BLOCK_SIZE);
 }
 
 size_t dap_enc_oaes_calc_encode_size(const size_t size_in)
