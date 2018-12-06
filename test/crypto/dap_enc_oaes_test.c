@@ -8,7 +8,7 @@ static void test_encode_decode(int count_steps)
         int step = 1 + (rand() % 20);
         source_size += (size_t) step;
 
-        dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, 0, 0, 0, 0, 0);
+        dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, 0, 0, 0, 0, 32);
 
         uint8_t source[source_size];
         generate_random_byte_array(source, source_size);
@@ -40,7 +40,7 @@ static void test_encode_decode_fast(int count_steps)
     char buf_decrypt_out[buf_size];
 
     size_t source_size = 0;
-    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, 0, 0, 0, 0, 0);
+    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, 0, 0, 0, 0, 32);
 
     for(int i = 1; i <= count_steps; i++) {
         int step = 1 + (rand() % 20);
