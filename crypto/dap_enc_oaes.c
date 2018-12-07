@@ -53,18 +53,16 @@ void dap_enc_oaes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
         return;
     }
 
-    if(seed_size < OAES_BLOCK_SIZE) {
-        log_it(L_ERROR, "seed_size can't be less than OAES_BLOCK_SIZE");
-        return;
-    }
-
     OAES_RET r = oaes_key_import_data(ctx, kex_buf, key_size);
     if(r != OAES_RET_SUCCESS) {
         log_it(L_ERROR, "Error generate key");
         return;
     }
 
-    memcpy(ctx->iv, seed, OAES_BLOCK_SIZE);
+    if(seed_size >= OAES_BLOCK_SIZE)
+        memcpy(ctx->iv, seed, OAES_BLOCK_SIZE);
+    else
+        memset(ctx->iv, 0, OAES_BLOCK_SIZE);
 }
 
 size_t dap_enc_oaes_calc_encode_size(const size_t size_in)
