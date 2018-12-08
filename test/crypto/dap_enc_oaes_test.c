@@ -59,7 +59,7 @@ static void test_encode_decode_fast(int count_steps)
     generate_random_byte_array(seed, seed_size);
     generate_random_byte_array(kex, kex_size);
 
-    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, kex, kex_size, seed, seed_size, 32);
+    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, kex, kex_size, NULL, 0, 32);
 
     for(int i = 1; i <= count_steps; i++) {
         int step = 1 + (rand() % 20);
@@ -81,6 +81,8 @@ static void test_encode_decode_fast(int count_steps)
     dap_enc_key_delete(key);
     dap_pass_msg("Encode and decode fast");
 }
+
+
 
 static void init_test_case()
 {
