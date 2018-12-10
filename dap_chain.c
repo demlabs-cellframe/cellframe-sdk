@@ -24,30 +24,31 @@
 
 #include <unistd.h>
 
-#include "dap_chain_internal.h"
+#include "dap_common.h"
+#include "dap_config.h"
+#include "dap_chain_pvt.h"
 #include "dap_chain.h"
+#include <uthash.h>
 #include <pthread.h>
+
 
 #define LOG_TAG "chain"
 
+typedef struct dap_chain_item_id {
+    dap_chain_id_t id;
+    dap_chain_net_id_t net_id;
+} DAP_ALIGN_PACKED dap_chain_item_id_t;
 
-FILE* g_gold_hash_blocks_file;
-FILE* g_silver_hash_blocks_file;
-
-double total_mining_time;
-double total_mining_hashes;
-double total_hashes_in_minute;
-
-dap_chain_t g_gold_chain;
-dap_chain_t g_silver_chain;
-
-dap_chain_file_header_t g_gold_header;
-dap_chain_file_header_t g_silver_header;
-
-#define GOLD_HASH_FILE_NAME "/opt/"NODE_NETNAME"-node/data/goldhash.bin"
-#define SILVER_HASH_FILE_NAME "/opt/"NODE_NETNAME"-node/data/silverhash.bin"
+typedef struct dap_chain_item {
+    dap_chain_item_id_t item_id;
+    dap_chain_t * chain;
+   UT_hash_handle hh;
+} dap_chain_item_t;
 
 static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static dap_chain_item_t * s_chain_item = NULL;
+
+int s_prepare_env();
 
 /**
  * @brief dap_chain_init
@@ -55,7 +56,7 @@ static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
  */
 int dap_chain_init()
 {
-    int ret = dap_chain_prepare_env();
+    int ret = s_prepare_env();
 
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
@@ -67,20 +68,91 @@ int dap_chain_init()
  */
 void dap_chain_deinit()
 {
+    dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, s_chain_item, l_item, l_tmp) {
+          dap_chain_delete(s_chain_item->chain);
+          DAP_DELETE(l_item);
+        }
+}
+
+/**
+ * @brief dap_chain_load_net_cfg_name
+ * @param a_chan_net_cfg_name
+ * @return
+ */
+dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
+{
 
 }
 
+/**
+ * @brief dap_chain_create
+ * @param a_chain_id
+ * @return
+ */
+dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
+{
+    dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
+    memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
+    memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
 
-void dap_chain_mine_stop(){
-    //log_it(L_INFO, "Total hashes for gold coins %s B", ftell(g_gold_hash_blocks_file) );
-    //fclose(g_gold_hash_blocks_file);
-    //log_it(L_INFO, "Total hashes for silver coins %s B", ftell(g_silver_hash_blocks_file));
-    //fclose(g_silver_hash_blocks_file);
-    //log_it(L_INFO, "Total blocks mined %s ", blocks_mined);
-    //log_it(L_INFO, "Gold blocks mined %s ", blocks_mined_gold);
-    //log_it(L_INFO, "Silver blocks mined %s ", blocks_mined_silver);
-    //log_it(L_INFO, "Totla mining speed %s ", total_hashes_in_minute/blocks_mined);
+    dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
+    l_ret_item->chain = l_ret;
+    memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
+    memcpy(l_ret_item->item_id.net_id.raw ,a_chain_net_id.raw,sizeof(a_chain_net_id));
+    HASH_ADD(hh,s_chain_item,item_id,sizeof(dap_chain_item_id_t),l_ret_item);
+    return l_ret;
 }
+
+/**
+ * @brief dap_chain_delete
+ * @param a_chain
+ */
+void dap_chain_delete(dap_chain_t * a_chain)
+{
+    dap_chain_item_t * l_item = NULL;
+    dap_chain_item_id_t l_chain_item_id = {
+        .id = a_chain->id,
+        .net_id = a_chain->net_id
+    };
+    HASH_FIND(hh,s_chain_item,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
+
+    if( l_item){
+       HASH_DEL(s_chain_item, l_item);
+       if (a_chain->callback_delete )
+           a_chain->callback_delete(a_chain);
+       if (a_chain->_internal )
+           DAP_DELETE(a_chain->_internal);
+       if (a_chain->_inheritor )
+           DAP_DELETE(a_chain->_inheritor);
+       DAP_DELETE(l_item);
+    }else
+       log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
+              a_chain->net_id.uint64);
+}
+
+
+/**
+ * @brief dap_chain_find_by_id
+ * @param a_chain_id
+ * @return
+ */
+dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
+{
+    dap_chain_item_id_t l_chain_item_id = {
+        .id = a_chain_id,
+        .net_id = a_chain_net_id
+    };
+    dap_chain_item_t * l_ret_item = NULL;
+
+    HASH_FIND(hh,s_chain_item,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_ret_item);
+    if ( l_ret_item ){
+        return l_ret_item->chain;
+    }else
+        return NULL;
+}
+
+
 
 void dap_chain_set_default(bool a_is_gold){
 
@@ -127,7 +199,7 @@ void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache)
  * @param a_file_cache
  * @return
  */
-int dap_chain_prepare_env()
+int s_prepare_env()
 {
     g_gold_chain._inheritor = DAP_NEW_Z_SIZE (dap_chain_blocks_t,sizeof(dap_chain_blocks_t));
     dap_chain_block_t *l_new_block = dap_chain_block_new(NULL);

@@ -42,6 +42,7 @@
 // Chain ID of the whole system
 typedef union dap_chain_id{
     uint8_t raw[DAP_CHAIN_ID_SIZE];
+    uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_id_t;
 
 // Shard ID

@@ -1,8 +1,8 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <kahovski@gmail.com>
- * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://github.com/demlabsinc
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * DeM Labs Inc.   https://demlabs.net    https:/gitlab.com/demlabs
+ * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
@@ -43,21 +43,21 @@ typedef struct dap_chain_file_header
 } dap_chain_file_header_t;
 
 /**
-  * @struct dap_chain_internal
+  * @struct dap_chain_pvt
   * @brief Internal blochain data, mostly aggregated
   *
   */
-typedef struct dap_chain_internal
+typedef struct dap_chain_pvt
 {
     FILE * file_cache_idx_blocks; /// @param file_cache @brief Index for blocks
     FILE * file_cache_idx_txs; /// @param file_cache @brief Index for cache
     FILE * file_cache; /// @param file_cache @brief Cache for raw blocks
     FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
     uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
-} dap_chain_internal_t;
+} dap_chain_pvt_t;
 
-#define DAP_CHAIN_INTERNAL(a) ((dap_chain_internal_t *) a->_internal  )
+#define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *) a->_internal  )
 
-#define DAP_CHAIN_INTERNAL_LOCAL(a) dap_chain_internal_t * l_chain_internal = DAP_CHAIN_INTERNAL(a)
+#define DAP_CHAIN_PVT_LOCAL(a) dap_chain_pvt_t * l_chain_pvt = DAP_CHAIN_PVT(a)
 
-#define DAP_CHAIN_INTERNAL_LOCAL_NEW(a) dap_chain_internal_t * l_chain_internal = DAP_NEW_Z(dap_chain_internal_t); a->_internal = l_chain_internal
+#define DAP_CHAIN_PVT_LOCAL_NEW(a) dap_chain_pvt_t * l_chain_pvt = DAP_NEW_Z(dap_chain_internal_t); a->_internal = l_chain_internal
