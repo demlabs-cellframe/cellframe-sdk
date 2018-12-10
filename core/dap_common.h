@@ -66,8 +66,6 @@ void dap_set_log_tag_width(size_t width);
 
 char *dap_itoa(int i);
 
-char *strndup(const char *s, size_t n);
-
 int time_to_rfc822(char * out, size_t out_size_max, time_t t);
 
 int get_select_breaker(void);
