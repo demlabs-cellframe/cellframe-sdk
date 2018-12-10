@@ -18,17 +18,11 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _STREAM_CTL_H
-#define _STREAM_CTL_H
-
-struct dap_http;
+#pragma once
+typedef struct dap_http dap_http_t;
 
 #define KEX_KEY_STR_SIZE 128
 
-int stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
-                    size_t socket_forward_key_size);
-
-extern void stream_ctl_deinit();
-extern void stream_ctl_add_proc(struct dap_http * sh, const char * url);
-
-#endif
+int dap_stream_ctl_init();
+void dap_stream_ctl_deinit();
+void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url);

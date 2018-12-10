@@ -22,12 +22,12 @@
 #include <stdio.h>
 #include "dap_common.h"
 
-#include "stream.h"
-#include "stream_pkt.h"
+#include "dap_stream.h"
+#include "dap_stream_pkt.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
-#include "stream_session.h"
+#include "dap_stream_session.h"
 
 #include "dap_client_remote.h"
 #include "dap_http.h"
@@ -44,11 +44,11 @@ void stream_proc_pkt_in(dap_stream_t * sid);
 // Callbacks for HTTP client
 void stream_headers_read(dap_http_client_t * sh, void * arg); // Prepare stream when all headers are read
 
-void stream_headers_write(dap_http_client_t * sh, void * arg); // Output headers
-void stream_data_write(dap_http_client_t * sh, void * arg); // Write the data
+void s_headers_write(dap_http_client_t * sh, void * arg); // Output headers
+void s_data_write(dap_http_client_t * sh, void * arg); // Write the data
 void stream_data_read(dap_http_client_t * sh, void * arg); // Read the data
 
-void stream_dap_data_read(dap_client_remote_t* sh, void * arg);
+void s_data_read(dap_client_remote_t* sh, void * arg);
 void stream_dap_data_write(dap_client_remote_t* sh, void * arg);
 void stream_dap_delete(dap_client_remote_t* sh, void * arg);
 void stream_dap_new(dap_client_remote_t* sh,void * arg);
@@ -74,7 +74,7 @@ void* stream_loop(void * arg)
  * @brief stream_init Init stream module
  * @return  0 if ok others if not
  */
-int stream_init()
+int dap_stream_init()
 {
     if( dap_stream_ch_init() != 0 ){
         log_it(L_CRITICAL, "Can't init channel types submodule");
@@ -89,7 +89,7 @@ int stream_init()
 /**
  * @brief stream_media_deinit Deinint Stream module
  */
-void stream_deinit()
+void dap_stream_deinit()
 {
     dap_stream_ch_deinit();
 }
@@ -99,19 +99,19 @@ void stream_deinit()
  * @param sh HTTP server instance
  * @param url URL
  */
-void stream_add_proc_http(struct dap_http * sh, const char * url)
+void dap_stream_add_proc_http(struct dap_http * sh, const char * url)
 {
-    dap_http_add_proc(sh,url,NULL,NULL,stream_delete,stream_headers_read,stream_headers_write,stream_data_read,stream_data_write,NULL);    
+    dap_http_add_proc(sh,url,NULL,NULL,stream_delete,stream_headers_read,s_headers_write,stream_data_read,s_data_write,NULL);
 }
 
 /**
  * @brief stream_add_proc_udp Add processor callback for streaming
  * @param sh UDP server instance
  */
-void stream_add_proc_udp(dap_udp_server_t * sh)
+void dap_stream_add_proc_udp(dap_udp_server_t * sh)
 {
     dap_server_t* server = sh->dap_server;
-    server->client_read_callback = stream_dap_data_read; 
+    server->client_read_callback = s_data_read;
     server->client_write_callback = stream_dap_data_write;
     server->client_delete_callback = stream_dap_delete;
     server->client_new_callback = stream_dap_new;
@@ -234,10 +234,10 @@ void check_session(unsigned int id, dap_client_remote_t* cl){
         log_it(L_INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
         if(dap_stream_session_open(ss)==0){ // Create new stream
             dap_stream_t * sid;
-            if(STREAM(cl) == NULL)
+            if(DAP_STREAM(cl) == NULL)
                 sid = stream_new_udp(cl);
             else
-                sid = STREAM(cl);
+                sid = DAP_STREAM(cl);
             sid->session=ss;
             if(ss->create_empty)
                 log_it(L_INFO, "Session created empty");       
@@ -245,7 +245,7 @@ void check_session(unsigned int id, dap_client_remote_t* cl){
             dap_stream_ch_new(sid,SERVICE_CHANNEL_ID);
             dap_stream_ch_new(sid,DATA_CHANNEL_ID);
             stream_states_update(sid);
-            if(STREAM(cl)->conn_udp)
+            if(DAP_STREAM(cl)->conn_udp)
                 dap_udp_client_ready_to_read(cl,true);
             else
                 dap_client_remote_ready_to_read(cl,true);
@@ -294,15 +294,15 @@ dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es)
 }
 
 /**
- * @brief stream_headers_write Prepare headers for output. Creates stream structure
+ * @brief s_headers_write Prepare headers for output. Creates stream structure
  * @param sh HTTP client instance
  * @param arg Not used
  */
-void stream_headers_write(dap_http_client_t * sh, void *arg)
+void s_headers_write(dap_http_client_t * sh, void *arg)
 {
     (void) arg;
     if(sh->reply_status_code==200){
-        dap_stream_t *sid=STREAM(sh->client);
+        dap_stream_t *sid=DAP_STREAM(sh->client);
 
         dap_http_out_header_add(sh,"Content-Type","application/octet-stream");
         dap_http_out_header_add(sh,"Connnection","keep-alive");
@@ -322,7 +322,7 @@ static void keepalive_cb (EV_P_ ev_timer *w, int revents)
     struct dap_stream *sid = w->data;
     if(sid->keepalive_passed < STREAM_KEEPALIVE_PASSES)
     {
-        stream_send_keepalive(sid);
+        dap_stream_send_keepalive(sid);
         sid->keepalive_passed+=1;
     }
     else{
@@ -349,7 +349,7 @@ void start_keepalive(struct dap_stream *sid){
  * @param sh HTTP client instance
  * @param arg Not used
  */
-void stream_data_write(dap_http_client_t * sh, void * arg)
+void s_data_write(dap_http_client_t * sh, void * arg)
 {
     (void) arg;
 
@@ -361,13 +361,13 @@ void stream_data_write(dap_http_client_t * sh, void * arg)
 }
 
 /**
- * @brief stream_dap_data_read
+ * @brief s_data_read
  * @param sh
  * @param arg
  */
-void stream_dap_data_read(dap_client_remote_t* sh, void * arg)
+void s_data_read(dap_client_remote_t* sh, void * arg)
 {
-    dap_stream_t * l_stream =STREAM(sh);
+    dap_stream_t * l_stream =DAP_STREAM(sh);
     int * ret = (int *) arg;
 
      *ret = dap_stream_data_proc_read( l_stream);
@@ -391,7 +391,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         if(a_stream->pkt_buf_in_data_size < sizeof(stream_pkt_hdr_t))
         {
             //At first read header
-            dap_stream_pkt_t* check_pkt = stream_pkt_detect( proc_data , sizeof(stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size);
+            dap_stream_pkt_t* check_pkt = dap_stream_pkt_detect( proc_data , sizeof(stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size);
             if(check_pkt){
                 // Got duplication of packet header several times
                 //log_it(L_DEBUG, "Drop incorrect header part");
@@ -455,7 +455,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     }//else
      //   log_it(DEBUG,"No prefill or defrag buffer, process directly buf_in");
     // Now lets see how many packets we have in buffer now
-    while(pkt=stream_pkt_detect( proc_data , bytes_left_to_read)){
+    while(pkt=dap_stream_pkt_detect( proc_data , bytes_left_to_read)){
         if(pkt->hdr.size > STREAM_PKT_SIZE_MAX ){
             //log_it(L_ERROR, "stream_pkt_detect() Too big packet size %u",
             //       pkt->hdr.size);
@@ -465,7 +465,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         size_t pkt_offset=( ((uint8_t*)pkt)- proc_data );
         bytes_left_to_read -= pkt_offset ;
         found_sig=true;
-        dap_stream_pkt_t* temp_pkt = stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
+        dap_stream_pkt_t* temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
         if(bytes_left_to_read  <(pkt->hdr.size+sizeof(stream_pkt_hdr_t) )){ // Is all the packet in da buf?
             read_bytes_to=bytes_left_to_read;
         }else{
@@ -537,8 +537,8 @@ void stream_dap_data_write(dap_client_remote_t* sh, void * arg){
     bool ready_to_write=false;
     //  log_it(L_DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
 
-    for(i=0;i<STREAM(sh)->channel_count; i++){
-        dap_stream_ch_t * ch = STREAM(sh)->channel[i];
+    for(i=0;i<DAP_STREAM(sh)->channel_count; i++){
+        dap_stream_ch_t * ch = DAP_STREAM(sh)->channel[i];
         if(ch->ready_to_write){
             if(ch->proc->packet_out_callback)
                 ch->proc->packet_out_callback(ch,NULL);
@@ -560,7 +560,7 @@ void stream_dap_data_write(dap_client_remote_t* sh, void * arg){
  * @param arg Not used
  */
 void stream_dap_delete(dap_client_remote_t* sh, void * arg){
-    dap_stream_t * sid = STREAM(sh);
+    dap_stream_t * sid = DAP_STREAM(sh);
     if(sid == NULL)
         return;
     (void) arg;
@@ -591,9 +591,9 @@ void stream_proc_pkt_in(dap_stream_t * sid)
 {
     if(sid->pkt_buf_in->hdr.type == DATA_PACKET)
     {
-        stream_ch_pkt_t * ch_pkt = (stream_ch_pkt_t *) sid->buf_pkt_in;
+        dap_stream_ch_pkt_t * ch_pkt = (dap_stream_ch_pkt_t *) sid->buf_pkt_in;
 
-        stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, STREAM_BUF_SIZE_MAX);
+        dap_stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, STREAM_BUF_SIZE_MAX);
 
         dap_stream_ch_t * ch = NULL;
         size_t i;
@@ -609,7 +609,7 @@ void stream_proc_pkt_in(dap_stream_t * sid)
                 if(ch->proc->packet_in_callback)
                     ch->proc->packet_in_callback(ch,ch_pkt);
             if(ch->proc->id == SERVICE_CHANNEL_ID && ch_pkt->hdr.type == KEEPALIVE_PACKET)
-                stream_send_keepalive(sid);
+                dap_stream_send_keepalive(sid);
         }else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
         }
@@ -636,7 +636,7 @@ void stream_proc_pkt_in(dap_stream_t * sid)
  */
 void stream_data_read(dap_http_client_t * sh, void * arg)
 {
-    stream_dap_data_read(sh->client,arg);
+    s_data_read(sh->client,arg);
 }
 
 

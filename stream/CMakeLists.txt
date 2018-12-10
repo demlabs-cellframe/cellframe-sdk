@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 2.8)
 project (dap_stream)
   
 set(STREAM_SRCS
-    stream.c
-    stream_ctl.c
-    stream_pkt.c )
+    dap_stream.c
+    dap_stream_ctl.c
+    dap_stream_pkt.c )
 
 add_library(${PROJECT_NAME} STATIC ${STREAM_SRCS})
 

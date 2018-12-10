@@ -30,8 +30,8 @@
 #include "dap_enc.h"
 #include "dap_enc_key.h"
 
-#include "stream.h"
-#include "stream_pkt.h"
+#include "dap_stream.h"
+#include "dap_stream_pkt.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
@@ -46,7 +46,7 @@ const size_t dap_hdr_size=8+2+1+1+4;
 const uint8_t dap_sig[8]={0xa0,0x95,0x96,0xa9,0x9e,0x5c,0xfb,0xfa};
 
 
-dap_stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size)
+dap_stream_pkt_t * dap_stream_pkt_detect(void * data, uint32_t data_size)
 {
     void * sig_start=data;
     dap_stream_pkt_t * ret=NULL;
@@ -81,7 +81,7 @@ size_t encode_dummy(const void * buf, const size_t buf_size, void * buf_out){
  * @param pkt
  * @param buf_out
  */
-size_t stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size)
+size_t dap_stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size)
 {
     size_t ds = dap_enc_iaes256_cbc_decrypt_fast(sid->session->key,pkt->data,pkt->hdr.size,buf_out, buf_out_size);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
@@ -104,7 +104,7 @@ size_t stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void
  * @return
  */
 
-size_t stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size)
+size_t dap_stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size)
 {
     size_t ret=0;
     stream_pkt_hdr_t pkt_hdr;
@@ -131,7 +131,7 @@ size_t stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t dat
 }
 
 
-extern void stream_send_keepalive(struct dap_stream * sid)
+extern void dap_stream_send_keepalive(struct dap_stream * sid)
 {
     for(int i=0;i<sid->channel_count;i++)
     if(sid->channel[i]->proc){

@@ -18,9 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _STREAM_PKT_H_
-#define _STREAM_PKT_H_
-//#include <gst/gst.h>
+#pragma once
 #include <stdint.h>
 #include <stddef.h>
 
@@ -54,12 +52,12 @@ typedef struct stream_srv_pkt{
 
 extern const uint8_t dap_sig[8];
 
-extern dap_stream_pkt_t * stream_pkt_detect(void * data, uint32_t data_size);
+dap_stream_pkt_t * dap_stream_pkt_detect(void * data, uint32_t data_size);
 
-extern size_t stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size);
+size_t dap_stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size);
 
-extern size_t stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size);
+size_t dap_stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size);
 
-extern void stream_send_keepalive(struct dap_stream * sid);
+void dap_stream_send_keepalive(struct dap_stream * sid);
 
-#endif
+

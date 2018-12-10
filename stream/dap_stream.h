@@ -17,10 +17,8 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef _STREAM_H
-#define _STREAM_H
-//#include <gst/gst.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -29,7 +27,7 @@
 #include <stdbool.h>
 #include <ev.h>
 
-#include "stream_session.h"
+#include "dap_stream_session.h"
 #include "dap_stream_ch.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
@@ -49,7 +47,7 @@ typedef struct dap_stream_pkt dap_stream_pkt_t;
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 #define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
-typedef void (*stream_callback)(struct dap_stream*,void*);
+typedef void (*dap_stream_callback)( dap_stream_t *,void*);
 
 typedef struct dap_stream {
 
@@ -89,15 +87,15 @@ typedef struct dap_stream {
 
 } dap_stream_t;
 
-#define STREAM(a) ((dap_stream_t *) (a)->_internal )
+#define DAP_STREAM(a) ((dap_stream_t *) (a)->_internal )
 
-int stream_init();
+int dap_stream_init();
 
-void stream_deinit();
+void dap_stream_deinit();
 
-void stream_add_proc_http(struct dap_http * sh, const char * url);
+void dap_stream_add_proc_http(dap_http_t * sh, const char * url);
 
-void stream_add_proc_udp(dap_udp_server_t * sh);
+void dap_stream_add_proc_udp(dap_udp_server_t * sh);
 
 dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es);
 size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
@@ -108,4 +106,3 @@ void dap_stream_proc_pkt_in(dap_stream_t * sid);
 void dap_stream_es_rw_states_update(struct dap_stream *a_stream);
 
 
-#endif
