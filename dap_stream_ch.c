@@ -23,7 +23,7 @@
 #include "dap_client_remote.h"
 #include "dap_http_client.h"
 
-#include "stream.h"
+#include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"

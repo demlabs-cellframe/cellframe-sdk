@@ -26,11 +26,11 @@
 #include "dap_enc_key.h"
 
 #include "dap_client_remote.h"
-#include "stream.h"
+#include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
-#include "stream_pkt.h"
+#include "dap_stream_pkt.h"
 
 #define LOG_TAG "dap_stream_ch_pkt"
 
@@ -63,7 +63,7 @@ size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch, uint8_t type, uint6
 
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 
-    stream_ch_pkt_hdr_t hdr;
+    dap_stream_ch_pkt_hdr_t hdr;
 
     memset(&hdr,0,sizeof(hdr));
     hdr.id = ch->proc->id;
@@ -79,7 +79,7 @@ size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch, uint8_t type, uint6
     memcpy(ch->buf,&hdr,sizeof(hdr) );
     memcpy(ch->buf+sizeof(hdr),data,data_size );
 
-    size_t ret=stream_pkt_write(ch->stream,ch->buf,data_size+sizeof(hdr));
+    size_t ret=dap_stream_pkt_write(ch->stream,ch->buf,data_size+sizeof(hdr));
     ch->stat.bytes_write+=data_size;
     pthread_mutex_unlock( &ch->mutex);
     return ret;
@@ -123,7 +123,7 @@ size_t stream_ch_pkt_write_f(struct dap_stream_ch * ch, uint8_t type, const char
 size_t stream_ch_send_keepalive(struct dap_stream_ch * ch){
     pthread_mutex_lock( &ch->mutex);
 
-    stream_ch_pkt_hdr_t hdr;
+    dap_stream_ch_pkt_hdr_t hdr;
 
     memset(&hdr,0,sizeof(hdr));
     hdr.id = ch->proc->id;
@@ -134,7 +134,7 @@ size_t stream_ch_send_keepalive(struct dap_stream_ch * ch){
 
     memcpy(ch->buf,&hdr,sizeof(hdr) );
 
-    size_t ret=stream_pkt_write(ch->stream,ch->buf,sizeof(hdr));
+    size_t ret=dap_stream_pkt_write(ch->stream,ch->buf,sizeof(hdr));
     pthread_mutex_unlock( &ch->mutex);
     return ret;
 }
