@@ -45,16 +45,27 @@ const char* connection_type_str[] =
 		[STREAM_SESSION_UDP] = "udp"
 };
 
+static struct {
+    size_t size;
+    dap_enc_key_type_t type;
+} _socket_forward_key;
+
+
 #define DAPMP_VERSION 13
 bool stream_check_proto_version(unsigned int ver);
 void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
 
 /**
- * @brief stream_ctl_init Initialize stream control module
- * @return Zero if ok others if not
+ * @brief stream_ctl_init
+ * @param socket_forward_key_type
+ * @param socket_forward_key_size - Can be null for some alghoritms
+ * @return
  */
-int stream_ctl_init()
+int stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
+                    size_t socket_forward_key_size)
 {
+    _socket_forward_key.type = socket_forward_key_type;
+    _socket_forward_key.size = socket_forward_key_size;
     log_it(L_NOTICE,"Initialized stream control module");
     return 0;
 }
@@ -116,7 +127,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 
             char *key_str = calloc(1, KEX_KEY_STR_SIZE);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, key_str, strlen(key_str), NULL, 0, 0);
+            ss->key = dap_enc_key_new_generate(_socket_forward_key.type, key_str, strlen(key_str), NULL, 0, _socket_forward_key.size);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
             *return_code = Http_Status_OK;
 

@@ -45,7 +45,7 @@ struct dap_http_client;
 struct dap_http;
 struct stream;
 struct stream_pkt;
-#define STREAM_BUF_SIZE_MAX 20480
+#define STREAM_BUF_SIZE_MAX 500000
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 #define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
