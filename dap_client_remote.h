@@ -36,7 +36,7 @@ struct dap_client_remote;
 
 typedef void (*dap_server_client_callback_t) (struct dap_client_remote *,void * arg); // Callback for specific client operations
 
-#define DAP_CLIENT_REMOTE_BUF 10000
+#define DAP_CLIENT_REMOTE_BUF 500000
 #define CLIENT_ID_SIZE 12
 typedef char dap_server_client_id[CLIENT_ID_SIZE];
 
