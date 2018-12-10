@@ -84,6 +84,9 @@ size_t encode_dummy(const void * buf, const size_t buf_size, void * buf_out){
 size_t stream_pkt_read(struct stream * sid,struct stream_pkt * pkt, void * buf_out, size_t buf_out_size)
 {
     size_t ds = sid->session->key->dec_na(sid->session->key,pkt->data,pkt->hdr.size,buf_out, buf_out_size);
+    if(ds == 0) {
+        log_it(L_WARNING, "Error decode. Packet loose");
+    }
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
 //           *((uint8_t *)buf_out+ds-4),*((uint8_t *)buf_out+ds-3),*((uint8_t *)buf_out+ds-2),*((uint8_t *)buf_out+ds-1)
 //           );
