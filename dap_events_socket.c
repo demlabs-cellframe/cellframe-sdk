@@ -31,11 +31,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
-#include "common.h"
+#include "dap_common.h"
 #include "dap_events.h"
-#ifdef dap_SERVER
-#include "dap_server.h"
-#endif
+
 #include "dap_events_socket.h"
 
 #define LOG_TAG "dap_events_socket"
@@ -67,13 +65,13 @@ void dap_events_socket_deinit()
  * @param a_callbacks
  * @return
  */
-dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
+dap_events_socket_t * dap_events_socket_wrap_no_add( dap_events_t * a_events,
                                             int a_sock, dap_events_socket_callbacks_t * a_callbacks)
 {
     assert(a_events);
     assert(a_callbacks);
-    log_it(L_DEBUG,"Sap event socket wrapped around %d sock", a_sock);
-    dap_events_socket_t * ret = dap_NEW_Z(dap_events_socket_t);
+    log_it(L_DEBUG,"Dap event socket wrapped around %d sock", a_sock);
+    dap_events_socket_t * ret = DAP_NEW_Z(dap_events_socket_t);
     ret->socket = a_sock;
     ret->events = a_events;
     ret->callbacks = a_callbacks;
@@ -113,13 +111,11 @@ dap_events_socket_t * dap_events_socket_wrap2(dap_server_t * a_server, struct da
     assert(a_callbacks);
     assert(a_server);
     log_it(L_DEBUG,"Sap event socket wrapped around %d sock", a_sock);
-    dap_events_socket_t * ret = dap_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t * ret = DAP_NEW_Z(dap_events_socket_t);
     ret->socket = a_sock;
     ret->events = a_events;
     ret->callbacks = a_callbacks;
-#ifdef dap_SERVER
-    ret->server = a_server;
-#endif
+
     ret->_ready_to_read=true;
     ret->is_pingable = true;
 

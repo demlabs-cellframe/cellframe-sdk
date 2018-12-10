@@ -105,7 +105,7 @@ void dap_client_reset(dap_client_t * a_client)
         dap_enc_key_delete(l_client_internal->stream_key );
         l_client_internal->stream_key = NULL;
     }
-    l_client_internal->es_stream = NULL;
+    l_client_internal->stream_es = NULL;
 
     l_client_internal->stage = STAGE_BEGIN;
     l_client_internal->stage_status = STAGE_STATUS_DONE ;
@@ -304,7 +304,8 @@ const char * dap_client_stage_str(dap_client_stage_t a_stage)
         case STAGE_BEGIN: return "BEGIN";
         case STAGE_ENC_INIT: return "ENC";
         case STAGE_STREAM_CTL: return "STREAM_CTL";
-        case STAGE_STREAM: return "STREAM";
+        case STAGE_STREAM_SESSION: return "STREAM_SESSION";
+        case STAGE_STREAM_STREAMING: return "STREAM";
         default: return "UNDEFINED";
     }
 }

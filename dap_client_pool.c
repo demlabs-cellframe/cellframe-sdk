@@ -24,7 +24,7 @@ struct dap_client_list{
 void s_stage_status_callback(dap_client_t * a_client, void* a_arg);
 void s_stage_status_error_callback(dap_client_t * a_client, void* a_arg);
 
-dap_events_t * s_events = NULL:
+dap_events_t * s_events = NULL;
 /**
  * @brief dap_client_pool_init
  * @param a_events

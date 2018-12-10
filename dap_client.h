@@ -33,7 +33,9 @@ typedef enum dap_client_stage {
     STAGE_BEGIN=0,
     STAGE_ENC_INIT=1,
     STAGE_STREAM_CTL=2,
-    STAGE_STREAM=3,
+    STAGE_STREAM_SESSION=3,
+    STAGE_STREAM_CONNECTED=4,
+    STAGE_STREAM_STREAMING=5
 } dap_client_stage_t;
 
 typedef enum dap_client_stage_status {
@@ -114,6 +116,8 @@ const char * dap_client_get_stream_id(dap_client_t * a_client);
 
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);
+
+#define DAP_CLIENT(a) ((dap_client_t *) (a)->_inheritor )
 
 #ifdef __cplusplus
 }

@@ -41,7 +41,7 @@ typedef struct dap_events_socket_callbacks{
 } dap_events_socket_callbacks_t;
 
 
-#define dap_EVENTS_SOCKET_BUF 10000000
+#define DAP_EVENTS_SOCKET_BUF 100000
 
 typedef struct dap_events_socket{
     int socket;
@@ -52,12 +52,12 @@ typedef struct dap_events_socket{
 
     uint32_t buf_out_zero_count;
     union{
-        uint8_t buf_in[dap_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
-        char buf_in_str[dap_EVENTS_SOCKET_BUF+1];
+        uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
+        char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
     };
     size_t buf_in_size; // size of data that is in the input buffer
 
-    uint8_t buf_out[dap_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+    uint8_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
 
     char hostaddr[1024]; // Address
     char service[128];
@@ -65,9 +65,7 @@ typedef struct dap_events_socket{
     size_t buf_out_size; // size of data that is in the output buffer
 
     struct dap_events * events;
-#ifdef dap_SERVER
-    struct dap_server * server;
-#endif
+
     struct dap_worker* dap_worker;
     dap_events_socket_callbacks_t *callbacks;
 
@@ -89,10 +87,7 @@ void dap_events_socket_create_after(dap_events_socket_t * a_es);
 
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
-#ifdef dap_SERVER
-dap_events_socket_t * dap_events_socket_wrap2(dap_server_t *a_server,struct dap_events * a_events,
-                                            int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
-#endif
+
 
 dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * sh); // Find client by socket
 

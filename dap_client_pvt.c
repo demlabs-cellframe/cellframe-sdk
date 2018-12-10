@@ -21,6 +21,8 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <sys/types.h>          /* See NOTES */
+#include <sys/socket.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -31,9 +33,13 @@
 #include "dap_enc.h"
 #include "dap_common.h"
 
-#include "dap_http_client.h"
+#include "dap_http_client_simple.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
+#include "dap_stream.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_stream_ch_pkt.h"
 
 #define LOG_TAG "dap_client_pvt"
 
@@ -51,10 +57,19 @@ void m_enc_init_error(dap_client_t *, int);
 // STREAM_CTL stage callbacks
 void m_stream_ctl_response(dap_client_t *, void *, size_t);
 void m_stream_ctl_error(dap_client_t *, int);
+void m_stage_stream_streaming (dap_client_t * a_client, void* arg);
+
 
 
 void m_request_response(void * a_response,size_t a_response_size,void * a_obj);
 void m_request_error(int,void *);
+
+// stream callbacks
+
+void m_es_stream_delete(dap_events_socket_t * a_es, void * arg);
+void m_es_stream_read(dap_events_socket_t * a_es, void * arg);
+void m_es_stream_write(dap_events_socket_t * a_es, void * arg);
+void m_es_stream_error(dap_events_socket_t * a_es, void * arg);
 
 /**
  * @brief dap_client_internal_init
@@ -145,11 +160,16 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                                     m_stream_ctl_response, m_stream_ctl_error);
                     DAP_DELETE(l_request);
                 }break;
-                case STAGE_STREAM:{
+                case STAGE_STREAM_SESSION:{
+                    log_it(L_INFO,"Go to stage STREAM_SESSION: process the state ops");
+                    a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                    s_stage_status_after(a_client_pvt);
+                } break;
+                case STAGE_STREAM_STREAMING:{
                     log_it(L_INFO,"Go to stage STREAM: prepare the socket");
                     a_client_pvt->stream_socket = socket(PF_INET,SOCK_STREAM,0);
-                    setsockopt(a_client_pvt->stream_socket,SOL_SOCKET,SO_SNDBUF,(const void*) 50 000,sizeof(int) );
-                    setsockopt(a_client_pvt->stream_socket,SOL_SOCKET,SO_RCVBUF,(const void *) 50 000,sizeof(int) );
+                    setsockopt(a_client_pvt->stream_socket,SOL_SOCKET,SO_SNDBUF,(const void*) 50000,sizeof(int) );
+                    setsockopt(a_client_pvt->stream_socket,SOL_SOCKET,SO_RCVBUF,(const void *) 50000,sizeof(int) );
                     // Wrap socket and setup callbacks
                     static dap_events_socket_callbacks_t l_s_callbacks={
                         .read_callback = m_es_stream_read ,
@@ -160,7 +180,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
                                               a_client_pvt->stream_socket, &l_s_callbacks);
 
-                    a_client_pvt->stream_es->_inheritor = a_client;
+                    a_client_pvt->stream_es->_inheritor = a_client_pvt->client;
                     a_client_pvt->stream = dap_stream_new_es(a_client_pvt->stream_es);
                     a_client_pvt->stream->is_client_to_uplink = true;
                     a_client_pvt->stream_session = dap_stream_session_pure_new();
@@ -595,4 +615,117 @@ void m_stream_ctl_error(dap_client_t * a_client, int a_error)
 
    s_stage_status_after(l_client_pvt);
 
+}
+
+/**
+ * @brief m_stage_stream_opened
+ * @param a_client
+ * @param arg
+ */
+void m_stage_stream_streaming(dap_client_t * a_client, void* arg)
+{
+     log_it(L_INFO, "Stream  is opened");
+}
+
+/**
+ * @brief m_es_stream_delete
+ * @param a_es
+ * @param arg
+ */
+void m_es_stream_delete(dap_events_socket_t * a_es, void * arg)
+{
+    log_it(L_INFO, "====================================================== stream delete/peer reconnect");
+    dap_client_t* l_client = DAP_CLIENT(a_es);
+    if(l_client == NULL ){
+        log_it(L_ERROR, "dap_client is not initialized");
+        return;
+    }
+
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
+    if(l_client_pvt == NULL ){
+        log_it(L_ERROR, "dap_client_pvt is not initialized");
+        return;
+    }
+
+    dap_stream_delete(l_client_pvt->stream);
+    l_client_pvt->stream = NULL;
+    if(l_client_pvt->client)
+        dap_client_reset(l_client_pvt->client);
+
+//    l_client_pvt->client= NULL;
+    l_client_pvt->stream_es = NULL;
+    dap_stream_session_close(l_client_pvt->stream_session->id);
+    l_client_pvt->stream_session = NULL;
+    dap_client_go_stage(l_client_pvt->client ,STAGE_STREAM_STREAMING ,m_stage_stream_streaming );
+}
+
+/**
+ * @brief m_es_stream_read
+ * @param a_es
+ * @param arg
+ */\
+void m_es_stream_read(dap_events_socket_t * a_es, void * arg)
+{
+    dap_client_t * l_client = DAP_CLIENT(a_es);
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
+    switch( l_client_pvt->stage ){
+        case STAGE_STREAM_SESSION:
+            dap_client_go_stage(l_client_pvt->client ,STAGE_STREAM_STREAMING ,m_stage_stream_streaming );
+        break;
+        case STAGE_STREAM_CONNECTED:{ // Collect HTTP headers before streaming
+            if(a_es->buf_in_size>1){
+                char * l_pos_endl;
+                l_pos_endl = (char*) memchr( a_es->buf_in,'\r',a_es->buf_in_size-1);
+                if ( l_pos_endl ){
+                    if (  *(l_pos_endl+1) == '\n'  ) {
+                        dap_events_socket_shrink_buf_in(a_es,l_pos_endl - a_es->buf_in_str );
+                        log_it(L_DEBUG,"Header passed, go to streaming (%lu bytes already are in input buffer", a_es->buf_in_size);
+                        l_client_pvt->stage =STAGE_STREAM_STREAMING;
+                        l_client_pvt->stage_status = STAGE_STATUS_DONE;
+                        s_stage_status_after(l_client_pvt);
+
+                        dap_stream_data_proc_read(l_client_pvt->stream);
+                        dap_events_socket_shrink_buf_in(a_es,a_es->buf_in_size );
+                     }
+                 }
+             }
+        }break;
+        case STAGE_STREAM_STREAMING:{ // if streaming - process data with stream processor
+            dap_stream_data_proc_read(l_client_pvt->stream);
+            dap_events_socket_shrink_buf_in(a_es,a_es->buf_in_size );
+        }
+        break;
+
+    }
+}
+
+/**
+ * @brief m_es_stream_write
+ * @param a_es
+ * @param arg
+ */
+void m_es_stream_write(dap_events_socket_t * a_es, void * arg)
+{
+    dap_client_t * l_client = DAP_CLIENT(a_es);
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
+
+    switch( l_client_pvt->stage ){
+        case STAGE_STREAM_STREAMING:{
+            size_t i;
+            bool ready_to_write=false;
+          //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
+
+            for(i=0;i< l_client_pvt->stream->channel_count; i++){
+                dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
+                if(ch->ready_to_write){
+                    ch->proc->packet_out_callback(ch,NULL);
+                    ready_to_write|=ch->ready_to_write;
+                }
+            }
+            //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
+
+            dap_events_socket_set_writable(l_client_pvt->stream_es,ready_to_write);
+            //log_it(ERROR,"No stream_data_write_callback is defined");
+        }break;
+    }
 }

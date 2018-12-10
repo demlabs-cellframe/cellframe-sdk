@@ -26,7 +26,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "dap_client.h"
-#include "stream.h"
+#include "dap_stream.h"
 #include "dap_events_socket.h"
 typedef struct dap_enc_key dap_enc_key_t;
 typedef struct dap_http_client dap_http_client_t;
@@ -37,14 +37,17 @@ typedef struct dap_client_internal
 
     dap_http_client_t * http_client;
 
-    dap_events_socket_t * es_stream;
+    dap_events_socket_t * stream_es;
     int stream_socket;
+    dap_stream_session_t * stream_session;
+    dap_stream_t* stream;
     dap_events_t * events;
 
     dap_enc_key_t * session_key_open; // Open assymetric keys exchange
     dap_enc_key_t * session_key; // Symmetric private key for session encryption
     dap_enc_key_t * stream_key; // Stream private key for stream encryption
     char stream_id[25];
+
 
     char  * session_key_id;
 
