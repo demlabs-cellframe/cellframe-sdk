@@ -28,6 +28,9 @@
 #include "dap_chain_block_cache.h"
 
 struct dap_chain;
+typedef struct dap_chain dap_chain_t;
+
+typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
 typedef void (*dap_chain_callback_t)(struct dap_chain *);
 typedef void (*dap_chain_callback_ptr_t)(struct dap_chain *, void * );
@@ -36,12 +39,7 @@ typedef size_t (*dap_chain_callback_dataop_t)(struct dap_chain *, const void * ,
 typedef size_t (*dap_chain_callback_get_size_t)(struct dap_chain *);
 typedef size_t (*dap_chain_callback_set_data_t)(struct dap_chain *,void * a_data);
 
-typedef struct dap_chain_blocks{
-    dap_chain_block_cache_t * block_cache_first; // Mapped area start
-    dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
-    uint64_t blocks_count;
-    uint64_t difficulty;
-} dap_chain_blocks_t;
+
 
 typedef struct dap_chain{
     dap_chain_id_t id;
@@ -50,7 +48,7 @@ typedef struct dap_chain{
     dap_chain_callback_get_size_t callback_get_internal_hdr_size;
     dap_chain_callback_set_data_t callback_set_internal_hdr;
     void * _internal;
-    dap_chain_blocks_t * _inheritor;
+    void * _inheritor;
 } dap_chain_t;
 
 #define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
@@ -58,26 +56,15 @@ typedef struct dap_chain{
 int dap_chain_init();
 void dap_chain_deinit();
 
+dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
+
 //dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
-dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name);
+dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_id, const char * a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
 
-void dap_chain_remap(dap_chain_t * a_chain, size_t a_offset);
-void dap_chain_save(dap_chain_t * a_chain);
 
-
-void dap_chain_block_write   (dap_chain_block_cache_t *l_block_cache);
-void dap_chain_update       (dap_chain_block_cache_t *l_block_cache);
-void dap_chain_set_default(bool a_is_gold);
-void dap_chain_count_new_block(dap_chain_block_cache_t *l_block_cache);
-void dap_chain_show_hash_blocks_file(FILE *a_hash_blocks_file);
-
-int dap_chain_get_mined_block_count(bool a_is_gold);
-dap_chain_block_t *dap_chain_get_last_mined_block(bool a_is_gold);
-
-dap_chain_block_cache_t* dap_chain_allocate_next_block(dap_chain_t * a_chain);
 
