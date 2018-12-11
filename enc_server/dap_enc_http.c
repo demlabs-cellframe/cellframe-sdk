@@ -70,7 +70,6 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         }
 
         dap_enc_key_t* msrln_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
-
         msrln_key->gen_bob_shared_key(msrln_key, alice_msg, MSRLN_PKA_BYTES, (void**)&msrln_key->pub_key_data);
 
         dap_enc_ks_key_t * key_ks = dap_enc_ks_new();
