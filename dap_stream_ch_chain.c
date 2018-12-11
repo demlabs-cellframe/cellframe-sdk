@@ -26,10 +26,24 @@
 
 #include "dap_config.h"
 
+#include "dap_chain.h"
+#include "dap_stream.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain.h"
 
-#define LOG_TAG "stream_ch_chain"
+#define LOG_TAG "dap_stream_ch_chain"
 
+typedef struct dap_stream_ch_chain {
+    pthread_mutex_t mutex;
+} dap_stream_ch_chain_t;
+
+#define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
+
+void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
+void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
+void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
+void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 /**
  * @brief dap_stream_ch_chain_init
  * @return
@@ -37,6 +51,8 @@
 int dap_stream_ch_chain_init()
 {
     log_it(L_NOTICE,"Chain blocks and datums exchange channel initialized");
+    dap_stream_ch_proc_add('C',s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+
     return 0;
 }
 
@@ -44,6 +60,49 @@ int dap_stream_ch_chain_init()
  * @brief dap_stream_ch_chain_deinit
  */
 void dap_stream_ch_chain_deinit()
+{
+
+}
+
+/**
+ * @brief s_stream_ch_new
+ * @param a_ch
+ * @param arg
+ */
+void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
+{
+    a_ch->internal=DAP_NEW_Z(dap_stream_ch_chain_t);
+    dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    pthread_mutex_init( &l_ch_chain->mutex,NULL);
+}
+
+
+/**
+ * @brief s_stream_ch_delete
+ * @param ch
+ * @param arg
+ */
+void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg)
+{
+
+}
+
+/**
+ * @brief s_stream_ch_packet_in
+ * @param ch
+ * @param arg
+ */
+void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg)
+{
+
+}
+
+/**
+ * @brief s_stream_ch_packet_out
+ * @param ch
+ * @param arg
+ */
+void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg)
 {
 
 }
