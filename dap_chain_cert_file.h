@@ -22,31 +22,24 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
 #include <stdint.h>
 #include "dap_common.h"
-#include "dap_enc_key.h"
-typedef union dap_chain_pkey_type{
-    enum {
-        PKEY_TYPE_NEWHOPE = 0x0000,
-        PKEY_TYPE_SIGN_BLISS = 0x0901,
-        PKEY_TYPE_SIGN_PICNIC = 0x0902,
-        PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
+#include "dap_chain_cert.h"
 
-    } type: 16;
-    uint16_t raw;
-} dap_chain_pkey_type_t;
+// Magic .dapcert signature
+#define DAP_CHAIN_CERT_FILE_HDR_SIGN 0x0F300C4711E29380
 
-/**
-  * @struct dap_chain_pkey
-  * @brief Public keys
-  */
-typedef struct dap_chain_pkey{
-    struct {
-        dap_chain_pkey_type_t type; /// Pkey type
-        uint32_t size; /// Pkey size
-    } header; /// Only header's hash is used for verification
-    uint8_t pkey[]; /// @param pkey @brief raw pkey dat
-} DAP_ALIGN_PACKED dap_chain_pkey_t;
+// Default certificate with private key and optionaly some signs
+#define DAP_CHAIN_CERT_TYPE_PRIVATE 0x00
+// Default certificate with public key and optionaly some signs
+#define DAP_CHAIN_CERT_TYPE_PUBLIC 0xf0
 
-dap_chain_pkey_t *dap_chain_pkey_from_enc_key(dap_enc_key_t *a_key);
+typedef struct dap_chain_cert_file_hdr
+{
+    uint64_t sign;
+    uint8_t type;
+    uint64_t section_number;
+} dap_chain_sert_file_hdr_t;
+
+int dap_chain_cert_file_save(dap_chain_cert_t * a_cert, const char * a_cert_file_path);
+dap_chain_cert_t* dap_chain_cert_file_load(const char * a_cert_file_path);

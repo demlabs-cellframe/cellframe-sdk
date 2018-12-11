@@ -8,6 +8,8 @@ set(DAP_CHAIN_CRYPTO_SRCS
         dap_hash_slow.c
         dap_chain_pkey.c
         dap_chain_sign.c
+        dap_chain_cert.c
+        dap_chain_cert_file.c
         )
 
 set(DAP_CHAIN_CRYPTO_HEADERS
@@ -17,6 +19,8 @@ set(DAP_CHAIN_CRYPTO_HEADERS
         dap_hash_slow.h
         dap_chain_pkey.h
         dap_chain_sign.h
+        dap_chain_cert.h
+        dap_chain_cert_file.h
 
     )
 

@@ -22,31 +22,20 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
-#include <stdint.h>
-#include "dap_common.h"
+#include "dap_chain_sign.h"
+#include "dap_chain_pkey.h"
+#include "dap_enc.h"
 #include "dap_enc_key.h"
-typedef union dap_chain_pkey_type{
-    enum {
-        PKEY_TYPE_NEWHOPE = 0x0000,
-        PKEY_TYPE_SIGN_BLISS = 0x0901,
-        PKEY_TYPE_SIGN_PICNIC = 0x0902,
-        PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
 
-    } type: 16;
-    uint16_t raw;
-} dap_chain_pkey_type_t;
 
-/**
-  * @struct dap_chain_pkey
-  * @brief Public keys
-  */
-typedef struct dap_chain_pkey{
-    struct {
-        dap_chain_pkey_type_t type; /// Pkey type
-        uint32_t size; /// Pkey size
-    } header; /// Only header's hash is used for verification
-    uint8_t pkey[]; /// @param pkey @brief raw pkey dat
-} DAP_ALIGN_PACKED dap_chain_pkey_t;
+typedef struct dap_chain_cert {
+    dap_enc_key_t * key_private;
+    void * _pvt;
+} dap_chain_cert_t;
 
-dap_chain_pkey_t *dap_chain_pkey_from_enc_key(dap_enc_key_t *a_key);
+int dap_chain_cert_init();
+dap_chain_cert_t * dap_chain_cert_generate(const char * a_cert_name,const char * a_file_path,dap_enc_key_type_t a_key_type );
+
+dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_file_path);
+void dap_chain_cert_add_folder(const char* a_cert_name_prefix,const char *a_folder_path);
+void dap_chain_cert_deinit();

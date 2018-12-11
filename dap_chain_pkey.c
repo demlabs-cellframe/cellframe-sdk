@@ -21,21 +21,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <string.h>
 #include "dap_common.h"
 #include "dap_chain_pkey.h"
 
 #define LOG_TAG "chain_key"
 
-/**
- * @brief dap_chain_pkey_new_generate
- * @param a_type
- * @param a_size
- * @return
- */
-dap_chain_pkey_t* dap_chain_pkey_new_generate(dap_chain_pkey_type_t a_type, uint32_t a_size)
-{
-    log_it(L_WARNING,"NOT DEFINED:dap_chain_pkey_new_generate");
-}
 
 /**
  * @brief dap_chain_pkey_enc_get_buf_out_size
@@ -60,4 +51,33 @@ int dap_chain_pkey_enc(dap_chain_pkey_t * a_pkey,const void * a_buf_in, uint32_t
 {
     log_it(L_WARNING,"NOT DEFINED: dap_chain_pkey_enc");
     return -1;
+}
+
+/**
+ * @brief dap_chain_pkey_from_enc_key
+ * @param a_key
+ * @return
+ */
+dap_chain_pkey_t* dap_chain_pkey_from_enc_key(dap_enc_key_t *a_key)
+{
+    dap_chain_pkey_t * l_ret = NULL;
+    if (a_key->pub_key_data_size > 0 ){
+        l_ret = DAP_NEW_Z_SIZE(dap_chain_pkey_t,sizeof(l_ret->header)+ a_key->pub_key_data_size);
+        switch (a_key->type) {
+            case DAP_ENC_KEY_TYPE_SIG_BLISS:
+                l_ret->header.type.type = PKEY_TYPE_SIGN_BLISS ;
+            break;
+            case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+                l_ret->header.type.type = PKEY_TYPE_SIGN_PICNIC ;
+            break;
+            default:
+                log_it(L_WARNING,"No serialization preset");
+                DAP_DELETE(l_ret);
+                return NULL;
+        }
+        l_ret->header.size = a_key->pub_key_data_size;
+        memcpy(l_ret->pkey,a_key->pub_key_data,a_key->pub_key_data_size);
+    }else
+        log_it(L_WARNING, "No public key in the input enc_key object");
+    return l_ret;
 }
