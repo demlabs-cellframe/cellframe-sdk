@@ -51,7 +51,7 @@ typedef struct dap_udp_server{
 } dap_udp_server_t;
 
 #define DAP_UDP_SERVER(a) ((dap_udp_server_t *) (a)->_inheritor)
-OD
+
 extern void dap_udp_server_delete(dap_server_t * sh); 
 
 extern void dap_udp_server_loop(dap_server_t* udp_server);      // Start server event loop
