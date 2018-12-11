@@ -13,3 +13,7 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(crypto)
+
+if(UNIX AND NOT APPLE)
+        set(LINUX TRUE)
+endif()

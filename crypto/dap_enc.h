@@ -36,11 +36,15 @@ void dap_enc_deinit(void);
 size_t dap_enc_code_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size, dap_enc_data_type_t type);
 size_t dap_enc_decode_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size, dap_enc_data_type_t type);
 
-size_t dap_enc_code(struct dap_enc_key * a_key, const void * a_buf_in, const size_t a_buf_in_size, void * a_buf_out, const size_t a_buf_out_size_max,
-                    dap_enc_data_type_t a_data_type_out);
+size_t dap_enc_code(struct dap_enc_key * a_key, // Key
+                    const void * a_buf_in, const size_t a_buf_in_size, // Input
+                    void * a_buf_out, const size_t a_buf_out_size_max, // Output
+                    dap_enc_data_type_t a_data_type_out); // Output data type
 
-size_t dap_enc_decode(struct dap_enc_key * a_key, const void * a_buf_in, const size_t a_buf_in_size, void * a_buf_out, const size_t a_buf_out_size_max,
-                     dap_enc_data_type_t a_data_type_in);
+size_t dap_enc_decode(struct dap_enc_key * a_key, // Key
+                      const void * a_buf_in, const size_t a_buf_in_size, // Input
+                      void * a_buf_out, const size_t a_buf_out_size_max, // Output
+                     dap_enc_data_type_t a_data_type_in); // Output data type
 
 #ifdef __cplusplus
 }
