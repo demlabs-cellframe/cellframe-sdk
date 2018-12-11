@@ -3,12 +3,18 @@ project (dap_client)
 
 set(DAP_CLIENT_SRCS
         dap_client.c
+        dap_client_pvt.c
         dap_client_pool.c
+        dap_events.c
+        dap_events_socket.c
         )
 
 set(DAP_CLIENT_HEADERS
     dap_client.h
+    dap_client_pvt.h
     dap_client_pool.h
+    dap_events.h
+    dap_events_socket.h
 
     )
 
@@ -20,7 +26,7 @@ include_directories("${INCLUDE_DIRECTORIES} ${dap_server_udp_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_stream_INCLUDE_DIRS}")
 include_directories("${INCLUDE_DIRECTORIES} ${dap_session_INCLUDE_DIRS}")
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_server_core dap_server dap_server_udp dap_stream dap_session)
+target_link_libraries(${PROJECT_NAME} dap_core dap_core_server  dap_udp_server dap_stream dap_session)
 target_include_directories(dap_client INTERFACE .)
 
 
