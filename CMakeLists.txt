@@ -13,7 +13,10 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node_ctl.h
     )
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS})
+file(GLOB IPUTILS_SRCS iputils/*.c)
+file(GLOB IPUTILSHEADERS iputils/*.h)
+
+add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILSHEADERS})
 
 
 target_link_libraries(dap_chain_net dap_core dap_crypto dap_chain dap_chain_crypto )
