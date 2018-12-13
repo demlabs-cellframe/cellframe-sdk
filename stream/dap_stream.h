@@ -31,7 +31,6 @@
 #include "dap_stream_ch.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
-#include "dap_events_socket.h"
 
 #define CHUNK_SIZE_MAX 3*1024
 
@@ -58,8 +57,6 @@ typedef struct dap_stream {
     struct dap_http_client * conn_http; // HTTP-specific
 
     struct dap_udp_client * conn_udp; // UDP-client
-
-    dap_events_socket_t * events_socket;
 
     bool is_live;
     bool is_client_to_uplink ;
@@ -97,7 +94,7 @@ void dap_stream_add_proc_http(dap_http_t * sh, const char * url);
 
 void dap_stream_add_proc_udp(dap_udp_server_t * sh);
 
-dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es);
+// dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es);
 size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
 size_t dap_stream_data_proc_write(dap_stream_t * a_stream);
 void dap_stream_delete(dap_stream_t * a_stream);
