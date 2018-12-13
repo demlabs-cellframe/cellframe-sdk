@@ -420,3 +420,10 @@ struct ni_hdr {
 
 #define NI_IPV4ADDR_F_TRUNCATE		NI_IPV6ADDR_F_TRUNCATE
 #define NI_IPV4ADDR_F_ALL		NI_IPV6ADDR_F_ALL
+
+#define PACKAGE_NAME "ping"
+#define PACKAGE_VERSION "0.1"
+#define IPUTILS_VERSION(_prog) "%s from %s %s\n", _prog, PACKAGE_NAME, PACKAGE_VERSION
+
+int ping_util(const char *addr, int count);
+
