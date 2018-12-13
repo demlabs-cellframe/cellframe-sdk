@@ -13,3 +13,6 @@
 [submodule "libdap-stream-ch"]
 	path = libdap-stream-ch
 	url = https://github.com/kelvinblockchain/libdap-stream-ch
+[submodule "test/libdap-test"]
+	path = test/libdap-test
+	url = https://github.com/kelvinblockchain/libdap-test
