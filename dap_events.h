@@ -30,14 +30,15 @@
 #include "uthash.h"
 
 #include "dap_events_socket.h"
+#include "dap_server.h"
 
 struct dap_events;
 
 typedef void (*dap_events_callback_t) (struct dap_events *,void * arg); // Callback for specific server's operations
 
-typedef struct dap_thread{
-    pthread_t tid;
-} dap_thread_t;
+//typedef struct dap_thread{
+//    pthread_t tid;
+//} dap_thread_t;
 
 struct dap_worker;
 typedef struct dap_events{
