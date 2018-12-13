@@ -7,4 +7,4 @@ add_subdirectory(libdap-test)
 
 add_subdirectory(enc_server)
 add_subdirectory(http_server)
-add_subdirectory(udp_server)
+

@@ -7,3 +7,6 @@
 [submodule "test/libdap-test"]
 	path = test/libdap-test
 	url = https://github.com/kelvinblockchain/libdap-test
+[submodule "libdap-server-udp"]
+	path = libdap-server-udp
+	url = https://github.com/kelvinblockchain/libdap-server-udp
