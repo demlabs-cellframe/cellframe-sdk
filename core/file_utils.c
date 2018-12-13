@@ -25,7 +25,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
-#include <malloc.h>
+#if (OS_TARGET == OS_MACOS)
+    #include <stdio.h>
+#else
+    #include <malloc.h>
+#endif
 #include <string.h>
 #include <sys/stat.h>
 #include "file_utils.h"
