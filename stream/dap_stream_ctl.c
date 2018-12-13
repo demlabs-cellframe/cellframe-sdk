@@ -22,7 +22,7 @@
 #include <string.h>
 #include "dap_common.h"
 
-#include "stream.h"
+#include "dap_stream.h"
 
 #include "dap_enc_http.h"
 #include "dap_enc_key.h"
@@ -32,12 +32,10 @@
 #include "dap_client_remote.h"
 #include "dap_http_simple.h"
 
-#include "http_status_code.h"
+#include "dap_stream_session.h"
+#include "dap_stream_ctl.h"
 
-#include "stream_session.h"
-#include "stream_ctl.h"
-
-#define LOG_TAG "stream_ctl"
+#define LOG_TAG "dap_stream_ctl"
 
 const char* connection_type_str[] =
 {
@@ -45,27 +43,16 @@ const char* connection_type_str[] =
 		[STREAM_SESSION_UDP] = "udp"
 };
 
-static struct {
-    size_t size;
-    dap_enc_key_type_t type;
-} _socket_forward_key;
-
-
 #define DAPMP_VERSION 13
 bool stream_check_proto_version(unsigned int ver);
 void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
 
 /**
- * @brief stream_ctl_init
- * @param socket_forward_key_type
- * @param socket_forward_key_size - Can be null for some alghoritms
- * @return
+ * @brief stream_ctl_init Initialize stream control module
+ * @return Zero if ok others if not
  */
-int stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
-                    size_t socket_forward_key_size)
+int dap_stream_ctl_init()
 {
-    _socket_forward_key.type = socket_forward_key_type;
-    _socket_forward_key.size = socket_forward_key_size;
     log_it(L_NOTICE,"Initialized stream control module");
     return 0;
 }
@@ -73,7 +60,7 @@ int stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
 /**
  * @brief stream_ctl_deinit Deinit stream control module
  */
-void stream_ctl_deinit()
+void dap_stream_ctl_deinit()
 {
 
 }
@@ -83,7 +70,7 @@ void stream_ctl_deinit()
  * @param sh HTTP server instance
  * @param url URL string
  */
-void stream_ctl_add_proc(struct dap_http * sh, const char * url)
+void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
 {
      dap_http_simple_proc_add(sh,url,4096,stream_ctl_proc);
 }
@@ -96,7 +83,7 @@ void stream_ctl_add_proc(struct dap_http * sh, const char * url)
  */
 void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 {
-    http_status_code_t * return_code = (http_status_code_t*)arg;
+    bool * isOk = (bool *) arg;
 
 	unsigned int db_id=0;
    // unsigned int proto_version;
@@ -114,7 +101,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         }else{
             log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
             enc_http_delegate_delete(dg);
-            *return_code = Http_Status_MethodNotAllowed;
+            *isOk=false;
             return;
         }
         if(l_new_session){
@@ -122,17 +109,18 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             ss = dap_stream_session_pure_new();
             char *key_str = calloc(1, KEX_KEY_STR_SIZE);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate(_socket_forward_key.type, key_str, strlen(key_str), NULL, 0, _socket_forward_key.size);
+            ss->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, key_str, strlen(key_str), NULL, 0, 0);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
-            *return_code = Http_Status_OK;
+            dg->isOk=true;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);
 
             free(key_str);
         }else{
             log_it(L_ERROR,"Wrong request: \"%s\"",dg->in_query);
-            *return_code = Http_Status_BadRequest;
+            dg->isOk=false;
         }
+        *isOk=dg->isOk;
 
         unsigned int conn_t = 0;
         char *ct_str = strstr(dg->in_query, "connection_type");
@@ -158,7 +146,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         enc_http_delegate_delete(dg);
     }else{
         log_it(L_ERROR,"No encryption layer was initialized well");
-        *return_code = Http_Status_BadRequest;
+        *isOk=false;
     }
 }
 

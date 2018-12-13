@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_session)
   
-set(SESSION_SRCS stream_session.c)
+set(SESSION_SRCS dap_stream_session.c)
 
 add_library(${PROJECT_NAME} STATIC ${SESSION_SRCS})
 
