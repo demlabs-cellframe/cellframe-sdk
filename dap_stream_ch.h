@@ -24,21 +24,21 @@
 #include <pthread.h>
 #include <stdint.h>
 
-struct stream;
-struct stream_pkt;
-struct stream_ch_proc;
-struct stream_ch;
+typedef struct dap_stream dap_stream_t;
+typedef struct dap_stream_pkt dap_stream_pkt_t;
+typedef struct dap_stream_ch_proc dap_stream_ch_proc_t;
+typedef struct dap_stream_ch dap_stream_ch_t;
 
 #define SERVICE_CHANNEL_ID 's'
 #define DATA_CHANNEL_ID 'd'
 
-typedef void (*stream_ch_callback_t) (struct stream_ch*,void*);
+typedef void (*dap_stream_ch_callback_t) (dap_stream_ch_t*,void*);
 
-typedef struct stream_ch{
+typedef struct dap_stream_ch{
     pthread_mutex_t mutex;
     bool ready_to_write;
     bool ready_to_read;
-    struct stream * stream;
+    dap_stream_t * stream;
 
     struct{
         uint64_t bytes_write;
@@ -47,17 +47,17 @@ typedef struct stream_ch{
 
     uint8_t buf[500000];
 
-    struct stream_ch_proc * proc;
-    void * internal;  // Internal structure, GStreamer for example
+    dap_stream_ch_proc_t * proc;
+    void * internal;
 } dap_stream_ch_t;
 
-extern int stream_ch_init();
-extern void stream_ch_deinit();
+int dap_stream_ch_init();
+void dap_stream_ch_deinit();
 
-extern dap_stream_ch_t* stream_ch_new(struct stream*stream,uint8_t id);
+dap_stream_ch_t* dap_stream_ch_new( dap_stream_t * dap_stream,uint8_t id);
 
-extern void stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready);
+void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready);
 
-extern void stream_ch_delete(dap_stream_ch_t*ch);
+void dap_stream_ch_delete(dap_stream_ch_t*ch);
 
 #endif

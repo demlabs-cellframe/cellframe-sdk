@@ -23,7 +23,7 @@
 #include "dap_client_remote.h"
 #include "dap_http_client.h"
 
-#include "stream.h"
+#include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
@@ -34,7 +34,7 @@
  * @brief stream_ch_init Init stream channel module
  * @return Zero if ok others if no
  */
-int stream_ch_init()
+int dap_stream_ch_init()
 {
     if(stream_ch_proc_init() != 0 ){
         log_it(L_CRITICAL,"Can't init stream channel proc submodule");
@@ -51,7 +51,7 @@ int stream_ch_init()
 /**
  * @brief stream_ch_deinit Destroy stream channel submodule
  */
-void stream_ch_deinit()
+void dap_stream_ch_deinit()
 {
 }
 
@@ -60,7 +60,7 @@ void stream_ch_deinit()
  * @param direction Direction of channel (input to the server, output to the client)
  * @return
  */
-dap_stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
+dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* stream,uint8_t id)
 {
     stream_ch_proc_t * proc=stream_ch_proc_find(id);
     if(proc){
@@ -84,7 +84,7 @@ dap_stream_ch_t* stream_ch_new(struct stream* stream,uint8_t id)
  * @brief stream_ch_delete Delete channel instance
  * @param ch Channel delete
  */
-void stream_ch_delete(dap_stream_ch_t*ch)
+void dap_stream_ch_delete(dap_stream_ch_t*ch)
 {
     if(ch->proc)
         if(ch->proc->delete_callback)
@@ -99,7 +99,7 @@ void stream_ch_delete(dap_stream_ch_t*ch)
 }
 
 
-void stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
+void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
     if(ch->ready_to_write!=is_ready){
