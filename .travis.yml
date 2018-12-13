@@ -24,5 +24,6 @@ addons:
     packages:
     - gcc-5
     - libev-dev
+    - libmagic-dev
 
 
