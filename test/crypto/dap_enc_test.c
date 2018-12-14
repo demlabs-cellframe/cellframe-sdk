@@ -120,7 +120,7 @@ static void cleanup_test_case()
 static void _write_key_in_file(dap_enc_key_serealize_t* key,
                                const char* file_name)
 {
-    FILE *f = fopen(file_name, "w");
+    FILE *f = fopen(file_name, "wb");
     dap_assert(f, "Can't create file");
     fwrite(key, sizeof (dap_enc_key_serealize_t), 1, f);
     fclose(f);
@@ -128,7 +128,7 @@ static void _write_key_in_file(dap_enc_key_serealize_t* key,
 
 dap_enc_key_serealize_t* _read_key_from_file(const char* file_name)
 {
-    FILE *f = fopen(file_name, "r");
+    FILE *f = fopen(file_name, "rb");
     dap_assert(f, "Can't open key file");
     dap_enc_key_serealize_t* resut_key = calloc(1, sizeof(dap_enc_key_serealize_t));
     fread(resut_key, sizeof(dap_enc_key_serealize_t), 1, f);
@@ -136,16 +136,20 @@ dap_enc_key_serealize_t* _read_key_from_file(const char* file_name)
     return resut_key;
 }
 
-static void test_serealize_deserealize()
+/**
+ * @key_type may be DAP_ENC_KEY_TYPE_IAES, DAP_ENC_KEY_TYPE_OAES
+ */
+static void test_serealize_deserealize(dap_enc_key_type_t key_type)
 {
-    const char *kex_data = "123";
+    const char *kex_data = "1234567890123456789012345678901234567890";//"123";
     size_t kex_size = strlen(kex_data);
     const size_t seed_size = 1 + (rand() % 1000);
     uint8_t seed[seed_size];
 
     generate_random_byte_array(seed, seed_size);
 
-    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, kex_data, kex_size, seed, seed_size, 0);
+//  for key_type==DAP_ENC_KEY_TYPE_OAES must be: key_size=[16|24|32] and kex_size>=key_size
+    dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex_data, kex_size, seed, seed_size, 32);
     dap_enc_key_serealize_t* serealize_key = dap_enc_key_serealize(key);
     _write_key_in_file(serealize_key, TEST_SER_FILE_NAME);
     dap_enc_key_serealize_t* deserealize_key = _read_key_from_file(TEST_SER_FILE_NAME);
@@ -213,7 +217,9 @@ void dap_enc_tests_run() {
     test_encode_decode_raw_b64(50);
     test_encode_decode_raw_b64_url_safe(50);
     test_key_transfer_msrln();
-    dap_print_module_name("dap_enc serealize->deserealize");
-    test_serealize_deserealize();
+    dap_print_module_name("dap_enc serealize->deserealize IAES");
+    test_serealize_deserealize(DAP_ENC_KEY_TYPE_IAES);
+    dap_print_module_name("dap_enc serealize->deserealize OAES");
+    test_serealize_deserealize(DAP_ENC_KEY_TYPE_OAES);
     cleanup_test_case();
 }

@@ -38,6 +38,13 @@
 extern "C" {
 #endif
 
+#define OAES_RKEY_LEN 4
+#define OAES_COL_LEN 4
+#define OAES_ROUND_BASE 7
+
+#define MAX_KEY_LEN 32
+#define MAX_EXP_LEN ((32/OAES_RKEY_LEN+OAES_ROUND_BASE)* OAES_RKEY_LEN * OAES_COL_LEN) // ((32/4+7)* 4 * 4)=240
+
 #ifdef _WIN32
 #	ifdef OAES_SHARED
 #		ifdef oaes_lib_EXPORTS
@@ -105,9 +112,9 @@ typedef uint16_t OAES_OPTION;
 typedef struct _oaes_key
 {
     size_t data_len;
-    uint8_t *data;
+    uint8_t data_flat[MAX_KEY_LEN];//uint8_t *data;
     size_t exp_data_len;
-    uint8_t *exp_data;
+    uint8_t exp_data_flat[MAX_EXP_LEN];//uint8_t *exp_data;
     size_t num_keys;
     size_t key_base;
 } oaes_key;
@@ -115,14 +122,14 @@ typedef struct _oaes_key
 typedef struct _oaes_ctx
 {
 #ifdef OAES_HAVE_ISAAC
-    randctx * rctx;
+    randctx rctx_flat;//    randctx * rctx;
 #endif // OAES_HAVE_ISAAC
 
 #ifdef OAES_DEBUG
     oaes_step_cb step_cb;
 #endif // OAES_DEBUG
 
-    oaes_key * key;
+    oaes_key key_flat;//    oaes_key * key;
     OAES_OPTION options;
     uint8_t iv[OAES_BLOCK_SIZE];
 } oaes_ctx;

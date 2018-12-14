@@ -67,9 +67,6 @@
 #include "rand.h"
 #endif // OAES_HAVE_ISAAC
 
-#define OAES_RKEY_LEN 4
-#define OAES_COL_LEN 4
-#define OAES_ROUND_BASE 7
 
 // the block is padded
 #define OAES_FLAG_PAD 0x01
@@ -539,30 +536,16 @@ static uint32_t oaes_get_seed(void)
 }
 #endif // OAES_HAVE_ISAAC
 
-static OAES_RET oaes_key_destroy( oaes_key ** key )
+static OAES_RET oaes_key_destroy( oaes_key * key )
 {
-	if( NULL == *key )
+	if( NULL == key )
 		return OAES_RET_SUCCESS;
-	
-	if( (*key)->data )
-	{
-		free( (*key)->data );
-		(*key)->data = NULL;
-	}
-	
-	if( (*key)->exp_data )
-	{
-		free( (*key)->exp_data );
-		(*key)->exp_data = NULL;
-	}
-	
-	(*key)->data_len = 0;
-	(*key)->exp_data_len = 0;
-	(*key)->num_keys = 0;
-	(*key)->key_base = 0;
-	free( *key );
-	*key = NULL;
-	
+	key->data_len = 0;
+	key->exp_data_len = 0;
+	key->num_keys = 0;
+	key->key_base = 0;
+    memset(key->data_flat, 0, MAX_KEY_LEN);
+    memset(key->exp_data_flat, 0, MAX_EXP_LEN);
 	return OAES_RET_SUCCESS;
 }
 
@@ -574,41 +557,37 @@ static OAES_RET oaes_key_expand( OAES_CTX * ctx )
 	if( NULL == _ctx )
 		return OAES_RET_ARG1;
 	
-	if( NULL == _ctx->key )
-		return OAES_RET_NOKEY;
+	if(_ctx->key_flat.data_len<16)
+	    return OAES_RET_NOKEY;
 	
-	_ctx->key->key_base = _ctx->key->data_len / OAES_RKEY_LEN;
-	_ctx->key->num_keys =  _ctx->key->key_base + OAES_ROUND_BASE;
+	_ctx->key_flat.key_base = _ctx->key_flat.data_len / OAES_RKEY_LEN;
+	_ctx->key_flat.num_keys =  _ctx->key_flat.key_base + OAES_ROUND_BASE;
 					
-	_ctx->key->exp_data_len = _ctx->key->num_keys * OAES_RKEY_LEN * OAES_COL_LEN;
-	_ctx->key->exp_data = (uint8_t *)
-			calloc( _ctx->key->exp_data_len, sizeof( uint8_t ));
-	
-	if( NULL == _ctx->key->exp_data )
-		return OAES_RET_MEM;
+	_ctx->key_flat.exp_data_len = _ctx->key_flat.num_keys * OAES_RKEY_LEN * OAES_COL_LEN;
+    memset(_ctx->key_flat.exp_data_flat, 0, MAX_EXP_LEN);
 	
 	// the first _ctx->key->data_len are a direct copy
-	memcpy( _ctx->key->exp_data, _ctx->key->data, _ctx->key->data_len );
+	memcpy( _ctx->key_flat.exp_data_flat, _ctx->key_flat.data_flat, _ctx->key_flat.data_len );
 
 	// apply ExpandKey algorithm for remainder
-	for( _i = _ctx->key->key_base; _i < _ctx->key->num_keys * OAES_RKEY_LEN; _i++ )
+	for( _i = _ctx->key_flat.key_base; _i < _ctx->key_flat.num_keys * OAES_RKEY_LEN; _i++ )
 	{
 		uint8_t _temp[OAES_COL_LEN];
 		
 		memcpy( _temp,
-				_ctx->key->exp_data + ( _i - 1 ) * OAES_RKEY_LEN, OAES_COL_LEN );
+				_ctx->key_flat.exp_data_flat + ( _i - 1 ) * OAES_RKEY_LEN, OAES_COL_LEN );
 		
 		// transform key column
-		if( 0 == _i % _ctx->key->key_base )
+		if( 0 == _i % _ctx->key_flat.key_base )
 		{
 			oaes_word_rot_left( _temp );
 
 			for( _j = 0; _j < OAES_COL_LEN; _j++ )
 				oaes_sub_byte( _temp + _j );
 
-			_temp[0] = _temp[0] ^ oaes_gf_8[ _i / _ctx->key->key_base - 1 ];
+			_temp[0] = _temp[0] ^ oaes_gf_8[ _i / _ctx->key_flat.key_base - 1 ];
 		}
-		else if( _ctx->key->key_base > 6 && 4 == _i % _ctx->key->key_base )
+		else if( _ctx->key_flat.key_base > 6 && 4 == _i % _ctx->key_flat.key_base )
 		{
 			for( _j = 0; _j < OAES_COL_LEN; _j++ )
 				oaes_sub_byte( _temp + _j );
@@ -616,8 +595,8 @@ static OAES_RET oaes_key_expand( OAES_CTX * ctx )
 		
 		for( _j = 0; _j < OAES_COL_LEN; _j++ )
 		{
-			_ctx->key->exp_data[ _i * OAES_RKEY_LEN + _j ] =
-					_ctx->key->exp_data[ ( _i - _ctx->key->key_base ) *
+			_ctx->key_flat.exp_data_flat[ _i * OAES_RKEY_LEN + _j ] =
+					_ctx->key_flat.exp_data_flat[ ( _i - _ctx->key_flat.key_base ) *
 					OAES_RKEY_LEN + _j ] ^ _temp[_j];
 		}
 	}
@@ -635,36 +614,23 @@ static OAES_RET oaes_key_gen( OAES_CTX * ctx, size_t key_size )
 	if( NULL == _ctx )
 		return OAES_RET_ARG1;
 	
-	_key = (oaes_key *) calloc( sizeof( oaes_key ), 1 );
-	
-	if( NULL == _key )
-		return OAES_RET_MEM;
-	
-	if( _ctx->key )
-		oaes_key_destroy( &(_ctx->key) );
+	oaes_key_destroy( &(_ctx->key_flat) );
 	
 	_key->data_len = key_size;
-	_key->data = (uint8_t *) calloc( key_size, sizeof( uint8_t ));
-	
-	if( NULL == _key->data )
-	{
-		free( _key );
-		return OAES_RET_MEM;
-	}
 	
 	for( _i = 0; _i < key_size; _i++ )
 #ifdef OAES_HAVE_ISAAC
-		_key->data[_i] = (uint8_t) rand( _ctx->rctx );
+		_key->data_flat[_i] = (uint8_t) rand( _ctx->rctx_flat );
 #else
-		_key->data[_i] = (uint8_t) rand();
+		_key->data_flat[_i] = (uint8_t) rand();
 #endif // OAES_HAVE_ISAAC
 	
-	_ctx->key = _key;
+//	_ctx->key = _key;
 	_rc = _rc || oaes_key_expand( ctx );
 	
 	if( _rc != OAES_RET_SUCCESS )
 	{
-		oaes_key_destroy( &(_ctx->key) );
+		oaes_key_destroy( &(_ctx->key_flat) );
 		return _rc;
 	}
 	
@@ -695,15 +661,16 @@ OAES_RET oaes_key_export( OAES_CTX * ctx,
 	if( NULL == _ctx )
 		return OAES_RET_ARG1;
 	
-	if( NULL == _ctx->key )
+    if(_ctx->key_flat.data_len < 16)
 		return OAES_RET_NOKEY;
+
 	
 	if( NULL == data_len )
 		return OAES_RET_ARG3;
 
 	_data_len_in = *data_len;
 	// data + header
-	*data_len = _ctx->key->data_len + OAES_BLOCK_SIZE;
+	*data_len = _ctx->key_flat.data_len + OAES_BLOCK_SIZE;
 
 	if( NULL == data )
 		return OAES_RET_SUCCESS;
@@ -714,8 +681,8 @@ OAES_RET oaes_key_export( OAES_CTX * ctx,
 	// header
 	memcpy( data, oaes_header, OAES_BLOCK_SIZE );
 	data[5] = 0x01;
-	data[7] = _ctx->key->data_len;
-	memcpy( data + OAES_BLOCK_SIZE, _ctx->key->data, _ctx->key->data_len );
+	data[7] = _ctx->key_flat.data_len;
+	memcpy( data + OAES_BLOCK_SIZE, _ctx->key_flat.data_flat, _ctx->key_flat.data_len );
 	
 	return OAES_RET_SUCCESS;
 }
@@ -728,15 +695,15 @@ OAES_RET oaes_key_export_data( OAES_CTX * ctx,
 	
 	if( NULL == _ctx )
 		return OAES_RET_ARG1;
-	
-	if( NULL == _ctx->key )
+
+	if(_ctx->key_flat.data_len < 16)
 		return OAES_RET_NOKEY;
 	
 	if( NULL == data_len )
 		return OAES_RET_ARG3;
 
 	_data_len_in = *data_len;
-	*data_len = _ctx->key->data_len;
+	*data_len = _ctx->key_flat.data_len;
 
 	if( NULL == data )
 		return OAES_RET_SUCCESS;
@@ -744,7 +711,7 @@ OAES_RET oaes_key_export_data( OAES_CTX * ctx,
 	if( _data_len_in < *data_len )
 		return OAES_RET_BUF;
 	
-	memcpy( data, _ctx->key->data, *data_len );
+	memcpy( data, _ctx->key_flat.data_flat, *data_len );
 	
 	return OAES_RET_SUCCESS;
 }
@@ -809,30 +776,17 @@ OAES_RET oaes_key_import( OAES_CTX * ctx,
 	if( (int)data_len != _key_length + OAES_BLOCK_SIZE )
 			return OAES_RET_ARG3;
 	
-	if( _ctx->key )
-		oaes_key_destroy( &(_ctx->key) );
+		oaes_key_destroy( &(_ctx->key_flat) );
 	
-	_ctx->key = (oaes_key *) calloc( sizeof( oaes_key ), 1 );
-	
-	if( NULL == _ctx->key )
-		return OAES_RET_MEM;
-	
-	_ctx->key->data_len = _key_length;
-	_ctx->key->data = (uint8_t *)
-			calloc( _key_length, sizeof( uint8_t ));
-	
-	if( NULL == _ctx->key->data )
-	{
-		oaes_key_destroy( &(_ctx->key) );
-		return OAES_RET_MEM;
-	}
+	_ctx->key_flat.data_len = _key_length;
+	memset(_ctx->key_flat.data_flat, 0, MAX_KEY_LEN);
 
-	memcpy( _ctx->key->data, data + OAES_BLOCK_SIZE, _key_length );
+	memcpy( _ctx->key_flat.data_flat, data + OAES_BLOCK_SIZE, _key_length );
 	_rc = _rc || oaes_key_expand( ctx );
 	
 	if( _rc != OAES_RET_SUCCESS )
 	{
-		oaes_key_destroy( &(_ctx->key) );
+		oaes_key_destroy( &(_ctx->key_flat) );
 		return _rc;
 	}
 	
@@ -861,30 +815,17 @@ OAES_RET oaes_key_import_data( OAES_CTX * ctx,
 			return OAES_RET_ARG3;
 	}
 	
-	if( _ctx->key )
-		oaes_key_destroy( &(_ctx->key) );
+    oaes_key_destroy( &(_ctx->key_flat) );
 	
-	_ctx->key = (oaes_key *) calloc( sizeof( oaes_key ), 1 );
-	
-	if( NULL == _ctx->key )
-		return OAES_RET_MEM;
-	
-	_ctx->key->data_len = data_len;
-	_ctx->key->data = (uint8_t *)
-			calloc( data_len, sizeof( uint8_t ));
-	
-	if( NULL == _ctx->key->data )
-	{
-		oaes_key_destroy( &(_ctx->key) );
-		return OAES_RET_MEM;
-	}
+	_ctx->key_flat.data_len = data_len;
+	memset(_ctx->key_flat.data_flat, 0, MAX_KEY_LEN);
 
-	memcpy( _ctx->key->data, data, data_len );
+	memcpy( _ctx->key_flat.data_flat, data, data_len );
 	_rc = _rc || oaes_key_expand( ctx );
 	
 	if( _rc != OAES_RET_SUCCESS )
 	{
-		oaes_key_destroy( &(_ctx->key) );
+		oaes_key_destroy( &(_ctx->key_flat) );
 		return _rc;
 	}
 	
@@ -920,7 +861,6 @@ OAES_CTX * oaes_alloc(void)
 		srand( oaes_get_seed() );
 #endif // OAES_HAVE_ISAAC
 
-	_ctx->key = NULL;
 	oaes_set_option( _ctx, OAES_OPTION_CBC, NULL );
 
 #ifdef OAES_DEBUG
@@ -941,8 +881,7 @@ OAES_RET oaes_free( OAES_CTX ** ctx )
 	if( NULL == *_ctx )
 		return OAES_RET_SUCCESS;
 	
-	if( (*_ctx)->key )
-		oaes_key_destroy( &((*_ctx)->key) );
+    oaes_key_destroy(&((*_ctx)->key_flat));
 
 #ifdef OAES_HAVE_ISAAC
 	if( (*_ctx)->rctx )
@@ -1037,7 +976,7 @@ static OAES_RET oaes_encrypt_block(
 	if( c_len != OAES_BLOCK_SIZE )
 		return OAES_RET_ARG3;
 	
-	if( NULL == _ctx->key )
+    if(_ctx->key_flat.data_len < 16)
 		return OAES_RET_NOKEY;
 	
 #ifdef OAES_DEBUG
@@ -1047,7 +986,7 @@ static OAES_RET oaes_encrypt_block(
 
 	// AddRoundKey(State, K0)
 	for( _i = 0; _i < c_len; _i++ )
-		c[_i] = c[_i] ^ _ctx->key->exp_data[_i];
+		c[_i] = c[_i] ^ _ctx->key_flat.exp_data_flat[_i];
 	
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
@@ -1058,7 +997,7 @@ static OAES_RET oaes_encrypt_block(
 #endif // OAES_DEBUG
 
 	// for round = 1 step 1 to Nr–1
-	for( _i = 1; _i < _ctx->key->num_keys - 1; _i++ )
+	for( _i = 1; _i < _ctx->key_flat.num_keys - 1; _i++ )
 	{
 		// SubBytes(state)
 		for( _j = 0; _j < c_len; _j++ )
@@ -1091,12 +1030,12 @@ static OAES_RET oaes_encrypt_block(
 		// AddRoundKey(state, w[round*Nb, (round+1)*Nb-1])
 		for( _j = 0; _j < c_len; _j++ )
 			c[_j] = c[_j] ^
-					_ctx->key->exp_data[_i * OAES_RKEY_LEN * OAES_COL_LEN + _j];
+					_ctx->key_flat.exp_data_flat[_i * OAES_RKEY_LEN * OAES_COL_LEN + _j];
 
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
 	{
-		_ctx->step_cb( _ctx->key->exp_data + _i * OAES_RKEY_LEN * OAES_COL_LEN,
+		_ctx->step_cb( _ctx->key->exp_data_flat + _i * OAES_RKEY_LEN * OAES_COL_LEN,
 				"k_sch", _i, NULL );
 		_ctx->step_cb( c, "k_add", _i, NULL );
 	}
@@ -1123,8 +1062,8 @@ static OAES_RET oaes_encrypt_block(
 
 	// AddRoundKey(state, w[Nr*Nb, (Nr+1)*Nb-1])
 	for( _i = 0; _i < c_len; _i++ )
-		c[_i] = c[_i] ^ _ctx->key->exp_data[
-				( _ctx->key->num_keys - 1 ) * OAES_RKEY_LEN * OAES_COL_LEN + _i ];
+		c[_i] = c[_i] ^ _ctx->key_flat.exp_data_flat[
+				( _ctx->key_flat.num_keys - 1 ) * OAES_RKEY_LEN * OAES_COL_LEN + _i ];
 
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
@@ -1154,8 +1093,10 @@ static OAES_RET oaes_decrypt_block(
 	if( c_len != OAES_BLOCK_SIZE )
 		return OAES_RET_ARG3;
 	
+/*
 	if( NULL == _ctx->key )
 		return OAES_RET_NOKEY;
+*/
 	
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
@@ -1164,8 +1105,8 @@ static OAES_RET oaes_decrypt_block(
 
 	// AddRoundKey(state, w[Nr*Nb, (Nr+1)*Nb-1])
 	for( _i = 0; _i < c_len; _i++ )
-		c[_i] = c[_i] ^ _ctx->key->exp_data[
-				( _ctx->key->num_keys - 1 ) * OAES_RKEY_LEN * OAES_COL_LEN + _i ];
+		c[_i] = c[_i] ^ _ctx->key_flat.exp_data_flat[
+				( _ctx->key_flat.num_keys - 1 ) * OAES_RKEY_LEN * OAES_COL_LEN + _i ];
 
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
@@ -1177,7 +1118,7 @@ static OAES_RET oaes_decrypt_block(
 	}
 #endif // OAES_DEBUG
 
-	for( _i = _ctx->key->num_keys - 2; _i > 0; _i-- )
+	for( _i = _ctx->key_flat.num_keys - 2; _i > 0; _i-- )
 	{
 		// InvShiftRows(state)
 		oaes_inv_shift_rows( c );
@@ -1199,7 +1140,7 @@ static OAES_RET oaes_decrypt_block(
 		// AddRoundKey(state, w[round*Nb, (round+1)*Nb-1])
 		for( _j = 0; _j < c_len; _j++ )
 			c[_j] = c[_j] ^
-					_ctx->key->exp_data[_i * OAES_RKEY_LEN * OAES_COL_LEN + _j];
+					_ctx->key_flat.exp_data_flat[_i * OAES_RKEY_LEN * OAES_COL_LEN + _j];
 		
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
@@ -1242,7 +1183,7 @@ static OAES_RET oaes_decrypt_block(
 
 	// AddRoundKey(state, w[0, Nb-1])
 	for( _i = 0; _i < c_len; _i++ )
-		c[_i] = c[_i] ^ _ctx->key->exp_data[_i];
+		c[_i] = c[_i] ^ _ctx->key_flat.exp_data_flat[_i];
 	
 #ifdef OAES_DEBUG
 	if( _ctx->step_cb )
@@ -1286,8 +1227,10 @@ OAES_RET oaes_encrypt( OAES_CTX * ctx,
 	if( _c_len_in < *c_len )
 		return OAES_RET_BUF;
 	
+/*
 	if( NULL == _ctx->key )
 		return OAES_RET_NOKEY;
+*/
 	
 	// header
 	memcpy(c, oaes_header, OAES_BLOCK_SIZE );
@@ -1358,8 +1301,8 @@ OAES_RET oaes_decrypt( OAES_CTX * ctx,
 	if( _m_len_in < *m_len )
 		return OAES_RET_BUF;
 	
-	if( NULL == _ctx->key )
-		return OAES_RET_NOKEY;
+    if(_ctx->key_flat.data_len < 16)
+    {   return OAES_RET_NOKEY;}
 	
 	// header
 	if( 0 != memcmp( c, oaes_header, 4 ) )
@@ -1495,12 +1438,12 @@ OAES_API OAES_RET oaes_pseudo_encrypt_ecb( OAES_CTX * ctx, uint8_t * c )
   if( NULL == c )
     return OAES_RET_ARG2;
 
-  if( NULL == _ctx->key )
+  if(_ctx->key_flat.data_len < 16)
     return OAES_RET_NOKEY;
 
   for ( _i = 0; _i < 10; ++_i )
   {
-    oaes_encryption_round( &_ctx->key->exp_data[_i * OAES_RKEY_LEN * OAES_COL_LEN], c );
+    oaes_encryption_round( &_ctx->key_flat.exp_data_flat[_i * OAES_RKEY_LEN * OAES_COL_LEN], c );
   }
 
   return OAES_RET_SUCCESS;
