@@ -66,7 +66,7 @@ void dap_udp_server_delete(dap_server_t * sh)
 
     dap_client_remote_t * client, * tmp;
     HASH_ITER(hh,sh->clients,client,tmp)
-        dap_client_remove(client, sh);    
+        dap_client_remote_remove(client, sh);
 
     if(sh->server_delete_callback)
         sh->server_delete_callback(sh,NULL);
@@ -171,7 +171,7 @@ int check_close(dap_client_remote_t* client){
         LL_FOREACH_SAFE(udp_server->waiting_clients,client_check,tmp)
             if(client_check->host_key == udp_client->host_key)
                 LL_DELETE(udp_server->waiting_clients,client_check);
-        dap_client_remove(client, sh);
+        dap_client_remote_remove(client, sh);
         return 1;
     }
     return 0;
