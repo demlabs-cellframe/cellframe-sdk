@@ -34,6 +34,7 @@
 
 #include "dap_stream_session.h"
 #include "dap_stream_ctl.h"
+#include "http_status_code.h"
 
 #define LOG_TAG "dap_stream_ctl"
 
@@ -47,12 +48,21 @@ const char* connection_type_str[] =
 bool stream_check_proto_version(unsigned int ver);
 void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
 
+static struct {
+    size_t size;
+    dap_enc_key_type_t type;
+} s_socket_forward_key;
+
+
 /**
  * @brief stream_ctl_init Initialize stream control module
  * @return Zero if ok others if not
  */
-int dap_stream_ctl_init()
+int dap_stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
+                        size_t socket_forward_key_size)
 {
+    s_socket_forward_key.type = socket_forward_key_type;
+    s_socket_forward_key.size = socket_forward_key_size;
     log_it(L_NOTICE,"Initialized stream control module");
     return 0;
 }
@@ -83,11 +93,11 @@ void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
  */
 void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 {
-    bool * isOk = (bool *) arg;
+    http_status_code_t * return_code = (http_status_code_t*)arg;
 
-	unsigned int db_id=0;
+    unsigned int db_id=0;
    // unsigned int proto_version;
-	dap_stream_session_t * ss=NULL;
+    dap_stream_session_t * ss=NULL;
    // unsigned int action_cmd=0;
     bool l_new_session = false;
 
@@ -101,7 +111,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         }else{
             log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
             enc_http_delegate_delete(dg);
-            *isOk=false;
+            *return_code = Http_Status_MethodNotAllowed;
             return;
         }
         if(l_new_session){
@@ -109,34 +119,34 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             ss = dap_stream_session_pure_new();
             char *key_str = calloc(1, KEX_KEY_STR_SIZE);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES, key_str, strlen(key_str), NULL, 0, 0);
+            ss->key = dap_enc_key_new_generate(s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
+                                               NULL, 0, s_socket_forward_key.size);
             enc_http_reply_f(dg,"%u %s",ss->id,key_str);
-            dg->isOk=true;
+            *return_code = Http_Status_OK;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);
 
             free(key_str);
         }else{
             log_it(L_ERROR,"Wrong request: \"%s\"",dg->in_query);
-            dg->isOk=false;
+            *return_code = Http_Status_BadRequest;
         }
-        *isOk=dg->isOk;
 
         unsigned int conn_t = 0;
         char *ct_str = strstr(dg->in_query, "connection_type");
         if (ct_str)
         {
-        	sscanf(ct_str, "connection_type=%u", &conn_t);
-        	if (conn_t < 0 || conn_t >= STREAM_SESSION_END_TYPE)
-        	{
-        		log_it(L_WARNING,"Error connection type : %i",conn_t);
-        		conn_t = STEAM_SESSION_HTTP;
-        	}
+            sscanf(ct_str, "connection_type=%u", &conn_t);
+            if (conn_t < 0 || conn_t >= STREAM_SESSION_END_TYPE)
+            {
+                log_it(L_WARNING,"Error connection type : %i",conn_t);
+                conn_t = STEAM_SESSION_HTTP;
+            }
 
-        	if (ss)
-        	{
-        		ss->conn_type = conn_t;
-        	}
+            if (ss)
+            {
+                ss->conn_type = conn_t;
+            }
 
         }
 
@@ -146,7 +156,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         enc_http_delegate_delete(dg);
     }else{
         log_it(L_ERROR,"No encryption layer was initialized well");
-        *isOk=false;
+        *return_code = Http_Status_BadRequest;
     }
 }
 

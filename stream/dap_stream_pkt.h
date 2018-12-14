@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define STREAM_PKT_SIZE_MAX 100000
+#define STREAM_PKT_SIZE_MAX 500000
 struct dap_stream;
 
 #define DATA_PACKET 0x00

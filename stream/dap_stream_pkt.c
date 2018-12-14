@@ -83,7 +83,7 @@ size_t encode_dummy(const void * buf, const size_t buf_size, void * buf_out){
  */
 size_t dap_stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size)
 {
-    size_t ds = dap_enc_iaes256_cbc_decrypt_fast(sid->session->key,pkt->data,pkt->hdr.size,buf_out, buf_out_size);
+    size_t ds = sid->session->key->dec_na(sid->session->key,pkt->data,pkt->hdr.size,buf_out, buf_out_size);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
 //           *((uint8_t *)buf_out+ds-4),*((uint8_t *)buf_out+ds-3),*((uint8_t *)buf_out+ds-2),*((uint8_t *)buf_out+ds-1)
 //           );
@@ -117,7 +117,7 @@ size_t dap_stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t
     memset(&pkt_hdr,0,sizeof(pkt_hdr));
     memcpy(pkt_hdr.sig,dap_sig,sizeof(pkt_hdr.sig));
 
-    pkt_hdr.size = dap_enc_iaes256_cbc_encrypt_fast(sid->session->key, data,data_size,sid->buf, STREAM_BUF_SIZE_MAX);
+    pkt_hdr.size = sid->session->key->enc_na(sid->session->key, data,data_size,sid->buf, STREAM_BUF_SIZE_MAX);
 
     if(sid->conn_udp){
         ret+=dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
