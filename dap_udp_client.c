@@ -188,7 +188,7 @@ void add_waiting_client(dap_client_remote_t* client){
 }
 
 size_t dap_udp_client_write(dap_client_remote_t *sc, const void * data, size_t data_size){
-    size_t size = dap_client_write(sc,data,data_size);
+    size_t size = dap_client_remote_write(sc,data,data_size);
     add_waiting_client(sc);
     return size;
 }
@@ -197,7 +197,7 @@ size_t dap_udp_client_write_f(dap_client_remote_t *a_client, const char * a_form
     size_t size = 0;
     va_list ap;
     va_start(ap,a_format);
-    size =dap_client_write_f(a_client,a_format,ap);
+    size =dap_client_remote_write_f(a_client,a_format,ap);
     va_end(ap);
     add_waiting_client(a_client);
     return size;
