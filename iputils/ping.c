@@ -58,6 +58,29 @@
 #include <math.h>
 #include <glib.h>
 
+// analog printf()
+void log_printf(const char *format, ...)
+{
+#ifdef PING_DBG
+    gchar *log_str = NULL;
+    va_list args;
+
+    va_start (args, format);
+    log_str = g_strdup_vprintf (format, args);
+    va_end (args);
+
+    if(log_str)
+    {
+
+        printf(log_str);
+        g_free(log_str);
+    }
+#endif
+    const char *str = NULL;
+    if(str)
+        str = format;
+}
+
 #ifndef ICMP_FILTER
 #define ICMP_FILTER	1
 struct icmp_filter {
@@ -167,7 +190,7 @@ static void create_socket(socket_st *sock, int family, int socktype, int protoco
         /* Report error related to disabled IPv6 only when IPv6 also failed or in
          * verbose mode. Report other errors always.
          */
-        if((errno == EAFNOSUPPORT && socktype == AF_INET6) || options & F_VERBOSE || requisite)
+        if((errno == EAFNOSUPPORT && socktype == AF_INET6) || (options & F_VERBOSE) || requisite)
             error(0, errno, "socket");
         if(requisite)
             exit(2);
@@ -512,7 +535,15 @@ ping_main(int argc, char **argv)
     return status;
 }
 
-int ping_util(const char *addr, int count)
+/**
+ * Send ping
+ *
+ * @type for ipv4=4, for ipv6=6
+ * @addr host name or IP address
+ * @count number of packets to transmit
+ * @return ping time in microsecond or -1 if error
+ */
+int ping_util(int type, const char *addr, int count)
 {
 
     /*
@@ -522,15 +553,44 @@ int ping_util(const char *addr, int count)
      net.ipv4.ping_group_range = 1   0
      Need change range for other users:
      # sysctl net.ipv4.ping_group_range="1 65000"
-
      */
     int argc = 3;
     const char *argv[argc];
-    argv[0] = "ping4";
+    if(type!=4)
+        argv[0] = "ping6";
+    else
+        argv[0] = "ping4";
     argv[1] = g_strdup_printf("-c%d", count);
     argv[2] = addr;
-    int res = ping_main(argc, (char**) argv);
-    return res;
+    ping_main(argc, (char**) argv);
+    g_free((char*)argv[1]);
+    if(ntransmitted > 1 && nreceived > 1)
+        return tsum;
+    return -1;
+}
+
+/**
+ * Send ping for ipv4
+ *
+ * @addr host name or IP address
+ * @count number of packets to transmit
+ * @return ping time in microsecond or -1 if error
+ */
+int ping_util4(const char *addr, int count)
+{
+    return ping_util(4, addr, count);
+}
+
+/**
+ * Send ping for ipv6
+ *
+ * @addr host name or IP address
+ * @count number of packets to transmit
+ * @return ping time in microsecond or -1 if error
+ */
+int ping_util6(const char *addr, int count)
+{
+    return ping_util(6, addr, count);
 }
 
 int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
@@ -830,14 +890,16 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
     if(!(packet = (unsigned char *) malloc((unsigned int) packlen)))
         error(2, errno, "memory allocation failed");
 
-    printf("PING %s (%s) ", hostname, inet_ntoa(whereto.sin_addr));
+    //printf("PING %s (%s) ", hostname, inet_ntoa(whereto.sin_addr));
     if(device || (options & F_STRICTSOURCE))
         printf("from %s %s: ", inet_ntoa(source.sin_addr), device ? device : "");
-    printf("%d(%d) bytes of data.\n", datalen, datalen + 8 + optlen + 20);
+    //printf("%d(%d) bytes of data.\n", datalen, datalen + 8 + optlen + 20);
 
     setup(sock);
-
+    log_printf("main_loop start %s (%s)\n", hostname, inet_ntoa(whereto.sin_addr));
     main_loop(&ping4_func_set, sock, packet, packlen);
+    log_printf("main_loop end\n");
+    return 0;
 }
 
 int ping4_receive_error_msg(socket_st *sock)
@@ -863,7 +925,8 @@ int ping4_receive_error_msg(socket_st *sock)
     msg.msg_flags = 0;
     msg.msg_control = cbuf;
     msg.msg_controllen = sizeof(cbuf);
-
+    if(!sock)
+        return net_errors;
     res = recvmsg(sock->fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
     if(res < 0)
         goto out;
@@ -983,7 +1046,7 @@ static
 void pr_echo_reply(uint8_t *_icp, int len __attribute__((__unused__)))
 {
     struct icmphdr *icp = (struct icmphdr *) _icp;
-    printf(" icmp_seq=%u", ntohs(icp->un.echo.sequence));
+    log_printf(" icmp_seq=%u", ntohs(icp->un.echo.sequence));
 }
 
 int
@@ -1039,6 +1102,7 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
     csfailed = in_cksum((unsigned short *) icp, cc, 0);
 
     if(icp->type == ICMP_ECHOREPLY) {
+        //log_printf("in ping4_parse_reply00\n");
         if(!is_ours(sock, icp->un.echo.id))
             return 1; /* 'Twas not our ECHO */
         if(!contains_pattern_in_payload((uint8_t*) (icp + 1)))
@@ -1050,9 +1114,9 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
             fflush(stdout);
             return 0;
         }
+        //log_printf("in ping4_parse_reply01\n");
     } else {
         /* We fall here when a redirect or source quench arrived. */
-
         switch (icp->type) {
         case ICMP_ECHO:
             /* MUST NOT */
@@ -1082,11 +1146,11 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
             if(options & (F_QUIET | F_FLOOD))
                 return 1;
             print_timestamp();
-            printf("From %s: icmp_seq=%u ",
+            log_printf("From %s: icmp_seq=%u ",
                     pr_addr(from, sizeof *from),
                     ntohs(icp1->un.echo.sequence));
             if(csfailed)
-                printf("(BAD CHECKSUM)");
+                log_printf("(BAD CHECKSUM)");
             pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
             return 1;
         }
@@ -1106,11 +1170,11 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
         if(options & F_PTIMEOFDAY) {
             struct timeval recv_time;
             gettimeofday(&recv_time, NULL);
-            printf("%lu.%06lu ", (unsigned long) recv_time.tv_sec, (unsigned long) recv_time.tv_usec);
+            log_printf("%lu.%06lu ", (unsigned long) recv_time.tv_sec, (unsigned long) recv_time.tv_usec);
         }
         printf("From %s: ", pr_addr(from, sizeof *from));
         if(csfailed) {
-            printf("(BAD CHECKSUM)\n");
+            log_printf("(BAD CHECKSUM)\n");
             return 0;
         }
         pr_icmph(icp->type, icp->code, ntohl(icp->un.gateway), icp);
@@ -1118,14 +1182,14 @@ ping4_parse_reply(struct socket_st *sock, struct msghdr *msg, int cc, void *addr
     }
 
     if(options & F_AUDIBLE) {
-        putchar('\a');
+        log_printf("\a"); //putchar('\a');
         if(options & F_FLOOD)
             fflush(stdout);
     }
     if(!(options & F_FLOOD)) {
         pr_options(opts, olen + sizeof(struct iphdr));
 
-        putchar('\n');
+        log_printf("\n"); //putchar('\n');
         fflush(stdout);
     }
     return 0;

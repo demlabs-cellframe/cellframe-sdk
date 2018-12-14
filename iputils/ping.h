@@ -29,6 +29,8 @@
 #include <linux/filter.h>
 #include <resolv.h>
 
+#include "iputils.h"
+
 #ifdef HAVE_ERROR_H
 #include <error.h>
 #else
@@ -339,8 +341,8 @@ extern int pinger(ping_func_set_st *fset, socket_st *sock);
 extern void sock_setbufs(socket_st*, int alloc);
 extern void setup(socket_st *);
 extern int contains_pattern_in_payload(uint8_t *ptr);
-extern void main_loop(ping_func_set_st *fset, socket_st*, uint8_t *buf, int buflen) __attribute__((noreturn));
-extern void finish(void) __attribute__((noreturn));
+extern void main_loop(ping_func_set_st *fset, socket_st*, uint8_t *buf, int buflen);// __attribute__((noreturn));
+extern void finish(void);// __attribute__((noreturn));
 extern void status(void);
 extern void common_options(int ch);
 extern int gather_statistics(uint8_t *ptr, int icmplen,
@@ -421,9 +423,4 @@ struct ni_hdr {
 #define NI_IPV4ADDR_F_TRUNCATE		NI_IPV6ADDR_F_TRUNCATE
 #define NI_IPV4ADDR_F_ALL		NI_IPV6ADDR_F_ALL
 
-#define PACKAGE_NAME "ping"
-#define PACKAGE_VERSION "0.1"
-#define IPUTILS_VERSION(_prog) "%s from %s %s\n", _prog, PACKAGE_NAME, PACKAGE_VERSION
-
-int ping_util(const char *addr, int count);
 
