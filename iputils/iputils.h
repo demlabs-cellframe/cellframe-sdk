@@ -19,7 +19,7 @@ extern "C" {
  * @count number of packets to transmit
  * @return ping time in microsecond or -1 if error
  */
-int ping_util4(const char *addr, int count);
+int ping_util(const char *addr, int count);
 
 /**
  * Send ping for ipv6
@@ -34,11 +34,14 @@ int ping_util6(const char *addr, int count);
 /**
  *
  */
-int tracepath_util(int type, const char *addr);
+int tracepath_util(const char *addr, int *hops, int *time_usec);
 
-//#define PING_DBG
+void iputils_set_verbose(void);
+void iputils_reset_verbose(void);
+
+
 // analog printf()
-void log_printf(const char *format, ...);
+int log_printf(const char *format, ...);
 
 #define PACKAGE_NAME "iputils"
 #define PACKAGE_VERSION "0.1"

@@ -58,29 +58,6 @@
 #include <math.h>
 #include <glib.h>
 
-// analog printf()
-void log_printf(const char *format, ...)
-{
-#ifdef PING_DBG
-    gchar *log_str = NULL;
-    va_list args;
-
-    va_start (args, format);
-    log_str = g_strdup_vprintf (format, args);
-    va_end (args);
-
-    if(log_str)
-    {
-
-        printf(log_str);
-        g_free(log_str);
-    }
-#endif
-    const char *str = NULL;
-    if(str)
-        str = format;
-}
-
 #ifndef ICMP_FILTER
 #define ICMP_FILTER	1
 struct icmp_filter {
@@ -476,6 +453,7 @@ ping_main(int argc, char **argv)
 
     argc -= optind;
     argv += optind;
+    optind = 0;
 
     if(!argc)
         error(1, EDESTADDRREQ, "usage error");
@@ -543,7 +521,7 @@ ping_main(int argc, char **argv)
  * @count number of packets to transmit
  * @return ping time in microsecond or -1 if error
  */
-int ping_util(int type, const char *addr, int count)
+int ping_util_common(int type, const char *addr, int count)
 {
 
     /*
@@ -556,14 +534,14 @@ int ping_util(int type, const char *addr, int count)
      */
     int argc = 3;
     const char *argv[argc];
-    if(type!=4)
+    if(type != 4)
         argv[0] = "ping6";
     else
         argv[0] = "ping4";
     argv[1] = g_strdup_printf("-c%d", count);
     argv[2] = addr;
     ping_main(argc, (char**) argv);
-    g_free((char*)argv[1]);
+    g_free((char*) argv[1]);
     if(ntransmitted > 1 && nreceived > 1)
         return tsum;
     return -1;
@@ -576,9 +554,9 @@ int ping_util(int type, const char *addr, int count)
  * @count number of packets to transmit
  * @return ping time in microsecond or -1 if error
  */
-int ping_util4(const char *addr, int count)
+int ping_util(const char *addr, int count)
 {
-    return ping_util(4, addr, count);
+    return ping_util_common(4, addr, count);
 }
 
 /**
@@ -590,7 +568,7 @@ int ping_util4(const char *addr, int count)
  */
 int ping_util6(const char *addr, int count)
 {
-    return ping_util(6, addr, count);
+    return ping_util_common(6, addr, count);
 }
 
 int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
@@ -890,10 +868,10 @@ int ping4_run(int argc, char **argv, struct addrinfo *ai, socket_st *sock)
     if(!(packet = (unsigned char *) malloc((unsigned int) packlen)))
         error(2, errno, "memory allocation failed");
 
-    //printf("PING %s (%s) ", hostname, inet_ntoa(whereto.sin_addr));
+//printf("PING %s (%s) ", hostname, inet_ntoa(whereto.sin_addr));
     if(device || (options & F_STRICTSOURCE))
         printf("from %s %s: ", inet_ntoa(source.sin_addr), device ? device : "");
-    //printf("%d(%d) bytes of data.\n", datalen, datalen + 8 + optlen + 20);
+//printf("%d(%d) bytes of data.\n", datalen, datalen + 8 + optlen + 20);
 
     setup(sock);
     log_printf("main_loop start %s (%s)\n", hostname, inet_ntoa(whereto.sin_addr));
