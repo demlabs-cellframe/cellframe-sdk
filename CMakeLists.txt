@@ -13,8 +13,8 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node_ctl.h
     )
 
-file(GLOB IPUTILS_SRCS iputils/*.c)
-file(GLOB IPUTILS_HEADERS iputils/*.h)
+file(GLOB IPUTILS_SRCS iputils/*.c iputils/traceroute/*.c)
+file(GLOB IPUTILS_HEADERS iputils/*.h iputils/traceroute/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
 

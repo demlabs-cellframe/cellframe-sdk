@@ -35,6 +35,7 @@ int ping_util6(const char *addr, int count);
  *
  */
 int tracepath_util(const char *addr, int *hops, int *time_usec);
+int traceroute_util(const char *addr, int *hops, int *time_usec);
 
 void iputils_set_verbose(void);
 void iputils_reset_verbose(void);
