@@ -217,8 +217,7 @@ static double ping_strtod(const char *str, const char *err_msg)
     return 0.0;
 }
 
-static int
-ping_main(int argc, char **argv)
+static int ping_main(int argc, char **argv)
 {
     struct addrinfo hints = { .ai_family = AF_UNSPEC, .ai_protocol = IPPROTO_UDP, .ai_socktype = SOCK_DGRAM, .ai_flags =
     getaddrinfo_flags };

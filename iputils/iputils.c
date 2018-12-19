@@ -8,11 +8,17 @@
 
 static bool LOG_VERBOSE = false;
 
+/**
+ * Set verbose mode
+ */
 void iputils_set_verbose(void)
 {
     LOG_VERBOSE = true;
 }
 
+/**
+ * Reset verbose mode
+ */
 void iputils_reset_verbose(void)
 {
     LOG_VERBOSE = false;

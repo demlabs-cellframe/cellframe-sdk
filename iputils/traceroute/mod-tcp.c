@@ -81,7 +81,7 @@ static char *names_by_flags (unsigned int flags) {
 	char *curr = str;
 	char *end = str + sizeof (str) / sizeof (*str);
 
-	for (i = 0; i < sizeof (tcp_flags) / sizeof (*tcp_flags); i++) {
+	for (i = 0; i < (int)(sizeof (tcp_flags) / sizeof (*tcp_flags)); i++) {
 	    const char *p;
 
 	    if (!(flags & tcp_flags[i].flag))  continue;
@@ -96,9 +96,10 @@ static char *names_by_flags (unsigned int flags) {
 }
 
 static int set_tcp_flag (CLIF_option *optn, char *arg) {
-	int i;
+    UNUSED(arg);
+    int i;
 
-	for (i = 0; i < sizeof (tcp_flags) / sizeof (*tcp_flags); i++) {
+	for (i = 0; i < (int)(sizeof (tcp_flags) / sizeof (*tcp_flags)); i++) {
 	    if (!strcmp (optn->long_opt, tcp_flags[i].name)) {
 		    flags |= tcp_flags[i].flag;
 		    return 0;
@@ -109,7 +110,8 @@ static int set_tcp_flag (CLIF_option *optn, char *arg) {
 }
 
 static int set_tcp_flags (CLIF_option *optn, char *arg) {
-	char *q;
+    UNUSED(optn);
+    char *q;
 	unsigned long value;
 
 	value = strtoul (arg, &q, 0);
@@ -120,7 +122,7 @@ static int set_tcp_flags (CLIF_option *optn, char *arg) {
 }
 
 static int set_flag (CLIF_option *optn, char *arg) {
-
+    UNUSED(arg);
 	flags |= (unsigned long) optn->data;
 
 	return 0;
@@ -318,7 +320,7 @@ static int tcp_init (const sockaddr_any *dest,
 	if (flags & TH_SYN) {
 	    *ptr++ = TCPOPT_MAXSEG;	/*  2   */
 	    *ptr++ = TCPOLEN_MAXSEG;	/*  4   */
-	    *((uint16_t *) ptr) = htons (mss ? mss : mtu);
+	    *((uint16_t *) ptr) = htons (mss ? mss : (unsigned int)mtu);
 	    ptr += sizeof (uint16_t);
 	}
 
@@ -441,6 +443,7 @@ static void tcp_send_probe (probe *pb, int ttl) {
 
 static probe *tcp_check_reply (int sk, int err, sockaddr_any *from,
 						    char *buf, size_t len) {
+    UNUSED(sk);
 	probe *pb;
 	struct tcphdr *tcp = (struct tcphdr *) buf;
 	uint16_t sport, dport;

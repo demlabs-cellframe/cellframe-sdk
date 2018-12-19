@@ -28,6 +28,7 @@ static int icmp_sk = -1;
 
 static int tcp_init (const sockaddr_any *dest,
 			    unsigned int port_seq, size_t *packet_len_p) {
+    UNUSED(packet_len_p);
 	int af = dest->sa.sa_family;
 
 	dest_addr = *dest;
@@ -94,6 +95,9 @@ static void tcp_send_probe (probe *pb, int ttl) {
 
 static probe *tcp_check_reply (int sk, int err, sockaddr_any *from,
 						    char *buf, size_t len) {
+    UNUSED(sk);
+    UNUSED(err);
+    UNUSED(from);
 	int af = dest_addr.sa.sa_family;
 	int type, code, info;
 	probe *pb;

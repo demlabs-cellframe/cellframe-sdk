@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #include <clif.h>
-
+#include "../iputils.h"
 
 union common_sockaddr {
 	struct sockaddr sa;

@@ -32,7 +32,8 @@ static int seq = 0;
 
 
 static int set_protocol (CLIF_option *optn, char *arg) {
-	char *q;
+    UNUSED(optn);
+    char *q;
 
 	protocol = strtoul (arg, &q, 0);
 	if (q == arg) {
@@ -71,7 +72,7 @@ static int raw_init (const sockaddr_any *dest,
 	    !(data = malloc (*length_p))
 	)  error ("malloc");
 
-        for (i = 0; i < *length_p; i++)
+        for (i = 0; i < (int)*length_p; i++)
                 data[i] = 0x40 + (i & 0x3f);
 
 
@@ -121,7 +122,10 @@ static void raw_send_probe (probe *pb, int ttl) {
 
 static probe *raw_check_reply (int sk, int err, sockaddr_any *from,
 						    char *buf, size_t len) {
-	probe *pb;
+    UNUSED(sk);
+    UNUSED(len);
+    UNUSED(buf);
+    probe *pb;
 
 	if (!equal_addr (&dest_addr, from))
 		return NULL;

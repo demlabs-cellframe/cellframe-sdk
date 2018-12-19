@@ -373,6 +373,7 @@ static int recverr(struct run_state * const ctl)
         return 0;
     }
     goto restart;
+    return 0;
 }
 
 static int probe_ttl(struct run_state * const ctl)
@@ -716,6 +717,14 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
     return -1; //exit(1);
 }
 
+/**
+ * Tracepath host
+ *
+ * @addr[in] host name or IP address
+ * @hops[out] hops count
+ * @time_usec[out] latency in microseconds
+ * @return 0 Ok, -1 error
+ */
 int tracepath_util(const char *addr, int *hops, int *time_usec)
 {
     int type = 4; // 4 or 6
@@ -761,7 +770,6 @@ int tracepath_util(const char *addr, int *hops, int *time_usec)
              deltatime->tv_sec * 1000000 + deltatime->tv_usec);
              }*/
         }
-    //g_free((char*) argv[2]);
     if(hops) {
         *hops = total_hops;
     }

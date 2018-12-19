@@ -22,9 +22,9 @@ static unsigned int num_polls = 0;
 void add_poll (int fd, int events) {
 	int i;
 
-	for (i = 0; i < num_polls && pfd[i].fd > 0; i++) ;
+	for (i = 0; i < (int)num_polls && pfd[i].fd > 0; i++) ;
 
-	if (i == num_polls) {
+	if (i == (int)num_polls) {
 	    pfd = realloc (pfd, ++num_polls * sizeof (*pfd));
 	    if (!pfd)  error ("realloc");
 	}
@@ -37,21 +37,21 @@ void add_poll (int fd, int events) {
 void del_poll (int fd) {
 	int i;
 
-	for (i = 0; i < num_polls && pfd[i].fd != fd; i++) ;
+	for (i = 0; i < (int)num_polls && pfd[i].fd != fd; i++) ;
 
-	if (i < num_polls)  pfd[i].fd = -1;    /*  or just zero it...  */
+	if (i < (int)num_polls)  pfd[i].fd = -1;    /*  or just zero it...  */
 }
 
 
 static int cleanup_polls (void) {
 	int i;
 
-	for (i = 0; i < num_polls && pfd[i].fd > 0; i++) ;
+	for (i = 0; i < (int)num_polls && pfd[i].fd > 0; i++) ;
 
-	if (i < num_polls) {	/*  a hole have found   */
+	if (i < (int)num_polls) {	/*  a hole have found   */
 	    int j;
 
-	    for (j = i + 1; j < num_polls; j++) {
+	    for (j = i + 1; j < (int)num_polls; j++) {
 		if (pfd[j].fd > 0) {
 		    pfd[i++] = pfd[j];
 		    pfd[j].fd = -1;
@@ -78,7 +78,7 @@ void do_poll (double timeout, void (*callback) (int fd, int revents)) {
 		error ("poll");
 	    }
 
-	    for (i = 0; n && i < num_polls; i++) {
+	    for (i = 0; n && i < (int)num_polls; i++) {
 		if (pfd[i].revents) {
 		    callback (pfd[i].fd, pfd[i].revents);
 		    n--;

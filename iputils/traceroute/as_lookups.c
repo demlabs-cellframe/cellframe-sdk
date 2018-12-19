@@ -66,7 +66,7 @@ const char *get_as_path (const char *query) {
 		goto  err_sk;
 
 	n = snprintf (buf, sizeof (buf), "%s\r\n", query);
-	if (n >= sizeof (buf))  goto err_sk;
+	if (n >= (int)sizeof (buf))  goto err_sk;
 
 	if (write (sk, buf, n) < n)
 		goto err_sk;

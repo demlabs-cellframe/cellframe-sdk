@@ -32,9 +32,7 @@
 #include <stdbool.h>
 #include <glib.h>
 #include "traceroute.h"
-#include "../iputils.h"
 
-#define UNUSED(x) (void)(x)
 
 #ifndef ICMP6_DST_UNREACH_BEYONDSCOPE
 #ifdef ICMP6_DST_UNREACH_NOTNEIGHBOR
@@ -753,8 +751,7 @@ static bool print_addr(sockaddr_any *res) {
 
     if(noresolve) {
         log_printf("%s", str);
-        //ret_str = g_strdup_printf("%s", str);
-        if(!strcmp(dst_name, str))
+        if(str && !strcmp(dst_name, str))
             is_final = true;
     }
     else {
@@ -764,8 +761,10 @@ static bool print_addr(sockaddr_any *res) {
         getnameinfo(&res->sa, sizeof(*res), buf, sizeof(buf),
                 0, 0, NI_IDN);
         log_printf(" %s (%s)", buf[0] ? buf : str, str);
-        //ret_str = g_strdup_printf("%s", buf[0] ? buf : str);
         if(buf[0] && !strcmp(dst_name, buf))
+            is_final = true;
+        else
+        if(str && !strcmp(dst_name, str))
             is_final = true;
     }
 
@@ -1070,11 +1069,23 @@ static void do_it(void) {
             if(pb->done) {
 
                 if(n == start) { /*  can print it now   */
-                    if(print_probe(pb))
+                    if(print_probe(pb)) {
                         pb->final = 1;
+                    }
                     //log_printf("(host=%s,%s recv_ttl=%d)", dst_name, (host) ? host : "-", pb->recv_ttl);
                     start++;
                 }
+
+                /*                {
+                 char buf[1024];
+                 buf[0] = '\0';
+                 getnameinfo(&(pb->res.sa), sizeof((pb->res)), buf, sizeof(buf),0, 0, NI_IDN);
+                 if(buf[0] && !strcmp(dst_name, buf))
+                 pb->real_final = true;
+                 //else
+                 //if(str && !strcmp(dst_name, str))
+                 //  pb->real_final = true;
+                 }*/
 
                 if(pb->final)
                     end = (n / probes_per_hop + 1) * probes_per_hop;
@@ -1694,21 +1705,29 @@ int raw_can_connect(void) {
     return can_connect;
 }
 
+/**
+ * Traceroute host
+ *
+ * @addr[in] host name or IP address
+ * @hops[out] hops count
+ * @time_usec[out] latency in microseconds
+ * @return 0 Ok, -1 error
+ */
 int traceroute_util(const char *addr, int *hops, int *time_usec)
 {
     UNUSED(hops);
-    int type = 6; // 4 or 6
-    //int total_hops = 0;
-    long int total_time_usec = 0; // latency in microseconds
+    int type = 6; // ipv4 or ipv6
     int argc = 3;
     const char *argv[argc];
     if(type != 4)
         argv[0] = "traceroute6";
     else
         argv[0] = "traceroute4";
-    //argv[1] = "-A";
-    argv[1] = "-4"; // -n -m 16
+    argv[1] = "-4"; // ipv4
     argv[2] = addr;
+
+    *hops = 0;
+    *time_usec = 0;
 
     int ret = traceroute_main(argc, (char**) argv);
     if(!ret)
@@ -1717,13 +1736,17 @@ int traceroute_util(const char *addr, int *hops, int *time_usec)
             if(one_probe->done && one_probe->final && one_probe->recv_ttl) {
                 *hops = i / DEF_NUM_PROBES + 1;
                 *time_usec = (int) ((one_probe->recv_time - one_probe->send_time) * 1000000);
-                ret = 1;
+                // if error -> not found host
+                if(!strlen(one_probe->err_str))
+                    ret = 1;
                 break;
             }
             /*if(one_probe->done)
-             printf("%d(%d) dseq=%d sk=%d done=%d final=%d recv_ttl=%d dt=%lf\n", i + 1, i / DEF_NUM_PROBES + 1,
+             printf("%d(%d) dseq=%d sk=%d done=%d final=%d recv_ttl=%d dt=%lf err='%s'\n", i + 1,
+             i / DEF_NUM_PROBES + 1,
              one_probe->seq, one_probe->sk, one_probe->done,
-             one_probe->final, one_probe->recv_ttl, one_probe->recv_time - one_probe->send_time);*/
+             one_probe->final, one_probe->recv_ttl, one_probe->recv_time - one_probe->send_time,
+             one_probe->err_str);*/
         }
     free(probes);
 

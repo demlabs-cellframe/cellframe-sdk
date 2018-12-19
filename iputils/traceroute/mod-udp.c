@@ -44,7 +44,7 @@ static void fill_data (size_t *packet_len_p) {
 	    !(data = malloc (*length_p))
 	)  error ("malloc");
 
-        for (i = 0; i < *length_p; i++)
+        for (i = 0; i < (int)*length_p; i++)
                 data[i] = 0x40 + (i & 0x3f);
  
 	return;
@@ -166,7 +166,9 @@ static void udp_send_probe (probe *pb, int ttl) {
 
 static probe *udp_check_reply (int sk, int err, sockaddr_any *from,
 						    char *buf, size_t len) {
-	probe *pb;
+	UNUSED(buf);
+	UNUSED(len);
+    probe *pb;
 
 	pb = probe_by_sk (sk);
 	if (!pb)  return NULL;

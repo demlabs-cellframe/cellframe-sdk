@@ -230,6 +230,7 @@ static void dccp_send_probe (probe *pb, int ttl) {
 
 static probe *dccp_check_reply (int sk, int err, sockaddr_any *from,
 						    char *buf, size_t len) {
+    UNUSED(sk);
 	probe *pb;
 	struct dccp_hdr *ndh = (struct dccp_hdr *) buf;
 	uint16_t sport, dport;
