@@ -1,2 +1,5 @@
 *.user
 build
+/.project
+/.cproject
+/keystorage.txt

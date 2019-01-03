@@ -51,6 +51,7 @@ ntt_t init_ntt(ntt_state_t state){
 }
 
 void delete_ntt(ntt_state_t state, ntt_t input){
+  (void)state;
   assert(state != NULL);
   assert(input != NULL);
   free(input);

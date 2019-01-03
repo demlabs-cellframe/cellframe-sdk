@@ -106,6 +106,7 @@ static const char* b64_table_by_standard(dap_enc_data_type_t standard)
         perror("Unknown base64 standard");
         abort();
     }
+    return NULL;
 }
 
 /**
@@ -122,8 +123,9 @@ size_t dap_enc_base64_decode(const char * in, size_t in_size,void * out, dap_enc
     int j = 0;
     int8_t l = 0, i = 0;
     size_t l_size = 0;
-    unsigned char buf[3];
-    unsigned char tmp[4];
+
+    unsigned char buf[3] = {0};
+    unsigned char tmp[4] = {0};
 
     const char* b64_table = b64_table_by_standard(standard);
 

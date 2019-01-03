@@ -6,11 +6,6 @@
 #endif
 
 
-//extern const int32_t MSRLN_psi_rev_ntt1024_12289[1024];
-//extern const int32_t MSRLN_omegainv_rev_ntt1024_12289[1024];
-//extern const int32_t MSRLN_omegainv10N_rev_ntt1024_12289;
-//extern const int32_t MSRLN_Ninv11_ntt1024_12289;
-
 // N^-1 * prime_scale^-8
 const int32_t MSRLN_Ninv8_ntt1024_12289 = 8350;
 // N^-1 * prime_scale^-7 * omegainv_rev_ntt1024_12289[1]
@@ -340,13 +335,6 @@ CRYPTO_MSRLN_STATUS HelpRec(const uint32_t* x, uint32_t* rvec, const unsigned ch
 
     randombytes( random_bits, 32);
     CRYPTO_MSRLN_STATUS Status = CRYPTO_MSRLN_SUCCESS;
-    
-    /*nce[1] = (unsigned char)nonce;
-    Status = stream_output(seed, ERROR_SEED_BYTES, nce, NONCE_SEED_BYTES, 32, random_bits, StreamOutputFunction);
-    if (Status != CRYPTO_MSRLN_SUCCESS) {
-        clear_words((void*)random_bits, NBYTES_TO_NWORDS(32));
-        return Status;
-    } */
 
 #if defined(ASM_SUPPORT) && (SIMD_SUPPORT == AVX2_SUPPORT)         
     helprec_asm(x, rvec, random_bits);
@@ -404,7 +392,7 @@ static __inline uint32_t LDDecode(int32_t* t)
     }
 
     return ((8*PARAMETER_Q - norm) >> 31) ^ 1;                 // If norm < PARAMETER_Q then return 1, else return 0
-};
+}
 
 
 void Rec(const uint32_t *x, const uint32_t* rvec, unsigned char *key)               
@@ -465,47 +453,7 @@ CRYPTO_MSRLN_STATUS get_error(int32_t* e, unsigned char* seed, unsigned int nonc
     }
 #endif
 
-    return CRYPTO_MSRLN_SUCCESS;
-
-    /*unsigned char stream[3*PARAMETER_N];
-    uint32_t* pstream = (uint32_t*)&stream;   
-    uint32_t acc1, acc2, temp;  
-    uint8_t *pacc1 = (uint8_t*)&acc1, *pacc2 = (uint8_t*)&acc2;
-    unsigned char nce[8] = {0};
-    unsigned int i, j;
-    CRYPTO_MSRLN_STATUS Status = CRYPTO_MSRLN_ERROR_UNKNOWN;
-    
-    nce[0] = (unsigned char)nonce;
-    Status = stream_output(seed, ERROR_SEED_BYTES, nce, NONCE_SEED_BYTES, 3*PARAMETER_N, stream, StreamOutputFunction);
-    if (Status != CRYPTO_MSRLN_SUCCESS) {
-        clear_words((void*)stream, NBYTES_TO_NWORDS(3*PARAMETER_N));
-        return Status;
-    }
-
-#if defined(ASM_SUPPORT) && (SIMD_SUPPORT == AVX2_SUPPORT)         
-    error_sampling_asm(stream, e);
-#else    
-    for (i = 0; i < PARAMETER_N/4; i++)
-    {
-        acc1 = 0;
-        acc2 = 0;
-        for (j = 0; j < 8; j++) {
-            acc1 += (pstream[i] >> j) & 0x01010101;
-            acc2 += (pstream[i+PARAMETER_N/4] >> j) & 0x01010101;
-        }
-        for (j = 0; j < 4; j++) {
-            temp = pstream[i+2*PARAMETER_N/4] >> j;
-            acc1 += temp & 0x01010101;
-            acc2 += (temp >> 4) & 0x01010101;
-        }
-        e[2*i]   = pacc1[0] - pacc1[1];                               
-        e[2*i+1] = pacc1[2] - pacc1[3];
-        e[2*i+PARAMETER_N/2]   = pacc2[0] - pacc2[1];               
-        e[2*i+PARAMETER_N/2+1] = pacc2[2] - pacc2[3];
-    }
-#endif
-
-    return Status;*/
+    return CRYPTO_MSRLN_SUCCESS;    
 }
 
 
@@ -516,7 +464,7 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
     uint16_t val;
     unsigned int nblocks = 16;
     uint8_t buf[SHAKE128_RATE * 16]; // was * nblocks, but VS doesn't like this buf init
-    uint64_t state[SHA3_STATESIZE];
+    uint64_t state[SHA3_STATESIZE] = {0};
     shake128_absorb(state, seed, SEED_BYTES);
     shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
 
@@ -533,9 +481,7 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
         }
     }
 
-    return CRYPTO_MSRLN_SUCCESS;
-
-    //return extended_output(seed, SEED_BYTES, PARAMETER_N, a, ExtendableOutputFunction);
+    return CRYPTO_MSRLN_SUCCESS;    
 }
 
 
@@ -551,17 +497,11 @@ CRYPTO_MSRLN_STATUS MSRLN_KeyGeneration_A(int32_t* SecretKeyA, unsigned char* Pu
     unsigned char error_seed[ERROR_SEED_BYTES];
     CRYPTO_MSRLN_STATUS Status = CRYPTO_MSRLN_ERROR_UNKNOWN;
 
-    //Status = random_bytes(SEED_BYTES, seed, pLatticeCrypto->RandomBytesFunction);
     Status = randombytes( seed, SEED_BYTES);
 
     if (Status != CRYPTO_MSRLN_SUCCESS) {
         return Status;
-    }
-
-   // Status = random_bytes(ERROR_SEED_BYTES, error_seed, pLatticeCrypto->RandomBytesFunction);
-    if (Status != CRYPTO_MSRLN_SUCCESS) {
-        goto cleanup;
-    }
+    }   
 
     Status = generate_a(a, seed, pLatticeCrypto->ExtendableOutputFunction);
     if (Status != CRYPTO_MSRLN_SUCCESS) {
@@ -606,10 +546,6 @@ CRYPTO_MSRLN_STATUS MSRLN_SecretAgreement_B(unsigned char* PublicKeyA, unsigned 
     CRYPTO_MSRLN_STATUS Status = CRYPTO_MSRLN_ERROR_UNKNOWN;
 
     decode_A(PublicKeyA, pk_A, seed);
-    /*Status = random_bytes(ERROR_SEED_BYTES, error_seed, pLatticeCrypto->RandomBytesFunction);
-    if (Status != CRYPTO_MSRLN_SUCCESS) {
-        goto cleanup;
-    }*/
 
     Status = generate_a(a, seed, pLatticeCrypto->ExtendableOutputFunction);
     if (Status != CRYPTO_MSRLN_SUCCESS) {

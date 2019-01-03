@@ -12,8 +12,6 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include "../dap_crypto_common.h"
-//#include "libdap_crypto/rand/Dap_rand.h"
-#include "../sha3/fips202.h"
 
 // Definitions of the error-handling type and error codes
 

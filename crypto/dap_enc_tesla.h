@@ -1,0 +1,32 @@
+#ifndef _DAP_ENC_TESLA_H_
+#define _DAP_ENC_TESLA_H_
+
+#include "sig_tesla/tesla_params.h"
+#include "dap_enc_key.h"
+
+#undef LOG_TAG
+#define LOG_TAG "dap_enc_sig_tesla"
+
+enum DAP_TESLA_SIGN_SECURITY {
+    TESLA_TOY = 0, HEURISTIC_MAX_SECURITY_AND_MIN_SIZE, HEURISTIC_MAX_SECURITY_AND_MAX_SPEED, PROVABLY_SECURITY, PROVABLY_MAX_SECURITY
+};
+
+void dap_enc_sig_tesla_set_type(enum DAP_TESLA_SIGN_SECURITY type);
+
+void dap_enc_sig_tesla_key_new(struct dap_enc_key *key);
+
+void dap_enc_sig_tesla_key_new_generate(struct dap_enc_key * key, const void *kex_buf,
+                                    size_t kex_size, const void * seed, size_t seed_size,
+                                    size_t key_size);
+
+size_t dap_enc_sig_tesla_get_sign(struct dap_enc_key * key,const void * msg,
+                                  const size_t msg_size, void * signature, const size_t signature_size);
+
+size_t dap_enc_sig_tesla_verify_sign(struct dap_enc_key * key,const void * msg,
+                                     const size_t msg_size, void * signature, const size_t signature_size);
+
+void dap_enc_sig_tesla_key_delete(struct dap_enc_key * key);
+
+size_t dap_enc_tesla_calc_signature_size(void);
+
+#endif

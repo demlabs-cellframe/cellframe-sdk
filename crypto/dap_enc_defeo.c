@@ -123,24 +123,30 @@ size_t dap_enc_defeo_gen_bob_shared_key(struct dap_enc_key *b_key, const void *a
 // a_key_len --- shared key length
 size_t dap_enc_defeo_gen_alice_shared_key(struct dap_enc_key *a_key, const void *a_priv, size_t b_pub_size, unsigned char *b_pub)
 {
+    size_t ret_val = 0;
     if(b_pub_size != DEFEO_PUBLICK_KEY_LEN) {
         log_it(L_ERROR, "public key size not equal DEFEO_PUBLICKEYBYTES");
         return 1;
     }
-
+    void *oldkey = NULL;
+    if(a_key->priv_key_data && a_key->priv_key_data_size > 0)
+        oldkey = a_key->priv_key_data;
     a_key->priv_key_data = malloc(DEFEO_SHARED_KEY_LEN);
+
     if(a_key->priv_key_data == NULL) {
         log_it(L_CRITICAL, "Error malloc");
-        return 2;
+        ret_val = 2;
     }
 
     if(EphemeralSecretAgreement_A((unsigned char *) a_priv, (unsigned char *) b_pub,
                                   (unsigned char *) a_key->priv_key_data) != 0) {
         log_it(L_ERROR, "Error EphemeralSecretAgreement_A");
-        return 3;
+        ret_val = 3;
     }
 
-    a_key->priv_key_data_size = DEFEO_SHARED_KEY_LEN;
-
-    return 0;
+    if(oldkey)
+        free(oldkey);
+    if(!ret_val)
+        a_key->priv_key_data_size = DEFEO_SHARED_KEY_LEN;
+    return ret_val;
 }

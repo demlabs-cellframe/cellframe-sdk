@@ -29,6 +29,8 @@
 #include "dap_enc_defeo.h"
 #include "dap_enc_picnic.h"
 #include "dap_enc_bliss.h"
+#include "dap_enc_tesla.h"
+
 
 #include "dap_enc_key.h"
 
@@ -106,16 +108,17 @@ struct dap_enc_key_callbacks{
     },
     [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
         .name = "PICNIC",
-        .enc_na = dap_enc_picnic_enc_na,
-        .dec_na = dap_enc_picnic_dec_na,
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = dap_enc_sig_picnic_get_sign, // dap_enc_picnic_enc_na
+        .dec_na = dap_enc_sig_picnic_verify_sign,// dap_enc_picnic_dec_na
         .gen_bob_shared_key = NULL,
         .gen_alice_shared_key = NULL,
-        .new_callback = dap_enc_defeo_key_new,
-        .delete_callback = dap_enc_defeo_key_delete,
-        .new_generate_callback = dap_enc_defeo_key_new_generate,
+        .new_callback = dap_enc_sig_picnic_key_new,
+        .delete_callback = dap_enc_sig_picnic_key_delete,
+        .new_generate_callback = dap_enc_sig_picnic_key_new_generate,
         .enc_out_size = NULL,
         .dec_out_size = NULL
-
     },
     [DAP_ENC_KEY_TYPE_SIG_BLISS]={
         .name = "SIG_BLISS",
@@ -128,6 +131,20 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_sig_bliss_key_new,
         .delete_callback = dap_enc_sig_bliss_key_delete,
         .new_generate_callback = dap_enc_sig_bliss_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL
+    },
+    [DAP_ENC_KEY_TYPE_SIG_TESLA]={
+        .name = "SIG_TESLA",
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = dap_enc_sig_tesla_get_sign,
+        .dec_na = dap_enc_sig_tesla_verify_sign,
+        .gen_bob_shared_key = NULL,
+        .gen_alice_shared_key = NULL,
+        .new_callback = dap_enc_sig_tesla_key_new,
+        .delete_callback = dap_enc_sig_tesla_key_delete,
+        .new_generate_callback = dap_enc_sig_tesla_key_new_generate,
         .enc_out_size = NULL,
         .dec_out_size = NULL
     }

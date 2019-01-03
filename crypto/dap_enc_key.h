@@ -102,7 +102,10 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                            DAP_ENC_KEY_TYPE_SIG_BLISS,  // signature based on zero-knowledge proof as specified in
                                                // Post-Quantum Zero-Knowledge and Signatures from Symmetric-Key Primitives
 
-                               DAP_ENC_KEY_TYPE_FNAM2
+                           DAP_ENC_KEY_TYPE_SIG_TESLA,  // signature based on Ring_LWE problem with zero-knowledge proof as specified in
+                                               // Post-Quantum Zero-Knowledge and Signatures from Symmetric-Key Primitives
+
+                           DAP_ENC_KEY_TYPE_FNAM2
                          }  dap_enc_key_type_t;
 
 struct dap_enc_key;

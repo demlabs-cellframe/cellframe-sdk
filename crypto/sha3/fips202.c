@@ -346,9 +346,6 @@ static void keccak_absorb(uint64_t *s, unsigned int r, const unsigned char *m, u
   unsigned long long i;
   unsigned char t[200];
 
-  for (i = 0; i < 25; ++i)
-      s[i] = 0;
-
   while (mlen >= r)
   {
     for (i = 0; i < r / 8; ++i)
@@ -431,10 +428,6 @@ void shake128(unsigned char *output, unsigned long long outlen, const unsigned c
 void cshake128_simple_absorb(uint64_t s[25], uint16_t cstm, const unsigned char *in, unsigned long long inlen)
 {
   unsigned char *sep = (unsigned char*)s;
-  unsigned int i;
-
-  for (i = 0; i < 25; i++)
-    s[i] = 0;
 
   /* Absorb customization (domain-separation) string */
   sep[0] = 0x01;
@@ -461,7 +454,7 @@ void cshake128_simple_squeezeblocks(unsigned char *output, unsigned long long nb
 
 void cshake128_simple(unsigned char *output, unsigned long long outlen, uint16_t cstm, const unsigned char *in, unsigned long long inlen)
 {
-  uint64_t s[25];
+  uint64_t s[25] = {0};
   unsigned char t[SHAKE128_RATE];
   unsigned int i;
 
@@ -496,13 +489,10 @@ void shake256_squeezeblocks(unsigned char *output, unsigned long long nblocks, u
 
 void shake256(unsigned char *output, unsigned long long outlen, const unsigned char *input,  unsigned long long inlen)
 {
-  uint64_t s[25];
+  uint64_t s[25] = {0};
   unsigned char t[SHAKE256_RATE];
   unsigned long long nblocks = outlen/SHAKE256_RATE;
   size_t i;
-
-  for (i = 0; i < 25; ++i)
-    s[i] = 0;
 
   /* Absorb input */
   keccak_absorb(s, SHAKE256_RATE, input, inlen, 0x1F);
@@ -527,10 +517,6 @@ void shake256(unsigned char *output, unsigned long long outlen, const unsigned c
 void cshake256_simple_absorb(uint64_t s[25], uint16_t cstm, const unsigned char *in, unsigned long long inlen)
 {
   unsigned char *sep = (unsigned char*)s;
-  unsigned int i;
-
-  for (i = 0; i < 25; i++)
-    s[i] = 0;
 
   /* Absorb customization (domain-separation) string */
   sep[0] = 0x01;
@@ -557,7 +543,7 @@ void cshake256_simple_squeezeblocks(unsigned char *output, unsigned long long nb
 
 void cshake256_simple(unsigned char *output, unsigned long long outlen, uint16_t cstm, const unsigned char *in, unsigned long long inlen)
 {
-  uint64_t s[25];
+  uint64_t s[25] = {0};
   unsigned char t[SHAKE256_RATE];
   unsigned int i;
 
@@ -577,7 +563,7 @@ void cshake256_simple(unsigned char *output, unsigned long long outlen, uint16_t
 
 void sha3_256(unsigned char *output, const unsigned char *input, unsigned int inputByteLen)
 {
-  uint64_t s[25];
+  uint64_t s[25] = {0};
   unsigned char t[SHA3_256_RATE];
   int i;
 
@@ -589,7 +575,7 @@ void sha3_256(unsigned char *output, const unsigned char *input, unsigned int in
 
 void sha3_512(unsigned char *output, const unsigned char *input, unsigned int inputByteLen)
 {
-  uint64_t s[25];
+  uint64_t s[25] = {0};
   unsigned char t[SHA3_512_RATE];
   uint32_t i;
 
@@ -598,3 +584,4 @@ void sha3_512(unsigned char *output, const unsigned char *input, unsigned int in
   for(i=0;i<64;i++)
     output[i] = t[i];
 }
+

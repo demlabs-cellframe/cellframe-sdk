@@ -1,5 +1,9 @@
-/*
- *  This file is part of the optimized implementation of the Picnic signature scheme.
+/*! @file picnic_impl.c
+ *  @brief This is the main file of the signature scheme. All of the LowMC MPC
+ *  code is here as well as lower-level versions of sign and verify that are
+ *  called by the signature API.
+ *
+ *  This file is part of the reference implementation of the Picnic signature scheme.
  *  See the accompanying documentation for complete details.
  *
  *  The code is provided under the MIT license, see LICENSE for
@@ -7,1292 +11,986 @@
  *  SPDX-License-Identifier: MIT
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include "bitstream.h"
-#include "compat.h"
-#include "io.h"
-#include "kdf_shake.h"
-#include "lowmc.h"
-#include "lowmc_pars.h"
-#include "mpc.h"
-#include "mpc_lowmc.h"
-#include "picnic_impl.h"
-#include "randomness.h"
-#include "timing.h"
-
-#include <limits.h>
-#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-
-typedef struct {
-  uint8_t* seeds[SC_PROOF];
-  uint8_t* commitments[SC_PROOF];
-  uint8_t* gs[SC_PROOF];
-  uint8_t* input_shares[SC_PROOF];
-  uint8_t* communicated_bits[SC_PROOF];
-  uint8_t* output_shares[SC_PROOF];
-} proof_round_t;
-
-typedef struct {
-  uint8_t* challenge;
-  proof_round_t round[];
-} sig_proof_t;
-
-// Prefix values for domain separation
-static const uint8_t HASH_PREFIX_0 = 0;
-static const uint8_t HASH_PREFIX_1 = 1;
-static const uint8_t HASH_PREFIX_2 = 2;
-static const uint8_t HASH_PREFIX_4 = 4;
-static const uint8_t HASH_PREFIX_5 = 5;
-
-#define LOWMC_UNSPECFIED_ARG UINT32_MAX
-
-static bool sig_proof_to_char_array(const picnic_instance_t* pp, const sig_proof_t* prf,
-                                    uint8_t* sig, size_t* siglen);
-static sig_proof_t* sig_proof_from_char_array(const picnic_instance_t* pp, const uint8_t* data,
-                                              size_t len);
-
-/**
- * Computes commitments to the view of an execution.
- */
-static void hash_commitment(const picnic_instance_t* pp, proof_round_t* prf_round, unsigned vidx);
-
-/**
- * Computes the challenge for FS (when signing).
- */
-static void fs_H3(const picnic_instance_t* pp, sig_proof_t* prf, const uint8_t* circuit_output,
-                  const uint8_t* circuit_input, const uint8_t* m, size_t m_len);
-
-/**
- * Computes the challenge for FS (when verifying).
- */
-static void fs_H3_verify(const picnic_instance_t* pp, sig_proof_t* prf,
-                         const uint8_t* circuit_output, const uint8_t* circuit_input,
-                         const uint8_t* m, size_t m_len, uint8_t* ch);
-
-static void unruh_G(const picnic_instance_t* pp, proof_round_t* prf_round, unsigned vidx,
-                    bool include_is);
-
-static void collapse_challenge(uint8_t* collapsed, const picnic_instance_t* pp,
-                               const uint8_t* challenge);
-static bool expand_challenge(uint8_t* challenge, const picnic_instance_t* pp,
-                             const uint8_t* collapsed);
-
-static bool create_instance(picnic_instance_t* pp, picnic_params_t param, uint32_t m, uint32_t n,
-                            uint32_t r, uint32_t k);
-
-static void destroy_instance(picnic_instance_t* pp);
-
-static sig_proof_t* proof_new(const picnic_instance_t* pp) {
-  const size_t digest_size                    = pp->digest_size;
-  const size_t seed_size                      = pp->seed_size;
-  const size_t num_rounds                     = pp->num_rounds;
-  const size_t input_size                     = pp->input_size;
-  const size_t output_size                    = pp->output_size;
-  const size_t view_size                      = pp->view_size;
-  const size_t unruh_with_input_bytes_size    = pp->unruh_with_input_bytes_size;
-  const size_t unruh_without_input_bytes_size = pp->unruh_without_input_bytes_size;
-
-  sig_proof_t* prf = calloc(1, sizeof(sig_proof_t) + num_rounds * sizeof(proof_round_t));
-
-  size_t per_round_mem =
-      SC_PROOF * (seed_size + digest_size + input_size + output_size + view_size);
-  if (pp->transform == TRANSFORM_UR) {
-    per_round_mem += (SC_PROOF - 1) * unruh_without_input_bytes_size + unruh_with_input_bytes_size;
-  }
-
-  // in memory:
-  // - challenge
-  // - seeds
-  // - commitments
-  // - Gs
-  // - input shares
-  // - communicated bits
-  // - output shares
-  // - views
-  uint8_t* slab  = calloc(num_rounds, per_round_mem + 1);
-  prf->challenge = slab;
-  slab += num_rounds;
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    for (uint32_t i = 0; i < SC_PROOF; ++i) {
-      prf->round[r].seeds[i] = slab;
-      slab += seed_size;
-    }
-  }
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    for (uint32_t i = 0; i < SC_PROOF; ++i) {
-      prf->round[r].commitments[i] = slab;
-      slab += digest_size;
-    }
-  }
-
-  if (pp->transform == TRANSFORM_UR) {
-    for (uint32_t r = 0; r < num_rounds; ++r) {
-      for (uint32_t i = 0; i < SC_PROOF - 1; ++i) {
-        prf->round[r].gs[i] = slab;
-        slab += unruh_without_input_bytes_size;
-      }
-      prf->round[r].gs[SC_PROOF - 1] = slab;
-      slab += unruh_with_input_bytes_size;
-    }
-  }
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    for (uint32_t i = 0; i < SC_PROOF; ++i) {
-      prf->round[r].input_shares[i] = slab;
-      slab += input_size;
-    }
-  }
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    for (uint32_t i = 0; i < SC_PROOF; ++i) {
-      prf->round[r].communicated_bits[i] = slab;
-      slab += view_size;
-    }
-  }
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    for (uint32_t i = 0; i < SC_PROOF; ++i) {
-      prf->round[r].output_shares[i] = slab;
-      slab += output_size;
-    }
-  }
-
-  return prf;
-}
-
-static sig_proof_t* proof_new_verify(const picnic_instance_t* pp, uint8_t** rslab) {
-  const size_t digest_size                 = pp->digest_size;
-  const size_t num_rounds                  = pp->num_rounds;
-  const size_t input_size                  = pp->input_size;
-  const size_t output_size                 = pp->output_size;
-  const size_t view_size                   = pp->view_size;
-  const size_t unruh_with_input_bytes_size = pp->unruh_with_input_bytes_size;
-
-  sig_proof_t* proof = calloc(1, sizeof(sig_proof_t) + num_rounds * sizeof(proof_round_t));
-
-  size_t per_round_mem = SC_VERIFY * digest_size;
-  if (pp->transform == TRANSFORM_UR) {
-    // we don't know what we actually need, so allocate more than needed
-    per_round_mem += SC_VERIFY * pp->unruh_with_input_bytes_size;
-  }
-  per_round_mem += SC_VERIFY * input_size + SC_PROOF * output_size + view_size;
-
-  uint8_t* slab    = calloc(num_rounds, per_round_mem + 1);
-  proof->challenge = slab;
-  slab += num_rounds;
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    for (uint32_t i = 0; i < SC_VERIFY; ++i) {
-      proof->round[r].commitments[i] = slab;
-      slab += digest_size;
-    }
-  }
-
-  if (pp->transform == TRANSFORM_UR) {
-    for (uint32_t r = 0; r < num_rounds; ++r) {
-      for (uint32_t i = 0; i < SC_VERIFY; ++i) {
-        proof->round[r].gs[i] = slab;
-        slab += unruh_with_input_bytes_size;
-      }
-    }
-  }
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    proof->round[r].communicated_bits[0] = slab;
-    slab += view_size;
-  }
-
-  for (uint32_t r = 0; r < num_rounds; ++r) {
-    proof->round[r].output_shares[0] = slab;
-    slab += output_size;
-    proof->round[r].output_shares[1] = slab;
-    slab += output_size;
-    proof->round[r].output_shares[2] = slab;
-    slab += output_size;
-  }
-
-  *rslab = slab;
-  return proof;
-}
-
-static void proof_free(sig_proof_t* prf) {
-  free(prf->challenge);
-  free(prf);
-}
-
-static void kdf_init_from_seed(kdf_shake_t* kdf, const uint8_t* seed, const picnic_instance_t* pp) {
-  kdf_shake_t ctx;
-  kdf_shake_init(&ctx, pp);
-  kdf_shake_update_key(&ctx, &HASH_PREFIX_2, sizeof(HASH_PREFIX_2));
-  kdf_shake_update_key(&ctx, seed, pp->seed_size);
-  kdf_shake_finalize_key(&ctx);
-
-  uint8_t tmp[MAX_DIGEST_SIZE];
-  kdf_shake_get_randomness(&ctx, tmp, pp->digest_size);
-  kdf_shake_clear(&ctx);
-
-  kdf_shake_init(kdf, pp);
-  kdf_shake_update_key(kdf, tmp, pp->digest_size);
-  kdf_shake_finalize_key(kdf);
-}
-
-#if defined(WITH_CUSTOM_INSTANCES)
-static void mzd_to_bitstream(bitstream_t* bs, const mzd_local_t* v, const size_t size) {
-  const uint64_t* d = &CONST_FIRST_ROW(v)[v->width - 1];
-  size_t bits       = size;
-  for (; bits >= sizeof(uint64_t) * 8; bits -= sizeof(uint64_t) * 8, --d) {
-    bitstream_put_bits(bs, *d, sizeof(uint64_t) * 8);
-  }
-  if (bits) {
-    bitstream_put_bits(bs, *d >> (sizeof(uint64_t) * 8 - bits), bits);
-  }
-}
-
-static void mzd_from_bitstream(bitstream_t* bs, mzd_local_t* v, const size_t size) {
-  uint64_t* d = &FIRST_ROW(v)[v->width - 1];
-  uint64_t* f = FIRST_ROW(v);
-
-  size_t bits = size;
-  for (; bits >= sizeof(uint64_t) * 8; bits -= sizeof(uint64_t) * 8, --d) {
-    *d = bitstream_get_bits(bs, sizeof(uint64_t) * 8);
-  }
-  if (bits) {
-    *d = bitstream_get_bits(bs, bits) << (sizeof(uint64_t) * 8 - bits);
-    --d;
-  }
-  for (; d >= f; --d) {
-    *d = 0;
-  }
-}
+#include <string.h>
+#include <assert.h>
+#if defined (__WIN32)
+	#include <Windows.h>
+	#include <bcrypt.h>
+#else
+    #include <endian.h>
 #endif
 
-static void uint64_to_bitstream(bitstream_t* bs, const uint64_t v) {
-  bitstream_put_bits(bs, v >> (64 - 30), 30);
+#include "picnic_impl.h"
+#include "picnic.h"
+#include "platform.h"
+#include "lowmc_constants.h"
+#include "hash.h"
+#include "picnic_types.h"
+
+#define MAX(a, b) ((a) > (b)) ? (a) : (b)
+
+#define VIEW_OUTPUTS(i, j) viewOutputs[(i) * 3 + (j)]
+
+
+/* Helper functions */
+uint16_t toLittleEndian(uint16_t x)
+{
+#if defined(__WIN32)
+    #if BYTE_ORDER == LITTLE_ENDIAN
+		return x;
+	#else
+		return __builtin_bswap16(x);
+    #endif
+#else
+    return htole16(x);
+#endif
 }
 
-static uint64_t uint64_from_bitstream(bitstream_t* bs) {
-  return bitstream_get_bits(bs, 30) << (64 - 30);
+/* Get one bit from a byte array */
+uint8_t getBit(const uint8_t* array, uint32_t bitNumber)
+{
+    return (array[bitNumber / 8] >> (7 - (bitNumber % 8))) & 0x01;
 }
 
-static void compress_view(uint8_t* dst, const picnic_instance_t* pp, const view_t* views,
-                          unsigned int idx) {
-  const size_t num_views       = pp->lowmc.r;
+/* Get one bit from a 32-bit int array */
+uint8_t getBitFromWordArray(const uint32_t* array, uint32_t bitNumber)
+{
+    return getBit((uint8_t*)array, bitNumber);
+}
 
-  bitstream_t bs;
-  bs.buffer   = dst;
-  bs.position = 0;
+/* Set a specific bit in a byte array to a given value */
+void setBit(uint8_t* bytes, uint32_t bitNumber, uint8_t val)
+{
+    bytes[bitNumber / 8] = (bytes[bitNumber >> 3]
+                            & ~(1 << (7 - (bitNumber % 8)))) | (val << (7 - (bitNumber % 8)));
+}
 
-  const view_t* v = &views[0];
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (pp->lowmc.m != 10) {
-    const size_t view_round_size = pp->view_round_size;
-    for (size_t i = 0; i < num_views; ++i, ++v) {
-      mzd_to_bitstream(&bs, v->s[idx], view_round_size);
+/* Set a specific bit in a byte array to a given value */
+void setBitInWordArray(uint32_t* array, uint32_t bitNumber, uint8_t val)
+{
+    setBit((uint8_t*)array, bitNumber, val);
+}
+
+static uint8_t parity(uint32_t* data, size_t len)
+{
+    uint32_t x = data[0];
+    size_t i;
+    for (i = 1; i < len; i++) {
+        x ^= data[i];
     }
+
+    /* Compute parity of x using code from Section 5-2 of
+     * H.S. Warren, *Hacker's Delight*, Pearson Education, 2003.
+     * http://www.hackersdelight.org/hdcodetxt/parity.c.txt
+     */
+    uint32_t y = x ^ (x >> 1);
+    y ^= (y >> 2);
+    y ^= (y >> 4);
+    y ^= (y >> 8);
+    y ^= (y >> 16);
+    return y & 1;
+}
+
+uint32_t numBytes(uint32_t numBits)
+{
+    return (numBits == 0) ? 0 : ((numBits - 1) / 8 + 1);
+}
+
+static void xor_array(const uint32_t * in1, const uint32_t * in2, uint32_t * out, uint32_t numBytes)
+{
+    uint32_t i;
+    for (i = 0; i < numBytes; i++) {
+        out[i] = in1[i] ^ in2[i];
+    }
+}
+
+static void matrix_mul(
+    uint32_t* state,
+    const uint32_t* matrix,
+    uint32_t* output,
+    paramset_t* params)
+{
+    // Use temp to correctly handle the case when state = output
+    uint32_t prod[LOWMC_MAX_STATE_SIZE];
+    uint32_t temp[LOWMC_MAX_STATE_SIZE];
+
+    uint32_t i, j;
+    for (i = 0; i < params->stateSizeBits; i++) {
+        for (j = 0; j < params->stateSizeWords; j++) {
+            size_t index = i * params->stateSizeWords + j;
+            prod[j] = (state[j] & matrix[index]);
+        }
+        setBit((uint8_t*)temp, i, parity(&prod[0], params->stateSizeWords));
+
+    }
+    memcpy(output, &temp, params->stateSizeWords * sizeof(uint32_t));
+}
+
+static void substitution(uint32_t* state, paramset_t* params)
+{
+    uint32_t i;
+    for (i = 0; i < params->numSboxes * 3; i += 3) {
+        uint8_t a = getBitFromWordArray(state, i + 2);
+        uint8_t b = getBitFromWordArray(state, i + 1);
+        uint8_t c = getBitFromWordArray(state, i);
+
+        setBitInWordArray(state, i + 2, a ^ (b & c));
+        setBitInWordArray(state, i + 1, a ^ b ^ (a & c));
+        setBitInWordArray(state, i, a ^ b ^ c ^ (a & b));
+    }
+}
+
+void LowMCEnc(const uint32_t* plaintext, uint32_t* output, uint32_t* key, paramset_t* params)
+{
+    uint32_t roundKey[LOWMC_MAX_STATE_SIZE / sizeof(uint32_t)];
+
+    if (plaintext != output) {
+        /* output will hold the intermediate state */
+        memcpy(output, plaintext, params->stateSizeBytes);
+    }
+
+    matrix_mul(key, KMatrix(0, params), roundKey, params);
+    xor_array(output, roundKey, output, params->stateSizeWords);
+
+    uint32_t r;
+    for (r = 1; r <= params->numRounds; r++) {
+        matrix_mul(key, KMatrix(r, params), roundKey, params);
+        substitution(output, params);
+        matrix_mul(output, LMatrix(r - 1, params), output, params);
+        xor_array(output, RConstant(r - 1, params), output, params->stateSizeWords);
+        xor_array(output, roundKey, output, params->stateSizeWords);
+    }
+
+}
+
+bool createRandomTape(const uint8_t* seed, uint8_t* tape,
+                      uint32_t tapeLengthBytes, paramset_t* params)
+{
+    HashInstance ctx;
+
+    if (tapeLengthBytes < params->digestSizeBytes) {
+        return false;
+    }
+
+    /* Hash the seed and a constant, store the result in tape. */
+    HashInit(&ctx, params, HASH_PREFIX_2);
+    HashUpdate(&ctx, seed, params->seedSizeBytes);
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, tape, params->digestSizeBytes);
+
+    /* Expand the hashed seed and output length to create the tape. */
+    HashInit(&ctx, params, HASH_PREFIX_NONE);
+    HashUpdate(&ctx, tape, params->digestSizeBytes);
+    uint16_t outputBytesLE = toLittleEndian(tapeLengthBytes);
+    HashUpdate(&ctx, (uint8_t*)&outputBytesLE, sizeof(uint16_t));
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, tape, tapeLengthBytes);
+
+    return true;
+}
+
+void mpc_xor(uint32_t* state[3], uint32_t* in[3], uint32_t len, int players)
+{
+    uint8_t i;
+    for (i = 0; i < players; i++) {
+        xor_array(state[i], in[i], state[i], len);
+    }
+}
+
+/* Compute the XOR of in with the first state vectors. */
+void mpc_xor_constant(uint32_t* state[3], const uint32_t* in, uint32_t len)
+{
+    xor_array(state[0], in, state[0], len);
+}
+
+void mpc_xor_constant_verify(uint32_t* state[2], const uint32_t* in, uint32_t len, uint8_t challenge)
+{
+    /* During verify, where the first share is stored in state depends on the challenge */
+    if (challenge == 0) {
+        xor_array(state[0], in, state[0], len);
+    }
+    else if (challenge == 2) {
+        xor_array(state[1], in, state[1], len);
+    }
+}
+
+
+void Commit(const uint8_t* seed, const view_t view,
+            uint8_t* hash, paramset_t* params)
+{
+    HashInstance ctx;
+
+    /* Hash the seed, store result in `hash` */
+    HashInit(&ctx, params, HASH_PREFIX_4);
+    HashUpdate(&ctx, seed, params->seedSizeBytes);
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, hash, params->digestSizeBytes);
+
+    /* Compute H_0(H_4(seed), view) */
+    HashInit(&ctx, params, HASH_PREFIX_0);
+    HashUpdate(&ctx, hash, params->digestSizeBytes);
+    HashUpdate(&ctx, (uint8_t*)view.inputShare, params->stateSizeBytes);
+    HashUpdate(&ctx, (uint8_t*)view.communicatedBits, params->andSizeBytes);
+    HashUpdate(&ctx, (uint8_t*)view.outputShare, params->stateSizeBytes);
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, hash, params->digestSizeBytes);
+}
+
+/* This is the random "permuatation" function G for Unruh's transform */
+void G(uint8_t viewNumber, const uint8_t* seed, view_t* view, uint8_t* output, paramset_t* params)
+{
+    HashInstance ctx;
+    uint16_t outputBytes = params->seedSizeBytes + params->andSizeBytes;
+
+    /* Hash the seed with H_5, store digest in output */
+    HashInit(&ctx, params, HASH_PREFIX_5);
+    HashUpdate(&ctx, seed, params->seedSizeBytes);
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, output, params->digestSizeBytes);
+
+    /* Hash H_5(seed), the view, and the length */
+    HashInit(&ctx, params, HASH_PREFIX_NONE);
+    HashUpdate(&ctx, output, params->digestSizeBytes);
+    if (viewNumber == 2) {
+        HashUpdate(&ctx, (uint8_t*)view->inputShare, params->stateSizeBytes);
+        outputBytes += (uint16_t)params->stateSizeBytes;
+    }
+    HashUpdate(&ctx, view->communicatedBits, params->andSizeBytes);
+
+    uint16_t outputBytesLE = toLittleEndian(outputBytes);
+    HashUpdate(&ctx, (uint8_t*)&outputBytesLE, sizeof(uint16_t));
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, output, outputBytes);
+}
+
+void setChallenge(uint8_t* challenge, size_t round, uint8_t trit)
+{
+    /* challenge must have length numBytes(numZKBRounds*2)
+     * 0 <= index < numZKBRounds
+     * trit must be in {0,1,2} */
+    uint32_t roundU32 = (uint32_t)round;
+
+    setBit(challenge, 2 * roundU32, trit & 1);
+    setBit(challenge, 2 * roundU32 + 1, (trit >> 1) & 1);
+}
+
+uint8_t getChallenge(const uint8_t* challenge, size_t round)
+{
+    uint32_t roundU32 = (uint32_t)round;
+
+    return (getBit(challenge, 2 * roundU32 + 1) << 1) | getBit(challenge, 2 * roundU32);
+}
+
+void H3(const uint32_t* circuitOutput, const uint32_t* plaintext, uint32_t** viewOutputs,
+        commitments_t* as,
+        uint8_t* challengeBits, const uint8_t* message, size_t messageByteLength,
+        g_commitments_t* gs, paramset_t* params)
+{
+    uint8_t* hash = malloc(params->digestSizeBytes);
+
+    HashInstance ctx;
+
+    /* Depending on the number of rounds, we might not set part of the last
+     * byte, make sure it's always zero. */
+    challengeBits[numBytes(params->numZKBRounds * 2) - 1] = 0;
+
+    /* Hash input data */
+    HashInit(&ctx, params, HASH_PREFIX_1);
+
+    /* Hash the output share from each view */
+    uint32_t i;
+    int j;
+    for (i = 0; i < params->numZKBRounds; i++) {
+        for (j = 0; j < 3; j++) {
+            HashUpdate(&ctx, (uint8_t*)VIEW_OUTPUTS(i, j), params->stateSizeBytes);
+        }
+    }
+
+    /* Hash all the commitments C */
+    for (i = 0; i < params->numZKBRounds; i++) {
+        for (j = 0; j < 3; j++) {
+            HashUpdate(&ctx, as[i].hashes[j], params->digestSizeBytes);
+        }
+    }
+
+    /* Hash all the commitments G */
+    if (params->transform == TRANSFORM_UR) {
+        for (i = 0; i < params->numZKBRounds; i++) {
+            for (j = 0; j < 3; j++) {
+                size_t view3UnruhLength = (j == 2) ? params->UnruhGWithInputBytes : params->UnruhGWithoutInputBytes;
+                HashUpdate(&ctx, gs[i].G[j], view3UnruhLength);
+            }
+        }
+    }
+
+    HashUpdate(&ctx, (uint8_t*)circuitOutput, params->stateSizeBytes);
+    HashUpdate(&ctx, (uint8_t*)plaintext, params->stateSizeBytes);
+    HashUpdate(&ctx, message, messageByteLength);
+
+    HashFinal(&ctx);
+    HashSqueeze(&ctx, hash, params->digestSizeBytes);
+
+    /* Convert hash to a packed string of values in {0,1,2} */
+    size_t byte_count, round = 0;
+    while (1) {
+        for (byte_count = 0; byte_count < params->digestSizeBytes; byte_count++) {
+            uint8_t byte = hash[byte_count];
+            /* iterate over each pair of bits in the byte */
+            for (j = 0; j < 8; j += 2) {
+                uint8_t bitPair = ((byte >> (6 - j)) & 0x03);
+                if (bitPair < 3) {
+                    setChallenge(challengeBits, round, bitPair);
+                    round++;
+                    if (round == params->numZKBRounds) {
+                        goto done;
+                    }
+                }
+            }
+        }
+
+        /* We need more bits; hash set hash = H_1(hash) */
+        HashInit(&ctx, params, HASH_PREFIX_1);
+        HashUpdate(&ctx, hash, params->digestSizeBytes);
+        HashFinal(&ctx);
+        HashSqueeze(&ctx, hash, params->digestSizeBytes);
+    }
+
+done:
+
+    free(hash);
     return;
-  }
-#endif
-
-  for (size_t i = 0; i < num_views; ++i, ++v) {
-    uint64_to_bitstream(&bs, v->t[idx]);
-  }
 }
 
-static void decompress_view(view_t* views, const picnic_instance_t* pp, const uint8_t* src,
-                            unsigned int idx) {
-  const size_t num_views = pp->lowmc.r;
-
-  bitstream_t bs;
-  bs.buffer   = (uint8_t*)src;
-  bs.position = 0;
-
-  view_t* v = &views[0];
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (pp->lowmc.m != 10) {
-    const size_t view_round_size = pp->view_round_size;
-    for (size_t i = 0; i < num_views; ++i, ++v) {
-      mzd_from_bitstream(&bs, v->s[idx], view_round_size);
+/* Caller must allocate the first parameter */
+void prove(proof_t* proof, uint8_t challenge, seeds_t* seeds,
+           view_t views[3], commitments_t* commitments, g_commitments_t* gs, paramset_t* params)
+{
+    if (challenge == 0) {
+        memcpy(proof->seed1, seeds->seed0, params->seedSizeBytes);
+        memcpy(proof->seed2, seeds->seed1, params->seedSizeBytes);
     }
-    return;
-  }
-#endif
+    else if (challenge == 1) {
+        memcpy(proof->seed1, seeds->seed1, params->seedSizeBytes);
+        memcpy(proof->seed2, seeds->seed2, params->seedSizeBytes);
+    }
+    else if (challenge == 2) {
+        memcpy(proof->seed1, seeds->seed2, params->seedSizeBytes);
+        memcpy(proof->seed2, seeds->seed0, params->seedSizeBytes);
+    }
+    else {
+        assert(!"Invalid challenge");
+    }
 
-  for (size_t i = 0; i < num_views; ++i, ++v) {
-    v->t[idx] = uint64_from_bitstream(&bs);
-  }
+    if (challenge == 1 || challenge == 2) {
+        memcpy(proof->inputShare, views[2].inputShare, params->stateSizeBytes);
+    }
+    memcpy(proof->communicatedBits, views[(challenge + 1) % 3].communicatedBits, params->andSizeBytes);
+
+    memcpy(proof->view3Commitment, commitments->hashes[(challenge + 2) % 3], params->digestSizeBytes);
+    if (params->transform == TRANSFORM_UR) {
+        size_t view3UnruhLength = (challenge == 0) ? params->UnruhGWithInputBytes : params->UnruhGWithoutInputBytes;
+        memcpy(proof->view3UnruhG, gs->G[(challenge + 2) % 3], view3UnruhLength);
+    }
 }
 
-static void decompress_random_tape(rvec_t* rvec, const picnic_instance_t* pp, const uint8_t* src,
-                                   unsigned int idx) {
-  const size_t num_views = pp->lowmc.r;
+void mpc_AND_verify(uint8_t in1[2], uint8_t in2[2], uint8_t out[2],
+                    randomTape_t* rand, view_t* view1, view_t* view2)
+{
+    uint8_t r[2] = { getBit(rand->tape[0], rand->pos), getBit(rand->tape[1], rand->pos) };
 
-  bitstream_t bs;
-  bs.buffer   = (uint8_t*)src;
-  bs.position = 0;
+    out[0] = (in1[0] & in2[1]) ^ (in1[1] & in2[0]) ^ (in1[0] & in2[0]) ^ r[0] ^ r[1];
+    setBit(view1->communicatedBits, rand->pos, out[0]);
+    out[1] = getBit(view2->communicatedBits, rand->pos);
 
-  rvec_t* rv = &rvec[0];
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (pp->lowmc.m != 10) {
-    const size_t view_round_size = pp->view_round_size;
-    for (size_t i = 0; i < num_views; ++i, ++rv) {
-      mzd_from_bitstream(&bs, rv->s[idx], view_round_size);
-    }
-    return;
-  }
-#endif
-
-  for (size_t i = 0; i < num_views; ++i, ++rv) {
-    rv->t[idx] = uint64_from_bitstream(&bs);
-  }
+    (rand->pos)++;
 }
 
-static void mzd_share(mzd_local_t* shared_value[SC_PROOF]) {
-  mzd_xor(shared_value[2], shared_value[0], shared_value[2]);
-  mzd_xor(shared_value[2], shared_value[1], shared_value[2]);
+void mpc_substitution_verify(uint32_t* state[2], randomTape_t* rand, view_t* view1,
+                             view_t* view2, paramset_t* params)
+{
+    uint32_t i;
+    for (i = 0; i < params->numSboxes * 3; i += 3) {
+
+        uint8_t a[2];
+        uint8_t b[2];
+        uint8_t c[2];
+
+        uint8_t j;
+        for (j = 0; j < 2; j++) {
+            a[j] = getBitFromWordArray(state[j], i + 2);
+            b[j] = getBitFromWordArray(state[j], i + 1);
+            c[j] = getBitFromWordArray(state[j], i);
+        }
+
+        uint8_t ab[2];
+        uint8_t bc[2];
+        uint8_t ca[2];
+
+        mpc_AND_verify(a, b, ab, rand, view1, view2);
+        mpc_AND_verify(b, c, bc, rand, view1, view2);
+        mpc_AND_verify(c, a, ca, rand, view1, view2);
+
+        for (j = 0; j < 2; j++) {
+            setBitInWordArray(state[j], i + 2, a[j] ^ (bc[j]));
+            setBitInWordArray(state[j], i + 1, a[j] ^ b[j] ^ (ca[j]));
+            setBitInWordArray(state[j], i, a[j] ^ b[j] ^ c[j] ^ (ab[j]));
+        }
+    }
 }
 
-static void mzd_unshare(mzd_local_t* dst, mzd_local_t* shared_value[SC_PROOF]) {
-  mzd_xor(dst, shared_value[0], shared_value[1]);
-  mzd_xor(dst, dst, shared_value[2]);
+void mpc_matrix_mul(uint32_t* state[3], const uint32_t* matrix,
+                    uint32_t* output[3], paramset_t* params, size_t players)
+{
+    uint32_t player;
+    for (player = 0; player < players; player++) {
+        matrix_mul(state[player], matrix, output[player], params);
+    }
 }
 
-static bool sign_impl(const picnic_instance_t* pp, const uint8_t* private_key,
-                      const lowmc_key_t* lowmc_key, const uint8_t* plaintext, const mzd_local_t* p,
-                      const uint8_t* public_key, const uint8_t* m, size_t m_len, uint8_t* sig,
-                      size_t* siglen) {
-  TIME_FUNCTION;
+void mpc_LowMC_verify(view_t* view1, view_t* view2,
+                      randomTape_t* tapes, uint32_t* tmp,
+                      const uint32_t* plaintext, paramset_t* params, uint8_t challenge)
+{
+    uint32_t* state[2];
+    uint32_t* keyShares[2];
+    uint32_t* roundKey[2];
 
-  const lowmc_t* lowmc                    = &pp->lowmc;
-  const lowmc_implementation_f lowmc_impl = pp->lowmc_impl;
-  const size_t seed_size                  = pp->seed_size;
-  const size_t num_rounds                 = pp->num_rounds;
-  const transform_t transform             = pp->transform;
-  const size_t input_size                 = pp->input_size;
-  const size_t output_size                = pp->output_size;
-  const size_t view_count                 = lowmc->r;
-  const size_t lowmc_k                    = lowmc->k;
-  const size_t lowmc_n                    = lowmc->n;
-  const size_t lowmc_r                    = lowmc->r;
-  const size_t view_size                  = pp->view_size;
+    roundKey[0] = tmp;
+    roundKey[1] = roundKey[0] + params->stateSizeWords;
+    state[0] = roundKey[1] + params->stateSizeWords;
+    state[1] = state[0] + params->stateSizeWords;
 
-  sig_proof_t* prf = proof_new(pp);
-  view_t* views    = calloc(sizeof(view_t), view_count);
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (lowmc->m != 10) {
-    for (size_t i = 0; i < view_count; ++i) {
-      mzd_local_init_multiple_ex(views[i].s, SC_PROOF, 1, lowmc_n, false);
+    // initialize both roundkeys to 0. they are contingent
+    memset(roundKey[0], 0, 2 * params->stateSizeBytes);
+
+    uint32_t i, r;
+    for (i = 0; i < 2; i++) {
+        memset(state[i], 0x00, params->stateSizeBytes);
     }
-  }
-#endif
+    mpc_xor_constant_verify(state, plaintext, params->stateSizeWords, challenge);
 
-  in_out_shares_t in_out_shares[2];
-  mzd_local_init_multiple_ex(in_out_shares[0].s, SC_PROOF, 1, lowmc_k, false);
-  mzd_local_init_multiple_ex(in_out_shares[1].s, SC_PROOF, 1, lowmc_n, false);
+    keyShares[0] = view1->inputShare;
+    keyShares[1] = view2->inputShare;
 
-  // Generate seeds
-  START_TIMING;
-  {
-    kdf_shake_t ctx;
-    kdf_shake_init(&ctx, pp);
-    kdf_shake_update_key(&ctx, private_key, input_size);
-    kdf_shake_update_key(&ctx, m, m_len);
-    kdf_shake_update_key(&ctx, public_key, output_size);
-    kdf_shake_update_key(&ctx, plaintext, output_size);
+    mpc_matrix_mul(keyShares, KMatrix(0, params), roundKey, params, 2);
+    mpc_xor(state, roundKey, params->stateSizeWords, 2);
 
-    const uint16_t size_le = htole16(lowmc_n);
-    kdf_shake_update_key(&ctx, (const uint8_t*)&size_le, sizeof(size_le));
-    kdf_shake_finalize_key(&ctx);
-
-    // generate seeds
-    kdf_shake_get_randomness(&ctx, prf->round[0].seeds[0], seed_size * num_rounds * SC_PROOF);
-    kdf_shake_clear(&ctx);
-  }
-  END_TIMING(timing_and_size->sign.rand);
-
-  START_TIMING;
-  mzd_local_t* shared_key[SC_PROOF];
-  mzd_local_init_multiple(shared_key, SC_PROOF, 1, lowmc_k);
-  END_TIMING(timing_and_size->sign.secret_sharing);
-
-  // START_TIMING; TODO: I guess this shouldn't be here
-
-  rvec_t* rvec = calloc(sizeof(rvec_t), lowmc_r); // random tapes for and-gates
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (lowmc->m != 10) {
-    for (unsigned int i = 0; i < lowmc_r; ++i) {
-      mzd_local_init_multiple_ex(rvec[i].s, SC_PROOF, 1, lowmc_n, false);
-    }
-  }
-#endif
-
-  uint8_t* tape_bytes = malloc(view_size);
-  START_TIMING;
-
-  proof_round_t* round = prf->round;
-  for (unsigned int i = 0; i < num_rounds; ++i, ++round) {
-    kdf_shake_t kdfs[SC_PROOF];
-    for (unsigned int j = 0; j < SC_PROOF; ++j) {
-      kdf_init_from_seed(&kdfs[j], round->seeds[j], pp);
+    for (r = 1; r <= params->numRounds; ++r) {
+        mpc_matrix_mul(keyShares, KMatrix(r, params), roundKey, params, 2);
+        mpc_substitution_verify(state, tapes, view1, view2, params);
+        mpc_matrix_mul(state, LMatrix(r - 1, params), state, params, 2);
+        mpc_xor_constant_verify(state, RConstant(r - 1, params), params->stateSizeWords, challenge);
+        mpc_xor(state, roundKey, params->stateSizeWords, 2);
     }
 
-    // compute sharing
-    for (unsigned int j = 0; j < SC_PROOF - 1; ++j) {
-      kdf_shake_get_randomness(&kdfs[j], round->input_shares[j], input_size);
-      mzd_from_char_array(shared_key[j], round->input_shares[j], input_size);
-    }
-    mzd_local_copy(shared_key[SC_PROOF - 1], lowmc_key);
-    mzd_share(shared_key);
-    mzd_to_char_array(round->input_shares[SC_PROOF - 1], shared_key[SC_PROOF - 1], input_size);
-
-    // compute random tapes
-    for (unsigned int j = 0; j < SC_PROOF; ++j) {
-      kdf_shake_get_randomness(&kdfs[j], tape_bytes, view_size);
-      decompress_random_tape(rvec, pp, tape_bytes, j);
-    }
-
-    for (unsigned int j = 0; j < SC_PROOF; ++j) {
-      kdf_shake_clear(&kdfs[j]);
-    }
-
-    // perform MPC LowMC evaluation
-    lowmc_impl(lowmc, shared_key, p, views, in_out_shares, rvec);
-
-    // commitments
-    for (unsigned int j = 0; j < SC_PROOF; ++j) {
-      mzd_to_char_array(round->output_shares[j], in_out_shares[1].s[j], output_size);
-      compress_view(round->communicated_bits[j], pp, views, j);
-      hash_commitment(pp, round, j);
-    }
-
-    // unruh G
-    if (transform == TRANSFORM_UR) {
-      for (unsigned int j = 0; j < SC_PROOF; ++j) {
-        unruh_G(pp, round, j, j == SC_PROOF - 1);
-      }
-    }
-  }
-  END_TIMING(timing_and_size->sign.lowmc_enc);
-
-  START_TIMING;
-  fs_H3(pp, prf, public_key, plaintext, m, m_len);
-
-  const bool ret = sig_proof_to_char_array(pp, prf, sig, siglen);
-
-  // clean up
-  free(tape_bytes);
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (lowmc->m != 10) {
-    for (unsigned n = 0; n < view_count; ++n) {
-      mzd_local_free_multiple(rvec[n].s);
-    }
-    for (unsigned n = 0; n < view_count; ++n) {
-      mzd_local_free_multiple(views[n].s);
-    }
-  }
-#endif
-  free(rvec);
-  free(views);
-  mzd_local_free_multiple(shared_key);
-  mzd_local_free_multiple(in_out_shares[1].s);
-  mzd_local_free_multiple(in_out_shares[0].s);
-  proof_free(prf);
-
-  END_TIMING(timing_and_size->sign.challenge);
-
-  return ret;
+    memcpy(view1->outputShare, state[0], params->stateSizeBytes);
+    memcpy(view2->outputShare, state[1], params->stateSizeBytes);
 }
 
-static bool verify_impl(const picnic_instance_t* pp, const uint8_t* plaintext, mzd_local_t const* p,
-                        const uint8_t* ciphertext, mzd_local_t const* c, const uint8_t* m,
-                        unsigned m_len, const uint8_t* sig, size_t siglen) {
-  TIME_FUNCTION;
-
-  const size_t num_rounds                         = pp->num_rounds;
-  const lowmc_t* lowmc                            = &pp->lowmc;
-  const transform_t transform                     = pp->transform;
-  lowmc_verify_implementation_f lowmc_verify_impl = pp->lowmc_verify_impl;
-  const size_t input_size                         = pp->input_size;
-  const size_t output_size                        = pp->output_size;
-  const size_t view_count                         = lowmc->r;
-  const size_t lowmc_k                            = lowmc->k;
-  const size_t lowmc_n                            = lowmc->n;
-  const size_t lowmc_r                            = lowmc->r;
-  const size_t view_size                          = pp->view_size;
-
-  sig_proof_t* prf = sig_proof_from_char_array(pp, sig, siglen);
-  if (!prf) {
-    return false;
-  }
-
-  in_out_shares_t in_out_shares[2];
-  mzd_local_init_multiple_ex(in_out_shares[0].s, SC_VERIFY, 1, lowmc_k, false);
-  mzd_local_init_multiple_ex(in_out_shares[1].s, SC_PROOF, 1, lowmc_n, false);
-  view_t* views = calloc(sizeof(view_t), view_count);
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (lowmc->m != 10) {
-    for (size_t i = 0; i < view_count; ++i) {
-      mzd_local_init_multiple_ex(views[i].s, SC_VERIFY, 1, lowmc_n, false);
-    }
-  }
-#endif
-
-  START_TIMING;
-
-  rvec_t* rvec = calloc(sizeof(rvec_t), lowmc_r); // random tapes for and-gates
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (lowmc->m != 10) {
-    for (unsigned int i = 0; i < lowmc_r; ++i) {
-      mzd_local_init_multiple_ex(rvec[i].s, SC_VERIFY, 1, lowmc_n, false);
-    }
-  }
-#endif
-  uint8_t* tape_bytes = malloc(view_size);
-
-  proof_round_t* round = prf->round;
-  for (unsigned int i = 0; i < num_rounds; ++i, ++round) {
-    const unsigned int a_i = prf->challenge[i];
-    const unsigned int b_i = (a_i + 1) % 3;
-    const unsigned int c_i = (a_i + 2) % 3;
-
-    kdf_shake_t kdfs[SC_VERIFY];
-    for (unsigned int j = 0; j < SC_VERIFY; ++j) {
-      kdf_init_from_seed(&kdfs[j], round->seeds[j], pp);
-    }
-
-    // compute input shares if necessary
-    if (b_i) {
-      kdf_shake_get_randomness(&kdfs[0], round->input_shares[0], input_size);
-    }
-    if (c_i) {
-      kdf_shake_get_randomness(&kdfs[1], round->input_shares[1], input_size);
-    }
-
-    mzd_from_char_array(in_out_shares[0].s[0], round->input_shares[0], input_size);
-    mzd_from_char_array(in_out_shares[0].s[1], round->input_shares[1], input_size);
-
-    // compute random tapes
-    for (unsigned int j = 0; j < SC_VERIFY; ++j) {
-      kdf_shake_get_randomness(&kdfs[j], tape_bytes, view_size);
-      decompress_random_tape(rvec, pp, tape_bytes, j);
-    }
-
-    for (unsigned int j = 0; j < SC_VERIFY; ++j) {
-      kdf_shake_clear(&kdfs[j]);
-    }
-
-    decompress_view(views, pp, round->communicated_bits[1], 1);
-    lowmc_verify_impl(lowmc, p, views, in_out_shares, rvec, a_i);
-    compress_view(round->communicated_bits[0], pp, views, 0);
-
-    mzd_local_t* ys[3];
-    ys[0] = in_out_shares[1].s[0];
-    ys[1] = in_out_shares[1].s[1];
-    ys[2] = (mzd_local_t*)c;
-    mzd_unshare(in_out_shares[1].s[2], ys);
-
-    for (unsigned int j = 0; j < SC_VERIFY; ++j) {
-      mzd_to_char_array(round->output_shares[j], in_out_shares[1].s[j], output_size);
-      hash_commitment(pp, round, j);
-    }
-    mzd_to_char_array(round->output_shares[SC_VERIFY], in_out_shares[1].s[SC_VERIFY], output_size);
-
-    if (transform == TRANSFORM_UR) {
-      for (unsigned int j = 0; j < SC_VERIFY; ++j) {
-        unruh_G(pp, round, j, (a_i == 1 && j == 1) || (a_i == 2 && j == 0));
-      }
-    }
-  }
-
-  unsigned char challenge[MAX_NUM_ROUNDS] = {0};
-  fs_H3_verify(pp, prf, ciphertext, plaintext, m, m_len, challenge);
-  const int success_status = memcmp(challenge, prf->challenge, pp->num_rounds);
-  END_TIMING(timing_and_size->verify.verify);
-
-  // clean up
-  free(tape_bytes);
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (lowmc->m != 10) {
-    for (unsigned n = 0; n < view_count; ++n) {
-      mzd_local_free_multiple(rvec[n].s);
-    }
-    for (unsigned n = 0; n < view_count; ++n) {
-      mzd_local_free_multiple(views[n].s);
-    }
-  }
-#endif
-  free(rvec);
-  free(views);
-  mzd_local_free_multiple(in_out_shares[1].s);
-  mzd_local_free_multiple(in_out_shares[0].s);
-
-  proof_free(prf);
-
-  return success_status == 0;
-}
-
-static bool sig_proof_to_char_array(const picnic_instance_t* pp, const sig_proof_t* prf,
-                                    uint8_t* result, size_t* siglen) {
-  const uint32_t num_rounds                   = pp->num_rounds;
-  const uint32_t seed_size                    = pp->seed_size;
-  const uint32_t challenge_size               = pp->collapsed_challenge_size;
-  const uint32_t digest_size                  = pp->digest_size;
-  const transform_t transform                 = pp->transform;
-  const size_t view_size                      = pp->view_size;
-  const size_t input_size                     = pp->input_size;
-  const size_t unruh_with_input_bytes_size    = pp->unruh_with_input_bytes_size;
-  const size_t unruh_without_input_bytes_size = pp->unruh_without_input_bytes_size;
-
-  uint8_t* tmp = result;
-
-  // write challenge
-  collapse_challenge(tmp, pp, prf->challenge);
-  tmp += challenge_size;
-
-  const proof_round_t* round = prf->round;
-  for (unsigned i = 0; i < num_rounds; ++i, ++round) {
-    const unsigned int a = prf->challenge[i];
-    const unsigned int b = (a + 1) % 3;
-    const unsigned int c = (a + 2) % 3;
-
-    // write commitment
-    memcpy(tmp, round->commitments[c], digest_size);
-    tmp += digest_size;
-
-    // write unruh G
-    if (transform == TRANSFORM_UR) {
-      const uint32_t unruh_g_size =
-          a ? unruh_without_input_bytes_size : unruh_with_input_bytes_size;
-      memcpy(tmp, round->gs[c], unruh_g_size);
-      tmp += unruh_g_size;
-    }
-
-    // write views
-    memcpy(tmp, round->communicated_bits[b], view_size);
-    tmp += view_size;
-
-    // write seeds
-    memcpy(tmp, round->seeds[a], seed_size);
-    tmp += seed_size;
-    memcpy(tmp, round->seeds[b], seed_size);
-    tmp += seed_size;
-
-    if (a) {
-      // write input share
-      memcpy(tmp, round->input_shares[SC_PROOF - 1], input_size);
-      tmp += input_size;
-    }
-  }
-
-  *siglen = tmp - result;
-  return true;
-}
-
-static sig_proof_t* sig_proof_from_char_array(const picnic_instance_t* pp, const uint8_t* data,
-                                              size_t len) {
-  const size_t digest_size              = pp->digest_size;
-  const size_t seed_size                = pp->seed_size;
-  const size_t num_rounds               = pp->num_rounds;
-  const size_t challenge_size           = pp->collapsed_challenge_size;
-  const transform_t transform           = pp->transform;
-  const size_t input_size               = pp->input_size;
-  const size_t view_size                = pp->view_size;
-  const size_t without_input_bytes_size = pp->unruh_without_input_bytes_size;
-  const size_t with_input_bytes_size    = pp->unruh_with_input_bytes_size;
-
-  uint8_t* slab      = NULL;
-  sig_proof_t* proof = proof_new_verify(pp, &slab);
-  if (!proof) {
-    return NULL;
-  }
-
-  size_t remaining_len = len;
-  const uint8_t* tmp   = data;
-
-  // read and process challenge
-  if (remaining_len < challenge_size) {
-    goto err;
-  }
-  if (!expand_challenge(proof->challenge, pp, tmp)) {
-    goto err;
-  }
-  tmp += challenge_size;
-  remaining_len -= challenge_size;
-
-  proof_round_t* round = proof->round;
-  for (unsigned int i = 0; i < num_rounds; ++i, ++round) {
-    const unsigned char ch   = proof->challenge[i];
-    const size_t unruh_g_len = ch ? without_input_bytes_size : with_input_bytes_size;
-
-    const size_t requested_size =
-        digest_size + unruh_g_len + view_size + 2 * seed_size + (ch ? input_size : 0);
-    if (remaining_len < requested_size) {
-      goto err;
-    }
-    remaining_len -= requested_size;
-
-    // read commitments
-    round->commitments[2] = (uint8_t*)tmp;
-    tmp += digest_size;
-
-    // read unruh G
-    if (transform == TRANSFORM_UR) {
-      round->gs[2] = (uint8_t*)tmp;
-      tmp += unruh_g_len;
-    }
-
-    // read view
-    round->communicated_bits[1] = (uint8_t*)tmp;
-    tmp += view_size;
-
-    // read seeds
-    round->seeds[0] = (uint8_t*)tmp;
-    tmp += seed_size;
-    round->seeds[1] = (uint8_t*)tmp;
-    tmp += seed_size;
-
-    // read input shares
-    if (ch == 0) {
-      round->input_shares[0] = slab;
-      slab += input_size;
-      round->input_shares[1] = slab;
-      slab += input_size;
-    } else if (ch == 1) {
-      round->input_shares[0] = slab;
-      slab += input_size;
-      round->input_shares[1] = (uint8_t*)tmp;
-      tmp += input_size;
-    } else {
-      round->input_shares[0] = (uint8_t*)tmp;
-      tmp += input_size;
-      round->input_shares[1] = slab;
-      slab += input_size;
-    }
-  }
-
-  if (remaining_len) {
-    goto err;
-  }
-
-  return proof;
-
-err:
-  proof_free(proof);
-  return NULL;
-}
-
-bool fis_sign(const picnic_instance_t* pp, const uint8_t* plaintext, const uint8_t* private_key,
-              const uint8_t* public_key, const uint8_t* msg, size_t msglen, uint8_t* sig,
-              size_t* siglen) {
-  mzd_local_t* m_plaintext  = mzd_local_init_ex(1, pp->lowmc.n, false);
-  mzd_local_t* m_privatekey = mzd_local_init_ex(1, pp->lowmc.k, false);
-
-  mzd_from_char_array(m_plaintext, plaintext, pp->output_size);
-  mzd_from_char_array(m_privatekey, private_key, pp->input_size);
-
-  const bool result = sign_impl(pp, private_key, m_privatekey, plaintext, m_plaintext, public_key,
-                                msg, msglen, sig, siglen);
-
-  mzd_local_free(m_privatekey);
-  mzd_local_free(m_plaintext);
-
-  return result;
-}
-
-bool fis_verify(const picnic_instance_t* pp, const uint8_t* plaintext, const uint8_t* public_key,
-                const uint8_t* msg, size_t msglen, const uint8_t* sig, size_t siglen) {
-  mzd_local_t* m_plaintext = mzd_local_init_ex(1, pp->lowmc.n, false);
-  mzd_local_t* m_publickey = mzd_local_init_ex(1, pp->lowmc.n, false);
-
-  mzd_from_char_array(m_plaintext, plaintext, pp->output_size);
-  mzd_from_char_array(m_publickey, public_key, pp->output_size);
-
-  const bool result =
-      verify_impl(pp, plaintext, m_plaintext, public_key, m_publickey, msg, msglen, sig, siglen);
-
-  mzd_local_free(m_publickey);
-  mzd_local_free(m_plaintext);
-
-  return result;
-}
-
-void visualize_signature(FILE* out, const picnic_instance_t* pp, const uint8_t* msg, size_t msglen,
-                         const uint8_t* sig, size_t siglen) {
-  const size_t digest_size    = pp->digest_size;
-  const size_t seed_size      = pp->seed_size;
-  const size_t num_rounds     = pp->num_rounds;
-  const size_t challenge_size = pp->collapsed_challenge_size;
-  const transform_t transform = pp->transform;
-  const size_t input_size     = pp->input_size;
-  const size_t view_size      = pp->view_size;
-
-  sig_proof_t* proof = sig_proof_from_char_array(pp, sig, siglen);
-
-  fprintf(out, "message: ");
-  print_hex(out, msg, msglen);
-  fprintf(out, "\nsignature: ");
-  print_hex(out, sig, siglen);
-  fprintf(out, "\n\n");
-
-  fprintf(out, "challenge: ");
-  print_hex(out, sig, challenge_size);
-  fprintf(out, "\n\n");
-
-  proof_round_t* round = proof->round;
-  for (unsigned int i = 0; i < num_rounds; ++i, ++round) {
-    fprintf(out, "Iteration t: %d\n", i);
-
-    // print challenge
-    const unsigned char ch = proof->challenge[i];
-    fprintf(out, "e_%d: %u\n", i, (unsigned int)ch);
-
-    // print commitment
-    fprintf(out, "b_%d: ", i);
-    print_hex(out, round->commitments[2], digest_size);
-    fprintf(out, "\n");
-
-    // print unruh G
-    if (transform == TRANSFORM_UR) {
-      const size_t unruh_g_len =
-          ch ? pp->unruh_without_input_bytes_size : pp->unruh_with_input_bytes_size;
-
-      fprintf(out, "G_%d: ", i);
-      print_hex(out, round->gs[2], unruh_g_len);
-      fprintf(out, "\n");
-    }
-
-    // print view
-    fprintf(out, "transcript: ");
-    print_hex(out, round->communicated_bits[1], view_size);
-    fprintf(out, "\n");
-
-    // print seeds
-    fprintf(out, "seed1: ");
-    print_hex(out, round->seeds[0], seed_size);
-    fprintf(out, "\nseed2: ");
-    print_hex(out, round->seeds[1], seed_size);
-    fprintf(out, "\n");
-
-    // print input shares
-    if (ch == 1) {
-      fprintf(out, "inputShare: ");
-      print_hex(out, round->input_shares[1], input_size);
-      fprintf(out, "\n");
-    } else if (ch == 2) {
-      fprintf(out, "inputShare: ");
-      print_hex(out, round->input_shares[0], input_size);
-      fprintf(out, "\n");
-    }
-    fprintf(out, "\n");
-  }
-
-  proof_free(proof);
-}
-
-// commitment
-void hash_commitment(const picnic_instance_t* pp, proof_round_t* prf_round, unsigned vidx) {
-  const size_t hashlen = pp->digest_size;
-
-  uint8_t tmp[MAX_DIGEST_SIZE];
-
-  hash_context ctx;
-
-  // hash the seed
-  hash_init(&ctx, pp);
-  hash_update(&ctx, &HASH_PREFIX_4, sizeof(HASH_PREFIX_4));
-  hash_update(&ctx, prf_round->seeds[vidx], pp->seed_size);
-  hash_final(&ctx);
-  hash_squeeze(tmp, hashlen, &ctx);
-
-  // compute H_0(H_4(seed), view)
-  hash_init(&ctx, pp);
-  hash_update(&ctx, &HASH_PREFIX_0, sizeof(HASH_PREFIX_0));
-  hash_update(&ctx, tmp, hashlen);
-  // hash input share
-  hash_update(&ctx, prf_round->input_shares[vidx], pp->input_size);
-  // hash communicated bits
-  hash_update(&ctx, prf_round->communicated_bits[vidx], pp->view_size);
-  // hash output share
-  hash_update(&ctx, prf_round->output_shares[vidx], pp->output_size);
-  hash_final(&ctx);
-  hash_squeeze(prf_round->commitments[vidx], hashlen, &ctx);
-}
-
-// challenge - outputs {1,2 or 3}^t
-static void H3_compute(const picnic_instance_t* pp, uint8_t* hash, uint8_t* ch) {
-  const size_t digest_size      = pp->digest_size;
-  const size_t digest_size_bits = digest_size << 3;
-
-  // Pick bits from hash
-  uint8_t* eof   = ch + pp->num_rounds;
-  size_t bit_idx = 0;
-  while (ch < eof) {
-    if (bit_idx >= digest_size_bits) {
-      hash_context ctx;
-      hash_init(&ctx, pp);
-      hash_update(&ctx, &HASH_PREFIX_1, sizeof(HASH_PREFIX_1));
-      hash_update(&ctx, hash, digest_size);
-      hash_final(&ctx);
-      hash_squeeze(hash, digest_size, &ctx);
-      bit_idx = 0;
-    }
-
-    uint8_t twobits = (hash[bit_idx >> 3] >> ((6 - (bit_idx & 0x7)))) & 0x3;
-    if (twobits != 0x3) {
-      *ch++ = twobits;
-    }
-    bit_idx += 2;
-  }
-}
-
-void fs_H3_verify(const picnic_instance_t* pp, sig_proof_t* prf, const uint8_t* circuit_output,
-                  const uint8_t* circuit_input, const uint8_t* m, size_t m_len, uint8_t* ch) {
-  const size_t digest_size = pp->digest_size;
-  const size_t num_rounds  = pp->num_rounds;
-  const size_t output_size = pp->output_size;
-
-  hash_context ctx;
-  hash_init(&ctx, pp);
-  hash_update(&ctx, &HASH_PREFIX_1, sizeof(HASH_PREFIX_1));
-
-  // hash output shares
-  proof_round_t* round = prf->round;
-  for (unsigned i = 0; i < num_rounds; ++i, ++round) {
-    switch (prf->challenge[i]) {
-    case 0: {
-      hash_update(&ctx, round->output_shares[0], output_size);
-      hash_update(&ctx, round->output_shares[1], output_size);
-      hash_update(&ctx, round->output_shares[2], output_size);
-      break;
-    }
-    case 1: {
-      hash_update(&ctx, round->output_shares[2], output_size);
-      hash_update(&ctx, round->output_shares[0], output_size);
-      hash_update(&ctx, round->output_shares[1], output_size);
-      break;
-    }
-    default: {
-      hash_update(&ctx, round->output_shares[1], output_size);
-      hash_update(&ctx, round->output_shares[2], output_size);
-      hash_update(&ctx, round->output_shares[0], output_size);
-      break;
-    }
-    }
-  }
-
-  // hash commitments
-  round = prf->round;
-  for (unsigned i = 0; i < num_rounds; ++i, ++round) {
-    switch (prf->challenge[i]) {
-    case 0: {
-      hash_update(&ctx, round->commitments[0], digest_size);
-      hash_update(&ctx, round->commitments[1], digest_size);
-      hash_update(&ctx, round->commitments[2], digest_size);
-      break;
-    }
-    case 1: {
-      hash_update(&ctx, round->commitments[2], digest_size);
-      hash_update(&ctx, round->commitments[0], digest_size);
-      hash_update(&ctx, round->commitments[1], digest_size);
-      break;
-    }
-    default: {
-      hash_update(&ctx, round->commitments[1], digest_size);
-      hash_update(&ctx, round->commitments[2], digest_size);
-      hash_update(&ctx, round->commitments[0], digest_size);
-      break;
-    }
-    }
-  }
-
-  if (pp->transform == TRANSFORM_UR) {
-    const uint32_t without_input_bytes_size = pp->unruh_without_input_bytes_size;
-    const uint32_t with_input_bytes_size    = pp->unruh_with_input_bytes_size;
-
-    // hash commitments
-    round = prf->round;
-    for (unsigned i = 0; i < num_rounds; ++i, ++round) {
-      switch (prf->challenge[i]) {
-      case 0: {
-        hash_update(&ctx, round->gs[0], without_input_bytes_size);
-        hash_update(&ctx, round->gs[1], without_input_bytes_size);
-        hash_update(&ctx, round->gs[2], with_input_bytes_size);
+void verifyProof(const proof_t* proof, view_t* view1, view_t* view2,
+                 uint8_t challenge, uint8_t* tmp,
+                 const uint32_t* plaintext, randomTape_t* tape, paramset_t* params)
+{
+    memcpy(view2->communicatedBits, proof->communicatedBits, params->andSizeBytes);
+    tape->pos = 0;
+
+    bool status = false;
+    switch (challenge) {
+    case 0:
+        // in this case, both views' inputs are derivable from the input share
+
+        status = createRandomTape(proof->seed1, tmp, params->stateSizeBytes + params->andSizeBytes, params);
+        memcpy(view1->inputShare, tmp, params->stateSizeBytes);
+        memcpy(tape->tape[0], tmp + params->stateSizeBytes, params->andSizeBytes);
+        status = status && createRandomTape(proof->seed2, tmp, params->stateSizeBytes + params->andSizeBytes, params);
+        if (!status) {
+            break;
+        }
+        memcpy(view2->inputShare, tmp, params->stateSizeBytes);
+        memcpy(tape->tape[1], tmp + params->stateSizeBytes, params->andSizeBytes);
         break;
-      }
-      case 1: {
-        hash_update(&ctx, round->gs[2], without_input_bytes_size);
-        hash_update(&ctx, round->gs[0], without_input_bytes_size);
-        hash_update(&ctx, round->gs[1], with_input_bytes_size);
+
+    case 1:
+        // in this case view2's input share was already given to us explicitly as
+        // it is not computable from the seed. We just need to compute view1's input from
+        // its seed
+        status = createRandomTape(proof->seed1, tmp, params->stateSizeBytes + params->andSizeBytes, params);
+        memcpy(view1->inputShare, tmp, params->stateSizeBytes);
+        memcpy(tape->tape[0], tmp + params->stateSizeBytes, params->andSizeBytes);
+        status = status && createRandomTape(proof->seed2, tape->tape[1], params->andSizeBytes, params);
+        if (!status) {
+            break;
+        }
+        memcpy(view2->inputShare, proof->inputShare, params->stateSizeBytes);
         break;
-      }
-      default: {
-        hash_update(&ctx, round->gs[1], without_input_bytes_size);
-        hash_update(&ctx, round->gs[2], without_input_bytes_size);
-        hash_update(&ctx, round->gs[0], with_input_bytes_size);
+
+    case 2:
+        // in this case view1's input share was already given to us explicitly as
+        // it is not computable from the seed. We just need to compute view2's input from
+        // its seed
+        status = createRandomTape(proof->seed1, tape->tape[0], params->andSizeBytes, params);
+        memcpy(view1->inputShare, proof->inputShare, params->stateSizeBytes);
+        status = status && createRandomTape(proof->seed2, tmp, params->stateSizeBytes + params->andSizeBytes, params);
+        if (!status) {
+            break;
+        }
+        memcpy(view2->inputShare, tmp, params->stateSizeBytes);
+        memcpy(tape->tape[1], tmp + params->stateSizeBytes, params->andSizeBytes);
         break;
-      }
-      }
+
+    default:
+        break;
     }
-  }
 
-  // hash circuit out and input
-  hash_update(&ctx, circuit_output, pp->output_size);
-  hash_update(&ctx, circuit_input, pp->input_size);
-  // hash message
-  hash_update(&ctx, m, m_len);
-  hash_final(&ctx);
-
-  uint8_t hash[MAX_DIGEST_SIZE];
-  hash_squeeze(hash, digest_size, &ctx);
-  H3_compute(pp, hash, ch);
+    mpc_LowMC_verify(view1, view2, tape, (uint32_t*)tmp, plaintext, params, challenge);
 }
 
-void fs_H3(const picnic_instance_t* pp, sig_proof_t* prf, const uint8_t* circuit_output,
-           const uint8_t* circuit_input, const uint8_t* m, size_t m_len) {
-  const size_t num_rounds = pp->num_rounds;
+int verify(signature_t* sig, const uint32_t* pubKey, const uint32_t* plaintext,
+           const uint8_t* message, size_t messageByteLength, paramset_t* params)
+{
+    commitments_t* as = allocateCommitments(params);
+    g_commitments_t* gs = allocateGCommitments(params);
 
-  hash_context ctx;
-  hash_init(&ctx, pp);
-  hash_update(&ctx, &HASH_PREFIX_1, sizeof(HASH_PREFIX_1));
+    uint32_t** viewOutputs = malloc(params->numZKBRounds * 3 * sizeof(uint32_t*));
+    const proof_t* proofs = sig->proofs;
 
-  // hash output shares
-  hash_update(&ctx, prf->round[0].output_shares[0], pp->output_size * num_rounds * SC_PROOF);
-  // hash all commitments C
-  hash_update(&ctx, prf->round[0].commitments[0], pp->digest_size * num_rounds * SC_PROOF);
-  if (pp->transform == TRANSFORM_UR) {
-    // hash all commitments G
-    hash_update(&ctx, prf->round[0].gs[0],
-                num_rounds * ((SC_PROOF - 1) * pp->unruh_without_input_bytes_size +
-                              pp->unruh_with_input_bytes_size));
-  }
-  // hash circuit output and input
-  hash_update(&ctx, circuit_output, pp->output_size);
-  hash_update(&ctx, circuit_input, pp->input_size);
-  // hash message
-  hash_update(&ctx, m, m_len);
-  hash_final(&ctx);
+    const uint8_t* received_challengebits = sig->challengeBits;
+    int status = EXIT_SUCCESS;
+    uint8_t* computed_challengebits = NULL;
+    uint32_t* view3Slab = NULL;
 
-  uint8_t hash[MAX_DIGEST_SIZE];
-  hash_squeeze(hash, pp->digest_size, &ctx);
-  H3_compute(pp, hash, prf->challenge);
-}
+    uint8_t* tmp = malloc(MAX(6 * params->stateSizeBytes, params->stateSizeBytes + params->andSizeBytes));
 
-void unruh_G(const picnic_instance_t* pp, proof_round_t* prf_round, unsigned vidx,
-             bool include_is) {
-  hash_context ctx;
+    randomTape_t* tape = (randomTape_t*)malloc(sizeof(randomTape_t));
 
-  const size_t outputlen =
-      include_is ? pp->unruh_with_input_bytes_size : pp->unruh_without_input_bytes_size;
-  const uint16_t size_le   = htole16(outputlen);
-  const size_t digest_size = pp->digest_size;
-  const size_t seedlen     = pp->seed_size;
+    allocateRandomTape(tape, params);
 
-  /* Hash the seed with H_5, store digest in output */
-  hash_init(&ctx, pp);
-  hash_update(&ctx, &HASH_PREFIX_5, sizeof(HASH_PREFIX_5));
-  hash_update(&ctx, prf_round->seeds[vidx], seedlen);
-  hash_final(&ctx);
+    view_t* view1s = malloc(params->numZKBRounds * sizeof(view_t));
+    view_t* view2s = malloc(params->numZKBRounds * sizeof(view_t));
 
-  uint8_t tmp[MAX_DIGEST_SIZE];
-  hash_squeeze(tmp, digest_size, &ctx);
+    /* Allocate a slab of memory for the 3rd view's output in each round */
+    view3Slab = malloc(params->stateSizeBytes * params->numZKBRounds);
+    uint32_t* view3Output = view3Slab;     /* pointer into the slab to the current 3rd view */
 
-  /* Hash H_5(seed), the view, and the length */
-  hash_init(&ctx, pp);
-  hash_update(&ctx, tmp, digest_size);
-  if (include_is) {
-    hash_update(&ctx, prf_round->input_shares[vidx], pp->input_size);
-  }
-  hash_update(&ctx, prf_round->communicated_bits[vidx], pp->view_size);
-  hash_update(&ctx, (const uint8_t*)&size_le, sizeof(uint16_t));
-  hash_final(&ctx);
-  hash_squeeze(prf_round->gs[vidx], outputlen, &ctx);
-}
+    size_t i, j;
+    for (i = 0; i < params->numZKBRounds; i++) {
+        allocateView(&view1s[i], params);
+        allocateView(&view2s[i], params);
 
-// instance handling
+        // last bits of communicatedBits may not be set so zero them
+        view1s[i].communicatedBits[params->andSizeBytes - 1] = 0;
 
-static picnic_instance_t instances[PARAMETER_SET_MAX_INDEX];
-static bool instance_initialized[PARAMETER_SET_MAX_INDEX];
+        verifyProof(&proofs[i], &view1s[i], &view2s[i],
+                    getChallenge(received_challengebits, i),
+                    tmp, plaintext, tape, params);
 
-static transform_t param_to_transform(picnic_params_t param) {
-  switch (param) {
-  case Picnic_L1_UR:
-  case Picnic_L3_UR:
-  case Picnic_L5_UR:
-    return TRANSFORM_UR;
+        // create ordered array of commitments with order computed based on the challenge
+        // check commitments of the two opened views
+        uint8_t challenge = getChallenge(received_challengebits, i);
+        Commit(proofs[i].seed1, view1s[i], as[i].hashes[challenge], params);
+        Commit(proofs[i].seed2, view2s[i], as[i].hashes[(challenge + 1) % 3], params);
+        memcpy(as[i].hashes[(challenge + 2) % 3], proofs[i].view3Commitment, params->digestSizeBytes);
 
-  default:
-    return TRANSFORM_FS;
-  }
-}
+        if (params->transform == TRANSFORM_UR) {
+            G(challenge, proofs[i].seed1, &view1s[i], gs[i].G[challenge], params);
+            G((challenge + 1) % 3, proofs[i].seed2, &view2s[i], gs[i].G[(challenge + 1) % 3], params);
+            size_t view3UnruhLength = (challenge == 0) ? params->UnruhGWithInputBytes : params->UnruhGWithoutInputBytes;
+            memcpy(gs[i].G[(challenge + 2) % 3], proofs[i].view3UnruhG, view3UnruhLength);
+        }
 
-static bool create_instance(picnic_instance_t* pp, picnic_params_t param, uint32_t m, uint32_t n,
-                            uint32_t r, uint32_t k) {
-  TIME_FUNCTION;
-
-#if defined(WITH_CUSTOM_INSTANCES)
-  bool known_instance = true;
-#endif
-
-  uint32_t pq_security_level, num_rounds, digest_size, seed_size;
-  switch (param) {
-  case Picnic_L1_FS:
-  case Picnic_L1_UR:
-    n = k             = 128;
-    m                 = 10;
-    r                 = 20;
-    pq_security_level = 64;
-    num_rounds        = 219;
-    break;
-
-  case Picnic_L3_FS:
-  case Picnic_L3_UR:
-    n = k             = 192;
-    m                 = 10;
-    r                 = 30;
-    pq_security_level = 96;
-    num_rounds        = 329;
-    break;
-
-  case Picnic_L5_FS:
-  case Picnic_L5_UR:
-    n = k             = 256;
-    m                 = 10;
-    r                 = 38;
-    pq_security_level = 128;
-    num_rounds        = 438;
-    break;
-
-#if defined(WITH_CUSTOM_INSTANCES)
-  case PARAMETER_SET_INVALID:
-    known_instance    = false;
-    pq_security_level = n / 2;
-    num_rounds        = ceil(n / 0.5849625007211562);
-    break;
-#endif
-
-  default:
-    return false;
-  }
-
-  digest_size = MAX(32, (4 * pq_security_level + 7) / 8);
-  seed_size   = (2 * pq_security_level + 7) / 8;
-
-  START_TIMING;
-  bool have_instance = false;
-#if defined(WITH_CUSTOM_INSTANCES)
-  if (!known_instance) {
-    have_instance = lowmc_read_file(&pp->lowmc, m, n, r, k);
-  }
-#endif
-  if (!have_instance) {
-    have_instance = lowmc_init(&pp->lowmc, m, n, r, k);
-  }
-  if (!have_instance) {
-    return false;
-  }
-
-  pp->lowmc_impl        = get_lowmc_implementation(&pp->lowmc);
-  pp->lowmc_verify_impl = get_lowmc_verify_implementation(&pp->lowmc);
-
-  pp->params         = param;
-  pp->transform      = param_to_transform(param);
-  pp->security_level = pq_security_level;
-  pp->digest_size    = digest_size;
-  pp->seed_size      = seed_size;
-  pp->num_rounds     = num_rounds;
-
-  // bytes required to store one input share
-  pp->input_size = (pp->lowmc.k + 7) >> 3;
-  // bytes required to store one output share
-  pp->output_size = (pp->lowmc.n + 7) >> 3;
-  // number of bits per view per LowMC round
-  pp->view_round_size = (pp->lowmc.m * 3);
-  // bytes required to store communicated bits (i.e. views) of one round
-  pp->view_size = (pp->view_round_size * pp->lowmc.r + 7) >> 3;
-  // bytes required to store collapsed challenge
-  pp->collapsed_challenge_size = (num_rounds + 3) >> 2;
-
-  if (pp->transform == TRANSFORM_UR) {
-    pp->unruh_without_input_bytes_size = pp->seed_size + pp->view_size;
-    pp->unruh_with_input_bytes_size    = pp->unruh_without_input_bytes_size + pp->input_size;
-  } else {
-    pp->unruh_without_input_bytes_size = pp->unruh_with_input_bytes_size = 0;
-  }
-
-  // we can use unruh_without_input_bytes_size here. In call cases where we need
-  // to write more, we do not need to write the input share
-  const size_t per_round_size = pp->input_size + pp->view_size + pp->digest_size +
-                                2 * pp->seed_size + pp->unruh_without_input_bytes_size;
-  pp->max_signature_size = pp->collapsed_challenge_size + num_rounds * per_round_size;
-
-  END_TIMING(timing_and_size->gen.lowmc_init);
-
-  return true;
-}
-
-static void destroy_instance(picnic_instance_t* pp) {
-  lowmc_clear(&pp->lowmc);
-}
-
-picnic_instance_t* get_instance(picnic_params_t param) {
-  if (param <= PARAMETER_SET_INVALID || param >= PARAMETER_SET_MAX_INDEX) {
-    return NULL;
-  }
-
-  if (!instance_initialized[param]) {
-    if (!create_instance(&instances[param], param, LOWMC_UNSPECFIED_ARG, LOWMC_UNSPECFIED_ARG,
-                         LOWMC_UNSPECFIED_ARG, LOWMC_UNSPECFIED_ARG)) {
-      return NULL;
+        VIEW_OUTPUTS(i, challenge) = view1s[i].outputShare;
+        VIEW_OUTPUTS(i, (challenge + 1) % 3) = view2s[i].outputShare;
+        for (j = 0; j < params->stateSizeWords; j++) {
+            view3Output[j] = view1s[i].outputShare[j] ^ view2s[i].outputShare[j]
+                             ^ pubKey[j];
+        }
+        VIEW_OUTPUTS(i, (challenge + 2) % 3) = view3Output;
+        view3Output += params->stateSizeWords;
     }
-    instance_initialized[param] = true;
-  }
 
-  return &instances[param];
-}
+    computed_challengebits = malloc(numBytes(2 * params->numZKBRounds));
 
-ATTR_DTOR static void clear_instances(void) {
-  for (unsigned int p = PARAMETER_SET_INVALID + 1; p < PARAMETER_SET_MAX_INDEX; ++p) {
-    if (instance_initialized[p]) {
-      destroy_instance(&instances[p]);
-      instance_initialized[p] = false;
+    H3(pubKey, plaintext, viewOutputs, as,
+       computed_challengebits, message, messageByteLength, gs, params);
+
+    if (computed_challengebits != NULL &&
+        memcmp(received_challengebits, computed_challengebits,
+               numBytes(2 * params->numZKBRounds)) != 0) {
+        status = EXIT_FAILURE;
     }
-  }
-}
 
-static void collapse_challenge(uint8_t* collapsed, const picnic_instance_t* pp,
-                               const uint8_t* challenge) {
-  bitstream_t bs;
-  bs.buffer   = collapsed;
-  bs.position = 0;
+    free(computed_challengebits);
+    free(view3Slab);
 
-  for (unsigned int i = 0; i < pp->num_rounds; ++i) {
-    bitstream_put_bits(&bs, (challenge[i] >> 1) | ((challenge[i] & 1) << 1), 2);
-  }
-}
-
-static bool expand_challenge(uint8_t* challenge, const picnic_instance_t* pp,
-                             const uint8_t* collapsed) {
-  bitstream_t bs;
-  bs.buffer   = (uint8_t*)collapsed;
-  bs.position = 0;
-
-  for (unsigned int i = 0; i < pp->num_rounds; ++i) {
-    uint8_t ch = bitstream_get_bits(&bs, 2);
-    if (ch == 3) {
-      return false;
+    freeCommitments(as);
+    for (i = 0; i < params->numZKBRounds; i++) {
+        freeView(&view1s[i]);
+        freeView(&view2s[i]);
     }
-    challenge[i] = (ch & 1) << 1 | (ch >> 1);
-  }
+    free(view1s);
+    free(view2s);
+    free(tmp);
+    freeRandomTape(tape);
+    free(tape);
+    freeGCommitments(gs);
+    free(viewOutputs);
 
-  size_t remaining_bits = (pp->collapsed_challenge_size << 3) - bs.position;
-  if (remaining_bits && bitstream_get_bits(&bs, remaining_bits)) {
-    return false;
-  }
-
-  return true;
+    return status;
 }
+
+/*** Functions implementing Sign ***/
+
+void mpc_AND(uint8_t in1[3], uint8_t in2[3], uint8_t out[3], randomTape_t* rand,
+             view_t views[3])
+{
+    uint8_t r[3] = { getBit(rand->tape[0], rand->pos), getBit(rand->tape[1], rand->pos), getBit(rand->tape[2], rand->pos) };
+
+    uint8_t i;
+    for (i = 0; i < 3; i++) {
+        out[i] = (in1[i] & in2[(i + 1) % 3]) ^ (in1[(i + 1) % 3] & in2[i])
+                 ^ (in1[i] & in2[i]) ^ r[i] ^ r[(i + 1) % 3];
+
+        setBit(views[i].communicatedBits, rand->pos, out[i]);
+    }
+
+    (rand->pos)++;
+}
+
+void mpc_substitution(uint32_t* state[3], randomTape_t* rand, view_t views[3],
+                      paramset_t* params)
+{
+    uint8_t a[3];
+    uint8_t b[3];
+    uint8_t c[3];
+
+    uint8_t ab[3];
+    uint8_t bc[3];
+    uint8_t ca[3];
+
+    uint32_t i;
+    for (i = 0; i < params->numSboxes * 3; i += 3) {
+
+        uint8_t j;
+        for (j = 0; j < 3; j++) {
+            a[j] = getBitFromWordArray(state[j], i + 2);
+            b[j] = getBitFromWordArray(state[j], i + 1);
+            c[j] = getBitFromWordArray(state[j], i);
+        }
+
+        mpc_AND(a, b, ab, rand, views);
+        mpc_AND(b, c, bc, rand, views);
+        mpc_AND(c, a, ca, rand, views);
+
+        for (j = 0; j < 3; j++) {
+            setBitInWordArray(state[j], i + 2, a[j] ^ (bc[j]));
+            setBitInWordArray(state[j], i + 1, a[j] ^ b[j] ^ (ca[j]));
+            setBitInWordArray(state[j], i, a[j] ^ b[j] ^ c[j] ^ (ab[j]));
+        }
+    }
+}
+
+void mpc_LowMC(randomTape_t* tapes, view_t views[3],
+               const uint32_t* plaintext, uint32_t* slab, paramset_t* params)
+{
+    uint32_t* keyShares[3];
+    uint32_t* state[3];
+    uint32_t* roundKey[3];
+
+    roundKey[0] = slab;
+    roundKey[1] = slab + params->stateSizeWords;
+    roundKey[2] = roundKey[1] + params->stateSizeWords;
+    state[0] = roundKey[2] + params->stateSizeWords;
+    state[1] = state[0] + params->stateSizeWords;
+    state[2] = state[1] + params->stateSizeWords;
+
+    memset(roundKey[0], 0, 3 * params->stateSizeBytes);
+    int i;
+    for (i = 0; i < 3; i++) {
+        keyShares[i] = views[i].inputShare;
+        memset(state[i], 0x00, params->stateSizeBytes);
+    }
+    mpc_xor_constant(state, plaintext, params->stateSizeWords);
+
+    mpc_matrix_mul(keyShares, KMatrix(0, params), roundKey, params, 3);
+    mpc_xor(state, roundKey, params->stateSizeWords, 3);
+
+    uint32_t r;
+    for (r = 1; r <= params->numRounds; r++) {
+        mpc_matrix_mul(keyShares, KMatrix(r, params), roundKey, params, 3);
+        mpc_substitution(state, tapes, views, params);
+        mpc_matrix_mul(state, LMatrix(r - 1, params), state, params, 3);
+        mpc_xor_constant(state, RConstant(r - 1, params), params->stateSizeWords);
+        mpc_xor(state, roundKey, params->stateSizeWords, 3);
+    }
+
+    for (i = 0; i < 3; i++) {
+        memcpy(views[i].outputShare, state[i], params->stateSizeBytes);
+    }
+
+}
+
+void runMPC(view_t views[3], randomTape_t* rand,
+            uint32_t* plaintext, uint32_t* slab, paramset_t* params)
+{
+    rand->pos = 0;
+    mpc_LowMC(rand, views, plaintext, slab, params);
+}
+
+
+seeds_t* computeSeeds(uint32_t* privateKey, uint32_t*
+                      publicKey, uint32_t* plaintext, const uint8_t* message, size_t messageByteLength, paramset_t* params)
+{
+    HashInstance ctx;
+    seeds_t* allSeeds = allocateSeeds(params);
+
+    HashInit(&ctx, params, HASH_PREFIX_NONE);
+    HashUpdate(&ctx, (uint8_t*)privateKey, params->stateSizeBytes);
+    HashUpdate(&ctx, message, messageByteLength);
+    HashUpdate(&ctx, (uint8_t*)publicKey, params->stateSizeBytes);
+    HashUpdate(&ctx, (uint8_t*)plaintext, params->stateSizeBytes);
+    uint16_t stateSizeBitsLE = toLittleEndian((uint16_t)params->stateSizeBits);
+    HashUpdate(&ctx, ((uint8_t*)&stateSizeBitsLE), sizeof(uint16_t));
+    HashFinal(&ctx);
+
+    HashSqueeze(&ctx, getSeed(allSeeds, 0, 0), params->seedSizeBytes * 3 * params->numZKBRounds);
+
+    return allSeeds;
+}
+
+int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint8_t* message,
+         size_t messageByteLength, signature_t* sig, paramset_t* params)
+{
+    bool status;
+
+    /* Allocate views and commitments for all parallel iterations */
+    view_t** views = allocateViews(params);
+    commitments_t* as = allocateCommitments(params);
+    g_commitments_t* gs = allocateGCommitments(params);
+
+    /* Compute seeds for all parallel iterations */
+    seeds_t* seeds = computeSeeds(privateKey, pubKey, plaintext, message, messageByteLength, params);
+
+    //Allocate a random tape (re-used per parallel iteration), and a temporary buffer
+    randomTape_t tape;
+
+    allocateRandomTape(&tape, params);
+    uint8_t* tmp = malloc( MAX(9 * params->stateSizeBytes, params->stateSizeBytes + params->andSizeBytes));
+
+    uint32_t k;
+    for (k = 0; k < params->numZKBRounds; k++) {
+        // for first two players get all tape INCLUDING INPUT SHARE from seed
+        int j;
+        for (j = 0; j < 2; j++) {
+            status = createRandomTape(getSeed(seeds, k, j), tmp, params->stateSizeBytes + params->andSizeBytes, params);
+            if (!status) {
+                return EXIT_FAILURE;
+            }
+
+            memcpy(views[k][j].inputShare, tmp, params->stateSizeBytes);
+            memcpy(tape.tape[j], tmp + params->stateSizeBytes, params->andSizeBytes);
+        }
+        // Now set third party's wires. The random bits are from the seed, the input is
+        // the XOR of other two inputs and the private key
+        status = createRandomTape(getSeed(seeds, k, 2), tape.tape[2], params->andSizeBytes, params);
+        if (!status) {
+            return EXIT_FAILURE;
+        }
+        uint32_t j1;
+        for (j1 = 0; j1 < params->stateSizeWords; j1++) {
+            views[k][2].inputShare[j1] = privateKey[j1]
+                                        ^ views[k][0].inputShare[j1]
+                                        ^ views[k][1].inputShare[j1];
+        }
+
+        runMPC(views[k], &tape, plaintext, (uint32_t*)tmp, params);
+
+        //Committing
+        Commit(getSeed(seeds, k, 0), views[k][0], as[k].hashes[0], params);
+        Commit(getSeed(seeds, k, 1), views[k][1], as[k].hashes[1], params);
+        Commit(getSeed(seeds, k, 2), views[k][2], as[k].hashes[2], params);
+
+        if (params->transform == TRANSFORM_UR) {
+            G(0, getSeed(seeds, k, 0), &views[k][0], gs[k].G[0], params);
+            G(1, getSeed(seeds, k, 1), &views[k][1], gs[k].G[1], params);
+            G(2, getSeed(seeds, k, 2), &views[k][2], gs[k].G[2], params);
+        }
+    }
+
+    //Generating challenges
+    uint32_t** viewOutputs = malloc(params->numZKBRounds * 3 * sizeof(uint32_t*));
+
+    size_t ii, jj;
+    for (ii = 0; ii < params->numZKBRounds; ii++)
+        for (jj = 0; jj < 3; jj++)
+            VIEW_OUTPUTS(ii, jj) = views[ii][jj].outputShare;
+
+
+    uint32_t output[LOWMC_MAX_STATE_SIZE];
+    uint32_t j;
+    for (j = 0; j < params->stateSizeWords; j++)
+        output[j] = (VIEW_OUTPUTS(0, 0))[j] ^ (VIEW_OUTPUTS(0, 1))[j] ^ (VIEW_OUTPUTS(0, 2))[j];
+
+
+    H3(output, plaintext, viewOutputs, as,
+       sig->challengeBits, message, messageByteLength, gs, params);
+
+    //Packing Z
+    size_t i;
+    for (i = 0; i < params->numZKBRounds; i++) {
+        proof_t* proof = &sig->proofs[i];
+        prove(proof, getChallenge(sig->challengeBits, i), &seeds[i],
+              views[i], &as[i], (gs == NULL) ? NULL : &gs[i], params);
+    }
+
+    free(tmp);
+
+    freeViews(views, params);
+    freeCommitments(as);
+    freeRandomTape(&tape);
+    freeGCommitments(gs);
+    free(viewOutputs);
+    freeSeeds(seeds);
+
+    return EXIT_SUCCESS;
+}
+
+/*** Serialization functions ***/
+
+int serializeSignature(const signature_t* sig, uint8_t* sigBytes, size_t sigBytesLen, paramset_t* params)
+{
+    const proof_t* proofs = sig->proofs;
+    const uint8_t* challengeBits = sig->challengeBits;
+
+    /* Validate input buffer is large enough */
+    size_t bytesRequired = numBytes(2 * params->numZKBRounds) +
+                           params->numZKBRounds * (2 * params->seedSizeBytes + params->stateSizeBytes + params->andSizeBytes + params->digestSizeBytes);
+
+    if (params->transform == TRANSFORM_UR) {
+        bytesRequired += params->UnruhGWithoutInputBytes * params->numZKBRounds;
+    }
+
+    if (sigBytesLen < bytesRequired) {
+        return -1;
+    }
+
+    uint8_t* sigBytesBase = sigBytes;
+
+    memcpy(sigBytes, challengeBits, numBytes(2 * params->numZKBRounds));
+    sigBytes += numBytes(2 * params->numZKBRounds);
+
+    size_t i;
+    for (i = 0; i < params->numZKBRounds; i++) {
+
+        uint8_t challenge = getChallenge(challengeBits, i);
+
+        memcpy(sigBytes, proofs[i].view3Commitment, params->digestSizeBytes);
+        sigBytes += params->digestSizeBytes;
+
+        if (params->transform == TRANSFORM_UR) {
+            size_t view3UnruhLength = (challenge == 0) ? params->UnruhGWithInputBytes : params->UnruhGWithoutInputBytes;
+            memcpy(sigBytes, proofs[i].view3UnruhG, view3UnruhLength);
+            sigBytes += view3UnruhLength;
+        }
+
+        memcpy(sigBytes, proofs[i].communicatedBits, params->andSizeBytes);
+        sigBytes += params->andSizeBytes;
+
+        memcpy(sigBytes, proofs[i].seed1, params->seedSizeBytes);
+        sigBytes += params->seedSizeBytes;
+
+        memcpy(sigBytes, proofs[i].seed2, params->seedSizeBytes);
+        sigBytes += params->seedSizeBytes;
+
+        if (challenge == 1 || challenge == 2) {
+            memcpy(sigBytes, proofs[i].inputShare, params->stateSizeBytes);
+            sigBytes += params->stateSizeBytes;
+        }
+
+
+    }
+
+    return (int)(sigBytes - sigBytesBase);
+}
+
+
+static size_t computeInputShareSize(const uint8_t* challengeBits, size_t stateSizeBytes, paramset_t* params)
+{
+    /* When the FS transform is used, the input share is included in the proof
+     * only when the challenge is 1 or 2.  When dersializing, to compute the
+     * number of bytes expected, we must check how many challenge values are 1
+     * or 2. The parameter stateSizeBytes is the size of an input share. */
+    size_t inputShareSize = 0;
+
+    size_t i;
+    for (i = 0; i < params->numZKBRounds; i++) {
+        uint8_t challenge = getChallenge(challengeBits, i);
+        if (challenge == 1 || challenge == 2) {
+            inputShareSize += stateSizeBytes;
+        }
+    }
+    return inputShareSize;
+}
+
+int deserializeSignature(signature_t* sig, const uint8_t* sigBytes,
+                         size_t sigBytesLen, paramset_t* params)
+{
+    proof_t* proofs = sig->proofs;
+    uint8_t* challengeBits = sig->challengeBits;
+
+    /* Validate input buffer is large enough */
+    if (sigBytesLen < numBytes(2 * params->numZKBRounds)) {     /* ensure the input has at least the challenge */
+        return EXIT_FAILURE;
+    }
+    size_t inputShareSize = computeInputShareSize(sigBytes, params->stateSizeBytes, params);
+    size_t bytesExpected = numBytes(2 * params->numZKBRounds) +
+                           params->numZKBRounds * (2 * params->seedSizeBytes + params->andSizeBytes + params->digestSizeBytes) + inputShareSize;
+    if (params->transform == TRANSFORM_UR) {
+        bytesExpected += params->UnruhGWithoutInputBytes * params->numZKBRounds;
+    }
+    if (sigBytesLen < bytesExpected) {
+        return EXIT_FAILURE;
+    }
+
+    memcpy(challengeBits, sigBytes, numBytes(2 * params->numZKBRounds));
+    sigBytes += numBytes(2 * params->numZKBRounds);
+
+    size_t i;
+    for (i = 0; i < params->numZKBRounds; i++) {
+
+        uint8_t challenge = getChallenge(challengeBits, i);
+
+        memcpy(proofs[i].view3Commitment, sigBytes, params->digestSizeBytes);
+        sigBytes += params->digestSizeBytes;
+
+        if (params->transform == TRANSFORM_UR) {
+            size_t view3UnruhLength = (challenge == 0) ? params->UnruhGWithInputBytes : params->UnruhGWithoutInputBytes;
+            memcpy(proofs[i].view3UnruhG, sigBytes, view3UnruhLength);
+            sigBytes += view3UnruhLength;
+        }
+
+        memcpy(proofs[i].communicatedBits, sigBytes, params->andSizeBytes);
+        sigBytes += params->andSizeBytes;
+
+        memcpy(proofs[i].seed1, sigBytes, params->seedSizeBytes);
+        sigBytes += params->seedSizeBytes;
+
+        memcpy(proofs[i].seed2, sigBytes, params->seedSizeBytes);
+        sigBytes += params->seedSizeBytes;
+
+        if (challenge == 1 || challenge == 2) {
+            memcpy(proofs[i].inputShare, sigBytes, params->stateSizeBytes);
+            sigBytes += params->stateSizeBytes;
+        }
+
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
+
+

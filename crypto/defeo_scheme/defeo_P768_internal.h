@@ -3,9 +3,6 @@
 
 #include "defeo_config.h"
 
-#define NWORDS_FIELD    24
-#define p751_ZERO_WORDS 11
-
 // Basic constants
 
 #define NBITS_FIELD             751
@@ -51,7 +48,6 @@
 
 // SIDH's basic element definitions and point representations
 
-typedef unsigned int digit_t;
 typedef digit_t felm_t[NWORDS_FIELD];                                 // Datatype for representing 751-bit field elements (768-bit max.)
 typedef digit_t dfelm_t[2*NWORDS_FIELD];                              // Datatype for representing double-precision 2x751-bit field elements (2x768-bit max.)
 typedef felm_t  f2elm_t[2];                                           // Datatype for representing quadratic extension field elements GF(p751^2)

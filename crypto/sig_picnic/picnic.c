@@ -1,5 +1,7 @@
-/*
- *  This file is part of the optimized implementation of the Picnic signature scheme.
+/*! @file picnic.c
+ *  @brief Implementation of the Picnic signature API
+ *
+ *  This file is part of the reference implementation of the Picnic signature scheme.
  *  See the accompanying documentation for complete details.
  *
  *  The code is provided under the MIT license, see LICENSE for
@@ -7,340 +9,399 @@
  *  SPDX-License-Identifier: MIT
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include "picnic.h"
-
-#include <stdlib.h>
-#include <string.h>
-
-#include "io.h"
-#include "lowmc.h"
+#include <stdio.h>
+#include <memory.h>
+#include <limits.h>
 #include "picnic_impl.h"
-#include "randomness.h"
+#include "picnic.h"
+#include "picnic_types.h"
+#include "lowmc_constants.h"
+#include "platform.h"
 
-const picnic_instance_t* picnic_instance_get(picnic_params_t param) {
-  return get_instance(param);
-}
+static int is_valid_params(picnic_params_t params)
+{
+    if (params > 0 && params < PARAMETER_SET_MAX_INDEX) {
+        return 1;
+    }
 
-size_t PICNIC_CALLING_CONVENTION picnic_signature_size(picnic_params_t param) {
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
     return 0;
-  }
-
-  return instance->max_signature_size;
 }
 
-size_t PICNIC_CALLING_CONVENTION picnic_get_private_key_size(picnic_params_t param) {
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
+transform_t get_transform(picnic_params_t parameters)
+{
+    switch (parameters) {
+    case Picnic_L1_FS:
+    case Picnic_L3_FS:
+    case Picnic_L5_FS:
+        return TRANSFORM_FS;
+    case Picnic_L1_UR:
+    case Picnic_L3_UR:
+    case Picnic_L5_UR:
+        return TRANSFORM_UR;
+    default:
+        return TRANSFORM_INVALID;
+    }
+}
+
+const char* picnic_get_param_name(picnic_params_t parameters)
+{
+    switch (parameters) {
+    case Picnic_L1_FS:
+        return "Picnic_L1_FS";
+    case Picnic_L1_UR:
+        return "Picnic_L1_UR";
+    case Picnic_L3_FS:
+        return "Picnic_L3_FS";
+    case Picnic_L3_UR:
+        return "Picnic_L3_UR";
+    case Picnic_L5_FS:
+        return "Picnic_L5_FS";
+    case Picnic_L5_UR:
+        return "Picnic_L5_UR";
+    default:
+        return "Unknown parameter set";
+    }
+}
+
+int get_param_set(picnic_params_t picnicParams, paramset_t* paramset)
+{
+    memset(paramset, 0, sizeof(paramset_t));
+
+    uint32_t pqSecurityLevel;
+
+    switch (picnicParams) {
+    case Picnic_L1_FS:
+    case Picnic_L1_UR:
+        pqSecurityLevel = 64;
+        paramset->numZKBRounds = 219;
+        paramset->numSboxes = 10;
+        paramset->numRounds = 20;
+        paramset->digestSizeBytes = 32;
+        break;
+    case Picnic_L3_FS:
+    case Picnic_L3_UR:
+        pqSecurityLevel = 96;
+        paramset->numZKBRounds = 329;
+        paramset->numSboxes = 10;
+        paramset->numRounds = 30;
+        paramset->digestSizeBytes = 48;
+        break;
+    case Picnic_L5_FS:
+    case Picnic_L5_UR:
+        pqSecurityLevel = 128;
+        paramset->numZKBRounds = 438;
+        paramset->numSboxes = 10;
+        paramset->numRounds = 38;
+        paramset->digestSizeBytes = 64;
+        break;
+
+    default:
+        fprintf(stderr, "%s: Unsupported Picnic parameter set (%d). \n", __func__, picnicParams);
+        return -1;
+    }
+
+    paramset->stateSizeBytes = numBytes(2 * pqSecurityLevel);
+    paramset->seedSizeBytes = numBytes(2 * pqSecurityLevel);
+    paramset->andSizeBytes = numBytes(paramset->numSboxes * 3 * paramset->numRounds);
+    paramset->stateSizeBits = paramset->stateSizeBytes * 8;
+    paramset->stateSizeWords = paramset->stateSizeBits / WORD_SIZE_BITS;
+    paramset->transform = get_transform(picnicParams);
+
+    if (paramset->transform == TRANSFORM_UR) {
+        paramset->UnruhGWithoutInputBytes = paramset->seedSizeBytes + paramset->andSizeBytes;
+        paramset->UnruhGWithInputBytes = paramset->UnruhGWithoutInputBytes + paramset->stateSizeBytes;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int picnic_sign(picnic_privatekey_t* sk, const uint8_t* message, size_t message_len,
+                uint8_t* signature, size_t* signature_len)
+{
+    int ret;
+    signature_t* sig = (signature_t*)malloc(sizeof(signature_t));
+    paramset_t paramset;
+
+    ret = get_param_set(sk->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        free(sig);
+        return -1;
+    }
+
+    allocateSignature(sig, &paramset);
+    if (sig == NULL) {
+        return -1;
+    }
+
+    ret = sign((uint32_t*)sk->data, (uint32_t*)sk->pk.ciphertext, (uint32_t*)sk->pk.plaintext, message,
+               message_len, sig, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        freeSignature(sig, &paramset);
+        free(sig);
+        return -1;
+    }
+
+    ret = serializeSignature(sig, signature, *signature_len, &paramset);
+    if (ret == -1) {
+        freeSignature(sig, &paramset);
+        free(sig);
+        return -1;
+    }
+    *signature_len = ret;
+    freeSignature(sig, &paramset);
+    free(sig);
     return 0;
-  }
-
-  return 1 + instance->input_size + instance->output_size;
 }
 
-size_t PICNIC_CALLING_CONVENTION picnic_get_public_key_size(picnic_params_t param) {
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
+size_t picnic_signature_size(picnic_params_t parameters)
+{
+    paramset_t paramset;
+
+    int ret = get_param_set(parameters, &paramset);
+
+    if (ret != EXIT_SUCCESS) {
+        return PICNIC_MAX_SIGNATURE_SIZE;
+    }
+
+    switch (paramset.transform) {
+    case TRANSFORM_FS:
+        // This is the largest possible FS signature size and would result when no challenges are 0 -- which would require us to include stateSizeBytes for every ZKB round.
+        return paramset.numZKBRounds * (paramset.digestSizeBytes + paramset.stateSizeBytes + numBytes(3 * paramset.numSboxes * paramset.numRounds) +  2 * paramset.seedSizeBytes) + numBytes(2 * paramset.numZKBRounds);
+    case TRANSFORM_UR:
+        return paramset.numZKBRounds * (paramset.digestSizeBytes + paramset.stateSizeBytes + 2 * numBytes(3 * paramset.numSboxes * paramset.numRounds) +  3 * paramset.seedSizeBytes) + numBytes(2 * paramset.numZKBRounds);
+    default:
+        return PICNIC_MAX_SIGNATURE_SIZE;
+    }
+}
+
+int picnic_verify(picnic_publickey_t* pk, const uint8_t* message, size_t message_len,
+                  const uint8_t* signature, size_t signature_len)
+{
+    int ret;
+    paramset_t paramset;
+
+    ret = get_param_set(pk->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
+
+    signature_t* sig = (signature_t*)malloc(sizeof(signature_t));
+    allocateSignature(sig, &paramset);
+    if (sig == NULL) {
+        return -1;
+    }
+
+    ret = deserializeSignature(sig, signature, signature_len, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        freeSignature(sig, &paramset);
+        free(sig);
+        return -1;
+    }
+
+    ret = verify(sig, (uint32_t*)pk->ciphertext,
+                 (uint32_t*)pk->plaintext, message, message_len, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        /* Signature is invalid, or verify function failed */
+        freeSignature(sig, &paramset);
+        free(sig);
+        return -1;
+    }
+
+    freeSignature(sig, &paramset);
+    free(sig);
     return 0;
-  }
-
-  return 1 + (instance->output_size << 1);
 }
 
-int PICNIC_CALLING_CONVENTION picnic_keygen(picnic_params_t param, picnic_publickey_t* pk,
-                                            picnic_privatekey_t* sk) {
+/* Serialize public key */
+int picnic_write_public_key(const picnic_publickey_t* key, uint8_t* buf, size_t buflen)
+{
+    if (key == NULL || buf == NULL) {
+        return -1;
+    }
 
-  if (!pk || !sk) {
-    return -1;
-  }
+    paramset_t paramset;
+    int ret = get_param_set(key->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
 
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
+    size_t bytesRequired = 1 + 2 * paramset.stateSizeBytes;
+    if (buflen < bytesRequired) {
+        return -1;
+    }
 
-  const size_t input_size  = instance->input_size;
-  const size_t output_size = instance->output_size;
+    buf[0] = (uint8_t)key->params;
 
-  uint8_t* sk_sk = &sk->data[1];
-  uint8_t* pk_pt = &sk->data[1 + input_size];
-  uint8_t* sk_c  = &sk->data[1 + input_size + output_size];
+    memcpy(buf + 1, key->ciphertext, paramset.stateSizeBytes);
+    memcpy(buf + 1 + paramset.stateSizeBytes, key->plaintext, paramset.stateSizeBytes);
 
-  // generate private key
-  sk->data[0] = param;
-  // random secret key
-  if (!rand_bytes(sk_sk, input_size)) {
-    return -1;
-  }
-  // random plain text
-  if (!rand_bytes(pk_pt, output_size)) {
-    return -1;
-  }
-  // encrypt plaintext under secret key
-  if (picnic_sk_to_pk(sk, pk)) {
-    return -1;
-  }
-  // copy ciphertext to secret key
-  memcpy(sk_c, &pk->data[1 + output_size], output_size);
-  return 0;
+    return (int)bytesRequired;
 }
 
-int PICNIC_CALLING_CONVENTION picnic_sk_to_pk(const picnic_privatekey_t* sk,
-                                              picnic_publickey_t* pk) {
-  if (!sk || !pk) {
-    return -1;
-  }
 
-  const picnic_params_t param       = sk->data[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
+int picnic_read_public_key(picnic_publickey_t* key, const uint8_t* buf, size_t buflen)
+{
+    if (key == NULL || buf == NULL) {
+        return -1;
+    }
 
-  const size_t input_size  = instance->input_size;
-  const size_t output_size = instance->output_size;
+    if (buflen < 1 || !is_valid_params(buf[0])) {
+        return -1;
+    }
 
-  const uint8_t* sk_sk = &sk->data[1];
-  uint8_t* pk_c        = &pk->data[1 + output_size];
-  uint8_t* pk_pt       = &pk->data[1];
-  const uint8_t* sk_pt = &sk->data[1 + input_size];
+    key->params = buf[0];
 
-  mzd_local_t* plaintext = mzd_local_init_ex(1, instance->lowmc.n, false);
-  mzd_local_t* privkey   = mzd_local_init_ex(1, instance->lowmc.k, false);
+    paramset_t paramset;
+    int ret = get_param_set(key->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
 
-  mzd_from_char_array(plaintext, sk_pt, output_size);
-  mzd_from_char_array(privkey, sk_sk, input_size);
+    size_t bytesExpected = 1 + 2 * paramset.stateSizeBytes;
+    if (buflen < bytesExpected) {
+        return -1;
+    }
 
-  // compute public key
-  mzd_local_t* ciphertext = lowmc_call(&instance->lowmc, privkey, plaintext);
+    memset(key->ciphertext, 0x00, paramset.stateSizeBytes);
+    memcpy(key->ciphertext, buf + 1, paramset.stateSizeBytes);
 
-  pk->data[0] = param;
-  memcpy(pk_pt, sk_pt, output_size);
-  mzd_to_char_array(pk_c, ciphertext, output_size);
+    memset(key->plaintext, 0x00, paramset.stateSizeBytes);
+    memcpy(key->plaintext, buf + 1 + paramset.stateSizeBytes, paramset.stateSizeBytes);
 
-  mzd_local_free(ciphertext);
-  mzd_local_free(privkey);
-  mzd_local_free(plaintext);
-
-  return 0;
+    return 0;
 }
 
-int PICNIC_CALLING_CONVENTION picnic_validate_keypair(const picnic_privatekey_t* sk,
-                                                      const picnic_publickey_t* pk) {
-  if (!sk || !pk) {
-    return -1;
-  }
+/* Serialize a private key. */
+int picnic_write_private_key(const picnic_privatekey_t* key, uint8_t* buf, size_t buflen)
+{
+    if (key == NULL || buf == NULL) {
+        return -1;
+    }
 
-  const picnic_params_t param       = sk->data[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
+    paramset_t paramset;
+    int ret = get_param_set(key->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
 
-  const size_t input_size  = instance->input_size;
-  const size_t output_size = instance->output_size;
-  const uint8_t* sk_sk     = &sk->data[1];
-  const uint8_t* sk_pt     = &sk->data[1 + input_size];
-  const uint8_t* sk_c      = &sk->data[1 + input_size + output_size];
-  const uint8_t* pk_pt     = &pk->data[1];
-  const uint8_t* pk_c      = &pk->data[1 + output_size];
+    size_t n = paramset.stateSizeBytes;
+    size_t bytesRequired = 1 + 3*n;
+    if (buflen < bytesRequired) {
+        return -1;
+    }
 
-  // check param and plaintext
-  if (param != pk->data[0] || memcmp(sk_pt, pk_pt, output_size) != 0 ||
-      memcmp(sk_c, pk_c, output_size) != 0) {
-    return -1;
-  }
+    buf[0] = (uint8_t)key->params;
 
-  mzd_local_t* plaintext = mzd_local_init_ex(1, instance->lowmc.n, false);
-  mzd_local_t* privkey   = mzd_local_init_ex(1, instance->lowmc.k, false);
+    memcpy(buf + 1, key->data, n);
+    memcpy(buf + 1 + n, key->pk.ciphertext, n);
+    memcpy(buf + 1 + 2*n, key->pk.plaintext, n);
 
-  mzd_from_char_array(plaintext, sk_pt, instance->output_size);
-  mzd_from_char_array(privkey, sk_sk, instance->input_size);
-
-  // compute public key
-  mzd_local_t* ciphertext = lowmc_call(&instance->lowmc, privkey, plaintext);
-
-  uint8_t buffer[MAX_LOWMC_BLOCK_SIZE];
-  mzd_to_char_array(buffer, ciphertext, output_size);
-
-  mzd_local_free(ciphertext);
-  mzd_local_free(privkey);
-  mzd_local_free(plaintext);
-
-  return memcmp(buffer, pk_c, output_size);
+    return (int)bytesRequired;
 }
 
-int PICNIC_CALLING_CONVENTION picnic_sign(const picnic_privatekey_t* sk, const uint8_t* message,
-                                          size_t message_len, uint8_t* signature,
-                                          size_t* signature_len) {
-  if (!sk || !signature || !signature_len) {
-    return -1;
-  }
+/* De-serialize a private key. */
+int picnic_read_private_key(picnic_privatekey_t* key, const uint8_t* buf, size_t buflen)
+{
+    if (key == NULL || buf == NULL) {
+        return -1;
+    }
 
-  const picnic_params_t param       = sk->data[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
+    if (buflen < 1 || !is_valid_params(buf[0])) {
+        return -1;
+    }
 
-  const size_t output_size = instance->output_size;
-  const size_t input_size  = instance->input_size;
+    memset(key, 0x00, sizeof(picnic_privatekey_t));
 
-  const uint8_t* sk_sk = &sk->data[1];
-  const uint8_t* sk_c  = &sk->data[1 + input_size + output_size];
-  const uint8_t* sk_pt = &sk->data[1 + input_size];
+    key->params = buf[0];
+    key->pk.params = buf[0];
 
-  return fis_sign(instance, sk_pt, sk_sk, sk_c, message, message_len, signature, signature_len)
-             ? 0
-             : -1;
+    paramset_t paramset;
+    int ret = get_param_set(key->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
+
+    size_t n = paramset.stateSizeBytes;
+    size_t bytesExpected = 1 + 3*n;
+    if (buflen < bytesExpected) {
+        return -1;
+    }
+
+    memcpy(key->data, buf + 1, n);
+    memcpy(key->pk.ciphertext, buf + 1 + n, n);
+    memcpy(key->pk.plaintext, buf + 1 + 2*n, n);
+
+    return 0;
 }
 
-int PICNIC_CALLING_CONVENTION picnic_verify(const picnic_publickey_t* pk, const uint8_t* message,
-                                            size_t message_len, const uint8_t* signature,
-                                            size_t signature_len) {
-  if (!pk || !signature || !signature_len) {
-    return -1;
-  }
+/* Check that a key pair is valid. */
+int picnic_validate_keypair(const picnic_privatekey_t* privatekey, const picnic_publickey_t* publickey)
+{
+    paramset_t paramset;
+    int ret;
 
-  const picnic_params_t param       = pk->data[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return false;
-  }
+    ret = get_param_set(publickey->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
 
-  const size_t output_size = instance->output_size;
+    if (privatekey == NULL || publickey == NULL) {
+        return -1;
+    }
 
-  const uint8_t* pk_c  = &pk->data[1 + output_size];
-  const uint8_t* pk_pt = &pk->data[1];
+    if (privatekey->params != publickey->params) {
+        return -1;
+    }
 
-  return fis_verify(instance, pk_pt, pk_c, message, message_len, signature, signature_len) ? 0 : -1;
+    if (!is_valid_params(privatekey->params)) {
+        return -1;
+    }
+
+    /* Re-compute the ciphertext and compare to the value in the public key. */
+    uint8_t ciphertext[sizeof(publickey->ciphertext)];
+    memset(ciphertext, 0x00, sizeof(ciphertext));
+    LowMCEnc((uint32_t*)publickey->plaintext, (uint32_t*)ciphertext, (uint32_t*)privatekey->data, &paramset);
+    if (memcmp(ciphertext, publickey->ciphertext, paramset.stateSizeBytes) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
-void picnic_visualize(FILE* out, const uint8_t* public_key, size_t public_key_size,
-                      const uint8_t* msg, size_t msglen, const uint8_t* sig, size_t siglen) {
-  if (!public_key || !public_key_size) {
-    return;
-  }
+int picnic_keys_gen(picnic_privatekey_t *sk, picnic_publickey_t *pk, picnic_params_t param)
+{
+    paramset_t paramset;
 
-  const picnic_params_t param       = public_key[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return;
-  }
+    int ret = get_param_set(param, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return -1;
+    }
+    /* Generate a private key */
+    sk->params = param;
+    if (randombytes(sk->data, paramset.stateSizeBytes) != 0) {
+        return -1;
+    }
 
-  visualize_signature(out, instance, msg, msglen, sig, siglen);
+    /* Generate a random plaintext block */
+    pk->params = param;
+    if (randombytes(pk->plaintext, paramset.stateSizeBytes) != 0) {
+        return -1;
+    }
+
+    LowMCEnc((uint32_t*)pk->plaintext, (uint32_t*)pk->ciphertext,
+             (uint32_t*)sk->data, &paramset);
+
+    /* Make of copy of the public key in the private key */
+    memcpy(&(sk->pk), pk, sizeof(picnic_publickey_t));
+
+    return 0;
 }
 
-const char* PICNIC_CALLING_CONVENTION picnic_get_param_name(picnic_params_t parameters) {
-  switch (parameters) {
-  case Picnic_L1_FS:
-    return "Picnic_L1_FS";
-  case Picnic_L1_UR:
-    return "Picnic_L1_UR";
-  case Picnic_L3_FS:
-    return "Picnic_L3_FS";
-  case Picnic_L3_UR:
-    return "Picnic_L3_UR";
-  case Picnic_L5_FS:
-    return "Picnic_L5_FS";
-  case Picnic_L5_UR:
-    return "Picnic_L5_UR";
-  default:
-    return "Unknown parameter set";
-  }
-}
 
-int PICNIC_CALLING_CONVENTION picnic_write_public_key(const picnic_publickey_t* key, uint8_t* buf,
-                                                      size_t buflen) {
-  if (!key || !buf) {
-    return -1;
-  }
+void picnic_keypair_delete(picnic_privatekey_t *sk, picnic_publickey_t *pk){
 
-  const picnic_params_t param       = key->data[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
-
-  const size_t output_size    = instance->output_size;
-  const size_t bytes_required = 1 + 2 * output_size;
-  if (buflen < bytes_required) {
-    return -1;
-  }
-
-  memcpy(buf, key->data, bytes_required);
-  return (int)bytes_required;
-}
-
-int PICNIC_CALLING_CONVENTION picnic_read_public_key(picnic_publickey_t* key, const uint8_t* buf,
-                                                     size_t buflen) {
-  if (!key || !buf || buflen < 1) {
-    return -1;
-  }
-
-  const picnic_params_t param       = buf[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
-
-  const size_t output_size    = instance->output_size;
-  const size_t bytes_required = 1 + 2 * output_size;
-  if (buflen < bytes_required) {
-    return -1;
-  }
-
-  memcpy(key->data, buf, bytes_required);
-  return 0;
-}
-
-int PICNIC_CALLING_CONVENTION picnic_write_private_key(const picnic_privatekey_t* key, uint8_t* buf,
-                                                       size_t buflen) {
-  if (!key || !buf) {
-    return -1;
-  }
-
-  const picnic_params_t param       = key->data[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
-
-  const size_t input_size     = instance->input_size;
-  const size_t output_size    = instance->output_size;
-  const size_t bytes_required = 1 + input_size + 2 * output_size;
-  if (buflen < bytes_required) {
-    return -1;
-  }
-
-  memcpy(buf, &key->data, bytes_required);
-  return (int)bytes_required;
-}
-
-int PICNIC_CALLING_CONVENTION picnic_read_private_key(picnic_privatekey_t* key, const uint8_t* buf,
-                                                      size_t buflen) {
-  if (!key || !buf || buflen < 1) {
-    return -1;
-  }
-
-  const picnic_params_t param       = buf[0];
-  const picnic_instance_t* instance = picnic_instance_get(param);
-  if (!instance) {
-    return -1;
-  }
-
-  const size_t input_size     = instance->input_size;
-  const size_t output_size    = instance->output_size;
-  const size_t bytes_required = 1 + input_size + 2 * output_size;
-  if (buflen < bytes_required) {
-    return -1;
-  }
-
-  memcpy(key->data, buf, bytes_required);
-  return 0;
+    free(pk);
+    free(sk);
+    pk = NULL;
+    sk = NULL;
 }

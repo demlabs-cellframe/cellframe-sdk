@@ -1,9 +1,5 @@
-﻿#ifdef OS_WINDOWS
-#include <windows.h>
-#else
-#endif
+﻿
 #include "string.h"
-#include "../rand/dap_rand.h"
 #include "defeo_config.h"
 #include "defeo_P768_internal.h"
 
@@ -127,6 +123,40 @@ void fpcorrection(digit_t* a)
         ADDC(borrow, a[i], ((digit_t*)p751_1)[i] & mask, borrow, a[i]);
     }
 }
+
+void digit_x_digit(const digit_t a, const digit_t b, digit_t* c)
+{ // Digit multiplication, digit * digit -> 2-digit result
+    register digit_t al, ah, bl, bh, temp;
+    digit_t albl, albh, ahbl, ahbh, res1, res2, res3, carry;
+    digit_t mask_low = (digit_t)(-1) >> (sizeof(digit_t)*4), mask_high = (digit_t)(-1) << (sizeof(digit_t)*4);
+
+    al = a & mask_low;                        // Low part
+    ah = a >> (sizeof(digit_t) * 4);          // High part
+    bl = b & mask_low;
+    bh = b >> (sizeof(digit_t) * 4);
+
+    albl = al*bl;
+    albh = al*bh;
+    ahbl = ah*bl;
+    ahbh = ah*bh;
+    c[0] = albl & mask_low;                   // C00
+
+    res1 = albl >> (sizeof(digit_t) * 4);
+    res2 = ahbl & mask_low;
+    res3 = albh & mask_low;
+    temp = res1 + res2 + res3;
+    carry = temp >> (sizeof(digit_t) * 4);
+    c[0] ^= temp << (sizeof(digit_t) * 4);    // C01
+
+    res1 = ahbl >> (sizeof(digit_t) * 4);
+    res2 = albh >> (sizeof(digit_t) * 4);
+    res3 = ahbh & mask_low;
+    temp = res1 + res2 + res3 + carry;
+    c[1] = temp & mask_low;                   // C10
+    carry = temp & mask_high;
+    c[1] ^= (ahbh & mask_high) + carry;       // C11
+}
+
 void mp_mul(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
 { // Multiprecision comba multiply, c = a*b, where lng(a) = lng(b) = nwords.
     unsigned int i, j;
@@ -1353,40 +1383,4 @@ int EphemeralSecretAgreement_B(const unsigned char* PrivateKeyB, const unsigned 
     fp2_encode(jinv, SharedSecretB);    // Format shared secret
 
     return 0;
-}
-
-
-// Encoding of keys for KEX-based isogeny system "SIDHp751" (wire format):
-// ----------------------------------------------------------------------
-// Elements over GF(p751) are encoded in 94 octets in little endian format (i.e., the least significant octet is located in the lowest memory address).
-// Elements (a+b*i) over GF(p751^2), where a and b are defined over GF(p751), are encoded as {a, b}, with a in the lowest memory portion.
-//
-// Private keys PrivateKeyA and PrivateKeyB can have values in the range [0, 2^372-1] and [0, 2^378-1], resp. In the SIDH API, private keys are encoded
-// in 48 octets in little endian format.
-// Public keys PublicKeyA and PublicKeyB consist of 3 elements in GF(p751^2). In the SIDH API, they are encoded in 564 octets.
-// Shared keys SharedSecretA and SharedSecretB consist of one element in GF(p751^2). In the SIDH API, they are encoded in 188 octets.
-
-int cryptotest_kex()
-{
-    // Testing key exchange
-    unsigned char PrivateKeyA[DEFEO_SECRET_KEY_LEN], PrivateKeyB[DEFEO_SECRET_KEY_LEN];
-    unsigned char PublicKeyA[DEFEO_PUBLICK_KEY_LEN], PublicKeyB[DEFEO_PUBLICK_KEY_LEN];
-    unsigned char SharedSecretA[DEFEO_SHARED_KEY_LEN], SharedSecretB[DEFEO_SHARED_KEY_LEN];
-    bool passed = true;
-
-    random_mod_order_A(PrivateKeyA);
-
-    random_mod_order_B(PrivateKeyB);
-
-    EphemeralKeyGeneration_A(PrivateKeyA, PublicKeyA);                            // Get some value as Alice's secret key and compute Alice's public key
-    EphemeralKeyGeneration_B(PrivateKeyB, PublicKeyB);                            // Get some value as Bob's secret key and compute Bob's public key
-    EphemeralSecretAgreement_A(PrivateKeyA, PublicKeyB, SharedSecretA);           // Alice computes her shared secret using Bob's public key
-    EphemeralSecretAgreement_B(PrivateKeyB, PublicKeyA, SharedSecretB);           // Bob computes his shared secret using Alice's public key
-
-    if (memcmp(SharedSecretA, SharedSecretB, DEFEO_SHARED_KEY_LEN) != 0)
-    {
-        passed = false;
-    }
-
-    return passed;
 }
