@@ -1,12 +1,8 @@
-
-#ifndef _DAP_ENC_BLISS_H_
-#define _DAP_ENC_BLISS_H_
+#pragma once
 
 #include "sig_bliss/bliss_b_params.h"
 #include "dap_enc_key.h"
 
-#undef LOG_TAG
-#define LOG_TAG "dap_enc_sig_bliss"
 
 enum DAP_BLISS_SIGN_SECURITY {
     TOY = 0, MAX_SPEED, MIN_SIZE, SPEED_AND_SECURITY, MAX_SECURITY
@@ -28,5 +24,3 @@ size_t dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key,const void * msg,
 
 void dap_enc_sig_bliss_key_delete(struct dap_enc_key *key);
 
-
-#endif

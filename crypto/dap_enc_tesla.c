@@ -6,6 +6,8 @@
 #include "dap_common.h"
 #include "dap_rand.h"
 
+#define LOG_TAG "dap_enc_sig_tesla"
+
 static enum DAP_TESLA_SIGN_SECURITY _tesla_type = HEURISTIC_MAX_SECURITY_AND_MAX_SPEED; // by default
 
 void dap_enc_sig_tesla_set_type(enum DAP_TESLA_SIGN_SECURITY type)

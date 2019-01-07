@@ -5,6 +5,7 @@
 #include "dap_enc_bliss.h"
 #include "dap_common.h"
 #include "dap_rand.h"
+#define LOG_TAG "dap_enc_sig_bliss"
 
 static enum DAP_BLISS_SIGN_SECURITY _bliss_type = MAX_SECURITY; // by default
 

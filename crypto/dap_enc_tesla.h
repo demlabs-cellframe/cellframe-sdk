@@ -4,8 +4,6 @@
 #include "sig_tesla/tesla_params.h"
 #include "dap_enc_key.h"
 
-#undef LOG_TAG
-#define LOG_TAG "dap_enc_sig_tesla"
 
 enum DAP_TESLA_SIGN_SECURITY {
     TESLA_TOY = 0, HEURISTIC_MAX_SECURITY_AND_MIN_SIZE, HEURISTIC_MAX_SECURITY_AND_MAX_SPEED, PROVABLY_SECURITY, PROVABLY_MAX_SECURITY

@@ -8,6 +8,8 @@
 #include "picnic.h"
 #include "picnic_impl.h"
 
+#define LOG_TAG "dap_enc_picnic_sig"
+
 /**
  * Set the mark that valid keys are present
  */
@@ -74,7 +76,7 @@ void dap_enc_sig_picnic_key_new_generate(struct dap_enc_key * key, const void *k
     if(seed_size >= sizeof(unsigned char) && seed)
         parameters = (((unsigned char*) seed)[0] % (PARAMETER_SET_MAX_INDEX - 1)) + 1;
     else
-        parameters = DAP_PICNIC_SIGN_PARAMETR
+        parameters = DAP_PICNIC_SIGN_PARAMETR;
 
     key->priv_key_data_size = sizeof(picnic_privatekey_t);
     key->pub_key_data_size = sizeof(picnic_publickey_t);
