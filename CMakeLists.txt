@@ -1,19 +1,15 @@
 cmake_minimum_required(VERSION 3.0)
-
-if(TARGET libdap-client)
-    return() # The project has already been built.
-endif()
-
-project (libdap-client)
+project (dap_client)
 set(CMAKE_C_STANDARD 11)
 
-add_subdirectory(libdap)
-add_subdirectory(libdap-server)
-add_subdirectory(libdap-stream)
-add_subdirectory(libdap-stream-ch)
 
 if(BUILD_LIB_DAP_CLIENT_TESTS)
     enable_testing()
+    add_subdirectory(libdap)
+    add_subdirectory(libdap-server)
+    add_subdirectory(libdap-stream)
+    add_subdirectory(libdap-stream-ch)
+
     add_subdirectory(test)
 endif()
 
