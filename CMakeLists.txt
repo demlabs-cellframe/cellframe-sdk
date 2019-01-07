@@ -1,13 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_chain_global_db)
   
-set(DAP_CHAIN_GLOBAL_DB_SRC
-    dap_chain_global_db.c
-   )
-
-set(DAP_CHAIN_GLOBAL_DB_HDR
-    dap_chain_global_db.h
-   )
+file(GLOB DAP_CHAIN_GLOBAL_DB_SRC *.c)
+file(GLOB DAP_CHAIN_GLOBAL_DB_HDR *.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GLOBAL_DB_SRC} ${DAP_CHAIN_GLOBAL_DB_HDR})
 

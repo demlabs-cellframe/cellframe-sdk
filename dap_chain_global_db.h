@@ -1,39 +1,35 @@
 #pragma once
 
 #include <stdint.h>
-#include "dap_common.h"
-#include "ldb.h"
+#include <stdbool.h>
 
-typedef struct dap_store_obj {
-    char    *section;
-    char    *group;
-    char    *key;
-    uint8_t type;
-    char    *value;
-} DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
+int dap_chain_global_db_init(const char *a_storage_path);
 
-typedef struct dap_store_obj_pkt {
-     uint8_t type;
-     uint8_t sec_size;
-     uint8_t grp_size;
-     uint8_t name_size;
-     uint8_t data[];
-} __attribute__((packed)) dap_store_obj_pkt_t;
+void dap_chain_global_db_deinit();
 
-int dap_store_len = 0; // initialized only when reading from local db
+/**
+ * Get entry from base
+ */
+char* dap_chain_global_db_get(const char *a_key);
 
-char *dap_db_path = NULL;
+/**
+ * Set one entry to base
+ */
+bool dap_chain_global_db_set(const char *a_key, const char *a_value);
 
-static struct ldb_context *ldb  = NULL;
-static TALLOC_CTX *mem_ctx      = NULL;
+/**
+ * Read the entire database into an array of size bytes
+ *
+ * @param data_size[out] size of output array
+ * @return array (note:not Null-terminated string) on NULL in case of an error
+ */
+uint8_t* dap_chain_global_db_load(size_t *data_size);
 
-int     dap_db_init     (const char*);
-void    dap_db_deinit   (void);
-
-int dap_db_add_msg(struct ldb_message *);
-int dap_db_merge(pdap_store_obj_t, int);
-
-pdap_store_obj_t dap_db_read_data       (void);
-pdap_store_obj_t dap_db_read_file_data  (const char *); // state of emergency only, if LDB database is inaccessible
-dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t);
-dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t);
+/**
+ * Write to the database from an array of data_size bytes
+ *
+ * @param data array wish base dump
+ * @param data size of array
+ * @return
+ */
+bool dap_chain_global_db_save(uint8_t* data, size_t data_size);
