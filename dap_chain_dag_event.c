@@ -23,6 +23,9 @@
 */
 
 #include "dap_common.h"
+#include "dap_enc_key.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_dag.h"
 #include "dap_chain_dag_event.h"
 
 #define LOG_TAG "chain_dag_event"
@@ -31,11 +34,29 @@
  * @brief dap_chain_dag_event_new
  * @param a_dag
  * @param a_datum
+ * @param a_key
+ * @param a_hashes
+ * @param a_hashes_count
  * @return
  */
-dap_chain_dag_event_t * dap_chain_dag_event_new(dap_chain_dag_t * a_dag,dap_chain_datum_t * a_datum)
+dap_chain_dag_event_t * dap_chain_dag_event_new(dap_chain_dag_t * a_dag,dap_chain_datum_t * a_datum
+                                                ,dap_enc_key_t * a_key ,
+                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
 {
-
+/*    size_t l_hashes_size = sizeof(*a_hashes)*a_hashes_count;
+    size_t l_datum_size =  dap_chain_datum_data_size(a_datum);
+    size_t l_signs_size = dap_chain_sign_cals_size(a_key);
+    dap_chain_dag_event_t * l_event_new = DAP_NEW_Z_SIZE(dap_chain_dag_event_t,
+                                                         sizeof(l_event_new->header)
+                                                         + a_hashes_size
+                                                         + l_signs_size
+                                                         + l_datum_size
+                                                         );
+    memcpy(l_event_new->hashes_n_signs_n_datum, a_hashes, l_hashes_size );
+    dap_chain_sign_create(a_key,)
+    memcpy(l_event_new->hashes_n_signs_n_datum+l_hashes_size, );
+    a_dag->callback_event_input(a_dag,l_event_new);
+*/
 }
 
 /**
