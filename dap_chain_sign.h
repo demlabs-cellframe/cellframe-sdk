@@ -27,13 +27,15 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_enc_ca.h"
+#include "dap_enc_key.h"
 
 typedef union dap_chain_sign_type{
     enum {
-        SIG_TYPE_PICNIC = 0x0000,
+        SIG_TYPE_BLISS = 0x0000,
         SIG_TYPE_DEFO = 0x0001, /// @brief key image for anonymous transaction
+        SIG_TYPE_TESLA = 0x0002, /// @brief
+        SIG_TYPE_PICNIC = 0x0101, /// @brief
         SIG_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different signatures and sign composed with all of them
-
     } type: 16;
     uint16_t raw;
 } dap_chain_sign_type_t;
@@ -51,4 +53,5 @@ typedef struct dap_chain_sign{
     uint8_t pkey_n_sign[]; /// @param sig @brief raw signature data
 } DAP_ALIGN_PACKED dap_chain_sign_t;
 
-//int dap_chain_sign_data(dap_chain_si, )
+size_t dap_chain_sign_cals_size(dap_enc_key_t * a_key);
+int dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size, void * a_output );

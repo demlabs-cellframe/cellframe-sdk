@@ -26,6 +26,7 @@
 #include "dap_chain_pkey.h"
 
 #define LOG_TAG "chain_key"
+dap_chain_pkey_t m_dap_chain_pkey_null={0}; // For sizeof nothing more
 
 
 /**
