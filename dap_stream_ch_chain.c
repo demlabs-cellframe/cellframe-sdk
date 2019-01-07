@@ -27,15 +27,31 @@
 #include "dap_config.h"
 
 #include "dap_chain.h"
+#include "dap_chain_block_cache.h"
+#include "dap_chain.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_blocks.h"
+#include "dap_chain_dag.h"
+#include "dap_chain_dag_event.h"
+#include "dap_chain_cs.h"
 #include "dap_stream.h"
+#include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain.h"
+#include "dap_stream_ch_chain_pkt.h"
 
 #define LOG_TAG "dap_stream_ch_chain"
+typedef enum dap_stream_ch_chain_state{
+    CHAIN_STATE_NOTHING,
+    CHAIN_STATE_SEND_CHAIN
+} dap_stream_ch_chain_state_t;
 
 typedef struct dap_stream_ch_chain {
     pthread_mutex_t mutex;
+    dap_chain_net_id_t net_id;
+    dap_chain_hash_t block_id;
+
 } dap_stream_ch_chain_t;
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
@@ -89,14 +105,32 @@ void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg)
 
 /**
  * @brief s_stream_ch_packet_in
- * @param ch
- * @param arg
+ * @param a_ch
+ * @param a_arg
  */
-void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg)
+void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 {
-
+    dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if ( l_ch_chain){
+        dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
+        dap_stream_ch_chain_pkt_t * l_chain_pkt =(dap_stream_ch_chain_pkt_t *) l_ch_pkt->data;
+        if( l_chain_pkt ){
+            dap_chain_t * l_chain = dap_chain_find_by_id(l_ch_chain->net_id,  l_chain_pkt->hdr.chain_id);
+            if ( l_chain ) {
+                switch ( l_chain_pkt->hdr.type ) {
+                    case STREAM_CH_CHAIN_PKT_TYPE_REQUEST:{
+                    }break;
+                    case STREAM_CH_CHAIN_PKT_TYPE_DATUM:{
+                    }break;
+                    case STREAM_CH_CHAIN_PKT_TYPE_BLOCK:{
+                    }break;
+                    case STREAM_CH_CHAIN_PKT_TYPE_GLOVAL_DB:{
+                    }break;
+                }
+            }
+        }
+    }
 }
-
 /**
  * @brief s_stream_ch_packet_out
  * @param ch
