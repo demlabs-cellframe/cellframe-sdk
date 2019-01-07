@@ -57,6 +57,7 @@
  *	if -N option is used, this program has to run SUID to ROOT or
  *	with net_cap_raw enabled.
  */
+
 #include "ping.h"
 
 ping_func_set_st ping6_func_set = {
