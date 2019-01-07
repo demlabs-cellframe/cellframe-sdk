@@ -73,8 +73,10 @@ typedef union dap_chain_datum_typeid{
   * @brief section inside the block
   */
 typedef struct dap_chain_datum{
-    uint8_t version_id; // Datum version
-    uint16_t type_id; // Section type id
+    struct{
+        uint8_t version_id; // Datum version
+        uint16_t type_id; // Section type id
+    } DAP_ALIGN_PACKED header;
     uint8_t data[]; // datum stored data goes after the last sign
                                // Sign block goes after the last hash, every sign type
                               // has its own predefined size or stores its inside.
@@ -82,4 +84,4 @@ typedef struct dap_chain_datum{
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
 
-
+size_t _dap_chain_datum_data_size(dap_chain_datum_t * a_datum);

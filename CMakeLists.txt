@@ -7,6 +7,7 @@ set(DAP_CHAIN_SRCS
         dap_chain_datum_hashtree_roots.c
         dap_chain_datum_tx.c
         dap_chain_datum_coin.c
+        dap_chain_datum_token.c
         dap_chain_pvt.c
         dap_chain.c
         dap_chain_cs.c
@@ -17,6 +18,7 @@ set(DAP_CHAIN_HEADERS
         dap_chain_pvt.h
         dap_chain_common.h
 	dap_chain_datum.h
+        dap_chain_datum_token.h
         dap_chain_datum_hashtree_roots.h
 	dap_chain_datum_tx.h
         dap_chain_datum_tx_in.h

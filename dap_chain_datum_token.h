@@ -1,8 +1,8 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
+ * DeM Labs Open source community https://github.com/demlabsinc
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
@@ -21,25 +21,4 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include "dap_common.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_hashtree_roots.h"
-#include "dap_chain_datum_coin.h"
-
-#define LOG_TAG "chain_datum"
-
-/**
- * @brief _dap_chain_datum_data_size
- * @param a_datum
- * @return
- */
-size_t _dap_chain_datum_data_size(dap_chain_datum_t * a_datum)
-{
-    size_t ret = sizeof(a_datum->header);
-    switch (a_datum->header.type_id){
-
-    }
-    return ret;
-}
+#pragma once

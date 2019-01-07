@@ -22,3 +22,17 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
+#include "dap_chain_pkey.h"
+
+typedef struct dap_chain_datum_token{
+    struct {
+        uint64_t token_id;
+        uint8_t  token_uuid[16];/// Unique ID
+    } DAP_ALIGN_PACKED header;
+    dap_chain_pkey_t pkey; /// Token owner's public key
+} DAP_ALIGN_PACKED dap_chain_datum_token_t;
+
+size_t dap_chain_datum_token_create_output_calc(dap_enc_key_t * a_key);
+int dap_chain_datum_token_create_output(dap_enc_key_t * a_key, uint64_t a_token_id, uint8_t a_token_uuid[16]
+                                                , void * a_output);

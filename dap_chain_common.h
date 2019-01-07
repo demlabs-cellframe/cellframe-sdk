@@ -36,8 +36,8 @@
 #define DAP_CHAIN_NET_ID_SIZE 8
 #define DAP_CHAIN_NODE_ROLE_SIZE 2
 #define DAP_CHAIN_HASH_SIZE 32
-#define DAP_CHAIN_HASH_FAST_SIZE 64
-#define DAP_CHAIN_ADDR_HASH_SIZE 32
+#define DAP_CHAIN_HASH_FAST_SIZE 24
+#define DAP_CHAIN_ADDR_HASH_SIZE 24
 #define DAP_CHAIN_TIMESTAMP_SIZE 8
 // Chain ID of the whole system
 typedef union dap_chain_id{

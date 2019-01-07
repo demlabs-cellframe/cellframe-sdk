@@ -31,7 +31,7 @@
   * @brief Hash tree roots for block, version 1
   */
 typedef struct dap_chain_datum_hashtree_roots_v1{
-    dap_chain_hash_t main;
+    dap_chain_hash_fast_t main;
 } DAP_ALIGN_PACKED dap_chain_block_roots_v1_t;
 
 /**
@@ -39,8 +39,8 @@ typedef struct dap_chain_datum_hashtree_roots_v1{
   * @brief Hash tree roots for block, version 2
   */
 typedef struct dap_chain_datum_hashtree_roots_v2{
-    dap_chain_hash_t main;
-    dap_chain_hash_t txs;
+    dap_chain_hash_fast_t main;
+    dap_chain_hash_fast_t txs;
 } DAP_ALIGN_PACKED dap_chain_datum_hashtree_roots_v2_t;
 
 typedef dap_chain_datum_hashtree_roots_v2_t dap_chain_datum_hashtree_roots_t;
