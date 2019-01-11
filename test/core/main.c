@@ -1,6 +1,8 @@
 #include "dap_config_test.h"
 #include "dap_common_test.h"
+#include "dap_network_monitor_test.h"
 #include "dap_common.h"
+
 
 int main(void) {
     // switch off debug info from library
@@ -10,7 +12,9 @@ int main(void) {
 #ifdef __linux__
 #include "dap_process_mem_test.h"
 #include "dap_cpu_monitor_test.h"
+#include "dap_network_monitor.h"
     dap_process_mem_test_run();
     dap_cpu_monitor_test_run();
+    dap_network_monitor_test_run();
 #endif
 }

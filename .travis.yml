@@ -23,4 +23,5 @@ addons:
     - ubuntu-toolchain-r-test
     packages:
     - gcc-5
+    - network-manager
 

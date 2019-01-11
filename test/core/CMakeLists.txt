@@ -10,7 +10,7 @@ endif()
 
 add_executable(${PROJECT_NAME} ${SRCS} ${PLATROFM_DEP_SRC})
 
-target_link_libraries(core_test dap_test dap_core)
+target_link_libraries(core_test dap_test dap_core pthread)
 
 add_test(
     NAME core-test

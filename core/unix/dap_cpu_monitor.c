@@ -95,17 +95,12 @@ dap_cpu_stats_t dap_cpu_get_stats()
                                                   _cpu_old_stats[i].idle_time,
                                                   _cpu_stats.cpus[i].total_time,
                                                   _cpu_old_stats[i].total_time);
-
-       // log_it(L_WARNING, "CPU %d %f", i, _cpu_stats.cpus[i].load);
     }
 
     _cpu_stats.cpu_summary.load = _calculate_load(_cpu_stats.cpu_summary.idle_time,
                     _cpu_summary_old.idle_time,
                     _cpu_stats.cpu_summary.total_time,
                     _cpu_summary_old.total_time);
-
-  //  log_it(L_WARNING, "%f", _cpu_stats.cpu_summary.load);
-
 
     memcpy(&_cpu_summary_old, &_cpu_stats.cpu_summary, sizeof (dap_cpu_t));
 
