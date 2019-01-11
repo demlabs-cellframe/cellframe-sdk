@@ -84,7 +84,7 @@ void _network_callback(const dap_network_notification_t result)
 //                         result.route.s_gateway_address);
 
         } else  if (result.type == IP_ROUTE_ADD) {
-            if(result.route.gateway_address != -1) { // gateway address is present
+            if(result.route.gateway_address != (uint64_t) -1) { // gateway address is present
                 dap_test_msg("Checking new gateway addr");
                 dap_assert(result.route.gateway_address ==
                            _test_event_cases[NEW_GATEWAY_EV].route.gateway_address,
@@ -164,12 +164,12 @@ void dap_network_monitor_test_run(void)
 
     dap_network_monitor_init(_network_callback);
 
-    const char *add_test_interfece = "nmcli connection add type tun con-name "
+    const char *add_test_interfece = "sudo nmcli connection add type tun con-name "
                                      "DiveVPNTest autoconnect false ifname tun10 "
                                      "mode tun ip4 10.1.0.111 gw4 10.1.0.1";
-    const char *up_test_interfece = "nmcli connection up DiveVPNTest";
-    const char *down_test_interfece = "nmcli connection down DiveVPNTest";
-    const char *delete_test_interfece = "nmcli connection delete DiveVPNTest 2> /dev/null";
+    const char *up_test_interfece = "sudo nmcli connection up DiveVPNTest";
+    const char *down_test_interfece = "sudo nmcli connection down DiveVPNTest";
+    const char *delete_test_interfece = "sudo nmcli connection delete DiveVPNTest 2> /dev/null";
 
     system(delete_test_interfece);
     system(add_test_interfece);

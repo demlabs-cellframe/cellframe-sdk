@@ -1,7 +1,7 @@
 sudo: required
 language: cpp
 compiler: gcc
-dist: trusty
+dist: xenial
 notifications:
   email: false
 
@@ -10,6 +10,7 @@ before_install:
     - git submodule update --recursive
 
 script:
+    - sudo service network-manager start
     - export CC=gcc-5
     - mkdir build
     - cd build 

@@ -182,4 +182,5 @@ static void* network_monitor_worker(void *arg)
             }
         }
     }
+    return NULL;
 }
