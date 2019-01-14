@@ -24,6 +24,11 @@
 
 #pragma once
 
+// For C++
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MAX_CPU_COUNT 64
 
 #include <stdlib.h>
@@ -58,3 +63,7 @@ void dap_cpu_monitor_deinit(void);
  * @return
  */
 dap_cpu_stats_t dap_cpu_get_stats(void);
+
+#ifdef __cplusplus
+}
+#endif

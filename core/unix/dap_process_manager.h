@@ -22,6 +22,10 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef __linux__
 
 #include <stdbool.h>
@@ -43,4 +47,8 @@ extern bool daemonize_process(void);
 /* Sends SIGKILL to process */
 extern bool kill_process(pid_t pid);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

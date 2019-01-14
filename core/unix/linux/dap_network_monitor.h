@@ -22,6 +22,10 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <net/if.h>
@@ -71,3 +75,7 @@ int dap_network_monitor_init(dap_network_monitor_notification_callback_t callbac
  * @brief dap_network_monitor_deinit
  */
 void dap_network_monitor_deinit(void);
+
+#ifdef __cplusplus
+}
+#endif

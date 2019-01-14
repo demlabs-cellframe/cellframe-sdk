@@ -1,3 +1,5 @@
+include(unix/unix.pri)
+
 HEADERS += $$PWD/dap_common.h \
     $$PWD/dap_config.h \
     $$PWD/dap_math_ops.h \

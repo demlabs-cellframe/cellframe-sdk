@@ -22,6 +22,10 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -44,3 +48,7 @@ dap_process_memory_t get_proc_mem_current(void);
  * @return
  */
 dap_process_memory_t get_proc_mem_by_pid(pid_t pid);
+
+#ifdef __cplusplus
+}
+#endif
