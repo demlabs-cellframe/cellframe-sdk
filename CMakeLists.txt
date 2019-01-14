@@ -10,10 +10,10 @@ if(UNIX AND NOT APPLE)
     set(LINUX TRUE)
 endif()
 
-#if(BUILD_DAP_TESTS)
+if(BUILD_DAP_TESTS)
     enable_testing()
     add_subdirectory(test)
-#endif()
+endif()
 
 add_subdirectory(core)
 add_subdirectory(crypto)

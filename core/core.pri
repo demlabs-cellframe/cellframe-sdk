@@ -1,4 +1,6 @@
-include(unix/unix.pri)
+unix {
+    include(unix/unix.pri)
+}
 
 HEADERS += $$PWD/dap_common.h \
     $$PWD/dap_config.h \
