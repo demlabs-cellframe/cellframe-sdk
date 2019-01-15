@@ -34,6 +34,7 @@ extern "C" {
 #include <linux/rtnetlink.h>
 
 #define MAX_IP_STR_LEN 15
+#define DAP_ADRESS_UNDEFINED (uint64_t)-1
 
 typedef enum {
     // like in rtnetlink defines
