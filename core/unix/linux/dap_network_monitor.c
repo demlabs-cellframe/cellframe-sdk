@@ -10,8 +10,31 @@
 #include "dap_network_monitor.h"
 #include "dap_common.h"
 
-
 #define LOG_TAG "dap_network_monitor"
+
+static bool _send_NLM_F_ACK_msg(int fd)
+{
+    static int sequence_number = 0;
+
+    struct nlmsghdr *nh = DAP_NEW_Z(struct nlmsghdr);
+    struct sockaddr_nl sa;
+    struct iovec iov = { &nh, nh->nlmsg_len };
+    struct msghdr msg = {&sa, sizeof(sa), &iov, 1, NULL, 0, 0};
+
+    memset(&sa, 0, sizeof(sa));
+    sa.nl_family = AF_NETLINK;
+    nh->nlmsg_pid = getpid();
+    nh->nlmsg_seq = ++sequence_number;
+    nh->nlmsg_flags |= NLM_F_ACK;
+
+    ssize_t rc = sendmsg(fd, &msg, 0);
+    if (rc == -1) {
+          log_it(L_ERROR, "sendmsg failed");
+          return -1;
+    }
+
+    DAP_DELETE(nh);
+}
 
 static struct {
     int socket;
@@ -137,7 +160,8 @@ static void _route_msg_handler(struct nlmsghdr *nlh,
 
 }
 
-static void clear_results(dap_network_notification_t* cb_result) {
+static void clear_results(dap_network_notification_t* cb_result)
+{
     bzero(cb_result, sizeof (dap_network_notification_t));
     cb_result->route.destination_address = (uint64_t) -1;
     cb_result->route.gateway_address = (uint64_t) -1;
@@ -161,6 +185,9 @@ static void* network_monitor_worker(void *arg)
     pthread_barrier_wait(barrier);
 
     while ((len = recv(_net_notification.socket, nlh, sizeof(buffer), 0)) > 0) {
+
+        _send_NLM_F_ACK_msg(_net_notification.socket);
+
         for (; (NLMSG_OK(nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len)) {
 
             clear_results(&callback_result);
