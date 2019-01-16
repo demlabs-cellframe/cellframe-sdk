@@ -6,11 +6,28 @@
 #include "dap_enc_http.h"
 //#include "dap_http.h"
 #include "http_status_code.h"
-#include "dap_chain_datum.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_mempool.h"
 
 #define FILE_MEMPOOL_DB "1.db" // TODO get from settings
+
+
+void dap_datum_mempool_clean(dap_datum_mempool_t *datum)
+{
+    if(!datum)
+        return;
+    for(int i = 0; i < datum->datum_count; i++){
+        DAP_DELETE(datum->data[i]);
+    }
+}
+
+void dap_datum_mempool_free(dap_datum_mempool_t *datum)
+{
+    dap_datum_mempool_clean(datum);
+    DAP_DELETE(datum);
+}
+
+
 /**
  * @brief
  * @param cl_st HTTP server instance
