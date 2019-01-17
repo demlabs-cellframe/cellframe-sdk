@@ -30,10 +30,11 @@ static bool _send_NLM_F_ACK_msg(int fd)
     ssize_t rc = sendmsg(fd, &msg, 0);
     if (rc == -1) {
           log_it(L_ERROR, "sendmsg failed");
-          return -1;
+          return false;
     }
 
     DAP_DELETE(nh);
+    return true;
 }
 
 static struct {
