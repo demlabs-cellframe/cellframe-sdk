@@ -10,57 +10,53 @@
 #include "dap_http_client_simple.h"
 #include "client_mempool.h"
 
-// connection states
-enum {
-    ERROR = -1, INIT, CONNECT, CONNECTED, SENDED, END
-};
-
-int dap_http_client_simple_wait();
-
+// callback for dap_client_new() in client_mempool_connect()
 static void stage_status_callback(dap_client_t *a_client, void *a_arg)
 {
     printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
 }
-
+// callback for dap_client_new() in client_mempool_connect()
 static void stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
     printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
 }
 
-void a_response_proc(dap_client_t *a_client, void *str, size_t str_len)
+// callback for dap_client_request_enc() in client_mempool_send_datum()
+static void a_response_proc(dap_client_t *a_client, void *str, size_t str_len)
 {
     printf("a* _response_proc a_client=%x str=%x str_len=%d\n", a_client, str, str_len);
     client_mempool_t *mempool = a_client->_inheritor;
     assert(mempool);
     if(mempool) {
         pthread_mutex_lock(&mempool->wait_mutex);
-        mempool->state = SENDED;
+        mempool->state = CLIENT_MEMPOOL_SENDED;
         pthread_cond_signal(&mempool->wait_cond);
         pthread_mutex_unlock(&mempool->wait_mutex);
     }
 }
 
-void a_response_error(dap_client_t *a_client, int val)
+// callback for dap_client_request_enc() in client_mempool_send_datum()
+static void a_response_error(dap_client_t *a_client, int val)
 {
     printf("* a_response_error a_client=%x val=%d\n", a_client, val);
     client_mempool_t *mempool = a_client->_inheritor;
     assert(mempool);
     if(mempool) {
         pthread_mutex_lock(&mempool->wait_mutex);
-        mempool->state = ERROR;
+        mempool->state = CLIENT_MEMPOOL_ERROR;
         pthread_cond_signal(&mempool->wait_cond);
         pthread_mutex_unlock(&mempool->wait_mutex);
     }
 }
 
-// callback for the end of handshake
+// callback for the end of handshake in dap_client_go_stage() / client_mempool_connect()
 static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
 {
     client_mempool_t *mempool = a_client->_inheritor;
     assert(mempool);
     if(mempool) {
         pthread_mutex_lock(&mempool->wait_mutex);
-        mempool->state = CONNECTED;
+        mempool->state = CLIENT_MEMPOOL_CONNECTED;
         pthread_cond_signal(&mempool->wait_cond);
         pthread_mutex_unlock(&mempool->wait_mutex);
     }
@@ -84,7 +80,7 @@ client_mempool_t* client_mempool_connect(const char *addr)
     if(!addr || strlen(addr) < 1)
         return NULL;
     client_mempool_t *mempool = DAP_NEW_Z(client_mempool_t);
-    mempool->state = INIT;
+    mempool->state = CLIENT_MEMPOOL_INIT;
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
@@ -99,7 +95,7 @@ client_mempool_t* client_mempool_connect(const char *addr)
     l_client_internal->uplink_port = 8079; // TODO read from kelvin-node.cfg [server][listen_port_tcp]
     dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
 
-    mempool->state = CONNECT;
+    mempool->state = CLIENT_MEMPOOL_CONNECT;
     // Handshake
     dap_client_go_stage(mempool->a_client, a_stage_target, a_stage_end_callback);
     return mempool;
@@ -107,14 +103,21 @@ client_mempool_t* client_mempool_connect(const char *addr)
 
 /**
  * timeout_ms timeout in milliseconds
+ * waited_state state which we will wait, sample CLIENT_MEMPOOL_CONNECTED or CLIENT_MEMPOOL_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int client_mempool_wait(client_mempool_t *mempool, int timeout_ms)
+int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout_ms)
 {
     int ret = -1;
     if(!mempool)
         return -1;
     pthread_mutex_lock(&mempool->wait_mutex);
+    // have waited
+    if(mempool->state == waited_state) {
+        pthread_mutex_unlock(&mempool->wait_mutex);
+        return 1;
+    }
+    // prepare for signal waiting
     struct timespec to;
     clock_gettime(CLOCK_MONOTONIC, &to);
     int64_t nsec_new = to.tv_nsec + timeout_ms * 1000000ll;
@@ -125,6 +128,7 @@ int client_mempool_wait(client_mempool_t *mempool, int timeout_ms)
     }
     else
         to.tv_nsec = (long) nsec_new;
+    // signal waiting
     int wait = pthread_cond_timedwait(&mempool->wait_cond, &mempool->wait_mutex, &to);
     if(wait == 0) //0
         ret = 1;
@@ -148,24 +152,19 @@ void client_mempool_close(client_mempool_t *mempool)
     }
 }
 
-int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum)
+int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
 {
-    /*
-     void *a_request = "123";
-     size_t a_request_size = 3*/
     const char * a_path = "mempool";
     const char *a_suburl = "mempool"; //"enc_init";
     const char* a_query = "";
-    size_t a_request_size = 0, shift_size = 0;
-    for(int i = 0; i < datum->datum_count; i++) {
-        a_request_size += _dap_chain_datum_data_size(datum->data[i]);
-    }
-    uint8_t *a_request = DAP_NEW_SIZE(uint8_t, a_request_size);
-    for(int i = 0; i < datum->datum_count; i++) {
-        memcpy(a_request + shift_size, datum->data[i], _dap_chain_datum_data_size(datum->data[i]));
-    }
-    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request, a_request_size,
+    size_t a_request_size = 0;
+    uint8_t *a_request = dap_datum_mempool_serialize(datum_mempool, &a_request_size);
+    uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2);
+    bin2hex(a_request_out, a_request, a_request_size);
+    //uint8_t *a_request = "1234567\089012345643634346i34itkreghrth";
+    //size_t a_request_size = 20;
+    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request_out, a_request_size*2,
             a_response_proc, a_response_error);
-    DAP_DELETE(a_request);
+    //DAP_DELETE(a_request);
     return 1;
 }

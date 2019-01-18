@@ -4,6 +4,11 @@
 #include "dap_client.h"
 #include "dap_chain_mempool.h"
 
+// connection states
+enum {
+    CLIENT_MEMPOOL_ERROR = -1, CLIENT_MEMPOOL_INIT, CLIENT_MEMPOOL_CONNECT, CLIENT_MEMPOOL_CONNECTED, CLIENT_MEMPOOL_SENDED, CLIENT_MEMPOOL_END
+};
+
 // state for a client connection with mempool
 typedef struct client_mempool_t {
     int state;
@@ -24,7 +29,7 @@ void client_mempool_close(client_mempool_t *mempool);
  * timeout_ms timeout in milliseconds
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int client_mempool_wait(client_mempool_t *mempool, int timeout_ms);
+int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout_ms);
 
 
-int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum);
+int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool);
