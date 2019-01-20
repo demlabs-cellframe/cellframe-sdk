@@ -28,6 +28,7 @@ typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_pkt dap_stream_pkt_t;
 typedef struct dap_stream_ch_proc dap_stream_ch_proc_t;
 typedef struct dap_stream_ch dap_stream_ch_t;
+typedef struct dap_events_socket dap_events_socket_t;
 
 #define SERVICE_CHANNEL_ID 's'
 #define DATA_CHANNEL_ID 'd'
@@ -39,7 +40,6 @@ typedef struct dap_stream_ch{
     bool ready_to_write;
     bool ready_to_read;
     dap_stream_t * stream;
-
     struct{
         uint64_t bytes_write;
         uint64_t bytes_read;
