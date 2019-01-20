@@ -142,6 +142,8 @@ void client_mempool_close(client_mempool_t *mempool)
 {
     if(mempool)
     {
+        // TODO send last request for dehandshake with "SessionCloseAfterRequest=true"
+        // ...
         dap_client_pvt_t *l_client_internal = DAP_CLIENT_PVT(mempool->a_client);
         DAP_DELETE(l_client_internal->uplink_addr);
         dap_client_delete(mempool->a_client);
@@ -152,19 +154,64 @@ void client_mempool_close(client_mempool_t *mempool)
     }
 }
 
+/**
+ * datum add in mempool
+ *
+ * return -1 not connected, 1 Send packet OK
+ */
 int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
 {
+    if(!mempool || !datum_mempool || mempool->state<CLIENT_MEMPOOL_CONNECTED)
+        return -1;
     const char * a_path = "mempool";
     const char *a_suburl = "mempool"; //"enc_init";
     const char* a_query = "";
+    uint8_t action = DAP_DATUM_MEMPOOL_ADD;
     size_t a_request_size = 0;
     uint8_t *a_request = dap_datum_mempool_serialize(datum_mempool, &a_request_size);
-    uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2);
-    bin2hex(a_request_out, a_request, a_request_size);
-    //uint8_t *a_request = "1234567\089012345643634346i34itkreghrth";
-    //size_t a_request_size = 20;
-    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request_out, a_request_size*2,
+    uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2 + 1); // a_request + 1 byte for type action
+    *((uint8_t*) a_request_out) = action;
+    bin2hex(a_request_out + 1, a_request, a_request_size);
+    mempool->state = CLIENT_MEMPOOL_SEND;
+    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request_out, a_request_size * 2 + 1,
             a_response_proc, a_response_error);
-    //DAP_DELETE(a_request);
+    DAP_DELETE(a_request);
+    DAP_DELETE(a_request_out);
     return 1;
+}
+
+/**
+ * datum check in mempool
+ *
+ * return -1 not connected or error, 1 present in mempool, 0 absent in mempool
+ */
+int client_mempool_check_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
+{
+    if(!mempool || !datum_mempool || mempool->state<CLIENT_MEMPOOL_CONNECTED)
+        return -1;
+
+    const char * a_path = "mempool";
+    const char *a_suburl = "mempool"; //"enc_init";
+    const char* a_query = "";
+    uint8_t action = DAP_DATUM_MEMPOOL_CHECK;
+    size_t a_request_size = 0;
+    uint8_t *a_request = dap_datum_mempool_serialize(datum_mempool, &a_request_size);
+    uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2 + 1); // a_request + 1 byte for type action
+    *((uint8_t*) a_request_out) = action;
+    bin2hex(a_request_out + 1, a_request, a_request_size);
+    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request_out, a_request_size * 2 + 1,
+            a_response_proc, a_response_error);
+    DAP_DELETE(a_request);
+    DAP_DELETE(a_request_out);
+    return 1;
+}
+
+/**
+ * datum delete from mempool
+ */
+int client_mempool_del_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
+{
+    if(!mempool || !datum_mempool || mempool->state<CLIENT_MEMPOOL_CONNECTED)
+        return -1;
+    return 0;
 }

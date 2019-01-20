@@ -16,10 +16,15 @@
 
 #define DAP_DATUM_MEMPOOL_VERSION "01"
 
+// action
+enum {
+    DAP_DATUM_MEMPOOL_ADD = 1, DAP_DATUM_MEMPOOL_CHECK, DAP_DATUM_MEMPOOL_DEL
+};
+
 // datum mempool structure
 typedef struct dap_datum_mempool {
-    uint16_t version;             // structure version
-    uint16_t datum_count;// datums count
+    uint16_t version;        // structure version
+    uint16_t datum_count;    // datums count
     dap_chain_datum_t **data;// mass of datums
 }DAP_ALIGN_PACKED dap_datum_mempool_t;
 

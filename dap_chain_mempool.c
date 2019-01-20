@@ -19,6 +19,8 @@
 
 #define FILE_MEMPOOL_DB "1.db" // TODO get from settings
 
+#define LOG_TAG "MEMPOOL"
+
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)
 {
     size_t a_request_size = 2 * sizeof(uint16_t), shift_size = 0;
@@ -86,14 +88,14 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum)
 /**
  *
  */
-char* calc_datum_hash(const char *datum_str, size_t datum_size)
+static char* calc_datum_hash(const char *datum_str, size_t datum_size)
 {
     dap_chain_hash_t a_hash;
     dap_hash((char*) datum_str, datum_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_SLOW_0);
-    size_t a_str_max = sizeof(a_hash.raw) * 2;
+    size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
     char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
     size_t hash_len = dap_chain_hash_to_str(&a_hash, a_str, a_str_max);
-    if(hash_len) {
+    if(!hash_len) {
         DAP_DELETE(a_str);
         return NULL;
     }
@@ -136,7 +138,7 @@ int hex2bin(char *out, const unsigned char *in, int len)
     // 'a'-'f' = 0x61-0x66
     // 'A'-'F' = 0x41-0x46
     int ct = len;
-    if(!in || !out || len < 0 || len & 1)
+    if(!in || !out || len < 0 || (len & 1))
         return -1;
     while(ct > 0)
     {
@@ -162,28 +164,64 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
         char *request_str = dg->request_str;
         int request_size = dg->request_size;
         printf("!!***!!! chain_mempool_proc arg=%d url=%s str=%s len=%d\n", arg, url, request_str, request_size);
-        if(request_str && request_size > 0) {
+        if(request_str && request_size > 1) {
+            uint8_t action = *(uint8_t*) request_str;
+            request_str++;
+            request_size--;
             dap_datum_mempool_t *datum_mempool = dap_datum_mempool_deserialize(request_str, (size_t) request_size);
             if(datum_mempool)
             {
                 dap_datum_mempool_free(datum_mempool);
                 char *a_key = calc_datum_hash(request_str, (size_t) request_size);
-                char *a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
-                bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                if(dap_chain_global_db_set(a_key, a_value)) {
-                    *return_code = Http_Status_OK;
-                    DAP_DELETE(a_key);
+                char *a_value;
+                switch (action)
+                {
+                case DAP_DATUM_MEMPOOL_ADD:
+                    a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
+                    bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
+                    if(dap_chain_global_db_set(a_key, a_value)) {
+                        *return_code = Http_Status_OK;
+                    }
+                    log_it(L_NOTICE, "Insert hash: key=%s result:%s", a_key,
+                            (*return_code == Http_Status_OK) ? "OK" : "False!");
                     DAP_DELETE(a_value);
+                    break;
+                case DAP_DATUM_MEMPOOL_CHECK:
+
+                    strcpy(cl_st->reply_mime, "text/text");
+                    char *str = dap_chain_global_db_get(a_key);
+                    if(str) {
+                        *return_code = Http_Status_OK;
+                        dg->request = strdup("1");
+                        ; //cl_st->reply = strdup("1");
+                        DAP_DELETE(str);
+                    }
+                    else
+                        dg->request = strdup("0"); //cl_st->reply = strdup("0");
+                    dg->in_query_size = strlen(dg->request); //cl_st->reply_size = strlen(cl_st->reply);
+                    enc_http_reply_encode(cl_st, dg);
+                    log_it(L_NOTICE, "Check hash: key=%s result:%s", a_key,
+                            (*return_code == Http_Status_OK) ? "Present" : "Absent");
+                    break;
+                case DAP_DATUM_MEMPOOL_DEL:
+                    *return_code = Http_Status_OK;
+                    log_it(L_NOTICE, "Delete hash: key=%s result:%s", a_key,
+                            (*return_code == Http_Status_OK) ? "OK" : "False!");
+                    break;
+                default:
+                    log_it(L_NOTICE, "Unknown request=%d! key=%s", action, a_key);
+                    DAP_DELETE(a_key);
+                    enc_http_delegate_delete(dg);
                     return;
                 }
                 DAP_DELETE(a_key);
-                DAP_DELETE(a_value);
             }
             else
                 *return_code = Http_Status_InternalServerError;
         }
         else
             *return_code = Http_Status_BadRequest;
+        enc_http_delegate_delete(dg);
     }
     else {
         *return_code = Http_Status_Unauthorized;

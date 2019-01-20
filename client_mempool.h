@@ -6,7 +6,13 @@
 
 // connection states
 enum {
-    CLIENT_MEMPOOL_ERROR = -1, CLIENT_MEMPOOL_INIT, CLIENT_MEMPOOL_CONNECT, CLIENT_MEMPOOL_CONNECTED, CLIENT_MEMPOOL_SENDED, CLIENT_MEMPOOL_END
+    CLIENT_MEMPOOL_ERROR = -1,
+    CLIENT_MEMPOOL_INIT,
+    CLIENT_MEMPOOL_CONNECT,
+    CLIENT_MEMPOOL_CONNECTED,
+    CLIENT_MEMPOOL_SEND,
+    CLIENT_MEMPOOL_SENDED,
+    CLIENT_MEMPOOL_END
 };
 
 // state for a client connection with mempool
@@ -21,7 +27,6 @@ typedef struct client_mempool_t {
 int client_mempool_init(void);
 void client_mempool_deinit();
 
-
 client_mempool_t* client_mempool_connect(const char *addr);
 void client_mempool_close(client_mempool_t *mempool);
 
@@ -31,5 +36,15 @@ void client_mempool_close(client_mempool_t *mempool);
  */
 int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout_ms);
 
-
+/**
+ * datum add in mempool
+ */
 int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool);
+/**
+ * datum check in mempool
+ */
+int client_mempool_check_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool);
+/**
+ * datum delete from mempool
+ */
+int client_mempool_del_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool);
