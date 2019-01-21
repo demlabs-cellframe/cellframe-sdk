@@ -252,9 +252,9 @@ static void read_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
  * @brief dap_udp_server_loop Start server event loop
  * @param sh Server instance
  */
-void dap_udp_server_loop(dap_server_t * sh){
-    sh->proc_thread.tid = pthread_self();
-
+void dap_udp_server_loop(dap_server_t * sh)
+{
+//    sh->proc_thread.tid = pthread_self();
     pthread_t thread;
     pthread_create(&thread, NULL, dap_udp_client_loop, sh);
     struct ev_loop * ev_main_loop = ev_default_loop(0);
