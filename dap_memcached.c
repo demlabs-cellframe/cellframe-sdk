@@ -1,6 +1,9 @@
 #include "dap_memcached.h"
 #include <libmemcached/memcached.h>
 
+
+#define LOG_TAG "dap_memcached"
+
 static memcached_st *_memc;
 static bool _is_module_enable = false;
 

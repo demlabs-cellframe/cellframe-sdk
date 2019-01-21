@@ -1,7 +1,5 @@
 #pragma once
 
-#undef LOG_TAG
-#define LOG_TAG "dap_memcached"
 
 #include <stdint.h>
 #include <stdbool.h>
