@@ -2,10 +2,13 @@ project(libdap-server C)
 cmake_minimum_required(VERSION 3.0)
 
 # dependencies #
-add_subdirectory(libdap)
-add_subdirectory(libdap-server-core)
-add_subdirectory(libdap-server-udp)
+if(NOT ${SUBMODULES_NO_BUILD} MATCHES ON)
+    add_subdirectory(libdap)
+    add_subdirectory(libdap-server-core)
+    add_subdirectory(libdap-server-udp)
+endif()
 ################
+
 
 if(BUILD_LIB_DAP_SERVER_TESTS)
     enable_testing()
