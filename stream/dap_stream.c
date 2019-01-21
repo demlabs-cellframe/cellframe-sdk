@@ -28,6 +28,7 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_session.h"
+#include "dap_events_socket.h"
 
 #include "dap_client_remote.h"
 #include "dap_http.h"
@@ -281,17 +282,17 @@ dap_stream_t * stream_new(dap_http_client_t * sh)
  * @param a_es
  * @return
  */
-//dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es)
-//{
-//    dap_stream_t * ret= DAP_NEW_Z(dap_stream_t);
+dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es)
+{
+    dap_stream_t * ret= DAP_NEW_Z(dap_stream_t);
 
-//    ret->events_socket = a_es;
-//    ret->buf_defrag_size=0;
-//    ret->is_client_to_uplink = true;
+    ret->events_socket = a_es;
+    ret->buf_defrag_size=0;
+    ret->is_client_to_uplink = true;
 
-//    log_it(L_NOTICE,"New stream with events socket instance for %s",a_es->hostaddr);
-//    return ret;
-//}
+    log_it(L_NOTICE,"New stream with events socket instance for %s",a_es->hostaddr);
+    return ret;
+}
 
 /**
  * @brief s_headers_write Prepare headers for output. Creates stream structure
