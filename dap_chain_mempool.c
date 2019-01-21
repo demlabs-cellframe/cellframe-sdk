@@ -15,6 +15,10 @@
 #include "http_status_code.h"
 #include "dap_chain_common.h"
 #include "dap_chain_global_db.h"
+#include "dap_enc.h"
+#include <dap_enc_http.h>
+#include <dap_enc_key.h>
+#include <dap_enc_ks.h>
 #include "dap_chain_mempool.h"
 
 #define FILE_MEMPOOL_DB "1.db" // TODO get from settings
@@ -150,6 +154,43 @@ int hex2bin(char *out, const unsigned char *in, int len)
     return len;
 }
 
+static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap_enc_key_t * key,
+        enc_http_delegate_t * a_http_delegate)
+{
+    //dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http);
+    if(key == NULL) {
+        log_it(L_ERROR, "Can't find http key.");
+        return;
+    }
+    if(a_http_delegate->response) {
+
+        if(a_http_simple->reply)
+            free(a_http_simple->reply);
+
+        size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
+                a_http_delegate->response_size,
+                DAP_ENC_DATA_TYPE_RAW);
+
+        a_http_simple->reply = DAP_NEW_SIZE(void, l_reply_size_max);
+        a_http_simple->reply_size = dap_enc_code(a_http_delegate->key,
+                a_http_delegate->response, a_http_delegate->response_size,
+                a_http_simple->reply, l_reply_size_max,
+                DAP_ENC_DATA_TYPE_RAW);
+
+        /*/ decode test
+        size_t l_response_dec_size_max = a_http_simple->reply_size ? a_http_simple->reply_size * 2 + 16 : 0;
+        char * l_response_dec = a_http_simple->reply_size ? DAP_NEW_Z_SIZE(char, l_response_dec_size_max) : NULL;
+        size_t l_response_dec_size = 0;
+        if(a_http_simple->reply_size)
+            l_response_dec_size = dap_enc_decode(a_http_delegate->key,
+                    a_http_simple->reply, a_http_simple->reply_size,
+                    l_response_dec, l_response_dec_size_max,
+                    DAP_ENC_DATA_TYPE_RAW);
+        l_response_dec_size_max = 0;*/
+    }
+
+}
+
 /**
  * @brief
  * @param cl_st HTTP server instance
@@ -158,6 +199,10 @@ int hex2bin(char *out, const unsigned char *in, int len)
 void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 {
     http_status_code_t * return_code = (http_status_code_t*) arg;
+    dap_enc_key_t *key_tmp = dap_enc_ks_find_http(cl_st->http);
+    dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
+    dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
+
     enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
     if(dg) {
         char *url = dg->url_path;
@@ -192,14 +237,15 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                     char *str = dap_chain_global_db_get(a_key);
                     if(str) {
                         *return_code = Http_Status_OK;
-                        dg->request = strdup("1");
+                        dg->response = strdup("1");
                         ; //cl_st->reply = strdup("1");
                         DAP_DELETE(str);
                     }
                     else
-                        dg->request = strdup("0"); //cl_st->reply = strdup("0");
-                    dg->in_query_size = strlen(dg->request); //cl_st->reply_size = strlen(cl_st->reply);
-                    enc_http_reply_encode(cl_st, dg);
+                        dg->response = strdup("0"); //cl_st->reply = strdup("0");
+                    dg->response_size = strlen(dg->response); //cl_st->reply_size = strlen(cl_st->reply);
+                    //enc_http_reply_encode(cl_st, dg);
+                    enc_http_reply_encode_new(cl_st, key, dg);
                     log_it(L_NOTICE, "Check hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "Present" : "Absent");
                     break;

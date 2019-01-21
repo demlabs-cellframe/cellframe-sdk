@@ -24,7 +24,7 @@ static void stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 // callback for dap_client_request_enc() in client_mempool_send_datum()
 static void a_response_proc(dap_client_t *a_client, void *str, size_t str_len)
 {
-    printf("a* _response_proc a_client=%x str=%x str_len=%d\n", a_client, str, str_len);
+    printf("a* _response_proc a_client=%x str=%s str_len=%d\n", a_client, str, str_len);
     client_mempool_t *mempool = a_client->_inheritor;
     assert(mempool);
     if(mempool) {
