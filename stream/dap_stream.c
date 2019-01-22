@@ -111,7 +111,7 @@ void dap_stream_add_proc_http(struct dap_http * sh, const char * url)
  */
 void dap_stream_add_proc_udp(dap_udp_server_t * sh)
 {
-    dap_server_t* server = sh->dap_server;
+    dap_server_t* server =  sh->dap_server;
     server->client_read_callback = s_data_read;
     server->client_write_callback = stream_dap_data_write;
     server->client_delete_callback = stream_dap_delete;

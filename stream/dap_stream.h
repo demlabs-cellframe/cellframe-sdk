@@ -29,14 +29,11 @@
 
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
-<<<<<<< HEAD
 //#include "dap_udp_server.h"
 //#include "dap_udp_client.h"
-=======
 #include "dap_events_socket.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
->>>>>>> c17f6172ea2843662c7eb47aa97ccca003bbb63d
 
 #define CHUNK_SIZE_MAX 3*1024
 
