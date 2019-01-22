@@ -11,9 +11,6 @@ add_definitions ("-D_GNU_SOURCE")
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(libdap)
-endif()
-
-if(BUILD_DAP_CORE_SERVER_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
