@@ -9,7 +9,7 @@ set(CMAKE_C_STANDARD 11)
 
 add_definitions ("-D_GNU_SOURCE")
 
-if(NOT ${SUBMODULES_NO_BUILD} MATCHES ON)
+if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(libdap)
 endif()
 
