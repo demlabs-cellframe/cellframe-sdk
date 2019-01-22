@@ -1,11 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project (dap_udp_server C)
 
-if(NOT ${SUBMODULES_NO_BUILD} MATCHES ON)
+if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(libdap-server-core)
-endif()
-
-if(BUILD_DAP_UDP_SERVER_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
