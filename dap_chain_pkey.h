@@ -49,10 +49,10 @@ typedef struct dap_chain_pkey{
     uint8_t pkey[]; /// @param pkey @brief raw pkey dat
 } DAP_ALIGN_PACKED dap_chain_pkey_t;
 
-extern dap_chain_pkey_t m_dap_chain_pkey_null; // For sizeof nothing more
+static dap_chain_pkey_t m_dap_chain_pkey_null; // For sizeof nothing more
 
 dap_chain_pkey_t *dap_chain_pkey_from_enc_key(dap_enc_key_t *a_key);
-inline size_t dap_chain_pkey_from_enc_key_output_calc(dap_enc_key_t *a_key)
+static inline size_t dap_chain_pkey_from_enc_key_output_calc(dap_enc_key_t *a_key)
 {
     return sizeof(m_dap_chain_pkey_null.header)+ a_key->pub_key_data_size;
 }

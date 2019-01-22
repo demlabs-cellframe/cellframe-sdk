@@ -28,18 +28,30 @@
 
 // Magic .dapcert signature
 #define DAP_CHAIN_CERT_FILE_HDR_SIGN 0x0F300C4711E29380
+#define DAP_CHAIN_CERT_FILE_VERSION 1
 
 // Default certificate with private key and optionaly some signs
-#define DAP_CHAIN_CERT_TYPE_PRIVATE 0x00
+#define DAP_CHAIN_CERT_FILE_TYPE_PRIVATE 0x00
 // Default certificate with public key and optionaly some signs
-#define DAP_CHAIN_CERT_TYPE_PUBLIC 0xf0
+#define DAP_CHAIN_CERT_FILE_TYPE_PUBLIC 0xf0
+
 
 typedef struct dap_chain_cert_file_hdr
 {
     uint64_t sign;
+    int version;
     uint8_t type;
-    uint64_t section_number;
-} dap_chain_sert_file_hdr_t;
+    dap_chain_sign_type_t sign_type;
+    uint64_t data_size;
+    uint64_t data_pvt_size;
+    uint64_t inheritor_size;
+    time_t ts_last_used;
+} DAP_ALIGN_PACKED dap_chain_cert_file_hdr_t;
+
+typedef struct dap_chain_cert_file{
+    dap_chain_cert_file_hdr_t hdr;
+    uint8_t data[];
+}DAP_ALIGN_PACKED dap_chain_cert_file_t;
 
 int dap_chain_cert_file_save(dap_chain_cert_t * a_cert, const char * a_cert_file_path);
 dap_chain_cert_t* dap_chain_cert_file_load(const char * a_cert_file_path);

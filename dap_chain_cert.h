@@ -34,8 +34,14 @@ typedef struct dap_chain_cert {
 } dap_chain_cert_t;
 
 int dap_chain_cert_init();
+
+
 dap_chain_cert_t * dap_chain_cert_generate(const char * a_cert_name,const char * a_file_path,dap_enc_key_type_t a_key_type );
 
 dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_file_path);
 void dap_chain_cert_add_folder(const char* a_cert_name_prefix,const char *a_folder_path);
+void dap_chain_cert_dump(dap_chain_cert_t * a_cert);
+
 void dap_chain_cert_deinit();
+
+void dap_chain_cert_delete(const char * a_cert_name);

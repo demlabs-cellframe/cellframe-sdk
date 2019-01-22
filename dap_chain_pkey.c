@@ -26,33 +26,8 @@
 #include "dap_chain_pkey.h"
 
 #define LOG_TAG "chain_key"
-dap_chain_pkey_t m_dap_chain_pkey_null={0}; // For sizeof nothing more
+static dap_chain_pkey_t m_dap_chain_pkey_null={0}; // For sizeof nothing more
 
-
-/**
- * @brief dap_chain_pkey_enc_get_buf_out_size
- * @param a_pkey
- * @return
- */
-size_t dap_chain_pkey_enc_get_buf_out_size(dap_chain_pkey_t * a_pkey)
-{
-    log_it(L_WARNING,"NOT DEFINED:dap_chain_pkey_enc_get_buf_out_size");
-    return 0;
-}
-
-/**
- * @brief dap_chain_pkey_enc
- * @param a_type
- * @param a_buf_in
- * @param a_buf_in_size
- * @param a_buf_out
- * @return
- */
-int dap_chain_pkey_enc(dap_chain_pkey_t * a_pkey,const void * a_buf_in, uint32_t a_buf_in_size, void * a_buf_out) // 0 if success
-{
-    log_it(L_WARNING,"NOT DEFINED: dap_chain_pkey_enc");
-    return -1;
-}
 
 /**
  * @brief dap_chain_pkey_from_enc_key
@@ -61,24 +36,46 @@ int dap_chain_pkey_enc(dap_chain_pkey_t * a_pkey,const void * a_buf_in, uint32_t
  */
 dap_chain_pkey_t* dap_chain_pkey_from_enc_key(dap_enc_key_t *a_key)
 {
-    dap_chain_pkey_t * l_ret = NULL;
     if (a_key->pub_key_data_size > 0 ){
-        l_ret = DAP_NEW_Z_SIZE(dap_chain_pkey_t,sizeof(l_ret->header)+ a_key->pub_key_data_size);
+        dap_chain_pkey_t * l_ret = NULL;
+        l_ret = DAP_NEW_Z_SIZE(dap_chain_pkey_t,dap_chain_pkey_from_enc_key_output_calc(a_key));
+        if( dap_chain_pkey_from_enc_key_output(a_key,l_ret) != 0 ) {
+            DAP_DELETE(l_ret);
+            return NULL;
+        }else
+            return l_ret;
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief dap_chain_pkey_from_enc_key_output
+ * @param a_key
+ * @param a_output
+ * @return
+ */
+int dap_chain_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output)
+{
+    dap_chain_pkey_t * l_output = (dap_chain_pkey_t *) a_output;
+    if (a_key->pub_key_data_size > 0 ){
         switch (a_key->type) {
             case DAP_ENC_KEY_TYPE_SIG_BLISS:
-                l_ret->header.type.type = PKEY_TYPE_SIGN_BLISS ;
+                l_output->header.type.type = PKEY_TYPE_SIGN_BLISS ;
             break;
             case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-                l_ret->header.type.type = PKEY_TYPE_SIGN_PICNIC ;
+                l_output->header.type.type = PKEY_TYPE_SIGN_PICNIC ;
             break;
             default:
                 log_it(L_WARNING,"No serialization preset");
-                DAP_DELETE(l_ret);
-                return NULL;
+                return -1;
         }
-        l_ret->header.size = a_key->pub_key_data_size;
-        memcpy(l_ret->pkey,a_key->pub_key_data,a_key->pub_key_data_size);
-    }else
+        l_output->header.size = a_key->pub_key_data_size;
+        memcpy(l_output->pkey,a_key->pub_key_data,a_key->pub_key_data_size);
+        return 0;
+    }else{
         log_it(L_WARNING, "No public key in the input enc_key object");
-    return l_ret;
+        return -2;
+    }
+    return -3;
 }
