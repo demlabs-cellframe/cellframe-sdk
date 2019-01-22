@@ -110,7 +110,8 @@ typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                            DAP_ENC_KEY_TYPE_SIG_TESLA,  // signature based on Ring_LWE problem with zero-knowledge proof as specified in
                                                // Post-Quantum Zero-Knowledge and Signatures from Symmetric-Key Primitives
 
-                           DAP_ENC_KEY_TYPE_FNAM2
+                           DAP_ENC_KEY_TYPE_NULL = 0
+
                          }  dap_enc_key_type_t;
 
 struct dap_enc_key;
@@ -124,6 +125,8 @@ typedef void (*dap_enc_callback_new_generate)(struct dap_enc_key* key, const voi
                                               size_t key_size);
 // free memory
 typedef void (*dap_enc_callback_delete)(struct dap_enc_key*);
+
+typedef size_t (*dap_enc_callback_key_size_t)(struct dap_enc_key*);
 
 // encrypt and decrypt functions. Allocates Memory for out
 typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void *in,
@@ -155,6 +158,7 @@ typedef size_t (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const v
 typedef size_t (*dap_enc_gen_alice_shared_key) (struct dap_enc_key *a_key, const void *a_priv,
                                              size_t b_pub_size, unsigned char *b_pub);
 
+typedef int (*dap_enc_callback_gen_key_public_t ) (struct dap_enc_key *l_key, void * l_output);
 
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
@@ -224,6 +228,9 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, const void 
 // for asymmetric gen public key
 dap_enc_key_t *dap_enc_gen_pub_key_from_priv(struct dap_enc_key *a_key, void **priv_key, size_t *alice_msg_len);
 
+
+size_t dap_enc_gen_key_public_size (dap_enc_key_t *a_key);
+int dap_enc_gen_key_public (dap_enc_key_t *a_key, void * a_output);
 
 void dap_enc_key_delete(dap_enc_key_t * a_key);
 

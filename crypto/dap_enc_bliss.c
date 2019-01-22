@@ -22,13 +22,43 @@ void dap_enc_sig_bliss_key_new(struct dap_enc_key *key) {
     key->gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_sig_bliss_verify_sign;
 }
 
+/**
+ * @brief dap_enc_sig_bliss_key_pub_output_size
+ * @param l_key
+ * @return
+ */
+size_t dap_enc_sig_bliss_key_pub_output_size(struct dap_enc_key *l_key)
+{
+    (void) l_key;
+    return sizeof(bliss_public_key_t); // Always same, right?
+}
+
+/**
+ * @brief dap_enc_sig_bliss_key_pub_output
+ * @param l_key
+ * @param l_output
+ * @return
+ */
+int dap_enc_sig_bliss_key_pub_output(struct dap_enc_key *l_key, void * l_output)
+{
+    int32_t retcode;
+
+    retcode = bliss_b_public_key_extract( (bliss_public_key_t *) l_output,
+                                          (const bliss_private_key_t *) l_key->priv_key_data);
+    if (retcode != BLISS_B_NO_ERROR) {
+        log_it(L_CRITICAL, "Can't extract public key from the private one");
+        return -1;
+    }
+    return 0;
+}
+
 
 // generation key pair for sign Alice
 // OUTPUT:
 // a_key->data  --- Alice's public key
 // alice_priv  ---  Alice's private key
 // alice_msg_len --- Alice's private key length
-void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * key, const void *kex_buf,
+void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf,
                                     size_t kex_size, const void * seed, size_t seed_size,
                                     size_t key_size)
 {
@@ -36,9 +66,9 @@ void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * key, const void *ke
     (void) seed; (void) seed_size;
     (void)key_size;
 
-    int32_t retcode;
+    int32_t l_retcode;
 
-    dap_enc_sig_bliss_key_new(key);
+    dap_enc_sig_bliss_key_new(a_key);
 
     uint8_t seed_tmp[SHA3_512_DIGEST_LENGTH];
     entropy_t entropy;
@@ -53,19 +83,23 @@ void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * key, const void *ke
      * type = 4 - max securiry                 (192 bits)
     */
     //int32_t type = 4;
-    key->priv_key_data = malloc(sizeof(bliss_private_key_t));
-    retcode = bliss_b_private_key_gen((bliss_private_key_t *) key->priv_key_data, _bliss_type, &entropy);
-    if (retcode != BLISS_B_NO_ERROR) {
-        bliss_b_private_key_delete(key->priv_key_data);
+    a_key->priv_key_data_size = sizeof(bliss_private_key_t);
+    a_key->priv_key_data = DAP_NEW_SIZE(void,a_key->priv_key_data_size);
+    l_retcode = bliss_b_private_key_gen((bliss_private_key_t *) a_key->priv_key_data, _bliss_type, &entropy);
+    if (l_retcode != BLISS_B_NO_ERROR) {
+        bliss_b_private_key_delete(a_key->priv_key_data);
+        a_key->priv_key_data = NULL;
+        a_key->priv_key_data_size = 0;
         log_it(L_CRITICAL, "Error");
         return;
     }
 
-    key->pub_key_data = malloc(sizeof(bliss_public_key_t));
-    retcode = bliss_b_public_key_extract( (bliss_public_key_t *) key->pub_key_data, (const bliss_private_key_t *) key->priv_key_data);
-    if (retcode != BLISS_B_NO_ERROR) {
-        bliss_b_private_key_delete(key->priv_key_data);
-        bliss_b_public_key_delete(key->pub_key_data);
+    a_key->pub_key_data_size = sizeof(bliss_public_key_t);
+    a_key->pub_key_data = DAP_NEW_SIZE(void,a_key->pub_key_data_size );
+    l_retcode = bliss_b_public_key_extract( (bliss_public_key_t *) a_key->pub_key_data, (const bliss_private_key_t *) a_key->priv_key_data);
+    if (l_retcode != BLISS_B_NO_ERROR) {
+        bliss_b_private_key_delete(a_key->priv_key_data);
+        bliss_b_public_key_delete(a_key->pub_key_data);
         log_it(L_CRITICAL, "Error");
         return;
     }

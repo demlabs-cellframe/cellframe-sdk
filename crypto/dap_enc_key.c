@@ -43,6 +43,9 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_dataop_na_t enc_na;
     dap_enc_callback_dataop_na_t dec_na;
+    dap_enc_callback_gen_key_public_t gen_key_public;
+    dap_enc_callback_key_size_t gen_key_public_size;
+
     dap_enc_callback_calc_out_size enc_out_size;
     dap_enc_callback_calc_out_size dec_out_size;
 
@@ -52,7 +55,6 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_new new_callback;
     dap_enc_callback_data_t new_from_data_public_callback;
     dap_enc_callback_new_generate new_generate_callback;
-
     dap_enc_callback_delete delete_callback;
 } s_callbacks[]={
     // AES
@@ -65,6 +67,8 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_aes_key_new,
         .delete_callback = dap_enc_aes_key_delete,
         .new_generate_callback = dap_enc_aes_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_iaes256_calc_encode_size,
         .dec_out_size = dap_enc_iaes256_calc_decode_size,
     },
@@ -78,6 +82,8 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_oaes_key_new,
         .delete_callback = dap_enc_oaes_key_delete,
         .new_generate_callback = dap_enc_oaes_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_oaes_calc_encode_size,
         .dec_out_size = dap_enc_oaes_calc_decode_size,
     },
@@ -90,6 +96,8 @@ struct dap_enc_key_callbacks{
         .new_generate_callback = dap_enc_msrln_key_generate,
         .gen_bob_shared_key = dap_enc_msrln_gen_bob_shared_key,
         .gen_alice_shared_key = dap_enc_msrln_gen_alice_shared_key,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
         .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public,
         .enc_out_size = NULL,
         .dec_out_size = NULL
@@ -98,6 +106,8 @@ struct dap_enc_key_callbacks{
         .name = "DEFEO",
         .enc = NULL,
         .dec = NULL,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
         .gen_bob_shared_key = dap_enc_defeo_gen_bob_shared_key,
         .gen_alice_shared_key = dap_enc_defeo_gen_alice_shared_key,
         .new_callback = dap_enc_defeo_key_new,
@@ -115,6 +125,8 @@ struct dap_enc_key_callbacks{
         .gen_bob_shared_key = NULL,
         .gen_alice_shared_key = NULL,
         .new_callback = dap_enc_sig_picnic_key_new,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
         .delete_callback = dap_enc_sig_picnic_key_delete,
         .new_generate_callback = dap_enc_sig_picnic_key_new_generate,
         .enc_out_size = NULL,
@@ -131,6 +143,9 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_sig_bliss_key_new,
         .delete_callback = dap_enc_sig_bliss_key_delete,
         .new_generate_callback = dap_enc_sig_bliss_key_new_generate,
+        .gen_key_public = dap_enc_sig_bliss_key_pub_output,
+        .gen_key_public_size = dap_enc_sig_bliss_key_pub_output_size,
+
         .enc_out_size = NULL,
         .dec_out_size = NULL
     },
@@ -140,6 +155,8 @@ struct dap_enc_key_callbacks{
         .dec = NULL,
         .enc_na = dap_enc_sig_tesla_get_sign,
         .dec_na = dap_enc_sig_tesla_verify_sign,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
         .gen_bob_shared_key = NULL,
         .gen_alice_shared_key = NULL,
         .new_callback = dap_enc_sig_tesla_key_new,
@@ -259,6 +276,26 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const voi
     return ret;
 }
 
+
+size_t dap_enc_gen_key_public_size (dap_enc_key_t *a_key)
+{
+    if(s_callbacks[a_key->type].gen_key_public_size) {
+        return s_callbacks[a_key->type].gen_key_public_size(a_key);
+    } else {
+        log_it(L_ERROR, "No callback for key public size calculate");
+        return 0;
+    }
+}
+
+int dap_enc_gen_key_public (dap_enc_key_t *a_key, void * a_output)
+{
+    if(s_callbacks[a_key->type].gen_key_public) {
+        return s_callbacks[a_key->type].gen_key_public(a_key,a_output);
+    } else {
+        log_it(L_ERROR, "No callback for key public generate action");
+    }
+    return -1;
+}
 
 /**
  * @brief dap_enc_key_delete
