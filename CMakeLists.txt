@@ -3,13 +3,14 @@ project (dap_client)
 set(CMAKE_C_STANDARD 11)
 
 
-if(BUILD_LIB_DAP_CLIENT_TESTS)
-    enable_testing()
+if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(libdap)
+    add_subdirectory(libdap-server-core)
     add_subdirectory(libdap-server)
     add_subdirectory(libdap-stream)
     add_subdirectory(libdap-stream-ch)
 
+    enable_testing()
     add_subdirectory(test)
 endif()
 
