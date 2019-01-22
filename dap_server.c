@@ -224,7 +224,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                                       dap_cur->buf_out_size - total_sent,
                                       MSG_DONTWAIT | MSG_NOSIGNAL );
                 if(bytes_sent < 0) {
-                    log_it(L_ERROR,"Some error occured in send() function");
+                    log_it(L_ERROR,"Error occured in send() function %s", strerror(errno));
                     break;
                 }
                 total_sent += (size_t)bytes_sent;
