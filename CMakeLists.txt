@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project (dap_chain_net)
   
 set(DAP_CHAIN_NET_SRCS 
@@ -13,8 +13,12 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node_ctl.h
     )
 
+set(IPUTILS_INCLUDE_DIRS
+     iputils/traceroute/
+    )
+
 file(GLOB IPUTILS_SRCS iputils/*.c iputils/traceroute/*.c)
-file(GLOB IPUTILS_HEADERS iputils/*.h iputils/traceroute/*.h)
+file(GLOB IPUTILS_HEADERS iputils/*.h ${IPUTILS_INCLUDE_DIRS}*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
 
@@ -22,7 +26,7 @@ find_package(PkgConfig REQUIRED)
 pkg_search_module(GLIB REQUIRED glib-2.0)
 
 target_link_libraries(dap_chain_net dap_core dap_crypto dap_chain dap_chain_crypto -lresolv ${GLIB_LDFLAGS})
-target_include_directories(dap_chain_net INTERFACE . PUBLIC ${GLIB_INCLUDE_DIRS})
+target_include_directories(dap_chain_net INTERFACE . PUBLIC ${GLIB_INCLUDE_DIRS} ${IPUTILS_INCLUDE_DIRS})
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 

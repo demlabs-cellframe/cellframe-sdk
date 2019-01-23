@@ -9,7 +9,7 @@
 #include <linux/types.h>
 #include <linux/sockios.h>
 #include <linux/ipv6.h>
-
+# define __USE_KERNEL_IPV6_DEFS
 #include <sys/file.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
@@ -24,7 +24,7 @@
 #include <asm/byteorder.h>
 #include <sched.h>
 #include <math.h>
-#include <netinet/in.h>
+
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <netinet/ip_icmp.h>
