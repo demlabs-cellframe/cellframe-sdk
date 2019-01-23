@@ -16,5 +16,5 @@ include_directories("${INCLUDE_DIRECTORIES} ${dap_core_server_INCLUDE_DIRS}")
 
 target_include_directories(dap_http_server INTERFACE . http_client )
 
-target_link_libraries( dap_http_server dap_core dap_crypto dap_core_server)
+target_link_libraries(dap_http_server dap_core dap_crypto dap_core_server magic)
 
