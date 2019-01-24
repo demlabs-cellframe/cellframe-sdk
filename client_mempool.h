@@ -22,6 +22,10 @@ typedef struct client_mempool_t {
     dap_client_t *a_client;
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
+    struct readed_data{
+        uint8_t *data;
+        int data_len;
+    }read_data_t;
 } client_mempool_t;
 
 int client_mempool_init(void);
@@ -35,6 +39,11 @@ void client_mempool_close(client_mempool_t *mempool);
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
 int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout_ms);
+
+/**
+ * get read data from server
+ */
+uint8_t* client_mempool_read(client_mempool_t *mempool, int *data_len);
 
 /**
  * datum add in mempool

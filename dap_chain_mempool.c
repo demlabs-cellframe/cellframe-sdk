@@ -59,7 +59,7 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *datum_mempool_str_i
     shift_size += sizeof(uint16_t);
     memcpy(&(datum_mempool->datum_count), datum_mempool_str + shift_size, sizeof(uint16_t));
     shift_size += sizeof(uint16_t);
-    datum_mempool->data = DAP_NEW_Z_SIZE(dap_chain_datum_t*, datum_mempool->datum_count);
+    datum_mempool->data = DAP_NEW_Z_SIZE(dap_chain_datum_t*, datum_mempool->datum_count * sizeof(dap_chain_datum_t*));
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         size_t size_one = 0;
         memcpy(&size_one, datum_mempool_str + shift_size, sizeof(uint16_t));
@@ -81,6 +81,8 @@ void dap_datum_mempool_clean(dap_datum_mempool_t *datum)
     for(int i = 0; i < datum->datum_count; i++) {
         DAP_DELETE(datum->data[i]);
     }
+    DAP_DELETE(datum->data);
+    datum->data = NULL;
 }
 
 void dap_datum_mempool_free(dap_datum_mempool_t *datum)
@@ -178,15 +180,15 @@ static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap
                 DAP_ENC_DATA_TYPE_RAW);
 
         /*/ decode test
-        size_t l_response_dec_size_max = a_http_simple->reply_size ? a_http_simple->reply_size * 2 + 16 : 0;
-        char * l_response_dec = a_http_simple->reply_size ? DAP_NEW_Z_SIZE(char, l_response_dec_size_max) : NULL;
-        size_t l_response_dec_size = 0;
-        if(a_http_simple->reply_size)
-            l_response_dec_size = dap_enc_decode(a_http_delegate->key,
-                    a_http_simple->reply, a_http_simple->reply_size,
-                    l_response_dec, l_response_dec_size_max,
-                    DAP_ENC_DATA_TYPE_RAW);
-        l_response_dec_size_max = 0;*/
+         size_t l_response_dec_size_max = a_http_simple->reply_size ? a_http_simple->reply_size * 2 + 16 : 0;
+         char * l_response_dec = a_http_simple->reply_size ? DAP_NEW_Z_SIZE(char, l_response_dec_size_max) : NULL;
+         size_t l_response_dec_size = 0;
+         if(a_http_simple->reply_size)
+         l_response_dec_size = dap_enc_decode(a_http_delegate->key,
+         a_http_simple->reply, a_http_simple->reply_size,
+         l_response_dec, l_response_dec_size_max,
+         DAP_ENC_DATA_TYPE_RAW);
+         l_response_dec_size_max = 0;*/
     }
 
 }
@@ -199,9 +201,10 @@ static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap
 void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 {
     http_status_code_t * return_code = (http_status_code_t*) arg;
-    dap_enc_key_t *key_tmp = dap_enc_ks_find_http(cl_st->http);
-    dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
-    dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
+    // save key while it alive, i.e. still exist
+    dap_enc_key_t *key = dap_enc_ks_find_http(cl_st->http);
+    //dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
+    //dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
 
     enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
     if(dg) {
@@ -221,43 +224,58 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 char *a_value;
                 switch (action)
                 {
-                case DAP_DATUM_MEMPOOL_ADD:
+                case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
                     if(dap_chain_global_db_set(a_key, a_value)) {
                         *return_code = Http_Status_OK;
                     }
-                    log_it(L_NOTICE, "Insert hash: key=%s result:%s", a_key,
+                    log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "OK" : "False!");
                     DAP_DELETE(a_value);
                     break;
-                case DAP_DATUM_MEMPOOL_CHECK:
+
+                case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
                     char *str = dap_chain_global_db_get(a_key);
                     if(str) {
-                        *return_code = Http_Status_OK;
                         dg->response = strdup("1");
-                        ; //cl_st->reply = strdup("1");
                         DAP_DELETE(str);
+                        log_it(L_INFO, "Check hash: key=%s result: Present", a_key);
                     }
                     else
-                        dg->response = strdup("0"); //cl_st->reply = strdup("0");
-                    dg->response_size = strlen(dg->response); //cl_st->reply_size = strlen(cl_st->reply);
-                    //enc_http_reply_encode(cl_st, dg);
-                    enc_http_reply_encode_new(cl_st, key, dg);
-                    log_it(L_NOTICE, "Check hash: key=%s result:%s", a_key,
-                            (*return_code == Http_Status_OK) ? "Present" : "Absent");
-                    break;
-                case DAP_DATUM_MEMPOOL_DEL:
+                    {
+                        dg->response = strdup("0");
+                        log_it(L_INFO, "Check hash: key=%s result: Absent", a_key);
+                    }
+                    dg->response_size = strlen(dg->response);
                     *return_code = Http_Status_OK;
-                    log_it(L_NOTICE, "Delete hash: key=%s result:%s", a_key,
-                            (*return_code == Http_Status_OK) ? "OK" : "False!");
+                    enc_http_reply_encode_new(cl_st, key, dg);
                     break;
-                default:
-                    log_it(L_NOTICE, "Unknown request=%d! key=%s", action, a_key);
+
+                case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
+                    strcpy(cl_st->reply_mime, "text/text");
+                    if(dap_chain_global_db_del(a_key)) {
+                        dg->response = strdup("1");
+                        DAP_DELETE(str);
+                        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
+                    }
+                    else
+                    {
+                        dg->response = strdup("0");
+                        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
+                    }
+                    *return_code = Http_Status_OK;
+                    enc_http_reply_encode_new(cl_st, key, dg);
+                    break;
+
+                default: // unsupported command
+                    log_it(L_INFO, "Unknown request=%d! key=%s", action, a_key);
                     DAP_DELETE(a_key);
                     enc_http_delegate_delete(dg);
+                    if(key)
+                        dap_enc_key_delete(key);
                     return;
                 }
                 DAP_DELETE(a_key);
@@ -272,6 +290,9 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     else {
         *return_code = Http_Status_Unauthorized;
     }
+    // no needed
+    //if(key)
+    //    dap_enc_key_delete(key);
 }
 
 /**
