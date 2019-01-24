@@ -18,6 +18,11 @@ char* dap_chain_global_db_get(const char *a_key);
 bool dap_chain_global_db_set(const char *a_key, const char *a_value);
 
 /**
+ * Delete entry from base
+ */
+bool dap_chain_global_db_del(const char *a_key);
+
+/**
  * Read the entire database into an array of size bytes
  *
  * @param data_size[out] size of output array

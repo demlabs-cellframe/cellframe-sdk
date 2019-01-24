@@ -7,6 +7,9 @@
 #define LOG_TAG "dap_global_db"
 #define TDB_PREFIX_LEN 7
 
+static struct ldb_context *ldb = NULL;
+static TALLOC_CTX *mem_ctx = NULL;
+
 //static int dap_store_len = 0; // initialized only when reading from local db
 static char *dap_db_path = NULL;
 
@@ -66,6 +69,7 @@ int dap_db_init(const char *path)
         log_it(L_ERROR, "Couldn't initialize LDB context");
         return -2;
     }
+    return -1;
 }
 
 int dap_db_add_msg(struct ldb_message *msg)
@@ -96,6 +100,24 @@ int dap_db_add_msg(struct ldb_message *msg)
         log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(msg->dn));
         return 0;
     }
+    return -1;
+}
+
+int dap_db_del_msg(struct ldb_dn *ldn)
+{
+    ldb_transaction_start(ldb);
+    int status = ldb_delete(ldb, ldn);
+    if(status != LDB_SUCCESS) {
+        log_it(L_ERROR, "LDB deleting error: %s", ldb_errstring(ldb));
+        ldb_transaction_cancel(ldb);
+        return -2;
+    }
+    else {
+        ldb_transaction_commit(ldb);
+        log_it(L_INFO, "Entry %s deleted", ldb_dn_get_linearized(ldn));
+        return 0;
+    }
+    return -1;
 }
 
 /* path is supposed to have been obtained by smth like
@@ -215,6 +237,8 @@ pdap_store_obj_t dap_db_read_file_data(const char *path)
 /*
  * Add multiple entries received from remote node to local database.
  * Since we don't know the size, it must be supplied too
+ *
+ * dap_store_size the count records
  */
 int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size)
 {
@@ -251,6 +275,42 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size)
         talloc_free(msg);
     }
     return ret;
+}
+
+/*
+ * Delete multiple entries from local database.
+ *
+ * dap_store_size the count records
+ */
+int dap_db_delete(pdap_store_obj_t store_obj, int dap_store_size)
+{
+    int ret = 0;
+    if(store_obj == NULL) {
+        log_it(L_ERROR, "Invalid Dap store objects passed");
+        return -1;
+    }
+    if(ldb_connect(ldb, dap_db_path, 0, NULL) != LDB_SUCCESS) {
+        log_it(L_ERROR, "Couldn't connect to database");
+        return -2;
+    }
+    log_it(L_INFO, "We're delete %d records from database", dap_store_size);
+    struct ldb_message *msg;
+    int q;
+    if(dap_store_size == 0) {
+        dap_store_size = 1;
+    }
+    for(q = 0; q < dap_store_size; q++) {
+        char dn[128];
+        memset(dn, '\0', 128);
+        strcat(dn, "cn=");
+        strcat(dn, store_obj[q].key);
+        strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
+        struct ldb_dn *ldn = ldb_dn_new(mem_ctx, ldb, dn);
+        ret += dap_db_del_msg(ldn); // accumulation error codes
+        talloc_free(ldn);
+    }
+    return ret;
+
 }
 
 /* serialization */
