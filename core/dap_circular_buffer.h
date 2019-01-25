@@ -27,7 +27,7 @@ extern void CircularBufferFree(CircularBuffer cBuf);
 extern void CircularBufferReset(CircularBuffer cBuf);
 
 //get the capacity of CircularBuffer
-extern size_t CircularBufferGetSize(CircularBuffer cBuf);
+extern size_t CircularBufferGetCapacity(CircularBuffer cBuf);
 
 //get occupied data size of CircularBuffer
 extern size_t CircularBufferGetDataSize(CircularBuffer cBuf);
@@ -44,4 +44,8 @@ extern size_t CircularBufferRead(CircularBuffer cBuf, size_t length, void *dataO
 //for test purpose, print the circular buffer's data content by printf(...); the 'hex' parameters indicates that if the data should be printed in asscii string or hex data format.
 extern void CircularBufferPrint(CircularBuffer cBuf, bool hex);
 
+#ifdef __unix__
+// Read data from a circular buffer to socketFd
+extern int CircularBufferWriteInSocket(CircularBuffer cBuf, int sockfd);
+#endif
 #endif
