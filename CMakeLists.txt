@@ -4,6 +4,8 @@ project (dap_chain_mempool)
 file(GLOB DAP_CHAIN_MEMPOOL_SRC *.c)
 file(GLOB DAP_CHAIN_MEMPOOL_HDR *.h)
 
+add_definitions ("-DNODE_NETNAME=\"kelvin\"")
+
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_MEMPOOL_SRC} ${DAP_CHAIN_MEMPOOL_HDR})
 
 target_link_libraries(dap_chain_mempool dap_http_server dap_client dap_chain_global_db dap_core)

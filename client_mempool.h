@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pthread.h>
+#include <stdbool.h>
 #include "dap_client.h"
 #include "dap_chain_mempool.h"
 

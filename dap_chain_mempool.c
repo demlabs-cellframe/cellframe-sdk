@@ -21,8 +21,6 @@
 #include <dap_enc_ks.h>
 #include "dap_chain_mempool.h"
 
-#define FILE_MEMPOOL_DB "1.db" // TODO get from settings
-
 #define LOG_TAG "MEMPOOL"
 
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)
@@ -103,7 +101,7 @@ static char* calc_datum_hash(const char *datum_str, size_t datum_size)
     size_t hash_len = dap_chain_hash_to_str(&a_hash, a_str, a_str_max);
     if(!hash_len) {
         DAP_DELETE(a_str);
-        return NULL;
+        return NULL ;
     }
     return a_str;
 }
@@ -206,17 +204,32 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     //dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
     //dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
 
+    // read header
+    dap_http_header_t *hdr_session_close_id =
+            (cl_st->http) ? dap_http_header_find(cl_st->http->in_headers, "SessionCloseAfterRequest") : NULL;
+    dap_http_header_t *hdr_key_id =
+            (hdr_session_close_id && cl_st->http) ? dap_http_header_find(cl_st->http->in_headers, "KeyID") : NULL;
+
     enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
     if(dg) {
-        char *url = dg->url_path;
+        char *suburl = dg->url_path;
         char *request_str = dg->request_str;
         int request_size = dg->request_size;
-        printf("!!***!!! chain_mempool_proc arg=%d url=%s str=%s len=%d\n", arg, url, request_str, request_size);
+        printf("!!***!!! chain_mempool_proc arg=%d suburl=%s str=%s len=%d\n", arg, suburl, request_str, request_size);
         if(request_str && request_size > 1) {
-            uint8_t action = *(uint8_t*) request_str;
-            request_str++;
-            request_size--;
-            dap_datum_mempool_t *datum_mempool = dap_datum_mempool_deserialize(request_str, (size_t) request_size);
+            //  find what to do
+            uint8_t action = DAP_DATUM_MEMPOOL_NONE;    //*(uint8_t*) request_str;
+            if(dg->url_path_size > 0) {
+                if(!strcmp(suburl, "add"))
+                    action = DAP_DATUM_MEMPOOL_ADD;
+                else if(!strcmp(suburl, "check"))
+                    action = DAP_DATUM_MEMPOOL_CHECK;
+                else if(!strcmp(suburl, "del"))
+                    action = DAP_DATUM_MEMPOOL_DEL;
+            }
+            dap_datum_mempool_t *datum_mempool =
+                    (action != DAP_DATUM_MEMPOOL_NONE) ?
+                            dap_datum_mempool_deserialize(request_str, (size_t) request_size) : NULL;
             if(datum_mempool)
             {
                 dap_datum_mempool_free(datum_mempool);
@@ -271,7 +284,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                     break;
 
                 default: // unsupported command
-                    log_it(L_INFO, "Unknown request=%d! key=%s", action, a_key);
+                    log_it(L_INFO, "Unknown request=%s! key=%s", (suburl) ? suburl : "-", a_key);
                     DAP_DELETE(a_key);
                     enc_http_delegate_delete(dg);
                     if(key)
@@ -281,7 +294,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 DAP_DELETE(a_key);
             }
             else
-                *return_code = Http_Status_InternalServerError;
+                *return_code = Http_Status_BadRequest;
         }
         else
             *return_code = Http_Status_BadRequest;
@@ -290,9 +303,12 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     else {
         *return_code = Http_Status_Unauthorized;
     }
-    // no needed
-    //if(key)
-    //    dap_enc_key_delete(key);
+    if(hdr_session_close_id && hdr_session_close_id->value && !strcmp(hdr_session_close_id->value, "yes")) {
+        // close session
+        if(hdr_key_id && hdr_key_id->value) {
+            dap_enc_ks_delete(hdr_key_id->value);
+        }
+    }
 }
 
 /**
@@ -302,6 +318,5 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
  */
 void dap_chain_mempool_add_proc(struct dap_http * sh, const char * url)
 {
-    dap_chain_global_db_init(FILE_MEMPOOL_DB);
     dap_http_simple_proc_add(sh, url, 4096, chain_mempool_proc);
 }

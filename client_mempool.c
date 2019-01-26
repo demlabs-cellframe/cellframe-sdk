@@ -1,30 +1,40 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-
 #include <assert.h>
 #include <errno.h>
 #include "dap_common.h"
-
+#include "dap_config.h"
+#include "dap_events.h"
 #include "dap_client_pvt.h"
 #include "dap_http_client_simple.h"
 #include "client_mempool.h"
 
+#define DAP_APP_NAME NODE_NETNAME"-node"
+#define SYSTEM_PREFIX "/opt/"DAP_APP_NAME
+#define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
+
+static int listen_port_tcp = 8079;
+
+static int client_mempool_send_request(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool,
+        const char *action, bool is_last_req);
+
 // callback for dap_client_new() in client_mempool_connect()
 static void stage_status_callback(dap_client_t *a_client, void *a_arg)
 {
-    printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
+    //printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
 }
 // callback for dap_client_new() in client_mempool_connect()
 static void stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
-    printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
+    //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
 }
 
 // callback for dap_client_request_enc() in client_mempool_send_datum()
 static void a_response_proc(dap_client_t *a_client, void *str, size_t str_len)
 {
-    printf("a* _response_proc a_client=%x str=%s str_len=%d\n", a_client, str, str_len);
+    //printf("a* _response_proc a_client=%x str=%s str_len=%d\n", a_client, str, str_len);
     client_mempool_t *mempool = a_client->_inheritor;
     assert(mempool);
     if(mempool) {
@@ -45,7 +55,7 @@ static void a_response_proc(dap_client_t *a_client, void *str, size_t str_len)
 // callback for dap_client_request_enc() in client_mempool_send_datum()
 static void a_response_error(dap_client_t *a_client, int val)
 {
-    printf("* a_response_error a_client=%x val=%d\n", a_client, val);
+    //printf("* a_response_error a_client=%x val=%d\n", a_client, val);
     client_mempool_t *mempool = a_client->_inheritor;
     assert(mempool);
     if(mempool) {
@@ -73,6 +83,18 @@ int client_mempool_init(void)
 {
     int res = dap_client_init();
     res = dap_http_client_simple_init();
+    dap_config_t *g_config;
+    // read listen_port_tcp from settings
+    dap_config_init(SYSTEM_CONFIGS_DIR);
+    if((g_config = dap_config_open(DAP_APP_NAME)) == NULL) {
+        return -1;
+    }
+    else {
+        const char *port_str = dap_config_get_item_str(g_config, "server", "listen_port_tcp");
+        listen_port_tcp = (port_str) ? atoi(port_str) : 8079;
+    }
+    if(g_config)
+        dap_config_close(g_config);
     return res;
 }
 
@@ -99,7 +121,8 @@ client_mempool_t* client_mempool_connect(const char *addr)
     dap_client_pvt_t *l_client_internal = DAP_CLIENT_PVT(mempool->a_client);
 
     l_client_internal->uplink_addr = strdup(addr);
-    l_client_internal->uplink_port = 8079; // TODO read from kelvin-node.cfg [server][listen_port_tcp]
+    l_client_internal->uplink_port = listen_port_tcp; // reads from settings, default 8079
+    l_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
     dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
 
     mempool->state = CLIENT_MEMPOOL_CONNECT;
@@ -168,8 +191,11 @@ uint8_t* client_mempool_read(client_mempool_t *mempool, int *data_len)
 void client_mempool_close(client_mempool_t *mempool)
 {
     if(mempool) {
-        // TODO send last request for dehandshake with "SessionCloseAfterRequest=true"
-        // ...
+        // send last request for dehandshake with "SessionCloseAfterRequest=true"
+        client_mempool_send_request(mempool, NULL, 0, true);
+        // wait close session
+        client_mempool_wait(mempool, CLIENT_MEMPOOL_SENDED, 500);
+        // clean mempool
         dap_client_pvt_t *l_client_internal = DAP_CLIENT_PVT(mempool->a_client);
         DAP_DELETE(l_client_internal->uplink_addr);
         dap_client_delete(mempool->a_client);
@@ -195,22 +221,25 @@ static void client_mempool_reset(client_mempool_t *mempool, int new_state)
 }
 
 // send request to server
-static int client_mempool_send_request(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool, uint8_t action)
+static int client_mempool_send_request(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool,
+        const char *action, bool is_last_req)
 {
-    if(!mempool || !datum_mempool || mempool->state < CLIENT_MEMPOOL_CONNECTED)
+    if(!mempool || mempool->state < CLIENT_MEMPOOL_CONNECTED)
         return -1;
     const char * a_path = "mempool";
-    const char *a_suburl = "mempool"; //"enc_init";
-    const char* a_query = "";
-    size_t a_request_size = 0;
-    uint8_t *a_request = dap_datum_mempool_serialize(datum_mempool, &a_request_size);
-    uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2 + 1); // a_request + 1 byte for type action
-    *((uint8_t*) a_request_out) = action;
-    bin2hex(a_request_out + 1, a_request, a_request_size);
+    const char *a_suburl = (action) ? action : "close";
+    const char* a_query = NULL;
+    size_t a_request_size = 1;
+    uint8_t *a_request = (datum_mempool) ? dap_datum_mempool_serialize(datum_mempool, &a_request_size) : (uint8_t*) " ";
+    uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2); // a_request + 1 byte for type action
+    bin2hex(a_request_out, a_request, a_request_size);
     client_mempool_reset(mempool, CLIENT_MEMPOOL_SEND);
-    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request_out, a_request_size * 2 + 1,
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(mempool->a_client);
+    l_client_internal->is_close_session = is_last_req;
+    dap_client_request_enc(mempool->a_client, a_path, a_suburl, a_query, a_request_out, a_request_size * 2,
             a_response_proc, a_response_error);
-    DAP_DELETE(a_request);
+    if(datum_mempool)
+        DAP_DELETE(a_request);
     DAP_DELETE(a_request_out);
     return 1;
 }
@@ -222,7 +251,7 @@ static int client_mempool_send_request(client_mempool_t *mempool, dap_datum_memp
  */
 int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
 {
-    return client_mempool_send_request(mempool, datum_mempool, DAP_DATUM_MEMPOOL_ADD);
+    return client_mempool_send_request(mempool, datum_mempool, "add", false);
 }
 
 /**
@@ -232,7 +261,7 @@ int client_mempool_send_datum(client_mempool_t *mempool, dap_datum_mempool_t *da
  */
 int client_mempool_check_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
 {
-    return client_mempool_send_request(mempool, datum_mempool, DAP_DATUM_MEMPOOL_CHECK);
+    return client_mempool_send_request(mempool, datum_mempool, "check", false);
 }
 
 /**
@@ -242,5 +271,5 @@ int client_mempool_check_datum(client_mempool_t *mempool, dap_datum_mempool_t *d
  */
 int client_mempool_del_datum(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool)
 {
-    return client_mempool_send_request(mempool, datum_mempool, DAP_DATUM_MEMPOOL_DEL);
+    return client_mempool_send_request(mempool, datum_mempool, "del", false);
 }
