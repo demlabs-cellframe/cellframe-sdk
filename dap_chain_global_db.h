@@ -2,8 +2,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "dap_config.h"
 
-int dap_chain_global_db_init(const char *a_storage_path);
+int dap_chain_global_db_init(dap_config_t * a_config);
 
 void dap_chain_global_db_deinit();
 

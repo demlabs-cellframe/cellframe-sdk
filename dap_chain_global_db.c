@@ -1,14 +1,16 @@
-#include "dap_chain_global_db_pvt.h"
-
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <pthread.h>
+#include "dap_chain_global_db_pvt.h"
+#include "dap_chain_global_db.h"
 
 // for access from several streams
 static pthread_mutex_t ldb_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int dap_chain_global_db_init(const char *a_storage_path)
+int dap_chain_global_db_init(dap_config_t * g_config)
 {
+    const char *a_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     if(a_storage_path)
     {
         pthread_mutex_lock(&ldb_mutex);
