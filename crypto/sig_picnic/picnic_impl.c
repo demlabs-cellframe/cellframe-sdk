@@ -20,6 +20,8 @@
 #if defined (__WIN32)
 	#include <Windows.h>
 	#include <bcrypt.h>
+#elif defined (__APPLE__)
+    #include "macos_specific_endian.h"
 #else
     #include <endian.h>
 #endif

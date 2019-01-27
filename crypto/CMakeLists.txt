@@ -14,3 +14,5 @@ target_include_directories(dap_crypto PRIVATE rand iaes oaes sha3 msrln defeo_sc
 target_include_directories(dap_crypto INTERFACE . sha3)
 
 target_link_libraries(dap_crypto dap_core m)
+
+

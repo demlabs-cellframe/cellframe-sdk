@@ -23,4 +23,6 @@ size_t dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key,const void * msg,
                                      const size_t msg_size, void * signature, const size_t signature_size);
 
 void dap_enc_sig_bliss_key_delete(struct dap_enc_key *key);
+size_t dap_enc_sig_bliss_key_pub_output_size(struct dap_enc_key *l_key);
+int dap_enc_sig_bliss_key_pub_output(struct dap_enc_key *l_key, void * l_output);
 
