@@ -217,7 +217,8 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
         }
         else
         {
-            for(size_t total_sent = 0; total_sent < dap_cur->buf_out_size;) {
+            size_t total_sent = 0;
+            for(; total_sent < dap_cur->buf_out_size;) {
                 //log_it(DEBUG, "Output: %u from %u bytes are sent ", total_sent, dap_cur->buf_out_size);
                 ssize_t bytes_sent = send(dap_cur->socket,
                                       dap_cur->buf_out + total_sent,
@@ -230,7 +231,7 @@ static void read_write_cb (struct ev_loop* loop, struct ev_io* watcher, int reve
                 total_sent += (size_t)bytes_sent;
                 dap_cur->download_stat.buf_size_total += (size_t)bytes_sent;
             }
-            dap_cur->buf_out_size = 0;
+            dap_cur->buf_out_size -= total_sent;
         }
     }
 
