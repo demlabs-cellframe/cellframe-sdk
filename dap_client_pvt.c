@@ -69,8 +69,10 @@ void m_request_error(int,void *);
 void m_es_stream_delete(dap_events_socket_t * a_es, void * arg);
 void m_es_stream_read(dap_events_socket_t * a_es, void * arg);
 void m_es_stream_write(dap_events_socket_t * a_es, void * arg);
-void m_es_stream_error(dap_events_socket_t * a_es, void * arg);
-
+void m_es_stream_error(dap_events_socket_t * a_es, void * arg)
+{
+    // TODO function is used, need to implement it!!!
+}
 /**
  * @brief dap_client_internal_init
  * @return
@@ -137,9 +139,10 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     size_t l_key_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(a_client_pvt->session_key_open->pub_key_data_size);
                     char *l_key_str= DAP_NEW_Z_SIZE(char,l_key_str_size_max+1);
+                    // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
                     size_t l_key_str_enc_size = dap_enc_base64_encode(a_client_pvt->session_key_open->pub_key_data,
                                           a_client_pvt->session_key_open->pub_key_data_size,
-                                          l_key_str,DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                                          l_key_str,DAP_ENC_DATA_TYPE_B64);
 
                     log_it(L_DEBUG,"ENC request size %u",l_key_str_enc_size);
                     dap_client_pvt_request( a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
@@ -319,7 +322,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     size_t l_query_enc_size_max = l_query_size*5+16;
     char *l_query_enc = l_query_size ? DAP_NEW_Z_SIZE(char,l_query_enc_size_max+1 ):NULL;
 
-    size_t l_url_full_size_max  = 5*l_sub_url_size + 5*l_query_size + 5 + l_url_size+2;
+    size_t l_url_full_size_max  = 5*l_sub_url_size + 5*l_query_size + 16 + l_url_size+2;
     char * l_url_full = DAP_NEW_Z_SIZE(char, l_url_full_size_max+1);
 
     size_t l_request_enc_size_max = a_request_size ?a_request_size*2+16 : 0;
@@ -377,9 +380,17 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     snprintf(l_key_hdr_str,l_key_hdr_str_size_max,"KeyID: %s",a_client_internal->session_key_id );
 
 
-    dap_http_client_simple_request(l_url_full, a_request?"POST":"GET","text/text",
-                                       l_request_enc, l_request_enc_size, NULL,
-                                           m_request_response, m_request_error, a_client_internal, l_key_hdr_str);
+    char *a_custom_new[2];
+    size_t a_custom_count = 1;
+    a_custom_new[0] = l_key_hdr_str;
+    // close session
+    if(a_client_internal->is_close_session){
+        a_custom_new[1] = "SessionCloseAfterRequest: true";
+        a_custom_count++;
+    }
+    dap_http_client_simple_request_custom(l_url_full, a_request ? "POST" : "GET", "text/text",
+            l_request_enc, l_request_enc_size, NULL,
+            m_request_response, m_request_error, a_client_internal, a_custom_new, a_custom_count);
 
     DAP_DELETE(l_key_hdr_str);
     if( l_sub_url_enc )
@@ -444,7 +455,7 @@ void m_request_response(void * a_response,size_t a_response_size,void * a_obj)
 void m_enc_init_response(dap_client_t * a_client, void * a_response,size_t a_response_size)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if( a_response_size > 10 &&  a_response_size < 50){
+    if( a_response_size > 10) {// &&  a_response_size < 50){
         char l_session_id_b64 [DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE)+1]={0};
         char *l_bob_message_b64 = DAP_NEW_Z_SIZE(char,a_response_size- sizeof(l_session_id_b64)+1 );
         if (sscanf (a_response,"%s %s",l_session_id_b64, l_bob_message_b64) == 2 ){

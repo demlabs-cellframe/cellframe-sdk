@@ -74,7 +74,7 @@ typedef void (*dap_client_callback_t) (dap_client_t *, void*);
 typedef void (*dap_client_callback_int_t) (dap_client_t *, int);
 typedef void (*dap_client_callback_data_size_t) (dap_client_t *, void *, size_t);
 
-#define DAP_UPLINK_PATH_ENC_INIT         "1901248124123459"
+#define DAP_UPLINK_PATH_ENC_INIT         "enc_init" //"1901248124123459"
 #define DAP_UPLINK_PATH_DB               "01094787531354"
 #define DAP_UPLINK_PATH_STREAM_CTL       "091348758013553"
 #define DAP_UPLINK_PATH_STREAM           "874751843144"
