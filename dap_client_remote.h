@@ -67,6 +67,7 @@ typedef struct dap_client_remote{
     traffic_stats_t download_stat;
 
     char buf_out[DAP_CLIENT_REMOTE_BUF+1]; // Internal buffer for output data
+    size_t buf_out_offset;
 
     char hostaddr[1024]; // Address
     char service[128];

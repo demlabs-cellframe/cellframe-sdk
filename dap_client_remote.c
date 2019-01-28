@@ -84,6 +84,7 @@ dap_client_remote_t * dap_client_remote_create(dap_server_t * sh, int s, ev_io* 
     dsc->server = sh;
     dsc->watcher_client = w_client;
     dsc->_ready_to_read = true;
+    dsc->buf_out_offset = 0;
     _save_ip_and_port(dsc);
 
     HASH_ADD_INT(sh->clients, socket, dsc);
