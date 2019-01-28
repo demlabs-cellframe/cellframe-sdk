@@ -62,13 +62,13 @@ size_t circular_buffer_get_data_size(circular_buffer_t cBuf)
     return cBuf->dataSize;
 }
 
-void circular_buffer_push(circular_buffer_t cBuf,void *src, size_t length)
+void circular_buffer_push(circular_buffer_t cBuf, const void *src, size_t length)
 {
     if(length == 0)
         return;
 
     size_t writableLen = length;
-    void *pSrc = src;
+    const void *pSrc = src;
 
     if(writableLen > cBuf->capacity)//in case of size overflow
     {
@@ -164,8 +164,18 @@ int circular_buffer_write_In_socket(circular_buffer_t cBuf, int sockfd)
     {
         if(cBuf->headOffset + cBuf->dataSize <= cBuf->capacity)
         {
-            log_it(L_CRITICAL, "We always trying write all data!");
-            abort();
+            rdLen = send(sockfd,
+                         &cBuf->buffer[cBuf->headOffset],
+                    cBuf->dataSize, MSG_DONTWAIT | MSG_NOSIGNAL);
+
+            if(rdLen < 0) {
+                log_it(L_ERROR, "Can't write data in socket. %s", strerror(errno));
+                return -1;
+            }
+
+            cBuf->headOffset += rdLen;
+            if(cBuf->headOffset == cBuf->capacity)
+                cBuf->headOffset = 0;
         }
         else
         {
