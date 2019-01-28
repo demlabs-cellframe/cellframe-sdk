@@ -276,6 +276,17 @@ dap_stream_t * stream_new(dap_http_client_t * sh)
     return ret;
 }
 
+void dap_stream_delete(dap_stream_t * a_stream)
+{
+    if(a_stream == NULL)
+        return;
+    size_t i;
+    for(i = 0; i < a_stream->channel_count; i++)
+        dap_stream_ch_delete(a_stream->channel[i]);
+    if(a_stream->session)
+        dap_stream_session_close(a_stream->session->id);
+    free(a_stream);
+}
 
 /**
  * @brief dap_stream_new_es
