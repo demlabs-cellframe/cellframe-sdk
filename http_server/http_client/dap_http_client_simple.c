@@ -95,8 +95,8 @@ void dap_http_client_internal_delete(dap_http_client_internal_t * a_client_inter
  * @param a_error_callback
  * @param a_obj
  */
-void dap_http_client_simple_request(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, char * a_cookie, dap_http_client_simple_callback_data_t a_response_callback,
-                                   dap_http_client_simple_callback_error_t a_error_callback, void *a_obj, void * a_custom)
+void dap_http_client_simple_request_custom(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, char * a_cookie, dap_http_client_simple_callback_data_t a_response_callback,
+                                   dap_http_client_simple_callback_error_t a_error_callback, void *a_obj, char** a_custom, size_t a_custom_count)
 {
     log_it(L_DEBUG,"Simple HTTP request with static predefined buffer (%lu bytes) on url '%s'",
            DAP_HTTP_CLIENT_RESPONSE_SIZE_MAX, a_url);
@@ -124,8 +124,11 @@ void dap_http_client_simple_request(const char * a_url, const char * a_method, c
         if( a_request_content_type )
             l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers, a_request_content_type );
 
-        if( a_custom )
-            l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers,(char*) a_custom );
+        if(a_custom) {
+            for(int i = 0; i < a_custom_count; i++) {
+                l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers,(char*) a_custom[i]);
+            }
+        }
 
         if( a_cookie )
             l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers,(char*) a_cookie );
@@ -154,6 +157,29 @@ void dap_http_client_simple_request(const char * a_url, const char * a_method, c
     //curl_multi_perform(m_curl_mh, &m_curl_cond);
     pthread_cond_signal( &m_curl_cond);
     send_select_break();
+}
+
+/**
+ * @brief dap_http_client_simple_request
+ * @param a_url
+ * @param a_method
+ * @param a_request_content_type
+ * @param a_request
+ * @param a_request_size
+ * @param a_response_callback
+ * @param a_error_callback
+ * @param a_obj
+ */
+void dap_http_client_simple_request(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, char * a_cookie, dap_http_client_simple_callback_data_t a_response_callback,
+                                   dap_http_client_simple_callback_error_t a_error_callback, void *a_obj, void * a_custom)
+{
+    char *a_custom_new[1];
+    size_t a_custom_count = 0;
+    a_custom_new[0] = (char*)a_custom;
+    if(a_custom)
+        a_custom_count = 1;
+    dap_http_client_simple_request_custom(a_url, a_method, a_request_content_type, a_request, a_request_size,
+            a_cookie, a_response_callback, a_error_callback, a_obj, a_custom_new, a_custom_count);
 }
 
 /**
