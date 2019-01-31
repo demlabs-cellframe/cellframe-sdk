@@ -22,6 +22,11 @@
 #pragma once
 
 __BEGIN_DECLS
+#include "dap_common.h"
+#include "dap_config.h"
+
+#define UNIX_SOCKET_FILE "/opt/kelvin-node/var/run/node_cli.sock"
+//#define UNIX_SOCKET_FILE "/var/run/node_cli.sock"
 
 /**
  * Initialization of the server side of the interaction

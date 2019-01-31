@@ -25,6 +25,7 @@
 #include <errno.h>
 
 #ifndef _WIN32
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
@@ -45,21 +46,201 @@ typedef int SOCKET;
 #endif
 
 #include "dap_common.h"
-#include "dap_config.h"
 #include "dap_chain_node_cli.h"
 
 //#include "dap_chain_node_cli.h"
 
 #define LOG_TAG "chain_node_cli"
 
-#define SOCKET_FILE "/opt/kelvin-node/var/run/node_cli.sock"
-
 static SOCKET server_sockfd = -1;
+
+/**
+ * Wait for data
+ * timeout -  timeout in ms
+ * [Specifying a negative value in timeout means an infinite timeout.]
+ * [Specifying a timeout of zero causes poll() to return immediately, even if no file descriptors are ready.]
+ * return zero if the time limit expired
+ * return: >0 if data is present to read
+ * return: -1 if error
+ */
+int s_poll(int socket, int timeout)
+{
+    struct pollfd fds;
+    int res;
+    fds.fd = socket;
+    // POLLIN - received data
+    // POLLNVAL - closed the socket on our side
+    // POLLHUP - closed the socket on another side (does not work! Received POLLIN and the next reading returns 0 bytes)
+    fds.events = POLLIN; // | | POLLNVAL | POLLHUP | POLLERR | POLLPRI
+    res = poll(&fds, 1, timeout);
+
+    // since POLLIN=(POLLRDNORM | POLLRDBAND), then maybe revents=POLLRDNORM
+    if(res == 1 && !(fds.revents & POLLIN)) //if(res==1 && fds.revents!=POLLIN)
+        return -1;
+    return res;
+}
+
+/**
+ * Read from socket
+ *
+ * timeout in milliseconds
+ * return the number of read bytes (-1 err or -2 timeout)
+ */
+int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
+{
+    struct pollfd fds;
+    int res;
+/*
+    fds.fd = sock;
+    fds.events = POLLIN; // | POLLNVAL | POLLHUP | POLLERR | POLLPRI;// | POLLRDNORM;//POLLOUT |
+    res = poll(&fds, 1, timeout);
+    if(res == 1 && !(fds.revents & POLLIN))
+        return -1;
+    if(!res) // timeout
+        return -2;
+    if(res < 1) {
+        return -1;
+    }
+    */
+    res = read(sock, (char*) buf, bufsize);
+    res = recv(sock, (char*) buf, bufsize, 0); //MSG_WAITALL
+    if(res <= 0) { //EINTR=4  ENOENT=2 EINVAL=22 ECONNRESET=254
+        printf("[s_recv] recv()=%d errno=%d\n", res, errno);
+    }
+    return res;
+}
+
+#define ISUPPER(c)              ((c) >= 'A' && (c) <= 'Z')
+#define ISLOWER(c)              ((c) >= 'a' && (c) <= 'z')
+#define ISALPHA(c)              (ISUPPER (c) || ISLOWER (c))
+#define TOUPPER(c)              (ISLOWER (c) ? (c) - 'a' + 'A' : (c))
+#define TOLOWER(c)              (ISUPPER (c) ? (c) - 'A' + 'a' : (c))
+/**
+ * ascii_strncasecmp:
+ * @s1: string to compare with @s2
+ * @s2: string to compare with @s1
+ * @n: number of characters to compare
+ *
+ * Compare @s1 and @s2, ignoring the case of ASCII characters and any
+ * characters after the first @n in each string.
+ *
+ * Returns: 0 if the strings match, a negative value if @s1 < @s2,
+ *     or a positive value if @s1 > @s2.
+ */
+static int ascii_strncasecmp(const char *s1, const char *s2, size_t n)
+{
+    int c1, c2;
+    if(s1 != NULL || s2 != NULL)
+        return 0;
+    while(n && *s1 && *s2)
+    {
+        n -= 1;
+        c1 = (int) (unsigned char) TOLOWER(*s1);
+        c2 = (int) (unsigned char) TOLOWER(*s2);
+        if(c1 != c2)
+            return (c1 - c2);
+        s1++;
+        s2++;
+    }
+    if(n)
+        return (((int) (unsigned char) *s1) - ((int) (unsigned char) *s2));
+    else
+        return 0;
+}
+
+/**
+ * Reading from the socket till arrival the specified string
+ *
+ * stop_str - string to which reading will continue
+ * del_stop_str - удалять ли строку для поиска в конце
+ * timeout - in ms
+ * return: string (if waited for final characters) or NULL, if the string requires deletion
+ */
+char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout)
+{
+    bool bSuccess = false;
+    int nRecv = 0; // count of bytes received
+    int stop_str_len = (stop_str) ? strlen(stop_str) : 0;
+    // if there is nothing to look for
+    if(!stop_str_len)
+        return NULL;
+    int lpszBuffer_len = 256;
+    char *lpszBuffer = malloc(lpszBuffer_len);
+    // received string will not be larger than MAX_REPLY_LEN
+    while(1) //nRecv < MAX_REPLY_LEN)
+    {
+        // read one byte
+        int ret = s_recv(nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
+        //int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
+        if(ret <= 0)
+                {
+            break;
+        }
+        nRecv += ret;
+        //printf("%02x",*(lpszBuffer + nRecv));
+        while((nRecv + 1) >= lpszBuffer_len)
+        {
+            lpszBuffer_len *= 2;
+            lpszBuffer = (char*) realloc(lpszBuffer, lpszBuffer_len);
+        }
+        // search for the required string
+        if(nRecv >= stop_str_len) {
+            // found the required string
+            if(!strncasecmp(lpszBuffer + nRecv - stop_str_len, stop_str, stop_str_len)) {
+                bSuccess = true;
+                break;
+            }
+        }
+    };
+    // end reading
+    if(bSuccess) {
+        // delete the searched string
+        if(del_stop_str) {
+            lpszBuffer[nRecv - stop_str_len] = '\0';
+            if(dwLen)
+                *dwLen = nRecv - stop_str_len;
+        }
+        else {
+            lpszBuffer[nRecv] = '\0';
+            if(dwLen)
+                *dwLen = nRecv;
+        }
+        lpszBuffer = realloc(lpszBuffer, *dwLen + 1);
+        return lpszBuffer;
+    }
+    // in case of an error or missing string
+    if(dwLen)
+        *dwLen = 0;
+    free(lpszBuffer);
+    return NULL;
+}
+
 /**
  * threading function for processing a request from a client
  */
 static void* thread_one_client_func(void *args)
 {
+    SOCKET newsockfd = (SOCKET) (intptr_t) args;
+    log_it(L_INFO, "new connection sockfd=%d", newsockfd);
+
+    int str_len;
+    int timeout = 10000;
+    while(1)
+    {
+        // wait data from client
+        int is_data = 1;//s_poll(newsockfd, timeout);
+        printf("is data=%d\n",is_data);
+        // timeout
+        if(!is_data)
+            continue;
+        // ошибка (м.б. сокет закрыт)
+        if(is_data < 0)
+            break;
+        // receiving http header
+        char *str_header = s_get_next_str(newsockfd, &str_len, "\r\n\r\n", true, timeout);
+    };
+
+    log_it(L_INFO, "close connection sockfd=%d", newsockfd);
     return NULL;
 }
 
@@ -70,6 +251,7 @@ static void* thread_main_func(void *args)
 {
     SOCKET sockfd = (SOCKET) (intptr_t) args;
     SOCKET newsockfd;
+    log_it(L_INFO, "Server start socket=%s", UNIX_SOCKET_FILE);
     // wait of clients
     while(1)
     {
@@ -81,8 +263,6 @@ static void* thread_main_func(void *args)
             log_it(L_ERROR, "new connection break newsockfd=%d", newsockfd);
             break;
         }
-        log_it(L_INFO, "new connection newsockfd=%d", newsockfd);
-
         // create child thread for a client connection
         pthread_create(&threadId, NULL, thread_one_client_func, (void*) (intptr_t) newsockfd);
         // in order to thread not remain in state "dead" after completion
@@ -90,7 +270,7 @@ static void* thread_main_func(void *args)
     };
     // закрыть соединение
     int cs = closesocket(sockfd);
-    log_it(L_INFO, "Exit server thread socket=%d closesocket=%d\n", sockfd, cs);
+    log_it(L_INFO, "Exit server thread socket=%d closesocket=%d", sockfd, cs);
     return NULL;
 }
 
@@ -102,7 +282,7 @@ static void* thread_main_func(void *args)
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
-    struct sockaddr_un server = { AF_UNIX, SOCKET_FILE };
+    struct sockaddr_un server = { AF_UNIX, UNIX_SOCKET_FILE };
     //server.sun_family = AF_UNIX;
     //strcpy(server.sun_path, SOCKET_FILE);
 
@@ -117,18 +297,21 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET)
         return -1;
     int gdsg = sizeof(struct sockaddr_un);
-    if( access( SOCKET_FILE, R_OK ) != -1 )
-    {
-        unlink(SOCKET_FILE);
+    if(access( UNIX_SOCKET_FILE, R_OK) != -1)
+            {
+        unlink(UNIX_SOCKET_FILE);
     }
     // connecting the address with a socket
     if(bind(sockfd, (const struct sockaddr*) &server, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
-        log_it(L_ERROR, "Server can't start(err=%d). may be file=%s absent", errno, SOCKET_FILE);
+        // errno = EACCES  13  Permission denied
+        if(errno == EACCES) // EACCES=13
+            log_it(L_ERROR, "Server can't start(err=%d). Can't create file=%s [Permission denied]", errno,
+                    UNIX_SOCKET_FILE);
+        else
+            log_it(L_ERROR, "Server can't start(err=%d). May be problem with file=%s?", errno, UNIX_SOCKET_FILE);
         closesocket(sockfd);
         return -1;
     }
-    else
-        log_it(L_INFO, "Server start sock-file=%s", SOCKET_FILE);
     // turn on reception of connections
     if(listen(sockfd, 5) == SOCKET_ERROR)
         return -1;
