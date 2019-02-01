@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <glib.h>
 
 #ifndef _WIN32
 #include <poll.h>
@@ -63,7 +64,7 @@ static SOCKET server_sockfd = -1;
  * return: >0 if data is present to read
  * return: -1 if error
  */
-int s_poll(int socket, int timeout)
+static int s_poll(int socket, int timeout)
 {
     struct pollfd fds;
     int res;
@@ -81,6 +82,39 @@ int s_poll(int socket, int timeout)
 }
 
 /**
+ * Check socket for validity
+ */
+static bool is_valid_socket(SOCKET sock)
+{
+    struct pollfd fds;
+    fds.fd = sock;
+    fds.events = POLLIN;
+    // return: -1 err, 0 timeout, 1 waited
+    int count_desc = poll(&fds, 1, 0);
+    // error
+    if(count_desc == -1)
+        return false;
+    // event with an error code
+    if(count_desc > 0)
+            {
+        // feature of disconnection under Windows
+        // under Windows, with socket closed fds.revents=POLLHUP, in Unix fds.events = POLLIN
+        if(fds.revents & (POLLERR | POLLHUP | POLLNVAL))
+            return false;
+        // feature of disconnection under Unix (QNX)
+        // under Windows, with socket closed res = 0, in Unix res = -1
+        char buf[2];
+        int res = recv(sock, buf, 1, MSG_PEEK); // MSG_PEEK  The data is treated as unread and the next recv() function shall still return this data.
+        if(res < 0)
+            return false;
+        // data in the buffer must be(count_desc>0), but read 0 bytes(res=0)
+        if(!res && (fds.revents & POLLIN))
+            return false;
+    }
+    return true;
+}
+
+/**
  * Read from socket
  *
  * timeout in milliseconds
@@ -90,7 +124,6 @@ int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
 {
     struct pollfd fds;
     int res;
-/*
     fds.fd = sock;
     fds.events = POLLIN; // | POLLNVAL | POLLHUP | POLLERR | POLLPRI;// | POLLRDNORM;//POLLOUT |
     res = poll(&fds, 1, timeout);
@@ -101,8 +134,7 @@ int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
     if(res < 1) {
         return -1;
     }
-    */
-    res = read(sock, (char*) buf, bufsize);
+//    res = read(sock, (char*) buf, bufsize);
     res = recv(sock, (char*) buf, bufsize, 0); //MSG_WAITALL
     if(res <= 0) { //EINTR=4  ENOENT=2 EINVAL=22 ECONNRESET=254
         printf("[s_recv] recv()=%d errno=%d\n", res, errno);
@@ -177,7 +209,7 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
             break;
         }
         nRecv += ret;
-        //printf("%02x",*(lpszBuffer + nRecv));
+        //printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
         while((nRecv + 1) >= lpszBuffer_len)
         {
             lpszBuffer_len *= 2;
@@ -223,22 +255,70 @@ static void* thread_one_client_func(void *args)
     SOCKET newsockfd = (SOCKET) (intptr_t) args;
     log_it(L_INFO, "new connection sockfd=%d", newsockfd);
 
-    int str_len;
-    int timeout = 10000;
+    int str_len, marker = 0;
+    int timeout = 5000; // 5 sec
+    char **argv = NULL;
+    int argc = 0;
+    GList *cmd_param_list;
     while(1)
     {
         // wait data from client
-        int is_data = 1;//s_poll(newsockfd, timeout);
-        printf("is data=%d\n",is_data);
+        int is_data = s_poll(newsockfd, timeout);
+        printf("is data=%d sockfd=%d \n", is_data, newsockfd);
         // timeout
         if(!is_data)
             continue;
-        // ошибка (м.б. сокет закрыт)
+        // error (may be socket closed)
         if(is_data < 0)
             break;
+
+        int is_valid = is_valid_socket(newsockfd);
+        if(!is_valid)
+        {
+            printf("isvalid=%d sockfd=%d \n", is_valid, newsockfd);
+            break;
+        }
         // receiving http header
-        char *str_header = s_get_next_str(newsockfd, &str_len, "\r\n\r\n", true, timeout);
-    };
+        char *str_header = s_get_next_str(newsockfd, &str_len, "\r\n", true, timeout);
+        printf("str_header='%s'\n", str_header);
+        // bad format
+        if(!str_header)
+            break;
+        if(str_header && strlen(str_header) == 0) {
+            marker++;
+            if(marker == 1)
+                continue;
+        }
+        // filling parameters of command
+        if(marker == 1) {
+            cmd_param_list = g_list_append(cmd_param_list, str_header);
+            argc++;
+        }
+        else
+            free(str_header);
+        if(marker == 2) {
+            GList *list = cmd_param_list;
+            // form command
+            char cmd_params_count = g_list_length(list) - 1;
+            // command is found
+            if(cmd_params_count >= 0) {
+                char *cmd_name = list->data;
+                list = g_list_next(list);
+                // execute command
+                printf("execute command=%s ", cmd_name);
+                while(list) {
+                    printf("param=%s ", list->data);
+                    list = g_list_next(list);
+                }
+                printf("\n");
+                // TODO exec command
+                char *reply_str = "reply";
+                int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
+            }
+            g_list_free_full(cmd_param_list, free);
+            break;
+        }
+    }
 
     log_it(L_INFO, "close connection sockfd=%d", newsockfd);
     return NULL;
@@ -252,7 +332,7 @@ static void* thread_main_func(void *args)
     SOCKET sockfd = (SOCKET) (intptr_t) args;
     SOCKET newsockfd;
     log_it(L_INFO, "Server start socket=%s", UNIX_SOCKET_FILE);
-    // wait of clients
+// wait of clients
     while(1)
     {
         pthread_t threadId;
@@ -268,7 +348,7 @@ static void* thread_main_func(void *args)
         // in order to thread not remain in state "dead" after completion
         pthread_detach(threadId);
     };
-    // закрыть соединение
+// закрыть соединение
     int cs = closesocket(sockfd);
     log_it(L_INFO, "Exit server thread socket=%d closesocket=%d", sockfd, cs);
     return NULL;
@@ -283,8 +363,8 @@ static void* thread_main_func(void *args)
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
     struct sockaddr_un server = { AF_UNIX, UNIX_SOCKET_FILE };
-    //server.sun_family = AF_UNIX;
-    //strcpy(server.sun_path, SOCKET_FILE);
+//server.sun_family = AF_UNIX;
+//strcpy(server.sun_path, SOCKET_FILE);
 
     SOCKET sockfd;
 
@@ -293,7 +373,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         server_sockfd = 0;
     }
 
-    // create socket
+// create socket
     if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET)
         return -1;
     int gdsg = sizeof(struct sockaddr_un);
@@ -301,7 +381,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             {
         unlink(UNIX_SOCKET_FILE);
     }
-    // connecting the address with a socket
+// connecting the address with a socket
     if(bind(sockfd, (const struct sockaddr*) &server, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
         // errno = EACCES  13  Permission denied
         if(errno == EACCES) // EACCES=13
@@ -312,16 +392,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         closesocket(sockfd);
         return -1;
     }
-    // turn on reception of connections
+// turn on reception of connections
     if(listen(sockfd, 5) == SOCKET_ERROR)
         return -1;
-    // create thread for waiting of clients
+// create thread for waiting of clients
     pthread_t threadId;
     if(pthread_create(&threadId, NULL, thread_main_func, (void*) (intptr_t) sockfd) != 0) {
         closesocket(sockfd);
         return -1;
     }
-    // in order to thread not remain in state "dead" after completion
+// in order to thread not remain in state "dead" after completion
     pthread_detach(threadId);
     server_sockfd = sockfd;
     return 0;
