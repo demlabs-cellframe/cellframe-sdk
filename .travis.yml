@@ -1,7 +1,7 @@
 sudo: required
 language: cpp
 compiler: gcc
-dist: trusty
+dist: xenial
 notifications:
   email: false
 
