@@ -20,7 +20,7 @@ file(GLOB DAP_CLIENT_HEADERS *.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CLIENT_SRCS} ${DAP_CLIENT_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_crypto dap_core dap_http_server dap_session dap_stream)
+target_link_libraries(${PROJECT_NAME} dap_crypto dap_core dap_http_server dap_session dap_stream curl)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 
