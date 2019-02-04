@@ -55,6 +55,62 @@ typedef int SOCKET;
 
 static SOCKET server_sockfd = -1;
 
+int com_global_db(int argc, const char ** argv, char **str_reply)
+{
+    printf("com_global_db\n");
+    return 0;
+}
+
+int com_node(int argc, const char ** argv, char **str_reply)
+{
+    for(int i = 0; i < argc; i++)
+        printf("com_node i=%d str=%s\n", i, argv[i]);
+    if(str_reply)
+        *str_reply = g_strdup("text");
+    return 0;
+}
+
+int com_help(int argc, const char ** argv, char **str_reply)
+{
+    if(argc > 1) {
+        const COMMAND *cmd = find_command(argv[1]);
+        if(cmd)
+        {
+            if(str_reply)
+                *str_reply = g_strdup(cmd->doc);
+            return 1;
+        }
+        if(str_reply)
+            *str_reply = g_strdup_printf("command \"%s\" not recognized", argv[1]);
+    }
+    if(str_reply)
+        *str_reply = g_strdup("command not defined, enter \"help <cmd name>\"");
+    return -1;
+}
+
+COMMAND commands[] = {
+    { "global_db", com_global_db, "Work with database" },
+    { "node", com_node, "Work with node" },
+    { "help", com_help, "Display this text" },
+    { "?", com_help, "Synonym for `help'" },
+    { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
+};
+
+/**
+ *  Look up NAME as the name of a command, and return a pointer to that
+ *  command.  Return a NULL pointer if NAME isn't a command name.
+ */
+const COMMAND* find_command(const char *name)
+{
+    register int i;
+
+    for(i = 0; commands[i].name; i++)
+        if(strcmp(name, commands[i].name) == 0)
+            return (&commands[i]);
+
+    return ((COMMAND *) NULL);
+}
+
 /**
  * Wait for data
  * timeout -  timeout in ms
@@ -142,44 +198,6 @@ int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
     return res;
 }
 
-#define ISUPPER(c)              ((c) >= 'A' && (c) <= 'Z')
-#define ISLOWER(c)              ((c) >= 'a' && (c) <= 'z')
-#define ISALPHA(c)              (ISUPPER (c) || ISLOWER (c))
-#define TOUPPER(c)              (ISLOWER (c) ? (c) - 'a' + 'A' : (c))
-#define TOLOWER(c)              (ISUPPER (c) ? (c) - 'A' + 'a' : (c))
-/**
- * ascii_strncasecmp:
- * @s1: string to compare with @s2
- * @s2: string to compare with @s1
- * @n: number of characters to compare
- *
- * Compare @s1 and @s2, ignoring the case of ASCII characters and any
- * characters after the first @n in each string.
- *
- * Returns: 0 if the strings match, a negative value if @s1 < @s2,
- *     or a positive value if @s1 > @s2.
- */
-static int ascii_strncasecmp(const char *s1, const char *s2, size_t n)
-{
-    int c1, c2;
-    if(s1 != NULL || s2 != NULL)
-        return 0;
-    while(n && *s1 && *s2)
-    {
-        n -= 1;
-        c1 = (int) (unsigned char) TOLOWER(*s1);
-        c2 = (int) (unsigned char) TOLOWER(*s2);
-        if(c1 != c2)
-            return (c1 - c2);
-        s1++;
-        s2++;
-    }
-    if(n)
-        return (((int) (unsigned char) *s1) - ((int) (unsigned char) *s2));
-    else
-        return 0;
-}
-
 /**
  * Reading from the socket till arrival the specified string
  *
@@ -197,7 +215,7 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
     if(!stop_str_len)
         return NULL;
     int lpszBuffer_len = 256;
-    char *lpszBuffer = malloc(lpszBuffer_len);
+    char *lpszBuffer = calloc(1, lpszBuffer_len);
     // received string will not be larger than MAX_REPLY_LEN
     while(1) //nRecv < MAX_REPLY_LEN)
     {
@@ -259,12 +277,12 @@ static void* thread_one_client_func(void *args)
     int timeout = 5000; // 5 sec
     char **argv = NULL;
     int argc = 0;
-    GList *cmd_param_list;
+    GList *cmd_param_list = NULL;
     while(1)
     {
         // wait data from client
         int is_data = s_poll(newsockfd, timeout);
-        printf("is data=%d sockfd=%d \n", is_data, newsockfd);
+        //printf("is data=%d sockfd=%d \n", is_data, newsockfd);
         // timeout
         if(!is_data)
             continue;
@@ -275,12 +293,12 @@ static void* thread_one_client_func(void *args)
         int is_valid = is_valid_socket(newsockfd);
         if(!is_valid)
         {
-            printf("isvalid=%d sockfd=%d \n", is_valid, newsockfd);
+            //printf("isvalid=%d sockfd=%d \n", is_valid, newsockfd);
             break;
         }
         // receiving http header
         char *str_header = s_get_next_str(newsockfd, &str_len, "\r\n", true, timeout);
-        printf("str_header='%s'\n", str_header);
+        //printf("str_header='%s' sock=%d\n", str_header, newsockfd);
         // bad format
         if(!str_header)
             break;
@@ -292,6 +310,7 @@ static void* thread_one_client_func(void *args)
         // filling parameters of command
         if(marker == 1) {
             cmd_param_list = g_list_append(cmd_param_list, str_header);
+            //printf("g_list_append argc=%d command=%s ", argc, str_header);
             argc++;
         }
         else
@@ -299,28 +318,51 @@ static void* thread_one_client_func(void *args)
         if(marker == 2) {
             GList *list = cmd_param_list;
             // form command
-            char cmd_params_count = g_list_length(list) - 1;
+            guint argc = g_list_length(list);
             // command is found
-            if(cmd_params_count >= 0) {
+            if(argc >= 1) {
                 char *cmd_name = list->data;
                 list = g_list_next(list);
                 // execute command
-                printf("execute command=%s ", cmd_name);
-                while(list) {
-                    printf("param=%s ", list->data);
-                    list = g_list_next(list);
+                char *str_cmd = g_strdup_printf("%s", cmd_name);
+                const COMMAND *command = find_command(cmd_name);
+                if(command)
+                {
+                    while(list) {
+                        str_cmd = g_strdup_printf("%s;%s", str_cmd, list->data);
+                        list = g_list_next(list);
+                    }
+                    log_it(L_INFO, "execute command=%s", str_cmd);
+                    // exec command
+                    int res = 0;
+                    char **argv = g_strsplit(str_cmd, ";", -1);
+                    char *str_reply = NULL;
+                    // Call the command function
+                    if(command && command->func)
+                        res = (*(command->func))(argc, (const char **) argv, &str_reply);
+                    g_strfreev(argv);
+                    gchar *reply_body = g_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                    // return the result of the command function
+                    gchar *reply_str = g_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
+                            strlen(reply_body), reply_body);
+                    int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
+                    g_free(str_reply);
+                    g_free(reply_str);
+                    g_free(reply_body);
                 }
-                printf("\n");
-                // TODO exec command
-                char *reply_str = "reply";
-                int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
+                else
+                {
+                    log_it(L_ERROR, "can't recognize command=%s", str_cmd);
+                }
+                g_free(str_cmd);
             }
             g_list_free_full(cmd_param_list, free);
             break;
         }
     }
-
-    log_it(L_INFO, "close connection sockfd=%d", newsockfd);
+    // close connection
+    int cs = closesocket(newsockfd);
+    log_it(L_INFO, "close connection=%d sockfd=%d", cs, newsockfd);
     return NULL;
 }
 
@@ -348,9 +390,9 @@ static void* thread_main_func(void *args)
         // in order to thread not remain in state "dead" after completion
         pthread_detach(threadId);
     };
-// закрыть соединение
+    // close connection
     int cs = closesocket(sockfd);
-    log_it(L_INFO, "Exit server thread socket=%d closesocket=%d", sockfd, cs);
+    log_it(L_INFO, "Exit server thread=%d socket=%d", cs, sockfd);
     return NULL;
 }
 

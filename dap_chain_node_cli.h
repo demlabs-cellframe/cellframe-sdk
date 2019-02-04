@@ -28,16 +28,28 @@ __BEGIN_DECLS
 #define UNIX_SOCKET_FILE "/opt/kelvin-node/var/run/node_cli.sock"
 //#define UNIX_SOCKET_FILE "/var/run/node_cli.sock"
 
+typedef int cmdfunc_t(int argc, const char ** argv, char **str_reply);
+
+typedef struct {
+    char *name; /* User printable name of the function. */
+    cmdfunc_t *func; /* Function to call to do the job. */
+    char *doc; /* Documentation for this function.  */
+} COMMAND;
+
+/**
+ *  Look up NAME as the name of a command, and return a pointer to that
+ *  command.  Return a NULL pointer if NAME isn't a command name.
+ */
+const COMMAND* find_command(const char *name);
+
 /**
  * Initialization of the server side of the interaction
  * with the console kelvin-node-cli
- *
  */
 int dap_chain_node_cli_init(dap_config_t * g_config);
 
 /**
  * Deinitialization of the server side
- *
  */
 void dap_chain_node_cli_delete(void);
 
