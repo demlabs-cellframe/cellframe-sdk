@@ -29,7 +29,6 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_chain_sign.h"
-#include "dap_chain_pkey.h"
 
 #define DAP_CHAIN_ID_SIZE 8
 #define DAP_CHAIN_SHARD_ID_SIZE 8
@@ -37,7 +36,7 @@
 #define DAP_CHAIN_NODE_ROLE_SIZE 2
 #define DAP_CHAIN_HASH_SIZE 32
 #define DAP_CHAIN_HASH_FAST_SIZE 24
-#define DAP_CHAIN_ADDR_HASH_SIZE 24
+#define DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX 24
 #define DAP_CHAIN_TIMESTAMP_SIZE 8
 // Chain ID of the whole system
 typedef union dap_chain_id{
@@ -87,15 +86,51 @@ typedef enum dap_chain_hash_kind {
     HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1
 } dap_chain_hash_kind_t;
 
+typedef union dap_chain_pkey_type{
+    enum {
+        PKEY_TYPE_NULL = 0x0000,
+        PKEY_TYPE_SIGN_BLISS = 0x0901,
+        PKEY_TYPE_SIGN_TESLA = 0x0902,
+        PKEY_TYPE_SIGN_PICNIC = 0x0102,
+        PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
+
+    } type: 16;
+    uint16_t raw;
+} dap_chain_pkey_type_t;
+
+/**
+  * @struct dap_chain_pkey
+  * @brief Public keys
+  */
+typedef struct dap_chain_pkey{
+    struct {
+        dap_chain_pkey_type_t type; /// Pkey type
+        uint32_t size; /// Pkey size
+    } header; /// Only header's hash is used for verification
+    uint8_t pkey[]; /// @param pkey @brief raw pkey dat
+} DAP_ALIGN_PACKED dap_chain_pkey_t;
+
+
 
 typedef struct dap_chain_addr{
+    uint8_t addr_ver; // 0 for default
+    dap_chain_net_id_t net_id;  // Testnet, mainnet or alternet
     dap_chain_sign_type_t sig_type;
-    uint8_t hash[DAP_CHAIN_ADDR_HASH_SIZE];
+    union{
+        dap_chain_hash_fast_t hash;
+        struct {
+            uint8_t key_spend[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX];
+            uint8_t key_view[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX];
+        } key_sv;
+        uint8_t key[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX*2];
+    } data;
     uint64_t checksum;
-} dap_chain_addr_t;
+}  DAP_ALIGN_PACKED dap_chain_addr_t;
 
 
 size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max);
+
+char* dap_chain_addr_to_str_size(dap_chain_addr_t a_addr);
 
 /**
  * @brief dap_chain_hash_to_str

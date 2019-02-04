@@ -25,6 +25,7 @@
 #include <string.h>
 #include "dap_common.h"
 #include "dap_chain_common.h"
+#include "dap_enc_base58.h"
 
 #define LOG_TAG "chain_common"
 
@@ -47,4 +48,21 @@ size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_s
         snprintf(a_str+i*2+2,3,"%02x",a_hash->raw[i]);
     a_str[c_hash_str_size]='\0';
     return  strlen(a_str);
+}
+
+/**
+ * @brief dap_chain_addr_to_str_size
+ * @param a_addr
+ * @return
+ */
+char* dap_chain_addr_to_str_size(dap_chain_addr_t a_addr)
+{
+    size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE (sizeof (dap_chain_addr_t) );
+    char * l_ret = DAP_NEW_SIZE(char,l_ret_size);
+    if ( dap_enc_base58_encode(&a_addr,sizeof(a_addr),l_ret) > 0 )
+        return l_ret;
+    else{
+        DAP_DELETE(l_ret);
+        return NULL;
+    }
 }
