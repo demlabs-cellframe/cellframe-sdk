@@ -106,7 +106,7 @@ void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * a_key, const void *
 }
 
 
-size_t dap_enc_sig_bliss_get_sign(struct dap_enc_key * key,const void * msg,
+int dap_enc_sig_bliss_get_sign(struct dap_enc_key * key,const void * msg,
                                   const size_t msg_size, void * signature, const size_t signature_size)
 {
     if(signature_size < sizeof (bliss_signature_t)) {
@@ -125,12 +125,12 @@ size_t dap_enc_sig_bliss_get_sign(struct dap_enc_key * key,const void * msg,
                         &entropy);
 }
 
-size_t dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key,const void * msg,
+int dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key,const void * msg,
                                      const size_t msg_size, void * signature, const size_t signature_size)
 {
     if(signature_size < sizeof (bliss_signature_t)) {
         log_it(L_ERROR, "bad signature size");
-        return 0;
+        return -1;
     }
     return bliss_b_verify(signature, key->pub_key_data, msg, msg_size);
 }

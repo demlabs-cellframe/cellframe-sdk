@@ -220,6 +220,7 @@ dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size);
 // allocate memory for key struct
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);
 
+
 // default gen key
 dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t key_type, const void *kex_buf,
                                                       size_t kex_size, const void* seed,
