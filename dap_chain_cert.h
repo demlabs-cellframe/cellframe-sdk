@@ -48,6 +48,9 @@ dap_chain_cert_t * dap_chain_cert_generate(const char * a_cert_name,const char *
 
 dap_chain_cert_t * dap_chain_cert_generate_mem(const char * a_cert_name,
                                                dap_enc_key_type_t a_key_type );
+
+dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_net_id_t a_net_id);
+
 dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_file_path);
 void dap_chain_cert_add_folder(const char* a_cert_name_prefix,const char *a_folder_path);
 void dap_chain_cert_dump(dap_chain_cert_t * a_cert);

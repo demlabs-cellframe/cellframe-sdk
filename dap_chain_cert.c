@@ -29,7 +29,7 @@
 #include "dap_common.h"
 #include "dap_chain_cert.h"
 #include "dap_chain_cert_file.h"
-
+#include "dap_hash.h"
 #define LOG_TAG "dap_chain_cert"
 
 
@@ -76,6 +76,22 @@ int dap_chain_cert_init()
 size_t dap_chain_cert_sign_output_size(dap_chain_cert_t * a_cert, size_t a_size_wished)
 {
     return dap_chain_sign_create_output_cals_size( a_cert->key_private,a_size_wished);
+}
+
+/**
+ * @brief dap_chain_cert_to_addr
+ * @param a_cert
+ * @param a_net_id
+ * @return
+ */
+dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_net_id_t a_net_id)
+{
+    dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
+    l_addr->addr_ver = 1;
+    l_addr->net_id.uint64 = a_net_id.uint64;
+    l_addr->sig_type.raw = dap_chain_sign_type_from_key_type( a_cert->key_private->type).raw;
+   // dap_hash(&l_addr);
+    l_addr->checksum;
 }
 
 /**
