@@ -24,39 +24,44 @@
 
 #pragma once
 
-#include "dap_enc_key.h"
+#include "dap_chain_cert.h"
+#include "dap_chain_cert_file.h"
 #include "dap_chain_common.h"
 
 #include "dap_chain_wallet.h"
 
-#define DAP_CHAIN_WALLET_FILE_SIGNATURE 0x1a167bef15feea18
+#define DAP_CHAIN_WALLETS_FILE_SIGNATURE 0x1a167bef15feea18
 
-typedef struct dap_chain_wallet_key{
-    struct {
-        dap_chain_sign_type_t sig_type; /// Signature type
-        uint32_t key_size; /// Private key size
-    } header;
-    uint8_t key_raw[]; /// Raw data of the private key
-} DAP_ALIGN_PACKED dap_chain_wallet_key_t;
+typedef struct dap_chain_wallet_cert_hdr{
+    uint32_t version;
+    uint32_t cert_raw_size; /// Certificate size
+} DAP_ALIGN_PACKED dap_chain_wallet_cert_hdr_t;
 
+typedef struct dap_chain_wallet_cert{
+    dap_chain_wallet_cert_hdr_t header;
+    dap_chain_cert_file_t cert_raw[]; /// Raw certs data
+} DAP_ALIGN_PACKED dap_chain_wallet_cert_t;
+
+typedef struct dap_chain_wallet_file_hdr{
+    uint64_t signature;
+    uint32_t version;
+    uint8_t type; /// Wallets storage type 0x00 - uncompressed and unencrypted
+    dap_chain_net_id_t net_id; // Network where the wallet certificate is used
+    uint8_t certs[];
+} DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
 
 typedef struct dap_chain_wallet_file
 {
-    struct {
-        uint64_t signature;
-        uint32_t version;
-        uint8_t type; /// Wallet storage type 0x00 - uncompressed and unencrypted
-        uint64_t keys_size;
-    } DAP_ALIGN_PACKED header;
-    uint8_t keys[];
+    dap_chain_wallet_file_hdr_t header;
+    uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_t;
 
 typedef struct dap_chain_wallet_internal
 {
-    dap_chain_addr_t addr;
+    dap_chain_addr_t *addr;
     char * file_name;
-    size_t keys_count;
-    dap_enc_key_t ** keys;
+    size_t certs_count;
+    dap_chain_cert_t ** certs;
 } dap_chain_wallet_internal_t;
 
 #define DAP_CHAIN_WALLET_INTERNAL(a) ((dap_chain_wallet_internal_t *) a->_internal  )

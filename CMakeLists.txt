@@ -18,7 +18,7 @@ set(DAP_CHAIN_WALLET_HEADERS
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_WALLET_SRCS} ${DAP_CHAIN_WALLET_HEADERS})
 
 
-target_link_libraries(dap_chain_wallet dap_core dap_crypto dap_chain dap_chain_crypto )
+target_link_libraries(dap_chain_wallet dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net)
 target_include_directories(dap_chain_wallet INTERFACE .)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
