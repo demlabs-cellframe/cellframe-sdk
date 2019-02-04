@@ -44,7 +44,7 @@ typedef struct dap_chain_cert_file_hdr
     dap_chain_sign_type_t sign_type;
     uint64_t data_size;
     uint64_t data_pvt_size;
-    uint64_t inheritor_size;
+    uint64_t metadata_size;
     time_t ts_last_used;
 } DAP_ALIGN_PACKED dap_chain_cert_file_hdr_t;
 
@@ -53,5 +53,9 @@ typedef struct dap_chain_cert_file{
     uint8_t data[];
 }DAP_ALIGN_PACKED dap_chain_cert_file_t;
 
-int dap_chain_cert_file_save(dap_chain_cert_t * a_cert, const char * a_cert_file_path);
+int dap_chain_cert_save_file(dap_chain_cert_t * a_cert, const char * a_cert_file_path);
+int dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, void * a_data );
+size_t dap_chain_cert_save_mem_size(dap_chain_cert_t * a_cert );
+
 dap_chain_cert_t* dap_chain_cert_file_load(const char * a_cert_file_path);
+dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size);
