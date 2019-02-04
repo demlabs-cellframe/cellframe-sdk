@@ -25,50 +25,50 @@ struct s_circularBuffer{
 
 };
 
-extern CircularBuffer CircularBufferCreate(size_t size)
+extern circular_buffer_t circular_buffer_create(size_t size)
 {
     size_t totalSize = sizeof(struct s_circularBuffer) + size;
     void *p = malloc(totalSize);
-    CircularBuffer buffer = (CircularBuffer)p;
+    circular_buffer_t buffer = (circular_buffer_t)p;
     buffer->buffer = p + sizeof(struct s_circularBuffer);
     buffer->capacity = size;
-    CircularBufferReset(buffer);
+    circular_buffer_reset(buffer);
     return buffer;
 }
 
-void CircularBufferFree(CircularBuffer cBuf)
+void circular_buffer_free(circular_buffer_t cBuf)
 {
-    CircularBufferReset(cBuf);
+    circular_buffer_reset(cBuf);
     cBuf->capacity = 0;
     cBuf->dataSize = 0;
     cBuf->buffer = NULL;
     free(cBuf);
 }
 
-void CircularBufferReset(CircularBuffer cBuf)
+void circular_buffer_reset(circular_buffer_t cBuf)
 {
     cBuf->headOffset = -1;
     cBuf->tailOffset = -1;
     cBuf->dataSize = 0;
 }
 
-size_t CircularBufferGetCapacity(CircularBuffer cBuf)
+size_t circular_buffer_get_capacity(circular_buffer_t cBuf)
 {
     return cBuf->capacity;
 }
 
-size_t CircularBufferGetDataSize(CircularBuffer cBuf)
+size_t circular_buffer_get_data_size(circular_buffer_t cBuf)
 {
     return cBuf->dataSize;
 }
 
-void CircularBufferPush(CircularBuffer cBuf,void *src, size_t length)
+void circular_buffer_push(circular_buffer_t cBuf, const void *src, size_t length)
 {
     if(length == 0)
         return;
 
     size_t writableLen = length;
-    void *pSrc = src;
+    const void *pSrc = src;
 
     if(writableLen > cBuf->capacity)//in case of size overflow
     {
@@ -133,7 +133,7 @@ void CircularBufferPush(CircularBuffer cBuf,void *src, size_t length)
 #include <sys/types.h>
 #include <sys/socket.h>
 
-int CircularBufferWriteInSocket(CircularBuffer cBuf, int sockfd)
+int circular_buffer_write_In_socket(circular_buffer_t cBuf, int sockfd)
 {
     if(cBuf->dataSize == 0) {
         return 0;
@@ -164,8 +164,18 @@ int CircularBufferWriteInSocket(CircularBuffer cBuf, int sockfd)
     {
         if(cBuf->headOffset + cBuf->dataSize <= cBuf->capacity)
         {
-            log_it(L_CRITICAL, "We always trying write all data!");
-            abort();
+            rdLen = send(sockfd,
+                         &cBuf->buffer[cBuf->headOffset],
+                    cBuf->dataSize, MSG_DONTWAIT | MSG_NOSIGNAL);
+
+            if(rdLen < 0) {
+                log_it(L_ERROR, "Can't write data in socket. %s", strerror(errno));
+                return -1;
+            }
+
+            cBuf->headOffset += rdLen;
+            if(cBuf->headOffset == cBuf->capacity)
+                cBuf->headOffset = 0;
         }
         else
         {
@@ -181,7 +191,7 @@ int CircularBufferWriteInSocket(CircularBuffer cBuf, int sockfd)
 
             if(rdLen < (ssize_t)countBytesToEnd) {
                 log_it(L_WARNING, "rdLen < countBytesToEnd");
-                CircularBufferPop(cBuf, rdLen, NULL);
+                circular_buffer_pop(cBuf, rdLen, NULL);
                 return rdLen;
             }
 
@@ -215,7 +225,7 @@ int CircularBufferWriteInSocket(CircularBuffer cBuf, int sockfd)
 
 #endif
 
-size_t inter_circularBuffer_read(CircularBuffer cBuf, size_t length, void *dataOut, bool resetHead)
+size_t inter_circularBuffer_read(circular_buffer_t cBuf, size_t length, void *dataOut, bool resetHead)
 {
     if(cBuf->dataSize == 0 || length == 0)
         return 0;
@@ -284,29 +294,29 @@ size_t inter_circularBuffer_read(CircularBuffer cBuf, size_t length, void *dataO
 }
 
 
-size_t CircularBufferPop(CircularBuffer cBuf, size_t length, void *dataOut)
+size_t circular_buffer_pop(circular_buffer_t cBuf, size_t length, void *dataOut)
 {
     return inter_circularBuffer_read(cBuf,length,dataOut,true);
 }
 
-size_t CircularBufferRead(CircularBuffer cBuf, size_t length, void *dataOut)
+size_t circular_buffer_read(circular_buffer_t cBuf, size_t length, void *dataOut)
 {
     return inter_circularBuffer_read(cBuf,length,dataOut,false);
 }
 
 
 //print circular buffer's content into str,
-void CircularBufferPrint(CircularBuffer cBuf, bool hex)
+void circular_buffer_print(circular_buffer_t cBuf, bool hex)
 {
     u_int8_t *b = cBuf->buffer;
-    size_t cSize = CircularBufferGetCapacity(cBuf);
+    size_t cSize = circular_buffer_get_capacity(cBuf);
     char *str = malloc(2*cSize+1);
 
     char c;
 
     for(size_t i=0; i<cSize; i++)
     {
-        if(CircularBufferGetDataSize(cBuf) == 0)
+        if(circular_buffer_get_data_size(cBuf) == 0)
         {
             c = '_';
         }
@@ -330,7 +340,7 @@ void CircularBufferPrint(CircularBuffer cBuf, bool hex)
             sprintf(str+i*2, "%c|",c);
     }
 
-    printf("CircularBuffer: %s <size %zu dataSize:%zu>\n",str,CircularBufferGetCapacity(cBuf),CircularBufferGetDataSize(cBuf));
+    printf("CircularBuffer: %s <size %zu dataSize:%zu>\n",str,circular_buffer_get_capacity(cBuf),circular_buffer_get_data_size(cBuf));
 
     free(str);
 }
