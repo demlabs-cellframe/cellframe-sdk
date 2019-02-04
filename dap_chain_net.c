@@ -26,9 +26,10 @@
 #include <string.h>
 #include <pthread.h>
 
+#include "uthash.h"
+
 #include "dap_common.h"
 #include "dap_config.h"
-//#include "dap_
 #include "dap_chain_net.h"
 #include "dap_chain_node_ctl.h"
 #include "dap_module.h"
@@ -47,8 +48,16 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_ctl_t * node;
 } dap_chain_net_pvt_t;
 
+typedef struct dap_chain_net_item{
+    char name [DAP_CHAIN_NET_NAME_MAX];
+    dap_chain_net_t * chain_net;
+    UT_hash_handle hh;
+} dap_chain_net_item_t;
+
 #define PVT(a) ( (dap_chain_net_pvt_t *) a->pvt )
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) a.pvt )
+
+dap_chain_net_item_t * s_net_items = NULL;
 
 size_t            s_net_configs_count = 0;
 pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
@@ -186,10 +195,39 @@ int dap_chain_net_init()
 
         s_net_proc_start(l_net);
         log_it(L_NOTICE, "Сhain network initialized");
+        dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
+        snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
+                     ,dap_config_get_item_str(l_cfg , "general" , "name" ));
+        l_net_item->chain_net = l_net;
+        HASH_ADD_STR(s_net_items,name,l_net_item);
         return 0;
     }
 }
 
 void dap_chain_net_deinit()
 {
+}
+
+/**
+ * @brief dap_chain_net_by_name
+ * @param a_name
+ * @return
+ */
+dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
+{
+    dap_chain_net_item_t * l_net_item = NULL;
+    HASH_FIND_STR(s_net_items,a_name,l_net_item );
+    if ( l_net_item )
+        return l_net_item->chain_net;
+    else
+        return NULL;
+}
+
+dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_name( a_name );
+    dap_chain_net_id_t l_ret = {0};
+    if (l_net)
+        l_ret.uint64 = l_net->pub.id.uint64;
+    return l_ret;
 }

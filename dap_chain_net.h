@@ -29,6 +29,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define DAP_CHAIN_NET_NAME_MAX 32
+
 typedef struct dap_chain_net{
     struct {
         dap_chain_net_id_t id;
@@ -44,3 +46,5 @@ dap_chain_net_t * dap_chain_net_new (const char * a_id,  const char * a_name,
                                      const char* a_node_role , const char* a_node_name );
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 
+dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
+dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
