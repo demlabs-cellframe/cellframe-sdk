@@ -177,6 +177,15 @@ void dap_http_header_remove(dap_http_header_t ** top, dap_http_header_t * hdr )
     free(hdr->value);
 }
 
+void print_dap_http_headers(dap_http_header_t * top)
+{
+    dap_http_header_t * ret;
+    log_it(L_DEBUG, "Print HTTP headers");
+    for(ret=top; ret; ret=ret->next) {
+        log_it(L_DEBUG, "%s: %s", ret->name, ret->value);
+    }
+}
+
 /**
  * @brief dap_http_header_find Looks or the header with specified name
  * @param top Top of the list

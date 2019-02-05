@@ -46,4 +46,7 @@ extern dap_http_header_t * dap_http_header_find(dap_http_header_t * top, const c
 
 extern void dap_http_header_remove(dap_http_header_t ** top,dap_http_header_t * hdr );
 
+// For debug output
+extern void print_dap_http_headers(dap_http_header_t * top);
+
 #endif
