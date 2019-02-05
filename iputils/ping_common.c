@@ -879,6 +879,7 @@ int gather_statistics(uint8_t *icmph, int icmplen,
             else
                 log_printf(" time=%ld.%03ld ms", triptime / 1000,
                         triptime % 1000);
+            log_printf(" tsum=%d ", tsum);
         }
         if(dupflag)
             log_printf(" (DUP!)");

@@ -455,7 +455,10 @@ static int ping_main(int argc, char **argv)
     optind = 0;
 
     if(!argc)
-        error(1, EDESTADDRREQ, "usage error");
+    {
+        //error(1, EDESTADDRREQ, "usage error");
+        return -EDESTADDRREQ;//    89  Destination address required
+    }
 
     target = argv[argc - 1];
 
@@ -489,7 +492,10 @@ static int ping_main(int argc, char **argv)
 
     status = getaddrinfo(target, NULL, &hints, &result);
     if(status)
-        error(2, 0, "%s: %s", target, gai_strerror(status));
+    {
+        //error(2, 0, "%s: %s", target, gai_strerror(status));
+        return -EADDRNOTAVAIL;//
+    }
 
     for(ai = result; ai; ai = ai->ai_next) {
         switch (ai->ai_family) {
@@ -500,7 +506,10 @@ static int ping_main(int argc, char **argv)
             status = ping6_run(argc, argv, ai, &sock6);
             break;
         default:
-            error(2, 0, "unknown protocol family: %d", ai->ai_family);
+        {
+            //error(2, 0, "unknown protocol family: %d", ai->ai_family);
+            return -EPFNOSUPPORT;
+        }
         }
 
         if(status == 0)
@@ -531,6 +540,7 @@ int ping_util_common(int type, const char *addr, int count)
      Need change range for other users:
      # sysctl net.ipv4.ping_group_range="1 65000"
      */
+    tsum = ntransmitted = nreceived = exiting = 0;
     int argc = 3;
     const char *argv[argc];
     if(type != 4)
@@ -539,11 +549,11 @@ int ping_util_common(int type, const char *addr, int count)
         argv[0] = "ping4";
     argv[1] = g_strdup_printf("-c%d", count);
     argv[2] = addr;
-    ping_main(argc, (char**) argv);
+    int status = ping_main(argc, (char**) argv);
     g_free((char*) argv[1]);
-    if(ntransmitted > 1 && nreceived > 1)
+    if(ntransmitted >= 1 && nreceived >= 1)
         return tsum;
-    return -1;
+    return status;
 }
 
 /**

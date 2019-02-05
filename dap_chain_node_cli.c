@@ -46,6 +46,7 @@ typedef int SOCKET;
 #include <WS2tcpip.h>
 #endif
 
+#include "iputils/iputils.h"
 #include "dap_common.h"
 #include "dap_chain_node_cli.h"
 
@@ -55,13 +56,47 @@ typedef int SOCKET;
 
 static SOCKET server_sockfd = -1;
 
-int com_global_db(int argc, const char ** argv, char **str_reply)
+/**
+ * find option value
+ */
+static bool find_option_val(const char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
+{
+    int arg_index = arg_start;
+    int arg_character, on_or_off, next_arg, i;
+    char *arg_string;
+
+    while(arg_index < arg_end)
+    {
+        arg_string = (char *) argv[arg_index];
+        // find opt_name
+        if(arg_string && opt_name && !strcmp(arg_string, opt_name)) {
+            // find opt_value
+            if(opt_value) {
+                arg_string = (char *) argv[++arg_index];
+                if(arg_string) {
+                    *opt_value = arg_string;
+                    return true;
+                }
+            }
+            else
+                // need only opt_name
+                return true;
+        }
+        arg_index++;
+    }
+    return false;
+}
+
+static int com_global_db(int argc, const char ** argv, char **str_reply)
 {
     printf("com_global_db\n");
     return 0;
 }
 
-int com_node(int argc, const char ** argv, char **str_reply)
+/**
+ * Node command
+ */
+static int com_node(int argc, const char ** argv, char **str_reply)
 {
     for(int i = 0; i < argc; i++)
         printf("com_node i=%d str=%s\n", i, argv[i]);
@@ -70,7 +105,55 @@ int com_node(int argc, const char ** argv, char **str_reply)
     return 0;
 }
 
-int com_help(int argc, const char ** argv, char **str_reply)
+/**
+ * Ping command
+ */
+static int com_ping(int argc, const char** argv, char **str_reply)
+{
+    const char *addr = NULL;
+    int n = 4;
+    if(argc > 1)
+        addr = argv[1];
+    const char *n_str = NULL;
+    if(find_option_val(argv, 2, argc, "-n", &n_str))
+        n = (n_str) ? atoi(n_str) : 4;
+    else if(find_option_val(argv, 2, argc, "-c", &n_str))
+        n = (n_str) ? atoi(n_str) : 4;
+    if(n <= 1)
+        n = 1;
+    iputils_set_verbose();
+    int res = (addr) ? ping_util(addr, n) : -EADDRNOTAVAIL;
+    if(res >= 0) {
+        if(str_reply)
+            *str_reply = g_strdup_printf("ping %s time=%.1lf ms", addr, res * 1. / 1000);
+    }
+    else {
+        if(str_reply)
+        {
+            switch (-res)
+            {
+            case EDESTADDRREQ:
+                *str_reply = g_strdup_printf("ping %s error: %s", addr, "Destination address required");
+                break;
+            case EADDRNOTAVAIL:
+                *str_reply = g_strdup_printf("ping %s error: %s", (addr) ? addr : "",
+                        (addr) ? "Host not found" : "Host not defined");
+                break;
+            case EPFNOSUPPORT:
+                *str_reply = g_strdup_printf("ping %s error: %s", addr, "Unknown protocol family");
+                break;
+            default:
+                *str_reply = g_strdup_printf("ping %s error(%d)", addr, -res);
+            }
+        }
+    }
+    return res;
+}
+
+/**
+ * Help command
+ */
+static int com_help(int argc, const char ** argv, char **str_reply)
 {
     if(argc > 1) {
         const COMMAND *cmd = find_command(argv[1]);
@@ -88,9 +171,10 @@ int com_help(int argc, const char ** argv, char **str_reply)
     return -1;
 }
 
-COMMAND commands[] = {
+static const COMMAND commands[] = {
     { "global_db", com_global_db, "Work with database" },
     { "node", com_node, "Work with node" },
+    { "ping", com_ping, "Ping utility" },
     { "help", com_help, "Display this text" },
     { "?", com_help, "Synonym for `help'" },
     { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
@@ -125,13 +209,13 @@ static int s_poll(int socket, int timeout)
     struct pollfd fds;
     int res;
     fds.fd = socket;
-    // POLLIN - received data
-    // POLLNVAL - closed the socket on our side
-    // POLLHUP - closed the socket on another side (does not work! Received POLLIN and the next reading returns 0 bytes)
+// POLLIN - received data
+// POLLNVAL - closed the socket on our side
+// POLLHUP - closed the socket on another side (does not work! Received POLLIN and the next reading returns 0 bytes)
     fds.events = POLLIN; // | | POLLNVAL | POLLHUP | POLLERR | POLLPRI
     res = poll(&fds, 1, timeout);
 
-    // since POLLIN=(POLLRDNORM | POLLRDBAND), then maybe revents=POLLRDNORM
+// since POLLIN=(POLLRDNORM | POLLRDBAND), then maybe revents=POLLRDNORM
     if(res == 1 && !(fds.revents & POLLIN)) //if(res==1 && fds.revents!=POLLIN)
         return -1;
     return res;
@@ -145,25 +229,25 @@ static bool is_valid_socket(SOCKET sock)
     struct pollfd fds;
     fds.fd = sock;
     fds.events = POLLIN;
-    // return: -1 err, 0 timeout, 1 waited
+// return: -1 err, 0 timeout, 1 waited
     int count_desc = poll(&fds, 1, 0);
-    // error
+// error
     if(count_desc == -1)
         return false;
-    // event with an error code
+// event with an error code
     if(count_desc > 0)
             {
-        // feature of disconnection under Windows
-        // under Windows, with socket closed fds.revents=POLLHUP, in Unix fds.events = POLLIN
+// feature of disconnection under Windows
+// under Windows, with socket closed fds.revents=POLLHUP, in Unix fds.events = POLLIN
         if(fds.revents & (POLLERR | POLLHUP | POLLNVAL))
             return false;
-        // feature of disconnection under Unix (QNX)
-        // under Windows, with socket closed res = 0, in Unix res = -1
+// feature of disconnection under Unix (QNX)
+// under Windows, with socket closed res = 0, in Unix res = -1
         char buf[2];
         int res = recv(sock, buf, 1, MSG_PEEK); // MSG_PEEK  The data is treated as unread and the next recv() function shall still return this data.
         if(res < 0)
             return false;
-        // data in the buffer must be(count_desc>0), but read 0 bytes(res=0)
+// data in the buffer must be(count_desc>0), but read 0 bytes(res=0)
         if(!res && (fds.revents & POLLIN))
             return false;
     }
@@ -211,29 +295,29 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
     bool bSuccess = false;
     int nRecv = 0; // count of bytes received
     int stop_str_len = (stop_str) ? strlen(stop_str) : 0;
-    // if there is nothing to look for
+// if there is nothing to look for
     if(!stop_str_len)
         return NULL;
     int lpszBuffer_len = 256;
     char *lpszBuffer = calloc(1, lpszBuffer_len);
-    // received string will not be larger than MAX_REPLY_LEN
+// received string will not be larger than MAX_REPLY_LEN
     while(1) //nRecv < MAX_REPLY_LEN)
     {
-        // read one byte
+// read one byte
         int ret = s_recv(nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
-        //int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
+//int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
         if(ret <= 0)
                 {
             break;
         }
         nRecv += ret;
-        //printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
+//printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
         while((nRecv + 1) >= lpszBuffer_len)
         {
             lpszBuffer_len *= 2;
             lpszBuffer = (char*) realloc(lpszBuffer, lpszBuffer_len);
         }
-        // search for the required string
+// search for the required string
         if(nRecv >= stop_str_len) {
             // found the required string
             if(!strncasecmp(lpszBuffer + nRecv - stop_str_len, stop_str, stop_str_len)) {
@@ -242,9 +326,9 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
             }
         }
     };
-    // end reading
+// end reading
     if(bSuccess) {
-        // delete the searched string
+// delete the searched string
         if(del_stop_str) {
             lpszBuffer[nRecv - stop_str_len] = '\0';
             if(dwLen)
@@ -258,7 +342,7 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
         lpszBuffer = realloc(lpszBuffer, *dwLen + 1);
         return lpszBuffer;
     }
-    // in case of an error or missing string
+// in case of an error or missing string
     if(dwLen)
         *dwLen = 0;
     free(lpszBuffer);
@@ -280,13 +364,13 @@ static void* thread_one_client_func(void *args)
     GList *cmd_param_list = NULL;
     while(1)
     {
-        // wait data from client
+// wait data from client
         int is_data = s_poll(newsockfd, timeout);
-        //printf("is data=%d sockfd=%d \n", is_data, newsockfd);
-        // timeout
+//printf("is data=%d sockfd=%d \n", is_data, newsockfd);
+// timeout
         if(!is_data)
             continue;
-        // error (may be socket closed)
+// error (may be socket closed)
         if(is_data < 0)
             break;
 
@@ -296,10 +380,10 @@ static void* thread_one_client_func(void *args)
             //printf("isvalid=%d sockfd=%d \n", is_valid, newsockfd);
             break;
         }
-        // receiving http header
+// receiving http header
         char *str_header = s_get_next_str(newsockfd, &str_len, "\r\n", true, timeout);
-        //printf("str_header='%s' sock=%d\n", str_header, newsockfd);
-        // bad format
+//printf("str_header='%s' sock=%d\n", str_header, newsockfd);
+// bad format
         if(!str_header)
             break;
         if(str_header && strlen(str_header) == 0) {
@@ -307,7 +391,7 @@ static void* thread_one_client_func(void *args)
             if(marker == 1)
                 continue;
         }
-        // filling parameters of command
+// filling parameters of command
         if(marker == 1) {
             cmd_param_list = g_list_append(cmd_param_list, str_header);
             //printf("g_list_append argc=%d command=%s ", argc, str_header);
@@ -360,7 +444,7 @@ static void* thread_one_client_func(void *args)
             break;
         }
     }
-    // close connection
+// close connection
     int cs = closesocket(newsockfd);
     log_it(L_INFO, "close connection=%d sockfd=%d", cs, newsockfd);
     return NULL;
@@ -380,17 +464,17 @@ static void* thread_main_func(void *args)
         pthread_t threadId;
         struct sockaddr_in peer;
         socklen_t size = sizeof(peer);
-        // received a new connection request
+// received a new connection request
         if((newsockfd = accept(sockfd, (struct sockaddr*) &peer, &size)) == (SOCKET) -1) {
             log_it(L_ERROR, "new connection break newsockfd=%d", newsockfd);
             break;
         }
-        // create child thread for a client connection
+// create child thread for a client connection
         pthread_create(&threadId, NULL, thread_one_client_func, (void*) (intptr_t) newsockfd);
-        // in order to thread not remain in state "dead" after completion
+// in order to thread not remain in state "dead" after completion
         pthread_detach(threadId);
     };
-    // close connection
+// close connection
     int cs = closesocket(sockfd);
     log_it(L_INFO, "Exit server thread=%d socket=%d", cs, sockfd);
     return NULL;
@@ -425,7 +509,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
 // connecting the address with a socket
     if(bind(sockfd, (const struct sockaddr*) &server, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
-        // errno = EACCES  13  Permission denied
+// errno = EACCES  13  Permission denied
         if(errno == EACCES) // EACCES=13
             log_it(L_ERROR, "Server can't start(err=%d). Can't create file=%s [Permission denied]", errno,
                     UNIX_SOCKET_FILE);
