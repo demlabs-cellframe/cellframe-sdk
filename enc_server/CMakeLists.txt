@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(dap_enc_server)
+project(dap_enc_server C)
   
 set(DAP_ENC_SERVER_SRCS  dap_enc_http.c  dap_enc_ks.c)
 
