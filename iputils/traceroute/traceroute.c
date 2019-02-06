@@ -33,7 +33,6 @@
 #include <glib.h>
 #include "traceroute.h"
 
-
 #ifndef ICMP6_DST_UNREACH_BEYONDSCOPE
 #ifdef ICMP6_DST_UNREACH_NOTNEIGHBOR
 #define ICMP6_DST_UNREACH_BEYONDSCOPE ICMP6_DST_UNREACH_NOTNEIGHBOR
@@ -629,42 +628,42 @@ int traceroute_main(int argc, char *argv[]) {
     if(CLIF_parse(argc, argv, option_list, arg_list,
     CLIF_MAY_JOIN_ARG | CLIF_HELP_EMPTY) < 0
             )
-        return -1; //exit(2);
+        return -EADDRNOTAVAIL; //exit(2);
 
     ops = tr_get_module(module);
     if(!ops) {
         ex_error("Unknown traceroute module %s", module);
-        return -1;
+        return -2;
     }
 
     if(!first_hop || first_hop > max_hops) {
         ex_error("first hop out of range");
-        return -1;
+        return -3;
     }
     if(max_hops > MAX_HOPS) {
         ex_error("max hops cannot be more than " _TEXT(MAX_HOPS));
-        return -1;
+        return -4;
     }
     if(!probes_per_hop || probes_per_hop > MAX_PROBES) {
         ex_error("no more than " _TEXT(MAX_PROBES) " probes per hop");
-        return -1;
+        return -5;
     }
     if(wait_secs < 0 || here_factor < 0 || near_factor < 0) {
         ex_error("bad wait specifications `%g,%g,%g' used",
                 wait_secs, here_factor, near_factor);
-        return -1;
+        return -6;
     }
     if(packet_len > MAX_PACKET_LEN) {
         ex_error("too big packetlen %d specified", packet_len);
-        return -1;
+        return -7;
     }
     if(src_addr.sa.sa_family && src_addr.sa.sa_family != af) {
         ex_error("IP version mismatch in addresses specified");
-        return -1;
+        return -8;
     }
     if(send_secs < 0) {
         ex_error("bad sendtime `%g' specified", send_secs);
-        return -1;
+        return -9;
     }
     if(send_secs >= 10) /*  it is milliseconds   */
         send_secs /= 1000;
@@ -689,7 +688,7 @@ int traceroute_main(int argc, char *argv[]) {
     make_fd_used(2);
 
     if(init_ip_options() == -1)
-        return -1;
+        return -10;
 
     header_len = (af == AF_INET ? sizeof(struct iphdr)
                                   :
@@ -713,17 +712,21 @@ int traceroute_main(int argc, char *argv[]) {
 
     num_probes = max_hops * probes_per_hop;
     probes = calloc(num_probes, sizeof(*probes));
-    if(!probes)
+    if(!probes) {
         error("calloc");
+        return -11;
+    }
 
     if(ops->options && opts_idx > 1) {
         opts[0] = strdup(module); /*  aka argv[0] ...  */
         if(CLIF_parse(opts_idx, opts, ops->options, 0, CLIF_KEYWORD) < 0)
-            return -1; //exit(2);
+            return -12; //exit(2);
     }
 
-    if(ops->init(&dst_addr, dst_port_seq, &data_len) < 0)
+    if(ops->init(&dst_addr, dst_port_seq, &data_len) < 0) {
         ex_error("trace method's init failed");
+        return -13;
+    }
 
     do_it();
     return 0;
@@ -1750,5 +1753,5 @@ int traceroute_util(const char *addr, int *hops, int *time_usec)
         }
     free(probes);
 
-    return (ret == 1) ? 0 : -1;
+    return (ret == 1) ? 0 : ret;
 }

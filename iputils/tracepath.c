@@ -546,7 +546,7 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
     if(status) {
         fprintf(stderr, "tracepath: %s: %s\n", argv[0],
                 gai_strerror(status));
-        exit(1);
+        return -EADDRNOTAVAIL;//exit(1);
     }
 
     for(ctl->ai = result; ctl->ai; ctl->ai = ctl->ai->ai_next) {
@@ -561,7 +561,7 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
     }
     if(ctl->socket_fd < 0) {
         perror("socket/connect");
-        exit(1);
+        return -ESOCKTNOSUPPORT;//exit(1);
     }
 
     switch (ctl->ai->ai_family) {
@@ -577,12 +577,12 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
                 (on = IPV6_PMTUDISC_DO, setsockopt(ctl->socket_fd, SOL_IPV6,
                 IPV6_MTU_DISCOVER, &on, sizeof(on)))) {
             perror("IPV6_MTU_DISCOVER");
-            exit(1);
+            return -2;//exit(1);
         }
         on = 1;
         if(setsockopt(ctl->socket_fd, SOL_IPV6, IPV6_RECVERR, &on, sizeof(on))) {
             perror("IPV6_RECVERR");
-            exit(1);
+            return -3;//exit(1);
         }
         if(setsockopt(ctl->socket_fd, SOL_IPV6, IPV6_HOPLIMIT, &on, sizeof(on))
                 #ifdef IPV6_RECVHOPLIMIT
@@ -590,7 +590,7 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
                         #endif
                         ) {
             perror("IPV6_HOPLIMIT");
-            exit(1);
+            return -4;//exit(1);
         }
         if(!IN6_IS_ADDR_V4MAPPED(&(((struct sockaddr_in6 * )&ctl->target)->sin6_addr)))
             break;
@@ -606,23 +606,23 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
         on = IP_PMTUDISC_DO;
         if(setsockopt(ctl->socket_fd, SOL_IP, IP_MTU_DISCOVER, &on, sizeof(on))) {
             perror("IP_MTU_DISCOVER");
-            exit(1);
+            return -5;//exit(1);
         }
         on = 1;
         if(setsockopt(ctl->socket_fd, SOL_IP, IP_RECVERR, &on, sizeof(on))) {
             perror("IP_RECVERR");
-            exit(1);
+            return -6;//exit(1);
         }
         if(setsockopt(ctl->socket_fd, SOL_IP, IP_RECVTTL, &on, sizeof(on))) {
             perror("IP_RECVTTL");
-            exit(1);
+            return -7;//exit(1);
         }
     }
 
     ctl->pktbuf = malloc(ctl->mtu);
     if(!ctl->pktbuf) {
         perror("malloc");
-        return -1; //exit(1);
+        return -8; //exit(1);
     }
 
 //    struct sockaddr sa;
@@ -644,7 +644,7 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
         case AF_INET6:
             if(setsockopt(ctl->socket_fd, SOL_IPV6, IPV6_UNICAST_HOPS, &on, sizeof(on))) {
                 perror("IPV6_UNICAST_HOPS");
-                return -1; //exit(1);
+                return -9; //exit(1);
             }
             if(!ctl->mapped)
                 break;
@@ -652,7 +652,7 @@ int tracepath_main(int argc, char **argv, struct run_state *ctl)
         case AF_INET:
             if(setsockopt(ctl->socket_fd, SOL_IP, IP_TTL, &on, sizeof(on))) {
                 perror("IP_TTL");
-                return -1; //exit(1);
+                return -10; //exit(1);
             }
         }
 
@@ -776,7 +776,7 @@ int tracepath_util(const char *addr, int *hops, int *time_usec)
     if(time_usec) {
         *time_usec = total_time_usec;
     }
-    return (ret >= 0) ? 0 : -1;
+    return (ret >= 0) ? 0 : ret;
 
 }
 

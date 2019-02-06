@@ -106,7 +106,142 @@ static int com_node(int argc, const char ** argv, char **str_reply)
 }
 
 /**
+ * Traceroute command
+ *
+ * return 0 OK, -1 Err
+ */
+static int com_traceroute(int argc, const char** argv, char **str_reply)
+{
+    const char *addr = NULL;
+    int hops = 0, time_usec = 0;
+    if(argc > 1)
+        addr = argv[1];
+    iputils_set_verbose();
+    int res = (addr) ? traceroute_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
+    if(res >= 0) {
+        if(str_reply)
+            *str_reply = g_strdup_printf("traceroute %s hops=%d time=%.1lf ms", addr, hops, time_usec * 1. / 1000);
+    }
+    else {
+        if(str_reply) {
+            switch (-res)
+            {
+            case EADDRNOTAVAIL:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", (addr) ? addr : "",
+                        (addr) ? "Name or service not known" : "Host not defined");
+                break;
+            case 2:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "Unknown traceroute module");
+                break;
+            case 3:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "first hop out of range");
+                break;
+            case 4:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "max hops cannot be more than 255");
+                break;
+            case 5:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "no more than 10 probes per hop");
+                break;
+            case 6:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "bad wait specifications");
+                break;
+            case 7:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "too big packetlen ");
+                break;
+            case 8:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr,
+                        "IP version mismatch in addresses specified");
+                break;
+            case 9:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "bad sendtime");
+                break;
+            case 10:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "init_ip_options");
+                break;
+            case 11:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "calloc");
+                break;
+            case 12:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "parse cmdline");
+                break;
+            case 13:
+                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "trace method's init failed");
+                break;
+            default:
+                *str_reply = g_strdup_printf("traceroute %s error(%d)", addr, res);
+            }
+        }
+    }
+    return res;
+}
+
+/**
+ * Tracepath command
+ *
+ * return 0 OK, -1 Err
+ */
+static int com_tracepath(int argc, const char** argv, char **str_reply)
+{
+    const char *addr = NULL;
+    int hops = 0, time_usec = 0;
+    if(argc > 1)
+        addr = argv[1];
+    iputils_set_verbose();
+    int res = (addr) ? tracepath_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
+    if(res >= 0) {
+        if(str_reply)
+            *str_reply = g_strdup_printf("tracepath %s hops=%d time=%.1lf ms", addr, hops, time_usec * 1. / 1000);
+    }
+    else {
+        if(str_reply) {
+            switch (-res)
+            {
+            case EADDRNOTAVAIL:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", (addr) ? addr : "",
+                        (addr) ? "Name or service not known" : "Host not defined");
+                break;
+            case ESOCKTNOSUPPORT:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't create socket");
+                break;
+            case 2:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_MTU_DISCOVER");
+                break;
+            case 3:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_RECVERR");
+                break;
+            case 4:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_HOPLIMIT");
+                break;
+            case 5:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_MTU_DISCOVER");
+                break;
+            case 6:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_RECVERR");
+                break;
+            case 7:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_RECVTTL");
+                break;
+            case 8:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "malloc");
+                break;
+            case 9:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_UNICAST_HOPS");
+                break;
+            case 10:
+                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_TTL");
+                break;
+            default:
+                *str_reply = g_strdup_printf("tracepath %s error(%d)", addr, res);
+            }
+        }
+    }
+    return res;
+}
+
+/**
  * Ping command
+ *
+ * return 0 OK, -1 Err
  */
 static int com_ping(int argc, const char** argv, char **str_reply)
 {
@@ -128,8 +263,7 @@ static int com_ping(int argc, const char** argv, char **str_reply)
             *str_reply = g_strdup_printf("ping %s time=%.1lf ms", addr, res * 1. / 1000);
     }
     else {
-        if(str_reply)
-        {
+        if(str_reply) {
             switch (-res)
             {
             case EDESTADDRREQ:
@@ -175,6 +309,8 @@ static const COMMAND commands[] = {
     { "global_db", com_global_db, "Work with database" },
     { "node", com_node, "Work with node" },
     { "ping", com_ping, "Ping utility" },
+    { "traceroute", com_traceroute, "Traceroute utility" },
+    { "tracepath", com_tracepath, "Tracepath utility" },
     { "help", com_help, "Display this text" },
     { "?", com_help, "Synonym for `help'" },
     { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
