@@ -9,7 +9,8 @@ set(HTTP_SERVER_SRCS
     dap_http_simple.c
     http_client/dap_http_client.c
     http_client/dap_http_client_simple.c
-    http_client/dap_http_header.c)
+    http_client/dap_http_header.c
+    http_client/dap_http_user_agent.c)
 
 add_library(${PROJECT_NAME} STATIC ${HTTP_SERVER_SRCS})
 
