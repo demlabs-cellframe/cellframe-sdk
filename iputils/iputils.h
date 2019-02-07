@@ -69,6 +69,7 @@ int log_printf(const char *format, ...);
 #define PACKAGE_VERSION "0.1"
 #define IPUTILS_VERSION(_prog) "%s from %s %s\n", _prog, PACKAGE_NAME, PACKAGE_VERSION
 #define UNUSED(x) (void)(x)
+
 #ifdef __cplusplus
 }
 #endif

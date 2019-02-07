@@ -6,6 +6,7 @@ set(DAP_CHAIN_NET_SRCS
         dap_chain_node.c
         dap_chain_node_ctl.c
         dap_chain_node_cli.c
+        dap_chain_node_cli_cmd.c
         )
 
 set(DAP_CHAIN_NET_HEADERS
@@ -13,6 +14,7 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node.h
         dap_chain_node_ctl.h
         dap_chain_node_cli.h
+        dap_chain_node_cli_cmd.h
     )
 
 set(IPUTILS_INCLUDE_DIRS
@@ -27,7 +29,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLIB REQUIRED glib-2.0)
 
-target_link_libraries(dap_chain_net dap_core dap_crypto dap_chain dap_chain_crypto -lresolv ${GLIB_LDFLAGS})
+target_link_libraries(dap_chain_net dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_global_db -lresolv ${GLIB_LDFLAGS})
 target_include_directories(dap_chain_net INTERFACE . PUBLIC ${GLIB_INCLUDE_DIRS} ${IPUTILS_INCLUDE_DIRS})
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)

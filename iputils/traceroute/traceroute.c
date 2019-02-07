@@ -1733,7 +1733,8 @@ int traceroute_util(const char *addr, int *hops, int *time_usec)
     *time_usec = 0;
 
     int ret = traceroute_main(argc, (char**) argv);
-    if(!ret)
+    if(!ret) {
+        ret = -1;
         for(int i = 0; i < (int) num_probes; i++) {
             probe *one_probe = probes + i;
             if(one_probe->done && one_probe->final && one_probe->recv_ttl) {
@@ -1744,13 +1745,14 @@ int traceroute_util(const char *addr, int *hops, int *time_usec)
                     ret = 1;
                 break;
             }
-            /*if(one_probe->done)
-             printf("%d(%d) dseq=%d sk=%d done=%d final=%d recv_ttl=%d dt=%lf err='%s'\n", i + 1,
-             i / DEF_NUM_PROBES + 1,
-             one_probe->seq, one_probe->sk, one_probe->done,
-             one_probe->final, one_probe->recv_ttl, one_probe->recv_time - one_probe->send_time,
-             one_probe->err_str);*/
         }
+        /*if(one_probe->done)
+         printf("%d(%d) dseq=%d sk=%d done=%d final=%d recv_ttl=%d dt=%lf err='%s'\n", i + 1,
+         i / DEF_NUM_PROBES + 1,
+         one_probe->seq, one_probe->sk, one_probe->done,
+         one_probe->final, one_probe->recv_ttl, one_probe->recv_time - one_probe->send_time,
+         one_probe->err_str);*/
+    }
     free(probes);
 
     return (ret == 1) ? 0 : ret;
