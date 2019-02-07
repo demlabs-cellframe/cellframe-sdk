@@ -2,7 +2,7 @@
  * Authors:
  * Anatolii Kurotych <akurotych@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://github.com/demlabsinc
+ * DeM Labs Open source community https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
@@ -25,30 +25,54 @@
 #ifndef _DAP_HTTP_USER_AGENT_H_
 #define _DAP_HTTP_USER_AGENT_H_
 
-typedef struct dap_http_user_agent {
-    char* name; // Ex: "DapVpnClient/2.2
-    char* comment; // text after name
-    unsigned short major_version;
-    unsigned short minor_version;
-} dap_http_user_agent_t;
+typedef struct dap_http_user_agent* dap_http_user_agent_ptr_t;
 
-dap_http_user_agent_t* dap_http_user_agent_new(const char* a_name,
-                                               const char* a_comment,
-                                               unsigned short a_major_version,
-                                               unsigned short a_minor_version);
+/**
+ * @brief dap_http_user_agent_new
+ * @param a_name
+ * @param a_comment - Can be NULL
+ * @param a_major_version
+ * @param a_minor_version
+ * @return
+ */
+dap_http_user_agent_ptr_t dap_http_user_agent_new(const char* a_name,
+                                                  unsigned short a_major_version,
+                                                  unsigned short a_minor_version,
+                                                  const char* a_comment);
 
-void dap_http_user_agent_delete(dap_http_user_agent_t* a_agent);
+/**
+ * @brief dap_http_user_agent_delete
+ * @param a_agent
+ */
+void dap_http_user_agent_delete(dap_http_user_agent_ptr_t a_agent);
 
-// If parsing not successful - returns NULL
-dap_http_user_agent_t* dap_http_user_agent_new_from_str(const char* a_user_agent_str);
+/**
+ * @brief dap_http_user_agent_new_from_str
+ * @param a_user_agent_str
+ * @return If parsing not successful - NULL
+ */
+dap_http_user_agent_ptr_t dap_http_user_agent_new_from_str(const char* a_user_agent_str);
 
-// Allocates memory for string and returns result
-char* dap_http_user_agent_to_string(dap_http_user_agent_t* a_agent);
 
-// returns:
-// 0 - equals
-// 1 - a_agent1 version above then a_agent2
-// -1 - a_agent2 version above then a_agent1
-int dap_http_user_agent_versions_compare(dap_http_user_agent_t* a_agent1,
-                                         dap_http_user_agent_t* a_agent2);
+/**
+ * @brief dap_http_user_agent_to_string
+ * @param a_agent
+ * @details Don't allocates memory. Uses internal buffer
+ * @return
+ */
+char* dap_http_user_agent_to_string(dap_http_user_agent_ptr_t a_agent);
+
+/**
+ * @brief dap_http_user_agent_versions_compare
+ * @param a_agent1
+ * @param a_agent2
+ * @return 0 == equals -1 == a_agent1 < a_agent2 | 1 == a_agent1 > a_agent2 | -2 == Erorr agent names not equals
+ */
+int dap_http_user_agent_versions_compare(dap_http_user_agent_ptr_t a_agent1,
+                                         dap_http_user_agent_ptr_t a_agent2);
+
+unsigned int dap_http_user_agent_get_major_version(dap_http_user_agent_ptr_t);
+unsigned int dap_http_user_agent_get_minor_version(dap_http_user_agent_ptr_t);
+const char* dap_http_user_agent_get_name(dap_http_user_agent_ptr_t);
+const char* dap_http_user_agent_get_comment(dap_http_user_agent_ptr_t);
 #endif
