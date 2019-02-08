@@ -53,7 +53,18 @@ typedef struct dap_http_simple{
 
 
 void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t reply_size_max, dap_http_simple_callback_t cb); // Add simple processor
-int dap_http_simple_module_init();
+int dap_http_simple_module_init(void);
+void dap_http_simple_module_deinit(void);
+
+// input string must match NameClient/MiminalVersion
+// For example DapClient/2.2
+// If this function was not called. All user agents will supported by default
+// ATTENTION: Last parameter must be NULL
+// example call: dap_http_simple_set_supported_user_agents("DapVpnClient/2.2", "Mozila/5.0", NULL);
+// returns false if operation not successful
+bool dap_http_simple_set_supported_user_agents(const char *str_agents, ...);
+
 size_t dap_http_simple_reply(dap_http_simple_t * shs, void * data, size_t data_size);
 size_t dap_http_simple_reply_f(dap_http_simple_t * shs, const char * data, ...);
+
 #endif

@@ -29,11 +29,13 @@
 #include "dap_http_client.h"
 #include "dap_http_simple.h"
 #include "dap_enc_key.h"
+#include "dap_http_user_agent.h"
 #include "../enc_server/dap_enc_ks.h"
 #include "../enc_server/dap_enc_http.h"
 #include "http_status_code.h"
 #include <ev.h>
 #include <sys/queue.h>
+#include <utlist.h>
 
 #define LOG_TAG "dap_http_simple"
 
@@ -57,13 +59,22 @@ typedef struct tailq_entry {
 } tailq_entry_t;
 TAILQ_HEAD(, tailq_entry) tailq_head;
 
+
+typedef struct user_agents_item {
+    dap_http_user_agent_ptr_t user_agent;
+    /* This is instead of "struct foo *next" */
+    struct user_agents_item* next;
+} user_agents_item_t;
+
+user_agents_item_t *user_agents_list = NULL;
+
 #define DAP_HTTP_SIMPLE_URL_PROC(a) ((dap_http_simple_url_proc_t*) (a)->_inheritor)
 
 static struct ev_loop* http_simple_loop;
 static ev_async async_watcher_http_simple;
 static pthread_mutex_t mutex_on_queue_http_response = PTHREAD_MUTEX_INITIALIZER;
 
-uint64_t s_TTL_session_key=3600;
+// uint64_t s_TTL_session_key=3600;
 
 int dap_http_simple_module_init()
 {
@@ -79,6 +90,7 @@ int dap_http_simple_module_init()
 
     return 0;
 }
+
 
 static void async_control_proc (EV_P_ ev_async *w, int revents)
 {
@@ -121,13 +133,81 @@ void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t repl
                      NULL); // errror
 }
 
+
+static void _free_user_agents_list()
+{
+    user_agents_item_t *elt, *tmp;
+    LL_FOREACH_SAFE(user_agents_list,elt,tmp) {
+        LL_DELETE(user_agents_list, elt);
+        dap_http_user_agent_delete(elt->user_agent);
+        free(elt);
+    }
+}
+
+static bool _is_user_agent_supported(const char* user_agent)
+{
+    bool result = false;
+
+    dap_http_user_agent_ptr_t find_agent =
+            dap_http_user_agent_new_from_str(user_agent);
+    if(find_agent == NULL) {
+        return false;
+    }
+    const char* find_agent_name = dap_http_user_agent_get_name(find_agent);
+
+    user_agents_item_t * elt;
+    LL_FOREACH(user_agents_list,elt) {
+        const char* user_agent_name =
+            dap_http_user_agent_get_name(elt->user_agent);
+
+        if(strcmp(find_agent_name, user_agent_name) == 0) {
+            if(dap_http_user_agent_versions_compare(find_agent, elt->user_agent) >= 0) {
+                result = true;
+                goto END;
+            } else {
+                result = false;
+                goto END;
+            }
+        }
+    }
+
+END:
+    dap_http_user_agent_delete(find_agent);
+    return result;
+}
+
+bool dap_http_simple_set_supported_user_agents(const char *user_agents, ...)
+{
+    va_list argptr;
+    va_start( argptr, user_agents );
+
+    const char* str = user_agents;
+    while (str != NULL)
+    {
+        dap_http_user_agent_ptr_t user_agent = dap_http_user_agent_new_from_str(str);
+        if(user_agent == NULL) {
+            log_it(L_ERROR, "Can't parse user agent string");
+            _free_user_agents_list();
+            return NULL;
+        }
+        user_agents_item_t * item = calloc(1, sizeof (user_agents_item_t));
+        item->user_agent = user_agent;
+        LL_APPEND(user_agents_list, item);
+
+        log_it( L_DEBUG, "%s", str );
+        str = va_arg( argptr, const char* );
+    }
+    va_end(argptr);
+    return true;
+}
+
 /**
  * @brief dap_http_simple_proc Execute procession callback and switch to write state
  * @param cl_sh HTTP simple client instance
  */
 void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 {
-    log_it(L_INFO, "dap http simple proc");
+    log_it(L_DEBUG, "dap http simple proc");
     http_status_code_t return_code = (http_status_code_t)0;
 //    bool key_is_expiried = false;
 
