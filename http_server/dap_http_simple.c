@@ -77,6 +77,8 @@ static pthread_t http_simple_loop_thread;
 
 // uint64_t s_TTL_session_key=3600;
 
+static void _free_user_agents_list(void);
+
 int dap_http_simple_module_init()
 {
     http_simple_loop = ev_loop_new(0);
@@ -96,6 +98,7 @@ void dap_http_simple_module_deinit(void)
     pthread_mutex_destroy(&mutex_on_queue_http_response);
     pthread_join(http_simple_loop_thread, NULL);
     ev_loop_destroy(http_simple_loop);
+    _free_user_agents_list();
 }
 
 static void async_control_proc (EV_P_ ev_async *w, int revents)
@@ -207,6 +210,14 @@ bool dap_http_simple_set_supported_user_agents(const char *user_agents, ...)
     return true;
 }
 
+static inline bool _is_supported_user_agents_list_setted()
+{
+    user_agents_item_t * tmp;
+    int cnt = 0;
+    LL_COUNT(user_agents_list, tmp, cnt);
+    return cnt;
+}
+
 /**
  * @brief dap_http_simple_proc Execute procession callback and switch to write state
  * @param cl_sh HTTP simple client instance
@@ -215,6 +226,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 {
     log_it(L_DEBUG, "dap http simple proc");
     http_status_code_t return_code = (http_status_code_t)0;
+
 //    bool key_is_expiried = false;
 
 //    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
@@ -241,6 +253,8 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 //    }
 
 //    if ( !key_is_expiried )
+
+
 
     DAP_HTTP_SIMPLE_URL_PROC(cl_sh->http->proc)->proc_callback(cl_sh,&return_code);
 
