@@ -1,7 +1,7 @@
 #include "dap_http_simple_test.h"
 #include "dap_http_simple.c"
 
-static void test_init_deinit()
+static void test_user_agent_support()
 {
     dap_http_simple_set_supported_user_agents("DapVpn/2.2", "SecondVpn/3.3", NULL);
 
@@ -28,8 +28,15 @@ static void test_init_deinit()
     _free_user_agents_list();
 }
 
+void dap_http_simple_test_init_deinit()
+{
+    dap_http_simple_module_init();
+    dap_http_simple_module_deinit();
+}
+
 void dap_http_http_simple_test_run()
 {
     dap_print_module_name("dap_http_http_simple_test");
-    test_init_deinit();
+    test_user_agent_support();
+    dap_http_simple_test_init_deinit();
 }

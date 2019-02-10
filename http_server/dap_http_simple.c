@@ -73,24 +73,30 @@ user_agents_item_t *user_agents_list = NULL;
 static struct ev_loop* http_simple_loop;
 static ev_async async_watcher_http_simple;
 static pthread_mutex_t mutex_on_queue_http_response = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t http_simple_loop_thread;
 
 // uint64_t s_TTL_session_key=3600;
 
 int dap_http_simple_module_init()
 {
-    pthread_mutex_init(&mutex_on_queue_http_response, NULL);
     http_simple_loop = ev_loop_new(0);
 
     TAILQ_INIT(&tailq_head);
 
-    pthread_t thread;
     ev_async_init(&async_watcher_http_simple, async_control_proc);
     ev_async_start(http_simple_loop, &async_watcher_http_simple);
-    pthread_create(&thread, NULL, loop_http_simple_proc, NULL);
+    pthread_create(&http_simple_loop_thread, NULL, loop_http_simple_proc, NULL);
 
     return 0;
 }
 
+void dap_http_simple_module_deinit(void)
+{
+    ev_async_stop(http_simple_loop, &async_watcher_http_simple);
+    pthread_mutex_destroy(&mutex_on_queue_http_response);
+    pthread_join(http_simple_loop_thread, NULL);
+    ev_loop_destroy(http_simple_loop);
+}
 
 static void async_control_proc (EV_P_ ev_async *w, int revents)
 {
