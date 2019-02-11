@@ -61,6 +61,26 @@ int dap_db_init(const char *path)
             dap_db_add_msg(msg);
             talloc_free(msg->dn);
             talloc_free(msg);
+
+            // level 2: group record
+            msg = ldb_msg_new(ldb);
+            msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=aliases_leased,dc=kelvin_nodes");
+            ldb_msg_add_string(msg, "ou", "aliases_leased");
+            ldb_msg_add_string(msg, "objectClass", "group");
+            ldb_msg_add_string(msg, "description", "Aliases of Kelvin blockchain nodes");
+            dap_db_add_msg(msg);
+            talloc_free(msg->dn);
+            talloc_free(msg);
+
+            // level 2: group record
+            msg = ldb_msg_new(ldb);
+            msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=datums,dc=kelvin_nodes");
+            ldb_msg_add_string(msg, "ou", "datums");
+            ldb_msg_add_string(msg, "objectClass", "group");
+            ldb_msg_add_string(msg, "description", "List of Datums");
+            dap_db_add_msg(msg);
+            talloc_free(msg->dn);
+            talloc_free(msg);
         }
         talloc_free(data_message);
         return 0;
@@ -123,7 +143,7 @@ int dap_db_del_msg(struct ldb_dn *ldn)
 /* path is supposed to have been obtained by smth like
  dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
  */
-pdap_store_obj_t dap_db_read_data(const char *query, int *count)
+pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *group)
 {
     struct ldb_result *data_message;
     /*
@@ -140,11 +160,11 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count)
     //const char *query = "(objectClass=addr_leased)";
     if(ldb_connect(ldb, dap_db_path, LDB_FLG_RDONLY, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
-        return NULL;
+        return NULL ;
     }
     if(ldb_search(ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, query) != LDB_SUCCESS) {
         log_it(L_ERROR, "Database querying failed");
-        return NULL;
+        return NULL ;
     }
     log_it(L_INFO, "Obtained binary data, %d entries", data_message->count);
 
@@ -155,13 +175,13 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count)
     else {
         log_it(L_ERROR, "Couldn't allocate memory, store objects unobtained");
         talloc_free(data_message);
-        return NULL;
+        return NULL ;
     }
     int dap_store_len = data_message->count;
     int q;
     for(q = 0; q < dap_store_len; ++q) {
         store_data[q].section = strdup("kelvin_nodes");
-        store_data[q].group = strdup("addrs_leased");
+        store_data[q].group = strdup(group);
         store_data[q].type = 1;
         store_data[q].key = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", NULL));
         store_data[q].value = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "time", NULL));
@@ -193,13 +213,13 @@ void dab_db_free_pdap_store_obj_t(pdap_store_obj_t store_data, int count)
 /* Get the entire content without using query expression
  * This function is highly dissuaded from being used
  * */
-pdap_store_obj_t dap_db_read_file_data(const char *path)
+pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
 {
     struct ldb_ldif *ldif_msg;
     FILE *fs = fopen(path, "r");
     if(!fs) {
         log_it(L_ERROR, "Can't open file %s", path);
-        return NULL;
+        return NULL ;
     }
     pdap_store_obj_t store_data = (pdap_store_obj_t) malloc(256 * sizeof(dap_store_obj_t));
     if(store_data != NULL) {
@@ -208,7 +228,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path)
     else {
         log_it(L_ERROR, "Couldn't allocate memory, store objects unobtained");
         fclose(fs);
-        return NULL;
+        return NULL ;
     }
 
     int q = 0;
@@ -221,8 +241,8 @@ pdap_store_obj_t dap_db_read_file_data(const char *path)
          } */ // in case we gonna use extra LDIF functionality
         const char *key = ldb_msg_find_attr_as_string(ldif_msg->msg, "cn", NULL);
         if(key != NULL) {
-            store_data[q].section = "kelvin_nodes";
-            store_data[q].group = "addrs_leased";
+            store_data[q].section = strdup("kelvin_nodes");
+            store_data[q].group = strdup(group);
             store_data[q].type = 1;
             store_data[q].key = strdup(key);
             store_data[q].value = strdup(ldb_msg_find_attr_as_string(ldif_msg->msg, "time", NULL));
@@ -240,7 +260,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path)
  *
  * dap_store_size the count records
  */
-int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size)
+int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size, const char *group)
 {
     int ret = 0;
     if(store_obj == NULL) {
@@ -260,14 +280,17 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size)
     for(q = 0; q < dap_store_size; q++) {
         // level 3: leased address, single whitelist entity
         msg = ldb_msg_new(ldb);
-        char dn[128];
-        memset(dn, '\0', 128);
+        char dn[256];
+        memset(dn, '\0', 256);
         strcat(dn, "cn=");
         strcat(dn, store_obj[q].key);
-        strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
+        //strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
+        strcat(dn, ",ou=");
+        strcat(dn, group);
+        strcat(dn, ",dc=kelvin_nodes");
         msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
         ldb_msg_add_string(msg, "cn", store_obj[q].key);
-        ldb_msg_add_string(msg, "objectClass", "addr_leased");
+        ldb_msg_add_string(msg, "objectClass", group);
         ldb_msg_add_string(msg, "description", "Approved Kelvin node");
         ldb_msg_add_string(msg, "time", store_obj[q].value);
         ret += dap_db_add_msg(msg); // accumulation error codes
@@ -282,7 +305,7 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size)
  *
  * dap_store_size the count records
  */
-int dap_db_delete(pdap_store_obj_t store_obj, int dap_store_size)
+int dap_db_delete(pdap_store_obj_t store_obj, int dap_store_size, const char *group)
 {
     int ret = 0;
     if(store_obj == NULL) {
@@ -304,7 +327,10 @@ int dap_db_delete(pdap_store_obj_t store_obj, int dap_store_size)
         memset(dn, '\0', 128);
         strcat(dn, "cn=");
         strcat(dn, store_obj[q].key);
-        strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
+        //strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
+        strcat(dn, ",ou=");
+        strcat(dn, group);
+        strcat(dn, ",dc=kelvin_nodes");
         struct ldb_dn *ldn = ldb_dn_new(mem_ctx, ldb, dn);
         ret += dap_db_del_msg(ldn); // accumulation error codes
         talloc_free(ldn);
@@ -346,7 +372,7 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t store_obj, int store_obj_count)
 {
     if(!store_obj || store_obj_count < 1)
-        return NULL;
+        return NULL ;
     size_t data_size_out = sizeof(uint32_t); // size of output data
     int q;
     // calculate output structure size
@@ -403,7 +429,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t store_obj, int s
 dap_store_obj_t *dap_store_unpacket(dap_store_obj_pkt_t *pkt, int *store_obj_count)
 {
     if(!pkt || pkt->data_size < 1)
-        return NULL;
+        return NULL ;
     int q;
     uint64_t offset = 0;
     uint32_t count;
