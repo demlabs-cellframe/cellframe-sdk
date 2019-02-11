@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project (dap_http_server C)
 
 include_directories(http_client)
@@ -16,5 +16,5 @@ add_library(${PROJECT_NAME} STATIC ${HTTP_SERVER_SRCS})
 
 target_include_directories(dap_http_server INTERFACE . http_client)
 
-target_link_libraries(dap_http_server dap_core dap_crypto dap_core_server magic curl)
+target_link_libraries(dap_http_server dap_core dap_crypto dap_core_server magic curl json-c)
 

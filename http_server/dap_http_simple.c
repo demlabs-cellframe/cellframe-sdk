@@ -41,6 +41,7 @@
 #include <ev.h>
 #include <sys/queue.h>
 #include <utlist.h>
+#include <json-c/json.h>
 
 #define LOG_TAG "dap_http_simple"
 
@@ -246,23 +247,21 @@ static void _copy_reply_and_mime_to_response(dap_http_simple_t * cl_sh)
 inline static void _write_response_bad_request(dap_http_simple_t * cl_sh,
                                                const char* error_msg)
 {
-    static const int MAX_ERROR_MSG_SIZE = 1024;
-    if(strlen(error_msg) > MAX_ERROR_MSG_SIZE) {
-        log_it(L_CRITICAL, "error message size too long!");
-        return;
-    }
-    char msg_buf[MAX_ERROR_MSG_SIZE];
+    struct json_object *jobj = json_object_new_object();
+    json_object_object_add(jobj, "error", json_object_new_string(error_msg));
 
-    int error_msg_len = sprintf(msg_buf, "{\"error\":\"%s\"}", error_msg);
-    log_it(L_DEBUG, "error message %s", msg_buf);
+    log_it(L_DEBUG, "error message %s",  json_object_to_json_string(jobj));
     cl_sh->http->reply_status_code = Http_Status_BadRequest;
 
-    dap_http_simple_reply(cl_sh, msg_buf, (size_t)error_msg_len);
+    const char* json_str = json_object_to_json_string(jobj);
+    dap_http_simple_reply(cl_sh, (void*) json_str,
+                          (size_t) strlen(json_str));
 
     strcpy(cl_sh->reply_mime, "application/json");
 
     _copy_reply_and_mime_to_response(cl_sh);
 
+    json_object_put(jobj); // free obj
     _set_only_write_http_client_state(cl_sh->http);
 }
 

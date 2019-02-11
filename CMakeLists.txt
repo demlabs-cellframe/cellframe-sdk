@@ -9,5 +9,8 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(test)
 endif()
 
+find_package(PkgConfig)
+pkg_check_modules(PC_JSON-C REQUIRED json-c)
+
 add_subdirectory(http_server)
 add_subdirectory(enc_server)
