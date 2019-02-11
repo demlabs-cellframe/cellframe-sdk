@@ -203,19 +203,62 @@ bool dap_http_simple_set_supported_user_agents(const char *user_agents, ...)
         item->user_agent = user_agent;
         LL_APPEND(user_agents_list, item);
 
-        log_it( L_DEBUG, "%s", str );
         str = va_arg( argptr, const char* );
     }
+
     va_end(argptr);
     return true;
 }
 
-static inline bool _is_supported_user_agents_list_setted()
+inline static bool _is_supported_user_agents_list_setted()
 {
     user_agents_item_t * tmp;
     int cnt = 0;
     LL_COUNT(user_agents_list, tmp, cnt);
+
     return cnt;
+}
+
+inline static void _set_only_write_http_client_state(dap_http_client_t* http_client)
+{
+    dap_client_remote_ready_to_read(http_client->client,false);
+    http_client->state_write=DAP_HTTP_CLIENT_STATE_NONE;
+
+    dap_client_remote_ready_to_write(http_client->client,true);
+    http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+}
+
+static void _copy_reply_and_mime_to_response(dap_http_simple_t * cl_sh)
+{
+    if(cl_sh->reply_size != 0) {
+        cl_sh->http->out_content_length = cl_sh->reply_size;
+        strcpy(cl_sh->http->out_content_type, cl_sh->reply_mime);
+        return;
+    }
+    log_it(L_WARNING, "cl_sh->reply_size equal 0");
+}
+
+inline static void _write_response_bad_request(dap_http_simple_t * cl_sh,
+                                               const char* error_msg)
+{
+    static const int MAX_ERROR_MSG_SIZE = 1024;
+    if(strlen(error_msg) > MAX_ERROR_MSG_SIZE) {
+        log_it(L_CRITICAL, "error message size too long!");
+        return;
+    }
+    char msg_buf[MAX_ERROR_MSG_SIZE];
+
+    int error_msg_len = sprintf(msg_buf, "{\"error\":\"%s\"}", error_msg);
+    log_it(L_DEBUG, "error message %s", msg_buf);
+    cl_sh->http->reply_status_code = Http_Status_BadRequest;
+
+    dap_http_simple_reply(cl_sh, msg_buf, (size_t)error_msg_len);
+
+    strcpy(cl_sh->reply_mime, "application/json");
+
+    _copy_reply_and_mime_to_response(cl_sh);
+
+    _set_only_write_http_client_state(cl_sh->http);
 }
 
 /**
@@ -225,56 +268,39 @@ static inline bool _is_supported_user_agents_list_setted()
 void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 {
     log_it(L_DEBUG, "dap http simple proc");
+
     http_status_code_t return_code = (http_status_code_t)0;
 
-//    bool key_is_expiried = false;
-
-//    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
-//    if(key){
-//        if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
-//                                          > s_TTL_session_key ) ) {
-
-//            enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
-
-//            if( dg == NULL ) {
-//                log_it(L_ERROR, "dg is NULL");
-//                return NULL;
-//            }
-
-//            log_it(L_WARNING, "Key has been expiried");
-//            strcpy(cl_sh->reply_mime,"text/plain");
-//            enc_http_reply_f(dg,"Key has been expiried");
-//            enc_http_reply_encode(cl_sh,dg);
-//            enc_http_delegate_delete(dg);
-//            key_is_expiried = true;
-//        } else{
-//            key->last_used_timestamp = time(NULL);
-//        }
-//    }
-
-//    if ( !key_is_expiried )
+    if(_is_supported_user_agents_list_setted() == true) {
+        dap_http_header_t *header = dap_http_header_find(cl_sh->http->in_headers, "User-Agent");
+        if(header == NULL) {
+            const char* error_msg = "Request without User-Agent header";
+            log_it(L_WARNING, error_msg);
+            _write_response_bad_request(cl_sh, error_msg);
+            return NULL;
+        }
 
 
+        if(_is_user_agent_supported(header->value) == false) {
+            const char* error_msg = "User-Agent version not supported";
+            log_it(L_WARNING, error_msg);
+            _write_response_bad_request(cl_sh, error_msg);
+            return NULL;
+        }
+    }
 
     DAP_HTTP_SIMPLE_URL_PROC(cl_sh->http->proc)->proc_callback(cl_sh,&return_code);
 
     if(return_code) {
         log_it(L_DEBUG, "Request was processed well");
         cl_sh->http->reply_status_code = (uint16_t)return_code;
-        if(cl_sh->reply_size != 0) {
-            cl_sh->http->out_content_length=cl_sh->reply_size;
-            strcpy(cl_sh->http->out_content_type, cl_sh->reply_mime);
-        }
-    }else{
+        _copy_reply_and_mime_to_response(cl_sh);
+    } else {
         log_it(L_ERROR, "Request was processed with ERROR");
         cl_sh->http->reply_status_code = Http_Status_InternalServerError;
     }
-    dap_client_remote_ready_to_read(cl_sh->http->client,false);
-    cl_sh->http->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
-    dap_client_remote_ready_to_write(cl_sh->http->client,true);
-    cl_sh->http->state_write=DAP_HTTP_CLIENT_STATE_START;
-
+    _set_only_write_http_client_state(cl_sh->http);
     return NULL;
 }
 
@@ -400,3 +426,30 @@ inline void queue_http_request_put(dap_http_simple_t *cl_sh)
 
     ev_async_send(http_simple_loop, &async_watcher_http_simple);
 }
+
+/* Key Expired deprecated code */
+
+//    bool key_is_expiried = false;
+
+//    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
+//    if(key){
+//        if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
+//                                          > s_TTL_session_key ) ) {
+
+//            enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
+
+//            if( dg == NULL ) {
+//                log_it(L_ERROR, "dg is NULL");
+//                return NULL;
+//            }
+
+//            log_it(L_WARNING, "Key has been expiried");
+//            strcpy(cl_sh->reply_mime,"text/plain");
+//            enc_http_reply_f(dg,"Key has been expiried");
+//            enc_http_reply_encode(cl_sh,dg);
+//            enc_http_delegate_delete(dg);
+//            key_is_expiried = true;
+//        } else{
+//            key->last_used_timestamp = time(NULL);
+//        }
+//    }
