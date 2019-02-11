@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -79,6 +80,7 @@ typedef struct dap_chain_node_info
         uint32_t uplinks_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
+        char alias[256];
     } DAP_ALIGN_PACKED hdr;
     dap_chain_addr_t uplinks[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
@@ -87,3 +89,49 @@ typedef struct dap_chain_node_publ{
     dap_chain_hash_fast_t decl_hash;
     dap_chain_node_info_t node_info;
 } DAP_ALIGN_PACKED dap_chain_node_publ_t;
+
+
+/**
+ * Serialize dap_chain_node_info_t
+ * size[out] - length of output string
+ * return data or NULL if error
+ */
+uint8_t* dap_chain_node_serialize(dap_chain_node_info_t *node_info, size_t *size);
+
+/**
+ * Deserialize dap_chain_node_info_t
+ * size[in] - length of input string
+ * return data or NULL if error
+ */
+dap_chain_node_info_t* dap_chain_node_deserialize(uint8_t *node_info_str, size_t size);
+
+/**
+ * Generate node addr by shard id
+ */
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_shard_id_t *shard_id);
+
+/**
+ * Check the validity of the node address by shard id
+ */
+bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_shard_id_t *shard_id);
+
+/**
+ * Convert binary data to binhex encoded data.
+ *
+ * out output buffer, must be twice the number of bytes to encode.
+ * len is the size of the data in the in[] buffer to encode.
+ * return the number of bytes encoded, or -1 on error.
+ */
+int bin2hex(char *out, const unsigned char *in, int len);
+
+/**
+ * Convert binhex encoded data to binary data
+ *
+ * len is the size of the data in the in[] buffer to decode, and must be even.
+ * out outputbuffer must be at least half of "len" in size.
+ * The buffers in[] and out[] can be the same to allow in-place decoding.
+ * return the number of bytes encoded, or -1 on error.
+ */
+int hex2bin(char *out, const unsigned char *in, int len);
+
+

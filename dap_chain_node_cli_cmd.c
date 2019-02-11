@@ -34,19 +34,11 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_node_cli_cmd.h"
 
-uint8_t* dap_chain_global_db_node_serialize(dap_chain_node_info_t *node_info, size_t *size)
-{
-    if(!node_info)
-        return NULL;
-    size_t node_info_size = sizeof(dap_chain_node_info_t) + node_info->hdr.uplinks_number * sizeof(dap_chain_addr_t);
-    size_t a_request_size = 2 * node_info_size + 1;
-    uint8_t *a_request = DAP_NEW_Z_SIZE(uint8_t, a_request_size);
+// Max and min macros
+#define max(a,b)              ((a) > (b) ? (a) : (b))
+#define min(a,b)              ((a) < (b) ? (a) : (b))
 
-    bin2hex(a_request, (const unsigned char *)node_info, node_info_size);
-    if(size)
-        *size = a_request_size;
-    return a_request;
-}
+#define LOG_TAG "chain_node_cli_cmd"
 
 /**
  * find option value
@@ -80,6 +72,73 @@ static int find_option_val(const char** argv, int arg_start, int arg_end, const 
     }
     return 0;
 }
+/**
+ * Convert string to digit
+ */
+static void digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
+{
+    if(!num_str)
+        return;
+    uint64_t val;
+    if(!strncasecmp(num_str, "0x", 2)) {
+        val = strtoull(num_str + 2, NULL, 16);
+    }
+    else {
+        val = strtoull(num_str, NULL, 10);
+    }
+    // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
+    val = le64toh(val);
+    memset(raw, 0, raw_len);
+    memcpy(raw, &val, min(raw_len, sizeof(uint64_t)));
+}
+
+/**
+ * Add alias in base
+ */
+static bool add_alias(const char *alias, dap_chain_node_addr_t *addr)
+{
+    const char *a_key = alias;
+    char a_value[2 * sizeof(dap_chain_node_addr_t) + 1];
+    if(bin2hex(a_value, (const unsigned char *) addr, sizeof(dap_chain_node_addr_t)) == -1)
+        return false;
+    a_value[2 * sizeof(dap_chain_node_addr_t) + 1] = '\0';
+    bool res = dap_chain_global_db_gr_set(a_key, a_value, GROUP_ALIAS);
+    return res;
+}
+
+/**
+ * Delete alias from base
+ */
+static bool del_alias(const char *alias, dap_chain_node_addr_t *addr)
+{
+    const char *a_key = alias;
+    bool res = dap_chain_global_db_gr_del(a_key, GROUP_ALIAS);
+    return res;
+}
+
+/**
+ * Find in base addr by alias
+ *
+ * return addr, NULL if not found
+ */
+static dap_chain_node_addr_t* get_name_by_alias(const char *alias)
+{
+    dap_chain_node_addr_t *addr = NULL;
+    if(!alias)
+        return NULL;
+    const char *a_key = alias;
+    char *addr_str = dap_chain_global_db_gr_get(a_key, GROUP_ALIAS);
+    if(addr_str && strlen(addr_str) == sizeof(dap_chain_node_addr_t) * 2)
+            {
+        dap_chain_node_addr_t *addr = DAP_NEW_Z(dap_chain_node_addr_t);
+        if(hex2bin((char*) addr, (const unsigned char *) addr_str, sizeof(dap_chain_node_addr_t) * 2) == -1) {
+            DAP_DELETE(addr);
+            addr = NULL;
+        }
+    }
+    DAP_DELETE(addr_str);
+    return addr;
+}
 
 /**
  * global_db command
@@ -88,77 +147,137 @@ static int find_option_val(const char** argv, int arg_start, int arg_end, const 
  */
 int com_global_db(int argc, const char ** argv, char **str_reply)
 {
+    enum {
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_DUMP
+    };
     printf("com_global_db\n");
     int arg_index = 1;
     const char *cmd_str = NULL;
-    // find 'node' parameter
+// find 'node' parameter
     arg_index = find_option_val(argv, arg_index, argc, "node", NULL);
-    if(!arg_index || argc < 5) {
+    if(!arg_index || argc < 4) {
         if(str_reply)
             *str_reply = g_strdup("parameters are not valid");
         return -1;
     }
     arg_index++;
-    // find command (add or del)
-    int cmd_num = 0;
+// find command (add, delete, etc)
+    int cmd_num = CMD_NONE;
     if(find_option_val(argv, arg_index, argc, "add", NULL)) {
-        cmd_num = 1;
+        cmd_num = CMD_ADD;
     }
     else if(find_option_val(argv, arg_index, argc, "del", NULL)) {
-        cmd_num = 2;
+        cmd_num = CMD_DEL;
     }
-    if(!cmd_num) {
+    else if(find_option_val(argv, arg_index, argc, "link", NULL)) {
+        cmd_num = CMD_LINK;
+    }
+    else if(find_option_val(argv, arg_index, argc, "dump", NULL)) {
+        cmd_num = CMD_DUMP;
+    }
+    if(cmd_num == CMD_NONE) {
         if(str_reply)
             *str_reply = g_strdup_printf("command %s not recognized", argv[1]);
         return -1;
     }
-    const char *addr_str = NULL, *shard_str = NULL, *ipv4_str = NULL, *ipv6_str = NULL;
-    // find addr & alias
+    const char *addr_str = NULL, *alias_str = NULL, *shard_str = NULL, *ipv4_str = NULL, *ipv6_str = NULL;
+// find addr, alias
     find_option_val(argv, arg_index, argc, "-addr", &addr_str);
+    find_option_val(argv, arg_index, argc, "-alias", &alias_str);
     find_option_val(argv, arg_index, argc, "-shard", &shard_str);
     find_option_val(argv, arg_index, argc, "-ipv4", &ipv4_str);
     find_option_val(argv, arg_index, argc, "-ipv6", &ipv6_str);
-    if(!arg_index || argc < 5) {
-        if(str_reply)
-            *str_reply = g_strdup("parameters are not valid");
-        return -1;
-    }
-    if(!addr_str) {
-        if(str_reply)
-            *str_reply = g_strdup("not found -addr parameter");
-        return -1;
-    }
+
+// struct to write to the global db
     dap_chain_node_info_t node_info;
     memset(&node_info, 0, sizeof(dap_chain_node_info_t));
 
-    // store this IP address in dap_addr, dap_addr.uint64 = struct sockaddr_in.sin_addr
-    inet_pton(AF_INET, addr_str, &(node_info.hdr.address.uint64));
-    memcpy(&(node_info.hdr.address.raw), &(node_info.hdr.address.uint64), sizeof(uint64_t));
-    // now get it back
-    //inet_ntop(AF_INET, &(node_info.hdr.address.uint64), str, INET6_ADDRSTRLEN);
+    switch (cmd_num)
+    {
+// add new node to global_db
+    case CMD_ADD:
 
-    if(shard_str) {
-        int64_t shard_id = strtoll(shard_str, NULL, 10);
-        memcpy(&node_info.hdr.shard_id.raw, &shard_id, sizeof(int64_t));
+        if(!arg_index || argc < 8) {
+            if(str_reply)
+                *str_reply = g_strdup("parameters are not valid");
+            return -1;
+        }
+        if(!addr_str) {
+            if(str_reply)
+                *str_reply = g_strdup("not found -addr parameter");
+            return -1;
+        }
+        else
+            digit_from_string(addr_str, node_info.hdr.address.raw, sizeof(node_info.hdr.address.raw));
+        if(!shard_str) {
+            if(str_reply)
+                *str_reply = g_strdup("not found -shard parameter");
+            return -1;
+        }
+        else
+            digit_from_string(shard_str, node_info.hdr.shard_id.raw, sizeof(node_info.hdr.shard_id.raw)); //DAP_CHAIN_SHARD_ID_SIZE);
+        if(!ipv4_str && !ipv6_str) {
+            if(str_reply)
+                *str_reply = g_strdup("not found -ipv4 or -ipv6 parameter");
+            return -1;
+        }
+        else {
+            if(ipv4_str)
+                inet_pton(AF_INET, ipv4_str, &(node_info.hdr.ext_addr_v4));
+            if(ipv6_str)
+                inet_pton(AF_INET6, ipv6_str, &(node_info.hdr.ext_addr_v6));
+        }
+        if(alias_str) {
+            if(addr_str) {
+                // add alias
+                if(!add_alias(alias_str, &node_info.hdr.address))
+                    log_it(L_WARNING, "can't save alias %s", alias_str);
+            }
+            else {
+                if(str_reply)
+                    *str_reply = g_strdup("alias can't be mapped because -addr is not found");
+                return -1;
+            }
+        }
+
+        // write to base
+        char *a_key = dap_chain_global_db_hash((const uint8_t*) &(node_info.hdr.address),
+                sizeof(dap_chain_node_addr_t));
+        char *a_value = dap_chain_node_serialize(&node_info, NULL);
+        bool res = dap_chain_global_db_gr_set(a_key, a_value, GROUP_NODE);
+        if(res) {
+            if(str_reply)
+                *str_reply = g_strdup_printf("node is added");
+        }
+        else if(str_reply) {
+            *str_reply = g_strdup_printf("node is not added");
+        }
+        DAP_DELETE(a_value);
+        if(res)
+            return 0;
+        else
+            return -1;
+        break;
+
+    case CMD_DEL:
+        break;
+    default:
+        if(str_reply)
+            *str_reply = g_strdup_printf("command %s not recognized", argv[1]);
+        return -1;
     }
+//    dap_chain_node_addr_t *addr = dap_chain_node_gen_addr(&node_info.hdr.shard_id);
+//    if(!dap_chain_node_check_addr(&node_info.hdr.address, &node_info.hdr.shard_id)) {
+//        if(str_reply)
+//            *str_reply = g_strdup("shard does not match addr");
+//        return -1;
+//    }
 
-    //inet_ntop(AF_INET, &(dap_addr.uint64), str, INET_ADDRSTRLEN);
-    //uint64
+//inet_ntop(AF_INET, &(dap_addr.uint64), str, INET_ADDRSTRLEN);
+//uint64
     uint64_t
     timestamp = time(NULL);
 
-    char *a_key = dap_chain_global_db_hash((const uint8_t*)&(node_info.hdr.address), sizeof(dap_chain_node_addr_t));
-    char *a_value = dap_chain_global_db_node_serialize(&node_info, NULL);
-    bool res = dap_chain_global_db_set(a_key, a_value);
-    if(res) {
-        if(str_reply)
-            *str_reply = g_strdup_printf("node is %s", (cmd_num == 1) ? "added" : "deleted");
-        return 0;
-    }
-    else if(str_reply) {
-        *str_reply = g_strdup_printf("node is not %s", (cmd_num == 1) ? "added" : "deleted");
-    }
-    DAP_DELETE(a_value);
     return -1;
 }
 
