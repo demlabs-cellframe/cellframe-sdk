@@ -1,6 +1,11 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * Anatolii Kurotych <akurotych@gmail.com>
+ * DeM Labs Inc.   https://demlabs.net
+ * DeM Labs Open source community https://github.com/kelvinblockchain
+ * Copyright  (c) 2017-2019
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
