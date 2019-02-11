@@ -14,7 +14,7 @@
 //#include "dap_http.h"
 #include "http_status_code.h"
 #include "dap_chain_common.h"
-#include "dap_chain_global_db.h"
+#include "dap_chain_node.h"//#include "dap_chain_global_db.h"
 #include "dap_enc.h"
 #include <dap_enc_http.h>
 #include <dap_enc_key.h>
@@ -104,54 +104,6 @@ static char* calc_datum_hash(const char *datum_str, size_t datum_size)
         return NULL ;
     }
     return a_str;
-}
-
-/**
- * Convert binary data to binhex encoded data.
- *
- * out output buffer, must be twice the number of bytes to encode.
- * len is the size of the data in the in[] buffer to encode.
- * return the number of bytes encoded, or -1 on error.
- */
-int bin2hex(char *out, const unsigned char *in, int len)
-{
-    int ct = len;
-    static char hex[] = "0123456789ABCDEF";
-    if(!in || !out || len < 0)
-        return -1;
-    // hexadecimal lookup table
-    while(ct-- > 0)
-    {
-        *out++ = hex[*in >> 4];
-        *out++ = hex[*in++ & 0x0F];
-    }
-    return len;
-}
-
-/**
- * Convert binhex encoded data to binary data
- *
- * len is the size of the data in the in[] buffer to decode, and must be even.
- * out outputbuffer must be at least half of "len" in size.
- * The buffers in[] and out[] can be the same to allow in-place decoding.
- * return the number of bytes encoded, or -1 on error.
- */
-int hex2bin(char *out, const unsigned char *in, int len)
-{
-    // '0'-'9' = 0x30-0x39
-    // 'a'-'f' = 0x61-0x66
-    // 'A'-'F' = 0x41-0x46
-    int ct = len;
-    if(!in || !out || len < 0 || (len & 1))
-        return -1;
-    while(ct > 0)
-    {
-        char ch1 = ((*in >= 'a') ? (*in++ - 'a' + 10) : ((*in >= 'A') ? (*in++ - 'A' + 10) : (*in++ - '0'))) << 4;
-        char ch2 = ((*in >= 'a') ? (*in++ - 'a' + 10) : ((*in >= 'A') ? (*in++ - 'A' + 10) : (*in++ - '0'))); // ((*in >= 'A') ? (*in++ - 'A' + 10) : (*in++ - '0'));
-        *out++ = ch1 + ch2;
-        ct -= 2;
-    }
-    return len;
 }
 
 static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap_enc_key_t * key,

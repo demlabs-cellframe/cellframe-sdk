@@ -8,7 +8,7 @@ add_definitions ("-DNODE_NETNAME=\"kelvin\"")
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_MEMPOOL_SRC} ${DAP_CHAIN_MEMPOOL_HDR})
 
-target_link_libraries(dap_chain_mempool dap_http_server dap_client dap_chain_global_db dap_core)
+target_link_libraries(dap_chain_mempool dap_http_server dap_client dap_chain_net dap_chain_global_db dap_core)
 target_include_directories(dap_chain_mempool INTERFACE .)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)

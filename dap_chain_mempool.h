@@ -36,21 +36,3 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum);
 
 void dap_chain_mempool_add_proc(struct dap_http * sh, const char * url);
 
-/**
- * Convert binary data to binhex encoded data.
- *
- * out output buffer, must be twice the number of bytes to encode.
- * len is the size of the data in the in[] buffer to encode.
- * return the number of bytes encoded, or -1 on error.
- */
-int bin2hex(char *out, const unsigned char *in, int len);
-
-/**
- * Convert binhex encoded data to binary data
- *
- * len is the size of the data in the in[] buffer to decode, and must be even.
- * out outputbuffer must be at least half of "len" in size.
- * The buffers in[] and out[] can be the same to allow in-place decoding.
- * return the number of bytes encoded, or -1 on error.
- */
-int hex2bin(char *out, const unsigned char *in, int len);
