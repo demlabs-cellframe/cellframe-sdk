@@ -283,9 +283,12 @@ static inline void print_online()
 static void accept_cb (struct ev_loop* loop, struct ev_io* watcher, int revents)
 {
     int client_fd = accept(watcher->fd, 0, 0);
-    log_it(L_INFO, "Client accept socket %d", client_fd);
-    if( client_fd < 0 )
-        log_it(L_ERROR, "error accept");
+    if( client_fd < 0 ) {
+        log_it(L_ERROR, "error accept socket");
+        return;
+    }
+
+    log_it(L_INFO, "Client accept socket %d", client_fd););
     set_nonblock_socket(client_fd);
 
     uint8_t indx_min = get_thread_index_min_connections();
