@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <assert.h>
 
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
@@ -117,6 +118,16 @@ int hex2bin(char *out, const unsigned char *in, int len)
 }
 
 /**
+ * Calculate size of struct dap_chain_node_info_t
+ */
+size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
+{
+    if(!node_info)
+        return 0;
+    return (sizeof(dap_chain_node_info_t) + node_info->hdr.uplinks_number * sizeof(dap_chain_addr_t));
+}
+
+/**
  * Serialize dap_chain_node_info_t
  * size[out] - length of output string
  * return data or NULL if error
@@ -152,6 +163,7 @@ dap_chain_node_info_t* dap_chain_node_deserialize(uint8_t *node_info_str, size_t
         DAP_DELETE(node_info);
         return NULL;
     }
+    assert((size / 2) == dap_chain_node_info_get_size(node_info));
     return node_info;
 }
 

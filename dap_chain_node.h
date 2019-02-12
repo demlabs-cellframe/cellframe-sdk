@@ -90,6 +90,10 @@ typedef struct dap_chain_node_publ{
     dap_chain_node_info_t node_info;
 } DAP_ALIGN_PACKED dap_chain_node_publ_t;
 
+/**
+ * Calculate size of struct dap_chain_node_info_t
+ */
+size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
 
 /**
  * Serialize dap_chain_node_info_t
