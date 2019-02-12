@@ -31,6 +31,7 @@
 #include "dap_http.h"
 #include "dap_http_client.h"
 #include "dap_http_folder.h"
+#include "http_status_code.h"
 
 
 typedef struct dap_http_url_proc_folder{
@@ -155,18 +156,21 @@ void dap_http_folder_headers_write(dap_http_client_t * cl_ht, void * arg)
         cl_ht_file->fd=fopen(cl_ht_file->local_path,"r");
         if(cl_ht_file->fd == NULL){
             log_it(L_ERROR, "Can't open %s: %s",cl_ht_file->local_path,strerror(errno));
-            cl_ht->reply_status_code=404;
+            cl_ht->reply_status_code=Http_Status_NotFound;
             strncpy(cl_ht->reply_reason_phrase,"Not Found",sizeof(cl_ht->reply_reason_phrase));
         }else{
-            cl_ht->reply_status_code=200;
+            cl_ht->reply_status_code=Http_Status_OK;
             strncpy(cl_ht->reply_reason_phrase,"OK",sizeof(cl_ht->reply_reason_phrase));
 
             const char * mime_type = magic_file( up_folder->mime_detector,cl_ht_file->local_path);
             if(mime_type){
                 strncpy(cl_ht->out_content_type,mime_type,sizeof(cl_ht->out_content_type));
                 log_it(L_DEBUG,"MIME type detected: '%s'",mime_type);
-            }else
+            }else {
+                cl_ht->reply_status_code=Http_Status_NotFound;
+                cl_ht->client->signal_close=true;
                 log_it(L_WARNING,"Can't detect MIME type of %s file: %s",cl_ht_file->local_path,magic_error(up_folder->mime_detector));
+            }
         }
 
     }else{
