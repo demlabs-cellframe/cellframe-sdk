@@ -33,7 +33,7 @@ static void test_callback() {
     loop = EV_DEFAULT;
     ev_run(loop, EVRUN_ONCE);
 
-    usleep(1000); // wait for callback
+    usleep(10000); // wait for callback
     dap_assert(is_callback_result_success, "Callback_result");
     dap_traffic_callback_stop();
 }
