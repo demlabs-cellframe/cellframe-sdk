@@ -57,6 +57,7 @@ int dap_db_init(const char *path)
             msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=addrs_leased,dc=kelvin_nodes");
             ldb_msg_add_string(msg, "ou", "addrs_leased");
             ldb_msg_add_string(msg, "objectClass", "group");
+            ldb_msg_add_string(msg, "section", "kelvin_nodes");
             ldb_msg_add_string(msg, "description", "Whitelist of Kelvin blockchain nodes");
             dap_db_add_msg(msg);
             talloc_free(msg->dn);
@@ -67,6 +68,7 @@ int dap_db_init(const char *path)
             msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=aliases_leased,dc=kelvin_nodes");
             ldb_msg_add_string(msg, "ou", "aliases_leased");
             ldb_msg_add_string(msg, "objectClass", "group");
+            ldb_msg_add_string(msg, "section", "kelvin_nodes");
             ldb_msg_add_string(msg, "description", "Aliases of Kelvin blockchain nodes");
             dap_db_add_msg(msg);
             talloc_free(msg->dn);
@@ -77,6 +79,7 @@ int dap_db_init(const char *path)
             msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=datums,dc=kelvin_nodes");
             ldb_msg_add_string(msg, "ou", "datums");
             ldb_msg_add_string(msg, "objectClass", "group");
+            ldb_msg_add_string(msg, "section", "kelvin_nodes");
             ldb_msg_add_string(msg, "description", "List of Datums");
             dap_db_add_msg(msg);
             talloc_free(msg->dn);
@@ -140,8 +143,16 @@ int dap_db_del_msg(struct ldb_dn *ldn)
     return -1;
 }
 
-/* path is supposed to have been obtained by smth like
- dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+/**
+ * Get data from base
+ *
+ * query RFC2254 (The String Representation of LDAP Search Filters)
+ * sample:
+ * (uid=testuser)    Matches to all users that have exactly the value testuser for the attribute uid.
+ * (uid=test*)    Matches to all users that have values for the attribute uid that start with test.
+ * (!(uid=test*))    Matches to all users that have values for the attribute uid that do not start with test.
+ * (&(department=1234)(city=Paris)) Matches to all users that have exactly the value 1234 for the attribute department and exactly the value Paris for the attribute city .
+ *
  */
 pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *group)
 {
@@ -157,11 +168,11 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
      DC      domainComponent (0.9.2342.19200300.100.1.25)
      UID     userId (0.9.2342.19200300.100.1.1)
      */
-    //const char *query = "(objectClass=addr_leased)";
     if(ldb_connect(ldb, dap_db_path, LDB_FLG_RDONLY, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
         return NULL ;
     }
+    //sample: query = "(objectClass=addr_leased)";
     if(ldb_search(ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, query) != LDB_SUCCESS) {
         log_it(L_ERROR, "Database querying failed");
         return NULL ;
@@ -169,10 +180,7 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
     log_it(L_INFO, "Obtained binary data, %d entries", data_message->count);
 
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, data_message->count * sizeof(struct dap_store_obj));
-    if(store_data != NULL) {
-        log_it(L_INFO, "We're about to put entries into store objects");
-    }
-    else {
+    if(!store_data) {
         log_it(L_ERROR, "Couldn't allocate memory, store objects unobtained");
         talloc_free(data_message);
         return NULL ;
@@ -180,12 +188,14 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
     int dap_store_len = data_message->count;
     int q;
     for(q = 0; q < dap_store_len; ++q) {
-        store_data[q].section = strdup("kelvin_nodes");
-        store_data[q].group = strdup(group);
+        unsigned int num_elements;
+        struct ldb_message_element *elements;
+        store_data[q].section = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "section", "")); //strdup("kelvin_nodes");
+        store_data[q].group = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "objectClass", "")); //strdup(group);
         store_data[q].type = 1;
-        store_data[q].key = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", NULL));
-        store_data[q].value = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "time", NULL));
-        log_it(L_INFO, "Record %s stored successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
+        store_data[q].key = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", ""));
+        store_data[q].value = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "time", ""));
+        log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
     }
     talloc_free(data_message);
     if(count)
@@ -291,6 +301,7 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size, const char *gro
         msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
         ldb_msg_add_string(msg, "cn", store_obj[q].key);
         ldb_msg_add_string(msg, "objectClass", group);
+        ldb_msg_add_string(msg, "section", "kelvin_nodes");
         ldb_msg_add_string(msg, "description", "Approved Kelvin node");
         ldb_msg_add_string(msg, "time", store_obj[q].value);
         ret += dap_db_add_msg(msg); // accumulation error codes

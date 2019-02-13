@@ -58,7 +58,8 @@ void dap_chain_global_db_deinit(void)
 
 /**
  * Get entry from base
- */
+ *
+  */
 
 char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group)
 {
@@ -66,10 +67,9 @@ char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group)
     int count = 0;
     if(!a_key)
         return NULL ;
-    ssize_t query_len = snprintf(NULL, 0, "(cn=%s)(objectClass=%s)", a_key, a_group);
-    //char query[32 + strlen(a_key)];
-    char *query = DAP_NEW_Z_SIZE(char, query_len + 1);
-    snprintf(query, query_len + 1, "(cn=%s)(objectClass=%s)", a_key, a_group);
+    size_t query_len = snprintf(NULL, 0, "(&(cn=%s)(objectClass=%s))", a_key, a_group);
+    char *query = DAP_NEW_Z_SIZE(char, query_len + 1);//char query[32 + strlen(a_key)];
+    snprintf(query, query_len + 1, "(&(cn=%s)(objectClass=%s))", a_key, a_group);// objectClass != ou
     pthread_mutex_lock(&ldb_mutex);
     pdap_store_obj_t store_data = dap_db_read_data(query, &count, a_group);
     pthread_mutex_unlock(&ldb_mutex);
@@ -79,6 +79,7 @@ char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group)
     DAP_DELETE(query);
     return str;
 }
+
 char * dap_chain_global_db_get(const char *a_key)
 {
     return dap_chain_global_db_gr_get(a_key, GROUP_NAME_DEFAULT);
