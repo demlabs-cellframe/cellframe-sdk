@@ -14,7 +14,8 @@
 //#include "dap_http.h"
 #include "http_status_code.h"
 #include "dap_chain_common.h"
-#include "dap_chain_node.h"//#include "dap_chain_global_db.h"
+#include "dap_chain_node.h"
+#include "dap_chain_global_db.h"
 #include "dap_enc.h"
 #include <dap_enc_http.h>
 #include <dap_enc_key.h>
@@ -101,7 +102,7 @@ static char* calc_datum_hash(const char *datum_str, size_t datum_size)
     size_t hash_len = dap_chain_hash_to_str(&a_hash, a_str, a_str_max);
     if(!hash_len) {
         DAP_DELETE(a_str);
-        return NULL ;
+        return NULL;
     }
     return a_str;
 }
@@ -170,7 +171,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
         printf("!!***!!! chain_mempool_proc arg=%d suburl=%s str=%s len=%d\n", arg, suburl, request_str, request_size);
         if(request_str && request_size > 1) {
             //  find what to do
-            uint8_t action = DAP_DATUM_MEMPOOL_NONE;    //*(uint8_t*) request_str;
+            uint8_t action = DAP_DATUM_MEMPOOL_NONE; //*(uint8_t*) request_str;
             if(dg->url_path_size > 0) {
                 if(!strcmp(suburl, "add"))
                     action = DAP_DATUM_MEMPOOL_ADD;
@@ -203,7 +204,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
-                    char *str = dap_chain_global_db_get(a_key);
+                    char *str = dap_chain_global_db_get((const char*) a_key);
                     if(str) {
                         dg->response = strdup("1");
                         DAP_DELETE(str);
@@ -221,7 +222,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-                    if(dap_chain_global_db_del(a_key)) {
+                    if(dap_chain_global_db_del((const char*) a_key)) {
                         dg->response = strdup("1");
                         DAP_DELETE(str);
                         log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
