@@ -11,7 +11,6 @@ before_install:
 
 script:
     - sudo service network-manager start
-    - export CC=gcc-5
     - mkdir build
     - cd build 
     - cmake -DBUILD_DAP_TESTS=ON ../
@@ -23,6 +22,5 @@ addons:
     sources:
     - ubuntu-toolchain-r-test
     packages:
-    - gcc-5
     - network-manager
 
