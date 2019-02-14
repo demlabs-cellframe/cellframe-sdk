@@ -278,16 +278,13 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
     if(_is_supported_user_agents_list_setted() == true) {
         dap_http_header_t *header = dap_http_header_find(cl_sh->http->in_headers, "User-Agent");
         if(header == NULL) {
-            const char* error_msg = "Request without User-Agent header";
-            log_it(L_WARNING, error_msg);
+            const char* error_msg = "Not found User-Agent HTTP header";
             _write_response_bad_request(cl_sh, error_msg);
             return NULL;
         }
 
-
         if(_is_user_agent_supported(header->value) == false) {
-            const char* error_msg = "User-Agent version not supported";
-            log_it(L_WARNING, error_msg);
+            const char* error_msg = "User-Agent version not supported. Update your software";
             _write_response_bad_request(cl_sh, error_msg);
             return NULL;
         }
