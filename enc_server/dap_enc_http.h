@@ -62,8 +62,8 @@ typedef struct enc_http_delegate{
     struct dap_http_client *http;
 } enc_http_delegate_t;
 
-int enc_http_init();
-void enc_http_deinit();
+int enc_http_init(void);
+void enc_http_deinit(void);
 
 size_t enc_http_reply(enc_http_delegate_t * dg, void * data, size_t data_size);
 size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...);

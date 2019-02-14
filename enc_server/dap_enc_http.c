@@ -35,6 +35,7 @@
 #include "dap_enc_base64.h"
 #include "dap_enc_msrln.h"
 #include "http_status_code.h"
+#include <json-c/json.h>
 
 
 #define LOG_TAG "dap_enc_http"
@@ -46,9 +47,23 @@ int enc_http_init()
 
 void enc_http_deinit()
 {
+
 }
 
+static void _enc_http_write_reply(struct dap_http_simple *cl_st,
+                                  const char* encrypt_id,
+                                  const char* encrypt_msg)
+{
+    struct json_object *jobj = json_object_new_object();
+    json_object_object_add(jobj, "encrypt_id", json_object_new_string(encrypt_id));
+    json_object_object_add(jobj, "encrypt_msg", json_object_new_string(encrypt_msg));
+    const char* json_str = json_object_to_json_string(jobj);
+    dap_http_simple_reply(cl_st, (void*) json_str,
+                          (size_t) strlen(json_str));
+    json_object_put(jobj);
+}
 
+void dap_enc_http_json_response_format_enable(bool);
 /**
  * @brief enc_http_proc Enc http interface
  * @param cl_st HTTP Simple client instance
@@ -89,7 +104,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         size_t encrypt_id_size = dap_enc_base64_encode(key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, encrypt_id, DAP_ENC_DATA_TYPE_B64);
         encrypt_id[encrypt_id_size] = '\0';
 
-        dap_http_simple_reply_f(cl_st, "%s %s", encrypt_id, encrypt_msg);
+        _enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);
 
         dap_enc_key_delete(msrln_key);
 
