@@ -22,7 +22,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
-#include <assert.h>
 
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
@@ -124,7 +123,7 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
 {
     if(!node_info)
         return 0;
-    return (sizeof(dap_chain_node_info_t) + node_info->hdr.uplinks_number * sizeof(dap_chain_addr_t));
+    return (sizeof(dap_chain_node_info_t) + node_info->hdr.links_number * sizeof(dap_chain_node_addr_t));
 }
 
 /**
@@ -132,11 +131,11 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
  * size[out] - length of output string
  * return data or NULL if error
  */
-uint8_t* dap_chain_node_serialize(dap_chain_node_info_t *node_info, size_t *size)
+uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t *size)
 {
     if(!node_info)
         return NULL;
-    size_t node_info_size = sizeof(dap_chain_node_info_t) + node_info->hdr.uplinks_number * sizeof(dap_chain_addr_t);
+    size_t node_info_size = dap_chain_node_info_get_size(node_info);
     size_t node_info_str_size = 2 * node_info_size + 1;
     uint8_t *node_info_str = DAP_NEW_Z_SIZE(uint8_t, node_info_str_size);
     if(bin2hex(node_info_str, (const unsigned char *) node_info, node_info_size) == -1) {
@@ -154,16 +153,18 @@ uint8_t* dap_chain_node_serialize(dap_chain_node_info_t *node_info, size_t *size
  * size[in] - length of input string
  * return data or NULL if error
  */
-dap_chain_node_info_t* dap_chain_node_deserialize(uint8_t *node_info_str, size_t size)
+dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, size_t size)
 {
     if(!node_info_str)
         return NULL;
     dap_chain_node_info_t *node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, (size / 2 + 1));
-    if(hex2bin((char*) node_info, (const unsigned char *) node_info_str, size) == -1) {
+    if(hex2bin((char*) node_info, (const unsigned char *) node_info_str, size) == -1 ||
+            (size / 2) != dap_chain_node_info_get_size(node_info)) {
+        log_it(L_ERROR, "node_info_deserialize - bad node_info size (%ld!=%ld)",
+                size / 2, dap_chain_node_info_get_size(node_info));
         DAP_DELETE(node_info);
         return NULL;
     }
-    assert((size / 2) == dap_chain_node_info_get_size(node_info));
     return node_info;
 }
 

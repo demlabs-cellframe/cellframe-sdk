@@ -77,12 +77,12 @@ typedef struct dap_chain_node_info
     struct {
         dap_chain_node_addr_t address;
         dap_chain_shard_id_t shard_id;
-        uint32_t uplinks_number;
+        uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
         char alias[256];
     } DAP_ALIGN_PACKED hdr;
-    dap_chain_addr_t uplinks[];
+    dap_chain_node_addr_t links[]; // dap_chain_addr_t
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
 
 typedef struct dap_chain_node_publ{
@@ -100,14 +100,14 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
  * size[out] - length of output string
  * return data or NULL if error
  */
-uint8_t* dap_chain_node_serialize(dap_chain_node_info_t *node_info, size_t *size);
+uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t *size);
 
 /**
  * Deserialize dap_chain_node_info_t
  * size[in] - length of input string
  * return data or NULL if error
  */
-dap_chain_node_info_t* dap_chain_node_deserialize(uint8_t *node_info_str, size_t size);
+dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, size_t size);
 
 /**
  * Generate node addr by shard id
