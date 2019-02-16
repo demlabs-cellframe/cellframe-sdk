@@ -7,6 +7,7 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_events.h"
+#include "dap_chain_node.h"
 #include "dap_client_pvt.h"
 #include "dap_http_client_simple.h"
 #include "client_mempool.h"
@@ -17,8 +18,10 @@
 
 static int listen_port_tcp = 8079;
 
+// send request to server
 static int client_mempool_send_request(client_mempool_t *mempool, dap_datum_mempool_t *datum_mempool,
         const char *action, bool is_last_req);
+
 
 // callback for dap_client_new() in client_mempool_connect()
 static void stage_status_callback(dap_client_t *a_client, void *a_arg)

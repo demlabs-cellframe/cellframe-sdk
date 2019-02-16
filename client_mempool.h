@@ -17,7 +17,7 @@ enum {
 };
 
 // state for a client connection with mempool
-typedef struct client_mempool_t {
+typedef struct client_mempool {
     int state;
     dap_events_t *a_events;
     dap_client_t *a_client;
