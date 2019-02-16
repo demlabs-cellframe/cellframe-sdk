@@ -155,12 +155,12 @@ uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t 
  */
 dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, size_t size)
 {
-    if(!node_info_str)
+    if(!node_info_str || size<=0)
         return NULL;
     dap_chain_node_info_t *node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, (size / 2 + 1));
     if(hex2bin((char*) node_info, (const unsigned char *) node_info_str, size) == -1 ||
             (size / 2) != dap_chain_node_info_get_size(node_info)) {
-        log_it(L_ERROR, "node_info_deserialize - bad node_info size (%ld!=%ld)",
+        log_it(L_ERROR, "node_info_deserialize - incorrect node_info size (%ld!=%ld)",
                 size / 2, dap_chain_node_info_get_size(node_info));
         DAP_DELETE(node_info);
         return NULL;

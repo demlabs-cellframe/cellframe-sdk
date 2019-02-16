@@ -33,6 +33,8 @@
 //#include "dap_common.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
+#include "dap_chain_node_cli_connect.h"
+#include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
 
 // Max and min macros
@@ -201,6 +203,11 @@ static char* com_global_db_get_key_for_addr(dap_chain_node_addr_t *address)
 static void set_reply_text(char **str_reply, const char *str, ...)
 {
     if(str_reply) {
+        if(*str_reply) {
+            assert(!*str_reply);
+            g_free(*str_reply);
+            *str_reply = NULL;
+        }
         va_list args;
         va_start(args, str);
         *str_reply = g_strdup_vprintf(str, args); //*str_reply = g_strdup(str);
@@ -208,6 +215,54 @@ static void set_reply_text(char **str_reply, const char *str, ...)
     }
 }
 
+/**
+ * Read node from base
+ */
+static dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_node_addr_t *address, char **str_reply)
+{
+    char *a_key = com_global_db_get_key_for_addr(address);
+    if(!a_key)
+    {
+        set_reply_text(str_reply, "can't calculate hash of addr");
+        return NULL;
+    }
+    // read node
+    char *str = dap_chain_global_db_gr_get(a_key, GROUP_NODE);
+    if(!str) {
+        set_reply_text(str_reply, "node not found in base");
+        DAP_DELETE(a_key);
+        return NULL;
+    }
+    dap_chain_node_info_t *node_info = dap_chain_node_info_deserialize(str, (str) ? strlen(str) : 0);
+    if(!node_info) {
+        set_reply_text(str_reply, "node has invalid format in base");
+    }
+    DAP_DELETE(str);
+    DAP_DELETE(a_key);
+    return node_info;
+}
+
+/**
+ * Save node from base
+ */
+static bool dap_chain_node_info_save(dap_chain_node_info_t *node_info, char **str_reply)
+{
+    if(!node_info || !node_info->hdr.address.uint64) {
+        set_reply_text(str_reply, "node addr not found");
+        return false;
+    }
+    char *a_key = com_global_db_get_key_for_addr(&node_info->hdr.address);
+    if(!a_key)
+    {
+        set_reply_text(str_reply, "can't calculate hash for addr");
+        return NULL;
+    }
+    char *a_value = dap_chain_node_info_serialize(node_info, NULL);
+    bool res = dap_chain_global_db_gr_set(a_key, a_value, GROUP_NODE);
+    DAP_DELETE(a_key);
+    DAP_DELETE(a_value);
+    return res;
+}
 /**
  * Handler of command 'global_db node add'
  *
@@ -239,8 +294,7 @@ static int com_global_db_add(dap_chain_node_info_t *node_info, const char *alias
     // check match addr to shard or no
     /*dap_chain_node_addr_t *addr = dap_chain_node_gen_addr(&node_info->hdr.shard_id);
      if(!dap_chain_node_check_addr(&node_info->hdr.address, &node_info->hdr.shard_id)) {
-     if(str_reply)
-     *str_reply = g_strdup("shard does not match addr");
+     set_reply_text(str_reply, "shard does not match addr");
      return -1;
      }*/
     if(alias_str) {
@@ -254,16 +308,11 @@ static int com_global_db_add(dap_chain_node_info_t *node_info, const char *alias
     }
 
     // write to base
-    char *a_key = dap_chain_global_db_hash((const uint8_t*) &(node_info->hdr.address),
-            sizeof(dap_chain_node_addr_t));
-    char *a_value = dap_chain_node_info_serialize(node_info, NULL);
-    bool res = dap_chain_global_db_gr_set(a_key, a_value, GROUP_NODE);
+    bool res = dap_chain_node_info_save(node_info, str_reply);
     if(res)
         set_reply_text(str_reply, "node added");
     else
-        set_reply_text(str_reply, "node not added");
-    DAP_DELETE(a_key);
-    DAP_DELETE(a_value);
+        return -1;
     if(res)
         return 0;
     return -1;
@@ -303,7 +352,7 @@ static int com_global_db_del(dap_chain_node_info_t *node_info, const char *alias
                     del_alias(alias);
                     list = g_list_next(list);
                 }
-                g_list_free_full(list_aliases, free);
+                g_list_free_full(list_aliases, (GDestroyNotify) free);
             }
             // set text response
             set_reply_text(str_reply, "node deleted");
@@ -351,30 +400,9 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
         set_reply_text(str_reply, "alias not found");
         return -1;
     }
-    char *a_key = com_global_db_get_key_for_addr(address);
-    if(!a_key)
-    {
-        set_reply_text(str_reply, "addr to link can't be defined");
-        DAP_DELETE(address);
+    dap_chain_node_info_t *node_info_read = dap_chain_node_info_read(address, str_reply);
+    if(!node_info_read)
         return -1;
-    }
-    bool res_successful = false;
-    // read node
-    char *str = dap_chain_global_db_gr_get(a_key, GROUP_NODE);
-    if(!str) {
-        set_reply_text(str_reply, "node is not found in base");
-        DAP_DELETE(address);
-        DAP_DELETE(a_key);
-        return -1;
-    }
-    dap_chain_node_info_t *node_info_read = dap_chain_node_info_deserialize(str, strlen(str));
-    if(!node_info_read) {
-        set_reply_text(str_reply, "node have bad format in base");
-        DAP_DELETE(str);
-        DAP_DELETE(a_key);
-        DAP_DELETE(address);
-        return -1;
-    }
 
     int cmd_int = 0;
     if(!strcmp(cmd, "add"))
@@ -391,6 +419,7 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
             break;
         }
     }
+    bool res_successful = false; // is successful whether add/del
     // add link
     if(cmd_int == 1) {
         if(index_link == -1) {
@@ -412,9 +441,7 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
     }
     // save edited node_info
     if(res_successful) {
-
-        char *a_value = dap_chain_node_info_serialize(node_info_read, NULL);
-        bool res = dap_chain_global_db_gr_set(a_key, a_value, GROUP_NODE);
+        bool res = dap_chain_node_info_save(node_info_read, str_reply);
         if(res) {
             res_successful = true;
             if(cmd_int == 1)
@@ -425,7 +452,6 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
         else {
             res_successful = false;
         }
-        DAP_DELETE(a_value);
     }
     else {
         if(cmd_int == 1) {
@@ -442,8 +468,6 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
         }
     }
 
-    DAP_DELETE(str);
-    DAP_DELETE(a_key);
     DAP_DELETE(address);
     DAP_DELETE(node_info_read);
     if(res_successful)
@@ -464,86 +488,63 @@ static int com_global_db_dump(dap_chain_node_info_t *node_info, const char *alia
         set_reply_text(str_reply, "addr not found");
         return -1;
     }
-// find addr by alias or addr_str
+    // find addr by alias or addr_str
     dap_chain_node_addr_t *address = com_global_db_get_addr(node_info, &node_info->hdr.address, alias_str);
     if(!address) {
         set_reply_text(str_reply, "alias not found");
         return -1;
     }
-    a_key = com_global_db_get_key_for_addr(address);
-    if(a_key)
-    {
-        dap_chain_node_info_t *node_info_read = NULL;
-        // read node
-        char *str = dap_chain_global_db_gr_get(a_key, GROUP_NODE);
-        if(str) {
-            node_info_read = dap_chain_node_info_deserialize(str, strlen(str));
-            if(!node_info_read) {
-                set_reply_text(str_reply, "node have bad format in base");
-            }
-            else {
-                ;
-                //get_host(struct in_addr addr, char *host, size_t hostlen)
-                int hostlen = 128;
-                char host4[hostlen];
-                char host6[hostlen];
-                //const struct sockaddr *sa
-                //sockaddr_in
-                struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = node_info_read->hdr.ext_addr_v4 };
-                const char* res4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, hostlen);
-
-                struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = node_info_read->hdr.ext_addr_v6 };
-
-                const char* res6 = inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host6, hostlen);
-                //int res = getnameinfo(&sa4, sizeof sa4, host4, hostlen, 0, 0, 0);
-
-                // get aliases in form of string
-                GString *aliases_string = g_string_new(NULL);
-                GList *list_aliases = get_aliases_by_name(address);
-                if(list_aliases)
-                {
-                    GList *list = list_aliases;
-                    while(list)
-                    {
-                        const char *alias = (const char *) list->data;
-                        g_string_append_printf(aliases_string, "\nalias %s", alias);
-                        list = g_list_next(list);
-                    }
-                    g_list_free_full(list_aliases, (GDestroyNotify) free);
-                }
-                else
-                    g_string_append(aliases_string, "\nno aliases");
-
-                // get links in form of string
-                GString *links_string = g_string_new(NULL);
-                for(int i = 0; i < node_info_read->hdr.links_number; i++) {
-                    dap_chain_node_addr_t link_addr = node_info_read->links[i];
-                    g_string_append_printf(links_string, "\nlink%02d address : 0x%llx", i, link_addr.uint64);
-                }
-
-                // set full reply with node param
-                set_reply_text(str_reply, "node address 0x%llx\nshard 0x%llx%s\nipv4 %s\nipv6 %s\nnumber of links %d%s",
-                        node_info_read->hdr.address, node_info_read->hdr.shard_id, aliases_string->str,
-                        host4, host6,
-                        node_info_read->hdr.links_number, links_string->str);
-                g_string_free(aliases_string, TRUE);
-                g_string_free(links_string, TRUE);
-            }
-        }
-        else
-            set_reply_text(str_reply, "node is not found in base");
-        DAP_DELETE(str);
-        DAP_DELETE(a_key);
+    // read node
+    dap_chain_node_info_t *node_info_read = dap_chain_node_info_read(address, str_reply);
+    if(!node_info_read) {
         DAP_DELETE(address);
-        if(node_info_read)
-        {
-            DAP_DELETE(node_info_read);
-            return 0;
-        }
         return -1;
     }
-    set_reply_text(str_reply, "addr to dump can't be defined");
+
+    int hostlen = 128;
+    char host4[hostlen];
+    char host6[hostlen];
+    struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = node_info_read->hdr.ext_addr_v4 };
+    const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, hostlen);
+
+    struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = node_info_read->hdr.ext_addr_v6 };
+    const char* str_ip6 = inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host6, hostlen);
+
+    // get aliases in form of string
+    GString *aliases_string = g_string_new(NULL);
+    GList *list_aliases = get_aliases_by_name(address);
+    if(list_aliases)
+    {
+        GList *list = list_aliases;
+        while(list)
+        {
+            const char *alias = (const char *) list->data;
+            g_string_append_printf(aliases_string, "\nalias %s", alias);
+            list = g_list_next(list);
+        }
+        g_list_free_full(list_aliases, (GDestroyNotify) free);
+    }
+    else
+        g_string_append(aliases_string, "\nno aliases");
+
+    // get links in form of string
+    GString *links_string = g_string_new(NULL);
+    for(int i = 0; i < node_info_read->hdr.links_number; i++) {
+        dap_chain_node_addr_t link_addr = node_info_read->links[i];
+        g_string_append_printf(links_string, "\nlink%02d address : 0x%llx", i, link_addr.uint64);
+    }
+
+    // set full reply with node param
+    set_reply_text(str_reply, "node address 0x%llx\nshard 0x%llx%s\nipv4 %s\nipv6 %s\nnumber of links %d%s",
+            node_info_read->hdr.address, node_info_read->hdr.shard_id, aliases_string->str,
+            str_ip4, str_ip6,
+            node_info_read->hdr.links_number, links_string->str);
+    g_string_free(aliases_string, TRUE);
+    g_string_free(links_string, TRUE);
+
     DAP_DELETE(address);
+    DAP_DELETE(node_info_read);
+
     return -1;
 }
 
@@ -559,15 +560,14 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     };
     printf("com_global_db\n");
     int arg_index = 1;
-// find 'node' as first parameter only
+    // find 'node' as first parameter only
     arg_index = find_option_val(argv, arg_index, min(argc, arg_index + 1), "node", NULL);
     if(!arg_index || argc < 4) {
-        if(str_reply)
-            *str_reply = g_strdup("parameters are not valid");
+        set_reply_text(str_reply, "parameters are not valid");
         return -1;
     }
     int arg_index_n = ++arg_index;
-// find command (add, delete, etc) as second parameter only
+    // find command (add, delete, etc) as second parameter only
     int cmd_num = CMD_NONE;
     if((arg_index_n = find_option_val(argv, arg_index, min(argc, arg_index + 1), "add", NULL)) != 0) {
         cmd_num = CMD_ADD;
@@ -582,16 +582,15 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
         cmd_num = CMD_DUMP;
     }
     if(cmd_num == CMD_NONE) {
-        if(str_reply)
-            *str_reply = g_strdup_printf("command %s not recognized", argv[1]);
+        set_reply_text(str_reply, "command %s not recognized", argv[1]);
         return -1;
     }
-//arg_index = arg_index_n; // no need, they are already equal must be
+    //arg_index = arg_index_n; // no need, they are already equal must be
     assert(arg_index == arg_index_n);
     arg_index++;
     const char *addr_str = NULL, *alias_str = NULL, *shard_str = NULL, *link_str = NULL;
     const char *ipv4_str = NULL, *ipv6_str = NULL;
-// find addr, alias
+    // find addr, alias
     find_option_val(argv, arg_index, argc, "-addr", &addr_str);
     find_option_val(argv, arg_index, argc, "-alias", &alias_str);
     find_option_val(argv, arg_index, argc, "-shard", &shard_str);
@@ -599,7 +598,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     find_option_val(argv, arg_index, argc, "-ipv6", &ipv6_str);
     find_option_val(argv, arg_index, argc, "-link", &link_str);
 
-// struct to write to the global db
+    // struct to write to the global db
     dap_chain_node_info_t node_info;
     dap_chain_node_addr_t link;
     memset(&node_info, 0, sizeof(dap_chain_node_info_t));
@@ -616,14 +615,13 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
 
     switch (cmd_num)
     {
-// add new node to global_db
+    // add new node to global_db
     case CMD_ADD:
         if(!arg_index || argc < 8) {
-            if(str_reply)
-                *str_reply = g_strdup("parameters are not valid");
+            set_reply_text(str_reply, "invalid parameters");
             return -1;
         }
-// handler of command 'global_db node add'
+        // handler of command 'global_db node add'
         return com_global_db_add(&node_info, alias_str, shard_str, ipv4_str, ipv6_str, str_reply);
         break;
 
@@ -649,15 +647,9 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
         return com_global_db_dump(&node_info, alias_str, str_reply);
         break;
     default:
-        if(str_reply)
-            *str_reply = g_strdup_printf("command %s not recognized", argv[1]);
+        set_reply_text(str_reply, "command %s not recognized", argv[1]);
         return -1;
     }
-
-//inet_ntop(AF_INET, &(dap_addr.uint64), str, INET_ADDRSTRLEN);
-//uint64
-//    timestamp = time(NULL);
-
     return -1;
 }
 
@@ -681,11 +673,11 @@ int com_node(int argc, const char ** argv, char **str_reply)
     }
     arg_index++;
     if(cmd_num == CMD_NONE) {
-        if(str_reply)
-            *str_reply = g_strdup_printf("command %s not recognized", argv[1]);
+        set_reply_text(str_reply, "command %s not recognized", argv[1]);
         return -1;
     }
     dap_chain_node_addr_t address;
+    memset(&address, 0, sizeof(dap_chain_node_addr_t));
     const char *addr_str = NULL, *alias_str = NULL;
 // find addr, alias
     find_option_val(argv, arg_index, argc, "-addr", &addr_str);
@@ -703,19 +695,16 @@ int com_node(int argc, const char ** argv, char **str_reply)
                 if(!add_alias(alias_str, &address))
                     log_it(L_WARNING, "can't save alias %s", alias_str);
                 else {
-                    if(str_reply)
-                        *str_reply = g_strdup("alias mapped successfully");
+                    set_reply_text(str_reply, "alias mapped successfully");
                 }
             }
             else {
-                if(str_reply)
-                    *str_reply = g_strdup("alias can't be mapped because -addr is not found");
+                set_reply_text(str_reply, "alias can't be mapped because -addr is not found");
                 return -1;
             }
         }
         else {
-            if(str_reply)
-                *str_reply = g_strdup("alias can't be mapped because -alias is not found");
+            set_reply_text(str_reply, "alias can't be mapped because -alias is not found");
             return -1;
         }
 
@@ -740,10 +729,33 @@ int com_node(int argc, const char ** argv, char **str_reply)
             return -1;
         }
 
-        // TODO start handshake
+        dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
+        if(!node_info) {
+            return -1;
+        }
+        int timeout_ms = 100000; //100 sec.
+        // start handshake
+        chain_node_client_t *client = chain_node_client_connect(node_info);
+        if(!client) {
+            set_reply_text(str_reply, "can't connect");
+            DAP_DELETE(node_info);
+            return -1;
+        }
+        // wait handshake
+        int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+        if(res != 1) {
+            set_reply_text(str_reply, "no response from node");
+            // clean client struct
+            chain_node_client_close(client);
+            DAP_DELETE(node_info);
+            return -1;
+        }
+        DAP_DELETE(node_info);
 
-        if(str_reply)
-            *str_reply = g_strdup("handshake in progress...");
+        //Add new established connection in the list
+        chain_node_client_list_add(client);
+
+        set_reply_text(str_reply, "connection established");
         break;
     }
     return 0;
@@ -763,56 +775,55 @@ int com_traceroute(int argc, const char** argv, char **str_reply)
     iputils_set_verbose();
     int res = (addr) ? traceroute_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
     if(res >= 0) {
-        if(str_reply)
-            *str_reply = g_strdup_printf("traceroute %s hops=%d time=%.1lf ms", addr, hops, time_usec * 1. / 1000);
+        set_reply_text(str_reply, "traceroute %s hops=%d time=%.1lf ms", addr, hops, time_usec * 1. / 1000);
     }
     else {
         if(str_reply) {
             switch (-res)
             {
             case EADDRNOTAVAIL:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", (addr) ? addr : "",
+                set_reply_text(str_reply, "traceroute %s error: %s", (addr) ? addr : "",
                         (addr) ? "Name or service not known" : "Host not defined");
                 break;
             case 2:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "Unknown traceroute module");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "Unknown traceroute module");
                 break;
             case 3:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "first hop out of range");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "first hop out of range");
                 break;
             case 4:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "max hops cannot be more than 255");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "max hops cannot be more than 255");
                 break;
             case 5:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "no more than 10 probes per hop");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "no more than 10 probes per hop");
                 break;
             case 6:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "bad wait specifications");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "bad wait specifications");
                 break;
             case 7:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "too big packetlen ");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "too big packetlen ");
                 break;
             case 8:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr,
+                set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "IP version mismatch in addresses specified");
                 break;
             case 9:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "bad sendtime");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "bad sendtime");
                 break;
             case 10:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "init_ip_options");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "init_ip_options");
                 break;
             case 11:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "calloc");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "calloc");
                 break;
             case 12:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "parse cmdline");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "parse cmdline");
                 break;
             case 13:
-                *str_reply = g_strdup_printf("traceroute %s error: %s", addr, "trace method's init failed");
+                set_reply_text(str_reply, "traceroute %s error: %s", addr, "trace method's init failed");
                 break;
             default:
-                *str_reply = g_strdup_printf("traceroute %s error(%d) %s", addr, res, "trace not found");
+                set_reply_text(str_reply, "traceroute %s error(%d) %s", addr, res, "trace not found");
             }
         }
     }
@@ -834,48 +845,48 @@ int com_tracepath(int argc, const char** argv, char **str_reply)
     int res = (addr) ? tracepath_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
     if(res >= 0) {
         if(str_reply)
-            *str_reply = g_strdup_printf("tracepath %s hops=%d time=%.1lf ms", addr, hops, time_usec * 1. / 1000);
+            set_reply_text(str_reply, "tracepath %s hops=%d time=%.1lf ms", addr, hops, time_usec * 1. / 1000);
     }
     else {
         if(str_reply) {
             switch (-res)
             {
             case EADDRNOTAVAIL:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", (addr) ? addr : "",
+                set_reply_text(str_reply, "tracepath %s error: %s", (addr) ? addr : "",
                         (addr) ? "Name or service not known" : "Host not defined");
                 break;
             case ESOCKTNOSUPPORT:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't create socket");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't create socket");
                 break;
             case 2:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_MTU_DISCOVER");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IPV6_MTU_DISCOVER");
                 break;
             case 3:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_RECVERR");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IPV6_RECVERR");
                 break;
             case 4:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_HOPLIMIT");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IPV6_HOPLIMIT");
                 break;
             case 5:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_MTU_DISCOVER");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_MTU_DISCOVER");
                 break;
             case 6:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_RECVERR");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_RECVERR");
                 break;
             case 7:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_RECVTTL");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_RECVTTL");
                 break;
             case 8:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "malloc");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "malloc");
                 break;
             case 9:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IPV6_UNICAST_HOPS");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IPV6_UNICAST_HOPS");
                 break;
             case 10:
-                *str_reply = g_strdup_printf("tracepath %s error: %s", addr, "Can't setsockopt IP_TTL");
+                set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_TTL");
                 break;
             default:
-                *str_reply = g_strdup_printf("tracepath %s error(%d) %s", addr, res, "trace not found");
+                set_reply_text(str_reply, "tracepath %s error(%d) %s", addr, res, "trace not found");
             }
         }
     }
@@ -904,24 +915,24 @@ int com_ping(int argc, const char** argv, char **str_reply)
     int res = (addr) ? ping_util(addr, n) : -EADDRNOTAVAIL;
     if(res >= 0) {
         if(str_reply)
-            *str_reply = g_strdup_printf("ping %s time=%.1lf ms", addr, res * 1. / 1000);
+            set_reply_text(str_reply, "ping %s time=%.1lf ms", addr, res * 1. / 1000);
     }
     else {
         if(str_reply) {
             switch (-res)
             {
             case EDESTADDRREQ:
-                *str_reply = g_strdup_printf("ping %s error: %s", addr, "Destination address required");
+                set_reply_text(str_reply, "ping %s error: %s", addr, "Destination address required");
                 break;
             case EADDRNOTAVAIL:
-                *str_reply = g_strdup_printf("ping %s error: %s", (addr) ? addr : "",
+                set_reply_text(str_reply, "ping %s error: %s", (addr) ? addr : "",
                         (addr) ? "Host not found" : "Host not defined");
                 break;
             case EPFNOSUPPORT:
-                *str_reply = g_strdup_printf("ping %s error: %s", addr, "Unknown protocol family");
+                set_reply_text(str_reply, "ping %s error: %s", addr, "Unknown protocol family");
                 break;
             default:
-                *str_reply = g_strdup_printf("ping %s error(%d)", addr, -res);
+                set_reply_text(str_reply, "ping %s error(%d)", addr, -res);
             }
         }
     }
@@ -942,10 +953,10 @@ int com_help(int argc, const char ** argv, char **str_reply)
             return 1;
         }
         if(str_reply)
-            *str_reply = g_strdup_printf("command \"%s\" not recognized", argv[1]);
+            set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
     }
     if(str_reply)
-        *str_reply = g_strdup("command not defined, enter \"help <cmd name>\"");
+        set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
     return -1;
 }
 
