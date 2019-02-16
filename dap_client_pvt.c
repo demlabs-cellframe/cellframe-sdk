@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <json-c/json.h>
 
 #include "dap_enc_key.h"
 #include "dap_enc_base64.h"
@@ -455,10 +456,36 @@ void m_request_response(void * a_response,size_t a_response_size,void * a_obj)
 void m_enc_init_response(dap_client_t * a_client, void * a_response,size_t a_response_size)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if( a_response_size > 10) {// &&  a_response_size < 50){
-        char l_session_id_b64 [DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE)+1]={0};
-        char *l_bob_message_b64 = DAP_NEW_Z_SIZE(char,a_response_size- sizeof(l_session_id_b64)+1 );
-        if (sscanf (a_response,"%s %s",l_session_id_b64, l_bob_message_b64) == 2 ){
+    if(a_response_size > 10) { // &&  a_response_size < 50){
+
+        char *l_session_id_b64 = NULL;
+        char *l_bob_message_b64 = NULL;
+        int json_parse_count = 0;
+        struct json_object *jobj = json_tokener_parse((const char *) a_response);
+        if(jobj) {
+            // parse encrypt_id & encrypt_msg
+            json_object_object_foreach(jobj, key, val)
+            {
+                if(json_object_get_type(val) == json_type_string) {
+                    char *str = (char *) json_object_get_string(val);
+                    if(!strcmp(key, "encrypt_id")) {
+                        l_session_id_b64 = DAP_NEW_Z_SIZE(char, strlen(str) + 1);
+                        strcpy(l_session_id_b64, str);
+                        json_parse_count++;
+                    }
+                    if(!strcmp(key, "encrypt_msg")) {
+                        l_bob_message_b64 = DAP_NEW_Z_SIZE(char, strlen(str) + 1);
+                        strcpy(l_bob_message_b64, str);
+                        json_parse_count++;
+                    }
+                }
+            }
+            // free jobj
+            json_object_put(jobj);
+        }
+        //char l_session_id_b64[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1] = { 0 };
+        //char *l_bob_message_b64 = DAP_NEW_Z_SIZE(char, a_response_size - sizeof(l_session_id_b64) + 1);
+        if(json_parse_count == 2) { //if (sscanf (a_response,"%s %s",l_session_id_b64, l_bob_message_b64) == 2 ){
             l_client_pvt->session_key_id = DAP_NEW_Z_SIZE(char,strlen(l_session_id_b64)+1);
             dap_enc_base64_decode(l_session_id_b64,strlen(l_session_id_b64),
                                   l_client_pvt->session_key_id, DAP_ENC_DATA_TYPE_B64);
@@ -490,6 +517,7 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response,size_t a_res
             l_client_pvt->stage_status = STAGE_STATUS_ERROR;
             s_stage_status_after(l_client_pvt);
         }
+        DAP_DELETE(l_session_id_b64);
         DAP_DELETE(l_bob_message_b64);
     }else if( a_response_size>1){
         log_it(L_ERROR, "ENC: Wrong response (size %u data '%s')",a_response_size,(char*) a_response);
