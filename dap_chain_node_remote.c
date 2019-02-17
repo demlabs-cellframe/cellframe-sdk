@@ -22,69 +22,116 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <glib.h>
 #include <pthread.h>
 
+#include "uthash.h"
 #include "dap_chain_node_remote.h"
 
+typedef struct dap_chain_item {
+    dap_chain_node_addr_t address;
+    chain_node_client_t *client;
+    UT_hash_handle hh;
+} list_linked_item_t;
 
 // List of connections
-static GList *connect_list = NULL;
+static list_linked_item_t *conn_list = NULL;
 
 // for separate access to connect_list
 static pthread_mutex_t connect_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
- * Add new established connection in the list
+ * Add new established connection to the list
+ *
+ * return 0 OK, -1 error, -2 already present
  */
-bool chain_node_client_list_add(chain_node_client_t *client)
+int chain_node_client_list_add(dap_chain_node_addr_t *address, chain_node_client_t *client)
 {
-    if(!client)
-        return false;
+    int ret = 0;
+    if(!address || !client)
+        return -1;
+    list_linked_item_t *item_tmp;
     pthread_mutex_lock(&connect_list_mutex);
-    connect_list = g_list_append(connect_list, client);
+    HASH_FIND(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp); // address already in the hash?
+    if(item_tmp == NULL) {
+        item_tmp = DAP_NEW(list_linked_item_t);
+        item_tmp->address.uint64 = address->uint64;
+        item_tmp->client = client;
+        HASH_ADD(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp); // address: name of key field
+        ret = 0;
+    }
+    // connection already present
+    else
+        ret = -2;
+    //connect_list = g_list_append(connect_list, client);
     pthread_mutex_unlock(&connect_list_mutex);
-    return true;
+    return ret;
 }
 
 /**
  * Delete established connection from the list
+ *
+ * return 0 OK, -1 error, -2 address not found
  */
-bool chain_node_client_list_del(chain_node_client_t *client)
+int chain_node_client_list_del(dap_chain_node_addr_t *address)
 {
+    int ret = -1;
+    if(!address)
+        return -1;
+    list_linked_item_t *item_tmp;
     pthread_mutex_lock(&connect_list_mutex);
-    GList *list = g_list_find(connect_list, client);
-    // found
-    if(list)
-        connect_list = g_list_remove(connect_list, client);
+    HASH_FIND(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp);
+    if(item_tmp != NULL) {
+        HASH_DEL(conn_list, item_tmp);
+        ret = 0;
+    }
+    else
+        // address not found in the hash
+        ret = -2;
     pthread_mutex_unlock(&connect_list_mutex);
-    if(list)
-        return true;
-    return false;
+    if(!ret) {
+        // close connection
+        chain_node_client_close(item_tmp->client);
+        // del struct for hash
+        DAP_DELETE(item_tmp);
+    }
+    return ret;
 }
 
 /**
- * Get one established connection
- *
- * n - the position of the established connection, counting from 0
+ * Delete all established connection from the list
+ */
+void chain_node_client_list_del_all(void)
+{
+    int ret = -1;
+    list_linked_item_t *iter_current, *item_tmp;
+    pthread_mutex_lock(&connect_list_mutex);
+    HASH_ITER(hh, conn_list , iter_current, item_tmp) {
+        // close connection
+        chain_node_client_close(iter_current->client);
+        // del struct for hash
+        HASH_DEL(conn_list, iter_current);
+    }
+    pthread_mutex_unlock(&connect_list_mutex);
+}
+
+/**
+ * Get present established connection
  *
  * return client, or NULL if the position is off the end of the list
  */
-chain_node_client_t* chain_node_client_list_get_item(int n)
+const chain_node_client_t* chain_node_client_find(dap_chain_node_addr_t *address)
 {
+    int ret = 0;
+    if(!address)
+        return NULL;
+    chain_node_client_t *client_ret = NULL;
+    list_linked_item_t *item_tmp;
     pthread_mutex_lock(&connect_list_mutex);
-    chain_node_client_t *client = g_list_nth_data(connect_list, (guint) n);
+    HASH_FIND(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp); // address already in the hash?
+    if(item_tmp != NULL) {
+        client_ret = item_tmp->client;
+    }
     pthread_mutex_unlock(&connect_list_mutex);
-    return client;
-}
-/**
- * Get the number of established connections
- */
-int chain_node_client_list_count(void)
-{
-    pthread_mutex_lock(&connect_list_mutex);
-    int len = g_list_length(connect_list);
-    pthread_mutex_unlock(&connect_list_mutex);
-    return len;
+    return client_ret;
 }
 

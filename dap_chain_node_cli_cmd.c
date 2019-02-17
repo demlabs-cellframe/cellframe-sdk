@@ -124,7 +124,7 @@ static bool del_alias(const char *alias)
  *
  * return addr, NULL if not found
  */
-static dap_chain_node_addr_t* get_name_by_alias(const char *alias)
+dap_chain_node_addr_t* get_name_by_alias(const char *alias)
 {
     dap_chain_node_addr_t *addr = NULL;
     if(!alias)
@@ -733,7 +733,7 @@ int com_node(int argc, const char ** argv, char **str_reply)
         if(!node_info) {
             return -1;
         }
-        int timeout_ms = 100000; //100 sec.
+        int timeout_ms = 10000; //10 sec.
         // start handshake
         chain_node_client_t *client = chain_node_client_connect(node_info);
         if(!client) {
@@ -753,8 +753,18 @@ int com_node(int argc, const char ** argv, char **str_reply)
         DAP_DELETE(node_info);
 
         //Add new established connection in the list
-        chain_node_client_list_add(client);
-
+        int ret = chain_node_client_list_add(&address, client);
+        switch (ret)
+        {
+        case -1:
+            chain_node_client_close(client);
+            set_reply_text(str_reply, "connection established, but not saved");
+            return -1;
+        case -2:
+            chain_node_client_close(client);
+            set_reply_text(str_reply, "connection already present");
+            return -1;
+        }
         set_reply_text(str_reply, "connection established");
         break;
     }
