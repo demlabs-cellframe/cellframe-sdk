@@ -46,7 +46,7 @@ int chain_node_client_list_del(dap_chain_node_addr_t *address);
 void chain_node_client_list_del_all(void);
 
 /**
- * Get present established connection
+ * Get present established connection by address
  *
  * return client, or NULL if the position is off the end of the list
  */

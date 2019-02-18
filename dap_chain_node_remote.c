@@ -27,7 +27,7 @@
 #include "uthash.h"
 #include "dap_chain_node_remote.h"
 
-typedef struct dap_chain_item {
+typedef struct list_linked_item {
     dap_chain_node_addr_t address;
     chain_node_client_t *client;
     UT_hash_handle hh;
@@ -49,7 +49,7 @@ int chain_node_client_list_add(dap_chain_node_addr_t *address, chain_node_client
     int ret = 0;
     if(!address || !client)
         return -1;
-    list_linked_item_t *item_tmp;
+    list_linked_item_t *item_tmp = NULL;
     pthread_mutex_lock(&connect_list_mutex);
     HASH_FIND(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp); // address already in the hash?
     if(item_tmp == NULL) {
@@ -115,7 +115,7 @@ void chain_node_client_list_del_all(void)
 }
 
 /**
- * Get present established connection
+ * Get present established connection by address
  *
  * return client, or NULL if the position is off the end of the list
  */
