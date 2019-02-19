@@ -37,9 +37,10 @@ typedef union dap_chain_cs_type{
     uint8_t raw[DAP_CHAIN_CS_TYPE_SIZE];
 }dap_chain_cs_type_t;
 
-typedef void (*dap_chain_callback_t)(struct dap_chain *);
+typedef void (*dap_chain_cs_callback_t)(dap_chain_t *);
 
 int dap_chain_cs_init();
 void dap_chain_cs_deinit();
 
+void dap_chain_cs_add (const char * a_cs_str,  dap_chain_cs_callback_t a_callback_init);
 int dap_chain_cs_create(dap_chain_t * a_chain, const char * a_chain_cs_type_str);

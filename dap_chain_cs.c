@@ -22,10 +22,24 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <string.h>
+#include <stdio.h>
+
+#include "uthash.h"
+
 #include "dap_common.h"
 #include "dap_chain_cs.h"
 
 #define LOG_TAG "dap_chain_cs"
+
+typedef struct dap_chain_cs_callback_item
+{
+    char name[32];
+    dap_chain_cs_callback_t callback_init;
+    UT_hash_handle hh;
+} dap_chain_cs_callback_item_t;
+
+dap_chain_cs_callback_item_t * s_cs_callbacks = NULL;
 
 /**
  * @brief dap_chain_cs_init
@@ -44,7 +58,33 @@ void dap_chain_cs_deinit()
 
 }
 
+/**
+ * @brief dap_chain_cs_add
+ * @param a_cs_str
+ * @param a_callback_init
+ */
+void dap_chain_cs_add (const char * a_cs_str,  dap_chain_cs_callback_t a_callback_init)
+{
+    dap_chain_cs_callback_item_t *l_item = DAP_NEW_Z ( dap_chain_cs_callback_item_t );
+    strncpy(l_item->name, a_cs_str, sizeof (l_item->name) );
+    l_item->callback_init = a_callback_init;
+    HASH_ADD_STR( s_cs_callbacks, name, l_item);
+}
+
+/**
+ * @brief dap_chain_cs_create
+ * @param a_chain
+ * @param a_chain_cs_type_str
+ * @return
+ */
 int dap_chain_cs_create(dap_chain_t * a_chain, const char * a_chain_cs_type_str)
 {
-
+    dap_chain_cs_callback_item_t *l_item = NULL;
+    HASH_FIND_STR(s_cs_callbacks,a_chain_cs_type_str,l_item);
+    if ( l_item ) {
+        l_item->callback_init ( a_chain );
+        return 0;
+    } else {
+        return -1;
+    }
 }
