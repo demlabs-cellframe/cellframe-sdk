@@ -58,12 +58,18 @@ int dap_config_init(const char * a_configs_path)
         }
 #endif
         if(dir_test(a_configs_path) || !mkdir_with_parents(a_configs_path)) {
-            strcpy(s_configs_path, a_configs_path);
+            strncpy(s_configs_path, a_configs_path,sizeof(s_configs_path));
             return 0;
         }
     }
     return -1;
 }
+
+const char * dap_config_path()
+{
+    return s_configs_path;
+}
+
 
 /**
  * @brief dap_config_deinit Deinitialize settings
