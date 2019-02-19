@@ -210,10 +210,10 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char 
                 }
             }
 
-            const char * l_consensus = dap_config_get_item_str(l_cfg,"chain","consensus");
-            if ( l_consensus ){
+            const char * l_consensus_str = dap_config_get_item_str(l_cfg,"chain","consensus");
+            if ( l_consensus_str ){
                 l_chain =  dap_chain_create(l_chain_net_id,l_chain_id,l_chain_shard_id);
-                if ( dap_chain_cs_create(l_chain, l_consensus) == 0 ) {
+                if ( dap_chain_cs_create(l_chain, l_consensus_str) == 0 ) {
                     log_it (L_NOTICE,"Consensus %s initialized for chain id 0x%016llX:0x%016llX",
                             l_chain_id.uint64 ,
                             l_chain_shard_id.uint64);
@@ -223,6 +223,7 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char 
                         dap_chain_pvt_file_save( l_chain );
                     }
                 }else{
+                    log_it (L_ERROR, "Unrecognized consensus \"%s\"",l_consensus_str);
                     dap_chain_delete(l_chain);
                     l_chain = NULL;
                 }
