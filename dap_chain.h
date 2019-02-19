@@ -25,9 +25,7 @@
 
 #pragma once
 #include <stdbool.h>
-#include "dap_chain_block.h"
-#include "dap_chain_block_cache.h"
-
+#include "dap_chain_common.h"
 struct dap_chain;
 typedef struct dap_chain dap_chain_t;
 

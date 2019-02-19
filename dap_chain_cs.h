@@ -24,18 +24,6 @@
 #pragma once
 
 #include "dap_chain.h"
-#include "dap_chain_block.h"
-#define DAP_CHAIN_CS_TYPE_SIZE 2
-typedef union dap_chain_cs_type{
-    enum {
-    DAP_CHAIN_CS_DAG_POA        =  0x0000,
-    DAP_CHAIN_CS_BLOCK_POA      = 0xf000,
-    DAP_CHAIN_CS_BLOCK_POW      = 0xf001 ,
-    DAP_CHAIN_CS_DAG_HASHGRAPG  = 0x0100,
-    DAP_CHAIN_CS_DAG_POH        = 0x0101,
-    } enums: 16;
-    uint8_t raw[DAP_CHAIN_CS_TYPE_SIZE];
-}dap_chain_cs_type_t;
 
 typedef void (*dap_chain_cs_callback_t)(dap_chain_t *);
 

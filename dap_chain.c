@@ -265,14 +265,6 @@ void dap_chain_close(dap_chain_t * a_chain)
         log_it(L_WARNING,"Tried to close null pointer");
 }
 
-/**
- * @brief dap_chain_update
- * @param l_block_cache
- */
-void dap_chain_update(dap_chain_block_cache_t *l_block_cache){
-    //dap_chain_file_write(l_block_cache);
-
-}
 
 /**
  * @brief dap_chain_info_dump_log

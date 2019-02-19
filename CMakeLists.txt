@@ -31,7 +31,7 @@ set(DAP_CHAIN_HEADERS
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 
 
-target_link_libraries(dap_chain dap_core dap_chain_block dap_chain_block_cs dap_chain_dag dap_chain_dag_cs dap_chain_crypto)
+target_link_libraries(dap_chain dap_core dap_chain_crypto)
 target_include_directories(dap_chain INTERFACE .)
 
 
