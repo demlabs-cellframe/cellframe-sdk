@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_block.h"
@@ -46,6 +47,8 @@ typedef union dap_stream_ch_chain_request{
 
 typedef struct dap_stream_ch_chain_pkt_hdr{
     dap_chain_id_t chain_id;
+    dap_chain_net_id_t net_id;
+    dap_chain_shard_id_t shard_id;
     uint8_t type;
     uint8_t padding1[3];
     union{
