@@ -218,7 +218,10 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char 
                             l_chain_id.uint64 ,
                             l_chain_shard_id.uint64);
                     DAP_CHAIN_PVT ( l_chain)->file_storage_path = strdup ( dap_config_get_item_str (l_cfg , "files","storage") );
-                    dap_chain_pvt_file_load (l_chain);
+                    if ( dap_chain_pvt_file_load ( l_chain ) != 0 ){
+                        log_it (L_NOTICE, "Init chain file");
+                        dap_chain_pvt_file_save( l_chain );
+                    }
                 }else{
                     dap_chain_delete(l_chain);
                     l_chain = NULL;

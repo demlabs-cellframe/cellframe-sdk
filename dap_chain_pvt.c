@@ -67,7 +67,7 @@ int dap_chain_pvt_file_load( dap_chain_t * a_chain)
             return -2;
         }
     }else {
-        log_it (L_ERROR,"Can't read dap_chain file \"%s\"",l_chain_pvt->file_storage_path);
+        log_it (L_WARNING,"Can't read dap_chain file \"%s\"",l_chain_pvt->file_storage_path);
         return -1;
     }
 }
