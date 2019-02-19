@@ -23,52 +23,52 @@
 */
 #include <stdint.h>
 #include "dap_common.h"
-#include "dap_chain_dag.h"
+#include "dap_chain_cs_dag.h"
 
-#define LOG_TAG "chain_dag"
+#define LOG_TAG "dap_chain_cs_dag"
 
-typedef struct dap_chain_dag_pvt {
+typedef struct dap_chain_cs_dag_pvt {
     uint8_t padding;
-} dap_chain_dag_pvt_t;
+} dap_chain_cs_dag_pvt_t;
 
-#define PVT(a) ((dap_chain_dag_pvt_t *) a->_pvt )
+#define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 /**
- * @brief dap_chain_dag_init
+ * @brief dap_chain_cs_dag_init
  * @return
  */
-int dap_chain_dag_init()
+int dap_chain_cs_dag_init()
 {
     return 0;
 }
 
 /**
- * @brief dap_chain_dag_deinit
+ * @brief dap_chain_cs_dag_deinit
  */
-void dap_chain_dag_deinit()
+void dap_chain_cs_dag_deinit()
 {
 
 }
 
 /**
- * @brief dap_chain_dag_new
+ * @brief dap_chain_cs_dag_new
  * @param a_chain
  * @return
  */
-dap_chain_dag_t *dap_chain_dag_new(dap_chain_t * a_chain)
+dap_chain_cs_dag_t *dap_chain_cs_dag_new(dap_chain_t * a_chain)
 {
-    dap_chain_dag_t * l_ret = DAP_NEW_Z(dap_chain_dag_t);
-    l_ret->_pvt = DAP_NEW_Z(dap_chain_dag_pvt_t);
+    dap_chain_cs_dag_t * l_ret = DAP_NEW_Z(dap_chain_cs_dag_t);
+    l_ret->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
     l_ret->chain = a_chain;
     return l_ret;
 }
 
 /**
- * @brief dap_chain_dag_delete
+ * @brief dap_chain_cs_dag_delete
  * @param a_dag
  * @return
  */
-void dap_chain_dag_delete(dap_chain_dag_t * a_dag)
+void dap_chain_cs_dag_delete(dap_chain_cs_dag_t * a_dag)
 {
     if(a_dag->callback_delete )
         a_dag->callback_delete(a_dag->chain);

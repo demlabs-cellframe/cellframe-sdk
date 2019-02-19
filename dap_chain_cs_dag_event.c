@@ -25,13 +25,13 @@
 #include "dap_common.h"
 #include "dap_enc_key.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_dag.h"
-#include "dap_chain_dag_event.h"
+#include "dap_chain_cs_dag.h"
+#include "dap_chain_cs_dag_event.h"
 
-#define LOG_TAG "chain_dag_event"
+#define LOG_TAG "dap_chain_cs_dag_event"
 
 /**
- * @brief dap_chain_dag_event_new
+ * @brief dap_chain_cs_dag_event_new
  * @param a_dag
  * @param a_datum
  * @param a_key
@@ -39,7 +39,7 @@
  * @param a_hashes_count
  * @return
  */
-dap_chain_dag_event_t * dap_chain_dag_event_new(dap_chain_dag_t * a_dag,dap_chain_datum_t * a_datum
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_cs_dag_t * a_dag,dap_chain_datum_t * a_datum
                                                 ,dap_enc_key_t * a_key ,
                                                 dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
 {
@@ -60,31 +60,31 @@ dap_chain_dag_event_t * dap_chain_dag_event_new(dap_chain_dag_t * a_dag,dap_chai
 }
 
 /**
- * @brief dap_chain_dag_event_delete
+ * @brief dap_chain_cs_dag_event_delete
  * @param a_dag
  * @param a_event
  */
-void dap_chain_dag_event_delete(dap_chain_dag_t * a_dag,dap_chain_dag_event_t * a_event)
+void dap_chain_cs_dag_event_delete(dap_chain_cs_dag_t * a_dag,dap_chain_cs_dag_event_t * a_event)
 {
 
 }
 
 /**
- * @brief dap_chain_dag_event_verify
+ * @brief dap_chain_cs_dag_event_verify
  * @return
  */
-int dap_chain_dag_event_verify(dap_chain_dag_event_t * a_event)
+int dap_chain_cs_dag_event_verify(dap_chain_cs_dag_event_t * a_event)
 {
     return 0;
 
 }
 
 /**
- * @brief dap_chain_dag_event_get_datum
+ * @brief dap_chain_cs_dag_event_get_datum
  * @param a_event
  * @return
  */
-dap_chain_datum_t* dap_chain_dag_event_get_datum(dap_chain_dag_event_t * a_event)
+dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a_event)
 {
     uint8_t * l_signs = a_event->hashes_n_signs_n_datum
             +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
