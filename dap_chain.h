@@ -24,6 +24,7 @@
 
 
 #pragma once
+#include <stdbool.h>
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
@@ -34,7 +35,11 @@ typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
 typedef void (*dap_chain_callback_t)(struct dap_chain *);
 typedef void (*dap_chain_callback_ptr_t)(struct dap_chain *, void * );
-typedef size_t (*dap_chain_callback_dataop_t)(struct dap_chain *, const void * , const size_t ,void *);
+
+typedef int (*dap_chain_callback_element_add_t)(struct dap_chain *, void * , const size_t );
+
+typedef int (*dap_chain_callback_element_get_first_t)(struct dap_chain *, void ** , const size_t* );
+typedef int (*dap_chain_callback_element_get_next_t)(struct dap_chain *, void ** , const size_t* );
 
 typedef size_t (*dap_chain_callback_get_size_t)(struct dap_chain *);
 typedef size_t (*dap_chain_callback_set_data_t)(struct dap_chain *,void * a_data);
@@ -46,9 +51,9 @@ typedef struct dap_chain{
     dap_chain_net_id_t net_id;
     dap_chain_shard_id_t shard_id;
     dap_chain_callback_t callback_delete;
-    dap_chain_callback_get_size_t callback_get_internal_hdr_size;
-    dap_chain_callback_set_data_t callback_set_internal_hdr;
-
+    dap_chain_callback_element_add_t callback_element_add; // Accept new element in chain
+    dap_chain_callback_element_get_first_t callback_element_get_first; // Get the fisrt element from chain
+    dap_chain_callback_element_get_next_t callback_element_get_next; // Get the next element from chain from the current one
     // To hold it in double-linked lists
     struct dap_chain * next;
     struct dap_chain * prev;

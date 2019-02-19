@@ -27,6 +27,7 @@
 #include "dap_common.h"
 #include "dap_chain.h"
 
+#define DAP_CHAIN_FILE_VERSION 1
 #define DAP_CHAIN_FILE_SIGNATURE 0xfa340bef153eba48
 #define DAP_CHAIN_FILE_TYPE_RAW 0
 #define DAP_CHAIN_FILE_TYPE_COMPRESSED 1
@@ -38,9 +39,9 @@ typedef struct dap_chain_file_header
     uint64_t signature;
     uint32_t version;
     uint8_t type;
-    uint64_t chain_id;
-    uint64_t chain_net_id;
-} dap_chain_file_header_t;
+    dap_chain_id_t chain_id;
+    dap_chain_net_id_t chain_net_id;
+} DAP_ALIGN_PACKED dap_chain_file_header_t;
 
 /**
   * @struct dap_chain_pvt
