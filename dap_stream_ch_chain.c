@@ -27,12 +27,7 @@
 #include "dap_config.h"
 
 #include "dap_chain.h"
-#include "dap_chain_block_cache.h"
-#include "dap_chain.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_blocks.h"
-#include "dap_chain_dag.h"
-#include "dap_chain_dag_event.h"
 #include "dap_chain_cs.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"

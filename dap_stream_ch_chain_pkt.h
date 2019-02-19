@@ -28,7 +28,7 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_block.h"
+#include "dap_chain_cs.h"
 
 #define STREAM_CH_CHAIN_PKT_TYPE_REQUEST       0x00
 #define STREAM_CH_CHAIN_PKT_TYPE_BLOCK         0x11
@@ -51,15 +51,7 @@ typedef struct dap_stream_ch_chain_pkt_hdr{
     dap_chain_shard_id_t shard_id;
     uint8_t type;
     uint8_t padding1[3];
-    union{
-        struct{
-            dap_chain_block_typeid_t block_tid;
-        }tid_block;
-        struct{
-            dap_chain_datum_typeid_t datum_tid;
-        }tid_datum;
-        uint64_t tid_raw;
-    } tid; // type id of subchain
+    uint64_t tid;
 }  __attribute__((packed)) dap_stream_ch_chain_pkt_hdr_t;
 
 typedef struct dap_stream_ch_chain_pkt{
