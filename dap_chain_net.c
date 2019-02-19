@@ -27,12 +27,18 @@
 #include <pthread.h>
 
 #include "uthash.h"
+#include "utlist.h"
 
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_ctl.h"
 #include "dap_module.h"
+
+#define _XOPEN_SOURCE 700
+#include <stdio.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 #define LOG_TAG "chain_net"
 
@@ -136,7 +142,7 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-    if ( sscanf(a_id,"0x%llu", &ret->pub.id.uint64 ) == 1 ){
+    if ( sscanf(a_id,"0x%0llx", &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root")==0){
             PVT(ret)->node_role.enums = ROOT;
             log_it (L_NOTICE, "Node role \"root\" selected");
@@ -183,6 +189,7 @@ int dap_chain_net_init()
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-default" )
                                            );
+        // Do specific actions
         switch ( PVT( l_net )->node_role.enums ) {
             case ROOT:
             case ROOT_DELEGATE:
@@ -192,20 +199,69 @@ int dap_chain_net_init()
                 log_it(L_DEBUG,"Net config loaded");
 
         }
+        // Init chains
+        size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
+        char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
+        snprintf(l_chains_path,l_chains_path_size,"%s/network/%s",dap_config_path(),l_net->pub.name);
+        DIR * l_chains_dir = opendir(l_chains_path);
+        DAP_DELETE (l_chains_path);
+        if ( l_chains_dir ){
+            struct dirent * l_dir_entry;
+            while ( l_dir_entry = readdir(l_chains_dir) ){
+                l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1;
+                l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);
 
-        s_net_proc_start(l_net);
-        log_it(L_NOTICE, "Сhain network initialized");
+                char * l_entry_name = strdup(l_dir_entry->d_name);
+                if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
+                    if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
+                        l_entry_name [strlen(l_entry_name)-4] = 0;
+                        log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
+                        snprintf(l_chains_path,l_chains_path_size,"network/%s/%s",l_net->pub.name,l_entry_name);
+                        //dap_config_open(l_chains_path);
+
+                        // Create chain object
+                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name,l_entry_name);
+                        DL_APPEND( l_net->pub.chains, l_chain);
+                        free(l_entry_name);
+                    }
+                }
+                DAP_DELETE (l_chains_path);
+            }
+        } else {
+            log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
+            return -2;
+        }
+
+
+        // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
         snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
         HASH_ADD_STR(s_net_items,name,l_net_item);
+
+        // Start the proc thread
+        s_net_proc_start(l_net);
+        log_it(L_NOTICE, "Сhain network initialized");
         return 0;
     }
 }
 
+/**
+ * @brief dap_chain_net_deinit
+ */
 void dap_chain_net_deinit()
 {
+}
+
+/**
+ * @brief dap_chain_net_load
+ * @param a_name
+ * @return
+ */
+dap_chain_net_t * dap_chain_net_load (const char * a_name)
+{
+
 }
 
 /**
