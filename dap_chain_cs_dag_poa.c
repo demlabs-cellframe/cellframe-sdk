@@ -21,6 +21,18 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#pragma once
-int dap_chain_dag_cs_poa_init();
-void dap_chain_dag_cs_poa_deinit();
+
+#include "dap_common.h"
+#include "dap_chain_cs_dag_poa.h"
+
+#define LOG_TAG "dap_chain_cs_dag_poa"
+
+int dap_chain_cs_dag_poa_init()
+{
+    return 0;
+}
+
+void dap_chain_cs_dag_poa_deinit()
+{
+
+}
