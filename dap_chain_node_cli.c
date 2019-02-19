@@ -296,6 +296,8 @@ static void* thread_one_client_func(void *args)
                 // execute command
                 char *str_cmd = g_strdup_printf("%s", cmd_name);
                 const COMMAND *command = find_command(cmd_name);
+                int res = -1;
+                char *str_reply = NULL;
                 if(command)
                 {
                     while(list) {
@@ -304,26 +306,27 @@ static void* thread_one_client_func(void *args)
                     }
                     log_it(L_INFO, "execute command=%s", str_cmd);
                     // exec command
-                    int res = 0;
+
                     char **argv = g_strsplit(str_cmd, ";", -1);
-                    char *str_reply = NULL;
                     // Call the command function
                     if(command && command->func)
                         res = (*(command->func))(argc, (const char **) argv, &str_reply);
                     g_strfreev(argv);
-                    gchar *reply_body = g_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
-                    // return the result of the command function
-                    gchar *reply_str = g_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
-                            strlen(reply_body), reply_body);
-                    int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
-                    g_free(str_reply);
-                    g_free(reply_str);
-                    g_free(reply_body);
                 }
                 else
                 {
-                    log_it(L_ERROR, "can't recognize command=%s", str_cmd);
+                    str_reply = g_strdup_printf("can't recognize command=%s", str_cmd);
+                    log_it(L_ERROR, str_reply);
                 }
+                gchar *reply_body = g_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                // return the result of the command function
+                gchar *reply_str = g_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
+                        strlen(reply_body), reply_body);
+                int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
+                g_free(str_reply);
+                g_free(reply_str);
+                g_free(reply_body);
+
                 g_free(str_cmd);
             }
             g_list_free_full(cmd_param_list, free);
