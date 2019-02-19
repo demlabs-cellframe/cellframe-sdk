@@ -27,7 +27,7 @@
 #include "dap_chain_datum.h"
 
 
-typedef struct dap_chain_cs_dag dap_chain_dag_t;
+typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef struct dap_chain_cs_dag_event {
     struct {
@@ -38,6 +38,7 @@ typedef struct dap_chain_cs_dag_event {
     } header;
     uint8_t hashes_n_signs_n_datum[]; // Hashes, signes and datum
 } dap_chain_cs_dag_event_t;
+
 typedef int (*dap_chain_cs_dag_event_callback_ptr_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *);
 
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
