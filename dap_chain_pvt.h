@@ -49,6 +49,7 @@ typedef struct dap_chain_file_header
   */
 typedef struct dap_chain_pvt
 {
+    char * file_storage_path;
     FILE * file_cache_idx_blocks; /// @param file_cache @brief Index for blocks
     FILE * file_cache_idx_txs; /// @param file_cache @brief Index for cache
     FILE * file_cache; /// @param file_cache @brief Cache for raw blocks
@@ -61,3 +62,7 @@ typedef struct dap_chain_pvt
 #define DAP_CHAIN_PVT_LOCAL(a) dap_chain_pvt_t * l_chain_pvt = DAP_CHAIN_PVT(a)
 
 #define DAP_CHAIN_PVT_LOCAL_NEW(a) dap_chain_pvt_t * l_chain_pvt = DAP_NEW_Z(dap_chain_internal_t); a->_internal = l_chain_internal
+
+int dap_chain_pvt_file_load( dap_chain_t * a_chain);
+int dap_chain_pvt_file_save( dap_chain_t * a_chain);
+int dap_chain_pvt_file_update( dap_chain_t * a_chain);

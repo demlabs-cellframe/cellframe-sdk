@@ -38,6 +38,7 @@
 typedef struct dap_chain_item_id {
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
+    dap_chain_shard_id_t shard_id;
 } DAP_ALIGN_PACKED dap_chain_item_id_t;
 
 typedef struct dap_chain_item {
@@ -87,19 +88,23 @@ dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
 
 /**
  * @brief dap_chain_create
+ * @param a_chain_net_id
  * @param a_chain_id
+ * @param a_shard_id
  * @return
  */
-dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
+dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id, dap_chain_shard_id_t a_shard_id)
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
     memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
+    memcpy(l_ret->shard_id.raw,a_shard_id.raw,sizeof(a_shard_id));
 
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     l_ret_item->chain = l_ret;
     memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret_item->item_id.net_id.raw ,a_chain_net_id.raw,sizeof(a_chain_net_id));
+    memcpy(l_ret_item->item_id.shard_id.raw ,a_shard_id.raw,sizeof(a_shard_id));
     HASH_ADD(hh,s_chain_items,item_id,sizeof(dap_chain_item_id_t),l_ret_item);
     return l_ret;
 }
@@ -113,7 +118,8 @@ void dap_chain_delete(dap_chain_t * a_chain)
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
         .id = a_chain->id,
-        .net_id = a_chain->net_id
+        .net_id = a_chain->net_id,
+        .shard_id = a_chain->shard_id
     };
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
 
@@ -127,21 +133,23 @@ void dap_chain_delete(dap_chain_t * a_chain)
            DAP_DELETE(a_chain->_inheritor);
        DAP_DELETE(l_item);
     }else
-       log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
-              a_chain->net_id.uint64);
+       log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX:0x%16llX chain",a_chain->id.uint64,
+              a_chain->net_id.uint64, a_chain->shard_id.uint64);
 }
-
 
 /**
  * @brief dap_chain_find_by_id
+ * @param a_chain_net_id
  * @param a_chain_id
+ * @param a_shard_id
  * @return
  */
-dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
+dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id, dap_chain_shard_id_t a_shard_id)
 {
     dap_chain_item_id_t l_chain_item_id = {
         .id = a_chain_id,
-        .net_id = a_chain_net_id
+        .net_id = a_chain_net_id,
+        .shard_id = a_shard_id
     };
     dap_chain_item_t * l_ret_item = NULL;
 
@@ -154,18 +162,18 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
 
 /**
  * @brief dap_chain_load_from_cfg
- * @param a_chain_net_id
+ * @param a_chain_net_name
  * @param a_chain_cfg_path
  * @return
  */
-dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_id, const char * a_chain_cfg_name)
+dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char * a_chain_cfg_name)
 {
-    if ( a_chain_net_id){
+    if ( a_chain_net_name){
         dap_chain_net_id_t l_chain_net_id = {0};
-        if ( sscanf(a_chain_net_id,"0x%llX",&l_chain_net_id.uint64) !=1 )
-            if ( sscanf(a_chain_net_id,"0x%llx",&l_chain_net_id.uint64) !=1 )
-                if ( sscanf(a_chain_net_id,"%llu",&l_chain_net_id.uint64) !=1 ){
-                    log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",a_chain_net_id);
+        if ( sscanf(a_chain_net_name,"0x%llX",&l_chain_net_id.uint64) !=1 )
+            if ( sscanf(a_chain_net_name,"0x%llx",&l_chain_net_id.uint64) !=1 )
+                if ( sscanf(a_chain_net_name,"%llu",&l_chain_net_id.uint64) !=1 ){
+                    log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",a_chain_net_name);
                     return NULL;
                 }
 
@@ -173,7 +181,11 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_id, const char * 
         if (l_cfg) {
             dap_chain_t * l_chain = NULL;
             dap_chain_id_t l_chain_id = {0};
+            dap_chain_shard_id_t l_chain_shard_id = {0};
             const char * l_chain_id_str = NULL;
+            const char * l_shard_id_str = NULL;
+
+            // Recognize chain id
             if ( l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id") ){
                 if ( sscanf(l_chain_id_str,"0x%llX",&l_chain_id.uint64) !=1 ){
                     if ( sscanf(l_chain_id_str,"0x%llx",&l_chain_id.uint64) !=1 ) {
@@ -185,11 +197,28 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_id, const char * 
                     }
                 }
             }
+            // Recognize shard id
+            if ( l_shard_id_str = dap_config_get_item_str(l_cfg,"chain","shard_id") ){
+                if ( sscanf(l_shard_id_str,"0x%llX",&l_chain_shard_id.uint64) !=1 ){
+                    if ( sscanf(l_shard_id_str,"0x%llx",&l_chain_shard_id.uint64) !=1 ) {
+                        if ( sscanf(l_shard_id_str,"%llu",&l_chain_shard_id.uint64) !=1 ){
+                            log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_shard_id_str);
+                            dap_config_close(l_cfg);
+                            return NULL;
+                        }
+                    }
+                }
+            }
+
             const char * l_consensus = dap_config_get_item_str(l_cfg,"chain","consensus");
             if ( l_consensus ){
-                l_chain =  dap_chain_create(l_chain_net_id,l_chain_id);
+                l_chain =  dap_chain_create(l_chain_net_id,l_chain_id,l_chain_shard_id);
                 if ( dap_chain_cs_create(l_chain, l_consensus) == 0 ) {
-                    log_it (L_NOTICE,"Consensus %s initialized for chain id 0x:%016llX",l_chain_id.uint64);
+                    log_it (L_NOTICE,"Consensus %s initialized for chain id 0x%016llX:0x%016llX",
+                            l_chain_id.uint64 ,
+                            l_chain_shard_id.uint64);
+                    DAP_CHAIN_PVT ( l_chain)->file_storage_path = strdup ( dap_config_get_item_str (l_cfg , "files","storage") );
+                    dap_chain_pvt_file_load (l_chain);
                 }else{
                     dap_chain_delete(l_chain);
                     l_chain = NULL;

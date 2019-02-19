@@ -44,11 +44,17 @@ typedef size_t (*dap_chain_callback_set_data_t)(struct dap_chain *,void * a_data
 typedef struct dap_chain{
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
+    dap_chain_shard_id_t shard_id;
     dap_chain_callback_t callback_delete;
     dap_chain_callback_get_size_t callback_get_internal_hdr_size;
     dap_chain_callback_set_data_t callback_set_internal_hdr;
-    void * _internal;
-    void * _inheritor;
+
+    // To hold it in double-linked lists
+    struct dap_chain * next;
+    struct dap_chain * prev;
+
+    void * _internal; // private data
+    void * _inheritor; // inheritor object
 } dap_chain_t;
 
 #define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
@@ -56,13 +62,13 @@ typedef struct dap_chain{
 int dap_chain_init();
 void dap_chain_deinit();
 
-dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
+dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id, dap_chain_shard_id_t a_shard_id);
 
 //dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
-dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
-dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_id, const char * a_chain_cfg_name);
+dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id, dap_chain_shard_id_t a_shard_id);
+dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char * a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
 

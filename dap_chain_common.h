@@ -47,6 +47,7 @@ typedef union dap_chain_id{
 // Shard ID
 typedef union dap_chain_shard_id{
     uint8_t raw[DAP_CHAIN_SHARD_ID_SIZE];
+    uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_shard_id_t;
 
 /**
@@ -59,8 +60,8 @@ typedef union dap_chain_node_role{
     enum {
         ROOT=0x00,
         ROOT_DELEGATE=0x01,
-        SHARD_DELEGATE=0x02,
-        ARCHIVE=0x10,
+        ARCHIVE=0x02,
+        SHARD_DELEGATE=0x10,
         MASTER = 0x20,
         FULL=0xf0,
         LIGHT=0xff } enums;
