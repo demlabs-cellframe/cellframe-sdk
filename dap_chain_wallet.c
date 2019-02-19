@@ -70,10 +70,11 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     l_wallet_internal->file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
 
-    snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet");
+    snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet",a_wallets_path,a_wallet_name);
 
     l_wallet_internal->certs[0] = dap_chain_cert_generate_mem(a_wallet_name,
                                                          dap_chain_sign_type_to_key_type(a_sig_type));
+    l_wallet_internal->addr = dap_chain_cert_to_addr (l_wallet_internal->certs[0],a_net_id);
 
     if ( dap_chain_wallet_save(l_wallet) == 0 )
         return l_wallet;
