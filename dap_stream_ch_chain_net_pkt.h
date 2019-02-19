@@ -33,7 +33,7 @@
 #define STREAM_CH_CHAIN_NET_PKT_TYPE_PONG       0x0001
 
 typedef struct stream_ch_chain_net_pkt_hdr{
-    dap_chain_id_t chain_id;
+    dap_chain_net_id_t net_id;
     uint16_t type; // Chain data type
     uint8_t padding1[2]; // Some padding
     union{
