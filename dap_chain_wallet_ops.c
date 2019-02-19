@@ -1,6 +1,5 @@
 #include "dap_chain_common.h"
 #include "dap_chain_wallet_ops.h"
-#include "dap_chain_block_txs.h"
 
 /**
  * @brief dap_chain_wallet_op_tx_request
