@@ -81,7 +81,7 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
     else {
         log_it(L_ERROR,"Can't save the new wallet in disk: \"%s\"",strerror(errno));
     }
-
+    return NULL;
 }
 
 /**
@@ -199,7 +199,7 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
  */
 dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
 {
-    FILE * l_file = fopen( a_file_name ,"w");
+    FILE * l_file = fopen( a_file_name ,"r");
     fseek(l_file, 0L, SEEK_END);
     uint64_t l_file_size = ftell(l_file);
     rewind(l_file);
@@ -214,15 +214,15 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
 
                 l_wallet_internal->file_name = strdup(a_file_name);
 
-                size_t l_certs_count = 0,i;
-                while (i <  (l_file_size - sizeof(l_file_hdr)) ){
+                size_t i = sizeof (l_file_hdr);
+                while (i <  l_file_size ){
                     dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
                     fread(&l_cert_hdr,1,sizeof(l_cert_hdr),l_file);
                     i+=sizeof(l_cert_hdr);
                     if (l_cert_hdr.cert_raw_size > 0 ){
-                        if (l_cert_hdr.cert_raw_size <=  (l_file_size - sizeof (l_file_hdr) - i  ) ){
+                        if(l_cert_hdr.cert_raw_size <= (l_file_size - i)) {
                             i+=l_cert_hdr.cert_raw_size;
-                            l_certs_count++;
+                            l_wallet_internal->certs_count++;
                         }else{
                             log_it(L_WARNING,"Wrong raw cert size %u (too big)",l_cert_hdr.cert_raw_size);
                             break;
@@ -238,6 +238,7 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
                     dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
                     fread(&l_cert_hdr,1,sizeof(l_cert_hdr),l_file);
                     uint8_t * l_data = DAP_NEW_SIZE(uint8_t,l_cert_hdr.cert_raw_size);
+                    fread(l_data,1,l_cert_hdr.cert_raw_size,l_file);
                     l_wallet_internal->certs[i] = dap_chain_cert_mem_load(l_data,l_cert_hdr.cert_raw_size);
                     DAP_DELETE (l_data);
                 }
@@ -267,7 +268,7 @@ dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const cha
 {
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     char *l_file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
-    snprintf(l_file_name,l_file_name_size,"%s/%s.dwallet");
+    snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open_file(l_file_name);
     DAP_DELETE(l_file_name);
     return l_wallet;
