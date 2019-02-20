@@ -167,15 +167,13 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
 
 
     va_copy(ap2,ap);
-    if (s_log_file){
-        time_t t=time(NULL);
-        struct tm* tmp=localtime(&t);
-        static char s_time[1024]={0};
-        strftime(s_time,sizeof(s_time),"%x-%X",tmp);
+    time_t t=time(NULL);
+    struct tm* tmp=localtime(&t);
+    static char s_time[1024]={0};
+    strftime(s_time,sizeof(s_time),"%x-%X",tmp);
 
-        if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
-        printf("[%s] ",s_time);
-    }
+    if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
+    printf("[%s] ",s_time);
 
     if(ll==L_DEBUG){
         if (s_log_file ) fprintf(s_log_file,"[DBG] ");
