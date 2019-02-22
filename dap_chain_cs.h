@@ -25,10 +25,9 @@
 
 #include "dap_chain.h"
 
-typedef void (*dap_chain_cs_callback_t)(dap_chain_t *);
 
 int dap_chain_cs_init();
 void dap_chain_cs_deinit();
 
-void dap_chain_cs_add (const char * a_cs_str,  dap_chain_cs_callback_t a_callback_init);
-int dap_chain_cs_create(dap_chain_t * a_chain, const char * a_chain_cs_type_str);
+void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callback_init);
+int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);

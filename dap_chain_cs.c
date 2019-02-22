@@ -35,7 +35,7 @@
 typedef struct dap_chain_cs_callback_item
 {
     char name[32];
-    dap_chain_cs_callback_t callback_init;
+    dap_chain_callback_cfg_t callback_init;
     UT_hash_handle hh;
 } dap_chain_cs_callback_item_t;
 
@@ -63,7 +63,7 @@ void dap_chain_cs_deinit()
  * @param a_cs_str
  * @param a_callback_init
  */
-void dap_chain_cs_add (const char * a_cs_str,  dap_chain_cs_callback_t a_callback_init)
+void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callback_init)
 {
     dap_chain_cs_callback_item_t *l_item = DAP_NEW_Z ( dap_chain_cs_callback_item_t );
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) );
@@ -74,15 +74,15 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_cs_callback_t a_callbac
 /**
  * @brief dap_chain_cs_create
  * @param a_chain
- * @param a_chain_cs_type_str
+ * @param a_chain_cfg
  * @return
  */
-int dap_chain_cs_create(dap_chain_t * a_chain, const char * a_chain_cs_type_str)
+int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_callback_item_t *l_item = NULL;
-    HASH_FIND_STR(s_cs_callbacks,a_chain_cs_type_str,l_item);
+    HASH_FIND_STR(s_cs_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
     if ( l_item ) {
-        l_item->callback_init ( a_chain );
+        l_item->callback_init ( a_chain, a_chain_cfg );
         return 0;
     } else {
         return -1;

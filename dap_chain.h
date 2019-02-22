@@ -25,22 +25,24 @@
 
 #pragma once
 #include <stdbool.h>
+#include "dap_config.h"
 #include "dap_chain_common.h"
 struct dap_chain;
 typedef struct dap_chain dap_chain_t;
 
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
-typedef void (*dap_chain_callback_t)(struct dap_chain *);
-typedef void (*dap_chain_callback_ptr_t)(struct dap_chain *, void * );
+typedef void (*dap_chain_callback_t)(dap_chain_t *);
+typedef void (*dap_chain_callback_cfg_t)(dap_chain_t*, dap_config_t *);
+typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
-typedef int (*dap_chain_callback_element_add_t)(struct dap_chain *, void * , const size_t );
+typedef int (*dap_chain_callback_element_add_t)(dap_chain_t *, void * ,  size_t );
 
-typedef int (*dap_chain_callback_element_get_first_t)(struct dap_chain *, void ** , const size_t* );
-typedef int (*dap_chain_callback_element_get_next_t)(struct dap_chain *, void ** , const size_t* );
+typedef int (*dap_chain_callback_element_get_first_t)(dap_chain_t *, void ** , size_t* );
+typedef int (*dap_chain_callback_element_get_next_t)(dap_chain_t *, void ** , size_t* );
 
-typedef size_t (*dap_chain_callback_get_size_t)(struct dap_chain *);
-typedef size_t (*dap_chain_callback_set_data_t)(struct dap_chain *,void * a_data);
+typedef size_t (*dap_chain_callback_get_size_t)(dap_chain_t *);
+typedef size_t (*dap_chain_callback_set_data_t)(dap_chain_t *,void * a_data);
 
 
 
