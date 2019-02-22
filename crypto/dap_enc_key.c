@@ -43,6 +43,10 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_dataop_na_t enc_na;
     dap_enc_callback_dataop_na_t dec_na;
+
+    dap_enc_callback_sign_op_t sign_get;
+    dap_enc_callback_sign_op_t sign_verify;
+
     dap_enc_callback_gen_key_public_t gen_key_public;
     dap_enc_callback_key_size_t gen_key_public_size;
 
@@ -71,6 +75,8 @@ struct dap_enc_key_callbacks{
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_iaes256_calc_encode_size,
         .dec_out_size = dap_enc_iaes256_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
     },
     // OAES
     [DAP_ENC_KEY_TYPE_OAES]={
@@ -86,6 +92,8 @@ struct dap_enc_key_callbacks{
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_oaes_calc_encode_size,
         .dec_out_size = dap_enc_oaes_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
     },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
@@ -100,7 +108,9 @@ struct dap_enc_key_callbacks{
         .gen_key_public_size = NULL,
         .new_from_data_public_callback = dap_enc_msrln_key_new_from_data_public,
         .enc_out_size = NULL,
-        .dec_out_size = NULL
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
     },
     [DAP_ENC_KEY_TYPE_DEFEO]={
         .name = "DEFEO",
@@ -114,7 +124,9 @@ struct dap_enc_key_callbacks{
         .delete_callback = dap_enc_defeo_key_delete,
         .new_generate_callback = dap_enc_defeo_key_new_generate,
         .enc_out_size = NULL,
-        .dec_out_size = NULL
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
     },
     [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
         .name = "PICNIC",
@@ -130,14 +142,18 @@ struct dap_enc_key_callbacks{
         .delete_callback = dap_enc_sig_picnic_key_delete,
         .new_generate_callback = dap_enc_sig_picnic_key_new_generate,
         .enc_out_size = NULL,
-        .dec_out_size = NULL
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
     },
     [DAP_ENC_KEY_TYPE_SIG_BLISS]={
         .name = "SIG_BLISS",
         .enc = NULL,
         .dec = NULL,
-        .enc_na = dap_enc_sig_bliss_get_sign,
-        .dec_na = dap_enc_sig_bliss_verify_sign,
+        .enc_na = NULL,
+        .dec_na = NULL,
+        .sign_get = dap_enc_sig_bliss_get_sign,
+        .sign_verify = dap_enc_sig_bliss_verify_sign,
         .gen_bob_shared_key = NULL,
         .gen_alice_shared_key = NULL,
         .new_callback = dap_enc_sig_bliss_key_new,
@@ -163,7 +179,9 @@ struct dap_enc_key_callbacks{
         .delete_callback = dap_enc_sig_tesla_key_delete,
         .new_generate_callback = dap_enc_sig_tesla_key_new_generate,
         .enc_out_size = NULL,
-        .dec_out_size = NULL
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
     }
 };
 
