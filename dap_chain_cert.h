@@ -33,7 +33,7 @@
 #define DAP_CHAIN_CERT_ITEM_NAME_MAX 40
 
 typedef struct dap_chain_cert {
-    dap_enc_key_t * key_private;
+    dap_enc_key_t * enc_key;
     char name[DAP_CHAIN_CERT_ITEM_NAME_MAX];
     void * _pvt;
     char * metadata;
@@ -59,6 +59,9 @@ dap_chain_pkey_t * dap_chain_cert_to_pkey(dap_chain_cert_t * a_cert);
 dap_chain_cert_t * dap_chain_cert_find_by_name(const char * a_cert_name);
 
 dap_chain_sign_t * dap_chain_cert_sign(dap_chain_cert_t * a_cert, const void * a_data, size_t a_data_size, size_t a_output_size_wished );
+
+int dap_chain_cert_compare_with_sign (dap_chain_cert_t * a_cert,dap_chain_sign_t * a_sign);
+
 
 size_t dap_chain_cert_sign_output_size(dap_chain_cert_t * a_cert, size_t a_size_wished);
 

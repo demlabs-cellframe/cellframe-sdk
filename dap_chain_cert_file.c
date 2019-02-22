@@ -41,8 +41,8 @@
 size_t dap_chain_cert_save_mem_size(dap_chain_cert_t * a_cert )
 {
     return sizeof (dap_chain_cert_file_hdr_t)
-            + a_cert->key_private->pub_key_data_size
-            + a_cert->key_private->priv_key_data_size
+            + a_cert->enc_key->pub_key_data_size
+            + a_cert->enc_key->priv_key_data_size
             + (a_cert->metadata?strlen(a_cert->metadata):0);
 }
 
@@ -88,7 +88,7 @@ int dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, void * a_data )
     dap_chain_cert_file_hdr_t l_hdr={0};
     uint8_t * l_data = (uint8_t *) a_data;
     size_t l_data_offset = 0;
-    dap_enc_key_t * l_key = a_cert->key_private;
+    dap_enc_key_t * l_key = a_cert->enc_key;
     int ret = 0;
 
     l_hdr.sign = DAP_CHAIN_CERT_FILE_HDR_SIGN;
@@ -188,19 +188,19 @@ dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size)
         }
 
         l_ret = DAP_NEW_Z(dap_chain_cert_t);
-        l_ret->key_private = dap_enc_key_new( dap_chain_sign_type_to_key_type( l_hdr.sign_type ));
-        l_ret->key_private->last_used_timestamp = l_hdr.ts_last_used;
+        l_ret->enc_key = dap_enc_key_new( dap_chain_sign_type_to_key_type( l_hdr.sign_type ));
+        l_ret->enc_key->last_used_timestamp = l_hdr.ts_last_used;
         if ( l_hdr.data_size > 0 ){
-            l_ret->key_private->pub_key_data_size = l_hdr.data_size;
-            l_ret->key_private->pub_key_data = DAP_NEW_SIZE (void,l_hdr.data_size);
-            memcpy(l_ret->key_private->pub_key_data, l_data + sizeof(l_hdr),l_ret->key_private->pub_key_data_size);
+            l_ret->enc_key->pub_key_data_size = l_hdr.data_size;
+            l_ret->enc_key->pub_key_data = DAP_NEW_SIZE (void,l_hdr.data_size);
+            memcpy(l_ret->enc_key->pub_key_data, l_data + sizeof(l_hdr),l_ret->enc_key->pub_key_data_size);
         }
-        l_ret->key_private->priv_key_data_size = l_hdr.data_size;
+        l_ret->enc_key->priv_key_data_size = l_hdr.data_size;
         if ( l_hdr.data_pvt_size > 0 ){
-            l_ret->key_private->priv_key_data = DAP_NEW_SIZE (void,l_ret->key_private->priv_key_data_size);
-            memcpy(l_ret->key_private->priv_key_data, l_data + sizeof(l_hdr)
-                                                        + l_ret->key_private->pub_key_data_size
-                   ,l_ret->key_private->priv_key_data_size);
+            l_ret->enc_key->priv_key_data = DAP_NEW_SIZE (void,l_ret->enc_key->priv_key_data_size);
+            memcpy(l_ret->enc_key->priv_key_data, l_data + sizeof(l_hdr)
+                                                        + l_ret->enc_key->pub_key_data_size
+                   ,l_ret->enc_key->priv_key_data_size);
         }
         log_it(L_NOTICE,"Successfuly loaded certificate");
 

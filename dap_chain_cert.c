@@ -75,7 +75,7 @@ int dap_chain_cert_init()
  */
 size_t dap_chain_cert_sign_output_size(dap_chain_cert_t * a_cert, size_t a_size_wished)
 {
-    return dap_chain_sign_create_output_cals_size( a_cert->key_private,a_size_wished);
+    return dap_chain_sign_create_output_cals_size( a_cert->enc_key,a_size_wished);
 }
 
 /**
@@ -89,7 +89,7 @@ dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_n
     dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
     l_addr->addr_ver = 1;
     l_addr->net_id.uint64 = a_net_id.uint64;
-    l_addr->sig_type.raw = dap_chain_sign_type_from_key_type( a_cert->key_private->type).raw;
+    l_addr->sig_type.raw = dap_chain_sign_type_from_key_type( a_cert->enc_key->type).raw;
    // dap_hash(&l_addr);
     l_addr->checksum;
 }
@@ -106,7 +106,7 @@ dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_n
 int dap_chain_cert_sign_output(dap_chain_cert_t * a_cert, const void * a_data, size_t a_data_size,
                                         void * a_output, size_t a_output_size)
 {
-    return dap_chain_sign_create_output( a_cert->key_private,a_data,a_data_size,a_output,a_output_size);
+    return dap_chain_sign_create_output( a_cert->enc_key,a_data,a_data_size,a_output,a_output_size);
 }
 
 /**
@@ -120,7 +120,7 @@ int dap_chain_cert_sign_output(dap_chain_cert_t * a_cert, const void * a_data, s
 dap_chain_sign_t * dap_chain_cert_sign(dap_chain_cert_t * a_cert, const void * a_data
                                        , size_t a_data_size, size_t a_output_size_wished )
 {
-    dap_enc_key_t * l_key = a_cert->key_private;
+    dap_enc_key_t * l_key = a_cert->enc_key;
     size_t l_ret_size = dap_chain_sign_create_output_cals_size( l_key,a_output_size_wished);
     if (l_ret_size > 0 ) {
         dap_chain_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_sign_t,
@@ -144,9 +144,9 @@ dap_chain_sign_t * dap_chain_cert_sign(dap_chain_cert_t * a_cert, const void * a
  */
 int dap_chain_cert_add_cert_sign(dap_chain_cert_t * a_cert, dap_chain_cert_t * a_cert_signer)
 {
-    if (a_cert->key_private->pub_key_data_size && a_cert->key_private->pub_key_data) {
+    if (a_cert->enc_key->pub_key_data_size && a_cert->enc_key->pub_key_data) {
         dap_chain_sign_item_t * l_sign_item = DAP_NEW_Z(dap_chain_sign_item_t);
-        l_sign_item->sign = dap_chain_cert_sign (a_cert_signer,a_cert->key_private->pub_key_data,a_cert->key_private->pub_key_data_size,0);
+        l_sign_item->sign = dap_chain_cert_sign (a_cert_signer,a_cert->enc_key->pub_key_data,a_cert->enc_key->pub_key_data_size,0);
         DL_APPEND ( PVT(a_cert)->signs, l_sign_item );
         return 0;
     } else {
@@ -166,8 +166,8 @@ dap_chain_cert_t * dap_chain_cert_generate_mem(const char * a_cert_name,
                                                dap_enc_key_type_t a_key_type )
 {
     dap_chain_cert_t * l_cert = dap_chain_cert_new(a_cert_name);
-    l_cert->key_private = dap_enc_key_new_generate(a_key_type, NULL, 0, NULL, 0, 0);
-    if ( l_cert->key_private ){
+    l_cert->enc_key = dap_enc_key_new_generate(a_key_type, NULL, 0, NULL, 0, 0);
+    if ( l_cert->enc_key ){
         log_it(L_DEBUG,"Certificate generated");
         dap_chain_cert_item_t * l_cert_item = DAP_NEW_Z(dap_chain_cert_item_t);
         snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_cert_name);
@@ -264,8 +264,8 @@ void dap_chain_cert_delete(dap_chain_cert_t * a_cert)
     if ( l_cert_item )
          HASH_DEL(s_certs,l_cert_item);
 
-    if( a_cert->key_private )
-        dap_enc_key_delete (a_cert->key_private );
+    if( a_cert->enc_key )
+        dap_enc_key_delete (a_cert->enc_key );
     if( a_cert->metadata )
         DAP_DELETE (a_cert->metadata );
     if (a_cert->_pvt)
@@ -304,9 +304,26 @@ dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *
 dap_chain_pkey_t * dap_chain_cert_to_pkey(dap_chain_cert_t * a_cert)
 {
     if ( a_cert )
-        return dap_chain_pkey_from_enc_key( a_cert->key_private );
+        return dap_chain_pkey_from_enc_key( a_cert->enc_key );
     else
         return NULL;
+}
+
+/**
+ * @brief dap_chain_cert_compare_with_sign
+ * @param a_cert
+ * @param a_sign
+ * @return
+ */
+int dap_chain_cert_compare_with_sign (dap_chain_cert_t * a_cert,dap_chain_sign_t * a_sign)
+{
+    if ( dap_chain_sign_type_from_key_type( a_cert->enc_key->type ).type == a_sign->header.type.type ){
+        if ( a_cert->enc_key->pub_key_data_size == (size_t) a_sign->header.sign_pkey_size ){
+            return memcmp ( a_cert->enc_key->pub_key_data, a_sign->pkey_n_sign,  a_sign->header.sign_pkey_size );
+        }else
+            return -2; // Wrong pkey size
+    }else
+        return -1; // Wrong sign type
 }
 
 
@@ -332,9 +349,9 @@ size_t dap_chain_cert_count_cert_sign(dap_chain_cert_t * a_cert)
 void dap_chain_cert_dump(dap_chain_cert_t * a_cert)
 {
     printf ("Certificate name: %s\n",a_cert->name);
-    printf ("Signature type: %s\n", dap_chain_sign_type_to_str( dap_chain_sign_type_from_key_type(a_cert->key_private->type) ) );
-    printf ("Private key size: %u\n",a_cert->key_private->priv_key_data_size);
-    printf ("Public key size: %u\n", a_cert->key_private->pub_key_data_size);
+    printf ("Signature type: %s\n", dap_chain_sign_type_to_str( dap_chain_sign_type_from_key_type(a_cert->enc_key->type) ) );
+    printf ("Private key size: %u\n",a_cert->enc_key->priv_key_data_size);
+    printf ("Public key size: %u\n", a_cert->enc_key->pub_key_data_size);
     printf ("Metadata section size: %u\n",a_cert->metadata?strlen(a_cert->metadata):0);
     printf ("Certificates signatures chain size: %u\n",dap_chain_cert_count_cert_sign (a_cert));
 }

@@ -82,3 +82,20 @@ int dap_chain_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output)
     }
     return -3;
 }
+
+/**
+ * @brief dap_chain_pkey_type_from_sign
+ * @param a_pkey_type
+ * @return
+ */
+dap_chain_sign_type_t dap_chain_pkey_type_from_sign( dap_chain_pkey_type_t a_pkey_type)
+{
+    dap_chain_sign_type_t l_sign_type={0};
+    switch (a_pkey_type.type){
+        case PKEY_TYPE_SIGN_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
+        case PKEY_TYPE_SIGN_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
+        case PKEY_TYPE_SIGN_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
+    }
+    return l_sign_type;
+}
+
