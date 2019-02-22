@@ -194,8 +194,10 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,"[!!!] ");
         printf("\x1b[1;5;31m[!!!] ");
     }
-    if (s_log_file ) fprintf(s_log_file,log_tag_fmt_str,log_tag);
-    printf(log_tag_fmt_str,log_tag);
+    if(log_tag != NULL) {
+        if (s_log_file ) fprintf(s_log_file,log_tag_fmt_str,log_tag);
+        printf(log_tag_fmt_str,log_tag);
+    }
 
     if (s_log_file ) vfprintf(s_log_file,format,ap);
     vprintf(format,ap2);
