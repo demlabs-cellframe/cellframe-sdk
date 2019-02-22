@@ -23,7 +23,6 @@
 */
 #pragma once
 #include "dap_chain_cs_dag.h"
-#include "dap_chain_cert.h"
 
 typedef struct dap_chain_cs_dag_poa
 {

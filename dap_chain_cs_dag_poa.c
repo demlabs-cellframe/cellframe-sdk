@@ -21,19 +21,21 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+#include <string.h>
 #include "dap_common.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_cert.h"
 
 #define LOG_TAG "dap_chain_cs_dag_poa"
 
 typedef struct dap_chain_cs_dag_poa_pvt
 {
-    dap_chain_cert_t ** certs;
-    size_t certs_count;
-    size_t certs_count_verify; // Number of signatures, needed for event verification
+    dap_chain_cert_t ** auth_certs;
+    char * auth_certs_prefix;
+    uint16_t auth_certs_count;
+    uint16_t auth_certs_count_verify; // Number of signatures, needed for event verification
 } dap_chain_cs_dag_poa_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_poa_pvt_t *) a->_pvt )
@@ -78,8 +80,22 @@ static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chai
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
 
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
-    l_poa_pvt->certs_count = dap_config_get_item_int32_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
-
+    if (dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") ) {
+        l_poa_pvt->auth_certs_count = dap_config_get_item_int32_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
+        l_poa_pvt->auth_certs_count_verify = dap_config_get_item_int32_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
+        l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") );
+        if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
+            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_chain_cert_t *, l_poa_pvt->auth_certs_count );
+            char l_cert_name[512];
+            for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
+                snprintf(l_cert_name,sizeof(l_cert_name),"%s.%u",l_poa_pvt->auth_certs_prefix, i);
+                if ( l_poa_pvt->auth_certs[i] = dap_chain_cert_find_by_name( l_cert_name) )
+                    log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
+                else
+                    log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+            }
+        }
+    }
 }
 
 /**
@@ -92,8 +108,13 @@ static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag)
 
     if ( l_poa->_pvt ) {
         dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
-        if ( l_poa_pvt->certs )
-            DAP_DELETE ( l_poa_pvt->certs);
+
+        if ( l_poa_pvt->auth_certs )
+            DAP_DELETE ( l_poa_pvt->auth_certs);
+
+        if ( l_poa_pvt->auth_certs_prefix )
+            free ( l_poa_pvt->auth_certs_prefix );
+
         DAP_DELETE ( l_poa->_pvt);
     }
 
@@ -110,7 +131,7 @@ static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag)
  */
 static int s_chain_cs_dag_callback_event_input(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
 {
-    return -1; // TODO
+    return s_chain_cs_dag_callback_event_verify (a_dag,a_dag_event);
 }
 
 /**
@@ -121,5 +142,17 @@ static int s_chain_cs_dag_callback_event_input(dap_chain_cs_dag_t * a_dag, dap_c
  */
 static int s_chain_cs_dag_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
 {
-   return -1; // TODO
+    dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
+    if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
+        size_t l_verified = 0;
+        for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ){
+            for ( uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++){
+                if( dap_chain_cert_compare_with_sign ( l_poa_pvt->auth_certs[j],
+                            dap_chain_cs_dag_event_get_sign(a_dag_event,i) ) == 0 )
+                    l_verified++;
+            }
+        }
+        return l_verified >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
+    }else
+       return -2; // Wrong signatures number
 }
