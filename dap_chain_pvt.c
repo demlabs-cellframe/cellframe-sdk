@@ -107,11 +107,11 @@ int dap_chain_pvt_file_save( dap_chain_t * a_chain)
                 }
             }
         } else {
-            log_it (L_ERROR,"Can't read dap_chain file header \"%s\"",l_chain_pvt->file_storage_path);
+            log_it (L_ERROR,"Can't write dap_chain file header \"%s\"",l_chain_pvt->file_storage_path);
             return -2;
         }
     }else {
-        log_it (L_ERROR,"Can't read dap_chain file \"%s\"",l_chain_pvt->file_storage_path);
+        log_it (L_ERROR,"Can't write dap_chain file \"%s\"",l_chain_pvt->file_storage_path);
         return -1;
     }
     return 0;

@@ -96,6 +96,7 @@ dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
 dap_chain_t * dap_chain_create(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id, dap_chain_shard_id_t a_shard_id)
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
+    DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
     memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
     memcpy(l_ret->shard_id.raw,a_shard_id.raw,sizeof(a_shard_id));
@@ -127,8 +128,10 @@ void dap_chain_delete(dap_chain_t * a_chain)
        HASH_DEL(s_chain_items, l_item);
        if (a_chain->callback_delete )
            a_chain->callback_delete(a_chain);
-       if (a_chain->_internal )
+       if (a_chain->_internal ){
+           DAP_DELETE(DAP_CHAIN_PVT(a_chain)->file_storage_path);
            DAP_DELETE(a_chain->_internal);
+       }
        if (a_chain->_inheritor )
            DAP_DELETE(a_chain->_inheritor);
        DAP_DELETE(l_item);
