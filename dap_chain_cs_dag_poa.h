@@ -22,5 +22,19 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "dap_chain_cs_dag.h"
+#include "dap_chain_cert.h"
+
+typedef struct dap_chain_cs_dag_poa
+{
+    dap_chain_t * chain;
+    dap_chain_cs_dag_t * dag;
+    void * _pvt;
+    void * _inheritor;
+} dap_chain_cs_dag_poa_t;
+
+#define DAP_CHAIN_CS_DAG_POA(a) ( (dap_chain_cs_dag_poa_t *) (a)->_inheritor)
+
+
 int dap_chain_cs_dag_poa_init();
 void dap_chain_cs_dag_poa_deinit();
