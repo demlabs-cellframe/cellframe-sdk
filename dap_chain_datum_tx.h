@@ -22,6 +22,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
+#include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
