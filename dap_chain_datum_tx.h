@@ -44,3 +44,23 @@ typedef struct dap_chain_datum_tx{
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
 
+/**
+ * Insert item to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **tx, const uint8_t *item);
+
+/**
+ * Sign a transaction (Add sign item to transaction)
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **tx, dap_enc_key_t *a_key);
+
+/**
+ * Verify all sign item in transaction
+ *
+ * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
+ */
+int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx);
