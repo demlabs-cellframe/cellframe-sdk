@@ -72,3 +72,17 @@ int com_ping(int argc, const char** argv, char **str_reply);
  * Help command
  */
 int com_help(int argc, const char ** argv, char **str_reply);
+
+/**
+ * com_tx_create command
+ *
+ * Signing transaction
+ */
+int com_tx_create(int argc, const char ** argv, char **str_reply);
+
+/**
+ * tx_verify command
+ *
+ * Verifing transaction
+ */
+int com_tx_verify(int argc, const char ** argv, char **str_reply);

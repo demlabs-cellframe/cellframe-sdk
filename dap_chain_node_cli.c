@@ -58,16 +58,30 @@ typedef int SOCKET;
 
 static SOCKET server_sockfd = -1;
 
-static const COMMAND commands[] = {
-    { "global_db", com_global_db, "Work with database" },
-    { "node", com_node, "Work with node" },
-    { "ping", com_ping, "Ping utility" },
-    { "traceroute", com_traceroute, "Traceroute utility" },
-    { "tracepath", com_tracepath, "Tracepath utility" },
-    { "help", com_help, "Display this text" },
-    { "?", com_help, "Synonym for `help'" },
-    { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
-};
+static const COMMAND commands[] =
+        {
+            { "global_db", com_global_db, "Work with global database",
+                "global_db node add -addr {<node address> | -alias <node alias>} -shard <shard id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n"
+                        "global_db node del -addr <node address> | -alias <node alias>\n"
+                        "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n"
+                        "global_db node dump -addr <node address> | -alias <node alias>" },
+            { "node", com_node, "Work with node",
+                "node alias {<node address> | -alias <node alias>}\n"
+                        "node handshake {<node address> | -alias <node alias>}" },
+            { "ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
+                "ping [-c <count>] host" },
+            { "traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
+                "traceroute host" },
+            { "tracepath", com_tracepath, "Traces path to a network host along this path",
+                "tracepath host" },
+            { "help", com_help, "Description of command parameters", "" },
+            { "?", com_help, "Synonym for 'help'", "" },
+            { "tx_create", com_tx_create, "Signing transaction",
+                "tx_create -wallet <wallet name> [-path <wallet path>]" },
+            { "tx_verify", com_tx_verify, "Verifing transaction",
+                "tx_verify  -wallet <wallet name> [-path <wallet path>]" },
+            { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
+        };
 
 /**
  *  Look up NAME as the name of a command, and return a pointer to that

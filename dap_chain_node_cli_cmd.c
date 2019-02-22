@@ -26,16 +26,25 @@
 #include <errno.h>
 #include <assert.h>
 #include <glib.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
 #include "iputils/iputils.h"
 //#include "dap_common.h"
+#include "dap_hash.h"
+#include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_node_cli_connect.h"
 #include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
+
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_sig.h"
 
 // Max and min macros
 #define max(a,b)              ((a) > (b) ? (a) : (b))
@@ -638,7 +647,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
             return com_global_db_link(&node_info, "del", alias_str, &link, str_reply);
         else {
             set_reply_text(str_reply, "command not recognize, supported format:\n"
-                    "global_db node link [add|del] [-addr <node address>  | -alias <node alias>] -link <node address>");
+                    "global_db node link <add|del] [-addr <node address>  | -alias <node alias>] -link <node address>");
             return -1;
         }
         break;
@@ -958,6 +967,102 @@ int com_help(int argc, const char ** argv, char **str_reply)
         const COMMAND *cmd = find_command(argv[1]);
         if(cmd)
         {
+            set_reply_text(str_reply, "%s:\n%s", cmd->doc, cmd->doc_ex);
+            return 1;
+        }
+        set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
+        return -1;
+    }
+    else {
+        // TODO Read list of commands & return it
+    }
+    if(str_reply)
+        set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
+    return -1;
+}
+
+dap_chain_datum_tx_t* create_tx(const char *net_name)
+{
+    dap_chain_tx_in_t tx_in;
+    dap_chain_tx_in_t tx_out;
+
+    tx_in.header.type = TX_ITEM_TYPE_IN;
+    tx_in.header.sig_size = 0;
+    //tx_in
+
+    dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
+    tx->header.lock_time = time(NULL);
+    int res = dap_chain_datum_tx_add_item(&tx, (const uint8_t*) &tx_in);
+    //dap_chain_tx_in_t
+
+    //dap_chain_hash_t a_hash_fast;
+    //dap_hash((char*) tx, sizeof(tx), a_hash_fast.raw, sizeof(a_hash_fast.raw), DAP_HASH_TYPE_KECCAK);
+
+    /*
+     // create file with dap_chain_t
+     dap_chain_id_t a_chain_id = {0x1};
+     dap_chain_net_id_t a_chain_net_id = {0x2};
+     dap_chain_shard_id_t a_shard_id = {0x3};
+
+     dap_chain_t *a_chain = dap_chain_create(a_chain_net_id, a_chain_id, a_shard_id);
+     const char * a_chain_net_name = "0x1";
+     const char * a_chain_cfg_name = "chain-0";
+     dap_chain_t *ch2 =  dap_chain_load_from_cfg(a_chain_net_name, a_chain_cfg_name);
+
+     //dap_chain_net_t *l_net = dap_chain_net_by_name(net_name);
+     //dap_chain_id_t *chain = l_net->pub.chains;
+     */
+    return tx;
+}
+
+/**
+ * com_tx_create command
+ *
+ * Signing transaction
+ */
+int com_tx_create(int argc, const char ** argv, char **str_reply)
+{
+    // create wallet
+    const char *a_wallets_path = "/opt/kelvin-node/etc";
+    const char *a_wallet_name = "w1";
+    dap_chain_net_id_t a_net_id = { 0x1 };
+    dap_chain_sign_type_t a_sig_type = { SIG_TYPE_TESLA };
+    //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_BLISS };
+    //dap_chain_wallet_t *wallet = dap_chain_wallet_create(a_wallet_name, a_wallets_path, a_net_id, a_sig_type);
+    //size_t num = dap_chain_wallet_get_certs_number(wallet);
+    dap_chain_wallet_t *wallet = dap_chain_wallet_open(a_wallet_name, a_wallets_path);
+
+    dap_chain_datum_tx_t *tx = create_tx("0x123");
+
+    if(wallet) {
+        if(dap_chain_wallet_get_certs_number(wallet) > 0) {
+            dap_chain_pkey_t *pk0 = dap_chain_wallet_get_pkey(wallet, 0);
+            dap_enc_key_t *a_key = dap_chain_wallet_get_key(wallet, 0);
+            //dap_enc_key_t *a_key1 = dap_chain_wallet_get_key(wallet, 0);
+            //dap_enc_key_t *a_key2 = dap_chain_wallet_get_key(wallet2, 0);
+            int res = dap_chain_datum_tx_add_sign(&tx, a_key);
+            //int res1 = dap_chain_datum_tx_add_sign(&tx, a_key);
+            //int res2 = dap_chain_datum_tx_add_sign(&tx, a_key2);
+            int res3 = dap_chain_datum_tx_verify_sign(tx);
+        }
+        dap_chain_wallet_close(wallet);
+        DAP_DELETE(tx);
+    }
+    set_reply_text(str_reply, "com_tx_create ok");
+    return -1;
+}
+
+/**
+ * tx_verify command
+ *
+ * Verifing transaction
+ */
+int com_tx_verify(int argc, const char ** argv, char **str_reply)
+{
+    if(argc > 1) {
+        const COMMAND *cmd = find_command(argv[1]);
+        if(cmd)
+        {
             if(str_reply)
                 *str_reply = g_strdup(cmd->doc);
             return 1;
@@ -969,4 +1074,3 @@ int com_help(int argc, const char ** argv, char **str_reply)
         set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
     return -1;
 }
-

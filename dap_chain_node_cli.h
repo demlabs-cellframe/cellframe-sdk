@@ -34,6 +34,7 @@ typedef struct {
     char *name; /* User printable name of the function. */
     cmdfunc_t *func; /* Function to call to do the job. */
     char *doc; /* Documentation for this function.  */
+    char *doc_ex; /* Full documentation for this function.  */
 } COMMAND;
 
 /**
