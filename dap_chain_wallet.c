@@ -139,7 +139,7 @@ dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t 
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
     if( l_wallet_internal->certs_count > a_pkey_idx ){
         return l_wallet_internal->certs[a_pkey_idx] ?
-                    l_wallet_internal->certs[a_pkey_idx]->key_private
+                    l_wallet_internal->certs[a_pkey_idx]->enc_key
                   : NULL;
     }else{
         log_it( L_WARNING, "No key with index %u in the wallet (total size %u)",a_pkey_idx,l_wallet_internal->certs_count);
