@@ -45,6 +45,9 @@ void dap_config_close(dap_config_t * a_config);
 
 const char * dap_config_path();
 
+uint16_t dap_config_get_item_uint16(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);
+uint16_t dap_config_get_item_uint16_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint16_t a_default);
+
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);
 int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int32_t a_default);
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name);

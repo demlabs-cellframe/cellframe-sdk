@@ -337,6 +337,19 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
 }
 
 /**
+ * @brief dap_config_get_item_uint16
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @return
+ */
+uint16_t dap_config_get_item_uint16(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    return (uint16_t) atoi(dap_config_get_item_str(a_config,a_section_path,a_item_name));
+}
+
+
+/**
  * @brief dap_config_get_item_int32_default Getting a configuration item as a int32
  * @param[in] a_config Configuration
  * @param[in] a_section_path Path
@@ -348,6 +361,20 @@ int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * 
 {
     const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
     return l_str_ret?atoi(l_str_ret):a_default;
+}
+
+/**
+ * @brief dap_config_get_item_uint16_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_default
+ * @return
+ */
+uint16_t dap_config_get_item_uint16_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint16_t a_default)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    return l_str_ret? (uint16_t) atoi(l_str_ret):a_default;
 }
 
 
