@@ -54,6 +54,8 @@ typedef struct dap_chain_sign{
     uint8_t pkey_n_sign[]; /// @param sig @brief raw signature data
 } DAP_ALIGN_PACKED dap_chain_sign_t;
 
+size_t dap_chain_sign_get_size(dap_chain_sign_t * a_chain_sign);
+
 int dap_chain_sign_verify (dap_chain_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size);
 
 dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size
