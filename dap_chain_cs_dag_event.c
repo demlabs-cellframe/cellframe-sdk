@@ -69,15 +69,6 @@ void dap_chain_cs_dag_event_delete(dap_chain_cs_dag_t * a_dag,dap_chain_cs_dag_e
 
 }
 
-/**
- * @brief dap_chain_cs_dag_event_verify
- * @return
- */
-int dap_chain_cs_dag_event_verify(dap_chain_cs_dag_event_t * a_event)
-{
-    return 0;
-
-}
 
 /**
  * @brief dap_chain_cs_dag_event_get_datum

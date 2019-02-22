@@ -39,13 +39,11 @@ typedef struct dap_chain_cs_dag_event {
     uint8_t hashes_n_signs_n_datum[]; // Hashes, signes and datum
 } dap_chain_cs_dag_event_t;
 
-typedef int (*dap_chain_cs_dag_event_callback_ptr_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *);
 
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                 dap_enc_key_t * a_key,
                                                 dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
 void dap_chain_cs_dag_event_delete(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event);
 
-int dap_chain_cs_dag_event_verify(dap_chain_cs_dag_event_t * a_event);
 dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a_event);
 

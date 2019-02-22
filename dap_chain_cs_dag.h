@@ -24,12 +24,18 @@
 #pragma once
 #include "dap_chain.h"
 #include "dap_chain_cs_dag_event.h"
+
+typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
+
+typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
+typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *);
+
 typedef struct dap_chain_cs_dag
 {
     dap_chain_t * chain;
-    dap_chain_callback_new_t callback_new;
-    dap_chain_callback_t callback_delete;
-    dap_chain_cs_dag_event_callback_ptr_t callback_event_input;
+    dap_chain_cs_dag_callback_t callback_delete;
+    dap_chain_cs_dag_callback_event_t callback_event_input;
+    dap_chain_cs_dag_callback_event_t callback_event_verify;
 
     void * _pvt;
     void * _inheritor;
@@ -40,6 +46,5 @@ typedef struct dap_chain_cs_dag
 int dap_chain_cs_dag_init();
 void dap_chain_cs_dag_deinit();
 
-dap_chain_cs_dag_t *dap_chain_cs_dag_new(dap_chain_t * a_chain);
-void dap_chain_cs_dag_delete(dap_chain_cs_dag_t * a_dag);
-
+void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+void dap_chain_cs_dag_delete(dap_chain_t * a_chain);

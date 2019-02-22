@@ -33,6 +33,10 @@ typedef struct dap_chain_cs_dag_pvt {
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
+static int s_chain_callback_element_add(dap_chain_t * a_chain, void * a_data, size_t a_data_size);// Accept new element in chain
+static int s_chain_callback_element_get_first(dap_chain_t * a_chain, void ** a_data, size_t * a_data_size ); // Get the fisrt element from chain
+static int s_chain_callback_element_get_next( dap_chain_t * a_chain, void ** a_data, size_t * a_data_size ); // Get the next element from chain from the current one
+
 /**
  * @brief dap_chain_cs_dag_init
  * @return
@@ -53,14 +57,21 @@ void dap_chain_cs_dag_deinit()
 /**
  * @brief dap_chain_cs_dag_new
  * @param a_chain
- * @return
+ * @param a_chain_cfg
  */
-dap_chain_cs_dag_t *dap_chain_cs_dag_new(dap_chain_t * a_chain)
+void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_dag_t * l_ret = DAP_NEW_Z(dap_chain_cs_dag_t);
-    l_ret->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
-    l_ret->chain = a_chain;
-    return l_ret;
+    dap_chain_cs_dag_t * l_chain_cs_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
+    l_chain_cs_dag->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
+    l_chain_cs_dag->chain = a_chain;
+
+    a_chain->callback_delete = dap_chain_cs_dag_delete;
+    a_chain->callback_element_add = s_chain_callback_element_add; // Accept new element in chain
+    a_chain->callback_element_get_first = s_chain_callback_element_get_first; // Get the fisrt element from chain
+    a_chain->callback_element_get_next = s_chain_callback_element_get_next; // Get the next element from chain from the current one
+    a_chain->_inheritor = l_chain_cs_dag;
+
+    log_it (L_NOTICE, "DAG chain initialized");
 }
 
 /**
@@ -68,13 +79,49 @@ dap_chain_cs_dag_t *dap_chain_cs_dag_new(dap_chain_t * a_chain)
  * @param a_dag
  * @return
  */
-void dap_chain_cs_dag_delete(dap_chain_cs_dag_t * a_dag)
+void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
-    if(a_dag->callback_delete )
-        a_dag->callback_delete(a_dag->chain);
-    if(a_dag->_inheritor)
-        DAP_DELETE(a_dag->_inheritor);
-    if(a_dag->_pvt)
-        DAP_DELETE(a_dag->_pvt);
-    DAP_DELETE(a_dag);
+    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
+    if(l_dag->callback_delete )
+        l_dag->callback_delete(l_dag);
+    if(l_dag->_inheritor)
+        DAP_DELETE(l_dag->_inheritor);
+    if(l_dag->_pvt)
+        DAP_DELETE(l_dag->_pvt);
+    DAP_DELETE(l_dag);
+}
+
+/**
+ * @brief s_chain_callback_element_add Accept new element in chain
+ * @param a_chain
+ * @param a_data
+ * @param a_data_size
+ */
+static int s_chain_callback_element_add(dap_chain_t * a_chain, void * a_data, size_t a_data_size)
+{
+    return -1; // TODO
+}
+
+/**
+ * @brief s_chain_callback_element_get_first Get the fisrt element from chain
+ * @param a_chain
+ * @param a_data
+ * @param a_data_size
+ * @return 0 if ok
+ */
+static int s_chain_callback_element_get_first(dap_chain_t * a_chain, void ** a_data, size_t * a_data_size )
+{
+    return -1; // TODO
+}
+
+/**
+ * @brief s_chain_callback_element_get_next Get the next element from chain from the current one
+ * @param a_chain
+ * @param a_data
+ * @param a_data_size
+ * @return 0 if ok
+ */
+static int s_chain_callback_element_get_next( dap_chain_t * a_chain, void ** a_data, size_t * a_data_size )
+{
+    return -1; // TODO
 }
