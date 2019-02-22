@@ -28,14 +28,13 @@
 
 #include "dap_common.h"
 #include "dap_math_ops.h"
-#include "dap_chain_sign.h"
 
 #define DAP_CHAIN_ID_SIZE 8
 #define DAP_CHAIN_SHARD_ID_SIZE 8
 #define DAP_CHAIN_NET_ID_SIZE 8
 #define DAP_CHAIN_NODE_ROLE_SIZE 2
 #define DAP_CHAIN_HASH_SIZE 32
-#define DAP_CHAIN_HASH_FAST_SIZE 24
+#define DAP_CHAIN_HASH_FAST_SIZE 32
 #define DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX 24
 #define DAP_CHAIN_TIMESTAMP_SIZE 8
 // Chain ID of the whole system
@@ -111,6 +110,17 @@ typedef struct dap_chain_pkey{
     uint8_t pkey[]; /// @param pkey @brief raw pkey dat
 } DAP_ALIGN_PACKED dap_chain_pkey_t;
 
+typedef union dap_chain_sign_type{
+    enum {
+        SIG_TYPE_NULL = 0x0000,
+        SIG_TYPE_BLISS = 0x0001,
+        SIG_TYPE_DEFO = 0x0002, /// @brief key image for anonymous transaction
+        SIG_TYPE_TESLA = 0x0003, /// @brief
+        SIG_TYPE_PICNIC = 0x0101, /// @brief
+        SIG_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different signatures and sign composed with all of them
+    } type: 16;
+    uint16_t raw;
+} dap_chain_sign_type_t;
 
 
 typedef struct dap_chain_addr{
