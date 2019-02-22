@@ -79,6 +79,8 @@ dap_enc_key_type_t  dap_chain_sign_type_to_key_type(dap_chain_sign_type_t  a_cha
     }
 }
 
+
+
 /**
  * @brief dap_chain_sign_type_to_str
  * @param a_chain_sign_type
@@ -186,6 +188,7 @@ int dap_chain_sign_create_output(dap_enc_key_t *a_key, const void * a_data, cons
         default: return -1;
     }
 }
+
 
 /**
  * @brief dap_chain_sign_to_enc_key

@@ -37,3 +37,5 @@ static inline size_t dap_chain_pkey_from_enc_key_output_calc(dap_enc_key_t *a_ke
 }
 
 int dap_chain_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output);
+
+dap_chain_sign_type_t dap_chain_pkey_type_from_sign( dap_chain_pkey_type_t a_pkey_type);
