@@ -24,6 +24,9 @@
 
 #include "dap_common.h"
 #include "dap_enc_key.h"
+
+#include "dap_chain_sign.h"
+
 #include "dap_chain_datum.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
@@ -88,3 +91,24 @@ dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a
     return (dap_chain_datum_t*)  l_signs+l_signs_offset;
 }
 
+/**
+ * @brief dap_chain_cs_dag_event_get_sign
+ * @param a_event
+ * @param a_sign_number
+ * @return
+ */
+dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number)
+{
+    if (a_event->header.signs_count < a_sign_number ){
+        uint8_t * l_signs = a_event->hashes_n_signs_n_datum
+                +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
+        uint16_t l_signs_offset = 0;
+        uint16_t l_signs_passed;
+        for ( l_signs_passed=0;  l_signs_passed < a_sign_number; l_signs_passed++){
+            dap_chain_sign_t * l_sign = (dap_chain_sign_t *) l_signs+l_signs_offset;
+            l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+        }
+        return (dap_chain_sign_t*) l_signs + l_signs_offset;
+    }else
+        return NULL;
+}

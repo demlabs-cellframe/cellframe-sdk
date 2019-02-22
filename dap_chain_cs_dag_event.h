@@ -23,9 +23,10 @@
 */
 #pragma once
 
+#include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-
+#include "dap_chain_sign.h"
 
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
@@ -43,7 +44,8 @@ typedef struct dap_chain_cs_dag_event {
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                 dap_enc_key_t * a_key,
                                                 dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
+
 void dap_chain_cs_dag_event_delete(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event);
 
 dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a_event);
-
+dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number);
