@@ -39,8 +39,8 @@ size_t dap_chain_sign_create_output_cals_size(dap_enc_key_t * a_key, size_t a_ou
     size_t l_sign_size = 0;
     switch (a_key->type){
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_size = sizeof(s_sign_bliss_null); break;
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC: dap_enc_picnic_calc_signature_size(a_key); break;
-        case DAP_ENC_KEY_TYPE_SIG_TESLA: dap_enc_tesla_calc_signature_size(); break;
+        case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
         default : return 0;
 
     }
@@ -128,9 +128,9 @@ dap_chain_sign_type_t dap_chain_sign_type_from_str(const char * a_type_str)
 dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size,
                                       size_t a_output_wish_size )
 {
-    size_t l_sign_size = dap_chain_sign_create_output_cals_size(a_key,a_output_wish_size);
-    if (l_sign_size > 0 ) {
-        size_t l_ret_size = sizeof(dap_chain_sign_t) + a_key->pub_key_data_size + l_sign_size;
+    size_t l_ret_size = dap_chain_sign_create_output_cals_size(a_key,a_output_wish_size);
+    if (l_ret_size > 0 ) {
+        //size_t l_ret_size = sizeof(dap_chain_sign_t) + a_key->pub_key_data_size + l_sign_size;
         dap_chain_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_sign_t, l_ret_size );
         if (l_ret){
             l_ret->header.sign_pkey_size = a_key->pub_key_data_size;
@@ -141,23 +141,7 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
                 return NULL;
             }else{
                 memcpy(l_ret->pkey_n_sign, a_key->pub_key_data, a_key->pub_key_data_size);
-                switch (a_key->type)
-                {
-                case DAP_ENC_KEY_TYPE_SIG_BLISS:
-                    l_ret->header.type.raw = SIG_TYPE_BLISS;
-                    break;
-                case DAP_ENC_KEY_TYPE_SIG_TESLA:
-                    l_ret->header.type.raw = SIG_TYPE_TESLA;
-                    break;
-                case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-                    l_ret->header.type.raw = SIG_TYPE_PICNIC;
-                    break;
-                case DAP_ENC_KEY_TYPE_DEFEO:
-                    l_ret->header.type.raw = SIG_TYPE_DEFO;
-                    break;
-                default:
-                    l_ret->header.type.raw = SIG_TYPE_NULL;
-                }
+                l_ret->header.type = dap_chain_sign_type_from_key_type(a_key->type);
                 return l_ret;
             }
         }
@@ -221,7 +205,8 @@ int dap_chain_sign_verify (dap_chain_sign_t * a_chain_sign, const void * a_data,
             return (l_key->dec_na ( l_key, a_data, a_data_size, l_sign, l_sign_size) > 0 )
                     ? 0 : 1;
         case DAP_ENC_KEY_TYPE_SIG_BLISS:
-            return dap_enc_sig_bliss_verify_sign( l_key, a_data, a_data_size, l_sign, l_sign_size );
+            return (dap_enc_sig_bliss_verify_sign( l_key, a_data, a_data_size, l_sign, l_sign_size) != BLISS_B_NO_ERROR)
+                    ? 0 : 1;
         default: return -1;
     }
 }
