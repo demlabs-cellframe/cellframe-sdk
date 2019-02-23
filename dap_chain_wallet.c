@@ -24,6 +24,8 @@
 
 #include <string.h>
 #include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
 #include "dap_common.h"
 #include "dap_chain_cert_file.h"
 #include "dap_chain_wallet.h"
@@ -93,7 +95,7 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
     if(a_wallet->name)
         DAP_DELETE (a_wallet->name);
-
+    // TODO Make clean struct dap_chain_wallet_internal_t
     DAP_DELETE(l_wallet_internal);
     DAP_DELETE(a_wallet);
 }
@@ -157,7 +159,7 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
 {
     if ( a_wallet ){
         DAP_CHAIN_WALLET_INTERNAL_LOCAL (a_wallet);
-        FILE * l_file = fopen( l_wallet_internal->file_name ,"w");
+        FILE * l_file = fopen( l_wallet_internal->file_name ,"wb");
         if ( l_file ){
             dap_chain_wallet_file_hdr_t l_file_hdr = {0};
             l_file_hdr.signature = DAP_CHAIN_WALLETS_FILE_SIGNATURE;
@@ -165,7 +167,13 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
             l_file_hdr.version = 1;
             l_file_hdr.net_id = l_wallet_internal->addr->net_id;
             size_t i;
+            // write header
             fwrite(&l_file_hdr,1,sizeof(l_file_hdr),l_file);
+            // write name
+            uint16_t name_len = (a_wallet->name) ? (uint16_t)strlen(a_wallet->name) : 0;
+            fwrite(&name_len,1,sizeof(uint16_t),l_file);
+            fwrite(a_wallet->name,1,name_len,l_file);
+            // write certs
             for ( i = 0; i < l_wallet_internal->certs_count ; i ++) {
                 dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = {0};
                 l_wallet_cert_hdr.version = 1;
@@ -199,22 +207,27 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
  */
 dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
 {
-    FILE * l_file = fopen( a_file_name ,"r");
+    FILE * l_file = fopen( a_file_name ,"rb");
     fseek(l_file, 0L, SEEK_END);
     uint64_t l_file_size = ftell(l_file);
     rewind(l_file);
 
     if ( l_file ){
         dap_chain_wallet_file_hdr_t l_file_hdr={0};
-
+        // read header
         if ( fread(&l_file_hdr,1,sizeof(l_file_hdr),l_file) == sizeof (l_file_hdr) ) {
             if ( l_file_hdr.signature == DAP_CHAIN_WALLETS_FILE_SIGNATURE ) {
                 dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
                 DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
+                // read name
+                uint16_t name_len = 0;
+                fread(&name_len, 1, sizeof(uint16_t), l_file);
+                l_wallet->name = DAP_NEW_Z_SIZE(char, name_len + 1);
+                fread(l_wallet->name, 1, name_len, l_file);
 
                 l_wallet_internal->file_name = strdup(a_file_name);
-
-                size_t i = sizeof (l_file_hdr);
+                size_t i = sizeof (l_file_hdr) + sizeof(uint16_t) + name_len;
+                // calculate certs count
                 while (i <  l_file_size ){
                     dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
                     fread(&l_cert_hdr,1,sizeof(l_cert_hdr),l_file);
@@ -232,7 +245,8 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
                         break;
                     }
                 }
-                fseek(l_file,sizeof(l_file_hdr),SEEK_SET);
+                // read certs
+                fseek(l_file,sizeof (l_file_hdr) + sizeof(uint16_t) + name_len,SEEK_SET);
                 l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_chain_cert_t *,l_wallet_internal->certs_count);
                 for (i = 0; i < l_wallet_internal->certs_count; i++ ){
                     dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
@@ -243,6 +257,9 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
                     DAP_DELETE (l_data);
                 }
                 fclose(l_file);
+                // make addr
+                if(l_wallet_internal->certs_count>0)
+                    l_wallet_internal->addr = dap_chain_cert_to_addr (l_wallet_internal->certs[0], l_file_hdr.net_id);
                 return l_wallet;
             } else {
                 log_it(L_ERROR,"Wrong wallet file signature: corrupted file or wrong format");
