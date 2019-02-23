@@ -36,7 +36,7 @@
 
 size_t dap_chain_tx_in_get_size(dap_chain_tx_in_t *item)
 {
-    size_t size = sizeof(dap_chain_tx_in_t) + item->header.sig_size;
+    size_t size = sizeof(dap_chain_tx_in_t);// + item->header.sig_size;
     return size;
 }
 
@@ -100,6 +100,18 @@ static int dap_chain_datum_item_get_size(const uint8_t *item)
 }
 
 /**
+ * Get size of transaction
+ *
+ * return size, 0 Error
+ */
+int dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *tx)
+{
+    if(!tx)
+        return 0;
+    return (sizeof(dap_chain_datum_tx_t) + tx->header.tx_items_size);
+}
+
+/**
  * Insert item to transaction
  *
  * return 1 Ok, -1 Error
@@ -110,7 +122,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **tx, const uint8_t *item)
     if(!size)
         return -1;
     dap_chain_datum_tx_t *tx_cur = *tx;
-    tx_cur = (dap_chain_datum_tx_t*) realloc(tx_cur, sizeof(dap_chain_datum_tx_t) + tx_cur->header.tx_items_size + size);
+    tx_cur = (dap_chain_datum_tx_t*) realloc(tx_cur, dap_chain_datum_tx_get_size(tx_cur) + size);
     memcpy((uint8_t*)tx_cur->tx_items + tx_cur->header.tx_items_size, item, size);
     tx_cur->header.tx_items_size += size;
     *tx = tx_cur;
@@ -131,7 +143,6 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **tx, dap_enc_key_t *a_key)
     // sign all items in transaction
     dap_chain_sign_t *a_chain_sign = dap_chain_sign_create(a_key, a_data, a_data_size, 0);
     size_t a_chain_sign_size = dap_chain_sign_get_size(a_chain_sign);
-
     // add sign to datum_tx
     if(a_chain_sign) {
         // check valid sign
@@ -139,7 +150,6 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **tx, dap_enc_key_t *a_key)
         dap_chain_tx_sig_t *tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
                 sizeof(dap_chain_tx_sig_t) + a_chain_sign_size);
         tx_sig->header.type = TX_ITEM_TYPE_SIG;
-        tx_sig->header.sig_type = a_chain_sign->header.type;
         tx_sig->header.sig_size = a_chain_sign_size;
         memcpy(tx_sig->sig, a_chain_sign, a_chain_sign_size);
         DAP_DELETE(a_chain_sign);

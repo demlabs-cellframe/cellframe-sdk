@@ -47,6 +47,13 @@ typedef struct dap_chain_datum_tx{
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
 
 /**
+ * Get size of transaction
+ *
+ * return size, 0 Error
+ */
+int dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *tx);
+
+/**
  * Insert item to transaction
  *
  * return 1 Ok, -1 Error
