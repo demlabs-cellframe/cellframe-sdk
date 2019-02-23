@@ -127,7 +127,7 @@ int dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, void * a_data )
 lb_exit:
 
     if (ret == 0)
-        log_it(L_NOTICE,"Certificate \"%s\"sucsessfully serialized",a_cert->name);
+        log_it(L_NOTICE,"Certificate \"%s\" successfully serialized",a_cert->name);
 
     return ret;
 }
@@ -195,7 +195,7 @@ dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size)
             l_ret->enc_key->pub_key_data = DAP_NEW_SIZE (void,l_hdr.data_size);
             memcpy(l_ret->enc_key->pub_key_data, l_data + sizeof(l_hdr),l_ret->enc_key->pub_key_data_size);
         }
-        l_ret->enc_key->priv_key_data_size = l_hdr.data_size;
+        l_ret->enc_key->priv_key_data_size = l_hdr.data_pvt_size;
         if ( l_hdr.data_pvt_size > 0 ){
             l_ret->enc_key->priv_key_data = DAP_NEW_SIZE (void,l_ret->enc_key->priv_key_data_size);
             memcpy(l_ret->enc_key->priv_key_data, l_data + sizeof(l_hdr)
