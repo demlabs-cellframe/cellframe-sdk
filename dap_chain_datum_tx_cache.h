@@ -21,23 +21,32 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#pragma once
 
-#include <stdint.h>
-#include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
+/**
+ * Add new transaction to the cache
+ *
+ * return 0 OK, -1 error, -2 already present
+ */
+int chain_node_datum_tx_list_hash_add(dap_chain_hash_fast_t *tx_hash, dap_chain_datum_tx_t *tx);
 
 /**
-  * @struct dap_chain_tx_sig
-  * @brief Section with set of transaction signatures
-  */
-typedef struct dap_chain_tx_sig{
-    struct {
-        dap_chain_tx_item_type_t type:8; /// @param    type            @brief Transaction item type
-//        dap_chain_sign_type_t sig_type; /// Signature type
-        uint32_t sig_size; /// Signature size
-    } header; /// Only header's hash is used for verification
-    uint8_t sig[]; /// @param sig @brief raw signature data
-} DAP_ALIGN_PACKED dap_chain_tx_sig_t;
+ * Delete transaction from the cache
+ *
+ * return 0 OK, -1 error, -2 tx_hash not found
+ */
+int chain_node_datum_tx_list_hash_del(dap_chain_hash_fast_t *tx_hash);
+
+/**
+ * Delete all transactions from the cache
+ */
+void chain_node_datum_tx_list_hash_del_all(void);
+
+/**
+ * Get transaction by hash
+ *
+ * return transaction, or NULL if transaction not found in the cache
+ */
+const dap_chain_datum_tx_t* chain_node_datum_tx_list_hash_find(dap_chain_hash_fast_t *tx_hash);
