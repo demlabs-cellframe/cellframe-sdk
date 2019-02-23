@@ -111,7 +111,7 @@ void dap_stream_add_proc_http(struct dap_http * sh, const char * url)
  */
 void dap_stream_add_proc_udp(dap_udp_server_t * sh)
 {
-    dap_server_t* server = sh->dap_server;
+    dap_server_t* server =  sh->dap_server;
     server->client_read_callback = s_data_read;
     server->client_write_callback = stream_dap_data_write;
     server->client_delete_callback = stream_dap_delete;
@@ -277,6 +277,17 @@ dap_stream_t * stream_new(dap_http_client_t * sh)
     return ret;
 }
 
+void dap_stream_delete(dap_stream_t * a_stream)
+{
+    if(a_stream == NULL)
+        return;
+    size_t i;
+    for(i = 0; i < a_stream->channel_count; i++)
+        dap_stream_ch_delete(a_stream->channel[i]);
+    if(a_stream->session)
+        dap_stream_session_close(a_stream->session->id);
+    free(a_stream);
+}
 
 /**
  * @brief dap_stream_new_es
@@ -571,8 +582,6 @@ static bool _detect_loose_packet(dap_stream_t * sid)
     int count_loosed_packets = ch_pkt->hdr.seq_id - (sid->last_seq_id_packet + 1);
     if(count_loosed_packets > 0)
     {
-        int count_loosed = sid->last_seq_id_packet + 1;
-
         log_it(L_WARNING, "Detected loosed %d packets. "
                           "Last read seq_id packet: %d Current: %d", count_loosed_packets,
                sid->last_seq_id_packet, ch_pkt->hdr.seq_id);
