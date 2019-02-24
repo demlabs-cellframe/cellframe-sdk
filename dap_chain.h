@@ -29,6 +29,7 @@
 #include "dap_chain_common.h"
 struct dap_chain;
 typedef struct dap_chain dap_chain_t;
+typedef struct dap_chain_cs dap_chain_cs_t;
 
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
@@ -54,6 +55,7 @@ typedef struct dap_chain{
     dap_chain_callback_element_add_t callback_element_add; // Accept new element in chain
     dap_chain_callback_element_get_first_t callback_element_get_first; // Get the fisrt element from chain
     dap_chain_callback_element_get_next_t callback_element_get_next; // Get the next element from chain from the current one
+
     // To hold it in double-linked lists
     struct dap_chain * next;
     struct dap_chain * prev;

@@ -25,6 +25,9 @@
 
 #include "dap_chain.h"
 
+typedef struct dap_chain_cs{
+
+} dap_chain_cs_t;
 
 int dap_chain_cs_init();
 void dap_chain_cs_deinit();
