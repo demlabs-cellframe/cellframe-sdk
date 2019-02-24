@@ -1,0 +1,21 @@
+[submodule "libdap"]
+	path = libdap
+	url = https://github.com/kelvinblockchain/libdap
+[submodule "libdap-server-core"]
+	path = libdap-server-core
+	url = https://github.com/kelvinblockchain/libdap-server-core
+[submodule "libdap-server"]
+	path = libdap-server
+	url = https://github.com/kelvinblockchain/libdap-server
+[submodule "libdap-server-udp"]
+	path = libdap-server-udp
+	url = https://github.com/kelvinblockchain/libdap-server-udp
+[submodule "test/libdap-test"]
+	path = test/libdap-test
+	url = https://github.com/kelvinblockchain/libdap-test
+[submodule "test/libdap-stream-ch"]
+	path = libdap-stream-ch
+	url = https://github.com/kelvinblockchain/libdap-stream-ch
+[submodule "libdap-stream-ch"]
+	path = libdap-stream-ch
+	url = https://github.com/kelvinblockchain/libdap-stream-ch

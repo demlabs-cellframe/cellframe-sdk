@@ -29,6 +29,8 @@
 
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
+//#include "dap_udp_server.h"
+//#include "dap_udp_client.h"
 #include "dap_events_socket.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
@@ -85,6 +87,7 @@ typedef struct dap_stream {
 
     size_t seq_id;
     size_t stream_size;
+    size_t client_last_seq_id_packet;
 
 } dap_stream_t;
 
