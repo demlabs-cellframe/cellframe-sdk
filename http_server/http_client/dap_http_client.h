@@ -64,7 +64,6 @@ typedef struct dap_http_client
     time_t out_last_modified;
     bool out_connection_close;
 
-
     dap_client_remote_t * client;
     struct dap_http * http;
 

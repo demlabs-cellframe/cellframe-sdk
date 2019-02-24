@@ -293,10 +293,11 @@ cnt:switch(cl_ht->state_read){
 
                     if(cl_ht->proc->headers_read_callback)
                         cl_ht->proc->headers_read_callback(cl_ht,NULL);
+
                      // If no headers callback we go to the DATA processing
-                    if(cl_ht->in_content_length ){
+                    if(cl_ht->in_content_length) {
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                    }else{
+                    } else {
                         //log_it
                         //cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
                         //cl_ht->client->ready_to_read=t;
@@ -310,14 +311,16 @@ cnt:switch(cl_ht->state_read){
         case DAP_HTTP_CLIENT_STATE_DATA:{//Read the data
          //   log_it(L_WARNINGNG, "DBG_#002 [%s] [%s]",             cl_ht->in_query_string, cl_ht->url_path);
 
-            int read_bytes=0;
+            size_t read_bytes = 0;
             if(cl_ht->proc->data_read_callback){
                 //while(cl_ht->client->buf_in_size){
                     cl_ht->proc->data_read_callback(cl_ht,&read_bytes);
                     dap_client_remote_shrink_buf_in(cl,read_bytes);
                 //}
-            }else
+            }else {
+                log_it(L_WARNING, "data_read callback is NULL in DAP_HTTP_CLIENT_STATE_DATA");
                 cl->buf_in_size=0;
+            }
         } break;
         case DAP_HTTP_CLIENT_STATE_NONE:{
                 cl->buf_in_size=0;
