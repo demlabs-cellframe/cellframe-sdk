@@ -59,7 +59,7 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     size_t l_outi_size = (l_out_size_max + 3) / 4;
 
     uint32_t l_outi[l_outi_size];
-    memzero(l_outi,l_outi_size);
+    memzero(l_outi,l_outi_size*sizeof(uint32_t));
     uint64_t t;
     uint32_t c;
     size_t i, j;
@@ -77,10 +77,10 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     {
         if (l_in_u8[i] & 0x80)
             // High-bit set on invalid digit
-            return false;
+            return 0;
         if (c_b58digits_map[l_in_u8[i]] == -1)
             // Invalid base58 digit
-            return false;
+            return 0;
         c = (unsigned)c_b58digits_map[l_in_u8[i]];
         for (j = l_outi_size; j--; )
         {
@@ -133,6 +133,13 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
         }
         --l_out_size;
     }
+
+
+    // shift result to beginning of the string
+    for (j = 0; j < l_out_size; j++){
+        l_out_u8[j+zerocount] = l_out_u8[j+i];
+    }
+    l_out_u8[j+zerocount] = 0;
     l_out_size += zerocount;
 
     return l_out_size;

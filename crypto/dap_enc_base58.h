@@ -34,7 +34,7 @@ extern "C" {
 /*
  * Calculates encode size from input size
  */
-#define DAP_ENC_BASE58_ENCODE_SIZE(a_in_size) ( (size_t) ((137 * a_in_size / 100)+1))
+#define DAP_ENC_BASE58_ENCODE_SIZE(a_in_size) ( (size_t) ((137 * a_in_size / 100)+2))
 #define DAP_ENC_BASE58_DECODE_SIZE(a_in_size) ( (size_t) ( 2 * a_in_size   +1) )
 
 size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out);
