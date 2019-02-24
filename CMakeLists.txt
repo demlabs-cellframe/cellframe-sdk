@@ -1,5 +1,5 @@
 project(libdap-stream C)
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     set(SUBMODULES_NO_BUILD ON)
@@ -10,10 +10,10 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(libdap-stream-ch)
 endif()
 
-#if(BUILD_DAP_STREAM_TESTS)
+if(BUILD_DAP_STREAM_TESTS)
     enable_testing()
     add_subdirectory(test)
-#endif()
+endif()
 
 add_subdirectory(session)
 add_subdirectory(stream)
