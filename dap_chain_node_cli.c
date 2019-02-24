@@ -58,16 +58,30 @@ typedef int SOCKET;
 
 static SOCKET server_sockfd = -1;
 
-static const COMMAND commands[] = {
-    { "global_db", com_global_db, "Work with database" },
-    { "node", com_node, "Work with node" },
-    { "ping", com_ping, "Ping utility" },
-    { "traceroute", com_traceroute, "Traceroute utility" },
-    { "tracepath", com_tracepath, "Tracepath utility" },
-    { "help", com_help, "Display this text" },
-    { "?", com_help, "Synonym for `help'" },
-    { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
-};
+static const COMMAND commands[] =
+        {
+            { "global_db", com_global_db, "Work with global database",
+                "global_db node add -addr {<node address> | -alias <node alias>} -shard <shard id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n"
+                        "global_db node del -addr <node address> | -alias <node alias>\n"
+                        "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n"
+                        "global_db node dump -addr <node address> | -alias <node alias>" },
+            { "node", com_node, "Work with node",
+                "node alias {<node address> | -alias <node alias>}\n"
+                        "node handshake {<node address> | -alias <node alias>}" },
+            { "ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
+                "ping [-c <count>] host" },
+            { "traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
+                "traceroute host" },
+            { "tracepath", com_tracepath, "Traces path to a network host along this path",
+                "tracepath host" },
+            { "help", com_help, "Description of command parameters", "" },
+            { "?", com_help, "Synonym for 'help'", "" },
+            { "tx_create", com_tx_create, "Signing transaction",
+                "tx_create -wallet <wallet name> [-path <wallet path>]" },
+            { "tx_verify", com_tx_verify, "Verifing transaction",
+                "tx_verify  -wallet <wallet name> [-path <wallet path>]" },
+            { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
+        };
 
 /**
  *  Look up NAME as the name of a command, and return a pointer to that
@@ -296,6 +310,8 @@ static void* thread_one_client_func(void *args)
                 // execute command
                 char *str_cmd = g_strdup_printf("%s", cmd_name);
                 const COMMAND *command = find_command(cmd_name);
+                int res = -1;
+                char *str_reply = NULL;
                 if(command)
                 {
                     while(list) {
@@ -304,26 +320,27 @@ static void* thread_one_client_func(void *args)
                     }
                     log_it(L_INFO, "execute command=%s", str_cmd);
                     // exec command
-                    int res = 0;
+
                     char **argv = g_strsplit(str_cmd, ";", -1);
-                    char *str_reply = NULL;
                     // Call the command function
                     if(command && command->func)
                         res = (*(command->func))(argc, (const char **) argv, &str_reply);
                     g_strfreev(argv);
-                    gchar *reply_body = g_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
-                    // return the result of the command function
-                    gchar *reply_str = g_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
-                            strlen(reply_body), reply_body);
-                    int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
-                    g_free(str_reply);
-                    g_free(reply_str);
-                    g_free(reply_body);
                 }
                 else
                 {
-                    log_it(L_ERROR, "can't recognize command=%s", str_cmd);
+                    str_reply = g_strdup_printf("can't recognize command=%s", str_cmd);
+                    log_it(L_ERROR, str_reply);
                 }
+                gchar *reply_body = g_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                // return the result of the command function
+                gchar *reply_str = g_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
+                        strlen(reply_body), reply_body);
+                int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
+                g_free(str_reply);
+                g_free(reply_str);
+                g_free(reply_body);
+
                 g_free(str_cmd);
             }
             g_list_free_full(cmd_param_list, free);

@@ -221,7 +221,8 @@ int dap_chain_net_init()
 
                         // Create chain object
                         dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name,l_entry_name);
-                        DL_APPEND( l_net->pub.chains, l_chain);
+                        if(l_chain)
+                            DL_APPEND( l_net->pub.chains, l_chain);
                         free(l_entry_name);
                     }
                 }

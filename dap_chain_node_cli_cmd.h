@@ -21,7 +21,15 @@
 
 #pragma once
 
+#include "dap_chain_node.h"
 #include "dap_chain_node_cli.h"
+
+/**
+ * Find in base addr by alias
+ *
+ * return addr, NULL if not found
+ */
+dap_chain_node_addr_t* get_name_by_alias(const char *alias);
 
 /**
  *  Look up NAME as the name of a command, and return a pointer to that
@@ -64,3 +72,17 @@ int com_ping(int argc, const char** argv, char **str_reply);
  * Help command
  */
 int com_help(int argc, const char ** argv, char **str_reply);
+
+/**
+ * com_tx_create command
+ *
+ * Signing transaction
+ */
+int com_tx_create(int argc, const char ** argv, char **str_reply);
+
+/**
+ * tx_verify command
+ *
+ * Verifing transaction
+ */
+int com_tx_verify(int argc, const char ** argv, char **str_reply);
