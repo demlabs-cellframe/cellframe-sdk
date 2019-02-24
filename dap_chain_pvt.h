@@ -27,21 +27,10 @@
 #include "dap_common.h"
 #include "dap_chain.h"
 
-#define DAP_CHAIN_FILE_VERSION 1
-#define DAP_CHAIN_FILE_SIGNATURE 0xfa340bef153eba48
-#define DAP_CHAIN_FILE_TYPE_RAW 0
-#define DAP_CHAIN_FILE_TYPE_COMPRESSED 1
-#define DAP_CHAIN_CHAIN_ID 0x123ULL
-#define DAP_CHAIN_CHAIN_NET_ID 0x456ULL
+#include "dap_chain_cs.h"
+#include "dap_chain_cell.h"
 
-typedef struct dap_chain_file_header
-{
-    uint64_t signature;
-    uint32_t version;
-    uint8_t type;
-    dap_chain_id_t chain_id;
-    dap_chain_net_id_t chain_net_id;
-} DAP_ALIGN_PACKED dap_chain_file_header_t;
+
 
 /**
   * @struct dap_chain_pvt
@@ -50,20 +39,20 @@ typedef struct dap_chain_file_header
   */
 typedef struct dap_chain_pvt
 {
-    char * file_storage_path;
-    FILE * file_cache_idx_blocks; /// @param file_cache @brief Index for blocks
-    FILE * file_cache_idx_txs; /// @param file_cache @brief Index for cache
-    FILE * file_cache; /// @param file_cache @brief Cache for raw blocks
-    FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
-    uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
+    dap_chain_t * chain;
+    char * file_storage_dir;
+
+    dap_chain_cell_t * cells;
+    dap_chain_cs_t * consensuses;
+
 } dap_chain_pvt_t;
 
-#define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *) a->_internal  )
+#define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *) a->_pvt  )
 
 #define DAP_CHAIN_PVT_LOCAL(a) dap_chain_pvt_t * l_chain_pvt = DAP_CHAIN_PVT(a)
 
 #define DAP_CHAIN_PVT_LOCAL_NEW(a) dap_chain_pvt_t * l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t); a->_internal = l_chain_pvt
 
-int dap_chain_pvt_file_load( dap_chain_t * a_chain);
-int dap_chain_pvt_file_save( dap_chain_t * a_chain);
-int dap_chain_pvt_file_update( dap_chain_t * a_chain);
+int dap_chain_pvt_cells_load( dap_chain_t * a_chain);
+int dap_chain_pvt_cells_save( dap_chain_t * a_chain);
+int dap_chain_pvt_cells_update( dap_chain_t * a_chain);

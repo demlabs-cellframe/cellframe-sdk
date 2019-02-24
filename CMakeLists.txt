@@ -12,6 +12,7 @@ set(DAP_CHAIN_SRCS
         dap_chain_pvt.c
         dap_chain.c
         dap_chain_cs.c
+        dap_chain_cell.c
         )
 
 set(DAP_CHAIN_HEADERS
@@ -28,6 +29,7 @@ set(DAP_CHAIN_HEADERS
         dap_chain_datum_tx_pkey.h
         dap_chain_datum_tx_sig.h
         dap_chain_cs.h
+        dap_chain_cell.h
     )
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})

@@ -44,10 +44,10 @@ typedef union dap_chain_id{
 } DAP_ALIGN_PACKED dap_chain_id_t;
 
 // Shard ID
-typedef union dap_chain_shard_id{
+typedef union dap_chain_cell_id{
     uint8_t raw[DAP_CHAIN_SHARD_ID_SIZE];
     uint64_t uint64;
-} DAP_ALIGN_PACKED dap_chain_shard_id_t;
+} DAP_ALIGN_PACKED dap_chain_cell_id_t;
 
 /**
   *

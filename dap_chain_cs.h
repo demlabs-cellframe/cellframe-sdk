@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -25,8 +25,12 @@
 
 #include "dap_chain.h"
 
+typedef struct dap_chain_cs dap_chain_cs_t;
+
 typedef struct dap_chain_cs{
 
+    dap_chain_cs_t * prev;
+    dap_chain_cs_t * next;
 } dap_chain_cs_t;
 
 int dap_chain_cs_init();

@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #include "uthash.h"
+#include "utlist.h"
 
 #include "dap_common.h"
 #include "dap_chain_cs.h"
@@ -82,7 +83,9 @@ int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_callback_item_t *l_item = NULL;
     HASH_FIND_STR(s_cs_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
     if ( l_item ) {
-        l_item->callback_init ( a_chain, a_chain_cfg );
+        dap_chain_cs_t * l_consensus = DAP_NEW_Z(dap_chain_cs_t);
+        DL_APPEND( a_chain->consensuses, l_consensus );
+        l_consensus->callback_init( a_chain, a_chain_cfg );
         return 0;
     } else {
         return -1;
