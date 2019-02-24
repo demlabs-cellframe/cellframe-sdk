@@ -23,17 +23,17 @@
 
 #include <stdbool.h>
 
-#include "dap_chain_node_cli_connect.h"
+#include "dap_chain_node_client.h"
 
 /**
  * Add new established connection in the list
  */
-bool chain_node_client_list_add(chain_node_client_t *client);
+bool chain_node_client_list_add(dap_chain_node_client_t *client);
 
 /**
  * Delete established connection from the list
  */
-bool chain_node_client_list_del(chain_node_client_t *client);
+bool chain_node_client_list_del(dap_chain_node_client_t *client);
 
 /**
  * Get one established connection
@@ -42,7 +42,7 @@ bool chain_node_client_list_del(chain_node_client_t *client);
  *
  * return client, or NULL if the position is off the end of the list
  */
-chain_node_client_t* chain_node_client_list_get_item(int n);
+dap_chain_node_client_t* chain_node_client_list_get_item(int n);
 
 /**
  * Get the number of established connections

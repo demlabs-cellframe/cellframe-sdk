@@ -41,8 +41,8 @@ typedef struct dap_chain_net{
     uint8_t pvt[];
 } dap_chain_net_t;
 
-int dap_chain_net_init();
-void dap_chain_net_deinit();
+int dap_chain_net_init(void);
+void dap_chain_net_deinit(void);
 
 dap_chain_net_t * dap_chain_net_new (const char * a_id,  const char * a_name,
                                      const char* a_node_role , const char* a_node_name );

@@ -38,31 +38,39 @@ enum {
     NODE_CLIENT_STATE_END
 };
 
+typedef struct dap_chain_node_client dap_chain_node_client_t;
+
+typedef void (*dap_chain_node_client_callback_t) (dap_chain_node_client_t *, void*);
+
 // state for a client connection
-typedef struct chain_node_client {
+typedef struct dap_chain_node_client {
     int state;
-    dap_client_t *a_client;
-    dap_events_t *a_events;
+    dap_client_t *client;
+    dap_events_t *events;
+
+    dap_chain_node_client_callback_t callback_stream_connected;
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
-} chain_node_client_t;
+} dap_chain_node_client_t;
 
 
-int chain_node_client_init(void);
+int dap_chain_node_client_init(void);
 
-void chain_node_client_deinit();
+void dap_chain_node_client_deinit();
 
 /**
- * Create connection to server
+ * Create handshake to server
  *
  * return a connection handle, or NULL, if an error
  */
-chain_node_client_t* chain_node_client_connect(dap_chain_node_info_t *node_info);
+dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *node_info);
+
+
 
 /**
  * Close connection to server, delete chain_node_client_t *client
  */
-void chain_node_client_close(chain_node_client_t *client);
+void dap_chain_node_client_close(dap_chain_node_client_t *client);
 
 /**
  * wait for the complete of request
@@ -71,5 +79,5 @@ void chain_node_client_close(chain_node_client_t *client);
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int chain_node_client_wait(chain_node_client_t *client, int waited_state, int timeout_ms);
+int chain_node_client_wait(dap_chain_node_client_t *client, int waited_state, int timeout_ms);
 

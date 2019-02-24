@@ -49,7 +49,7 @@ typedef int SOCKET;
 #include "iputils/iputils.h"
 #include "dap_common.h"
 #include "dap_chain_node_cli_cmd.h"
-#include "dap_chain_node_cli_connect.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 
 //#include "dap_chain_node_cli.h"
@@ -379,7 +379,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     //strcpy(server.sun_path, SOCKET_FILE);
 
     // init client for handshake
-    chain_node_client_init();
+    dap_chain_node_client_init();
 
     SOCKET sockfd;
 
@@ -432,5 +432,5 @@ void dap_chain_node_cli_delete(void)
         closesocket(server_sockfd);
 
     // deinit client for handshake
-    chain_node_client_deinit();
+    dap_chain_node_client_deinit();
 }

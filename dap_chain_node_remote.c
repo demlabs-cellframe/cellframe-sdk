@@ -37,7 +37,7 @@ static pthread_mutex_t connect_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 /**
  * Add new established connection in the list
  */
-bool chain_node_client_list_add(chain_node_client_t *client)
+bool chain_node_client_list_add(dap_chain_node_client_t *client)
 {
     if(!client)
         return false;
@@ -50,7 +50,7 @@ bool chain_node_client_list_add(chain_node_client_t *client)
 /**
  * Delete established connection from the list
  */
-bool chain_node_client_list_del(chain_node_client_t *client)
+bool chain_node_client_list_del(dap_chain_node_client_t *client)
 {
     pthread_mutex_lock(&connect_list_mutex);
     GList *list = g_list_find(connect_list, client);
@@ -70,10 +70,10 @@ bool chain_node_client_list_del(chain_node_client_t *client)
  *
  * return client, or NULL if the position is off the end of the list
  */
-chain_node_client_t* chain_node_client_list_get_item(int n)
+dap_chain_node_client_t* chain_node_client_list_get_item(int n)
 {
     pthread_mutex_lock(&connect_list_mutex);
-    chain_node_client_t *client = g_list_nth_data(connect_list, (guint) n);
+    dap_chain_node_client_t *client = g_list_nth_data(connect_list, (guint) n);
     pthread_mutex_unlock(&connect_list_mutex);
     return client;
 }
