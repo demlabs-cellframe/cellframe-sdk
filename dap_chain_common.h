@@ -141,7 +141,8 @@ typedef struct dap_chain_addr{
 
 size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max);
 
-char* dap_chain_addr_to_str_size(dap_chain_addr_t a_addr);
+char* dap_chain_addr_to_str(dap_chain_addr_t *a_addr);
+dap_chain_addr_t* dap_chain_str_to_addr(const char *str);
 
 /**
  * @brief dap_chain_hash_to_str
