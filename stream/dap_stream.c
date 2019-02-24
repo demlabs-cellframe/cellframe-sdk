@@ -268,6 +268,7 @@ dap_stream_t * stream_new(dap_http_client_t * sh)
     ret->conn = sh->client;
     ret->conn_http=sh;
     ret->buf_defrag_size = 0;
+    ret->seq_id = 0;
 
     ret->conn->_internal=ret;
 

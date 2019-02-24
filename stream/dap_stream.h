@@ -83,6 +83,7 @@ typedef struct dap_stream {
 
     size_t frame_sent; // Frame counter
 
+    size_t seq_id;
     size_t stream_size;
 
 } dap_stream_t;
