@@ -21,36 +21,46 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
+#include <stdint.h>
+#include <string.h>
+
+#include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
-
-int dap_chain_node_datum_tx_cache_init(dap_enc_key_t *a_key, const char *a_token_name, dap_chain_addr_t *a_addr, uint64_t a_value);
-
-dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx);
+#include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_sig.h"
+#include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_token.h"
 
 /**
- * Add new transaction to the cache
+ * Create item dap_chain_tx_token_t
  *
- * return 0 OK, -1 error, -2 already present
+ * return item, NULL Error
  */
-int dap_chain_node_datum_tx_cache_add(dap_chain_hash_fast_t *tx_hash, dap_chain_datum_tx_t *tx);
+dap_chain_tx_token_t* dap_chain_datum_item_token_create(const char *a_name);
 
 /**
- * Delete transaction from the cache
+ * Create item dap_chain_tx_out_t
  *
- * return 0 OK, -1 error, -2 tx_hash not found
+ * return item, NULL Error
  */
-int dap_chain_node_datum_tx_cache_del(dap_chain_hash_fast_t *tx_hash);
+dap_chain_tx_in_t* dap_chain_datum_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
+
 
 /**
- * Delete all transactions from the cache
- */
-void dap_chain_node_datum_tx_cache_del_all(void);
-
-/**
- * Get transaction by hash
+ * Create item dap_chain_tx_out_t
  *
- * return transaction, or NULL if transaction not found in the cache
+ * return item, NULL Error
  */
-const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find(dap_chain_hash_fast_t *tx_hash);
+dap_chain_tx_out_t* dap_chain_datum_item_out_create(dap_chain_addr_t *a_addr, uint64_t a_value);
+
+/**
+ * Create item dap_chain_tx_sig_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_sig_t* dap_chain_datum_item_sign_create(dap_enc_key_t *a_key, const void *a_data, size_t a_data_size);
+

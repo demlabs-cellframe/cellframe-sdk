@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
  * DeM Labs Open source community https://github.com/demlabsinc
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -21,4 +21,4 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_datum_token.h"
+#include <dap_chain_datum_tx_token.h>
