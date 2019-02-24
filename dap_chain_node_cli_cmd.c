@@ -33,6 +33,7 @@
 #include "iputils/iputils.h"
 //#include "dap_common.h"
 #include "dap_hash.h"
+#include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
@@ -45,6 +46,7 @@
 #include "dap_chain_datum_tx_out.h"
 #include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_tx_sig.h"
+#include "dap_chain_datum_tx_cache.h"
 
 // Max and min macros
 #define max(a,b)              ((a) > (b) ? (a) : (b))
@@ -766,11 +768,11 @@ int com_node(int argc, const char ** argv, char **str_reply)
         switch (ret)
         {
         case -1:
-            chain_node_client_close(client);
+            dap_chain_node_client_close(client);
             set_reply_text(str_reply, "connection established, but not saved");
             return -1;
         case -2:
-            chain_node_client_close(client);
+            dap_chain_node_client_close(client);
             set_reply_text(str_reply, "connection already present");
             return -1;
         }
@@ -987,7 +989,7 @@ dap_chain_datum_tx_t* create_tx(const char *net_name)
     dap_chain_tx_in_t tx_out;
 
     tx_in.header.type = TX_ITEM_TYPE_IN;
-    tx_in.header.sig_size = 0;
+    //tx_in.header.sig_size = 0;
     //tx_in
 
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
@@ -1027,12 +1029,56 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     const char *a_wallet_name = "w1";
     dap_chain_net_id_t a_net_id = { 0x1 };
     dap_chain_sign_type_t a_sig_type = { SIG_TYPE_TESLA };
+    //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_PICNIC };
     //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_BLISS };
-    //dap_chain_wallet_t *wallet = dap_chain_wallet_create(a_wallet_name, a_wallets_path, a_net_id, a_sig_type);
-    //size_t num = dap_chain_wallet_get_certs_number(wallet);
-    dap_chain_wallet_t *wallet = dap_chain_wallet_open(a_wallet_name, a_wallets_path);
-
+    dap_chain_wallet_t *wallet = dap_chain_wallet_create(a_wallet_name, a_wallets_path, a_net_id, a_sig_type);
+    dap_chain_wallet_t *wallet2 = dap_chain_wallet_open(a_wallet_name, a_wallets_path);
+    //wallet = dap_chain_wallet_open(a_wallet_name, a_wallets_path);
+    //dap_chain_wallet_save(wallet2);
     dap_chain_datum_tx_t *tx = create_tx("0x123");
+
+    static bool l_first_start = true;
+    if(l_first_start)
+    {
+        const char *l_token_name = "KLVN";
+        dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet, 0);
+        const dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(wallet);
+        dap_chain_node_datum_tx_cache_init(l_key, l_token_name, (dap_chain_addr_t*)l_addr, 1000);
+        l_first_start = false;
+    }
+
+    const dap_chain_addr_t *addr = dap_chain_wallet_get_addr(wallet);
+
+    char *addr_str = dap_chain_addr_to_str((dap_chain_addr_t*)addr);
+    const dap_chain_addr_t *addr2 = dap_chain_str_to_addr(addr_str);
+    char *addr_str2 = dap_chain_addr_to_str(addr2);
+    free(addr_str);
+
+    // debug - check signing
+    {
+        int a_data_size = 50;
+        char *a_data = "DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify";
+
+
+        dap_enc_key_t *a_key0 = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_BLISS, NULL, 0, NULL, 0, 0);
+
+        dap_enc_key_t *a_key1 = dap_chain_wallet_get_key(wallet, 0);
+        dap_enc_key_t *a_key2 = dap_chain_wallet_get_key(wallet2, 0);
+        dap_chain_sign_t *a_chain_sign0 = dap_chain_sign_create(a_key0, a_data, a_data_size, 0);
+        dap_chain_sign_t *a_chain_sign1 = dap_chain_sign_create(a_key1, a_data, a_data_size, 0);
+        dap_chain_sign_t *a_chain_sign2 = dap_chain_sign_create(a_key2, a_data, a_data_size, 0);
+        size_t a_chain_sign_size = dap_chain_sign_get_size(a_chain_sign1);
+        int verify0 = dap_chain_sign_verify(a_chain_sign0, a_data, a_data_size);
+        int verify1 = dap_chain_sign_verify(a_chain_sign1, a_data, a_data_size);
+        int verify2 = dap_chain_sign_verify(a_chain_sign2, a_data, a_data_size);
+        printf("a_chain_sign=%d verify=%d %d %d\n", a_chain_sign_size, verify0, verify1, verify2);
+        free(a_chain_sign2);
+        free(a_chain_sign1);
+        free(a_chain_sign0);
+        //dap_enc_key_delete(a_key2);
+        dap_enc_key_delete(a_key0);
+        //dap_enc_key_delete(a_key1);
+    }
 
     if(wallet) {
         if(dap_chain_wallet_get_certs_number(wallet) > 0) {
@@ -1041,15 +1087,16 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
             //dap_enc_key_t *a_key1 = dap_chain_wallet_get_key(wallet, 0);
             //dap_enc_key_t *a_key2 = dap_chain_wallet_get_key(wallet2, 0);
             int res = dap_chain_datum_tx_add_sign(&tx, a_key);
-            //int res1 = dap_chain_datum_tx_add_sign(&tx, a_key);
-            //int res2 = dap_chain_datum_tx_add_sign(&tx, a_key2);
+            int res1 = dap_chain_datum_tx_add_sign(&tx, a_key);
+            int res2 = dap_chain_datum_tx_add_sign(&tx, a_key);
             int res3 = dap_chain_datum_tx_verify_sign(tx);
+            res3 = 0;
         }
         dap_chain_wallet_close(wallet);
         DAP_DELETE(tx);
     }
     set_reply_text(str_reply, "com_tx_create ok");
-    return -1;
+    return 0;
 }
 
 /**

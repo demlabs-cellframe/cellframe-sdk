@@ -23,28 +23,31 @@
 
 #include <stdbool.h>
 
+#include "dap_chain_node.h"
 #include "dap_chain_node_client.h"
 
 /**
- * Add new established connection in the list
+ * Add new established connection to the list
+ *
+ * return 0 OK, -1 error, -2 already present
  */
-bool chain_node_client_list_add(dap_chain_node_client_t *client);
+int chain_node_client_list_add(dap_chain_node_addr_t *address, dap_chain_node_client_t *client);
 
 /**
  * Delete established connection from the list
+ *
+ * return 0 OK, -1 error, -2 address not found
  */
-bool chain_node_client_list_del(dap_chain_node_client_t *client);
+int chain_node_client_list_del(dap_chain_node_addr_t *address);
 
 /**
- * Get one established connection
- *
- * n - the position of the established connection, counting from 0
- *
- * return client, or NULL if the position is off the end of the list
+ * Delete all established connection from the list
  */
-dap_chain_node_client_t* chain_node_client_list_get_item(int n);
+void chain_node_client_list_del_all(void);
 
 /**
- * Get the number of established connections
+ * Get present established connection by address
+ *
+ * return client, or NULL if the connection not found in the list
  */
-int chain_node_client_list_count(void);
+const dap_chain_node_client_t* chain_node_client_find(dap_chain_node_addr_t *address);
