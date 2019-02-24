@@ -36,7 +36,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
-#include "dap_chain_node_cli_connect.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
 
@@ -744,7 +744,7 @@ int com_node(int argc, const char ** argv, char **str_reply)
         }
         int timeout_ms = 10000; //10 sec.
         // start handshake
-        chain_node_client_t *client = chain_node_client_connect(node_info);
+        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
         if(!client) {
             set_reply_text(str_reply, "can't connect");
             DAP_DELETE(node_info);
@@ -755,7 +755,7 @@ int com_node(int argc, const char ** argv, char **str_reply)
         if(res != 1) {
             set_reply_text(str_reply, "no response from node");
             // clean client struct
-            chain_node_client_close(client);
+            dap_chain_node_client_close(client);
             DAP_DELETE(node_info);
             return -1;
         }
