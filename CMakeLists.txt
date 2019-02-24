@@ -2,13 +2,14 @@ cmake_minimum_required(VERSION 2.8)
 project (dap_chain)
   
 set(DAP_CHAIN_SRCS 
-	dap_chain_common.c
-	dap_chain_datum.c 
+        dap_chain_common.c
+        dap_chain_datum.c 
         dap_chain_datum_hashtree_roots.c
         dap_chain_datum_tx_cache.c
+        dap_chain_datum_tx_items.c
         dap_chain_datum_tx.c
+        dap_chain_datum_tx_token.c
         dap_chain_datum_coin.c
-        dap_chain_datum_token.c
         dap_chain_pvt.c
         dap_chain.c
         dap_chain_cs.c
@@ -19,14 +20,15 @@ set(DAP_CHAIN_HEADERS
         dap_chain_pvt.h
         dap_chain_common.h
         dap_chain_datum.h
-        dap_chain_datum_token.h
         dap_chain_datum_hashtree_roots.h
         dap_chain_datum_tx_cache.h
+        dap_chain_datum_tx_items.h
         dap_chain_datum_tx.h
         dap_chain_datum_tx_in.h
         dap_chain_datum_tx_out.h
         dap_chain_datum_tx_pkey.h
         dap_chain_datum_tx_sig.h
+        dap_chain_datum_tx_token.h
         dap_chain_cs.h
     )
 
