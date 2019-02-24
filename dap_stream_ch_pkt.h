@@ -46,6 +46,5 @@ void stream_ch_pkt_deinit();
 
 size_t stream_ch_pkt_write_f(struct dap_stream_ch * ch, uint8_t type, const char * str,...);
 size_t stream_ch_pkt_write(struct dap_stream_ch * ch,  uint8_t type, const void * data, uint32_t data_size);
-size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch,  uint8_t type, uint64_t seq_id, const void * data, uint32_t data_size);
 
 size_t stream_ch_send_keepalive(struct dap_stream_ch * ch);

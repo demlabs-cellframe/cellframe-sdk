@@ -57,7 +57,7 @@ void stream_ch_pkt_deinit()
  * @param data_size
  * @return
  */
-size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch, uint8_t type, uint64_t seq_id, const void * data, uint32_t data_size)
+size_t stream_ch_pkt_write(struct dap_stream_ch * ch,  uint8_t type, const void * data, uint32_t data_size)
 {
     pthread_mutex_lock( &ch->mutex);
 
@@ -70,7 +70,8 @@ size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch, uint8_t type, uint6
     hdr.size=data_size;
     hdr.type=type;
     hdr.enc_type = ch->proc->enc_type;
-    hdr.seq_id=seq_id;
+    hdr.seq_id=ch->stream->seq_id;
+    ch->stream->seq_id++;
 
     if(data_size+sizeof(hdr)> sizeof(ch->buf) ){
         log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(ch->buf));
@@ -84,18 +85,6 @@ size_t stream_ch_pkt_write_seq_id(struct dap_stream_ch * ch, uint8_t type, uint6
     pthread_mutex_unlock( &ch->mutex);
     return ret;
 
-}
-
-/**
- * @brief stream_ch_pkt_write
- * @param sid
- * @param data
- * @param data_size
- * @return
- */
-size_t stream_ch_pkt_write(struct dap_stream_ch * ch, uint8_t type, const void * data, uint32_t data_size)
-{
-    return stream_ch_pkt_write_seq_id(ch,type,0,data,data_size);
 }
 
 /**
