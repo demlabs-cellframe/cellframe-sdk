@@ -90,6 +90,12 @@ void dap_client_deinit();
 
 dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_stage_status_callback
                               , dap_client_callback_t a_stage_status_error_callback );
+
+void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port);
+const char* dap_client_get_uplink_addr(dap_client_t * a_client);
+uint16_t dap_client_get_uplink_port(dap_client_t * a_client);
+
+
 void dap_client_delete(dap_client_t * a_client);
 
 

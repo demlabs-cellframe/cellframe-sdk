@@ -98,6 +98,7 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_internal)
 {
     a_client_internal->stage = STAGE_BEGIN; // start point of state machine
     a_client_internal->stage_status = STAGE_STATUS_DONE;
+    a_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
 }
 
 

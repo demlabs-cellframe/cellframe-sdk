@@ -68,6 +68,7 @@ dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_s
     DAP_CLIENT_PVT(l_client)->stage_status_callback = a_stage_status_callback;
     DAP_CLIENT_PVT(l_client)->stage_status_error_callback = a_stage_status_error_callback;
 
+
     dap_client_pvt_new(DAP_CLIENT_PVT(l_client) );
 
     return l_client;
@@ -81,6 +82,42 @@ MEM_ALLOC_ERR:
     if (l_client)
         DAP_DELETE (l_client);
     return NULL;
+}
+
+/**
+ * @brief dap_client_set_uplink
+ * @param a_client
+ * @param a_addr
+ * @param a_port
+ */
+void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port)
+{
+    if(a_addr == NULL){
+        log_it(L_ERROR,"Address is NULL");
+        return;
+    }
+    DAP_CLIENT_PVT(a_client)->uplink_addr = strdup(a_addr);
+    DAP_CLIENT_PVT(a_client)->uplink_port = a_port;
+}
+
+/**
+ * @brief dap_client_get_uplink_addr
+ * @param a_client
+ * @return
+ */
+const char* dap_client_get_uplink_addr(dap_client_t * a_client)
+{
+    return DAP_CLIENT_PVT(a_client)->uplink_addr;
+}
+
+/**
+ * @brief dap_client_get_uplink_port
+ * @param a_client
+ * @return
+ */
+uint16_t dap_client_get_uplink_port(dap_client_t * a_client)
+{
+    return DAP_CLIENT_PVT(a_client)->uplink_port;
 }
 
 
