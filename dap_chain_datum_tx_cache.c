@@ -31,6 +31,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_cache.h"
 
+// sample https://github.com/troydhanson/uthash/blob/master/tests/example.c
 typedef struct list_linked_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
@@ -43,22 +44,22 @@ static list_cached_item_t *s_datum_list = NULL;
 // for separate access to connect_list
 static pthread_mutex_t s_hash_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-int dap_chain_node_datum_tx_cache_init(dap_enc_key_t *a_key, const char *a_token_name, dap_chain_addr_t *a_addr, uint64_t a_value)
+int dap_chain_node_datum_tx_cache_init(dap_enc_key_t *a_key, const char *a_token_name, dap_chain_addr_t *a_addr,
+        uint64_t a_value)
 {
     // create first transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
-    dap_chain_hash_fast_t l_tx_prev_hash = {0};
+    dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
 
     // create items
-    dap_chain_tx_token_t *l_token = dap_chain_datum_item_token_create(a_token_name);
-    dap_chain_tx_out_t *l_in = dap_chain_datum_item_in_create(&l_tx_prev_hash, 0);
-    dap_chain_tx_out_t *l_out = dap_chain_datum_item_out_create(a_addr, a_value);
+    dap_chain_tx_token_t *l_token = dap_chain_datum_tx_item_token_create(a_token_name);
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
+    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr, a_value);
 
     // pack items to transaction
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_token);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_in);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_out);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_token);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
     dap_chain_datum_tx_add_sign(&l_tx, a_key);
     DAP_DELETE(l_token);
     DAP_DELETE(l_in);
@@ -158,7 +159,7 @@ void dap_chain_node_datum_tx_cache_del_all(void)
 }
 
 /**
- * Get transaction by hash
+ * Get transaction in the cache by hash
  *
  * return transaction, or NULL if transaction not found in the cache
  */
@@ -178,3 +179,35 @@ const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find(dap_chain_hash_fa
     return l_tx_ret;
 }
 
+/**
+ * Get the transaction in the cache by the public key that signed the transaction, starting with a_tx_first_hash
+ *
+ * a_pkey[in] public key that signed the transaction
+ * a_pkey_size[in] public key size
+ * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
+ */
+const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_by_pkey(char *a_pkey, size_t a_pkey_size,
+        dap_chain_hash_fast_t *a_tx_first_hash)
+{
+    if(!a_pkey || !a_tx_first_hash)
+        return NULL;
+    dap_chain_datum_tx_t *l_cur_tx = NULL;
+    int l_ret = -1;
+    list_cached_item_t *l_iter_current, *l_item_tmp;
+    pthread_mutex_lock(&s_hash_list_mutex);
+    HASH_ITER(hh, s_datum_list , l_iter_current, l_item_tmp)
+    {
+        dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
+        // Get sign item from transaction
+        const dap_chain_tx_sig_t *l_tx_sig = (const dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
+                TX_ITEM_TYPE_SIG, NULL);
+        // Get sign from transaction
+        dap_chain_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)l_tx_sig);
+        if(l_sig && a_pkey_size == l_sig->header.sign_pkey_size && !memcmp(a_pkey, l_sig->pkey_n_sign, a_pkey_size)) {
+            l_cur_tx = l_tx_tmp;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_hash_list_mutex);
+    return l_cur_tx;
+}

@@ -49,7 +49,7 @@ int dap_chain_node_datum_tx_cache_del(dap_chain_hash_fast_t *tx_hash);
 void dap_chain_node_datum_tx_cache_del_all(void);
 
 /**
- * Get transaction by hash
+* Get transaction in the cache by hash
  *
  * return transaction, or NULL if transaction not found in the cache
  */

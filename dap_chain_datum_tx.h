@@ -49,19 +49,18 @@ typedef struct dap_chain_datum_tx{
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
 
-/**
- * Get item type
- *
- * return type, or TX_ITEM_TYPE_ANY if error
- */
-dap_chain_tx_item_type_t dap_chain_datum_item_get_type(const uint8_t *a_item);
 
 /**
- * Get item size
+ * Create empty transaction
  *
- * return size, 0 Error
+ * return transaction, 0 Error
  */
-int dap_chain_datum_item_get_size(const uint8_t *a_item);
+dap_chain_datum_tx_t* dap_chain_datum_tx_create(void);
+
+/**
+ * Delete transaction
+ */
+void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx);
 
 /**
  * Get size of transaction
