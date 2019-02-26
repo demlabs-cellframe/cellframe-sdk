@@ -284,6 +284,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
         }
 
         if(_is_user_agent_supported(header->value) == false) {
+            log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
             const char* error_msg = "User-Agent version not supported. Update your software";
             _write_response_bad_request(cl_sh, error_msg);
             return NULL;
