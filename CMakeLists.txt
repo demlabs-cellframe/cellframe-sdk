@@ -10,6 +10,10 @@ if(UNIX AND NOT APPLE)
     set(LINUX TRUE)
 endif()
 
+if(APPLE)
+    set(DARWIN TRUE)
+endif()
+
 if(BUILD_DAP_TESTS)
     enable_testing()
     add_subdirectory(test)

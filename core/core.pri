@@ -1,6 +1,9 @@
 unix {
     include(unix/unix.pri)
 }
+darwin {
+    include(darwin/darwin.pri)
+}
 
 HEADERS += $$PWD/dap_common.h \
     $$PWD/dap_config.h \

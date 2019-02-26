@@ -16,3 +16,8 @@ if(UNIX)
     add_subdirectory(unix)
     target_link_libraries(${PROJECT_NAME} dap_core_unix)
 endif()
+
+if(DARWIN)
+    add_subdirectory(darwin)
+    target_link_libraries(${PROJECT_NAME} dap_core_darwin)
+endif()
