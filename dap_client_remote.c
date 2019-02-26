@@ -184,10 +184,13 @@ void dap_client_remote_ready_to_write(dap_client_remote_t * sc,bool is_ready)
  * @return Number of bytes that were placed into the buffer
  */
 size_t dap_client_remote_write(dap_client_remote_t *sc, const void * data, size_t data_size)
-{
-     data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
+{     
+     if(sc->buf_out_size + data_size > sizeof(sc->buf_out) )  {
+         log_it(L_WARNING, "Client buffer overflow. Packet loosed");
+         return 0;
+     }
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
-     sc->buf_out_size+=data_size;
+     sc->buf_out_size += data_size;
      return data_size;
 }
 
