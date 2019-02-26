@@ -150,7 +150,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
             dg->request_size=dap_enc_decode(l_key, a_http_simple->request, a_http_simple->request_size,dg->request,
                                             l_dg_request_size_max, DAP_ENC_DATA_TYPE_RAW);
             dg->request_str[dg->request_size] = 0;
-            log_it(L_DEBUG,"Request after decode '%s'",dg->request_str);
+            // log_it(L_DEBUG,"Request after decode '%s'",dg->request_str);
             // log_it(L_DEBUG,"Request before decode: '%s' after decode '%s'",cl_st->request_str,dg->request_str);
         }
 
