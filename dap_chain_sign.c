@@ -184,6 +184,7 @@ dap_enc_key_t *dap_chain_sign_to_enc_key(dap_chain_sign_t * a_chain_sign)
     dap_enc_key_t * l_ret =  dap_enc_key_new( dap_chain_sign_type_to_key_type( a_chain_sign->header.type  ) );
     l_ret->pub_key_data_size = a_chain_sign->header.sign_pkey_size;
     l_ret->pub_key_data = a_chain_sign->pkey_n_sign;
+    dap_enc_key_update(l_ret);
     return l_ret;
 }
 

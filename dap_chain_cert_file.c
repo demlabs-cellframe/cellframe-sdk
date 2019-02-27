@@ -32,20 +32,6 @@
 
 #define LOG_TAG "dap_chain_cert_file"
 
-
-/**
- * @brief dap_chain_cert_file_save_to_mem_size
- * @param a_cert
- * @return
- */
-size_t dap_chain_cert_save_mem_size(dap_chain_cert_t * a_cert )
-{
-    return sizeof (dap_chain_cert_file_hdr_t)
-            + a_cert->enc_key->pub_key_data_size
-            + a_cert->enc_key->priv_key_data_size
-            + (a_cert->metadata?strlen(a_cert->metadata):0);
-}
-
 /**
  * @brief dap_chain_cert_file_save
  * @param a_cert
@@ -56,15 +42,16 @@ int dap_chain_cert_save_file(dap_chain_cert_t * a_cert, const char * a_cert_file
 {
     FILE * l_file = fopen(a_cert_file_path,"w");
     if( l_file ){
-        size_t l_data_size = dap_chain_cert_save_mem_size(a_cert);
-        void * l_data = DAP_NEW_SIZE(void,l_data_size);
-        if ( dap_chain_cert_save_mem(a_cert,l_data) == 0 ){
+        uint32_t l_data_size = 0;
+        void * l_data = dap_chain_cert_save_mem(a_cert, &l_data_size);
+        if ( l_data ){
             size_t l_retbytes;
             if ( (l_retbytes = fwrite(l_data,1,l_data_size,l_file)) != l_data_size ){
                 log_it(L_ERROR, "Can't write %u bytes on disk (processed only %u)!", l_data_size,l_retbytes);
                 return -3;
             }
             fclose(l_file);
+            DAP_DELETE(l_data);
             return 0;
         }else{
             log_it(L_ERROR,"Can't serialize certificate in memory");
@@ -80,56 +67,67 @@ int dap_chain_cert_save_file(dap_chain_cert_t * a_cert, const char * a_cert_file
 /**
  * @brief dap_chain_cert_file_save_to_mem
  * @param a_cert
- * @param a_data
+ * @param a_cert_size_out
  * @return
  */
-int dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, void * a_data )
+uint8_t* dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, uint32_t *a_cert_size_out)
 {
     dap_chain_cert_file_hdr_t l_hdr={0};
-    uint8_t * l_data = (uint8_t *) a_data;
-    size_t l_data_offset = 0;
+    uint32_t l_data_offset = 0;
     dap_enc_key_t * l_key = a_cert->enc_key;
-    int ret = 0;
+    uint8_t *l_data = NULL;
+
+    size_t l_priv_key_data_size, l_pub_key_data_size;
+    uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_key, &l_pub_key_data_size);
+    uint8_t *l_priv_key_data = dap_enc_key_serealize_priv_key(l_key, &l_priv_key_data_size);
 
     l_hdr.sign = DAP_CHAIN_CERT_FILE_HDR_SIGN;
     l_hdr.type = DAP_CHAIN_CERT_FILE_TYPE_PUBLIC;
-    if ( l_key->priv_key_data ){
+    if ( l_priv_key_data ){
         l_hdr.type =  DAP_CHAIN_CERT_FILE_TYPE_PRIVATE;
-        log_it(L_DEBUG,"Private key size %u",l_key->priv_key_data_size);
+        log_it(L_DEBUG,"Private key size %u",l_priv_key_data_size);
     }
-    if (l_key->pub_key_data){
-        log_it(L_DEBUG,"Public key size %u",l_key->pub_key_data_size);
+    if (l_pub_key_data){
+        log_it(L_DEBUG,"Public key size %u",l_pub_key_data_size);
     }else{
         log_it(L_ERROR,"No public or private key in certificate, nothing to save");
-        ret = -1;
         goto lb_exit;
     }
     log_it(L_DEBUG,"Metadata size %u",l_key->_inheritor_size);
 
     l_hdr.version = DAP_CHAIN_CERT_FILE_VERSION;
-    l_hdr.data_size = l_key->pub_key_data_size;
-    l_hdr.data_pvt_size = l_key->priv_key_data_size;
-    l_hdr.metadata_size = 0;
+    l_hdr.data_size = l_pub_key_data_size;
+    l_hdr.data_pvt_size = l_priv_key_data_size;
+    l_hdr.metadata_size = l_key->_inheritor_size;
 
     l_hdr.ts_last_used = l_key->last_used_timestamp;
     l_hdr.sign_type = dap_chain_sign_type_from_key_type ( l_key->type );
 
+    l_data = DAP_NEW_SIZE(void, sizeof(l_hdr) + l_priv_key_data_size + l_pub_key_data_size + l_hdr.metadata_size);
+
     memcpy(l_data +l_data_offset, &l_hdr ,sizeof(l_hdr) );
     l_data_offset += sizeof(l_hdr);
 
-    memcpy(l_data +l_data_offset, l_key->pub_key_data ,l_key->pub_key_data_size );
-    l_data_offset += l_key->pub_key_data_size;
+    memcpy(l_data +l_data_offset, l_pub_key_data ,l_pub_key_data_size );
+    l_data_offset += l_pub_key_data_size;
 
-    memcpy(l_data +l_data_offset, l_key->priv_key_data ,l_key->priv_key_data_size );
-    l_data_offset += l_key->priv_key_data_size;
+    memcpy(l_data +l_data_offset, l_priv_key_data ,l_priv_key_data_size );
+    l_data_offset += l_priv_key_data_size;
+
+    memcpy(l_data +l_data_offset, l_key->_inheritor ,l_key->_inheritor_size );
+    l_data_offset += l_key->_inheritor_size;
 
 
 lb_exit:
-
-    if (ret == 0)
+    DAP_DELETE(l_pub_key_data);
+    DAP_DELETE(l_priv_key_data);
+    if (l_data)
         log_it(L_NOTICE,"Certificate \"%s\" successfully serialized",a_cert->name);
-
-    return ret;
+    else
+        log_it(L_ERROR,"Certificate \"%s\" was not serialized",a_cert->name);
+    if(a_cert_size_out)
+        *a_cert_size_out = l_data_offset;
+    return l_data;
 }
 
 /**
@@ -175,36 +173,39 @@ dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size)
     dap_chain_cert_t * l_ret = NULL;
     dap_chain_cert_file_hdr_t l_hdr={0};
     uint8_t * l_data = (uint8_t *) a_data;
+    uint32_t l_data_offset = 0;
     memcpy(&l_hdr,l_data, sizeof(l_hdr));
+    l_data_offset += sizeof(l_hdr);
     if (l_hdr.sign != DAP_CHAIN_CERT_FILE_HDR_SIGN ){
         log_it(L_ERROR, "Wrong cert signature, corrupted header!");
         goto l_exit;
     }
     if (l_hdr.version >= 1 ){
-        if ( (l_hdr.data_size+l_hdr.data_pvt_size +l_hdr.metadata_size) > a_data_size ){
+        if ( (sizeof(l_hdr) + l_hdr.data_size+l_hdr.data_pvt_size +l_hdr.metadata_size) > a_data_size ){
             log_it(L_ERROR,"Corrupted cert data, data sections size is smaller than exists on the disk! (%llu expected, %llu on disk)",
-                   l_hdr.data_pvt_size+l_hdr.data_size+l_hdr.metadata_size, a_data_size);
+                    sizeof(l_hdr)+l_hdr.data_pvt_size+l_hdr.data_size+l_hdr.metadata_size, a_data_size);
             goto l_exit;
         }
 
         l_ret = DAP_NEW_Z(dap_chain_cert_t);
         l_ret->enc_key = dap_enc_key_new( dap_chain_sign_type_to_key_type( l_hdr.sign_type ));
         l_ret->enc_key->last_used_timestamp = l_hdr.ts_last_used;
-        if ( l_hdr.data_size > 0 ){
-            l_ret->enc_key->pub_key_data_size = l_hdr.data_size;
-            l_ret->enc_key->pub_key_data = DAP_NEW_SIZE (void,l_hdr.data_size);
-            memcpy(l_ret->enc_key->pub_key_data, l_data + sizeof(l_hdr),l_ret->enc_key->pub_key_data_size);
-        }
-        l_ret->enc_key->priv_key_data_size = l_hdr.data_pvt_size;
-        if ( l_hdr.data_pvt_size > 0 ){
-            l_ret->enc_key->priv_key_data = DAP_NEW_SIZE (void,l_ret->enc_key->priv_key_data_size);
-            memcpy(l_ret->enc_key->priv_key_data, l_data + sizeof(l_hdr)
-                                                        + l_ret->enc_key->pub_key_data_size
-                   ,l_ret->enc_key->priv_key_data_size);
-        }
-        log_it(L_NOTICE,"Successfuly loaded certificate");
 
-//        log_it(L_NOTICE,"Successfuly loaded certificate \"%s\" from the file %s",l_ret->name);
+        if ( l_hdr.data_size > 0 ){
+
+            dap_enc_key_deserealize_pub_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_size);
+            l_data_offset += l_hdr.data_size;
+        }
+        if ( l_hdr.data_pvt_size > 0 ){
+
+            dap_enc_key_deserealize_priv_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_pvt_size);
+            l_data_offset += l_hdr.data_pvt_size;
+        }
+        if(l_hdr.metadata_size > 0 && l_ret->enc_key->_inheritor && l_ret->enc_key->_inheritor_size == l_hdr.metadata_size) {
+            memcpy(l_ret->enc_key->_inheritor, l_data + l_data_offset, l_ret->enc_key->_inheritor_size);
+        }
+        dap_enc_key_update(l_ret->enc_key);
+        log_it(L_NOTICE,"Successfully loaded certificate");
     }else
         log_it(L_ERROR,"Unrecognizable certificate version, corrupted file or you have too old software");
 

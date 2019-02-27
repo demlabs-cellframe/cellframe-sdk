@@ -54,8 +54,7 @@ typedef struct dap_chain_cert_file{
 }DAP_ALIGN_PACKED dap_chain_cert_file_t;
 
 int dap_chain_cert_save_file(dap_chain_cert_t * a_cert, const char * a_cert_file_path);
-int dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, void * a_data );
-size_t dap_chain_cert_save_mem_size(dap_chain_cert_t * a_cert );
+uint8_t* dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, uint32_t *a_cert_size_out);
 
 dap_chain_cert_t* dap_chain_cert_file_load(const char * a_cert_file_path);
 dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size);
