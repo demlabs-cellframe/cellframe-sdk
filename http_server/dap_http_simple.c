@@ -72,7 +72,8 @@ typedef struct user_agents_item {
     struct user_agents_item* next;
 } user_agents_item_t;
 
-user_agents_item_t *user_agents_list = NULL;
+static user_agents_item_t *user_agents_list = NULL;
+static bool is_unknown_user_agents_pass = false;
 
 #define DAP_HTTP_SIMPLE_URL_PROC(a) ((dap_http_simple_url_proc_t*) (a)->_inheritor)
 
@@ -161,12 +162,12 @@ static void _free_user_agents_list()
 
 static bool _is_user_agent_supported(const char* user_agent)
 {
-    bool result = false;
+    bool result = is_unknown_user_agents_pass;
 
     dap_http_user_agent_ptr_t find_agent =
             dap_http_user_agent_new_from_str(user_agent);
     if(find_agent == NULL) {
-        return false;
+        return result;
     }
     const char* find_agent_name = dap_http_user_agent_get_name(find_agent);
 
@@ -214,6 +215,13 @@ bool dap_http_simple_set_supported_user_agents(const char *user_agents, ...)
 
     va_end(argptr);
     return true;
+}
+
+// if this function was called. We checking version only supported user-agents
+// other will pass automatically ( and request with without user-agents field too )
+void dap_http_simple_set_pass_unknown_user_agents(bool pass)
+{
+    is_unknown_user_agents_pass = pass;
 }
 
 inline static bool _is_supported_user_agents_list_setted()
@@ -277,7 +285,7 @@ void* dap_http_simple_proc(dap_http_simple_t * cl_sh)
 
     if(_is_supported_user_agents_list_setted() == true) {
         dap_http_header_t *header = dap_http_header_find(cl_sh->http->in_headers, "User-Agent");
-        if(header == NULL) {
+        if(header == NULL && is_unknown_user_agents_pass == false) {
             const char* error_msg = "Not found User-Agent HTTP header";
             _write_response_bad_request(cl_sh, error_msg);
             return NULL;
