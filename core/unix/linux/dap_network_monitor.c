@@ -49,14 +49,14 @@ int dap_network_monitor_init(dap_network_monitor_notification_callback_t cb)
 {
     memset((void*)&_net_notification, 0, sizeof(_net_notification));
 
-    if ((_net_notification.socket = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) == -1) {
+    if ((_net_notification.socket = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) == -1) {
         log_it(L_ERROR, "Can't open notification socket");
         return -1;
     }
 
     struct sockaddr_nl addr = {0};
     addr.nl_family = AF_NETLINK;
-    addr.nl_groups = RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE;
+    addr.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE;
     if (bind(_net_notification.socket, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         log_it(L_ERROR, "Can't bind notification socket");
         return -2;
@@ -161,6 +161,27 @@ static void _route_msg_handler(struct nlmsghdr *nlh,
 
 }
 
+static void _link_msg_handler(struct nlmsghdr *nlh,
+                               dap_network_notification_t* result,
+                              struct sockaddr_nl sa){
+    struct ifaddrmsg *ifa=NLMSG_DATA(nlh);
+    struct ifinfomsg *ifi=NLMSG_DATA(nlh);;
+
+    switch (nlh->nlmsg_type){
+        case RTM_NEWLINK:
+            if_indextoname(ifa->ifa_index,result->link.interface_name);
+            result->link.is_up = ifi->ifi_flags & IFF_UP ? true : false;
+            result->link.is_running = ifi->ifi_flags & IFF_RUNNING ? true : false;
+            //printf("netlink_link_state: Link %s is %s and %s\n",
+            //    result->link.interface_name, (ifi->ifi_flags & IFF_UP)?"Up":"Down", (ifi->ifi_flags & IFF_RUNNING)?"Running":"Not Running");
+            break;
+        case RTM_DELLINK:
+            if_indextoname(ifa->ifa_index,result->link.interface_name);
+            //printf("msg_handler: RTM_DELLINK : %s\n",result->link.interface_name);
+            break;
+    }
+}
+
 static void clear_results(dap_network_notification_t* cb_result)
 {
     bzero(cb_result, sizeof (dap_network_notification_t));
@@ -177,19 +198,24 @@ static void* network_monitor_worker(void *arg)
         return  NULL;
     }
 
-    char buffer[4096];
     dap_network_notification_t callback_result;
-
-    struct nlmsghdr *nlh = (struct nlmsghdr *)buffer;
     int len;
+    char buf[4096];
+    struct iovec iov = { buf, sizeof(buf) };
+    struct sockaddr_nl sa;
+    struct nlmsghdr *nlh;
+    struct msghdr msg = { &sa, sizeof(sa), &iov, 1, NULL, 0, 0 };
 
     pthread_barrier_wait(barrier);
-
-    while ((len = recv(_net_notification.socket, nlh, sizeof(buffer), 0)) > 0) {
-
+    while ((len = recvmsg(_net_notification.socket, &msg, 0)) > 0){
         _send_NLM_F_ACK_msg(_net_notification.socket);
 
-        for (; (NLMSG_OK(nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len)) {
+        for (nlh = (struct nlmsghdr *) buf; (NLMSG_OK(nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len)) {
+            if (nlh->nlmsg_type == NLMSG_ERROR){
+                /* Do some error handling. */
+                log_it(L_DEBUG, "There an error! nlmsg_type %d", nlh->nlmsg_type);
+                break;
+            }
 
             clear_results(&callback_result);
 
@@ -198,7 +224,10 @@ static void* network_monitor_worker(void *arg)
                 _ip_addr_msg_handler(nlh, &callback_result);
             } else if(nlh->nlmsg_type == RTM_NEWROUTE || nlh->nlmsg_type == RTM_DELROUTE) {
                 _route_msg_handler(nlh, &callback_result, len);
-            } else {
+            } else if (nlh->nlmsg_type == RTM_NEWLINK || nlh->nlmsg_type == RTM_DELLINK){
+                _link_msg_handler(nlh, &callback_result, sa);
+            }
+            else{
                 log_it(L_DEBUG, "Not supported msg type %d", nlh->nlmsg_type);
                 continue;
             }

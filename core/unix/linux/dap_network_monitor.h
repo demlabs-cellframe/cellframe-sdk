@@ -41,7 +41,9 @@ typedef enum {
     IP_ADDR_ADD = RTM_NEWADDR,
     IP_ADDR_REMOVE,
     IP_ROUTE_ADD = RTM_NEWROUTE,
-    IP_ROUTE_REMOVE
+    IP_ROUTE_REMOVE,
+    IP_LINK_NEW = RTM_NEWLINK,
+    IP_LINK_DEL
 } dap_network_monitor_notification_type_t;
 
 typedef struct {
@@ -60,6 +62,11 @@ typedef struct {
             uint8_t protocol;
             uint8_t netmask;
         } route; // for IP_ROUTE_ADD, IP_ROUTE_REMOVE
+        struct {
+            char interface_name[IF_NAMESIZE];
+            bool is_up;
+            bool is_running;
+        } link; // for RTM_NEWLINK, RTM_DELLINK
     };
 } dap_network_notification_t;
 
