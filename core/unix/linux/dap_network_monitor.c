@@ -163,7 +163,9 @@ static void _route_msg_handler(struct nlmsghdr *nlh,
 
 static void _link_msg_handler(struct nlmsghdr *nlh,
                                dap_network_notification_t* result,
-                              struct sockaddr_nl sa){
+                              struct sockaddr_nl sa)
+{
+    (void) sa;
     struct ifaddrmsg *ifa=NLMSG_DATA(nlh);
     struct ifinfomsg *ifi=NLMSG_DATA(nlh);;
 
