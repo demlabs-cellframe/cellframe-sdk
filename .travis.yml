@@ -1,7 +1,7 @@
 sudo: required
 language: cpp
-compiler: gcc
-dist: trusty
+compiler: c
+dist: xenial
 notifications:
   email: false
 
@@ -10,7 +10,6 @@ before_install:
     - git submodule update --recursive
 
 script:
-    - export CC=gcc-5
     - mkdir build
     - cd build 
     - cmake -DBUILD_DAP_UDP_SERVER_TESTS=ON ../
@@ -22,6 +21,5 @@ addons:
     sources:
     - ubuntu-toolchain-r-test
     packages:
-    - gcc-5
     - libev-dev
 
