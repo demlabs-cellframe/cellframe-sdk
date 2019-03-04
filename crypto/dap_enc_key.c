@@ -205,6 +205,214 @@ void dap_enc_key_deinit()
 }
 
 /**
+ * @brief dap_enc_key_serealize_sign
+ *
+ * @param a_key_type
+ * @param a_sign
+ * @param a_sign_len [in/out]
+ * @return allocates memory with private key
+ */
+uint8_t* dap_enc_key_serealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_sign, size_t *a_sign_len)
+{
+    uint8_t *data = NULL;
+    switch (a_key_type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        data = dap_enc_sig_bliss_write_signature((bliss_signature_t*)a_sign, a_sign_len);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        data = dap_enc_tesla_write_signature((tesla_signature_t*)a_sign, a_sign_len);
+        break;
+    default:
+        data = DAP_NEW_Z_SIZE(uint8_t, *a_sign_len);
+        memcpy(data, a_sign, *a_sign_len);
+    }
+    return data;
+}
+
+/**
+ * @brief dap_enc_key_serealize_sign
+ *
+ * @param a_key_type
+ * @param a_sign
+ * @param a_sign_len [in/out]
+ * @return allocates memory with private key
+ */
+uint8_t* dap_enc_key_deserealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_sign, size_t *a_sign_len)
+{
+    uint8_t *data = NULL;
+    switch (a_key_type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        data = (uint8_t*)dap_enc_sig_bliss_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(bliss_signature_t);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        data = (uint8_t*)dap_enc_tesla_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(tesla_signature_t);
+        break;
+    default:
+        data = DAP_NEW_Z_SIZE(uint8_t, *a_sign_len);
+        memcpy(data, a_sign, *a_sign_len);
+    }
+    return data;
+}
+
+
+/**
+ * @brief dap_enc_key_serealize_priv_key
+ *
+ * @param a_key
+ * @param a_buflen_out
+ * @return allocates memory with private key
+ */
+uint8_t* dap_enc_key_serealize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_out)
+{
+    uint8_t *data = NULL;
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        data = dap_enc_sig_bliss_write_private_key(a_key->priv_key_data, a_buflen_out);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        data = dap_enc_tesla_write_private_key(a_key->priv_key_data, a_buflen_out);
+        break;
+    default:
+        data = DAP_NEW_Z_SIZE(uint8_t, a_key->priv_key_data_size);
+        memcpy(data, a_key->priv_key_data, a_key->priv_key_data_size);
+        if(a_buflen_out)
+            *a_buflen_out = a_key->priv_key_data_size;
+    }
+    return data;
+}
+
+/**
+ * @brief dap_enc_key_serealize_pub_key
+ *
+ * @param a_key
+ * @param a_buflen_out
+ * @return allocates memory with private key
+ */
+uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_out)
+{
+    uint8_t *data = NULL;
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        data = dap_enc_sig_bliss_write_public_key(a_key->pub_key_data, a_buflen_out);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        data = dap_enc_tesla_write_public_key(a_key->pub_key_data, a_buflen_out);
+        break;
+    default:
+        data = DAP_NEW_Z_SIZE(uint8_t, a_key->pub_key_data_size);
+        memcpy(data, a_key->pub_key_data, a_key->pub_key_data_size);
+        if(a_buflen_out)
+            *a_buflen_out = a_key->pub_key_data_size;
+    }
+    return data;
+}
+/**
+ * @brief dap_enc_key_deserealize_priv_key
+ *
+ * @param a_key
+ * @param a_buf
+ * @param a_buflen_out
+ * @return 0 Ok, -1 error
+ */
+int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen)
+{
+    if(!a_key || !a_buf)
+        return -1;
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        if((a_key->priv_key_data)) {
+            bliss_b_private_key_delete((bliss_private_key_t *) a_key->priv_key_data);
+            DAP_DELETE(a_key->pub_key_data);
+        }
+        a_key->priv_key_data = (uint8_t*) dap_enc_sig_bliss_read_private_key(a_buf, a_buflen);
+        if(!a_key->priv_key_data)
+        {
+            a_key->priv_key_data_size = 0;
+            return -1;
+        }
+        a_key->priv_key_data_size = sizeof(bliss_private_key_t);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        tesla_private_key_delete((tesla_private_key_t *) a_key->priv_key_data);
+        a_key->priv_key_data = (uint8_t*) dap_enc_tesla_read_private_key(a_buf, a_buflen);
+        if(!a_key->priv_key_data)
+        {
+            a_key->priv_key_data_size = 0;
+            return -1;
+        }
+        a_key->priv_key_data_size = sizeof(tesla_private_key_t);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data_size = a_buflen;
+        a_key->priv_key_data = DAP_NEW_Z_SIZE(uint8_t, a_key->priv_key_data_size);
+        memcpy(a_key->priv_key_data, a_buf, a_key->priv_key_data_size);
+        dap_enc_sig_picnic_update(a_key);
+        break;
+    default:
+        DAP_DELETE(a_key->priv_key_data);
+        a_key->priv_key_data_size = a_buflen;
+        a_key->priv_key_data = DAP_NEW_Z_SIZE(uint8_t, a_key->priv_key_data_size);
+        memcpy(a_key->priv_key_data, a_buf, a_key->priv_key_data_size);
+    }
+    return 0;
+}
+
+/**
+ * @brief dap_enc_key_deserealize_pub_key
+ *
+ * @param a_key
+ * @param a_buf
+ * @param a_buflen_out
+ * @return 0 Ok, -1 error
+ */
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen)
+{
+    if(!a_key || !a_buf)
+        return -1;
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        if((a_key->pub_key_data)) {
+            bliss_b_public_key_delete((bliss_public_key_t *) a_key->pub_key_data);
+            DAP_DELETE(a_key->pub_key_data);
+        }
+        a_key->pub_key_data = (uint8_t*) dap_enc_sig_bliss_read_public_key(a_buf, a_buflen);
+        if(!a_key->pub_key_data)
+        {
+            a_key->pub_key_data_size = 0;
+            return -1;
+        }
+        a_key->pub_key_data_size = sizeof(bliss_public_key_t);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        tesla_public_key_delete((tesla_public_key_t *) a_key->pub_key_data);
+        a_key->pub_key_data = (uint8_t*) dap_enc_tesla_read_public_key(a_buf, a_buflen);
+        if(!a_key->pub_key_data)
+        {
+            a_key->pub_key_data_size = 0;
+            return -1;
+        }
+        a_key->pub_key_data_size = sizeof(tesla_public_key_t);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+        DAP_DELETE(a_key->pub_key_data);
+        a_key->pub_key_data_size = a_buflen;
+        a_key->pub_key_data = DAP_NEW_Z_SIZE(uint8_t, a_key->pub_key_data_size);
+        memcpy(a_key->pub_key_data, a_buf, a_key->pub_key_data_size);
+        dap_enc_sig_picnic_update(a_key);
+        break;
+    default:
+        DAP_DELETE(a_key->pub_key_data);
+        a_key->pub_key_data_size = a_buflen;
+        a_key->pub_key_data = DAP_NEW_Z_SIZE(uint8_t, a_key->pub_key_data_size);
+        memcpy(a_key->pub_key_data, a_buf, a_key->pub_key_data_size);
+    }
+    return 0;
+}
+
+/**
  * @brief dap_enc_key_serealize
  * @param key
  * @return allocates dap_enc_key_serealize_t* dont remember use free()
@@ -294,6 +502,26 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const voi
     return ret;
 }
 
+/**
+ * @brief dap_enc_key_update
+ * @param a_key_type
+ * @return
+ */
+void dap_enc_key_update(dap_enc_key_t *a_key)
+{
+    if(a_key)
+        switch (a_key->type) {
+        case DAP_ENC_KEY_TYPE_SIG_TESLA:
+            break;
+        case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+            dap_enc_sig_picnic_update(a_key);
+            break;
+        case DAP_ENC_KEY_TYPE_SIG_BLISS:
+            break;
+        default:
+            break;
+        }
+}
 
 size_t dap_enc_gen_key_public_size (dap_enc_key_t *a_key)
 {
@@ -319,6 +547,25 @@ int dap_enc_gen_key_public (dap_enc_key_t *a_key, void * a_output)
  * @brief dap_enc_key_delete
  * @param a_key
  */
+void dap_enc_key_signature_delete(dap_enc_key_type_t a_key_type, uint8_t *a_sig_buf)
+{
+    switch (a_key_type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        bliss_signature_delete((bliss_signature_t*)a_sig_buf);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        tesla_signature_delete((tesla_signature_t*)a_sig_buf);
+        break;
+    default:
+        break;
+    }
+    DAP_DELETE(a_sig_buf);
+}
+
+/**
+ * @brief dap_enc_key_delete
+ * @param a_key
+ */
 void dap_enc_key_delete(dap_enc_key_t * a_key)
 {
     if(s_callbacks[a_key->type].delete_callback) {
@@ -327,10 +574,9 @@ void dap_enc_key_delete(dap_enc_key_t * a_key)
         log_it(L_ERROR, "delete callback is null. Can be leak memory!");
     }
     /* a_key->_inheritor must be cleaned in delete_callback func */
-
-    free(a_key->pub_key_data);
-    free(a_key->priv_key_data);
-    free(a_key);
+    DAP_DELETE(a_key->pub_key_data);
+    DAP_DELETE(a_key->priv_key_data);
+    DAP_DELETE(a_key);
 }
 
 size_t dap_enc_key_get_enc_size(dap_enc_key_t * a_key, const size_t buf_in_size)

@@ -55,7 +55,6 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     size_t l_out_size = l_out_size_max;
 
     const unsigned char *l_in_u8 = (const unsigned char*)a_in;
-    unsigned char *l_out_u8 = a_out;
     size_t l_outi_size = (l_out_size_max + 3) / 4;
 
     uint32_t l_outi[l_outi_size];
@@ -96,6 +95,8 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
             return 0;
     }
 
+    unsigned char l_out_u80[l_out_size_max];
+    unsigned char *l_out_u8 = l_out_u80;
     j = 0;
     switch (bytesleft) {
         case 3:
@@ -121,7 +122,7 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     }
 
     // Count canonical base58 byte count
-    l_out_u8 = a_out;
+    l_out_u8 = l_out_u80;
     for (i = 0; i < l_out_size_max; ++i)
     {
         if (l_out_u8[i]) {
@@ -135,11 +136,13 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     }
 
 
+    unsigned char *l_out = a_out;
+    memset(l_out, 0, zerocount);
     // shift result to beginning of the string
     for (j = 0; j < l_out_size; j++){
-        l_out_u8[j+zerocount] = l_out_u8[j+i];
+        l_out[j+zerocount] = l_out_u8[j+i];
     }
-    l_out_u8[j+zerocount] = 0;
+    l_out[j+zerocount] = 0;
     l_out_size += zerocount;
 
     return l_out_size;
@@ -183,7 +186,7 @@ size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out)
         memset(a_out, '1', zcount);
     for (i = zcount; j < (ssize_t)size; ++i, ++j)
         a_out[i] = c_b58digits_ordered[buf[j]];
-    a_out[i] = '\0';
+    a_out[i+zcount] = '\0';
     l_out_size = i + 1;
 
     return l_out_size;

@@ -212,6 +212,18 @@ int picnic_verify(picnic_publickey_t* pk, const uint8_t* message, size_t message
     return 0;
 }
 
+/* Get public key size for serialize */
+size_t picnic_get_public_key_size(const picnic_publickey_t* key)
+{
+    paramset_t paramset;
+    int ret = get_param_set(key->params, &paramset);
+    if (ret != EXIT_SUCCESS) {
+        return 0;
+    }
+    size_t bytesRequired = 1 + 2 * paramset.stateSizeBytes;
+    return bytesRequired;
+}
+
 /* Serialize public key */
 int picnic_write_public_key(const picnic_publickey_t* key, uint8_t* buf, size_t buflen)
 {

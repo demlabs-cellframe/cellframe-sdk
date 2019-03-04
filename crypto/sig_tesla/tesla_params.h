@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "../dap_crypto_common.h"
 
 #define CRYPTO_RANDOMBYTES 32
@@ -77,6 +78,8 @@ int tesla_crypto_sign(tesla_signature_t *, const unsigned char *, unsigned long 
 
 int tesla_crypto_sign_open(tesla_signature_t *, const unsigned char *, unsigned long long, const tesla_public_key_t *);
 
+void tesla_private_key_delete(tesla_private_key_t *private_key);
+void tesla_public_key_delete(tesla_public_key_t *public_key);
 void tesla_private_and_public_keys_delete(tesla_private_key_t *private_key, tesla_public_key_t *public_key);
 
 void tesla_signature_delete(tesla_signature_t *signature);

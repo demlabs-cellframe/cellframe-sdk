@@ -27,4 +27,11 @@ void dap_enc_sig_tesla_key_delete(struct dap_enc_key * key);
 
 size_t dap_enc_tesla_calc_signature_size(void);
 
+uint8_t* dap_enc_tesla_write_signature(tesla_signature_t* a_sign, size_t *a_sign_out);
+tesla_signature_t* dap_enc_tesla_read_signature(uint8_t *a_buf, size_t a_buflen);
+uint8_t* dap_enc_tesla_write_private_key(const tesla_private_key_t* a_private_key, size_t *a_buflen_out);
+uint8_t* dap_enc_tesla_write_public_key(const tesla_public_key_t* a_public_key, size_t *a_buflen_out);
+tesla_private_key_t* dap_enc_tesla_read_private_key(uint8_t *a_buf, size_t a_buflen);
+tesla_public_key_t* dap_enc_tesla_read_public_key(uint8_t *a_buf, size_t a_buflen);
+
 #endif

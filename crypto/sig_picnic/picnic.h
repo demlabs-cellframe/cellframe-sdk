@@ -59,6 +59,7 @@ typedef struct {
 /* Signature API */
 
 size_t picnic_signature_size(picnic_params_t parameters);
+size_t picnic_get_public_key_size(const picnic_publickey_t* key);/* Get public key size for serialize */
 int picnic_write_public_key(const picnic_publickey_t* key, uint8_t* buf, size_t buflen);
 int picnic_read_public_key(picnic_publickey_t* key, const uint8_t* buf, size_t buflen);
 int picnic_write_private_key(const picnic_privatekey_t* key, uint8_t* buf, size_t buflen);

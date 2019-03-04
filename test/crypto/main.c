@@ -1,6 +1,7 @@
 #include "dap_enc_iaes_test.h"
 #include "dap_enc_oaes_test.h"
 #include "dap_enc_base64_test.h"
+#include "dap_enc_base58_test.h"
 #include "dap_enc_test.h"
 #include "dap_enc_msrln_test.h"
 #include "dap_enc_defeo_test.h"
@@ -18,6 +19,7 @@ int main(void)
     dap_enc_aes_tests_run();
     dap_enc_oaes_tests_run();
     dap_enc_base64_tests_run();
+    dap_enc_base58_tests_run();
     dap_enc_msrln_tests_run();
     dap_enc_tests_run();
     dap_enc_sig_bliss_tests_run();
