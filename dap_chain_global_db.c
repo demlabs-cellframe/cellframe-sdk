@@ -222,11 +222,12 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 {
     if(!data || data_size <= 0)
         return NULL ;
-    dap_chain_hash_t a_hash;
-    dap_hash((char*) data, data_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_SLOW_0);
-    size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
+    dap_chain_hash_fast_t l_hash;
+    //dap_hash((char*) data, data_size, l_hash.raw, sizeof(l_hash.raw), DAP_HASH_TYPE_SLOW_0);
+    dap_hash_fast((uint8_t*)data, data_size, &l_hash);
+    size_t a_str_max = (sizeof(l_hash.raw) + 1) * 2 + 2; /* heading 0x */
     char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
-    size_t hash_len = dap_chain_hash_to_str(&a_hash, a_str, a_str_max);
+    size_t hash_len = dap_chain_hash_fast_to_str(&l_hash, a_str, a_str_max);
     if(!hash_len) {
         DAP_DELETE(a_str);
         return NULL ;
