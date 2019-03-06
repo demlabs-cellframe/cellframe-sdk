@@ -28,7 +28,7 @@ uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t 
 {
     size_t a_request_size = 2 * sizeof(uint16_t), shift_size = 0;
     for(int i = 0; i < datum_mempool->datum_count; i++) {
-        a_request_size += _dap_chain_datum_data_size(datum_mempool->data[i]) + sizeof(uint16_t);
+        a_request_size += dap_chain_datum_data_size(datum_mempool->data[i]) + sizeof(uint16_t);
     }
     uint8_t *a_request = DAP_NEW_SIZE(uint8_t, a_request_size);
     memcpy(a_request + shift_size, &(datum_mempool->version), sizeof(uint16_t));
@@ -36,7 +36,7 @@ uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t 
     memcpy(a_request + shift_size, &(datum_mempool->datum_count), sizeof(uint16_t));
     shift_size += sizeof(uint16_t);
     for(int i = 0; i < datum_mempool->datum_count; i++) {
-        size_t size_one = _dap_chain_datum_data_size(datum_mempool->data[i]);
+        size_t size_one = dap_chain_datum_data_size(datum_mempool->data[i]);
         memcpy(a_request + shift_size, &size_one, sizeof(uint16_t));
         shift_size += sizeof(uint16_t);
         memcpy(a_request + shift_size, datum_mempool->data[i], size_one);
