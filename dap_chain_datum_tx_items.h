@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <glib.h>
 
 #include "dap_common.h"
 #include "dap_chain_common.h"
@@ -97,3 +98,6 @@ dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_
  */
 const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size);
+
+// Get all item from transaction by type
+GList* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);

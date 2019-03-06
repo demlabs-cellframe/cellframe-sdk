@@ -52,7 +52,6 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx)
         DAP_DELETE(a_tx);
 }
 
-
 /**
  * Get size of transaction
  *
@@ -84,11 +83,44 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_it
 }
 
 /**
+ * Create 'in' item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
+        uint32_t a_tx_out_prev_idx)
+{
+    dap_chain_tx_in_t *l_tx_in = dap_chain_datum_tx_item_in_create(a_tx_prev_hash, a_tx_out_prev_idx);
+    if(l_tx_in) {
+        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_in);
+        DAP_DELETE(l_tx_in);
+        return 1;
+    }
+    return -1;
+}
+
+/**
+ * Create 'out' item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, dap_chain_addr_t *a_addr, uint64_t a_value)
+{
+    dap_chain_tx_out_t *l_tx_out = dap_chain_datum_tx_item_out_create(a_addr, a_value);
+    if(l_tx_out) {
+        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out);
+        DAP_DELETE(l_tx_out);
+        return 1;
+    }
+    return -1;
+}
+
+/**
  * Sign a transaction (Add sign item to transaction)
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key)
+int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key)
 {
     if(!a_tx || !a_key)
         return -1;
@@ -107,7 +139,7 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_ke
 /**
  * Verify all sign item in transaction
  *
- * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
+ * return 1 Ok, 0 Invalid signature, -1 Not found signature or other Error
  */
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
 {
@@ -124,13 +156,14 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
             dap_chain_tx_sig_t *item_tx_sig = (dap_chain_tx_sig_t*) item;
             dap_chain_sign_t *a_chain_sign = (dap_chain_sign_t*) item_tx_sig->sig;
             if(dap_chain_sign_verify(a_chain_sign, tx->tx_items, tx_items_pos) != 1) {
+                // invalid signature
                 ret = 0;
                 break;
             }
-            // sign verify successfully
+            // signature verify successfully
             ret = 1;
         }
-        // sign item must be at the end
+        // sign item or items must be at the end, therefore ret will be changed later anyway
         else
             ret = -1;
         // go to text item
@@ -139,3 +172,4 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
     assert(tx_items_pos == tx_items_size);
     return ret;
 }
+

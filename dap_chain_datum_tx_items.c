@@ -169,7 +169,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
         return NULL;
     dap_chain_sign_t *l_chain_sign = dap_chain_sign_create(a_key, a_data, a_data_size, 0);
     size_t l_chain_sign_size = dap_chain_sign_get_size(l_chain_sign); // sign data
-    if(!l_chain_sign || !l_chain_sign_size) {
+    if(!l_chain_sign) {
         return NULL;
     }
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
@@ -190,7 +190,7 @@ dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_
 {
     if(!a_tx_sig || !a_tx_sig->header.sig_size)
         return NULL;
-    dap_chain_sign_t *l_chain_sign = (dap_chain_sign_t*)a_tx_sig->sig;
+    dap_chain_sign_t *l_chain_sign = (dap_chain_sign_t*) a_tx_sig->sig;
     return l_chain_sign;
 }
 
@@ -226,7 +226,35 @@ const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_it
                 return l_item;
             }
         }
+        l_tx_items_pos += l_item_size;
         l_item_idx++;
     }
     return NULL;
+}
+
+/**
+ * Get all item from transaction by type
+ *
+ * a_tx [in] transaction
+ * a_item_idx_start[in/out] start index / found index of item in transaction, if 0 then from beginning
+ * a_type[in] type of item being find, if TX_ITEM_TYPE_ANY - any item
+ * a_item_count[out] count of returned item
+ * return item data, NULL Error index or bad format transaction
+ */
+GList* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
+{
+    GList *items_list = NULL;
+    int l_items_count = 0, l_item_idx_start = 0;
+    // Get sign item from transaction
+    while(1) {
+        const uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
+        if(!l_tx_item)
+            break;
+        items_list = g_list_append(items_list, (uint8_t*)l_tx_item);
+        l_items_count++;
+        l_item_idx_start++;
+    }
+    if(a_item_count)
+        *a_item_count = l_items_count;
+    return items_list;
 }
