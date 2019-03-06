@@ -23,10 +23,11 @@
 */
 #pragma once
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "dap_hash_slow.h"
 #include "dap_hash_keccak.h"
-
+#include "dap_chain_common.h"
 
 
 typedef enum dap_hash_type {
@@ -49,3 +50,7 @@ inline static void dap_hash(void * a_data_in, size_t a_data_in_size,
     }
 
 }
+
+int dap_hash_fast(void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out);
+bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash);
+bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2);
