@@ -29,7 +29,7 @@
 #include "dap_common.h"
 #include "dap_chain_cert.h"
 #include "dap_chain_cert_file.h"
-#include "dap_hash.h"
+//#include "dap_hash.h"
 #define LOG_TAG "dap_chain_cert"
 
 
@@ -87,11 +87,8 @@ size_t dap_chain_cert_sign_output_size(dap_chain_cert_t * a_cert, size_t a_size_
 dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_net_id_t a_net_id)
 {
     dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
-    l_addr->addr_ver = 1;
-    l_addr->net_id.uint64 = a_net_id.uint64;
-    l_addr->sig_type.raw = dap_chain_sign_type_from_key_type( a_cert->enc_key->type).raw;
-   // dap_hash(&l_addr);
-    l_addr->checksum;
+    dap_chain_addr_fill(l_addr, a_cert->enc_key, &a_net_id);
+    return l_addr;
 }
 
 /**
@@ -103,11 +100,11 @@ dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_n
  * @param a_output_siz
  * @return
  */
-int dap_chain_cert_sign_output(dap_chain_cert_t * a_cert, const void * a_data, size_t a_data_size,
+/*int dap_chain_cert_sign_output(dap_chain_cert_t * a_cert, const void * a_data, size_t a_data_size,
                                         void * a_output, size_t a_output_size)
 {
     return dap_chain_sign_create_output( a_cert->enc_key,a_data,a_data_size,a_output,a_output_size);
-}
+}*/
 
 /**
  * @brief dap_chain_cert_sign
@@ -121,19 +118,8 @@ dap_chain_sign_t * dap_chain_cert_sign(dap_chain_cert_t * a_cert, const void * a
                                        , size_t a_data_size, size_t a_output_size_wished )
 {
     dap_enc_key_t * l_key = a_cert->enc_key;
-    size_t l_ret_size = dap_chain_sign_create_output_cals_size( l_key,a_output_size_wished);
-    if (l_ret_size > 0 ) {
-        dap_chain_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_sign_t,
-                                                  l_ret_size );
-        if (l_ret){
-            if ( dap_chain_sign_create_output(l_key,a_data,a_data_size,l_ret,l_ret_size) !=0 ){
-                DAP_DELETE(l_ret);
-                return NULL;
-            }else
-                return l_ret;
-        }
-    }else
-        return NULL;
+    dap_chain_sign_t *l_ret = dap_chain_sign_create(l_key, a_data, a_data_size, a_output_size_wished);
+    return l_ret;
 }
 
 /**
@@ -203,6 +189,7 @@ dap_chain_cert_t * dap_chain_cert_generate(const char * a_cert_name
     } else {
         log_it(L_ERROR,"Can't generate certificat in memory!");
     }
+    return NULL;
 }
 
 /**

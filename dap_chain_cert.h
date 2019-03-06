@@ -66,8 +66,8 @@ int dap_chain_cert_compare_with_sign (dap_chain_cert_t * a_cert,dap_chain_sign_t
 size_t dap_chain_cert_sign_output_size(dap_chain_cert_t * a_cert, size_t a_size_wished);
 
 
-int dap_chain_cert_sign_output(dap_chain_cert_t * a_cert, const void * a_data, size_t a_data_size
-                                        , void * a_output , size_t a_output_size);
+//int dap_chain_cert_sign_output(dap_chain_cert_t * a_cert, const void * a_data, size_t a_data_size
+//                                        , void * a_output , size_t a_output_size);
 
 
 int dap_chain_cert_add_cert_sign(dap_chain_cert_t * a_cert, dap_chain_cert_t * a_cert_signer);
