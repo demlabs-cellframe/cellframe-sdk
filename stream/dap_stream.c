@@ -608,9 +608,11 @@ static bool _detect_loose_packet(dap_stream_t * sid)
                           "Last read seq_id packet: %d Current: %d", count_loosed_packets,
                sid->client_last_seq_id_packet, ch_pkt->hdr.seq_id);
     } else if(count_loosed_packets < 0) {
+        if(sid->client_last_seq_id_packet != 0 && ch_pkt->hdr.seq_id != 0) {
         log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
                           "Last read seq_id packet: %d Current: %d", count_loosed_packets,
                sid->client_last_seq_id_packet, ch_pkt->hdr.seq_id);
+        } // else client don't support seqid functionality
     }
 //    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
 //    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
