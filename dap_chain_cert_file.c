@@ -103,10 +103,14 @@ uint8_t* dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, uint32_t *a_cert_siz
     l_hdr.ts_last_used = l_key->last_used_timestamp;
     l_hdr.sign_type = dap_chain_sign_type_from_key_type ( l_key->type );
 
-    l_data = DAP_NEW_SIZE(void, sizeof(l_hdr) + l_priv_key_data_size + l_pub_key_data_size + l_hdr.metadata_size);
+
+    l_data = DAP_NEW_SIZE(void, sizeof(l_hdr) + DAP_CHAIN_CERT_ITEM_NAME_MAX + l_priv_key_data_size + l_pub_key_data_size + l_hdr.metadata_size);
 
     memcpy(l_data +l_data_offset, &l_hdr ,sizeof(l_hdr) );
     l_data_offset += sizeof(l_hdr);
+
+    memcpy(l_data +l_data_offset, a_cert->name, DAP_CHAIN_CERT_ITEM_NAME_MAX );//save cert name
+    l_data_offset += DAP_CHAIN_CERT_ITEM_NAME_MAX;
 
     memcpy(l_data +l_data_offset, l_pub_key_data ,l_pub_key_data_size );
     l_data_offset += l_pub_key_data_size;
@@ -153,7 +157,7 @@ dap_chain_cert_t* dap_chain_cert_file_load(const char * a_cert_file_path)
         }else{
             l_ret = dap_chain_cert_mem_load(l_data,l_file_size);
         }
-
+        DAP_DELETE(l_data);
     }
 lb_exit:
     if( l_file )
@@ -187,7 +191,12 @@ dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size)
             goto l_exit;
         }
 
-        l_ret = DAP_NEW_Z(dap_chain_cert_t);
+        char l_name[DAP_CHAIN_CERT_ITEM_NAME_MAX];
+        memcpy(l_name, l_data +l_data_offset, DAP_CHAIN_CERT_ITEM_NAME_MAX );//save cert name
+        l_data_offset += DAP_CHAIN_CERT_ITEM_NAME_MAX;
+
+        //l_ret = DAP_NEW_Z(dap_chain_cert_t);
+        l_ret = dap_chain_cert_new(l_name);
         l_ret->enc_key = dap_enc_key_new( dap_chain_sign_type_to_key_type( l_hdr.sign_type ));
         l_ret->enc_key->last_used_timestamp = l_hdr.ts_last_used;
 
