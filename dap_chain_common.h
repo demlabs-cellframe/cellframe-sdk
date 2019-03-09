@@ -28,6 +28,7 @@
 
 #include "dap_common.h"
 #include "dap_math_ops.h"
+#include "dap_enc_key.h"
 
 #define DAP_CHAIN_ID_SIZE 8
 #define DAP_CHAIN_SHARD_ID_SIZE 8
@@ -128,21 +129,24 @@ typedef struct dap_chain_addr{
     dap_chain_net_id_t net_id;  // Testnet, mainnet or alternet
     dap_chain_sign_type_t sig_type;
     union{
-        dap_chain_hash_fast_t hash;
+        //dap_chain_hash_fast_t hash;
         struct {
             uint8_t key_spend[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX];
             uint8_t key_view[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX];
         } key_sv;
         uint8_t key[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX*2];
     } data;
-    uint64_t checksum;
+    dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
-
 size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max);
+size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_str_to_addr(const char *str);
+
+void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id);
+int dap_chain_addr_check_sum(dap_chain_addr_t *a_addr);
 
 /**
  * @brief dap_chain_hash_to_str

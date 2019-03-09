@@ -31,15 +31,13 @@
 #define LOG_TAG "chain_datum"
 
 /**
- * @brief _dap_chain_datum_data_size
+ * @brief dap_chain_datum_data_size
  * @param a_datum
  * @return
  */
-size_t _dap_chain_datum_data_size(dap_chain_datum_t * a_datum)
+size_t dap_chain_datum_data_size(dap_chain_datum_t * a_datum)
 {
-    size_t ret = sizeof(a_datum->header);
-    switch (a_datum->header.type_id){
-
-    }
-    return ret;
+    if(!a_datum)
+        return 0;
+    return  sizeof(a_datum->header) + a_datum->header.data_size;
 }

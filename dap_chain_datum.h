@@ -85,4 +85,4 @@ typedef struct dap_chain_datum{
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
 
-size_t _dap_chain_datum_data_size(dap_chain_datum_t * a_datum);
+size_t dap_chain_datum_data_size(dap_chain_datum_t * a_datum);
