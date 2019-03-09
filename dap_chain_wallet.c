@@ -95,9 +95,22 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
     if(a_wallet->name)
         DAP_DELETE (a_wallet->name);
-    // TODO Make clean struct dap_chain_wallet_internal_t
+    // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
     DAP_DELETE(l_wallet_internal);
     DAP_DELETE(a_wallet);
+}
+
+/**
+ * @brief dap_chain_wallet_get_addr
+ * @param a_wallet
+ * @return
+ */
+const dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet)
+{
+    if(!a_wallet)
+        return NULL;
+    DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
+    return l_wallet_internal->addr;
 }
 
 /**
@@ -177,10 +190,11 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
             for ( i = 0; i < l_wallet_internal->certs_count ; i ++) {
                 dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = {0};
                 l_wallet_cert_hdr.version = 1;
-                l_wallet_cert_hdr.cert_raw_size = dap_chain_cert_save_mem_size(  l_wallet_internal->certs[i] );
+                uint8_t * l_buf = dap_chain_cert_save_mem(l_wallet_internal->certs[i], &l_wallet_cert_hdr.cert_raw_size);
+                //l_wallet_cert_hdr.cert_raw_size = dap_chain_cert_save_mem_size(  l_wallet_internal->certs[i] );
+                //uint8_t * l_buf = DAP_NEW_SIZE (uint8_t, l_wallet_cert_hdr.cert_raw_size);
                 fwrite( &l_wallet_cert_hdr,1, sizeof (l_wallet_cert_hdr), l_file);
-                uint8_t * l_buf = DAP_NEW_SIZE (uint8_t, l_wallet_cert_hdr.cert_raw_size);
-                if ( dap_chain_cert_save_mem(l_wallet_internal->certs[i],l_buf) == 0 ){
+                if ( l_buf ){
                     fwrite( l_buf, 1, l_wallet_cert_hdr.cert_raw_size, l_file);
                 }else{
                     log_it(L_WARNING,"Cant write cert to  file %s: error \"%s\"",l_wallet_internal->file_name,
