@@ -1,0 +1,21 @@
+language: c
+compiler: gcc
+dist: xenial
+notifications:
+  email: false
+
+before_install:
+    - git submodule init
+    - git submodule update --recursive
+
+script:
+    - mkdir build
+    - cd build 
+    - cmake ../
+    - make
+    - ctest --verbose
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test

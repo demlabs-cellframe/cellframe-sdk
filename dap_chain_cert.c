@@ -248,8 +248,10 @@ void dap_chain_cert_delete(dap_chain_cert_t * a_cert)
 {
     dap_chain_cert_item_t * l_cert_item = NULL;
     HASH_FIND_STR(s_certs, a_cert->name, l_cert_item);
-    if ( l_cert_item )
+    if ( l_cert_item ){
          HASH_DEL(s_certs,l_cert_item);
+         DAP_DELETE (l_cert_item);
+    }
 
     if( a_cert->enc_key )
         dap_enc_key_delete (a_cert->enc_key );
