@@ -42,10 +42,8 @@
 #include "dap_chain_node_cli_cmd.h"
 
 #include "dap_chain_datum.h"
-#include "dap_chain_datum_tx_in.h"
-#include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_pkey.h"
-#include "dap_chain_datum_tx_sig.h"
+#include "dap_chain_datum_tx_ctrl.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_cache.h"
 
 // Max and min macros
@@ -983,40 +981,6 @@ int com_help(int argc, const char ** argv, char **str_reply)
     return -1;
 }
 
-dap_chain_datum_tx_t* create_tx(const char *net_name)
-{
-    dap_chain_tx_in_t tx_in;
-    dap_chain_tx_in_t tx_out;
-
-    tx_in.header.type = TX_ITEM_TYPE_IN;
-    //tx_in.header.sig_size = 0;
-    //tx_in
-
-    dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
-    tx->header.lock_time = time(NULL);
-    int res = dap_chain_datum_tx_add_item(&tx, (const uint8_t*) &tx_in);
-    //dap_chain_tx_in_t
-
-    //dap_chain_hash_t a_hash_fast;
-    //dap_hash((char*) tx, sizeof(tx), a_hash_fast.raw, sizeof(a_hash_fast.raw), DAP_HASH_TYPE_KECCAK);
-
-    /*
-     // create file with dap_chain_t
-     dap_chain_id_t a_chain_id = {0x1};
-     dap_chain_net_id_t a_chain_net_id = {0x2};
-     dap_chain_shard_id_t a_shard_id = {0x3};
-
-     dap_chain_t *a_chain = dap_chain_create(a_chain_net_id, a_chain_id, a_shard_id);
-     const char * a_chain_net_name = "0x1";
-     const char * a_chain_cfg_name = "chain-0";
-     dap_chain_t *ch2 =  dap_chain_load_from_cfg(a_chain_net_name, a_chain_cfg_name);
-
-     //dap_chain_net_t *l_net = dap_chain_net_by_name(net_name);
-     //dap_chain_id_t *chain = l_net->pub.chains;
-     */
-    return tx;
-}
-
 /**
  * com_tx_create command
  *
@@ -1024,79 +988,306 @@ dap_chain_datum_tx_t* create_tx(const char *net_name)
  */
 int com_tx_create(int argc, const char ** argv, char **str_reply)
 {
-    // create wallet
+    int arg_index = 1;
+    int cmd_num = 1;
+    const char *value_str = NULL;
+    const char *addr_base58_from = NULL;
+    const char *addr_base58_to = NULL;
+    const char *addr_base58_fee = NULL;
+    const char *str_tmp = NULL;
+    uint64_t value = 0;
+    uint64_t value_fee = 0;
+    find_option_val(argv, arg_index, argc, "from", &addr_base58_from);
+    find_option_val(argv, arg_index, argc, "to", &addr_base58_to);
+    if(find_option_val(argv, arg_index, argc, "fee", &addr_base58_fee)) {
+        if(find_option_val(argv, arg_index, argc, "value_fee", &str_tmp)) {
+            value_fee = strtoll(str_tmp, NULL, 10);
+        }
+    }
+    if(find_option_val(argv, arg_index, argc, "value", &str_tmp)) {
+        value = strtoll(str_tmp, NULL, 10);
+    }
+    if(!addr_base58_from) {
+        set_reply_text(str_reply, "tx_create requires parameter 'from'");
+        return -1;
+    }
+    if(!addr_base58_to) {
+        set_reply_text(str_reply, "tx_create requires parameter 'to'");
+        return -1;
+    }
+    if(!value) {
+        set_reply_text(str_reply, "tx_create requires parameter 'value'");
+        return -1;
+    }
+    if(addr_base58_fee && !value_fee) {
+        set_reply_text(str_reply, "tx_create requires parameter 'value_fee' if 'fee' is specified");
+        return -1;
+    }
+
     const char *a_wallets_path = "/opt/kelvin-node/etc";
-    const char *a_wallet_name = "w1";
-    dap_chain_net_id_t a_net_id = { 0x1 };
-    dap_chain_sign_type_t a_sig_type = { SIG_TYPE_TESLA };
-    //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_PICNIC };
-    //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_BLISS };
-    dap_chain_wallet_t *wallet = dap_chain_wallet_create(a_wallet_name, a_wallets_path, a_net_id, a_sig_type);
-    dap_chain_wallet_t *wallet2 = dap_chain_wallet_open(a_wallet_name, a_wallets_path);
-    //wallet = dap_chain_wallet_open(a_wallet_name, a_wallets_path);
-    //dap_chain_wallet_save(wallet2);
-    dap_chain_datum_tx_t *tx = create_tx("0x123");
+    const char *a_wallet_name_bliss = "w_bliss";
+    const char *a_wallet_name_bliss2 = "w_bliss2";
+    const char *a_wallet_name_picnic = "w_picnic";
+    const char *a_wallet_name_tesla = "w_tesla";
+
+    dap_chain_wallet_t *wallet_bliss = dap_chain_wallet_open(a_wallet_name_bliss, a_wallets_path);
+    dap_chain_wallet_t *wallet_bliss2 = dap_chain_wallet_open(a_wallet_name_bliss2, a_wallets_path);
+    dap_chain_wallet_t *wallet_picnic = dap_chain_wallet_open(a_wallet_name_picnic, a_wallets_path);
+    //dap_chain_wallet_t *wallet_tesla = dap_chain_wallet_open(a_wallet_name_tesla, a_wallets_path);
+    dap_enc_key_t *l_key_bliss = dap_chain_wallet_get_key(wallet_bliss, 0);
+    dap_enc_key_t *l_key_bliss2 = dap_chain_wallet_get_key(wallet_bliss2, 0);
+    dap_enc_key_t *l_key_picnic = dap_chain_wallet_get_key(wallet_picnic, 0);
+    //dap_enc_key_t *l_key_tesla = dap_chain_wallet_get_key(wallet_tesla, 0);
+
+    char *addr_w_bliss =
+            "EXh66KVCxChbKHQcTWKYJXhua6HVZecpxuTTmWGuqm1V4vy5mVq52wD8rMQvfUnmJHsL4MuoJ7YVSFqn2RrdoN19mqHP1aQXSQPnXDR6oP9vsBPwYC9PhSvAxFystX";
+    char *addr_w_bliss2 =
+            "EXh66KVCxChbKHQcTeGf8TT7KhcCiiQ9TrPn6rcbNoNKuhAyJ4T9zr5yMfMCXGLVHmxVKZ6J4E9Zc7pNmAa4yrKNb3DkS34jxD6Q4MCXbHJMAPFEVtMoDdFMtCysE2";
+    char *addr_w_picnic =
+            "EXh66KVCxChbKJLxZbyNJLxfF8CfGZmdenQWuqtr8MnXavhJaLo6vckjpYgpcevBo3zB65sAGQJT3ctYVwQnASc6sYyaawFHnacsrcP47PB4XfLYiEDZvwog4AVdbC";
+
+    dap_chain_wallet_t *l_wallet;
+    dap_enc_key_t *l_key;
+    if(!strcmp(addr_base58_from, addr_w_bliss)) {
+        l_wallet = wallet_bliss;
+        l_key = l_key_bliss;
+    }
+    else if(!strcmp(addr_base58_from, addr_w_bliss2)) {
+        l_wallet = wallet_bliss2;
+        l_key = l_key_bliss2;
+    }
+    else if(!strcmp(addr_base58_from, addr_w_picnic)) {
+        l_wallet = l_key_picnic;
+        l_key = l_key_picnic;
+    }
+    if(!l_wallet || !l_key) {
+        set_reply_text(str_reply, "wallet for address 'from' does not exist");
+        return -1;
+    }
+
+    dap_chain_addr_t *addr_from = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+    dap_chain_addr_t *addr_to = dap_chain_str_to_addr(addr_base58_to);
+    dap_chain_addr_t *addr_fee = dap_chain_str_to_addr(addr_base58_fee);
 
     static bool l_first_start = true;
     if(l_first_start)
     {
         const char *l_token_name = "KLVN";
-        dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet, 0);
-        const dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(wallet);
-        dap_chain_node_datum_tx_cache_init(l_key, l_token_name, (dap_chain_addr_t*)l_addr, 1000);
+        dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet_bliss, 0);
+        const dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(wallet_bliss);
+        dap_chain_node_datum_tx_cache_init(l_key, l_token_name, (dap_chain_addr_t*) l_addr, 1000);
         l_first_start = false;
     }
+    GString *string_ret = g_string_new(NULL);
+    //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
+    //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
 
-    const dap_chain_addr_t *addr = dap_chain_wallet_get_addr(wallet);
+    uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_to);
+    uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_fee);
+    uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_from);
+    g_string_append_printf(string_ret, "balance w1=%lld w2=%lld w3=%lld\n",
+            balance1, balance2, balance3);
 
-    char *addr_str = dap_chain_addr_to_str((dap_chain_addr_t*)addr);
-    const dap_chain_addr_t *addr2 = dap_chain_str_to_addr(addr_str);
-    char *addr_str2 = dap_chain_addr_to_str(addr2);
-    free(addr_str);
+    int res = dap_chain_datum_tx_ctrl_create_transfer(l_key, addr_from, addr_to, addr_fee, value, value_fee);
+    g_string_append_printf(string_ret, "transfer=%s\n", (res == 1) ? "Ok" : "False");
 
-    // debug - check signing
+    if(1) {
+        uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_from);
+        uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_to);
+        uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_fee);
+        g_string_append_printf(string_ret, "balance w1=%lld w2=%lld w3=%lld\n",
+                balance1, balance2, balance3);
+    }
+
+    char *str_ret_tmp = g_string_free(string_ret, FALSE);
+    char *str_ret = strdup(str_ret_tmp);
+    set_reply_text(str_reply, str_ret);
+    g_free(str_ret_tmp);
+    dap_chain_wallet_close(wallet_bliss);
+    dap_chain_wallet_close(wallet_bliss2);
+    dap_chain_wallet_close(wallet_picnic);
+    //dap_chain_wallet_close(wallet_tesla);
+    return 0;
+}
+
+/**
+ * com_tx_create command
+ *
+ * Signing transaction
+ */
+int com_tx_create0(int argc, const char ** argv, char **str_reply)
+{
+    // create wallet
+    const char *a_wallets_path = "/opt/kelvin-node/etc";
+    const char *a_wallet_name_bliss = "w_bliss";
+    const char *a_wallet_name_bliss2 = "w_bliss2";
+    const char *a_wallet_name_picnic = "w_picnic";
+    const char *a_wallet_name_tesla = "w_tesla";
+
+    dap_chain_net_id_t a_net_id = { 0x1 };
+    dap_chain_sign_type_t a_sig_type = { SIG_TYPE_TESLA };
+    //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_PICNIC };
+    //dap_chain_sign_type_t a_sig_type = { SIG_TYPE_BLISS };
+    const char * a_wallet_name = a_wallet_name_tesla;
+    dap_chain_wallet_t *wallet0 = dap_chain_wallet_create(a_wallet_name, a_wallets_path, a_net_id, a_sig_type);
+
+    dap_chain_wallet_t *wallet_bliss = dap_chain_wallet_open(a_wallet_name_bliss, a_wallets_path);
+    dap_chain_wallet_t *wallet_bliss2 = dap_chain_wallet_open(a_wallet_name_bliss2, a_wallets_path);
+    dap_chain_wallet_t *wallet_picnic = dap_chain_wallet_open(a_wallet_name_picnic, a_wallets_path);
+    dap_chain_wallet_t *wallet_tesla = dap_chain_wallet_open(a_wallet_name_tesla, a_wallets_path);
+    dap_enc_key_t *l_key_bliss = dap_chain_wallet_get_key(wallet_bliss, 0);
+    dap_enc_key_t *l_key_bliss2 = dap_chain_wallet_get_key(wallet_bliss2, 0);
+    dap_enc_key_t *l_key_picnic = dap_chain_wallet_get_key(wallet_picnic, 0);
+    dap_enc_key_t *l_key_tesla = dap_chain_wallet_get_key(wallet_tesla, 0);
+    /*/ debug - test check signing
+     {
+
+
+     int a_data_size = 50;
+     char *a_data = "DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify";
+
+     dap_enc_key_t *l_key0 = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_BLISS, NULL, 0, NULL, 0, 0);
+     dap_enc_key_t *l_key1 = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_TESLA, NULL, 0, NULL, 0, 0);
+     dap_enc_key_t *l_key2 = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_PICNIC, NULL, 0, NULL, 0, 0);
+     dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet, 0);
+
+     size_t l_buflen_out;
+     char *l_data;
+     l_data = dap_enc_key_serealize_pub_key(l_key0, &l_buflen_out);
+     dap_enc_key_deserealize_pub_key(l_key0, l_data, l_buflen_out);
+     l_data = dap_enc_key_serealize_pub_key(l_key1, &l_buflen_out);
+     dap_enc_key_deserealize_pub_key(l_key1, l_data, l_buflen_out);
+     l_data = dap_enc_key_serealize_pub_key(l_key2, &l_buflen_out);
+     dap_enc_key_deserealize_pub_key(l_key2, l_data, l_buflen_out);
+     l_data = dap_enc_key_serealize_pub_key(l_key, &l_buflen_out);
+     dap_enc_key_deserealize_pub_key(l_key, l_data, l_buflen_out);
+
+     dap_chain_sign_t *l_chain_sign;
+     l_chain_sign = dap_chain_sign_create(l_key0, a_data, a_data_size, 0);
+     int l_size0 = dap_chain_sign_get_size(l_chain_sign);
+     int l_verify0 = dap_chain_sign_verify(l_chain_sign, a_data, a_data_size);
+     DAP_DELETE(l_chain_sign);
+     l_chain_sign = dap_chain_sign_create(l_key1, a_data, a_data_size, 0);
+     int l_size1 = dap_chain_sign_get_size(l_chain_sign);
+     int l_verify1 = dap_chain_sign_verify(l_chain_sign, a_data, a_data_size);
+     DAP_DELETE(l_chain_sign);
+     l_chain_sign = dap_chain_sign_create(l_key2, a_data, a_data_size, 0);
+     int l_size2 = dap_chain_sign_get_size(l_chain_sign);
+     int l_verify2 = dap_chain_sign_verify(l_chain_sign, a_data, a_data_size);
+     DAP_DELETE(l_chain_sign);
+     l_chain_sign = dap_chain_sign_create(l_key, a_data, a_data_size, 0);
+     int l_size = dap_chain_sign_get_size(l_chain_sign);
+     int l_verify = dap_chain_sign_verify(l_chain_sign, a_data, a_data_size);
+     DAP_DELETE(l_chain_sign);
+     printf("verify=%d/%d %d/%d %d/%d %d/%d\n", l_size0, l_verify0, l_size1, l_verify1, l_size2, l_verify2, l_size,
+     l_verify);
+
+     dap_enc_key_delete(l_key0);
+     dap_enc_key_delete(l_key1);
+     dap_enc_key_delete(l_key2);
+     }*/
+
+    static bool l_first_start = true;
+    if(l_first_start)
     {
-        int a_data_size = 50;
-        char *a_data = "DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify";
-
-
-        dap_enc_key_t *a_key0 = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_BLISS, NULL, 0, NULL, 0, 0);
-
-        dap_enc_key_t *a_key1 = dap_chain_wallet_get_key(wallet, 0);
-        dap_enc_key_t *a_key2 = dap_chain_wallet_get_key(wallet2, 0);
-        dap_chain_sign_t *a_chain_sign0 = dap_chain_sign_create(a_key0, a_data, a_data_size, 0);
-        dap_chain_sign_t *a_chain_sign1 = dap_chain_sign_create(a_key1, a_data, a_data_size, 0);
-        dap_chain_sign_t *a_chain_sign2 = dap_chain_sign_create(a_key2, a_data, a_data_size, 0);
-        size_t a_chain_sign_size = dap_chain_sign_get_size(a_chain_sign1);
-        int verify0 = dap_chain_sign_verify(a_chain_sign0, a_data, a_data_size);
-        int verify1 = dap_chain_sign_verify(a_chain_sign1, a_data, a_data_size);
-        int verify2 = dap_chain_sign_verify(a_chain_sign2, a_data, a_data_size);
-        printf("a_chain_sign=%d verify=%d %d %d\n", a_chain_sign_size, verify0, verify1, verify2);
-        free(a_chain_sign2);
-        free(a_chain_sign1);
-        free(a_chain_sign0);
-        //dap_enc_key_delete(a_key2);
-        dap_enc_key_delete(a_key0);
-        //dap_enc_key_delete(a_key1);
+        const char *l_token_name = "KLVN";
+        dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet_bliss, 0);
+        const dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(wallet_bliss);
+        dap_chain_node_datum_tx_cache_init(l_key, l_token_name, (dap_chain_addr_t*) l_addr, 1000);
+        l_first_start = false;
     }
+    int res;
+    // transfer from 1st transaction to addr_w_bliss
+    /*    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
+     uint32_t l_tx_out_prev_idx = 0;
+     dap_chain_tx_in_t *l_tx_item_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, l_tx_out_prev_idx);
+     res = dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *) l_tx_item_in);
+     res = dap_chain_datum_tx_add_sign_item(&l_tx, l_key);
+     res = dap_chain_node_datum_tx_cache_add(l_tx);
+     DAP_DELETE(l_tx);*/
 
-    if(wallet) {
-        if(dap_chain_wallet_get_certs_number(wallet) > 0) {
-            dap_chain_pkey_t *pk0 = dap_chain_wallet_get_pkey(wallet, 0);
-            dap_enc_key_t *a_key = dap_chain_wallet_get_key(wallet, 0);
-            //dap_enc_key_t *a_key1 = dap_chain_wallet_get_key(wallet, 0);
-            //dap_enc_key_t *a_key2 = dap_chain_wallet_get_key(wallet2, 0);
-            int res = dap_chain_datum_tx_add_sign(&tx, a_key);
-            int res1 = dap_chain_datum_tx_add_sign(&tx, a_key);
-            int res2 = dap_chain_datum_tx_add_sign(&tx, a_key);
-            int res3 = dap_chain_datum_tx_verify_sign(tx);
-            res3 = 0;
-        }
-        dap_chain_wallet_close(wallet);
-        DAP_DELETE(tx);
-    }
+    char *addr_w_bliss =
+            "EXh66KVCxChbKHQcTWKYJXhua6HVZecpxuTTmWGuqm1V4vy5mVq52wD8rMQvfUnmJHsL4MuoJ7YVSFqn2RrdoN19mqHP1aQXSQPnXDR6oP9vsBPwYC9PhSvAxFystX";
+    char *addr_w_bliss2 =
+            "EXh66KVCxChbKHQcTeGf8TT7KhcCiiQ9TrPn6rcbNoNKuhAyJ4T9zr5yMfMCXGLVHmxVKZ6J4E9Zc7pNmAa4yrKNb3DkS34jxD6Q4MCXbHJMAPFEVtMoDdFMtCysE2";
+    char *addr_w_picnic =
+            "EXh66KVCxChbKJLxZbyNJLxfF8CfGZmdenQWuqtr8MnXavhJaLo6vckjpYgpcevBo3zB65sAGQJT3ctYVwQnASc6sYyaawFHnacsrcP47PB4XfLYiEDZvwog4AVdbC";
+
+    dap_chain_addr_t *addr_1 = (dap_chain_addr_t *) dap_chain_wallet_get_addr(wallet_bliss);
+    dap_chain_addr_t *addr_2 = dap_chain_str_to_addr(addr_w_bliss2);
+    dap_chain_addr_t *addr_3 = dap_chain_str_to_addr(addr_w_picnic);
+
+    //char *addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) addr_from);
+    //const dap_chain_addr_t *addr2 = dap_chain_str_to_addr(addr_str);
+    //char *addr_str2 = dap_chain_addr_to_str(addr2);
+    //int a = strcmp(addr_str,addr_str2);
+
+    uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_1);
+    uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_2);
+    uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_3);
+    printf("transactions in cache=%d balance %lld %lld %lld\n", dap_chain_node_datum_tx_cache_count(),
+            balance1, balance2, balance3);
+
+    res = dap_chain_datum_tx_ctrl_create_transfer(l_key_bliss, addr_1, addr_2, addr_3, 100, 2);
+    printf("transfer=%d\n", res);
+    balance1 = dap_chain_datum_tx_cache_calc_balance(addr_1);
+    balance2 = dap_chain_datum_tx_cache_calc_balance(addr_2);
+    balance3 = dap_chain_datum_tx_cache_calc_balance(addr_3);
+    printf("transactions in cache=%d balance %lld %lld %lld\n", dap_chain_node_datum_tx_cache_count(),
+            balance1, balance2, balance3);
+
+    res = dap_chain_datum_tx_ctrl_create_transfer(l_key_bliss2, addr_2, addr_3, addr_3, 200, 2);
+    printf("transfer=%d\n", res);
+    balance1 = dap_chain_datum_tx_cache_calc_balance(addr_1);
+    balance2 = dap_chain_datum_tx_cache_calc_balance(addr_2);
+    balance3 = dap_chain_datum_tx_cache_calc_balance(addr_3);
+    printf("transactions in cache=%d balance %lld %lld %lld\n", dap_chain_node_datum_tx_cache_count(),
+            balance1, balance2, balance3);
+
+    dap_chain_wallet_close(wallet_bliss);
+    dap_chain_wallet_close(wallet_bliss2);
+    dap_chain_wallet_close(wallet_picnic);
+    dap_chain_wallet_close(wallet_tesla);
     set_reply_text(str_reply, "com_tx_create ok");
     return 0;
+
+    /*/dap_chain_datum_tx_vefify(l_tx);
+
+     char *addr_w_tesla = "ad8VdHszE1zxS2SDFsvTsmQVBh1G7exkvPy6DiUtjzpgiGY82iMaWeP83K6Euh9fih2G3WN1E6SpfWdCfxA7yjyTu3yrw";
+     char *addr_w_picnic =
+     "ad8VdHszE1zx5WVKbKugtuBAimU3QT5FCnWMKKaYpMmeRwTwTNULiM7eyYiBskEG9LSN5NCp5roadQtCXe4caJqKPcWiB";
+     char *addr_w_bliss = "ad8VdHszE1zx5UAFyPFYryPdMiXPMeQDL5gy6jUztE6NJsTN4idtU4xtKHkknXBYfoXQUJDUYHkL5B2QDgyisdQ715hnF";
+     const dap_chain_addr_t *addr = dap_chain_wallet_get_addr(wallet);
+
+
+     dap_chain_datum_tx_t *l_tx_tmp = dap_chain_node_datum_tx_cache_find_by_pkey(l_key->pub_key_data,
+     l_key->pub_key_data_size, NULL);
+
+     char *addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) addr);
+     const dap_chain_addr_t *addr2 = dap_chain_str_to_addr(addr_str);
+     char *addr_str2 = dap_chain_addr_to_str(addr2);
+     free(addr_str);
+     free(addr_str2);
+
+     if(wallet) {
+     if(dap_chain_wallet_get_certs_number(wallet) > 0) {
+     dap_chain_pkey_t *pk0 = dap_chain_wallet_get_pkey(wallet, 0);
+     dap_enc_key_t *a_key = dap_chain_wallet_get_key(wallet, 0);
+     //dap_enc_key_t *a_key1 = dap_chain_wallet_get_key(wallet, 0);
+     //dap_enc_key_t *a_key2 = dap_chain_wallet_get_key(wallet2, 0);
+
+     int res = dap_chain_datum_tx_add_item(&l_tx, l_tx_item_in);
+     int res1 = dap_chain_datum_tx_add_sign(&l_tx, a_key);
+     int res2 = dap_chain_datum_tx_add_sign(&l_tx, a_key);
+     int res3 = dap_chain_datum_tx_verify_sign(l_tx);
+     res3 = 0;
+     }
+     dap_chain_wallet_close(wallet);
+     DAP_DELETE(l_tx);
+     }
+     set_reply_text(str_reply, "com_tx_create ok");
+     return 0;*/
 }
 
 /**

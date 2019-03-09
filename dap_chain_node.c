@@ -38,8 +38,8 @@ dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_shard_id_t *shard_id)
     if(!shard_id)
         return NULL;
     dap_chain_node_addr_t *a_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-    dap_chain_hash_t a_hash;
-    dap_hash(shard_id, sizeof(dap_chain_shard_id_t), a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_KECCAK);
+    dap_chain_hash_fast_t a_hash;
+    dap_hash_fast(shard_id, sizeof(dap_chain_shard_id_t), &a_hash);
     // first 4 bytes is last 4 bytes of shard id hash
     memcpy(a_addr->raw, a_hash.raw + sizeof(a_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
     // last 4 bytes is random

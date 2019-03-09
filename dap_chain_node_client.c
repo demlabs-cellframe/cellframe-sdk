@@ -129,6 +129,7 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *no
         return NULL;
     }
     dap_client_set_uplink( l_node_client->client, strdup(host), listen_port_tcp );
+//    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
     dap_client_stage_t a_stage_target = STAGE_STREAM_STREAMING;
 
     l_node_client->state = NODE_CLIENT_STATE_CONNECT;
