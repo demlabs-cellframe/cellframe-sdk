@@ -186,8 +186,8 @@ size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out)
         memset(a_out, '1', zcount);
     for (i = zcount; j < (ssize_t)size; ++i, ++j)
         a_out[i] = c_b58digits_ordered[buf[j]];
-    a_out[i+zcount] = '\0';
-    l_out_size = i + 1;
+    a_out[i] = '\0';
+    l_out_size = i;
 
     return l_out_size;
 }
