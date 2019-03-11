@@ -102,7 +102,6 @@ int dap_common_init(const char * a_log_file)
         s_log_file = fopen(a_log_file , "a");
         if(s_log_file == NULL) {
             fprintf(stderr,"Can't open log file %s to append\n", a_log_file);
-            s_log_file=stdout;
             return -1;
         }
     }
