@@ -248,7 +248,6 @@ static void* thread_worker_function(void *arg)
     }
 #endif
 
-    log_it(L_INFO, "Worker %d started, epoll fd %d", w->number_thread, w->epoll_fd);
     struct epoll_event ev, events[MAX_EPOLL_EVENTS];
     memzero(&ev,sizeof(ev));
     memzero(&events,sizeof(events));
@@ -260,6 +259,7 @@ static void* thread_worker_function(void *arg)
         abort();
     }
 #endif
+    log_it(L_INFO, "Worker 0x%x %d started, epoll fd %d timerfd %d", w, w->number_thread, w->epoll_fd, timerfd);
 
     struct itimerspec timerValue;
     memzero(&timerValue, sizeof(timerValue));
@@ -284,7 +284,7 @@ static void* thread_worker_function(void *arg)
     size_t total_sent; int bytes_sent;
     while(1) {
         int selected_sockets = epoll_wait(w->epoll_fd, events, MAX_EPOLL_EVENTS, -1);
-    //    log_it(INFO, "Epoll pwait trigered worker %d", w->number_worker);
+        //log_it(L_INFO, "Epoll pwait trigered worker %d", w->number_thread);
         for(int n = 0; n < selected_sockets; n++) {
 #ifndef  NO_TIMER
             if (events[n].data.fd == timerfd) {
@@ -295,13 +295,14 @@ static void* thread_worker_function(void *arg)
             } else
 #endif
             if (  ( cur = dap_events_socket_find(events[n].data.fd, w->events) ) != NULL  ) {
+                log_it(L_DEBUG, "Epoll event n=%d/%d fd=%d events=%d cur=%d", n, selected_sockets, events[n].data.fd, events[n].events, cur);
                 if( events[n].events & EPOLLERR ) {
                     log_it(L_ERROR,"Socket error: %s",strerror(errno));
                     cur->signal_close=true;
                     cur->callbacks->error_callback(cur,NULL); // Call callback to process error event
                 } else {
                     if( events[n].events & EPOLLIN ) {
-                        //log_it(DEBUG,"Comes connection in active read set");
+                        log_it(L_DEBUG,"Comes connection in active read set");
                         if(cur->buf_in_size == sizeof(cur->buf_in))
                         {
                             log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped!");
@@ -314,7 +315,7 @@ static void* thread_worker_function(void *arg)
 
                         if(bytes_read > 0) {
                             cur->buf_in_size += bytes_read;
-                            //log_it(DEBUG, "Received %d bytes", bytes_read);
+                            log_it(L_DEBUG, "Received %d bytes", bytes_read);
                             cur->callbacks->read_callback(cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
 
                         } else if(bytes_read < 0) {
@@ -329,7 +330,7 @@ static void* thread_worker_function(void *arg)
                     // Socket is ready to write
                     if( ( events[n].events & EPOLLOUT  ||  cur->_ready_to_write  )
                             &&  ( !cur->signal_close )  ) {
-                        ///log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
+                        //log_it(L_DEBUG, "Main loop output: %u bytes to send", cur->buf_out_size);
                         cur->callbacks->write_callback(cur, NULL); // Call callback to process write event
 
                         if(cur->_ready_to_write)
@@ -362,10 +363,10 @@ static void* thread_worker_function(void *arg)
                                 break;
                             }
                             total_sent+= bytes_sent;
-                            //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,sa_cur->buf_out_size);
+                            //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,cur->buf_out_size);
                         }
 
-                        //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
+                        log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
                         cur->buf_out_size = 0;
                     }
                 }
@@ -480,7 +481,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket)
     struct epoll_event ev = {0};
     dap_worker_t *l_worker =dap_worker_get_min();
 
-    ev.events = EPOLLIN | EPOLLERR | EPOLLOUT;
+    ev.events = EPOLLIN | EPOLLERR;// | EPOLLOUT;
     ev.data.fd = a_events_socket->socket;
 
 

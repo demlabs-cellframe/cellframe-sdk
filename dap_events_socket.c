@@ -68,7 +68,7 @@ void dap_events_socket_deinit()
 dap_events_socket_t * dap_events_socket_wrap_no_add( dap_events_t * a_events,
                                             int a_sock, dap_events_socket_callbacks_t * a_callbacks)
 {
-    assert(a_events);
+    //assert(a_events);
     assert(a_callbacks);
     log_it(L_DEBUG,"Dap event socket wrapped around %d sock", a_sock);
     dap_events_socket_t * ret = DAP_NEW_Z(dap_events_socket_t);
@@ -88,12 +88,21 @@ void dap_events_socket_create_after(dap_events_socket_t * a_es)
     if(a_es->callbacks->new_callback)
         a_es->callbacks->new_callback(a_es,NULL); // Init internal structure
 
+/*
     pthread_rwlock_wrlock(&a_es->events->sockets_rwlock);
     a_es->last_ping_request = time(NULL);
     HASH_ADD_INT(a_es->events->sockets, socket, a_es);
     pthread_rwlock_unlock(&a_es->events->sockets_rwlock);
 
     dap_worker_add_events_socket(a_es);
+*/
+    dap_worker_add_events_socket(a_es);
+
+    a_es->events = a_es->dap_worker->events;
+    pthread_rwlock_wrlock(&a_es->events->sockets_rwlock);
+    a_es->last_ping_request = time(NULL);
+    HASH_ADD_INT(a_es->events->sockets, socket, a_es);
+    pthread_rwlock_unlock(&a_es->events->sockets_rwlock);
 }
 
 /**
