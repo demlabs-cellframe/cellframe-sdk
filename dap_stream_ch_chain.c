@@ -50,10 +50,10 @@ typedef struct dap_stream_ch_chain {
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
 
-void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
-void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
-void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
-void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
+static void s_stream_ch_new(dap_stream_ch_t* a_ch , void* a_arg);
+static void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg);
+static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg);
+static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg);
 /**
  * @brief dap_stream_ch_chain_init
  * @return
@@ -79,7 +79,7 @@ void dap_stream_ch_chain_deinit()
  * @param a_ch
  * @param arg
  */
-void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
+void s_stream_ch_new(dap_stream_ch_t* a_ch , void* a_arg)
 {
     a_ch->internal=DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
@@ -92,7 +92,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
  * @param ch
  * @param arg
  */
-void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg)
+void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
 {
 
 }
@@ -131,7 +131,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
  * @param ch
  * @param arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg)
+void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
 
 }
