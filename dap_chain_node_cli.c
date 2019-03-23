@@ -76,6 +76,7 @@ static const COMMAND commands[] =
                 "tracepath host" },
             { "help", com_help, "Description of command parameters", "" },
             { "?", com_help, "Synonym for 'help'", "" },
+            { "wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]" },
             { "tx_create", com_tx_create, "Make transaction",
                 "tx_create from <addr> to <addr> value <val> [fee <addr> value_fee <val>]" },
             { "tx_verify", com_tx_verify, "Verifing transaction",
