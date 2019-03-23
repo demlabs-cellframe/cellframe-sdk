@@ -21,7 +21,8 @@
 
 #pragma once
 
-#define KEEPALIVE_PACKET 0x11
+#define STREAM_CH_PKT_TYPE_REQUEST      0x0
+#define STREAM_CH_PKT_TYPE_KEEPALIVE    0x11
 
 #include <stdint.h>
 #include <stddef.h>
@@ -41,10 +42,10 @@ typedef struct dap_stream_ch_pkt{
     uint8_t data[];
 } __attribute__((packed)) dap_stream_ch_pkt_t;
 
-int stream_ch_pkt_init();
-void stream_ch_pkt_deinit();
+int dap_stream_ch_pkt_init();
+void dap_stream_ch_pkt_deinit();
 
-size_t stream_ch_pkt_write_f(struct dap_stream_ch * ch, uint8_t type, const char * str,...);
-size_t stream_ch_pkt_write(struct dap_stream_ch * ch,  uint8_t type, const void * data, uint32_t data_size);
+size_t dap_stream_ch_pkt_write_f(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...);
+size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, uint32_t a_data_size);
 
-size_t stream_ch_send_keepalive(struct dap_stream_ch * ch);
+size_t dap_stream_ch_send_keepalive(struct dap_stream_ch * a_ch);

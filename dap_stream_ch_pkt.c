@@ -38,13 +38,13 @@
  * @brief stream_ch_pkt_init
  * @return Zero if ok
  */
-int stream_ch_pkt_init()
+int dap_stream_ch_pkt_init()
 {
 
     return 0;
 }
 
-void stream_ch_pkt_deinit()
+void dap_stream_ch_pkt_deinit()
 {
 
 }
@@ -57,33 +57,33 @@ void stream_ch_pkt_deinit()
  * @param data_size
  * @return
  */
-size_t stream_ch_pkt_write(struct dap_stream_ch * ch,  uint8_t type, const void * data, uint32_t data_size)
+size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, uint32_t a_data_size)
 {
-    pthread_mutex_lock( &ch->mutex);
+    pthread_mutex_lock( &a_ch->mutex);
 
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 
-    dap_stream_ch_pkt_hdr_t hdr;
+    dap_stream_ch_pkt_hdr_t l_hdr;
 
-    memset(&hdr,0,sizeof(hdr));
-    hdr.id = ch->proc->id;
-    hdr.size=data_size;
-    hdr.type=type;
-    hdr.enc_type = ch->proc->enc_type;
-    hdr.seq_id=ch->stream->seq_id;
-    ch->stream->seq_id++;
+    memset(&l_hdr,0,sizeof(l_hdr));
+    l_hdr.id = a_ch->proc->id;
+    l_hdr.size=a_data_size;
+    l_hdr.type=a_type;
+    l_hdr.enc_type = a_ch->proc->enc_type;
+    l_hdr.seq_id=a_ch->stream->seq_id;
+    a_ch->stream->seq_id++;
 
-    if(data_size+sizeof(hdr)> sizeof(ch->buf) ){
-        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",data_size,sizeof(ch->buf));
-        data_size=sizeof(ch->buf)-sizeof(hdr);
+    if(a_data_size+sizeof(l_hdr)> sizeof(a_ch->buf) ){
+        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu", a_data_size, sizeof(a_ch->buf));
+        a_data_size=sizeof(a_ch->buf)-sizeof(l_hdr);
     }
-    memcpy(ch->buf,&hdr,sizeof(hdr) );
-    memcpy(ch->buf+sizeof(hdr),data,data_size );
+    memcpy(a_ch->buf,&l_hdr,sizeof(l_hdr) );
+    memcpy(a_ch->buf+sizeof(l_hdr),a_data,a_data_size );
 
-    size_t ret=dap_stream_pkt_write(ch->stream,ch->buf,data_size+sizeof(hdr));
-    ch->stat.bytes_write+=data_size;
-    pthread_mutex_unlock( &ch->mutex);
-    return ret;
+    size_t l_ret=dap_stream_pkt_write(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
+    a_ch->stat.bytes_write+=a_data_size;
+    pthread_mutex_unlock( &a_ch->mutex);
+    return l_ret;
 
 }
 
@@ -93,14 +93,14 @@ size_t stream_ch_pkt_write(struct dap_stream_ch * ch,  uint8_t type, const void 
  * @param str
  * @return
  */
-size_t stream_ch_pkt_write_f(struct dap_stream_ch * ch, uint8_t type, const char * str,...)
+size_t dap_stream_ch_pkt_write_f(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...)
 {
-    char buf[4096];
+    char l_buf[4096];
     va_list ap;
-    va_start(ap,str);
-    vsnprintf(buf,sizeof(buf),str,ap);
+    va_start(ap,a_str);
+    vsnprintf(l_buf,sizeof(l_buf),a_str,ap);
     va_end(ap);
-    size_t ret=stream_ch_pkt_write(ch,type,buf,strlen(buf));
+    size_t ret=dap_stream_ch_pkt_write(a_ch,a_type,l_buf,strlen(l_buf));
     return ret;
 }
 
@@ -109,21 +109,22 @@ size_t stream_ch_pkt_write_f(struct dap_stream_ch * ch, uint8_t type, const char
  * @param ch
  * @return
  */
-size_t stream_ch_send_keepalive(struct dap_stream_ch * ch){
-    pthread_mutex_lock( &ch->mutex);
+size_t dap_stream_ch_send_keepalive(struct dap_stream_ch * a_ch)
+{
+    pthread_mutex_lock( &a_ch->mutex);
 
-    dap_stream_ch_pkt_hdr_t hdr;
+    dap_stream_ch_pkt_hdr_t l_hdr;
 
-    memset(&hdr,0,sizeof(hdr));
-    hdr.id = ch->proc->id;
-    hdr.size=0;
-    hdr.type=KEEPALIVE_PACKET;
-    hdr.enc_type = ch->proc->enc_type;
-    hdr.seq_id=0;
+    memset(&l_hdr,0,sizeof(l_hdr));
+    l_hdr.id = a_ch->proc->id;
+    l_hdr.size=0;
+    l_hdr.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
+    l_hdr.enc_type = a_ch->proc->enc_type;
+    l_hdr.seq_id=0;
 
-    memcpy(ch->buf,&hdr,sizeof(hdr) );
+    memcpy(a_ch->buf,&l_hdr,sizeof(l_hdr) );
 
-    size_t ret=dap_stream_pkt_write(ch->stream,ch->buf,sizeof(hdr));
-    pthread_mutex_unlock( &ch->mutex);
-    return ret;
+    size_t l_ret=dap_stream_pkt_write(a_ch->stream,a_ch->buf,sizeof(l_hdr));
+    pthread_mutex_unlock( &a_ch->mutex);
+    return l_ret;
 }

@@ -40,7 +40,7 @@ int dap_stream_ch_init()
         log_it(L_CRITICAL,"Can't init stream channel proc submodule");
         return -1;
     }
-    if(stream_ch_pkt_init() != 0 ){
+    if(dap_stream_ch_pkt_init() != 0 ){
         log_it(L_CRITICAL,"Can't init stream channel packet submodule");
         return -1;
     }
@@ -98,7 +98,6 @@ void dap_stream_ch_delete(dap_stream_ch_t*ch)
     //free(ch);
 }
 
-
 void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
@@ -109,8 +108,12 @@ void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
         if(ch->stream->conn_udp)
             dap_udp_client_ready_to_write(ch->stream->conn,is_ready);
-        else
+        // for stream server
+        else if(ch->stream->conn)
             dap_client_remote_ready_to_write(ch->stream->conn,is_ready);
+        // for stream client
+        else if(ch->stream->events_socket)
+            dap_events_socket_set_writable(ch->stream->events_socket, is_ready);
     }
     pthread_mutex_unlock(&ch->mutex);
 }
