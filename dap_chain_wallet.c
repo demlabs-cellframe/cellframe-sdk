@@ -222,6 +222,10 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
 dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
 {
     FILE * l_file = fopen( a_file_name ,"rb");
+    if(!l_file){
+        log_it(L_WARNING,"Can't open wallet file %s",a_file_name);
+        return NULL;
+    }
     fseek(l_file, 0L, SEEK_END);
     uint64_t l_file_size = ftell(l_file);
     rewind(l_file);
@@ -297,6 +301,8 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
  */
 dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path)
 {
+    if(!a_wallet_name || !a_wallets_path)
+        return NULL;
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     char *l_file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
     snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
