@@ -102,7 +102,8 @@ dap_chain_addr_t* dap_chain_str_to_addr(const char *a_str)
         return NULL;
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t * l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
-    if(dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t))
+    if(dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) &&
+            dap_chain_addr_check_sum(l_addr)==1)
         return l_addr;
     else
         DAP_DELETE(l_addr);
