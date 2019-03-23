@@ -76,7 +76,14 @@ int com_help(int argc, const char ** argv, char **str_reply);
 /**
  * com_tx_create command
  *
- * Signing transaction
+ * Wallet info
+ */
+int com_tx_wallet(int argc, const char ** argv, char **str_reply);
+
+/**
+ * com_tx_create command
+ *
+ * Create transaction
  */
 int com_tx_create(int argc, const char ** argv, char **str_reply);
 

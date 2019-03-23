@@ -33,8 +33,10 @@ enum {
     NODE_CLIENT_STATE_INIT,
     NODE_CLIENT_STATE_CONNECT,
     NODE_CLIENT_STATE_CONNECTED,
-    NODE_CLIENT_STATE_SEND,
-    NODE_CLIENT_STATE_SENDED,
+    //NODE_CLIENT_STATE_SEND,
+    //NODE_CLIENT_STATE_SENDED,
+    NODE_CLIENT_STATE_PING,
+    NODE_CLIENT_STATE_PONG,
     NODE_CLIENT_STATE_END
 };
 
@@ -71,6 +73,12 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *no
  * Close connection to server, delete chain_node_client_t *client
  */
 void dap_chain_node_client_close(dap_chain_node_client_t *client);
+
+/**
+ * Send stream request to server
+ */
+int dap_chain_node_client_send_chain_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id,
+        char *a_buf, size_t a_buf_size);
 
 /**
  * wait for the complete of request

@@ -46,6 +46,8 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_cache.h"
 
+#include "dap_stream_ch_chain_net.h"
+
 // Max and min macros
 #define max(a,b)              ((a) > (b) ? (a) : (b))
 #define min(a,b)              ((a) < (b) ? (a) : (b))
@@ -668,7 +670,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
 int com_node(int argc, const char ** argv, char **str_reply)
 {
     enum {
-        CMD_NONE, CMD_ALIAS, CMD_HANDSHAKE
+        CMD_NONE, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -676,6 +678,9 @@ int com_node(int argc, const char ** argv, char **str_reply)
 // find  add parameter ('alias' or 'handshake')
     if(find_option_val(argv, arg_index, min(argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
+    }
+    else if(find_option_val(argv, arg_index, min(argc, arg_index + 1), "connect", NULL)) {
+        cmd_num = CMD_CONNECT;
     }
     else if(find_option_val(argv, arg_index, min(argc, arg_index + 1), "alias", NULL)) {
         cmd_num = CMD_ALIAS;
@@ -718,9 +723,8 @@ int com_node(int argc, const char ** argv, char **str_reply)
         }
 
         break;
-
-        // make handshake
-    case CMD_HANDSHAKE:
+        // make connect
+    case CMD_CONNECT: {
         // get address from alias if addr not defined
         if(alias_str && !address.uint64) {
             dap_chain_node_addr_t *address_tmp = get_name_by_alias(alias_str);
@@ -740,9 +744,72 @@ int com_node(int argc, const char ** argv, char **str_reply)
 
         dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
         if(!node_info) {
+            set_reply_text(str_reply, "node by addr not found");
             return -1;
         }
-        int timeout_ms = 10000; //10 sec.
+        int timeout_ms = 1000000; //10 sec = 10000 ms
+        // start connect
+        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+        if(!client) {
+            set_reply_text(str_reply, "can't connect");
+            DAP_DELETE(node_info);
+            return -1;
+        }
+        // wait connected
+        int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+        if(res != 1) {
+            set_reply_text(str_reply, "no response from node");
+            // clean client struct
+            dap_chain_node_client_close(client);
+            DAP_DELETE(node_info);
+            return -1;
+        }
+
+        // send request
+        uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
+        res = dap_chain_node_client_send_chain_request(client, l_ch_id, "start", 5); //, NULL);
+        if(res != 1) {
+            set_reply_text(str_reply, "no response from node(send request)");
+            // clean client struct
+            dap_chain_node_client_close(client);
+            DAP_DELETE(node_info);
+            return -1;
+        }
+
+        // wait for finishing of request
+        res = chain_node_client_wait(client, NODE_CLIENT_STATE_PONG, timeout_ms);
+        DAP_DELETE(node_info);
+        dap_client_disconnect(client->client);
+        dap_chain_node_client_close(client);
+
+        set_reply_text(str_reply, "getting pong");
+    }
+        break;
+        // make handshake
+    case CMD_HANDSHAKE: {
+        // get address from alias if addr not defined
+        if(alias_str && !address.uint64) {
+            dap_chain_node_addr_t *address_tmp = get_name_by_alias(alias_str);
+            if(address_tmp) {
+                memcpy(&address, address_tmp, sizeof(address_tmp));
+                DAP_DELETE(address_tmp);
+            }
+            else {
+                set_reply_text(str_reply, "no address found by alias");
+                return -1;
+            }
+        }
+        if(!address.uint64) {
+            set_reply_text(str_reply, "addr not found");
+            return -1;
+        }
+
+        dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
+        if(!node_info) {
+            set_reply_text(str_reply, "node by addr not found");
+            return -1;
+        }
+        int timeout_ms = 10000; //10 sec = 10000 ms
         // start handshake
         dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
         if(!client) {
@@ -775,6 +842,7 @@ int com_node(int argc, const char ** argv, char **str_reply)
             return -1;
         }
         set_reply_text(str_reply, "connection established");
+    }
         break;
     }
     return 0;
@@ -919,17 +987,29 @@ int com_tracepath(int argc, const char** argv, char **str_reply)
  */
 int com_ping(int argc, const char** argv, char **str_reply)
 {
-    const char *addr = NULL;
     int n = 4;
-    if(argc > 1)
-        addr = argv[1];
+    if(argc < 2) {
+        set_reply_text(str_reply, "host not specified");
+        return -1;
+    }
     const char *n_str = NULL;
-    if(find_option_val(argv, 2, argc, "-n", &n_str))
+    int argc_host = 1;
+    int argc_start = 1;
+    argc_start = find_option_val(argv, argc_start, argc, "-n", &n_str);
+    if(argc_start) {
+        argc_host = argc_start + 1;
         n = (n_str) ? atoi(n_str) : 4;
-    else if(find_option_val(argv, 2, argc, "-c", &n_str))
-        n = (n_str) ? atoi(n_str) : 4;
+    }
+    else {
+        argc_start = find_option_val(argv, argc_start, argc, "-c", &n_str);
+        if(argc_start) {
+            argc_host = argc_start + 1;
+            n = (n_str) ? atoi(n_str) : 4;
+        }
+    }
     if(n <= 1)
         n = 1;
+    const char *addr = argv[argc_host];
     iputils_set_verbose();
     int res = (addr) ? ping_util(addr, n) : -EADDRNOTAVAIL;
     if(res >= 0) {
@@ -984,7 +1064,103 @@ int com_help(int argc, const char ** argv, char **str_reply)
 /**
  * com_tx_create command
  *
- * Signing transaction
+ * Wallet info
+ */
+int com_tx_wallet(int argc, const char ** argv, char **str_reply)
+{
+    const char *c_wallets_path = "/opt/kelvin-node/etc";
+    // Get address of wallet
+    enum {
+        CMD_NONE, CMD_WALLET_LIST, CMD_WALLET_INFO
+    };
+    int arg_index = 1;
+    int cmd_num = CMD_NONE;
+    const char *cmd_str = NULL;
+    // find  add parameter ('alias' or 'handshake')
+    if(find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", NULL)) {
+        cmd_num = CMD_WALLET_LIST;
+    }
+    else if(find_option_val(argv, arg_index, min(argc, arg_index + 1), "info", NULL)) {
+        cmd_num = CMD_WALLET_INFO;
+    }
+    arg_index++;
+    if(cmd_num == CMD_NONE) {
+        set_reply_text(str_reply, "format of command: wallet [list | info -addr <addr> -w <wallet_name>]");
+        return -1;
+    }
+
+    dap_chain_node_addr_t address;
+    memset(&address, 0, sizeof(dap_chain_node_addr_t));
+    const char *addr_str = NULL, *wallet_name = NULL;
+    // find wallet addr
+    find_option_val(argv, arg_index, argc, "-addr", &addr_str);
+    find_option_val(argv, arg_index, argc, "-w", &wallet_name);
+
+    GString *l_string_ret = g_string_new(NULL);
+    switch (cmd_num) {
+    // wallet list
+    case CMD_WALLET_LIST: {
+        GDir *l_dir = g_dir_open(c_wallets_path, 0, NULL);
+        if(l_dir) {
+            const char *l_file = NULL;
+            do {
+                l_file = g_dir_read_name(l_dir);
+                int l_file_len = (l_file) ? strlen(l_file) : 0;
+                if(l_file_len > 8 && !g_strcmp0(l_file + l_file_len - 8, ".dwallet")) {
+                    char *l_file_path_tmp = g_strdup_printf("%s/%s", c_wallets_path, l_file);
+                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
+                    if(l_wallet) {
+                        dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+                        char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+                        g_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
+                        g_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+                        DAP_DELETE(l_addr_str);
+                        dap_chain_wallet_close(l_wallet);
+                    }
+                    g_free(l_file_path_tmp);
+                }
+            }
+            while(l_file);
+            g_dir_close(l_dir);
+        }
+    }
+        break;
+
+        // wallet info
+    case CMD_WALLET_INFO: {
+        dap_chain_wallet_t *l_wallet = NULL;
+        if(wallet_name)
+            l_wallet = dap_chain_wallet_open(wallet_name, c_wallets_path);
+        if(l_wallet) {
+            dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+            char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+            uint64_t balance = dap_chain_datum_tx_cache_calc_balance(l_addr);
+            g_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
+            g_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+            g_string_append_printf(l_string_ret, "balance: %lld\n", balance);
+            DAP_DELETE(l_addr_str);
+            dap_chain_wallet_close(l_wallet);
+        }
+        else {
+            g_string_free(l_string_ret, TRUE);
+            set_reply_text(str_reply, "wallet not found");
+            return -1;
+        }
+    }
+        break;
+    }
+
+    char *l_str_ret_tmp = g_string_free(l_string_ret, FALSE);
+    char *str_ret = strdup(l_str_ret_tmp);
+    set_reply_text(str_reply, str_ret);
+    g_free(l_str_ret_tmp);
+    return 0;
+}
+
+/**
+ * com_tx_create command
+ *
+ * Create transaction
  */
 int com_tx_create(int argc, const char ** argv, char **str_reply)
 {
@@ -1024,27 +1200,32 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         return -1;
     }
 
-    const char *a_wallets_path = "/opt/kelvin-node/etc";
+    const char *c_wallets_path = "/opt/kelvin-node/etc";
     const char *a_wallet_name_bliss = "w_bliss";
     const char *a_wallet_name_bliss2 = "w_bliss2";
     const char *a_wallet_name_picnic = "w_picnic";
     const char *a_wallet_name_tesla = "w_tesla";
 
-    dap_chain_wallet_t *wallet_bliss = dap_chain_wallet_open(a_wallet_name_bliss, a_wallets_path);
-    dap_chain_wallet_t *wallet_bliss2 = dap_chain_wallet_open(a_wallet_name_bliss2, a_wallets_path);
-    dap_chain_wallet_t *wallet_picnic = dap_chain_wallet_open(a_wallet_name_picnic, a_wallets_path);
-    //dap_chain_wallet_t *wallet_tesla = dap_chain_wallet_open(a_wallet_name_tesla, a_wallets_path);
+    dap_chain_wallet_t *wallet_bliss = dap_chain_wallet_open(a_wallet_name_bliss, c_wallets_path);
+    dap_chain_wallet_t *wallet_bliss2 = dap_chain_wallet_open(a_wallet_name_bliss2, c_wallets_path);
+    dap_chain_wallet_t *wallet_picnic = dap_chain_wallet_open(a_wallet_name_picnic, c_wallets_path);
+    dap_chain_wallet_t *wallet_tesla = dap_chain_wallet_open(a_wallet_name_tesla, c_wallets_path);
     dap_enc_key_t *l_key_bliss = dap_chain_wallet_get_key(wallet_bliss, 0);
     dap_enc_key_t *l_key_bliss2 = dap_chain_wallet_get_key(wallet_bliss2, 0);
     dap_enc_key_t *l_key_picnic = dap_chain_wallet_get_key(wallet_picnic, 0);
-    //dap_enc_key_t *l_key_tesla = dap_chain_wallet_get_key(wallet_tesla, 0);
+    dap_enc_key_t *l_key_tesla = dap_chain_wallet_get_key(wallet_tesla, 0);
 
     char *addr_w_bliss =
-            "EXh66KVCxChbKHQcTWKYJXhua6HVZecpxuTTmWGuqm1V4vy5mVq52wD8rMQvfUnmJHsL4MuoJ7YVSFqn2RrdoN19mqHP1aQXSQPnXDR6oP9vsBPwYC9PhSvAxFystX";
+            //"EXh66KVCxChbKHQcTWKYJXhua6HVZecpxuTTmWGuqm1V4vy5mVq52wD8rMQvfUnmJHsL4MuoJ7YVSFqn2RrdoN19mqHP1aQXSQPnXDR6oP9vsBPwYC9PhSvAxFystX";
+            "EXh66KVCxChbKHQcSCRnMTByuFRDU2UsZUViPz2BoUAEYYWPfu8WhHhqX9HSyL3U3Q54JvJoKRZhRtumsAVNV6j8pzgtZDkkwzLgHBCAQHcG2FaSwCxESjkCYkgHUo";
     char *addr_w_bliss2 =
-            "EXh66KVCxChbKHQcTeGf8TT7KhcCiiQ9TrPn6rcbNoNKuhAyJ4T9zr5yMfMCXGLVHmxVKZ6J4E9Zc7pNmAa4yrKNb3DkS34jxD6Q4MCXbHJMAPFEVtMoDdFMtCysE2";
+            //"EXh66KVCxChbKHQcTeGf8TT7KhcCiiQ9TrPn6rcbNoNKuhAyJ4T9zr5yMfMCXGLVHmxVKZ6J4E9Zc7pNmAa4yrKNb3DkS34jxD6Q4MCXbHJMAPFEVtMoDdFMtCysE2";
+            "EXh66KVCxChbKHQcSx27VwwbUnT2rRGNDBJm6zdC3DQw8XWtHqHrpoc9NEVd6Ub5rdFosQiXgWc5VhiNoySB6T4E49LMhMnLhr9sMSVqRr7Mix4bPrPEZXsYnNLzeX";
     char *addr_w_picnic =
-            "EXh66KVCxChbKJLxZbyNJLxfF8CfGZmdenQWuqtr8MnXavhJaLo6vckjpYgpcevBo3zB65sAGQJT3ctYVwQnASc6sYyaawFHnacsrcP47PB4XfLYiEDZvwog4AVdbC";
+            //"EXh66KVCxChbKJLxZbyNJLxfF8CfGZmdenQWuqtr8MnXavhJaLo6vckjpYgpcevBo3zB65sAGQJT3ctYVwQnASc6sYyaawFHnacsrcP47PB4XfLYiEDZvwog4AVdbC";
+            "EXh66KVCxChbKJLxXTwipYMooUpoGvpwpkcjpmGLbubwzqR2vVsH9HEgT2LcU2hDs2BTFkaNC8itE8nuCWxskVtRJG4iaubBDcRWAt2awtCVHAULffQGrwe8ocRCzS";
+    char *addr_w_tesla =
+            "EXh66KVCxChbTZ9umzb4Y6nJcMti8DPUdrsE1V4adjoKyPG3VvyrzHh6wrP6wGERLq9Qj5qK4hMEjd6uidcbsSSpzKQuADC2g1DzYkCCcitAs2Nsxk4dhespDdximc";
 
     dap_chain_wallet_t *l_wallet;
     dap_enc_key_t *l_key;
@@ -1057,7 +1238,7 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         l_key = l_key_bliss2;
     }
     else if(!strcmp(addr_base58_from, addr_w_picnic)) {
-        l_wallet = l_key_picnic;
+        l_wallet = wallet_picnic;
         l_key = l_key_picnic;
     }
     if(!l_wallet || !l_key) {
@@ -1068,6 +1249,33 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     dap_chain_addr_t *addr_from = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
     dap_chain_addr_t *addr_to = dap_chain_str_to_addr(addr_base58_to);
     dap_chain_addr_t *addr_fee = dap_chain_str_to_addr(addr_base58_fee);
+
+    if(!addr_from) {
+        set_reply_text(str_reply, "source address is invalid");
+        return -1;
+    }
+    if(!addr_to) {
+        set_reply_text(str_reply, "destination address is invalid");
+        return -1;
+    }
+    if(addr_base58_fee && !addr_fee) {
+        set_reply_text(str_reply, "fee address is invalid");
+        return -1;
+    }
+    /*    dap_chain_addr_t *addr_b2 = (dap_chain_addr_t *) dap_chain_wallet_get_addr(wallet_bliss2);
+     dap_chain_addr_t *addr_p = (dap_chain_addr_t *) dap_chain_wallet_get_addr(wallet_picnic);
+     dap_chain_addr_t *addr_t = (dap_chain_addr_t *) dap_chain_wallet_get_addr(wallet_tesla);
+
+     char *addr_str_b2 = dap_chain_addr_to_str((dap_chain_addr_t*) addr_b2);
+     char *addr_str_p = dap_chain_addr_to_str((dap_chain_addr_t*) addr_p);
+     char *addr_str_t = dap_chain_addr_to_str((dap_chain_addr_t*) addr_t);
+
+     char *addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) addr_from);
+     const dap_chain_addr_t *addr2 = dap_chain_str_to_addr(addr_str);
+     char *addr_str2 = dap_chain_addr_to_str(addr2);
+     int a1 = strcmp(addr_str, addr_str2);
+     int a2 = strcmp(addr_str, addr_w_bliss);
+     int a3 = strcmp(addr_str, addr_w_bliss2);*/
 
     static bool l_first_start = true;
     if(l_first_start)
@@ -1085,7 +1293,8 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_to);
     uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_fee);
     uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_from);
-    g_string_append_printf(string_ret, "balance w1=%lld w2=%lld w3=%lld\n",
+    g_string_append_printf(string_ret, "transactions in cache=%d balance w_from=%lld w_to=%lld w_feee=%lld\n",
+            dap_chain_node_datum_tx_cache_count(),
             balance1, balance2, balance3);
 
     int res = dap_chain_datum_tx_ctrl_create_transfer(l_key, addr_from, addr_to, addr_fee, value, value_fee);
@@ -1095,18 +1304,22 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_from);
         uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_to);
         uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_fee);
-        g_string_append_printf(string_ret, "balance w1=%lld w2=%lld w3=%lld\n",
+        g_string_append_printf(string_ret, "transactions in cache=%d balance w_from=%lld w_to=%lld w_feee=%lld\n",
+                dap_chain_node_datum_tx_cache_count(),
                 balance1, balance2, balance3);
     }
 
     char *str_ret_tmp = g_string_free(string_ret, FALSE);
     char *str_ret = strdup(str_ret_tmp);
     set_reply_text(str_reply, str_ret);
+
     g_free(str_ret_tmp);
+    DAP_DELETE(addr_to);
+    DAP_DELETE(addr_fee);
     dap_chain_wallet_close(wallet_bliss);
     dap_chain_wallet_close(wallet_bliss2);
     dap_chain_wallet_close(wallet_picnic);
-    //dap_chain_wallet_close(wallet_tesla);
+    dap_chain_wallet_close(wallet_tesla);
     return 0;
 }
 
