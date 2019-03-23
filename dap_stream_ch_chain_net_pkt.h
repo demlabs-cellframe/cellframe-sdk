@@ -29,8 +29,15 @@
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
 
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_PING       0x0000
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_PONG       0x0001
+
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_REQUEST                0x00
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_PING                   0x01
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_PONG                   0x02
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_BLOCK                  0x11
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_DATUM                  0x12
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB              0x13
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC 0x14
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_DBG                    0x99
 
 typedef struct stream_ch_chain_net_pkt_hdr{
     dap_chain_net_id_t net_id;
@@ -45,4 +52,7 @@ typedef struct dap_stream_ch_chain_net_pkt{
     dap_stream_ch_chain_net_pkt_hdr_t hdr;
     uint8_t data[];
 } __attribute__((packed)) dap_stream_ch_chain_net_pkt_t;
+
+size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, const void * a_data, uint32_t a_data_size);
+size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, const char *a_str, ...);
 

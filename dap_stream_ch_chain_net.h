@@ -24,5 +24,20 @@
 
 #pragma once
 
+#include <pthread.h>
+#include <stdint.h>
+#include "dap_stream_ch_chain_net_pkt.h"
+
+typedef void (*dap_stream_ch_chain_net_callback_t)(dap_stream_ch_chain_net_pkt_t*, void*);
+
+typedef struct dap_stream_ch_chain_net {
+    pthread_mutex_t mutex;
+    dap_stream_ch_chain_net_callback_t notify_callback;
+    void *notify_callback_arg;
+} dap_stream_ch_chain_net_t;
+
+#define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
+
+uint8_t dap_stream_ch_chain_net_get_id();
 int dap_stream_ch_chain_net_init();
 void dap_stream_ch_chain_net_deinit();
