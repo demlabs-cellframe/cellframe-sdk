@@ -25,9 +25,9 @@
 #define STREAM_PKT_SIZE_MAX 500000
 struct dap_stream;
 
-#define DATA_PACKET 0x00
-#define SERVICE_PACKET 0xff
-#define KEEPALIVE_PACKET 0x11
+#define STREAM_PKT_TYPE_DATA_PACKET 0x00
+#define STREAM_PKT_TYPE_SERVICE_PACKET 0xff
+//#define STREAM_PKT_TYPE_KEEPALIVE 0x11
 
 typedef struct stream_pkt_hdr{
     uint8_t sig[8];  // Signature to find out beginning of the frame

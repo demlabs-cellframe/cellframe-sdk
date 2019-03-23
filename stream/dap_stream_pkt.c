@@ -123,10 +123,14 @@ size_t dap_stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t
         ret+=dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
         ret+=dap_udp_client_write(sid->conn,sid->buf,pkt_hdr.size);
     }
-    else{
+    else if(sid->conn){
         ret+=dap_client_remote_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
         ret+=dap_client_remote_write(sid->conn,sid->buf,pkt_hdr.size);
     }
+    else if(sid->events_socket) {
+        ret += dap_events_socket_write(sid->events_socket, &pkt_hdr, sizeof(pkt_hdr));
+        ret += dap_events_socket_write(sid->events_socket, sid->buf, pkt_hdr.size);
+        }
     return ret;
 }
 
@@ -135,9 +139,10 @@ extern void dap_stream_send_keepalive(struct dap_stream * sid)
 {
     for(int i=0;i<sid->channel_count;i++)
     if(sid->channel[i]->proc){
-        if(sid->channel[i]->proc->id == SERVICE_CHANNEL_ID)
-            stream_ch_send_keepalive(sid->channel[i]);
-            dap_stream_ch_set_ready_to_write(sid->channel[i],true);            
+        if(sid->channel[i]->proc->id == SERVICE_CHANNEL_ID){
+            dap_stream_ch_send_keepalive(sid->channel[i]);
+            dap_stream_ch_set_ready_to_write(sid->channel[i],true);
+        }
     }
 }
 

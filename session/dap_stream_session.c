@@ -91,7 +91,13 @@ dap_stream_session_t * dap_stream_session_id(unsigned int id)
 
 int dap_stream_session_close(unsigned int id)
 {
-    return stream_session_close2(dap_stream_session_id(id));
+    log_it(L_INFO,"Close session id=%d", id);
+    dap_stream_session_t *l_s = dap_stream_session_id(id);
+    if(!l_s) {
+        log_it(L_WARNING, "Session id=%d not found", id);
+        return -1;
+    }
+    return stream_session_close2(l_s);
 }
 
 int stream_session_close2(dap_stream_session_t * s)
