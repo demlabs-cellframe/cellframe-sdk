@@ -55,7 +55,7 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg);
 void stream_dap_new(dap_client_remote_t* sh,void * arg);
 
 // Internal functions
-dap_stream_t * stream_new(dap_http_client_t * sh); // Create new stream
+dap_stream_t * stream_new(dap_http_client_t * a_sh); // Create new stream
 void stream_delete(dap_http_client_t * sh, void * arg);
 
 struct ev_loop *keepalive_loop;
@@ -268,12 +268,12 @@ void check_session(unsigned int id, dap_client_remote_t* cl){
  * @brief stream_new Create new stream instance for HTTP client
  * @return New stream_t instance
  */
-dap_stream_t * stream_new(dap_http_client_t * sh)
+dap_stream_t * stream_new(dap_http_client_t * a_sh)
 {
     dap_stream_t * ret=(dap_stream_t*) calloc(1,sizeof(dap_stream_t));
 
-    ret->conn = sh->client;
-    ret->conn_http=sh;
+    ret->conn = a_sh->client;
+    ret->conn_http=a_sh;
     ret->buf_defrag_size = 0;
     ret->seq_id = 0;
     ret->client_last_seq_id_packet = (size_t)-1;
