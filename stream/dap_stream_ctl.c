@@ -104,11 +104,18 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
     enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
 
     if(dg){
-        if (strcmp(dg->url_path,"socket_forward")==0){
+        size_t l_channels_str_size = sizeof(ss->active_channels);
+        char l_channels_str[l_channels_str_size];
+        if(dg->url_path && strlen(dg->url_path) < 30 &&
+                sscanf(dg->url_path, "stream_ctl,channels=%s", l_channels_str) == 1) {
+            l_new_session = true;
+        }
+        /*if (strcmp(dg->url_path,"socket_forward")==0){
             l_new_session = true;
         }else if (strcmp(dg->url_path,"stream_ctl")==0) {
             l_new_session = true;
-        }else{
+        }*/
+        else{
             log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
             enc_http_delegate_delete(dg);
             *return_code = Http_Status_MethodNotAllowed;
@@ -117,6 +124,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
         if(l_new_session){
 
             ss = dap_stream_session_pure_new();
+            strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
             char *key_str = calloc(1, KEX_KEY_STR_SIZE);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
             ss->key = dap_enc_key_new_generate(s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,

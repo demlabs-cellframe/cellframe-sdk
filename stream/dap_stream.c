@@ -55,7 +55,7 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg);
 void stream_dap_new(dap_client_remote_t* sh,void * arg);
 
 // Internal functions
-dap_stream_t * stream_new(dap_http_client_t * sh); // Create new stream
+dap_stream_t * stream_new(dap_http_client_t * a_sh); // Create new stream
 void stream_delete(dap_http_client_t * sh, void * arg);
 
 struct ev_loop *keepalive_loop;
@@ -154,7 +154,8 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
     log_it(L_DEBUG,"Prepare data stream");
     if(cl_ht->in_query_string[0]){
         log_it(L_INFO,"Query string [%s]",cl_ht->in_query_string);
-        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
+//        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
+        if(sscanf(cl_ht->in_query_string,"session_id=%u",&id)==1){
             dap_stream_session_t * ss=NULL;
             ss=dap_stream_session_id(id);
             if(ss==NULL){
@@ -166,6 +167,12 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
                 if(dap_stream_session_open(ss)==0){ // Create new stream
                     dap_stream_t * sid = stream_new(cl_ht);
                     sid->session=ss;
+                    size_t count_channels = strlen(ss->active_channels);
+                    for(size_t i = 0; i < count_channels; i++) {
+                        dap_stream_ch_new(sid, ss->active_channels[i]);
+                        //sid->channel[i]->ready_to_write = true;
+                    }
+                    ss->create_empty = false;                  
                     if(ss->create_empty){
                         log_it(L_INFO, "Opened stream session with only technical channels");
 
@@ -176,12 +183,12 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
                         cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
                         cl_ht->out_content_ready=true;
                         dap_stream_ch_new(sid,SERVICE_CHANNEL_ID);
-                        dap_stream_ch_new(sid,'t');
+                        //dap_stream_ch_new(sid,'t');
                         stream_states_update(sid);
                         dap_client_remote_ready_to_read(cl_ht->client,true);
                     }else{
                         dap_stream_ch_new(sid,SERVICE_CHANNEL_ID);
-                        dap_stream_ch_new(sid,'g');
+                        //dap_stream_ch_new(sid,'g');
 
                         cl_ht->reply_status_code=200;
                         strcpy(cl_ht->reply_reason_phrase,"OK");
@@ -261,12 +268,12 @@ void check_session(unsigned int id, dap_client_remote_t* cl){
  * @brief stream_new Create new stream instance for HTTP client
  * @return New stream_t instance
  */
-dap_stream_t * stream_new(dap_http_client_t * sh)
+dap_stream_t * stream_new(dap_http_client_t * a_sh)
 {
     dap_stream_t * ret=(dap_stream_t*) calloc(1,sizeof(dap_stream_t));
 
-    ret->conn = sh->client;
-    ret->conn_http=sh;
+    ret->conn = a_sh->client;
+    ret->conn_http=a_sh;
     ret->buf_defrag_size = 0;
     ret->seq_id = 0;
     ret->client_last_seq_id_packet = (size_t)-1;
@@ -396,10 +403,12 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
 {
     bool found_sig=false;
     dap_stream_pkt_t * pkt=NULL;
-    uint8_t * proc_data=  a_stream->conn->buf_in;
+    char *buf_in = (a_stream->conn) ? (char*)a_stream->conn->buf_in : (char*)a_stream->events_socket->buf_in;
+    size_t buf_in_size = (a_stream->conn) ? a_stream->conn->buf_in_size : a_stream->events_socket->buf_in_size;
+    uint8_t * proc_data =  buf_in;//a_stream->conn->buf_in;
     bool proc_data_defrag=false; // We are or not in defrag buffer
     size_t read_bytes_to=0;
-    size_t bytes_left_to_read=a_stream->conn->buf_in_size;
+    size_t bytes_left_to_read = buf_in_size;//a_stream->conn->buf_in_size;
     // Process prebuffered packets or glue defragmented data with the current input
     if(pkt=a_stream->pkt_buf_in){ // Packet signature detected
         if(a_stream->pkt_buf_in_data_size < sizeof(stream_pkt_hdr_t))
@@ -444,7 +453,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
                 stream_proc_pkt_in(a_stream);
             }
         }
-        proc_data=(a_stream->conn->buf_in + a_stream->conn->buf_in_size - bytes_left_to_read);
+        proc_data=(buf_in + buf_in_size - bytes_left_to_read);//proc_data=(a_stream->conn->buf_in + a_stream->conn->buf_in_size - bytes_left_to_read);
 
     }else if( a_stream->buf_defrag_size>0){ // If smth is present in defrag buffer - we glue everything together in it
         if( bytes_left_to_read  > 0){ // If there is smth to process in input buffer
@@ -518,10 +527,10 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
             break;
         }
     }
-    if(!found_sig){
-        //log_it(DEBUG,"Input: Not found signature in the incomming data ( client->buf_in_size = %u   *ret = %u )",
-        //       sh->client->buf_in_size, *ret);
-    }
+    /*if(!found_sig){
+        log_it(L_DEBUG,"Input: Not found signature in the incomming data ( client->buf_in_size = %u   *ret = %u )",
+               sh->client->buf_in_size, *ret);
+    }*/
     if(bytes_left_to_read>0){
         if(proc_data_defrag){
             memmove(a_stream->buf_defrag, proc_data, bytes_left_to_read);
@@ -535,10 +544,8 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     }else if(proc_data_defrag){
         a_stream->buf_defrag_size=0;
     }
-    return a_stream->conn->buf_in_size;
+    return buf_in_size;//a_stream->conn->buf_in_size;
 }
-
-
 
 
 /**
@@ -627,11 +634,13 @@ static bool _detect_loose_packet(dap_stream_t * sid)
  */
 void stream_proc_pkt_in(dap_stream_t * sid)
 {
-    if(sid->pkt_buf_in->hdr.type == DATA_PACKET)
+    if(sid->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_DATA_PACKET)
     {
         dap_stream_ch_pkt_t * ch_pkt = (dap_stream_ch_pkt_t *) sid->buf_pkt_in;
 
-        dap_stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, STREAM_BUF_SIZE_MAX);
+		if(dap_stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, STREAM_BUF_SIZE_MAX)==0){
+            log_it(L_WARNING, "Input: can't decode packet size=%d",sid->pkt_buf_in_data_size);
+        }
 
         _detect_loose_packet(sid);
 
@@ -648,12 +657,12 @@ void stream_proc_pkt_in(dap_stream_t * sid)
             if(ch->proc)
                 if(ch->proc->packet_in_callback)
                     ch->proc->packet_in_callback(ch,ch_pkt);
-            if(ch->proc->id == SERVICE_CHANNEL_ID && ch_pkt->hdr.type == KEEPALIVE_PACKET)
+            if(ch->proc->id == SERVICE_CHANNEL_ID && ch_pkt->hdr.type == STREAM_CH_PKT_TYPE_KEEPALIVE)
                 dap_stream_send_keepalive(sid);
         }else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
         }
-    } else if(sid->pkt_buf_in->hdr.type == SERVICE_PACKET) {
+    } else if(sid->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
         stream_srv_pkt_t * srv_pkt = (stream_srv_pkt_t *)malloc(sizeof(stream_srv_pkt_t));
         memcpy(srv_pkt,sid->pkt_buf_in->data,sizeof(stream_srv_pkt_t));
         uint32_t session_id = srv_pkt->session_id;
