@@ -16,3 +16,9 @@
 [submodule "test/libdap-test"]
 	path = test/libdap-test
 	url = https://github.com/kelvinblockchain/libdap-test
+[submodule "libdap-stream-ch-chain"]
+	path = libdap-stream-ch-chain
+	url = https://github.com/kelvinblockchain//libdap-stream-ch-chain
+[submodule "libdap-server-udp"]
+	path = libdap-server-udp
+	url = https://github.com/kelvinblockchain/libdap-server-udp

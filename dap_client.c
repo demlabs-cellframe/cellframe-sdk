@@ -8,6 +8,7 @@
 #include "dap_http_client.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
+#include "dap_stream_ch_proc.h"
 
 
 
@@ -216,6 +217,11 @@ void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
 {
     (void *) a_arg;
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    if(!l_client_internal){
+        log_it(L_ERROR, "FSM Op: l_client_internal is NULL!");
+        return;
+    }
+
     if (l_client_internal->stage_target == l_client_internal->stage){
         log_it(L_WARNING, "FSM Op: current stage %s is same as target one, nothing to do",
               dap_client_stage_str( l_client_internal->stage ) );
@@ -254,6 +260,12 @@ void dap_client_request_enc(dap_client_t * a_client, const char * a_path, const 
     dap_client_pvt_request_enc(l_client_internal, a_path, a_suburl, a_query,a_request,a_request_size, a_response_proc,a_response_error);
 }
 
+void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
+                                dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error )
+{
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    dap_client_pvt_request(l_client_internal, a_full_path, a_request, a_request_size, a_response_proc, a_response_error);
+}
 
 
 /**
@@ -342,6 +354,7 @@ const char * dap_client_stage_str(dap_client_stage_t a_stage)
         case STAGE_ENC_INIT: return "ENC";
         case STAGE_STREAM_CTL: return "STREAM_CTL";
         case STAGE_STREAM_SESSION: return "STREAM_SESSION";
+        case STAGE_STREAM_CONNECTED: return "STREAM_CONNECTED";
         case STAGE_STREAM_STREAMING: return "STREAM";
         default: return "UNDEFINED";
     }
@@ -367,11 +380,40 @@ dap_enc_key_t * dap_client_get_key_stream(dap_client_t * a_client){
 
 
 /**
+ * @brief dap_client_get_stream
+ * @param a_client
+ * @return
+ */
+dap_stream_t * dap_client_get_stream(dap_client_t * a_client)
+{
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    return (l_client_internal) ? l_client_internal->stream : NULL;
+}
+
+dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id)
+{
+    dap_stream_ch_t * l_ch = NULL;
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    if(l_client_internal && l_client_internal->stream)
+        for(int i = 0; i < l_client_internal->stream->channel_count; i++) {
+            dap_stream_ch_proc_t *l_ch_id = l_client_internal->stream->channel[i]->proc;
+            if(l_client_internal->stream->channel[i]->proc->id == a_ch_id) {
+                l_ch = l_client_internal->stream->channel[i];
+                break;
+            }
+        }
+    return l_ch;
+}
+
+/**
  * @brief dap_client_get_stream_id
  * @param a_client
  * @return
  */
 const char * dap_client_get_stream_id(dap_client_t * a_client)
 {
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    if(!l_client_internal)
+        return NULL;
     return DAP_CLIENT_PVT(a_client)->stream_id;
 }

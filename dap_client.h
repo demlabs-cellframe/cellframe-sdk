@@ -26,6 +26,9 @@
 #include <stdint.h>
 #include "dap_enc_key.h"
 #include "dap_events.h"
+#include "dap_stream.h"
+#include "dap_stream_ch.h"
+
 /**
  * @brief The dap_client_stage enum. Top level of client's state machine
  **/
@@ -77,7 +80,7 @@ typedef void (*dap_client_callback_data_size_t) (dap_client_t *, void *, size_t)
 #define DAP_UPLINK_PATH_ENC_INIT         "enc_init" //"1901248124123459"
 #define DAP_UPLINK_PATH_DB               "01094787531354"
 #define DAP_UPLINK_PATH_STREAM_CTL       "stream_ctl" //"091348758013553"
-#define DAP_UPLINK_PATH_STREAM           "874751843144"
+#define DAP_UPLINK_PATH_STREAM           "stream" //"874751843144"
 #define DAP_UPLINK_PATH_LICENSE          "license"
 #define DAP_UPLINK_PATH_SERVER_LIST      "slist"
 
@@ -108,6 +111,9 @@ void dap_client_reset(dap_client_t * a_client);
 void dap_client_request_enc(dap_client_t * a_client, const char * a_path,const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
+void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
+                                dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
+
 
 const char * dap_client_get_stage_str(dap_client_t * a_client);
 const char * dap_client_stage_str(dap_client_stage_t a_stage);
@@ -118,6 +124,8 @@ const char * dap_client_error_str(dap_client_error_t a_client_error);
 const char * dap_client_get_error_str(dap_client_t * a_client);
 
 const char * dap_client_get_auth_cookie(dap_client_t * a_client);
+dap_stream_t * dap_client_get_stream(dap_client_t * a_client);
+dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id);
 const char * dap_client_get_stream_id(dap_client_t * a_client);
 
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
