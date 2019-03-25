@@ -114,6 +114,7 @@ void dap_client_request_enc(dap_client_t * a_client, const char * a_path,const c
 void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
+int dap_client_disconnect(dap_client_t * a_client);
 
 const char * dap_client_get_stage_str(dap_client_t * a_client);
 const char * dap_client_stage_str(dap_client_stage_t a_stage);

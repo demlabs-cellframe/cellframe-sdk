@@ -1,10 +1,8 @@
 #include <string.h>
 #include <stdbool.h>
-
+#include <unistd.h>
 
 #include "dap_common.h"
-
-
 #include "dap_http_client.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
@@ -267,6 +265,21 @@ void dap_client_request(dap_client_t * a_client, const char * a_full_path, void 
     dap_client_pvt_request(l_client_internal, a_full_path, a_request, a_request_size, a_response_proc, a_response_error);
 }
 
+/**
+ * @brief dap_client_disconnect
+ * @param a_client
+ * @return
+ */
+int dap_client_disconnect(dap_client_t * a_client)
+{
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    if(l_client_internal->stream_socket){
+        close(l_client_internal->stream_socket);
+        return 1;
+    }
+    //l_client_internal->stream_socket = 0;
+    return -1;
+}
 
 /**
  * @brief dap_client_error_str
