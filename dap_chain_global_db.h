@@ -55,8 +55,8 @@ bool dap_chain_global_db_del(const char *a_key);
  * @param data_size[out] size of output array
  * @return array (note:not Null-terminated string) on NULL in case of an error
  */
-dap_global_db_obj_t** dap_chain_global_db_gr_load(size_t *data_size, const char *a_group);
-dap_global_db_obj_t** dap_chain_global_db_load(size_t *data_size);
+dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);
+dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out);
 
 /**
  * Write to the database from an array of data_size bytes

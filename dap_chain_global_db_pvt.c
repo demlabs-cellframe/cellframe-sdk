@@ -16,6 +16,37 @@ static char *dap_db_path = NULL;
 #define CALL2(a, b, ...) (a), (b)
 #define dap_db_add_record(...) dap_db_merge(CALL2(__VA_ARGS__, 0))
 
+static int dap_db_add_msg(struct ldb_message *a_msg)
+{
+    if(ldb_msg_sanity_check(ldb, a_msg) != LDB_SUCCESS) {
+        log_it(L_ERROR, "LDB message is inconsistent: %s", ldb_errstring(ldb));
+        return -1;
+    }
+    ldb_transaction_start(ldb);
+    int status = ldb_add(ldb, a_msg);
+    // Delete the entry if it already exist and add again
+    if(status == LDB_ERR_ENTRY_ALREADY_EXISTS) {
+        ldb_delete(ldb, a_msg->dn);
+        status = ldb_add(ldb, a_msg);
+    }
+    if(status != LDB_SUCCESS) {
+        if(status == LDB_ERR_ENTRY_ALREADY_EXISTS) {
+            log_it(L_INFO, "Entry %s already present, skipped", ldb_dn_get_linearized(a_msg->dn));
+        }
+        else {
+            log_it(L_ERROR, "LDB adding error: %s", ldb_errstring(ldb));
+        }
+        ldb_transaction_cancel(ldb);
+        return -2;
+    }
+    else {
+        ldb_transaction_commit(ldb);
+        log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(a_msg->dn));
+        return 0;
+    }
+    return -1;
+}
+
 int dap_db_init(const char *path)
 {
     mem_ctx = talloc_new(NULL);
@@ -91,37 +122,6 @@ int dap_db_init(const char *path)
     else {
         log_it(L_ERROR, "Couldn't initialize LDB context");
         return -2;
-    }
-    return -1;
-}
-
-int dap_db_add_msg(struct ldb_message *msg)
-{
-    if(ldb_msg_sanity_check(ldb, msg) != LDB_SUCCESS) {
-        log_it(L_ERROR, "LDB message is inconsistent: %s", ldb_errstring(ldb));
-        return -1;
-    }
-    ldb_transaction_start(ldb);
-    int status = ldb_add(ldb, msg);
-    // Delete the entry if it already exist and add again
-    if(status == LDB_ERR_ENTRY_ALREADY_EXISTS) {
-        ldb_delete(ldb, msg->dn);
-        status = ldb_add(ldb, msg);
-    }
-    if(status != LDB_SUCCESS) {
-        if(status == LDB_ERR_ENTRY_ALREADY_EXISTS) {
-            log_it(L_INFO, "Entry %s already present, skipped", ldb_dn_get_linearized(msg->dn));
-        }
-        else {
-            log_it(L_ERROR, "LDB adding error: %s", ldb_errstring(ldb));
-        }
-        ldb_transaction_cancel(ldb);
-        return -2;
-    }
-    else {
-        ldb_transaction_commit(ldb);
-        log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(msg->dn));
-        return 0;
     }
     return -1;
 }
@@ -270,10 +270,10 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
  *
  * dap_store_size the count records
  */
-int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size, const char *group)
+int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count, const char *a_group)
 {
     int ret = 0;
-    if(store_obj == NULL) {
+    if(a_store_obj == NULL) {
         log_it(L_ERROR, "Invalid Dap store objects passed");
         return -1;
     }
@@ -281,29 +281,29 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size, const char *gro
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
-    log_it(L_INFO, "We're about to put %d records into database", dap_store_size);
+    log_it(L_INFO, "We're about to put %d records into database", a_store_count);
     struct ldb_message *msg;
     int q;
-    if(dap_store_size == 0) {
-        dap_store_size = 1;
+    if(a_store_count == 0) {
+        a_store_count = 1;
     }
-    for(q = 0; q < dap_store_size; q++) {
+    for(q = 0; q < a_store_count; q++) {
         // level 3: leased address, single whitelist entity
         msg = ldb_msg_new(ldb);
         char dn[256];
         memset(dn, '\0', 256);
         strcat(dn, "cn=");
-        strcat(dn, store_obj[q].key);
+        strcat(dn, a_store_obj[q].key);
         //strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
         strcat(dn, ",ou=");
-        strcat(dn, group);
+        strcat(dn, a_group);
         strcat(dn, ",dc=kelvin_nodes");
         msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
-        ldb_msg_add_string(msg, "cn", store_obj[q].key);
-        ldb_msg_add_string(msg, "objectClass", group);
+        ldb_msg_add_string(msg, "cn", a_store_obj[q].key);
+        ldb_msg_add_string(msg, "objectClass", a_group);
         ldb_msg_add_string(msg, "section", "kelvin_nodes");
         ldb_msg_add_string(msg, "description", "Approved Kelvin node");
-        ldb_msg_add_string(msg, "time", store_obj[q].value);
+        ldb_msg_add_string(msg, "time", a_store_obj[q].value);
         ret += dap_db_add_msg(msg); // accumulation error codes
         talloc_free(msg->dn);
         talloc_free(msg);
@@ -316,7 +316,7 @@ int dap_db_merge(pdap_store_obj_t store_obj, int dap_store_size, const char *gro
  *
  * dap_store_size the count records
  */
-int dap_db_delete(pdap_store_obj_t store_obj, int dap_store_size, const char *group)
+int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count, const char *group)
 {
     int ret = 0;
     if(store_obj == NULL) {
@@ -327,13 +327,13 @@ int dap_db_delete(pdap_store_obj_t store_obj, int dap_store_size, const char *gr
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
-    log_it(L_INFO, "We're delete %d records from database", dap_store_size);
+    log_it(L_INFO, "We're delete %d records from database", a_store_count);
     struct ldb_message *msg;
     int q;
-    if(dap_store_size == 0) {
-        dap_store_size = 1;
+    if(a_store_count == 0) {
+        a_store_count = 1;
     }
-    for(q = 0; q < dap_store_size; q++) {
+    for(q = 0; q < a_store_count; q++) {
         char dn[128];
         memset(dn, '\0', 128);
         strcat(dn, "cn=");
