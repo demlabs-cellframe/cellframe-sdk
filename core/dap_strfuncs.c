@@ -125,7 +125,7 @@ char* dap_strstr_len(const char *a_haystack, ssize_t a_haystack_len, const char 
     else
     {
         const char *l_p = a_haystack;
-        size_t l_needle_len = strlen(a_needle);
+        ssize_t l_needle_len = (ssize_t)strlen(a_needle);
         const char *l_end;
         size_t l_i;
 

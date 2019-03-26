@@ -174,6 +174,7 @@ void dap_circular_load_test()
     count_writed_bytes = 4;
 
     char expectedBuffer[MAX_RESULT_BUF_LEN];
+    memset(expectedBuffer, 0, MAX_RESULT_BUF_LEN);
     circular_buffer_read(cb, count_writed_bytes, expectedBuffer);
 
     int count_write_bytes = 4;
