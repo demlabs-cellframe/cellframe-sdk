@@ -24,8 +24,8 @@ typedef struct dap_store_obj_pkt {
 int dap_db_init(const char*);
 void dap_db_deinit(void);
 
-int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count, const char *a_group);
-int dap_db_delete(pdap_store_obj_t a_store_obj, int a_store_count, const char *a_group);
+int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count);
+int dap_db_delete(pdap_store_obj_t a_store_obj, int a_store_count);
 
 pdap_store_obj_t dap_db_read_data(const char *a_query, int *a_count, const char *a_group);
 pdap_store_obj_t dap_db_read_file_data(const char *a_path, const char *a_group); // state of emergency only, if LDB database is inaccessible

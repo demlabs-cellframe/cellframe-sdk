@@ -170,12 +170,12 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
      */
     if(ldb_connect(ldb, dap_db_path, LDB_FLG_RDONLY, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
-        return NULL ;
+        return NULL;
     }
     //sample: query = "(objectClass=addr_leased)";
     if(ldb_search(ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, query) != LDB_SUCCESS) {
         log_it(L_ERROR, "Database querying failed");
-        return NULL ;
+        return NULL;
     }
     log_it(L_INFO, "Obtained binary data, %d entries", data_message->count);
 
@@ -183,7 +183,7 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
     if(!store_data) {
         log_it(L_ERROR, "Couldn't allocate memory, store objects unobtained");
         talloc_free(data_message);
-        return NULL ;
+        return NULL;
     }
     int dap_store_len = data_message->count;
     int q;
@@ -229,7 +229,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
     FILE *fs = fopen(path, "r");
     if(!fs) {
         log_it(L_ERROR, "Can't open file %s", path);
-        return NULL ;
+        return NULL;
     }
     pdap_store_obj_t store_data = (pdap_store_obj_t) malloc(256 * sizeof(dap_store_obj_t));
     if(store_data != NULL) {
@@ -238,7 +238,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
     else {
         log_it(L_ERROR, "Couldn't allocate memory, store objects unobtained");
         fclose(fs);
-        return NULL ;
+        return NULL;
     }
 
     int q = 0;
@@ -270,7 +270,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
  *
  * dap_store_size the count records
  */
-int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count, const char *a_group)
+int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
 {
     int ret = 0;
     if(a_store_obj == NULL) {
@@ -296,11 +296,11 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count, const char *a_gr
         strcat(dn, a_store_obj[q].key);
         //strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
         strcat(dn, ",ou=");
-        strcat(dn, a_group);
+        strcat(dn, a_store_obj[q].group);
         strcat(dn, ",dc=kelvin_nodes");
         msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
         ldb_msg_add_string(msg, "cn", a_store_obj[q].key);
-        ldb_msg_add_string(msg, "objectClass", a_group);
+        ldb_msg_add_string(msg, "objectClass", a_store_obj[q].group);
         ldb_msg_add_string(msg, "section", "kelvin_nodes");
         ldb_msg_add_string(msg, "description", "Approved Kelvin node");
         ldb_msg_add_string(msg, "time", a_store_obj[q].value);
@@ -316,7 +316,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count, const char *a_gr
  *
  * dap_store_size the count records
  */
-int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count, const char *group)
+int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count)
 {
     int ret = 0;
     if(store_obj == NULL) {
@@ -340,7 +340,7 @@ int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count, const char *gro
         strcat(dn, store_obj[q].key);
         //strcat(dn, ",ou=addrs_leased,dc=kelvin_nodes");
         strcat(dn, ",ou=");
-        strcat(dn, group);
+        strcat(dn, store_obj[q].group);
         strcat(dn, ",dc=kelvin_nodes");
         struct ldb_dn *ldn = ldb_dn_new(mem_ctx, ldb, dn);
         ret += dap_db_del_msg(ldn); // accumulation error codes
@@ -383,7 +383,7 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t store_obj, int store_obj_count)
 {
     if(!store_obj || store_obj_count < 1)
-        return NULL ;
+        return NULL;
     size_t data_size_out = sizeof(uint32_t); // size of output data
     int q;
     // calculate output structure size
@@ -440,7 +440,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t store_obj, int s
 dap_store_obj_t *dap_store_unpacket(dap_store_obj_pkt_t *pkt, int *store_obj_count)
 {
     if(!pkt || pkt->data_size < 1)
-        return NULL ;
+        return NULL;
     int q;
     uint64_t offset = 0;
     uint32_t count;

@@ -65,8 +65,8 @@ dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out);
  * @param data size of array
  * @return
  */
-bool dap_chain_global_db_gr_save(uint8_t* data, size_t data_size, const char *a_group);
-bool dap_chain_global_db_save(uint8_t* data, size_t data_size);
+bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group);
+bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
 
 /**
  * Calc hash for data
@@ -75,4 +75,8 @@ bool dap_chain_global_db_save(uint8_t* data, size_t data_size);
  */
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
 char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
+
+// Get log diff
+char* dap_db_log_get_diff(size_t *a_data_size_out);
+
 
