@@ -155,7 +155,8 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
     if(cl_ht->in_query_string[0]){
         log_it(L_INFO,"Query string [%s]",cl_ht->in_query_string);
 //        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
-        if(sscanf(cl_ht->in_query_string,"session_id=%u",&id)==1){
+        if(sscanf(cl_ht->in_query_string,"session_id=%u",&id) == 1 ||
+                sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id) == 1) {
             dap_stream_session_t * ss=NULL;
             ss=dap_stream_session_id(id);
             if(ss==NULL){
