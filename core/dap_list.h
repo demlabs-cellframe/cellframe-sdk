@@ -11,52 +11,52 @@ typedef void* (*DapCopyFunc)(const void * src, void* data);
 typedef int (*DapCompareFunc)(const void * a, const void * b);
 typedef int (*DapCompareDataFunc)(const void * a, const void * b, void* user_data);
 
-typedef struct _DapList DapList;
+typedef struct _dap_list dap_list_t;
 
-struct _DapList
+struct _dap_list
 {
     void* data;
-    DapList *next;
-    DapList *prev;
+    dap_list_t *next;
+    dap_list_t *prev;
 };
 
 /* Doubly linked lists
  */
-DapList* dap_list_alloc(void);
-void dap_list_free(DapList *list);
-void dap_list_free1(DapList *list);
-void dap_list_free_full(DapList *list, DapDestroyNotify free_func);
-DapList* dap_list_append(DapList *list, void* data);
-DapList* dap_list_prepend(DapList *list, void* data);
-DapList* dap_list_insert(DapList *list, void* data, int position);
-DapList* dap_list_insert_sorted(DapList *list, void* data, DapCompareFunc func);
-DapList* dap_list_insert_sorted_with_data(DapList *list, void* data, DapCompareDataFunc func, void* user_data);
-DapList* dap_list_insert_before(DapList *list, DapList *sibling, void* data);
-DapList* dap_list_concat(DapList *list1, DapList *list2);
-DapList* dap_list_remove(DapList *list, const void * data);
-DapList* dap_list_remove_all(DapList *list, const void * data);
-DapList* dap_list_remove_link(DapList *list, DapList *llink);
-DapList* dap_list_delete_link(DapList *list, DapList *link_);
-DapList* dap_list_reverse(DapList *list);
-DapList* dap_list_copy(DapList *list);
+dap_list_t* dap_list_alloc(void);
+void dap_list_free(dap_list_t *list);
+void dap_list_free1(dap_list_t *list);
+void dap_list_free_full(dap_list_t *list, DapDestroyNotify free_func);
+dap_list_t* dap_list_append(dap_list_t *list, void* data);
+dap_list_t* dap_list_prepend(dap_list_t *list, void* data);
+dap_list_t* dap_list_insert(dap_list_t *list, void* data, int position);
+dap_list_t* dap_list_insert_sorted(dap_list_t *list, void* data, DapCompareFunc func);
+dap_list_t* dap_list_insert_sorted_with_data(dap_list_t *list, void* data, DapCompareDataFunc func, void* user_data);
+dap_list_t* dap_list_insert_before(dap_list_t *list, dap_list_t *sibling, void* data);
+dap_list_t* dap_list_concat(dap_list_t *list1, dap_list_t *list2);
+dap_list_t* dap_list_remove(dap_list_t *list, const void * data);
+dap_list_t* dap_list_remove_all(dap_list_t *list, const void * data);
+dap_list_t* dap_list_remove_link(dap_list_t *list, dap_list_t *llink);
+dap_list_t* dap_list_delete_link(dap_list_t *list, dap_list_t *link_);
+dap_list_t* dap_list_reverse(dap_list_t *list);
+dap_list_t* dap_list_copy(dap_list_t *list);
 
-DapList* dap_list_copy_deep(DapList *list, DapCopyFunc func, void* user_data);
+dap_list_t* dap_list_copy_deep(dap_list_t *list, DapCopyFunc func, void* user_data);
 
-DapList* dap_list_nth(DapList *list, unsigned int n);
-DapList* dap_list_nth_prev(DapList *list, unsigned int n);
-DapList* dap_list_find(DapList *list, const void * data);
-DapList* dap_list_find_custom(DapList *list, const void * data, DapCompareFunc func);
-int dap_list_position(DapList *list, DapList *llink);
-int dap_list_index(DapList *list, const void * data);
-DapList* dap_list_last(DapList *list);
-DapList* dap_list_first(DapList *list);
-unsigned int dap_list_length(DapList *list);
-void dap_list_foreach(DapList *list, DapFunc func, void* user_data);
-DapList* dap_list_sort(DapList *list, DapCompareFunc compare_func);
-DapList* dap_list_sort_with_data(DapList *list, DapCompareDataFunc compare_func, void* user_data);
-void* dap_list_nth_data(DapList *list, unsigned int n);
+dap_list_t* dap_list_nth(dap_list_t *list, unsigned int n);
+dap_list_t* dap_list_nth_prev(dap_list_t *list, unsigned int n);
+dap_list_t* dap_list_find(dap_list_t *list, const void * data);
+dap_list_t* dap_list_find_custom(dap_list_t *list, const void * data, DapCompareFunc func);
+int dap_list_position(dap_list_t *list, dap_list_t *llink);
+int dap_list_index(dap_list_t *list, const void * data);
+dap_list_t* dap_list_last(dap_list_t *list);
+dap_list_t* dap_list_first(dap_list_t *list);
+unsigned int dap_list_length(dap_list_t *list);
+void dap_list_foreach(dap_list_t *list, DapFunc func, void* user_data);
+dap_list_t* dap_list_sort(dap_list_t *list, DapCompareFunc compare_func);
+dap_list_t* dap_list_sort_with_data(dap_list_t *list, DapCompareDataFunc compare_func, void* user_data);
+void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 
-#define dap_list_previous(list)	        ((list) ? (((DapList *)(list))->prev) : NULL)
-#define dap_list_next(list)	        ((list) ? (((DapList *)(list))->next) : NULL)
+#define dap_list_previous(list)	        ((list) ? (((dap_list_t *)(list))->prev) : NULL)
+#define dap_list_next(list)	        ((list) ? (((dap_list_t *)(list))->next) : NULL)
 
 #endif /* __DAP_LIST_H__ */

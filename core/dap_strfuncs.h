@@ -1,11 +1,12 @@
 /* DAP String Functions */
 
-#ifndef __DAP_LIB_MINI_H
-#define __DAP_LIB_MINI_H
+#ifndef __DAP_STR_FUNC_H
+#define __DAP_STR_FUNC_H
 
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #define dap_return_if_fail(expr)			{if(!(expr)) {return;}}
 #define dap_return_val_if_fail(expr,val)	{if(!(expr)) {return (val);}}
@@ -29,6 +30,7 @@
 #define clamp(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 char* dap_strdup(const char *a_str);
+char* dap_strdup_vprintf(const char *a_format, va_list a_args);
 char* dap_strdup_printf(const char *a_format, ...);
 
 char* dap_stpcpy(char *a_dest, const char *a_src);
@@ -60,4 +62,4 @@ char* dap_strreverse(char *a_string);
 #define DAP_USEC_PER_SEC 1000000
 void dap_usleep(time_t a_microseconds);
 
-#endif /* __DAP_LIB_MINI_H */
+#endif /* __DAP_STR_FUNC_H */

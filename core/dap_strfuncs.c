@@ -4,7 +4,6 @@
 #include <windows.h>
 #endif
 #include <stddef.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,17 +42,53 @@ char* dap_strdup(const char *a_str)
 }
 
 /**
+ * dap_strdup_vprintf:
+ * @a_format: a standard printf() format string, but notice
+ *     [string precision pitfalls][string-precision]
+ * @a_args: the list of parameters to insert into the format string
+ *
+ * Similar to the standard C vsprintf() function but safer, since it
+ * calculates the maximum space required and allocates memory to hold
+ * the result. The returned string should be freed with DAP_DELETE()
+ * when no longer needed.
+ *
+ * Returns: a newly-allocated string holding the result
+ */
+char* dap_strdup_vprintf(const char *a_format, va_list a_args)
+{
+    char *l_string = NULL;
+    int len = vasprintf(&l_string, a_format, a_args);
+    if(len < 0)
+        l_string = NULL;
+    return l_string;
+}
+
+/**
  * dap_strdup_printf:
  * @a_format: a standard printf() format string
  *
  * Similar to the standard C sprintf() function but safer, since it
  * calculates the maximum space required and allocates memory to hold
- * the result. The returned string should be freed when no
- * longer needed.
+ * the result. The returned string should be freed with DAP_DELETE()
+ * when no longer needed.
  *
  * Returns: a newly-allocated string holding the result
  */
 char* dap_strdup_printf(const char *a_format, ...)
+{
+    char *l_buffer;
+    va_list l_args;
+
+    va_start(l_args, a_format);
+    l_buffer = dap_strdup_vprintf(a_format, l_args);
+    va_end(l_args);
+
+    return l_buffer;
+}
+
+/*
+// alternative version
+char* dap_strdup_printf2(const char *a_format, ...)
 {
     size_t l_buffer_size = 0;
     char *l_buffer = NULL;
@@ -72,7 +107,7 @@ char* dap_strdup_printf(const char *a_format, ...)
     va_end(l_args);
 
     return l_buffer;
-}
+}*/
 
 /**
  * dap_stpcpy:
@@ -125,9 +160,9 @@ char* dap_strstr_len(const char *a_haystack, ssize_t a_haystack_len, const char 
     else
     {
         const char *l_p = a_haystack;
-        ssize_t l_needle_len = (ssize_t)strlen(a_needle);
+        ssize_t l_needle_len = (ssize_t) strlen(a_needle);
         const char *l_end;
-        size_t l_i;
+        ssize_t l_i;
 
         if(l_needle_len == 0)
             return (char *) a_haystack;
