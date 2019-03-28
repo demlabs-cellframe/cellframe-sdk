@@ -76,6 +76,8 @@ bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
 char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
 
+// Get last timestamp in log
+char *dap_db_log_get_last_timestamp(void);
 // Get log diff
 char* dap_db_log_get_diff(size_t *a_data_size_out);
 

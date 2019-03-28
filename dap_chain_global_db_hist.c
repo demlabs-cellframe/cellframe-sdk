@@ -90,6 +90,29 @@ bool dap_db_history_truncate(void)
 }
 
 /**
+ * Get last timestamp in log
+ */
+char *dap_db_log_get_last_timestamp(void)
+{
+    char *last_key;
+    size_t l_data_size_out = 0;
+    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_HISTORY, &l_data_size_out);
+    if(l_data_size_out > 0)
+        last_key = l_objs[0]->key;
+    for(size_t i = 1; i < l_data_size_out; i++) {
+        dap_global_db_obj_t *l_obj_cur = l_objs[i];
+        if(strcmp(last_key, l_obj_cur->key) < 0) {
+            last_key = l_obj_cur->key;
+            printf("l_obj_cur->key=%s last_key\n", l_obj_cur->key);
+        }
+        printf("l_obj_cur->key=%s\n", l_obj_cur->key);
+    }
+    char *l_ret_str = dap_strdup(last_key);
+    dap_chain_global_db_objs_delete(l_objs);
+    return l_ret_str;
+}
+
+/**
  * Get log diff
  */
 char* dap_db_log_get_diff(size_t *a_data_size_out)
