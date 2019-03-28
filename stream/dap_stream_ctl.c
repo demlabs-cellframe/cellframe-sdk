@@ -106,15 +106,13 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
     if(dg){
         size_t l_channels_str_size = sizeof(ss->active_channels);
         char l_channels_str[l_channels_str_size];
-        if(dg->url_path && strlen(dg->url_path) < 30 &&
+
+        if(strcmp(dg->url_path, "socket_forward") == 0) {
+            l_new_session = true;
+        } else if(dg->url_path && strlen(dg->url_path) < 30 &&
                 sscanf(dg->url_path, "stream_ctl,channels=%s", l_channels_str) == 1) {
             l_new_session = true;
         }
-        /*if (strcmp(dg->url_path,"socket_forward")==0){
-            l_new_session = true;
-        }else if (strcmp(dg->url_path,"stream_ctl")==0) {
-            l_new_session = true;
-        }*/
         else{
             log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
             enc_http_delegate_delete(dg);
