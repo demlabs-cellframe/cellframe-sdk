@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <glib.h>
+//#include <glib.h>
 
 #ifndef _WIN32
 #include <poll.h>
@@ -48,6 +48,8 @@ typedef int SOCKET;
 
 #include "iputils/iputils.h"
 #include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_list.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -265,7 +267,7 @@ static void* thread_one_client_func(void *args)
     int timeout = 5000; // 5 sec
     char **argv = NULL;
     int argc = 0;
-    GList *cmd_param_list = NULL;
+    dap_list_t *cmd_param_list = NULL;
     while(1)
     {
         // wait data from client
@@ -294,57 +296,57 @@ static void* thread_one_client_func(void *args)
         }
         // filling parameters of command
         if(marker == 1) {
-            cmd_param_list = g_list_append(cmd_param_list, str_header);
+            cmd_param_list = dap_list_append(cmd_param_list, str_header);
             //printf("g_list_append argc=%d command=%s ", argc, str_header);
             argc++;
         }
         else
             free(str_header);
         if(marker == 2) {
-            GList *list = cmd_param_list;
+            dap_list_t *list = cmd_param_list;
             // form command
-            guint argc = g_list_length(list);
+            unsigned int argc = dap_list_length(list);
             // command is found
             if(argc >= 1) {
                 char *cmd_name = list->data;
-                list = g_list_next(list);
+                list = dap_list_next(list);
                 // execute command
-                char *str_cmd = g_strdup_printf("%s", cmd_name);
+                char *str_cmd = dap_strdup_printf("%s", cmd_name);
                 const COMMAND *command = find_command(cmd_name);
                 int res = -1;
                 char *str_reply = NULL;
                 if(command)
                 {
                     while(list) {
-                        str_cmd = g_strdup_printf("%s;%s", str_cmd, list->data);
-                        list = g_list_next(list);
+                        str_cmd = dap_strdup_printf("%s;%s", str_cmd, list->data);
+                        list = dap_list_next(list);
                     }
                     log_it(L_INFO, "execute command=%s", str_cmd);
                     // exec command
 
-                    char **argv = g_strsplit(str_cmd, ";", -1);
+                    char **argv = dap_strsplit(str_cmd, ";", -1);
                     // Call the command function
                     if(command && command->func)
                         res = (*(command->func))(argc, (const char **) argv, &str_reply);
-                    g_strfreev(argv);
+                    dap_strfreev(argv);
                 }
                 else
                 {
-                    str_reply = g_strdup_printf("can't recognize command=%s", str_cmd);
+                    str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
                     log_it(L_ERROR, str_reply);
                 }
-                gchar *reply_body = g_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                char *reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
                 // return the result of the command function
-                gchar *reply_str = g_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
+                char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
                         strlen(reply_body), reply_body);
                 int ret = send(newsockfd, reply_str, strlen(reply_str), 1000);
-                g_free(str_reply);
-                g_free(reply_str);
-                g_free(reply_body);
+                DAP_DELETE(str_reply);
+                DAP_DELETE(reply_str);
+                DAP_DELETE(reply_body);
 
-                g_free(str_cmd);
+                DAP_DELETE(str_cmd);
             }
-            g_list_free_full(cmd_param_list, free);
+            dap_list_free_full(cmd_param_list, free);
             break;
         }
     }

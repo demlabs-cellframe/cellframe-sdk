@@ -77,7 +77,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *client);
 /**
  * Send stream request to server
  */
-int dap_chain_node_client_send_chain_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id,
+int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
         char *a_buf, size_t a_buf_size);
 
 /**

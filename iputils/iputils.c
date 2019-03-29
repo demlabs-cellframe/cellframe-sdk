@@ -4,7 +4,9 @@
 
 #include <stdio.h>
 #include <stdbool.h>
-#include <glib.h>
+//#include <glib.h>
+#include "dap_common.h"
+#include "dap_strfuncs.h"
 
 static bool LOG_VERBOSE = false;
 
@@ -30,18 +32,18 @@ int log_printf(const char *format, ...)
     int ret = 0;
     if(LOG_VERBOSE)
     {
-        gchar *log_str = NULL;
+        char *log_str = NULL;
         va_list args;
 
         va_start(args, format);
-        log_str = g_strdup_vprintf(format, args);
+        log_str = dap_strdup_vprintf(format, args);
         va_end(args);
 
         if(log_str)
         {
 
             ret = printf(log_str);
-            g_free(log_str);
+            DAP_DELETE(log_str);
         }
     }
     return ret;

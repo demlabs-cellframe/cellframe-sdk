@@ -34,6 +34,9 @@
 //#include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
+#include "dap_strfuncs.h"
+#include "dap_list.h"
+#include "dap_string.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
@@ -45,12 +48,9 @@
 #include "dap_chain_datum_tx_ctrl.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_cache.h"
+#include "dap_chain_global_db.h"
 
 #include "dap_stream_ch_chain_net.h"
-
-// Max and min macros
-#define max(a,b)              ((a) > (b) ? (a) : (b))
-#define min(a,b)              ((a) < (b) ? (a) : (b))
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -158,14 +158,14 @@ dap_chain_node_addr_t* get_name_by_alias(const char *alias)
  *
  * return list of addr, NULL if not found
  */
-static GList* get_aliases_by_name(dap_chain_node_addr_t *addr)
+static dap_list_t* get_aliases_by_name(dap_chain_node_addr_t *addr)
 {
     if(!addr)
         return NULL;
-    GList *list_aliases = NULL;
+    dap_list_t *list_aliases = NULL;
     size_t data_size = 0;
     // read all aliases
-    dap_global_db_obj_t **objs = dap_chain_global_db_gr_load(&data_size, GROUP_ALIAS);
+    dap_global_db_obj_t **objs = dap_chain_global_db_gr_load(GROUP_ALIAS, &data_size);
     if(!objs || !data_size)
         return NULL;
     for(int i = 0; i < data_size; i++) {
@@ -180,7 +180,7 @@ static GList* get_aliases_by_name(dap_chain_node_addr_t *addr)
                 continue;
             }
             if(addr->uint64 == addr_i.uint64) {
-                list_aliases = g_list_prepend(list_aliases, strdup(obj->key));
+                list_aliases = dap_list_prepend(list_aliases, strdup(obj->key));
             }
         }
     }
@@ -216,12 +216,12 @@ static void set_reply_text(char **str_reply, const char *str, ...)
     if(str_reply) {
         if(*str_reply) {
             assert(!*str_reply);
-            g_free(*str_reply);
+            DAP_DELETE(*str_reply);
             *str_reply = NULL;
         }
         va_list args;
         va_start(args, str);
-        *str_reply = g_strdup_vprintf(str, args); //*str_reply = g_strdup(str);
+        *str_reply = dap_strdup_vprintf(str, args); //*str_reply = dap_strdup(str);
         va_end(args);
     }
 }
@@ -355,15 +355,15 @@ static int com_global_db_del(dap_chain_node_info_t *node_info, const char *alias
         if(res) {
             // delete all aliases for node address
             {
-                GList *list_aliases = get_aliases_by_name(address);
-                GList *list = list_aliases;
+                dap_list_t *list_aliases = get_aliases_by_name(address);
+                dap_list_t *list = list_aliases;
                 while(list)
                 {
                     const char *alias = (const char *) list->data;
                     del_alias(alias);
-                    list = g_list_next(list);
+                    list = dap_list_next(list);
                 }
-                g_list_free_full(list_aliases, (GDestroyNotify) free);
+                dap_list_free_full(list_aliases, (DapDestroyNotify) free);
             }
             // set text response
             set_reply_text(str_reply, "node deleted");
@@ -522,27 +522,27 @@ static int com_global_db_dump(dap_chain_node_info_t *node_info, const char *alia
     const char* str_ip6 = inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host6, hostlen);
 
     // get aliases in form of string
-    GString *aliases_string = g_string_new(NULL);
-    GList *list_aliases = get_aliases_by_name(address);
+    dap_string_t *aliases_string = dap_string_new(NULL);
+    dap_list_t *list_aliases = get_aliases_by_name(address);
     if(list_aliases)
     {
-        GList *list = list_aliases;
+        dap_list_t *list = list_aliases;
         while(list)
         {
             const char *alias = (const char *) list->data;
-            g_string_append_printf(aliases_string, "\nalias %s", alias);
-            list = g_list_next(list);
+            dap_string_append_printf(aliases_string, "\nalias %s", alias);
+            list = dap_list_next(list);
         }
-        g_list_free_full(list_aliases, (GDestroyNotify) free);
+        dap_list_free_full(list_aliases, (DapDestroyNotify) free);
     }
     else
-        g_string_append(aliases_string, "\nno aliases");
+        dap_string_append(aliases_string, "\nno aliases");
 
     // get links in form of string
-    GString *links_string = g_string_new(NULL);
+    dap_string_t *links_string = dap_string_new(NULL);
     for(int i = 0; i < node_info_read->hdr.links_number; i++) {
         dap_chain_node_addr_t link_addr = node_info_read->links[i];
-        g_string_append_printf(links_string, "\nlink%02d address : 0x%llx", i, link_addr.uint64);
+        dap_string_append_printf(links_string, "\nlink%02d address : 0x%llx", i, link_addr.uint64);
     }
 
     // set full reply with node param
@@ -550,8 +550,8 @@ static int com_global_db_dump(dap_chain_node_info_t *node_info, const char *alia
             node_info_read->hdr.address, node_info_read->hdr.shard_id, aliases_string->str,
             str_ip4, str_ip6,
             node_info_read->hdr.links_number, links_string->str);
-    g_string_free(aliases_string, TRUE);
-    g_string_free(links_string, TRUE);
+    dap_string_free(aliases_string, true);
+    dap_string_free(links_string, true);
 
     DAP_DELETE(address);
     DAP_DELETE(node_info_read);
@@ -741,13 +741,33 @@ int com_node(int argc, const char ** argv, char **str_reply)
             set_reply_text(str_reply, "addr not found");
             return -1;
         }
-
+        // debug
+        if(0)
+        {
+#include "dap_chain_global_db.h"
+            size_t l_data_size_out = 0;
+            dap_global_db_obj_t a_objs[2];
+            a_objs[0].key = "k1";
+            a_objs[1].key = "k2";
+            a_objs[0].value = "v1";
+            a_objs[1].value = "v2";
+            dap_chain_global_db_save(a_objs, 2); //dap_chain_global_db_save
+            char *l_diff = dap_db_log_get_diff(NULL);
+            DAP_DELETE(l_diff);
+            dap_global_db_obj_t **db1 = dap_chain_global_db_gr_load(GROUP_DATUM, &l_data_size_out);
+            printf("GROUP_DATUM size = %d\n", l_data_size_out);
+            dap_global_db_obj_t **db2 = dap_chain_global_db_gr_load(GROUP_ALIAS, &l_data_size_out);
+            printf("GROUP_ALIAS size = %d\n", l_data_size_out);
+            dap_global_db_obj_t **db3 = dap_chain_global_db_gr_load(GROUP_NODE, &l_data_size_out);
+            printf("GROUP_NODE size = %d\n", l_data_size_out);
+            set_reply_text(str_reply, "debug ok");
+            return 0;
+        }
         dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
         if(!node_info) {
             set_reply_text(str_reply, "node by addr not found");
             return -1;
         }
-        int timeout_ms = 1000000; //10 sec = 10000 ms
         // start connect
         dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
         if(!client) {
@@ -756,6 +776,7 @@ int com_node(int argc, const char ** argv, char **str_reply)
             return -1;
         }
         // wait connected
+        int timeout_ms = 150000; //15 sec = 15000 ms
         int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
         if(res != 1) {
             set_reply_text(str_reply, "no response from node");
@@ -766,8 +787,17 @@ int com_node(int argc, const char ** argv, char **str_reply)
         }
 
         // send request
+        size_t l_data_size_out = 0;
+        // Get last timestamp in log
+        char *l_str = dap_db_log_get_last_timestamp();
+        // Get log diff
+        //char *l_str = dap_db_log_get_diff(&l_data_size_out);
+        //dap_global_db_obj_t **l_hist_objs = dap_chain_global_db_load(l_data_size_out);
+        //size_t *a_data_size_out(l_hist_objs);
+
         uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
-        res = dap_chain_node_client_send_chain_request(client, l_ch_id, "start", 5); //, NULL);
+        res = dap_chain_node_client_send_chain_net_request(client, l_ch_id,
+                STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_str, (l_str) ? strlen(l_str) : 0); //, NULL);
         if(res != 1) {
             set_reply_text(str_reply, "no response from node(send request)");
             // clean client struct
@@ -777,7 +807,9 @@ int com_node(int argc, const char ** argv, char **str_reply)
         }
 
         // wait for finishing of request
-        res = chain_node_client_wait(client, NODE_CLIENT_STATE_PONG, timeout_ms);
+        timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+        // TODO add progress info to console
+        res = chain_node_client_wait(client, NODE_CLIENT_STATE_END, timeout_ms);
         DAP_DELETE(node_info);
         dap_client_disconnect(client->client);
         dap_chain_node_client_close(client);
@@ -1096,7 +1128,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
     find_option_val(argv, arg_index, argc, "-addr", &addr_str);
     find_option_val(argv, arg_index, argc, "-w", &wallet_name);
 
-    GString *l_string_ret = g_string_new(NULL);
+    dap_string_t *l_string_ret = dap_string_new(NULL);
     switch (cmd_num) {
     // wallet list
     case CMD_WALLET_LIST: {
@@ -1107,17 +1139,17 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
                 l_file = g_dir_read_name(l_dir);
                 int l_file_len = (l_file) ? strlen(l_file) : 0;
                 if(l_file_len > 8 && !g_strcmp0(l_file + l_file_len - 8, ".dwallet")) {
-                    char *l_file_path_tmp = g_strdup_printf("%s/%s", c_wallets_path, l_file);
+                    char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file);
                     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
                     if(l_wallet) {
                         dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
                         char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
-                        g_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
-                        g_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+                        dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
+                        dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
                         DAP_DELETE(l_addr_str);
                         dap_chain_wallet_close(l_wallet);
                     }
-                    g_free(l_file_path_tmp);
+                    DAP_DELETE(l_file_path_tmp);
                 }
             }
             while(l_file);
@@ -1135,14 +1167,14 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
             dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
             char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             uint64_t balance = dap_chain_datum_tx_cache_calc_balance(l_addr);
-            g_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
-            g_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
-            g_string_append_printf(l_string_ret, "balance: %lld\n", balance);
+            dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
+            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+            dap_string_append_printf(l_string_ret, "balance: %lld\n", balance);
             DAP_DELETE(l_addr_str);
             dap_chain_wallet_close(l_wallet);
         }
         else {
-            g_string_free(l_string_ret, TRUE);
+            dap_string_free(l_string_ret, true);
             set_reply_text(str_reply, "wallet not found");
             return -1;
         }
@@ -1150,10 +1182,10 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
         break;
     }
 
-    char *l_str_ret_tmp = g_string_free(l_string_ret, FALSE);
-    char *str_ret = strdup(l_str_ret_tmp);
+    char *l_str_ret_tmp = dap_string_free(l_string_ret, false);
+    char *str_ret = dap_strdup(l_str_ret_tmp);
     set_reply_text(str_reply, str_ret);
-    g_free(l_str_ret_tmp);
+    DAP_DELETE(l_str_ret_tmp);
     return 0;
 }
 
@@ -1286,34 +1318,34 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         dap_chain_node_datum_tx_cache_init(l_key, l_token_name, (dap_chain_addr_t*) l_addr, 1000);
         l_first_start = false;
     }
-    GString *string_ret = g_string_new(NULL);
+    dap_string_t *string_ret = dap_string_new(NULL);
     //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
     //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
 
     uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_to);
     uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_fee);
     uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_from);
-    g_string_append_printf(string_ret, "transactions in cache=%d balance w_from=%lld w_to=%lld w_feee=%lld\n",
+    dap_string_append_printf(string_ret, "transactions in cache=%d balance w_from=%lld w_to=%lld w_feee=%lld\n",
             dap_chain_node_datum_tx_cache_count(),
             balance1, balance2, balance3);
 
     int res = dap_chain_datum_tx_ctrl_create_transfer(l_key, addr_from, addr_to, addr_fee, value, value_fee);
-    g_string_append_printf(string_ret, "transfer=%s\n", (res == 1) ? "Ok" : "False");
+    dap_string_append_printf(string_ret, "transfer=%s\n", (res == 1) ? "Ok" : "False");
 
     if(1) {
         uint64_t balance1 = dap_chain_datum_tx_cache_calc_balance(addr_from);
         uint64_t balance2 = dap_chain_datum_tx_cache_calc_balance(addr_to);
         uint64_t balance3 = dap_chain_datum_tx_cache_calc_balance(addr_fee);
-        g_string_append_printf(string_ret, "transactions in cache=%d balance w_from=%lld w_to=%lld w_feee=%lld\n",
+        dap_string_append_printf(string_ret, "transactions in cache=%d balance w_from=%lld w_to=%lld w_feee=%lld\n",
                 dap_chain_node_datum_tx_cache_count(),
                 balance1, balance2, balance3);
     }
 
-    char *str_ret_tmp = g_string_free(string_ret, FALSE);
+    char *str_ret_tmp = dap_string_free(string_ret, false);
     char *str_ret = strdup(str_ret_tmp);
     set_reply_text(str_reply, str_ret);
 
-    g_free(str_ret_tmp);
+    DAP_DELETE(str_ret_tmp);
     DAP_DELETE(addr_to);
     DAP_DELETE(addr_fee);
     dap_chain_wallet_close(wallet_bliss);
@@ -1515,7 +1547,7 @@ int com_tx_verify(int argc, const char ** argv, char **str_reply)
         if(cmd)
         {
             if(str_reply)
-                *str_reply = g_strdup(cmd->doc);
+                *str_reply = dap_strdup(cmd->doc);
             return 1;
         }
         if(str_reply)

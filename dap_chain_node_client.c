@@ -159,26 +159,26 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 }
 
 /*
-// callback for dap_client_request_enc() in client_mempool_send_datum()
-static void s_response_proc(dap_client_t *a_client, void *str, size_t str_len)
-{
-    printf("* s_response_proc a_client=%x str=%s str_len=%d\n", a_client, str, str_len);
-    dap_chain_node_client_t *l_client = a_client->_inheritor;
-    assert(l_client);
-    if(l_client) {
-        if(str_len > 0) {
-//            l_client->read_data_t.data = DAP_NEW_Z_SIZE(uint8_t, str_len + 1);
-//          if(l_client->read_data_t.data) {
-//                memcpy(l_client->read_data_t.data, str, str_len);
-//                l_client->read_data_t.data_len = str_len;
-        }
-    }
-    pthread_mutex_lock(&l_client->wait_mutex);
-    l_client->state = NODE_CLIENT_STATE_SENDED;
-    pthread_cond_signal(&l_client->wait_cond);
-    pthread_mutex_unlock(&l_client->wait_mutex);
-}
-*/
+ // callback for dap_client_request_enc() in client_mempool_send_datum()
+ static void s_response_proc(dap_client_t *a_client, void *str, size_t str_len)
+ {
+ printf("* s_response_proc a_client=%x str=%s str_len=%d\n", a_client, str, str_len);
+ dap_chain_node_client_t *l_client = a_client->_inheritor;
+ assert(l_client);
+ if(l_client) {
+ if(str_len > 0) {
+ //            l_client->read_data_t.data = DAP_NEW_Z_SIZE(uint8_t, str_len + 1);
+ //          if(l_client->read_data_t.data) {
+ //                memcpy(l_client->read_data_t.data, str, str_len);
+ //                l_client->read_data_t.data_len = str_len;
+ }
+ }
+ pthread_mutex_lock(&l_client->wait_mutex);
+ l_client->state = NODE_CLIENT_STATE_SENDED;
+ pthread_cond_signal(&l_client->wait_cond);
+ pthread_mutex_unlock(&l_client->wait_mutex);
+ }
+ */
 
 /*// callback for dap_client_request_enc() in client_mempool_send_datum()
  static void s_response_error(dap_client_t *a_client, int val)
@@ -209,11 +209,28 @@ static void s_response_proc(dap_client_t *a_client, void *str, size_t str_len)
 
 static void dap_chain_node_client_callback(dap_stream_ch_chain_net_pkt_t *a_ch_chain_net, void *a_arg)
 {
-    dap_chain_node_client_t *client = (dap_chain_node_client_t*)a_arg;
+    dap_chain_node_client_t *client = (dap_chain_node_client_t*) a_arg;
     assert(client);
-    if(a_ch_chain_net->hdr.type==STREAM_CH_CHAIN_NET_PKT_TYPE_PONG) {
+    int l_state;
+    switch (a_ch_chain_net->hdr.type) {
+    case STREAM_CH_CHAIN_NET_PKT_TYPE_PING:
+        l_state = NODE_CLIENT_STATE_PING;
+        break;
+    case STREAM_CH_CHAIN_NET_PKT_TYPE_PONG:
+        l_state = NODE_CLIENT_STATE_PONG;
+        break;
+    case STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB:
+        l_state = NODE_CLIENT_STATE_END;
+        break;
+
+    default:
+        l_state = NODE_CLIENT_STATE_ERROR;
+
+    }
+    if(client)
+    {
         pthread_mutex_lock(&client->wait_mutex);
-        client->state = NODE_CLIENT_STATE_PONG;
+        client->state = l_state;
         pthread_cond_signal(&client->wait_cond);
         pthread_mutex_unlock(&client->wait_mutex);
     }
@@ -222,7 +239,7 @@ static void dap_chain_node_client_callback(dap_stream_ch_chain_net_pkt_t *a_ch_c
 /**
  * Send stream request to server
  */
-int dap_chain_node_client_send_chain_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id,
+int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
         char *a_buf, size_t a_buf_size)
 {
     if(!a_client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
@@ -234,8 +251,8 @@ int dap_chain_node_client_send_chain_request(dap_chain_node_client_t *a_client, 
         dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
         l_ch_chain->notify_callback = dap_chain_node_client_callback;
         l_ch_chain->notify_callback_arg = a_client;
-        int l_res = dap_stream_ch_chain_net_pkt_write(l_ch, STREAM_CH_CHAIN_NET_PKT_TYPE_PING, a_buf, a_buf_size);
-        if(l_res <=0)
+        int l_res = dap_stream_ch_chain_net_pkt_write(l_ch, a_type, a_buf, a_buf_size);
+        if(l_res <= 0)
             return -1;
         bool is_ready = true;
         dap_events_socket_set_writable(l_ch->stream->events_socket, is_ready);
