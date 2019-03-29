@@ -125,7 +125,7 @@ void dap_string_test(void)
     dap_string_append_len(l_str, " string2", strlen(" string2"));
     dap_assert_PIF(!strcmp(l_str->str, "str int=123 string2"), "Test dap_string_append_len()");
 
-    dap_assert(l_str, "Test dap_list_t");
+    dap_assert(l_str, "Test dap_string_t");
     dap_string_free(l_str, true);
 }
 
