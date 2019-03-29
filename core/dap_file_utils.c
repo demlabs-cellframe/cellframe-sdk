@@ -163,7 +163,6 @@ char* dap_path_get_basename(const char *a_file_name)
 {
     ssize_t l_base;
     ssize_t l_last_nonslash;
-    size_t l_len;
     const char *l_retval;
 
     dap_return_val_if_fail(a_file_name != NULL, NULL);
@@ -199,7 +198,7 @@ char* dap_path_get_basename(const char *a_file_name)
     l_base = 1;
 #endif
 
-    l_len = l_last_nonslash - l_base;
+    //size_t l_len = l_last_nonslash - l_base;
     l_retval = a_file_name + l_base + 1;
 
     return dap_strdup(l_retval);
