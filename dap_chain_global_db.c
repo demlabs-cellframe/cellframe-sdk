@@ -81,6 +81,22 @@ void dap_chain_global_db_deinit(void)
  *
  */
 
+void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
+{
+    int count = 0;
+    if(!a_key)
+        return NULL;
+    size_t query_len = snprintf(NULL, 0, "(&(cn=%s)(objectClass=%s))", a_key, a_group);
+    char *query = DAP_NEW_Z_SIZE(char, query_len + 1); //char query[32 + strlen(a_key)];
+    snprintf(query, query_len + 1, "(&(cn=%s)(objectClass=%s))", a_key, a_group); // objectClass != ou
+    pthread_mutex_lock(&ldb_mutex);
+    pdap_store_obj_t store_data = dap_db_read_data(query, &count, a_group);
+    pthread_mutex_unlock(&ldb_mutex);
+    assert(count <= 1);
+    DAP_DELETE(query);
+    return store_data;
+}
+
 char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group)
 {
     char *str = NULL;
@@ -208,12 +224,26 @@ dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out)
 /**
  * Write to the database from an array of data_size bytes
  *
- * @param data array wish base dump
- * @param data size of array
  * @return
  */
+bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
+{
+    dap_store_obj_t* l_store_data = (dap_store_obj_t*)a_store_data;
+    if(l_store_data && a_objs_count>0)
+    {
+        const char *l_group = l_store_data[0].group;
+        pthread_mutex_lock(&ldb_mutex);
+        int res = dap_db_add(l_store_data, a_objs_count);
+        if(!res && !is_local_group(l_group))
+            dap_db_history_add('a', l_store_data, a_objs_count);
+        pthread_mutex_unlock(&ldb_mutex);
+        if(!res)
+            return true;
+    }
+    return false;
+}
+
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group)
-//bool dap_chain_global_db_gr_save(uint8_t* a_data, size_t a_data_size, const char *a_group)
 {
     //int count = 0;
     //dap_store_obj_pkt_t *pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t));
@@ -236,7 +266,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
         if(!res && !is_local_group(a_group))
             dap_db_history_add('a', store_data, a_objs_count);
         pthread_mutex_unlock(&ldb_mutex);
-        DAP_DELETE(store_data);//dab_db_free_pdap_store_obj_t(store_data, a_objs_count);
+        DAP_DELETE(store_data); //dab_db_free_pdap_store_obj_t(store_data, a_objs_count);
         if(!res)
             return true;
     }

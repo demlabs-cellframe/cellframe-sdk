@@ -39,6 +39,7 @@ void dap_chain_global_db_deinit();
 /**
  * Get entry from base
  */
+void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
 char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group);
 char* dap_chain_global_db_get(const char *a_key);
 
@@ -66,10 +67,9 @@ dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out);
 /**
  * Write to the database from an array of data_size bytes
  *
- * @param data array wish base dump
- * @param data size of array
  * @return
  */
+bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count);
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group);
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
 
@@ -80,6 +80,11 @@ bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
  */
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
 char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
+
+// Get data according the history log
+uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out);
+// Parse data from dap_db_log_pack()
+void* dap_db_log_unpack(uint8_t *a_data, int a_data_size, int *a_store_obj_count);
 
 // Get last timestamp in log
 char *dap_db_log_get_last_timestamp(void);

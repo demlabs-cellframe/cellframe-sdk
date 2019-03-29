@@ -39,6 +39,61 @@ static char* dap_db_history_timestamp()
 }
 
 /**
+ * Get data according the history log
+ *
+ * return dap_store_obj_pkt_t*
+ */
+uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out)
+{
+    if(!a_obj)
+        return NULL;
+    dap_global_db_hist_t l_rec;
+    if(dap_db_history_unpack_hist(a_obj->value, &l_rec) == -1)
+        return NULL;
+    // parse global_db records in a history record
+    char **l_keys = dap_strsplit(l_rec.keys, HIST_KEY_SEPARATOR, -1);
+    int l_count = dap_str_countv(l_keys);
+    // read records from global_db
+    int i = 0;
+    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_count * sizeof(dap_store_obj_t));
+    while(l_keys[i]) {
+
+        dap_store_obj_t *l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
+        memcpy(l_store_obj + i, l_obj, sizeof(dap_store_obj_t));
+        DAP_DELETE(l_obj);
+        i++;
+    };
+    // serialize data
+    dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_count);
+
+    dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
+    dap_strfreev(l_keys);
+
+    if(l_data_out && a_data_size_out) {
+        *a_data_size_out = sizeof(dap_store_obj_pkt_t) + l_data_out->data_size;
+    }
+    return (uint8_t*) l_data_out;
+
+}
+
+/**
+ * Parse data from dap_db_log_pack()
+ *
+ * return dap_store_obj_t*
+ */
+void* dap_db_log_unpack(uint8_t *a_data, int a_data_size, int *a_store_obj_count)
+{
+    dap_store_obj_pkt_t *l_pkt = (dap_store_obj_pkt_t*) a_data;
+    if(!l_pkt || l_pkt->data_size != (a_data_size - sizeof(dap_store_obj_pkt_t)))
+        return NULL;
+    int l_store_obj_count = 0;
+    dap_store_obj_t *l_obj = dap_store_unpacket(l_pkt, &l_store_obj_count);
+    if(a_store_obj_count)
+        *a_store_obj_count = l_store_obj_count;
+    return l_obj;
+}
+
+/**
  * Add data to the history log
  */
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, int a_dap_store_count)
@@ -48,6 +103,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, int a_dap_sto
     dap_global_db_hist_t l_rec;
     l_rec.keys_count = a_dap_store_count;
     l_rec.type = a_type;
+    // TODO Make for keys_count>1
     if(l_rec.keys_count >= 1)
         l_rec.group = a_store_obj->group;
     if(l_rec.keys_count == 1)
@@ -94,7 +150,7 @@ bool dap_db_history_truncate(void)
  */
 char *dap_db_log_get_last_timestamp(void)
 {
-    char *last_key;
+    char *last_key = NULL;
     size_t l_data_size_out = 0;
     dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_HISTORY, &l_data_size_out);
     if(l_data_size_out > 0)
@@ -140,7 +196,7 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
  */
 void dap_db_log_del_list(dap_list_t *a_list)
 {
-    dap_list_free_full(a_list, dap_chain_global_db_obj_delete);
+    dap_list_free_full(a_list, (DapDestroyNotify) dap_chain_global_db_obj_delete);
 }
 
 /**
