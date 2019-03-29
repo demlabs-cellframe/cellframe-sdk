@@ -2,8 +2,8 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include "dap_file_utils.h"
 #include "uthash.h"
-#include "file_utils.h"
 #include "dap_common.h"
 #include "dap_config.h"
 
@@ -52,12 +52,12 @@ int dap_config_init(const char * a_configs_path)
     if( a_configs_path ) {
 #ifdef _WIN32
         // Check up under Windows, in Linux is not required
-        if(!valid_ascii_symbols(a_configs_path)) {
+        if(!dap_valid_ascii_symbols(a_configs_path)) {
             log_it(L_ERROR, "Supported only ASCII symbols for directory path");
             return -1;
         }
 #endif
-        if(dir_test(a_configs_path) || !mkdir_with_parents(a_configs_path)) {
+        if(dap_dir_test(a_configs_path) || !dap_mkdir_with_parents(a_configs_path)) {
             strncpy(s_configs_path, a_configs_path,sizeof(s_configs_path));
             return 0;
         }

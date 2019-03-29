@@ -1,5 +1,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs_test.h"
+#include "dap_list.h"
+#include "dap_string.h"
 
 void dap_str_dup_test(void)
 {
@@ -76,6 +78,57 @@ void dap_str_array_test(void)
     DAP_DELETE(l_s_out);
 }
 
+static void list_delete(void* a_pointer)
+{
+    DAP_DELETE(a_pointer);
+}
+
+void dap_list_test(void)
+{
+    dap_list_t *l_list = NULL;
+    l_list = dap_list_append(l_list, "item 1");
+    l_list = dap_list_append(l_list, "item 2");
+    l_list = dap_list_append(l_list, "item 3");
+    l_list = dap_list_prepend(l_list, "item 0");
+
+    dap_list_t *l_list_tmp = dap_list_find(l_list, "item 2");
+    unsigned int l_count = dap_list_length(l_list);
+    dap_list_remove(l_list, "item 3");
+    unsigned int l_count_after = dap_list_length(l_list);
+
+    dap_assert_PIF(l_count == 4, "Test dap_list_length()");
+    dap_assert_PIF(l_count_after == 3, "Test dap_list_remove()");
+    dap_assert_PIF(!strcmp(l_list_tmp->data, "item 2"), "Test dap_list_find()");
+    dap_list_free(l_list);
+
+    // for test dap_list_free_full()
+    l_list = NULL;
+    l_list = dap_list_append(l_list, dap_strdup("item 1"));
+    l_list = dap_list_append(l_list, dap_strdup("item 2"));
+
+    dap_assert(l_list, "Test dap_list_t");
+    dap_list_free_full(l_list, list_delete);
+}
+
+void dap_string_test(void)
+{
+    dap_string_t *l_str = dap_string_new(NULL);
+    dap_string_append(l_str, "str=string 1");
+    dap_assert_PIF(!strcmp(l_str->str, "str=string 1"), "Test dap_string_append()");
+
+    dap_string_append_printf(l_str, " int=%d", 123);
+    dap_assert_PIF(!strcmp(l_str->str, "str=string 1 int=123"), "Test dap_string_append()");
+
+    dap_string_erase(l_str, 3, 9);
+    dap_assert_PIF(!strcmp(l_str->str, "str int=123"), "Test dap_string_erase()");
+
+    dap_string_append_len(l_str, " string2", strlen(" string2"));
+    dap_assert_PIF(!strcmp(l_str->str, "str int=123 string2"), "Test dap_string_append_len()");
+
+    dap_assert(l_str, "Test dap_list_t");
+    dap_string_free(l_str, true);
+}
+
 void dap_strfuncs_tests_run(void)
 {
     dap_print_module_name("dap_strfuncs");
@@ -83,6 +136,8 @@ void dap_strfuncs_tests_run(void)
     dap_str_dup_test();
     dap_str_modify_test();
     dap_str_array_test();
+    dap_list_test();
+    dap_string_test();
 
     dap_usleep(0.5 * DAP_USEC_PER_SEC);
     dap_assert(1, "Test dap_usleep(0.5 sec.)");

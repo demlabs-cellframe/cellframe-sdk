@@ -15,7 +15,7 @@
 #define POINTER_TO_UINT(p)	((unsigned int)  (p))
 
 #define INT_TO_POINTER(i)	((void*)  (i))
-#define GUINT_TO_POINTER(u)	((void*)  (u))
+#define UINT_TO_POINTER(u)	((void*)  (u))
 
 #undef	max
 #define max(a, b)  (((a) > (b)) ? (a) : (b))

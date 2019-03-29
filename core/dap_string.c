@@ -743,66 +743,6 @@ dap_string_t* dap_string_erase(dap_string_t *string, ssize_t pos, ssize_t len)
 }
 
 /**
- * dap_string_ascii_down:
- * @a_string: a dap_string_t
- *
- * Converts all uppercase ASCII letters to lowercase ASCII letters.
- *
- * Returns: (transfer none): passed-in @a_string pointer, with all the
- *     uppercase characters converted to lowercase in place,
- *     with semantics that exactly match dap_ascii_tolower().
- */
-dap_string_t* dap_string_ascii_down(dap_string_t *string)
-{
-    char *s;
-    int n;
-
-    dap_return_val_if_fail(string != NULL, NULL);
-
-    n = string->len;
-    s = string->str;
-
-    while(n)
-    {
-        *s = tolower(*s);
-        s++;
-        n--;
-    }
-
-    return string;
-}
-
-/**
- * dap_string_ascii_up:
- * @a_string: a dap_string_t
- *
- * Converts all lowercase ASCII letters to uppercase ASCII letters.
- *
- * Returns: (transfer none): passed-in @a_string pointer, with all the
- *     lowercase characters converted to uppercase in place,
- *     with semantics that exactly match dap_ascii_toupper().
- */
-dap_string_t* dap_string_ascii_up(dap_string_t *string)
-{
-    char *s;
-    int n;
-
-    dap_return_val_if_fail(string != NULL, NULL);
-
-    n = string->len;
-    s = string->str;
-
-    while(n)
-    {
-        *s = toupper(*s);
-        s++;
-        n--;
-    }
-
-    return string;
-}
-
-/**
  * dap_string_down:
  * @a_string: a #dap_string_t
  *
