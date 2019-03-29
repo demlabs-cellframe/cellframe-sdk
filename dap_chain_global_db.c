@@ -33,6 +33,15 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 }
 
 /**
+ * Delete struct dap_global_db_obj_t
+ */
+void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
+{
+    dap_chain_global_db_obj_clean(obj);
+    DAP_DELETE(obj);
+}
+
+/**
  * Delete mass of struct dap_global_db_obj_t
  */
 void dap_chain_global_db_objs_delete(dap_global_db_obj_t **objs)

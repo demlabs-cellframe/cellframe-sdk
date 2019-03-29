@@ -113,7 +113,38 @@ char *dap_db_log_get_last_timestamp(void)
 }
 
 /**
- * Get log diff
+ * Get log diff as list
+ */
+dap_list_t* dap_db_log_get_list(time_t first_timestamp)
+{
+    dap_list_t *l_list = NULL;
+    char *l_first_key = dap_strdup_printf("%lld", (int64_t) first_timestamp);
+    size_t l_data_size_out = 0;
+    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_HISTORY, &l_data_size_out);
+    for(size_t i = 0; i < l_data_size_out; i++) {
+        dap_global_db_obj_t *l_obj_cur = l_objs[i];
+        if(strcmp(l_first_key, l_obj_cur->key) < 0) {
+            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+            l_item->key = dap_strdup(l_obj_cur->key);
+            l_item->value = dap_strdup(l_obj_cur->value);
+            l_list = dap_list_append(l_list, l_item);
+        }
+    }
+    DAP_DELETE(l_first_key);
+    dap_chain_global_db_objs_delete(l_objs);
+    return l_list;
+}
+
+/**
+ * Free list getting from dap_db_log_get_list()
+ */
+void dap_db_log_del_list(dap_list_t *a_list)
+{
+    dap_list_free_full(a_list, dap_chain_global_db_obj_delete);
+}
+
+/**
+ * Get log diff as string
  */
 char* dap_db_log_get_diff(size_t *a_data_size_out)
 {
