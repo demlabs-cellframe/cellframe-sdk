@@ -39,5 +39,6 @@ typedef struct dap_stream_ch_chain_net {
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
 
 uint8_t dap_stream_ch_chain_net_get_id();
+uint8_t* dap_stream_ch_chain_net_make_packet(uint64_t a_node_addr_from, uint64_t a_node_addr_to, char *a_timestamp_start_str, size_t *a_data_len_out);
 int dap_stream_ch_chain_net_init();
 void dap_stream_ch_chain_net_deinit();
