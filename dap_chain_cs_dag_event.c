@@ -25,8 +25,8 @@
 #include "dap_common.h"
 #include "dap_enc_key.h"
 
+#include "dap_hash.h"
 #include "dap_chain_sign.h"
-
 #include "dap_chain_datum.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
