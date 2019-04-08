@@ -25,9 +25,12 @@
 
 #include <stdint.h>
 #include <string.h>
+//#include <glib.h>
 
 #include "dap_common.h"
+#include "dap_list.h"
 #include "dap_chain_common.h"
+#include "dap_chain_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
@@ -36,18 +39,32 @@
 #include "dap_chain_datum_tx_token.h"
 
 /**
+ * Get item type
+ *
+ * return type, or TX_ITEM_TYPE_ANY if error
+ */
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item);
+
+/**
+ * Get item size
+ *
+ * return size, 0 Error
+ */
+int dap_chain_datum_item_tx_get_size(const uint8_t *a_item);
+
+/**
  * Create item dap_chain_tx_token_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t* dap_chain_datum_item_token_create(const char *a_name);
+dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(const char *a_name);
 
 /**
  * Create item dap_chain_tx_out_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_in_t* dap_chain_datum_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
+dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
 
 
 /**
@@ -55,12 +72,33 @@ dap_chain_tx_in_t* dap_chain_datum_item_in_create(dap_chain_hash_fast_t *a_tx_pr
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_item_out_create(dap_chain_addr_t *a_addr, uint64_t a_value);
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr, uint64_t a_value);
 
 /**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_sig_t* dap_chain_datum_item_sign_create(dap_enc_key_t *a_key, const void *a_data, size_t a_data_size);
+dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const void *a_data, size_t a_data_size);
 
+/**
+ * Get sign from sign item
+ *
+ * return sign, NULL Error
+ */
+dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
+
+/**
+ * Get item from transaction
+ *
+ * a_tx [in] transaction
+ * a_item_idx_start[in/out] start index / found index of item in transaction, if 0 then from beginning
+ * a_type[in] type of item being find, if TX_ITEM_TYPE_ANY - any item
+ * a_item_out_size size[out] size of returned item
+ * return item data, NULL Error index or bad format transaction
+ */
+const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+        dap_chain_tx_item_type_t a_type, int *a_item_out_size);
+
+// Get all item from transaction by type
+dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);

@@ -49,19 +49,18 @@ typedef struct dap_chain_datum_tx{
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
 
-/**
- * Get item type
- *
- * return type, or TX_ITEM_TYPE_ANY if error
- */
-dap_chain_tx_item_type_t dap_chain_datum_item_get_type(const uint8_t *a_item);
 
 /**
- * Get item size
+ * Create empty transaction
  *
- * return size, 0 Error
+ * return transaction, 0 Error
  */
-int dap_chain_datum_item_get_size(const uint8_t *a_item);
+dap_chain_datum_tx_t* dap_chain_datum_tx_create(void);
+
+/**
+ * Delete transaction
+ */
+void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx);
 
 /**
  * Get size of transaction
@@ -78,11 +77,26 @@ int dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_item);
 
 /**
-* Sign a transaction (Add sign item to transaction)
+ * Create 'in' item and insert to transaction
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key);
+int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
+        uint32_t a_tx_out_prev_idx);
+
+/**
+ * Create 'out' item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, dap_chain_addr_t *a_addr, uint64_t a_value);
+
+/**
+* Sign a transaction (Create sign item and insert to transaction)
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key);
 
 /**
  * Verify all sign item in transaction
