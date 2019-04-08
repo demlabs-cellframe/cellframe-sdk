@@ -10,12 +10,14 @@
 #define GROUP_NODE "addrs_leased"
 #define GROUP_ALIAS "aliases_leased"
 #define GROUP_DATUM "datums"
+#define GROUP_REMOTE_NODE "remote_node"
 
 #define GROUP_NAME_DEFAULT GROUP_DATUM
 
 typedef struct dap_global_db_obj {
     char *key;
     char *value;
+    size_t value_len;
 }DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
 
 /**
@@ -40,14 +42,14 @@ void dap_chain_global_db_deinit();
  * Get entry from base
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
-char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group);
-char* dap_chain_global_db_get(const char *a_key);
+uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_out, const char *a_group);
+uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out);
 
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set(const char *a_key, const char *a_value, const char *a_group);
-bool dap_chain_global_db_set(const char *a_key, const char *a_value);
+bool dap_chain_global_db_gr_set(const char *a_key, const uint8_t *a_value, size_t a_value_len, const char *a_group);
+bool dap_chain_global_db_set(const char *a_key, const uint8_t *a_value, size_t a_value_len);
 
 /**
  * Delete entry from base
@@ -85,6 +87,8 @@ char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
 uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out);
 // Parse data from dap_db_log_pack()
 void* dap_db_log_unpack(uint8_t *a_data, int a_data_size, int *a_store_obj_count);
+// Get timestamp from dap_db_log_pack()
+time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, int a_data_size);
 
 // Get last timestamp in log
 char *dap_db_log_get_last_timestamp(void);

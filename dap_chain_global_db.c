@@ -2,8 +2,11 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <time.h>
+
 #include "dap_hash.h"
 #include "dap_chain_common.h"
+#include "dap_strfuncs.h"
 #include "dap_chain_global_db_pvt.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
@@ -16,7 +19,7 @@ static pthread_mutex_t ldb_mutex = PTHREAD_MUTEX_INITIALIZER;
  */
 static bool is_local_group(const char *a_group)
 {
-    if(!strcmp(a_group, GROUP_ALIAS))
+    if(!strcmp(a_group, GROUP_ALIAS) || !strcmp(a_group, GROUP_REMOTE_NODE))
         return true;
     return false;
 }
@@ -79,8 +82,8 @@ void dap_chain_global_db_deinit(void)
 /**
  * Get entry from base
  *
+ * return dap_store_obj_t*
  */
-
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
     int count = 0;
@@ -90,46 +93,52 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
     char *query = DAP_NEW_Z_SIZE(char, query_len + 1); //char query[32 + strlen(a_key)];
     snprintf(query, query_len + 1, "(&(cn=%s)(objectClass=%s))", a_key, a_group); // objectClass != ou
     pthread_mutex_lock(&ldb_mutex);
-    pdap_store_obj_t store_data = dap_db_read_data(query, &count, a_group);
+    dap_store_obj_t *store_data = dap_db_read_data(query, &count, a_group);
     pthread_mutex_unlock(&ldb_mutex);
     assert(count <= 1);
     DAP_DELETE(query);
     return store_data;
 }
 
-char * dap_chain_global_db_gr_get(const char *a_key, const char *a_group)
+uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_out, const char *a_group)
 {
-    char *str = NULL;
-    int count = 0;
+    uint8_t *l_ret_value = NULL;
+    int l_count = 0;
     if(!a_key)
         return NULL;
-    size_t query_len = snprintf(NULL, 0, "(&(cn=%s)(objectClass=%s))", a_key, a_group);
-    char *query = DAP_NEW_Z_SIZE(char, query_len + 1); //char query[32 + strlen(a_key)];
-    snprintf(query, query_len + 1, "(&(cn=%s)(objectClass=%s))", a_key, a_group); // objectClass != ou
+    size_t l_query_len = snprintf(NULL, 0, "(&(cn=%s)(objectClass=%s))", a_key, a_group);
+    char *l_query = DAP_NEW_Z_SIZE(char, l_query_len + 1); //char query[32 + strlen(a_key)];
+    snprintf(l_query, l_query_len + 1, "(&(cn=%s)(objectClass=%s))", a_key, a_group); // objectClass != ou
     pthread_mutex_lock(&ldb_mutex);
-    pdap_store_obj_t store_data = dap_db_read_data(query, &count, a_group);
+    pdap_store_obj_t store_data = dap_db_read_data(l_query, &l_count, a_group);
     pthread_mutex_unlock(&ldb_mutex);
-    if(count == 1 && store_data && !strcmp(store_data->key, a_key))
-        str = (store_data->value) ? strdup(store_data->value) : NULL;
-    dab_db_free_pdap_store_obj_t(store_data, count);
-    DAP_DELETE(query);
-    return str;
+    if(l_count == 1 && store_data && !strcmp(store_data->key, a_key)) {
+        l_ret_value = (store_data->value) ? DAP_NEW_SIZE(uint8_t, store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
+        memcpy(l_ret_value, store_data->value, store_data->value_len);
+        if(a_data_out)
+            *a_data_out = store_data->value_len;
+    }
+    dab_db_free_pdap_store_obj_t(store_data, l_count);
+    DAP_DELETE(l_query);
+    return l_ret_value;
 }
 
-char * dap_chain_global_db_get(const char *a_key)
+uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 {
-    return dap_chain_global_db_gr_get(a_key, GROUP_NAME_DEFAULT);
+    return dap_chain_global_db_gr_get(a_key, a_data_out, GROUP_NAME_DEFAULT);
 }
 
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set(const char *a_key, const char *a_value, const char *a_group)
+bool dap_chain_global_db_gr_set(const char *a_key, const uint8_t *a_value, size_t a_value_len, const char *a_group)
 {
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     store_data->key = (char*) a_key;
     store_data->value = (char*) a_value;
+    store_data->value_len = (a_value_len == (size_t) -1) ? strlen(a_value) : a_value_len;
     store_data->group = (char*) a_group;
+    store_data->timestamp = time(NULL);
     pthread_mutex_lock(&ldb_mutex);
     int res = dap_db_add(store_data, 1);
     if(!res && !is_local_group(a_group))
@@ -141,9 +150,9 @@ bool dap_chain_global_db_gr_set(const char *a_key, const char *a_value, const ch
     return false;
 }
 
-bool dap_chain_global_db_set(const char *a_key, const char *a_value)
+bool dap_chain_global_db_set(const char *a_key, const uint8_t *a_value, size_t a_value_len)
 {
-    return dap_chain_global_db_gr_set(a_key, a_value, GROUP_NAME_DEFAULT);
+    return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_NAME_DEFAULT);
 }
 /**
  * Delete entry from base
@@ -189,7 +198,7 @@ dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a
     pthread_mutex_unlock(&ldb_mutex);
     DAP_DELETE(query);
     // Serialization data
-    dap_store_obj_pkt_t *pkt = dap_store_packet_multiple(store_obj, count);
+    dap_store_obj_pkt_t *pkt = dap_store_packet_multiple(store_obj, 0, count);
     dab_db_free_pdap_store_obj_t(store_obj, count);
     if(pkt)
     {
@@ -228,10 +237,26 @@ dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out)
  */
 bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
 {
-    dap_store_obj_t* l_store_data = (dap_store_obj_t*)a_store_data;
-    if(l_store_data && a_objs_count>0)
-    {
+    dap_store_obj_t* l_store_data = (dap_store_obj_t*) a_store_data;
+    if(l_store_data && a_objs_count > 0) {
         const char *l_group = l_store_data[0].group;
+        // read data
+        for(int i = 0; i < a_objs_count; i++) {
+            dap_store_obj_t* l_obj = l_store_data + i;
+            int l_count = 0;
+            char *l_query = dap_strdup_printf("(&(cn=%s)(objectClass=%s))", l_obj->key, l_obj->group);
+            pthread_mutex_lock(&ldb_mutex);
+            dap_store_obj_t *l_read_store_data = dap_db_read_data(l_query, &l_count, l_group);
+            pthread_mutex_unlock(&ldb_mutex);
+            // don't save obj if (present timestamp) > (new timestamp)
+            if(l_read_store_data && l_count == 1 && l_read_store_data->timestamp > l_obj->timestamp){
+                // mark to not save
+                l_obj->timestamp = (time_t)-1;
+            }
+            DAP_DELETE(l_query);
+        }
+
+        // save data
         pthread_mutex_lock(&ldb_mutex);
         int res = dap_db_add(l_store_data, a_objs_count);
         if(!res && !is_local_group(l_group))
@@ -252,12 +277,15 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     //pdap_store_obj_t store_data = dap_store_unpacket(pkt, &count);
     //DAP_DELETE(pkt);
     dap_store_obj_t *store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, a_objs_count * sizeof(struct dap_store_obj));
+    time_t l_timestamp = time(NULL);
     for(size_t q = 0; q < a_objs_count; ++q) {
         dap_store_obj_t *store_data_cur = store_data + q;
         dap_global_db_obj_t *a_obj_cur = a_objs + q;
         store_data_cur->key = a_obj_cur->key;
-        store_data_cur->value = a_obj_cur->value;
         store_data_cur->group = (char*) a_group;
+        store_data_cur->value = a_obj_cur->value;
+        store_data_cur->value_len = a_obj_cur->value_len;
+        store_data_cur->timestamp = l_timestamp;
     }
     if(store_data)
     {

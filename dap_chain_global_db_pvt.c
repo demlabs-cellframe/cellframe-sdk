@@ -1,6 +1,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <time.h>
+
 //#include "talloc.h"
 #include "dap_chain_global_db_pvt.h"
 
@@ -194,7 +196,15 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
         store_data[q].group = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "objectClass", "")); //strdup(group);
         store_data[q].type = 1;
         store_data[q].key = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", ""));
-        store_data[q].value = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "time", ""));
+        store_data[q].timestamp = ldb_msg_find_attr_as_uint64(data_message->msgs[q], "time", 5);
+        const struct ldb_val *l_val = ldb_msg_find_ldb_val(data_message->msgs[q], "time");
+
+        l_val = ldb_msg_find_ldb_val(data_message->msgs[q], "val");
+        if(l_val) {
+            store_data[q].value_len = l_val->length;
+            store_data[q].value = DAP_NEW_SIZE(uint8_t, l_val->length);
+            memcpy(store_data[q].value, l_val->data, l_val->length);
+        }
         log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
     }
     talloc_free(data_message);
@@ -272,7 +282,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
  */
 int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
 {
-    int ret = 0;
+    int l_ret = 0;
     if(a_store_obj == NULL) {
         log_it(L_ERROR, "Invalid Dap store objects passed");
         return -1;
@@ -281,15 +291,20 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
-    log_it(L_INFO, "We're about to put %d records into database", a_store_count);
-    struct ldb_message *msg;
+    //log_it(L_INFO, "We're about to put %d records into database", a_store_count);
+    struct ldb_message *l_msg;
     int q;
     if(a_store_count == 0) {
         a_store_count = 1;
     }
     for(q = 0; q < a_store_count; q++) {
         // level 3: leased address, single whitelist entity
-        msg = ldb_msg_new(ldb);
+
+        // if it is marked, don't save
+        if(a_store_obj[q].timestamp == (time_t) -1)
+            continue;
+
+        l_msg = ldb_msg_new(ldb);
         char dn[256];
         memset(dn, '\0', 256);
         strcat(dn, "cn=");
@@ -298,17 +313,28 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
         strcat(dn, ",ou=");
         strcat(dn, a_store_obj[q].group);
         strcat(dn, ",dc=kelvin_nodes");
-        msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
-        ldb_msg_add_string(msg, "cn", a_store_obj[q].key);
-        ldb_msg_add_string(msg, "objectClass", a_store_obj[q].group);
-        ldb_msg_add_string(msg, "section", "kelvin_nodes");
-        ldb_msg_add_string(msg, "description", "Approved Kelvin node");
-        ldb_msg_add_string(msg, "time", a_store_obj[q].value);
-        ret += dap_db_add_msg(msg); // accumulation error codes
-        talloc_free(msg->dn);
-        talloc_free(msg);
+        l_msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
+        int l_res = ldb_msg_add_string(l_msg, "cn", a_store_obj[q].key);
+        ldb_msg_add_string(l_msg, "objectClass", a_store_obj[q].group);
+        ldb_msg_add_string(l_msg, "section", "kelvin_nodes");
+        ldb_msg_add_string(l_msg, "description", "Approved Kelvin node");
+
+        struct ldb_val l_val;
+        struct ldb_message_element *return_el;
+        l_val.data = (uint8_t*) &a_store_obj[q].timestamp;
+        l_val.length = sizeof(time_t);
+        l_res = ldb_msg_add_value(l_msg, "time", &l_val, &return_el);
+        ldb_msg_remove_element(l_msg, return_el);
+
+        l_val.data = a_store_obj[q].value;
+        l_val.length = a_store_obj[q].value_len;
+        l_res = ldb_msg_add_steal_value(l_msg, "val", &l_val);
+
+        l_ret += dap_db_add_msg(l_msg); // accumulation error codes
+        talloc_free(l_msg->dn);
+        talloc_free(l_msg);
     }
-    return ret;
+    return l_ret;
 }
 
 /*
@@ -327,7 +353,7 @@ int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count)
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
-    log_it(L_INFO, "We're delete %d records from database", a_store_count);
+    //log_it(L_INFO, "We're delete %d records from database", a_store_count);
     struct ldb_message *msg;
     int q;
     if(a_store_count == 0) {
@@ -376,60 +402,55 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 
 /**
  * serialization
- * @param store_obj_count count of structures store_obj
- * @param size_out[out] size of output structure
+ * @param a_store_obj_count count of structures store_obj
+ * @param a_timestamp create data time
+ * @param a_size_out[out] size of output structure
  * @return NULL in case of an error
  */
-dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t store_obj, int store_obj_count)
+dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp, int a_store_obj_count)
 {
-    if(!store_obj || store_obj_count < 1)
+    if(!a_store_obj || a_store_obj_count < 1)
         return NULL;
-    size_t data_size_out = sizeof(uint32_t); // size of output data
-    int q;
+    size_t l_data_size_out = sizeof(uint32_t); // size of output data
+    int l_q;
     // calculate output structure size
-    for(q = 0; q < store_obj_count; ++q)
-        data_size_out += dap_db_get_size_pdap_store_obj_t(&store_obj[q]);
+    for(l_q = 0; l_q < a_store_obj_count; ++l_q)
+        l_data_size_out += dap_db_get_size_pdap_store_obj_t(&a_store_obj[l_q]);
 
-    dap_store_obj_pkt_t *pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t) + data_size_out);
-    /*    pkt->grp_size = strlen(store_obj[0].group) + 1;
-     pkt->name_size = strlen(store_obj[0].key) + 1; // useless here since it can differ from one store_obj to another
-     pkt->sec_size = strlen(store_obj[0].section) + 1;
-     pkt->type = store_obj[0].type;
-     memcpy(pkt->data, &store_obj[0].section, pkt->sec_size);
-     memcpy(pkt->data + pkt->sec_size, &store_obj[0].group, pkt->grp_size);
-     uint64_t offset = pkt->sec_size + pkt->grp_size;*/
-    pkt->data_size = data_size_out;
-    uint64_t offset = 0;
-    uint32_t count = (uint32_t) store_obj_count;
-    memcpy(pkt->data + offset, &count, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
-    for(q = 0; q < store_obj_count; ++q) {
-        dap_store_obj_t obj = store_obj[q];
+    dap_store_obj_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t) + l_data_size_out);
+    l_pkt->data_size = l_data_size_out;
+    l_pkt->timestamp = a_timestamp;
+    uint64_t l_offset = 0;
+    uint32_t l_count = (uint32_t) a_store_obj_count;
+    memcpy(l_pkt->data + l_offset, &l_count, sizeof(uint32_t));
+    l_offset += sizeof(uint32_t);
+    for(l_q = 0; l_q < a_store_obj_count; ++l_q) {
+        dap_store_obj_t obj = a_store_obj[l_q];
         uint16_t section_size = (uint16_t) strlen(obj.section);
         uint16_t group_size = (uint16_t) strlen(obj.group);
         uint16_t key_size = (uint16_t) strlen(obj.key);
         uint16_t value_size = (uint16_t) strlen(obj.value);
-        memcpy(pkt->data + offset, &obj.type, sizeof(int));
-        offset += sizeof(int);
-        memcpy(pkt->data + offset, &section_size, sizeof(uint16_t));
-        offset += sizeof(uint16_t);
-        memcpy(pkt->data + offset, obj.section, section_size);
-        offset += section_size;
-        memcpy(pkt->data + offset, &group_size, sizeof(uint16_t));
-        offset += sizeof(uint16_t);
-        memcpy(pkt->data + offset, obj.group, group_size);
-        offset += group_size;
-        memcpy(pkt->data + offset, &key_size, sizeof(uint16_t));
-        offset += sizeof(uint16_t);
-        memcpy(pkt->data + offset, obj.key, key_size);
-        offset += key_size;
-        memcpy(pkt->data + offset, &value_size, sizeof(uint16_t));
-        offset += sizeof(uint16_t);
-        memcpy(pkt->data + offset, obj.value, value_size);
-        offset += value_size;
+        memcpy(l_pkt->data + l_offset, &obj.type, sizeof(int));
+        l_offset += sizeof(int);
+        memcpy(l_pkt->data + l_offset, &section_size, sizeof(uint16_t));
+        l_offset += sizeof(uint16_t);
+        memcpy(l_pkt->data + l_offset, obj.section, section_size);
+        l_offset += section_size;
+        memcpy(l_pkt->data + l_offset, &group_size, sizeof(uint16_t));
+        l_offset += sizeof(uint16_t);
+        memcpy(l_pkt->data + l_offset, obj.group, group_size);
+        l_offset += group_size;
+        memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
+        l_offset += sizeof(uint16_t);
+        memcpy(l_pkt->data + l_offset, obj.key, key_size);
+        l_offset += key_size;
+        memcpy(l_pkt->data + l_offset, &value_size, sizeof(uint16_t));
+        l_offset += sizeof(uint16_t);
+        memcpy(l_pkt->data + l_offset, obj.value, value_size);
+        l_offset += value_size;
     }
-    assert(data_size_out == offset);
-    return pkt;
+    assert(l_data_size_out == l_offset);
+    return l_pkt;
 }
 /**
  * deserialization

@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include <dap_common.h>
 #include <dap_strfuncs.h>
@@ -50,6 +51,8 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out)
     dap_global_db_hist_t l_rec;
     if(dap_db_history_unpack_hist(a_obj->value, &l_rec) == -1)
         return NULL;
+    time_t l_timestamp = strtoll(a_obj->key, NULL, 10);
+
     // parse global_db records in a history record
     char **l_keys = dap_strsplit(l_rec.keys, HIST_KEY_SEPARATOR, -1);
     int l_count = dap_str_countv(l_keys);
@@ -64,7 +67,7 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out)
         i++;
     };
     // serialize data
-    dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_count);
+    dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
 
     dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
     dap_strfreev(l_keys);
@@ -94,6 +97,17 @@ void* dap_db_log_unpack(uint8_t *a_data, int a_data_size, int *a_store_obj_count
 }
 
 /**
+ * Get timestamp from dap_db_log_pack()
+ */
+time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, int a_data_size)
+{
+    dap_store_obj_pkt_t *l_pkt = (dap_store_obj_pkt_t*) a_data;
+    if(!l_pkt || l_pkt->data_size != (a_data_size - sizeof(dap_store_obj_pkt_t)))
+        return 0;
+    return l_pkt->timestamp;
+}
+
+/**
  * Add data to the history log
  */
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, int a_dap_store_count)
@@ -103,16 +117,19 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, int a_dap_sto
     dap_global_db_hist_t l_rec;
     l_rec.keys_count = a_dap_store_count;
     l_rec.type = a_type;
-    // TODO Make for keys_count>1
+    // group name should be always the same
     if(l_rec.keys_count >= 1)
         l_rec.group = a_store_obj->group;
     if(l_rec.keys_count == 1)
         l_rec.keys = a_store_obj->key;
     else {
         // make keys vector
-        char **l_keys = DAP_NEW_SIZE(char*, sizeof(char*) * (a_dap_store_count + 1));
+        char **l_keys = DAP_NEW_Z_SIZE(char*, sizeof(char*) * (a_dap_store_count + 1));
         int i;
         for(i = 0; i < a_dap_store_count; i++) {
+            // if it is marked, the data has not been saved
+            if(a_store_obj[i].timestamp == (time_t) -1)
+                continue;
             l_keys[i] = a_store_obj[i].key;
         }
         l_keys[i] = NULL;
@@ -127,7 +144,9 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, int a_dap_sto
     // value - keys of added/deleted data
     l_store_data.key = dap_db_history_timestamp();
     l_store_data.value = (char*) l_str;
+    l_store_data.value_len = l_str_len;
     l_store_data.group = GROUP_HISTORY;
+    l_store_data.timestamp = time(NULL);
     int l_res = dap_db_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
@@ -168,6 +187,14 @@ char *dap_db_log_get_last_timestamp(void)
     return l_ret_str;
 }
 
+static int compare_items(const void * l_a, const void * l_b)
+{
+    dap_global_db_obj_t *l_item_a = (dap_global_db_obj_t*) l_a;
+    dap_global_db_obj_t *l_item_b = (dap_global_db_obj_t*) l_b;
+    int l_ret = strcmp(l_item_a->key, l_item_b->key);
+    return l_ret;
+}
+
 /**
  * Get log diff as list
  */
@@ -186,6 +213,17 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
             l_list = dap_list_append(l_list, l_item);
         }
     }
+    // sort list by key (time str)
+    dap_list_sort(l_list, (DapCompareFunc) compare_items);
+
+    /*/ dbg - sort result
+     l_data_size_out = dap_list_length(l_list);
+     for(size_t i = 0; i < l_data_size_out; i++) {
+     dap_list_t *l_list_tmp = dap_list_nth(l_list, i);
+     dap_global_db_obj_t *l_item = l_list_tmp->data;
+     printf("2 %d %s\n", i, l_item->key);
+     }*/
+
     DAP_DELETE(l_first_key);
     dap_chain_global_db_objs_delete(l_objs);
     return l_list;
