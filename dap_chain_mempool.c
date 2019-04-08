@@ -48,28 +48,28 @@ uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t 
     return a_request;
 }
 
-dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *datum_mempool_str_in, size_t datum_mempool_size)
+dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser, size_t a_datum_mempool_ser_size)
 {
     size_t shift_size = 0;
-    uint8_t *datum_mempool_str = DAP_NEW_Z_SIZE(uint8_t, datum_mempool_size / 2 + 1);
-    datum_mempool_size = hex2bin(datum_mempool_str, datum_mempool_str_in, datum_mempool_size) / 2;
+    //uint8_t *a_datum_mempool_ser = DAP_NEW_Z_SIZE(uint8_t, datum_mempool_size / 2 + 1);
+    //datum_mempool_size = hex2bin(a_datum_mempool_ser, datum_mempool_str_in, datum_mempool_size) / 2;
     dap_datum_mempool_t *datum_mempool = DAP_NEW_Z(dap_datum_mempool_t);
-    memcpy(&(datum_mempool->version), datum_mempool_str + shift_size, sizeof(uint16_t));
+    memcpy(&(datum_mempool->version), a_datum_mempool_ser + shift_size, sizeof(uint16_t));
     shift_size += sizeof(uint16_t);
-    memcpy(&(datum_mempool->datum_count), datum_mempool_str + shift_size, sizeof(uint16_t));
+    memcpy(&(datum_mempool->datum_count), a_datum_mempool_ser + shift_size, sizeof(uint16_t));
     shift_size += sizeof(uint16_t);
     datum_mempool->data = DAP_NEW_Z_SIZE(dap_chain_datum_t*, datum_mempool->datum_count * sizeof(dap_chain_datum_t*));
     for(int i = 0; i < datum_mempool->datum_count; i++) {
         size_t size_one = 0;
-        memcpy(&size_one, datum_mempool_str + shift_size, sizeof(uint16_t));
+        memcpy(&size_one, a_datum_mempool_ser + shift_size, sizeof(uint16_t));
         shift_size += sizeof(uint16_t);
         datum_mempool->data[i] = (dap_chain_datum_t*) DAP_NEW_Z_SIZE(uint8_t, size_one);
-        memcpy(datum_mempool->data[i], datum_mempool_str + shift_size, size_one);
+        memcpy(datum_mempool->data[i], a_datum_mempool_ser + shift_size, size_one);
         shift_size += size_one;
         datum_mempool->data[i];
     }
-    assert(shift_size == datum_mempool_size);
-    DAP_DELETE(datum_mempool_str);
+    assert(shift_size == a_datum_mempool_ser_size);
+    DAP_DELETE(a_datum_mempool_ser);
     return datum_mempool;
 }
 
@@ -191,20 +191,20 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 switch (action)
                 {
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
-                    a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
-                    bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if(dap_chain_global_db_set(a_key, a_value)) {
+                    //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
+                    //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
+                    if(dap_chain_global_db_set(a_key, request_str, request_size)) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "OK" : "False!");
-                    DAP_DELETE(a_value);
+                    //DAP_DELETE(a_value);
                     break;
 
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
-                    char *str = dap_chain_global_db_get((const char*) a_key);
+                    char *str = dap_chain_global_db_get((const char*) a_key, NULL);
                     if(str) {
                         dg->response = strdup("1");
                         DAP_DELETE(str);
