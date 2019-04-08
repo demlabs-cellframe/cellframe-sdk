@@ -25,9 +25,10 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <glib.h>
+//#include <glib.h>
 
 #include "dap_common.h"
+#include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_chain_sign.h"
 #include "dap_chain_datum_tx.h"
@@ -100,4 +101,4 @@ const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_it
         dap_chain_tx_item_type_t a_type, int *a_item_out_size);
 
 // Get all item from transaction by type
-GList* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
+dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);

@@ -26,6 +26,7 @@
 #include <assert.h>
 
 #include "dap_common.h"
+#include "dap_list.h"
 #include "dap_chain_sign.h"
 #include "dap_chain_datum_tx.h"
 //#include "dap_chain_datum_tx_items.h"
@@ -58,7 +59,7 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
         return -1;
 
     // find the transactions from which to take away coins
-    GList *l_list_used_out = NULL; // list of transaction with 'out' items
+    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     uint64_t l_value_transfer = 0; // how many coins to transfer
     {
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 };
@@ -72,9 +73,9 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
                 break;
             // Get all item from transaction by type
             int l_item_count = 0;
-            GList *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
                     &l_item_count);
-            GList *l_list_tmp = l_list_out_items;
+            dap_list_t *l_list_tmp = l_list_out_items;
             int l_out_idx_tmp = 0; // current index of 'out' item
             while(l_list_tmp) {
                 dap_chain_tx_out_t *out_item = l_list_tmp->data;
@@ -88,7 +89,7 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
                         memcpy(&item->tx_hash_fast, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
                         item->num_idx_out = l_out_idx_tmp;
                         item->value = out_item->header.value;
-                        l_list_used_out = g_list_append(l_list_used_out, item);
+                        l_list_used_out = dap_list_append(l_list_used_out, item);
                         l_value_transfer += item->value;
                         // already accumulated the required value, finish the search for 'out' items
                         if(l_value_transfer >= l_value_need){
@@ -98,14 +99,14 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
                 }
                 // go to the next 'out' item in l_tx transaction
                 l_out_idx_tmp++;
-                l_list_tmp = g_list_next(l_list_tmp);
+                l_list_tmp = dap_list_next(l_list_tmp);
             }
-            g_list_free(l_list_out_items);
+            dap_list_free(l_list_out_items);
         }
 
         // nothing to tranfer (not enough funds)
         if(!l_list_used_out || l_value_transfer < l_value_need) {
-            g_list_free_full(l_list_used_out, free);
+            dap_list_free_full(l_list_used_out, free);
             return 0;
         }
     }
@@ -114,17 +115,17 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' items
     {
-        GList *l_list_tmp = l_list_used_out;
+        dap_list_t *l_list_tmp = l_list_used_out;
         uint64_t l_value_to_items = 0; // how many coins to transfer
         while(l_list_tmp) {
             list_used_item_t *item = l_list_tmp->data;
             if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
             }
-            l_list_tmp = g_list_next(l_list_tmp);
+            l_list_tmp = dap_list_next(l_list_tmp);
         }
         assert(l_value_to_items == l_value_transfer);
-        g_list_free_full(l_list_used_out, free);
+        dap_list_free_full(l_list_used_out, free);
     }
     // add 'out' items
     {

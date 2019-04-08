@@ -27,6 +27,7 @@
 #include <malloc.h>
 
 #include "uthash.h"
+#include "dap_list.h"
 #include "dap_hash.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_cache.h"
@@ -146,7 +147,7 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
         dap_chain_tx_out_t *tx_prev_out;
         list_cached_item_t *item_out;
     } bound_items_t;
-    GList *l_list_bound_items = NULL;
+    dap_list_t *l_list_bound_items = NULL;
 
     bool is_first_transaction = false;
     // sum of values in 'out' items from the previous transactions
@@ -164,10 +165,10 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
         bool l_is_err = false;
         int l_prev_tx_count = 0;
         // find all 'in' items in current transaction
-        GList *l_list_in = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN,
+        dap_list_t *l_list_in = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_IN,
                 &l_prev_tx_count);
         // find all previous transactions
-        GList *l_list_tmp = l_list_in;
+        dap_list_t *l_list_tmp = l_list_in;
         int l_list_tmp_num = 0;
         while(l_list_tmp) {
             bound_items_t *bound_item = DAP_NEW_Z(bound_items_t);
@@ -196,7 +197,7 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
             if(!l_tx_prev) {
                 DAP_DELETE(bound_item);
                 // go to next previous transaction
-                l_list_tmp = g_list_next(l_list_tmp);
+                l_list_tmp = dap_list_next(l_list_tmp);
                 continue;
             }
             bound_item->tx_prev = l_tx_prev;
@@ -217,15 +218,15 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
             DAP_DELETE(l_hash_prev);
 
             // Get list of all 'out' items from previous transaction
-            GList *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT, NULL);
+            dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT, NULL);
             // Get one 'out' item in previous transaction bound with current 'in' item
-            dap_chain_tx_out_t *l_tx_prev_out = g_list_nth_data(l_list_prev_out, l_tx_in->header.tx_out_prev_idx);
+            dap_chain_tx_out_t *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_tx_in->header.tx_out_prev_idx);
             if(!l_tx_prev_out) {
                 l_is_err = true;
                 DAP_DELETE(bound_item);
                 break;
             }
-            g_list_free(l_list_prev_out);
+            dap_list_free(l_list_prev_out);
             bound_item->tx_prev_out = l_tx_prev_out;
 
             // calculate hash of public key in current transaction
@@ -255,15 +256,15 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
             // calculate sum of values from previous transactions
             l_values_from_prev_tx += l_tx_prev_out->header.value;
 
-            l_list_bound_items = g_list_append(l_list_bound_items, bound_item);
+            l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
 
             // go to next previous transaction
-            l_list_tmp = g_list_next(l_list_tmp);
+            l_list_tmp = dap_list_next(l_list_tmp);
         }
-        g_list_free(l_list_in);
+        dap_list_free(l_list_in);
 
         if(l_is_err) {
-            g_list_free_full(l_list_bound_items, free);
+            dap_list_free_full(l_list_bound_items, free);
             return -1;
         }
     }
@@ -273,7 +274,7 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
     {
         // Get sign item
         if(!dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL)) {
-            g_list_free_full(l_list_bound_items, free);
+            dap_list_free_full(l_list_bound_items, free);
             return -1;
         }
     }
@@ -283,28 +284,28 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
     if(!is_first_transaction)
     {
         // find 'out' items
-        GList *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT, NULL);
+        dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT, NULL);
         bool l_is_err = false;
         // find all previous transactions
-        GList *l_list_tmp = l_list_out;
+        dap_list_t *l_list_tmp = l_list_out;
         while(l_list_tmp) {
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*) l_list_tmp->data;
             l_values_from_cur_tx += l_tx_out->header.value;
-            l_list_tmp = g_list_next(l_list_tmp);
+            l_list_tmp = dap_list_next(l_list_tmp);
         }
-        g_list_free(l_list_out);
+        dap_list_free(l_list_out);
     }
 
     // 5. Compare sum of values in 'out' items in the current transaction and in the previous transactions
     if(l_values_from_cur_tx != l_values_from_prev_tx) {
-        g_list_free_full(l_list_bound_items, free);
+        dap_list_free_full(l_list_bound_items, free);
         return -1;
     }
 
     // Mark 'out' items in cache if they were used & delete previous transactions from cache if it need
     {
         // find all bound pairs 'in' and 'out'
-        GList *l_list_tmp = l_list_bound_items;
+        dap_list_t *l_list_tmp = l_list_bound_items;
         int l_list_tmp_num = 0;
         while(l_list_tmp) {
             bound_items_t *bound_item = l_list_tmp->data;
@@ -332,11 +333,11 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
                 }
             }
             // go to next previous transaction
-            l_list_tmp = g_list_next(l_list_tmp);
+            l_list_tmp = dap_list_next(l_list_tmp);
         }
     }
 
-    g_list_free_full(l_list_bound_items, free);
+    dap_list_free_full(l_list_bound_items, free);
     return 1;
 }
 
@@ -372,8 +373,8 @@ int dap_chain_node_datum_tx_cache_add(dap_chain_datum_tx_t *a_tx)
         //calculate l_item_tmp->n_outs;
         {
             l_item_tmp->n_outs = 0;
-            GList *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_item_tmp->n_outs);
-            g_list_free(l_tist_tmp);
+            dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_item_tmp->n_outs);
+            dap_list_free(l_tist_tmp);
         }
         memcpy(l_item_tmp->tx, a_tx, dap_chain_datum_tx_get_size(a_tx));
         HASH_ADD(hh, s_datum_list, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash_fast: name of key field
@@ -500,12 +501,12 @@ uint64_t dap_chain_datum_tx_cache_calc_balance(dap_chain_addr_t *a_addr)
 
         // Get 'out' items from transaction
         int l_out_item_count = 0;
-        GList *l_list_out_items = dap_chain_datum_tx_items_get(l_tx_tmp, TX_ITEM_TYPE_OUT, &l_out_item_count);
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx_tmp, TX_ITEM_TYPE_OUT, &l_out_item_count);
         if(l_out_item_count >= MAX_OUT_ITEMS) {
             log_it(L_ERROR, "Too many 'out' items=%d in transaction (max=%d)", l_out_item_count, MAX_OUT_ITEMS);
             assert(l_out_item_count < MAX_OUT_ITEMS);
         }
-        GList *l_list_tmp = l_list_out_items;
+        dap_list_t *l_list_tmp = l_list_out_items;
         int l_out_idx_tmp = 0;
         while(l_list_tmp) {
             const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
@@ -520,9 +521,9 @@ uint64_t dap_chain_datum_tx_cache_calc_balance(dap_chain_addr_t *a_addr)
             // go to the next 'out' item in l_tx_tmp transaction
             l_out_idx_tmp++;
 
-            l_list_tmp = g_list_next(l_list_tmp);
+            l_list_tmp = dap_list_next(l_list_tmp);
         }
-        g_list_free(l_list_tmp);
+        dap_list_free(l_list_tmp);
     }
     pthread_mutex_unlock(&s_hash_list_mutex);
     return balance;
@@ -557,8 +558,8 @@ const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_by_addr(dap_chain
             continue;
         }
         // Get 'out' items from transaction
-        GList *l_list_out_items = dap_chain_datum_tx_items_get(l_tx_tmp, TX_ITEM_TYPE_OUT, NULL);
-        GList *l_list_tmp = l_list_out_items;
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx_tmp, TX_ITEM_TYPE_OUT, NULL);
+        dap_list_t *l_list_tmp = l_list_out_items;
         while(l_list_tmp) {
             const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
             // if transaction has the out item with requested addr
@@ -567,9 +568,9 @@ const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_by_addr(dap_chain
                 memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
                 break;
             }
-            l_list_tmp = g_list_next(l_list_tmp);
+            l_list_tmp = dap_list_next(l_list_tmp);
         }
-        g_list_free(l_list_tmp);
+        dap_list_free(l_list_tmp);
         // already found transaction
         if(l_cur_tx)
             break;

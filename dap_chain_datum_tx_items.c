@@ -241,16 +241,16 @@ const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_it
  * a_item_count[out] count of returned item
  * return item data, NULL Error index or bad format transaction
  */
-GList* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
+dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
 {
-    GList *items_list = NULL;
+    dap_list_t *items_list = NULL;
     int l_items_count = 0, l_item_idx_start = 0;
     // Get sign item from transaction
     while(1) {
         const uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
         if(!l_tx_item)
             break;
-        items_list = g_list_append(items_list, (uint8_t*)l_tx_item);
+        items_list = dap_list_append(items_list, (uint8_t*)l_tx_item);
         l_items_count++;
         l_item_idx_start++;
     }
