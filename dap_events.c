@@ -295,7 +295,7 @@ static void* thread_worker_function(void *arg)
             } else
 #endif
             if (  ( cur = dap_events_socket_find(events[n].data.fd, w->events) ) != NULL  ) {
-                log_it(L_DEBUG, "Epoll event n=%d/%d fd=%d events=%d cur=%d", n, selected_sockets, events[n].data.fd, events[n].events, cur);
+                //log_it(L_DEBUG, "Epoll event n=%d/%d fd=%d events=%d cur=%d", n, selected_sockets, events[n].data.fd, events[n].events, cur);
                 if( events[n].events & EPOLLERR ) {
                     log_it(L_ERROR,"Socket error: %s",strerror(errno));
                     cur->signal_close=true;
@@ -315,7 +315,7 @@ static void* thread_worker_function(void *arg)
 
                         if(bytes_read > 0) {
                             cur->buf_in_size += bytes_read;
-                            log_it(L_DEBUG, "Received %d bytes", bytes_read);
+                            //log_it(L_DEBUG, "Received %d bytes", bytes_read);
                             cur->callbacks->read_callback(cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
 
                         } else if(bytes_read < 0) {
@@ -366,7 +366,7 @@ static void* thread_worker_function(void *arg)
                             //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,cur->buf_out_size);
                         }
 
-                        log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
+                        //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
                         cur->buf_out_size = 0;
                     }
                 }
