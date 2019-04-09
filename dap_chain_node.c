@@ -75,7 +75,7 @@ bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_shard_id_t
  * len is the size of the data in the in[] buffer to encode.
  * return the number of bytes encoded, or -1 on error.
  */
-int bin2hex(char *out, const unsigned char *in, int len)
+int bin2hex0(char *out, const unsigned char *in, int len)
 {
     int ct = len;
     static char hex[] = "0123456789ABCDEF";
@@ -98,7 +98,7 @@ int bin2hex(char *out, const unsigned char *in, int len)
  * The buffers in[] and out[] can be the same to allow in-place decoding.
  * return the number of bytes encoded, or -1 on error.
  */
-int hex2bin(char *out, const unsigned char *in, int len)
+int hex2bin0(char *out, const unsigned char *in, int len)
 {
     // '0'-'9' = 0x30-0x39
     // 'a'-'f' = 0x61-0x66
@@ -131,7 +131,7 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
  * size[out] - length of output string
  * return data or NULL if error
  */
-uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t *size)
+/*uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t *size)
 {
     if(!node_info)
         return NULL;
@@ -146,14 +146,14 @@ uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t 
     if(size)
         *size = node_info_str_size;
     return node_info_str;
-}
+}*/
 
 /**
  * Deserialize dap_chain_node_info_t
  * size[in] - length of input string
  * return data or NULL if error
  */
-dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, size_t size)
+/*dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, size_t size)
 {
     if(!node_info_str || size<=0)
         return NULL;
@@ -166,5 +166,5 @@ dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, s
         return NULL;
     }
     return node_info;
-}
+}*/
 

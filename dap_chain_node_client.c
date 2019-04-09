@@ -207,11 +207,24 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
  pthread_mutex_unlock(&a_client->wait_mutex);
  }*/
 
-static void dap_chain_node_client_callback(dap_stream_ch_chain_net_pkt_t *a_ch_chain_net, void *a_arg)
+static void dap_chain_node_client_callback(dap_stream_ch_chain_net_pkt_t *a_ch_chain_net, size_t a_data_size,
+        void *a_arg)
 {
     dap_chain_node_client_t *client = (dap_chain_node_client_t*) a_arg;
     assert(client);
+    // end of session
+    if(!a_ch_chain_net)
+    {
+        pthread_mutex_lock(&client->wait_mutex);
+        client->state = NODE_CLIENT_STATE_END;
+        pthread_cond_signal(&client->wait_cond);
+        pthread_mutex_unlock(&client->wait_mutex);
+        return;
+    }
+
     int l_state;
+    //printf("*callback type=%d\n", a_ch_chain_net->hdr.type);
+
     switch (a_ch_chain_net->hdr.type) {
     case STREAM_CH_CHAIN_NET_PKT_TYPE_PING:
         l_state = NODE_CLIENT_STATE_PING;
@@ -219,9 +232,21 @@ static void dap_chain_node_client_callback(dap_stream_ch_chain_net_pkt_t *a_ch_c
     case STREAM_CH_CHAIN_NET_PKT_TYPE_PONG:
         l_state = NODE_CLIENT_STATE_PONG;
         break;
-    case STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB:
-        l_state = NODE_CLIENT_STATE_END;
+    case STREAM_CH_CHAIN_NET_PKT_TYPE_GET_NODE_ADDR:
+        l_state = NODE_CLIENT_STATE_GET_NODE_ADDR;
+        client->recv_data_len = a_data_size;
+        if(client->recv_data_len > 0) {
+            client->recv_data = DAP_NEW_SIZE(uint8_t, a_data_size);
+            memcpy(client->recv_data, a_ch_chain_net->data, a_data_size);
+        }
+
         break;
+    case STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR:
+        l_state = NODE_CLIENT_STATE_SET_NODE_ADDR;
+        break;
+//    case STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB:
+//        l_state = NODE_CLIENT_STATE_CONNECTED;
+//        break;
 
     default:
         l_state = NODE_CLIENT_STATE_ERROR;
@@ -293,11 +318,18 @@ int chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state
     else
         to.tv_nsec = (long) nsec_new;
     // signal waiting
-    int wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &to);
-    if(wait == 0) //0
-        ret = 1;
-    else if(wait == ETIMEDOUT) // 110 260
-        ret = 0;
+    do {
+        int wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &to);
+        if(wait == 0 && a_client->state == a_waited_state) {
+            ret = 1;
+            break;
+        }
+        else if(wait == ETIMEDOUT) { // 110 260
+            ret = 0;
+            break;
+        }
+    }
+    while(1);
     pthread_mutex_unlock(&a_client->wait_mutex);
     return ret;
 }
