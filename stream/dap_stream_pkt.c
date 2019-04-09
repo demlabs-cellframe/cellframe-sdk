@@ -118,6 +118,8 @@ size_t dap_stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t
     memcpy(pkt_hdr.sig,dap_sig,sizeof(pkt_hdr.sig));
 
     pkt_hdr.size = sid->session->key->enc_na(sid->session->key, data,data_size,sid->buf, STREAM_BUF_SIZE_MAX);
+//    printf("*[dap_stream_pkt_write] size=%d key=0x%x _inheritor_size=%d\n", pkt_hdr.size, sid->session->key,
+//            sid->session->key->_inheritor_size);
 
     if(sid->conn_udp){
         ret+=dap_udp_client_write(sid->conn,&pkt_hdr,sizeof(pkt_hdr));
