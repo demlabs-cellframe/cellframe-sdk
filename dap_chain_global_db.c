@@ -213,7 +213,9 @@ dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a
             assert(store_data_cur);
             data[i] = DAP_NEW(dap_global_db_obj_t);
             data[i]->key = strdup(store_data_cur->key);
-            data[i]->value = strdup(store_data_cur->value);
+            data[i]->value_len = store_data_cur->value_len;
+            data[i]->value = DAP_NEW_Z_SIZE(uint8_t, store_data_cur->value_len + 1);
+            memcpy(data[i]->value, store_data_cur->value, store_data_cur->value_len);
         }
         DAP_DELETE(store_data);
         DAP_DELETE(pkt);
@@ -239,7 +241,10 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
 {
     dap_store_obj_t* l_store_data = (dap_store_obj_t*) a_store_data;
     if(l_store_data && a_objs_count > 0) {
+        // real records
+        int l_objs_count = a_objs_count;
         const char *l_group = l_store_data[0].group;
+
         // read data
         for(int i = 0; i < a_objs_count; i++) {
             dap_store_obj_t* l_obj = l_store_data + i;
@@ -249,20 +254,31 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
             dap_store_obj_t *l_read_store_data = dap_db_read_data(l_query, &l_count, l_group);
             pthread_mutex_unlock(&ldb_mutex);
             // don't save obj if (present timestamp) > (new timestamp)
-            if(l_read_store_data && l_count == 1 && l_read_store_data->timestamp > l_obj->timestamp){
-                // mark to not save
-                l_obj->timestamp = (time_t)-1;
+            if(l_read_store_data) {
+                if(l_count == 1 && l_read_store_data->timestamp >= l_obj->timestamp) {
+                    // mark to not save
+                    l_obj->timestamp = (time_t) -1;
+                    // reduce the number of real records
+                    l_objs_count--;
+                }
+                dab_db_free_pdap_store_obj_t(l_read_store_data, l_count);
             }
+
             DAP_DELETE(l_query);
         }
 
         // save data
-        pthread_mutex_lock(&ldb_mutex);
-        int res = dap_db_add(l_store_data, a_objs_count);
-        if(!res && !is_local_group(l_group))
-            dap_db_history_add('a', l_store_data, a_objs_count);
-        pthread_mutex_unlock(&ldb_mutex);
-        if(!res)
+        if(l_objs_count > 0) {
+
+            pthread_mutex_lock(&ldb_mutex);
+            int res = dap_db_add(l_store_data, a_objs_count);
+            if(!res && !is_local_group(l_group))
+                dap_db_history_add('a', l_store_data, a_objs_count);
+            pthread_mutex_unlock(&ldb_mutex);
+            if(!res)
+                return true;
+        }
+        else
             return true;
     }
     return false;
@@ -270,12 +286,6 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
 
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group)
 {
-    //int count = 0;
-    //dap_store_obj_pkt_t *pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t));
-    //pkt->data_size = a_data_size;
-    //pkt->data = a_data;
-    //pdap_store_obj_t store_data = dap_store_unpacket(pkt, &count);
-    //DAP_DELETE(pkt);
     dap_store_obj_t *store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, a_objs_count * sizeof(struct dap_store_obj));
     time_t l_timestamp = time(NULL);
     for(size_t q = 0; q < a_objs_count; ++q) {

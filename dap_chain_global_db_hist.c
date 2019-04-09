@@ -167,7 +167,7 @@ bool dap_db_history_truncate(void)
 /**
  * Get last timestamp in log
  */
-char *dap_db_log_get_last_timestamp(void)
+time_t dap_db_log_get_last_timestamp(void)
 {
     char *last_key = NULL;
     size_t l_data_size_out = 0;
@@ -178,13 +178,13 @@ char *dap_db_log_get_last_timestamp(void)
         dap_global_db_obj_t *l_obj_cur = l_objs[i];
         if(strcmp(last_key, l_obj_cur->key) < 0) {
             last_key = l_obj_cur->key;
-            printf("l_obj_cur->key=%s last_key\n", l_obj_cur->key);
+            //printf("l_obj_cur->key=%s last_key\n", l_obj_cur->key);
         }
-        printf("l_obj_cur->key=%s\n", l_obj_cur->key);
+        //printf("l_obj_cur->key=%s\n", l_obj_cur->key);
     }
-    char *l_ret_str = dap_strdup(last_key);
+    time_t l_ret_time = strtoll(last_key, NULL, 10);
     dap_chain_global_db_objs_delete(l_objs);
-    return l_ret_str;
+    return l_ret_time;
 }
 
 static int compare_items(const void * l_a, const void * l_b)

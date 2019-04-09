@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "dap_common.h"
 #include "dap_config.h"
@@ -11,12 +12,13 @@
 #define GROUP_ALIAS "aliases_leased"
 #define GROUP_DATUM "datums"
 #define GROUP_REMOTE_NODE "remote_node"
+//#define GROUP_CURRENT_NODE "current_node"
 
 #define GROUP_NAME_DEFAULT GROUP_DATUM
 
 typedef struct dap_global_db_obj {
     char *key;
-    char *value;
+    uint8_t *value;
     size_t value_len;
 }DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
 
@@ -91,7 +93,7 @@ void* dap_db_log_unpack(uint8_t *a_data, int a_data_size, int *a_store_obj_count
 time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, int a_data_size);
 
 // Get last timestamp in log
-char *dap_db_log_get_last_timestamp(void);
+time_t dap_db_log_get_last_timestamp(void);
 // Get log diff as list
 dap_list_t* dap_db_log_get_list(time_t first_timestamp);
 // Free list getting from dap_db_log_get_list()

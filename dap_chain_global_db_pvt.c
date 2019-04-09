@@ -5,6 +5,7 @@
 
 //#include "talloc.h"
 #include "dap_chain_global_db_pvt.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_global_db"
 #define TDB_PREFIX_LEN 7
@@ -43,7 +44,7 @@ static int dap_db_add_msg(struct ldb_message *a_msg)
     }
     else {
         ldb_transaction_commit(ldb);
-        log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(a_msg->dn));
+        //log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(a_msg->dn));
         return 0;
     }
     return -1;
@@ -139,7 +140,7 @@ int dap_db_del_msg(struct ldb_dn *ldn)
     }
     else {
         ldb_transaction_commit(ldb);
-        log_it(L_INFO, "Entry %s deleted", ldb_dn_get_linearized(ldn));
+        //log_it(L_INFO, "Entry %s deleted", ldb_dn_get_linearized(ldn));
         return 0;
     }
     return -1;
@@ -179,7 +180,13 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
         log_it(L_ERROR, "Database querying failed");
         return NULL;
     }
-    log_it(L_INFO, "Obtained binary data, %d entries", data_message->count);
+    //log_it(L_INFO, "Obtained binary data, %d entries", data_message->count);
+
+    // not found data
+    if(!data_message->count ) {
+        talloc_free(data_message);
+        return NULL;
+    }
 
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, data_message->count * sizeof(struct dap_store_obj));
     if(!store_data) {
@@ -196,16 +203,19 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
         store_data[q].group = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "objectClass", "")); //strdup(group);
         store_data[q].type = 1;
         store_data[q].key = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "cn", ""));
-        store_data[q].timestamp = ldb_msg_find_attr_as_uint64(data_message->msgs[q], "time", 5);
+        // get timestamp
         const struct ldb_val *l_val = ldb_msg_find_ldb_val(data_message->msgs[q], "time");
-
+        if(l_val) {
+            memcpy(&store_data[q].timestamp, l_val->data, min(sizeof(time_t), l_val->length));
+        }
+        // get value
         l_val = ldb_msg_find_ldb_val(data_message->msgs[q], "val");
         if(l_val) {
             store_data[q].value_len = l_val->length;
             store_data[q].value = DAP_NEW_SIZE(uint8_t, l_val->length);
             memcpy(store_data[q].value, l_val->data, l_val->length);
         }
-        log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
+        //log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
     }
     talloc_free(data_message);
     if(count)
@@ -324,11 +334,10 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
         l_val.data = (uint8_t*) &a_store_obj[q].timestamp;
         l_val.length = sizeof(time_t);
         l_res = ldb_msg_add_value(l_msg, "time", &l_val, &return_el);
-        ldb_msg_remove_element(l_msg, return_el);
 
         l_val.data = a_store_obj[q].value;
         l_val.length = a_store_obj[q].value_len;
-        l_res = ldb_msg_add_steal_value(l_msg, "val", &l_val);
+        l_res = ldb_msg_add_value(l_msg, "val", &l_val, &return_el);
 
         l_ret += dap_db_add_msg(l_msg); // accumulation error codes
         talloc_free(l_msg->dn);
@@ -395,8 +404,8 @@ int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count)
 
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
-    size_t size = sizeof(uint32_t) + 4 * sizeof(uint16_t) + strlen(store_obj->group) +
-            strlen(store_obj->key) + strlen(store_obj->section) + strlen(store_obj->value);
+    size_t size = sizeof(uint32_t) + 3 * sizeof(uint16_t) + sizeof(size_t) + sizeof(time_t) + strlen(store_obj->group) +
+            strlen(store_obj->key) + strlen(store_obj->section) + store_obj->value_len;
     return size;
 }
 
@@ -429,7 +438,6 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
         uint16_t section_size = (uint16_t) strlen(obj.section);
         uint16_t group_size = (uint16_t) strlen(obj.group);
         uint16_t key_size = (uint16_t) strlen(obj.key);
-        uint16_t value_size = (uint16_t) strlen(obj.value);
         memcpy(l_pkt->data + l_offset, &obj.type, sizeof(int));
         l_offset += sizeof(int);
         memcpy(l_pkt->data + l_offset, &section_size, sizeof(uint16_t));
@@ -440,14 +448,16 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
         l_offset += sizeof(uint16_t);
         memcpy(l_pkt->data + l_offset, obj.group, group_size);
         l_offset += group_size;
+        memcpy(l_pkt->data + l_offset, &obj.timestamp, sizeof(time_t));
+        l_offset += sizeof(time_t);
         memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
         l_offset += sizeof(uint16_t);
         memcpy(l_pkt->data + l_offset, obj.key, key_size);
         l_offset += key_size;
-        memcpy(l_pkt->data + l_offset, &value_size, sizeof(uint16_t));
-        l_offset += sizeof(uint16_t);
-        memcpy(l_pkt->data + l_offset, obj.value, value_size);
-        l_offset += value_size;
+        memcpy(l_pkt->data + l_offset, &obj.value_len, sizeof(size_t));
+        l_offset += sizeof(size_t);
+        memcpy(l_pkt->data + l_offset, obj.value, obj.value_len);
+        l_offset += obj.value_len;
     }
     assert(l_data_size_out == l_offset);
     return l_pkt;
@@ -486,17 +496,21 @@ dap_store_obj_t *dap_store_unpacket(dap_store_obj_pkt_t *pkt, int *store_obj_cou
         memcpy(obj->group, pkt->data + offset, str_size);
         offset += str_size;
 
+        memcpy(&obj->timestamp, pkt->data + offset, sizeof(time_t));
+        offset += sizeof(time_t);
+
         memcpy(&str_size, pkt->data + offset, sizeof(uint16_t));
         offset += sizeof(uint16_t);
         obj->key = DAP_NEW_Z_SIZE(char, str_size + 1);
         memcpy(obj->key, pkt->data + offset, str_size);
         offset += str_size;
 
-        memcpy(&str_size, pkt->data + offset, sizeof(uint16_t));
-        offset += sizeof(uint16_t);
-        obj->value = DAP_NEW_Z_SIZE(char, str_size + 1);
-        memcpy(obj->value, pkt->data + offset, str_size);
-        offset += str_size;
+        memcpy(&obj->value_len, pkt->data + offset, sizeof(size_t));
+        offset += sizeof(size_t);
+
+        obj->value = DAP_NEW_Z_SIZE(char, obj->value_len + 1);
+        memcpy(obj->value, pkt->data + offset, obj->value_len);
+        offset += obj->value_len;
     }
     assert(pkt->data_size == offset);
     if(store_obj_count)

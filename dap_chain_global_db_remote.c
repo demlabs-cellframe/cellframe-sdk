@@ -1,10 +1,39 @@
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 //#include <dap_common.h>
 #include <dap_strfuncs.h>
+//#include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
+
+/**
+ * Set addr for current node
+ */
+bool dap_db_set_cur_node_addr(uint64_t a_address)
+{
+    dap_global_db_obj_t l_objs;
+    l_objs.key = "cur_node";
+    l_objs.value = (uint8_t*) &a_address;
+    l_objs.value_len = sizeof(a_address);
+    bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_REMOTE_NODE);
+    return l_ret;
+}
+
+/**
+ * Get addr for current node
+ */
+uint64_t dap_db_get_cur_node_addr(void)
+{
+    size_t l_node_addr_len = 0;
+    uint8_t *l_node_addr = dap_chain_global_db_gr_get("cur_node", &l_node_addr_len, GROUP_REMOTE_NODE);
+    uint64_t l_node_addr_ret = 0;
+    if(l_node_addr && l_node_addr_len == sizeof(uint64_t))
+        memcpy(&l_node_addr_ret, l_node_addr, l_node_addr_len);
+    DAP_DELETE(l_node_addr);
+    return l_node_addr_ret;
+}
 
 /**
  * Set last timestamp for remote node
@@ -13,10 +42,10 @@ bool dap_db_log_set_last_timestamp_remote(uint64_t a_node_addr, time_t a_timesta
 {
     dap_global_db_obj_t l_objs;
     l_objs.key = dap_strdup_printf("%lld", a_node_addr);
-    l_objs.value = dap_strdup_printf("%lld", a_timestamp);
+    l_objs.value = (uint8_t*) &a_timestamp;
+    l_objs.value_len = sizeof(time_t);
     bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_REMOTE_NODE);
     DAP_DELETE(l_objs.key);
-    DAP_DELETE(l_objs.value);
     return l_ret;
 }
 
@@ -26,10 +55,13 @@ bool dap_db_log_set_last_timestamp_remote(uint64_t a_node_addr, time_t a_timesta
 time_t dap_db_log_get_last_timestamp_remote(uint64_t a_node_addr)
 {
     char *l_node_addr_str = dap_strdup_printf("%lld", a_node_addr);
-    size_t l_node_addr_str_len = 0;
-    char *l_timestamp_str = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_node_addr_str_len, GROUP_REMOTE_NODE);
-    time_t l_ret_timestamp = (l_timestamp_str) ? strtoll(l_timestamp_str, NULL,10) : 0;
+    size_t l_timestamp_len = 0;
+    uint8_t *l_timestamp = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_timestamp_len,
+    GROUP_REMOTE_NODE);
+    time_t l_ret_timestamp = 0;
+    if(l_timestamp && l_timestamp_len == sizeof(time_t))
+        memcpy(&l_ret_timestamp, l_timestamp, l_timestamp_len);
     DAP_DELETE(l_node_addr_str);
-    DAP_DELETE(l_timestamp_str);
+    DAP_DELETE(l_timestamp);
     return l_ret_timestamp;
 }
