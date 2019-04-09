@@ -37,6 +37,8 @@
 #define STREAM_CH_CHAIN_NET_PKT_TYPE_DATUM                  0x12
 #define STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB              0x13
 #define STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC 0x14
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_GET_NODE_ADDR          0x15
+#define STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR          0x16
 #define STREAM_CH_CHAIN_NET_PKT_TYPE_DBG                    0x99
 
 typedef struct stream_ch_chain_net_pkt_hdr{
