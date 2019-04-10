@@ -33,13 +33,13 @@
 /**
  * Generate node address by shard id
  */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_shard_id_t *shard_id)
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id)
 {
     if(!shard_id)
         return NULL;
     dap_chain_node_addr_t *a_addr = DAP_NEW_Z(dap_chain_node_addr_t);
     dap_chain_hash_fast_t a_hash;
-    dap_hash_fast(shard_id, sizeof(dap_chain_shard_id_t), &a_hash);
+    dap_hash_fast(shard_id, sizeof(dap_chain_cell_id_t), &a_hash);
     // first 4 bytes is last 4 bytes of shard id hash
     memcpy(a_addr->raw, a_hash.raw + sizeof(a_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
     // last 4 bytes is random
@@ -52,7 +52,7 @@ dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_shard_id_t *shard_id)
 /**
  * Check the validity of the node address by shard id
  */
-bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_shard_id_t *shard_id)
+bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id)
 {
     bool ret = false;
     if(!addr || !shard_id)
