@@ -48,7 +48,7 @@ typedef union dap_stream_ch_chain_request{
 typedef struct dap_stream_ch_chain_pkt_hdr{
     dap_chain_id_t chain_id;
     dap_chain_net_id_t net_id;
-    dap_chain_shard_id_t shard_id;
+    dap_chain_cell_id_t shard_id;
     uint8_t type;
     uint8_t padding1[3];
     uint64_t tid;

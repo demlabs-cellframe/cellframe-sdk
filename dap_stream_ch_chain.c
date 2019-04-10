@@ -109,8 +109,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_pkt_t * l_chain_pkt =(dap_stream_ch_chain_pkt_t *) l_ch_pkt->data;
         if( l_chain_pkt ){
-            dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id,  l_chain_pkt->hdr.chain_id,
-                                                         l_chain_pkt->hdr.shard_id);
+            dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id,  l_chain_pkt->hdr.chain_id);
             if ( l_chain ) {
                 switch ( l_chain_pkt->hdr.type ) {
                     case STREAM_CH_CHAIN_PKT_TYPE_REQUEST:{
