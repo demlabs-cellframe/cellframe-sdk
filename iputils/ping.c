@@ -56,7 +56,9 @@
 #include <netinet/ip_icmp.h>
 #include <ifaddrs.h>
 #include <math.h>
-#include <glib.h>
+//#include <glib.h>
+#include "dap_common.h"
+#include "dap_strfuncs.h"
 
 #ifndef ICMP_FILTER
 #define ICMP_FILTER	1
@@ -547,10 +549,10 @@ int ping_util_common(int type, const char *addr, int count)
         argv[0] = "ping6";
     else
         argv[0] = "ping4";
-    argv[1] = g_strdup_printf("-c%d", count);
+    argv[1] = dap_strdup_printf("-c%d", count);
     argv[2] = addr;
     int status = ping_main(argc, (char**) argv);
-    g_free((char*) argv[1]);
+    DAP_DELETE((char*) argv[1]);
     if(ntransmitted >= 1 && nreceived >= 1)
         return tsum;
     return status;

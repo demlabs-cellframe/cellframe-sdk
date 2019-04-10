@@ -35,8 +35,11 @@ enum {
     NODE_CLIENT_STATE_CONNECTED,
     //NODE_CLIENT_STATE_SEND,
     //NODE_CLIENT_STATE_SENDED,
+    NODE_CLIENT_STATE_GET_NODE_ADDR,
+    NODE_CLIENT_STATE_SET_NODE_ADDR,
     NODE_CLIENT_STATE_PING,
     NODE_CLIENT_STATE_PONG,
+
     NODE_CLIENT_STATE_END
 };
 
@@ -53,6 +56,8 @@ typedef struct dap_chain_node_client {
     dap_chain_node_client_callback_t callback_stream_connected;
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
+    uint8_t *recv_data;
+    size_t recv_data_len;
 } dap_chain_node_client_t;
 
 
@@ -77,7 +82,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *client);
 /**
  * Send stream request to server
  */
-int dap_chain_node_client_send_chain_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id,
+int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
         char *a_buf, size_t a_buf_size);
 
 /**
