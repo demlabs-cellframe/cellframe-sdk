@@ -76,7 +76,7 @@ typedef struct dap_chain_node_info
 {
     struct {
         dap_chain_node_addr_t address;
-        dap_chain_shard_id_t shard_id;
+        dap_chain_cell_id_t shard_id;
         uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
@@ -112,12 +112,12 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
 /**
  * Generate node addr by shard id
  */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_shard_id_t *shard_id);
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id);
 
 /**
  * Check the validity of the node address by shard id
  */
-bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_shard_id_t *shard_id);
+bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id);
 
 /**
  * Convert binary data to binhex encoded data.
