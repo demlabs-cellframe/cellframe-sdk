@@ -33,59 +33,119 @@
 
 #define LOG_TAG "dap_chain_pvt"
 
-/**
- * @brief dap_chain_pvt_file_load
- * @param a_chain
- * @return
- */
 int dap_chain_pvt_cells_load( dap_chain_t * a_chain)
 {
-    DAP_CHAIN_PVT_LOCAL (a_chain);
-
-    struct dirent *l_dir_entry;
-    DIR * l_dir_fd = opendir( l_chain_pvt->file_storage_dir );
-    if( l_dir_fd != NULL ) {
-        while( l_dir_entry = readdir( l_dir_fd ) ){
-            char * l_entry_name = strdup(l_dir_entry->d_name);
-
-            size_t l_chains_path_size = strlen(l_chain_pvt->file_storage_dir)+1+strlen("network")+1;
-            l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);
-
-            if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
-                if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
-                    l_entry_name [strlen(l_entry_name)-4] = 0;
-                    log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
-                    snprintf(l_chains_path,l_chains_path_size,"network/%s/%s",l_net->pub.name,l_entry_name);
-                    //dap_config_open(l_chains_path);
-
-                    // Create chain object
-                    dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name,l_entry_name);
-                    DL_APPEND( l_net->pub.chains, l_chain);
-                    free(l_entry_name);
-                }
-            }
-            DAP_DELETE (l_chains_path);
-        }
-        closedir(dfd);
-    }
-
-
 
 }
 
-/**
- * @brief dap_chain_pvt_file_save
- * @param a_chain
- * @return
- */
+int dap_chain_pvt_cells_save( dap_chain_t * a_chain)
+{
 
+}
 
-/**
- * @brief dap_chain_pvt_file_update
- * @param a_chain
- * @return
- */
 int dap_chain_pvt_cells_update( dap_chain_t * a_chain)
 {
-   return 0;
+
 }
+
+/**
+ * @brief dap_chain_cell_load_file
+ * @param a_cell
+ * @param a_cell_file_path
+ * @return
+ */
+
+int dap_chain_cell_load_file ( dap_chain_cell_t * a_cell, const char * a_cell_file_path )
+{
+    /**
+    if( a_cell->file_storage_path )
+        free ( a_cell->file_storage_path );
+    a_cell->file_storage_path = strdup( a_cell_file_path );
+    a_cell->file_storage = fopen(a_cell->file_storage_path,"r");
+
+    if ( a_cell->file_storage ){
+        dap_chain_cell_file_header_t l_hdr = {0};
+        if ( fread( &l_hdr,1,sizeof(l_hdr),a_cell->file_storage ) == sizeof (l_hdr) ) {
+            if ( l_hdr.signature == DAP_CHAIN_CELL_FILE_SIGNATURE ) {
+                while ( feof( a_cell->file_storage) == 0 ){
+                    size_t l_element_size = 0;
+                    if ( fread(&l_element_size,1,sizeof(l_element_size),a_cell->file_storage) == sizeof(l_element_size) ){
+                        if ( l_element_size > 0 ){
+                            uint8_t * l_element_data = DAP_NEW_Z_SIZE (uint8_t, l_element_size );
+                            if ( fread( l_element_data,1,l_element_size,a_cell->file_storage ) == l_element_size ) {
+                                a_cell->chain->callback_atom_add (a_chain, l_element_data, l_element_size );
+                            }
+                        } else {
+                            log_it (L_ERROR, "Zero element size, file is corrupted");
+                            break;
+                        }
+                    }
+                }
+                return 0;
+            } else {
+                log_it (L_ERROR,"Wrong signature in file \"%s\", possible file corrupt",l_chain_pvt->file_storage_path);
+                return -3;
+            }
+        } else {
+            log_it (L_ERROR,"Can't read dap_chain file header \"%s\"",l_chain_pvt->file_storage_path);
+            return -2;
+        }
+    }else {
+        log_it (L_WARNING,"Can't read dap_chain file \"%s\"",l_chain_pvt->file_storage_path);
+        return -1;
+    }
+**/
+}
+
+/**
+ * @brief dap_chain_cell_save_file
+ * @param a_cell
+ * @param a_cell_file_path
+ * @return
+ */
+
+
+int dap_chain_cell_save_file ( dap_chain_cell_t * a_cell, const char * a_cell_file_path)
+{
+/**
+    a_cell->file_storage = fopen(a_cell->file_storage_path,"w");
+    if ( a_cell->file_storage ){
+        dap_chain_cell_file_header_t l_hdr = {
+            .signature = DAP_CHAIN_CELL_FILE_SIGNATURE,
+            .version = DAP_CHAIN_CELL_FILE_VERSION,
+            .type = DAP_CHAIN_CELL_FILE_TYPE_RAW,
+            .chain_id = a_chain->id,
+            .chain_net_id = a_chain->net_id
+        };
+        if ( fwrite( &l_hdr,1,sizeof(l_hdr),l_chain_pvt->file_storage ) == sizeof (l_hdr) ) {
+            size_t l_element_size = 0;
+            void *l_element_data = NULL;
+            a_chain->callback_element_get_first (a_chain, &l_element_data, &l_element_size);
+            while ( l_element_data && l_element_size ){
+                if ( fwrite(&l_element_size,1,sizeof(l_element_size),l_chain_pvt->file_storage) == sizeof(l_element_size) ){
+                    if ( fwrite(&l_element_data,1,l_element_size,l_chain_pvt->file_storage) == l_element_size ){
+                        a_chain->callback_element_get_next(a_chain, &l_element_data, &l_element_size);
+                    } else {
+                        log_it (L_ERROR, "Can't write data to the file");
+                        break;
+                    }
+                } else {
+                    log_it (L_ERROR, "Can't write data to the file");
+                    break;
+                }
+            }
+        } else {
+            log_it (L_ERROR,"Can't write dap_chain file header \"%s\"",l_chain_pvt->file_storage_path);
+            return -2;
+        }
+    }else {
+        log_it (L_ERROR,"Can't write dap_chain file \"%s\"",l_chain_pvt->file_storage_path);
+        return -1;
+    }
+    return 0;
+**/
+}
+
+
+
+

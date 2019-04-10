@@ -87,17 +87,20 @@ dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
 
 /**
  * @brief dap_chain_create
+ * @param a_chain_net_name
  * @param a_chain_name
  * @param a_chain_net_id
  * @param a_chain_id
  * @return
  */
-dap_chain_t * dap_chain_create( const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
+dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
     DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
     memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
+    l_ret->name = strdup (a_chain_name);
+    l_ret->net_name = strdup (a_chain_net_name);
 
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     l_ret_item->chain = l_ret;
@@ -124,6 +127,10 @@ void dap_chain_delete(dap_chain_t * a_chain)
        HASH_DEL(s_chain_items, l_item);
        if (a_chain->callback_delete )
            a_chain->callback_delete(a_chain);
+       if ( a_chain->name)
+           DAP_DELETE (a_chain->name);
+       if ( a_chain->net_name)
+           DAP_DELETE (a_chain->net_name);
        if (a_chain->_pvt ){
            DAP_DELETE(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
            DAP_DELETE(a_chain->_pvt);
@@ -140,10 +147,10 @@ void dap_chain_delete(dap_chain_t * a_chain)
  * @brief dap_chain_find_by_id
  * @param a_chain_net_id
  * @param a_chain_id
- * @param a_shard_id
+ * @param a_cell_id
  * @return
  */
-dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_shard_id)
+dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
 {
     dap_chain_item_id_t l_chain_item_id = {
         .id = a_chain_id,
@@ -200,7 +207,7 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char 
                 return NULL;
             }
 
-            l_chain =  dap_chain_create(l_chain_net_id,l_chain_id);
+            l_chain =  dap_chain_create(a_chain_net_name,l_chain_name, l_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
                         l_chain_id.uint64 );

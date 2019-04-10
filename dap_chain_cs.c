@@ -30,6 +30,7 @@
 
 #include "dap_common.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_pvt.h"
 
 #define LOG_TAG "dap_chain_cs"
 
@@ -60,6 +61,28 @@ void dap_chain_cs_deinit()
 }
 
 /**
+ * @brief dap_chain_class_add
+ * @param a_cs_str
+ * @param a_callback_init
+ */
+void dap_chain_class_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callback_init)
+{
+    // TODO
+}
+
+/**
+ * @brief dap_chain_class_create
+ * @param a_chain
+ * @param a_chain_cfg
+ * @return
+ */
+int dap_chain_class_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+{
+   return -1; //TODO
+}
+
+
+/**
  * @brief dap_chain_cs_add
  * @param a_cs_str
  * @param a_callback_init
@@ -81,11 +104,10 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callba
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_callback_item_t *l_item = NULL;
+    DAP_CHAIN_PVT_LOCAL(a_chain);
     HASH_FIND_STR(s_cs_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
     if ( l_item ) {
-        dap_chain_cs_t * l_consensus = DAP_NEW_Z(dap_chain_cs_t);
-        DL_APPEND( a_chain->consensuses, l_consensus );
-        l_consensus->callback_init( a_chain, a_chain_cfg );
+        // TODO
         return 0;
     } else {
         return -1;

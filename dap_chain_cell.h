@@ -33,6 +33,7 @@ typedef struct dap_chain dap_chain_t;
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
 
+
 /**
   * @struct dap_chain_cell_file_header
   */
@@ -45,6 +46,11 @@ typedef struct dap_chain_cell_file_header
     dap_chain_net_id_t chain_net_id;
     dap_chain_cell_id_t cell_id;
 } DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
+
+typedef struct dap_chain_cell dap_chain_cell_t;
+
+
+
 
 typedef struct dap_chain_cell {
     dap_chain_t * chain;

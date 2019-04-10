@@ -84,5 +84,18 @@ typedef struct dap_chain_datum{
                               // After signs goes data block and and till the end of datum.
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
+struct dap_chain;
+typedef struct dap_chain dap_chain_t;
+
+typedef struct dap_chain_datum_iter{
+    dap_chain_t * chain;
+    dap_chain_datum_t * cur;
+} dap_chain_datum_iter_t;
+
+typedef dap_chain_datum_iter_t* (*dap_chain_datum_callback_iter_create_t)(dap_chain_t * );
+typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t * );
+typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *  );
+typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *  );
+
 
 size_t dap_chain_datum_data_size(dap_chain_datum_t * a_datum);

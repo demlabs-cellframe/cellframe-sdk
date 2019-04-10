@@ -41,17 +41,13 @@ typedef struct dap_chain_pvt
 {
     dap_chain_t * chain;
     char * file_storage_dir;
-
-    dap_chain_cell_t * cells;
-    dap_chain_cs_t * consensuses;
-
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *) a->_pvt  )
 
 #define DAP_CHAIN_PVT_LOCAL(a) dap_chain_pvt_t * l_chain_pvt = DAP_CHAIN_PVT(a)
 
-#define DAP_CHAIN_PVT_LOCAL_NEW(a) dap_chain_pvt_t * l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t); a->_internal = l_chain_pvt
+#define DAP_CHAIN_PVT_LOCAL_NEW(a) dap_chain_pvt_t * l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t); a->_pvt = l_chain_pvt
 
 int dap_chain_pvt_cells_load( dap_chain_t * a_chain);
 int dap_chain_pvt_cells_save( dap_chain_t * a_chain);
