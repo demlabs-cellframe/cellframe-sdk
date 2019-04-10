@@ -25,6 +25,8 @@
 #include <uthash.h>
 
 #include "dap_common.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 
 #define LOG_TAG "dap_chain_cs_dag"
@@ -46,7 +48,7 @@ typedef struct dap_chain_cs_dag_pvt {
 // Atomic element organization callbacks
 static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_t *);// Accept new event in dag
 static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_t *);// Verify new event in dag
-static size_t s_chain_callback_atom_get_size(dap_chain_atom_t *);// Get dag event size
+static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_t *);// Get dag event size
 static size_t s_chain_callback_atom_get_static_hdr_size(dap_chain_t *);// Get dag event header size
 
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain ); // Get the fisrt event from dag
@@ -97,9 +99,9 @@ void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
-    a_chain->callback_atom_verify = s_chain_callback_atom_add ;  // Verify new element in chain
-    a_chain->callback_atom_get_size = s_chain_callback_atom_get_size; // Get dag event size
-    a_chain->callback_atom_get_static_hdr_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
+    a_chain->callback_atom_verify[0] = s_chain_callback_atom_add ;  // Verify new element in chain
+    a_chain->callback_atom_hdr_get_size  = s_chain_callback_atom_hdr_get_size; // Get dag event size
+    a_chain->callback_atom_get_hdr_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
 
     a_chain->callback_atom_iter_create = s_chain_callback_atom_iter_create;
     a_chain->callback_atom_iter_delete = s_chain_callback_atom_iter_delete;
@@ -163,7 +165,7 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_t 
  * @param a_atom
  * @return
  */
-static size_t s_chain_callback_atom_get_size(dap_chain_atom_t * a_atom)
+static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_t * a_atom)
 {
     return dap_chain_cs_dag_event_calc_size( (dap_chain_cs_dag_event_t * ) a_atom);
 }
