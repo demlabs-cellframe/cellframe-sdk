@@ -193,7 +193,7 @@ void dap_events_socket_set_writable(dap_events_socket_t * sc,bool is_ready)
             ev.events |= EPOLLOUT;
         ev.data.fd=sc->socket;
         if (epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &ev) == -1) {
-            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd");
+            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd=%d socket=0x%x",sc->dap_worker->epoll_fd, sc->socket);
         }else
             dap_events_thread_wake_up(&sc->events->proc_thread);
     }
