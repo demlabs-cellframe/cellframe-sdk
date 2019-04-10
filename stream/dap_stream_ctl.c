@@ -40,8 +40,8 @@
 
 const char* connection_type_str[] =
 {
-		[STEAM_SESSION_HTTP] = "http",
-		[STREAM_SESSION_UDP] = "udp"
+        [STEAM_SESSION_HTTP] = "http",
+        [STREAM_SESSION_UDP] = "udp"
 };
 
 #define DAPMP_VERSION 13
