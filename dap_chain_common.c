@@ -121,7 +121,7 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
 {
     if(!a_addr || !a_key || !a_net_id)
         return;
-    a_addr->addr_ver = 1;
+    a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
     a_addr->net_id.uint64 = a_net_id->uint64;
     a_addr->sig_type.raw = dap_chain_sign_type_from_key_type(a_key->type).raw;
     // key -> serialized key

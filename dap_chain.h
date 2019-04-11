@@ -73,7 +73,7 @@ typedef struct dap_chain{
     dap_chain_callback_t callback_delete;
 
     dap_chain_callback_atom_t callback_atom_add;
-    dap_chain_callback_atom_t callback_atom_verify[8]; // Up to 8 one-time consensuses
+    dap_chain_callback_atom_t callback_atom_verify;
 
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_size; // Get atom header's size
     dap_chain_callback_atom_hdr_get_size_t callback_atom_hdr_get_size; // Get atom's size from header

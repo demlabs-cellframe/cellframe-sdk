@@ -105,8 +105,10 @@ int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_callback_item_t *l_item = NULL;
     DAP_CHAIN_PVT_LOCAL(a_chain);
+
     HASH_FIND_STR(s_cs_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
     if ( l_item ) {
+        l_item->callback_init( a_chain, a_chain_cfg);
         // TODO
         return 0;
     } else {
