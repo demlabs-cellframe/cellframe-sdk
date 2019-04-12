@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
  * DeM Labs Open source community https://github.com/demlabsinc
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -21,29 +21,22 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #pragma once
 
 #include <stdint.h>
-
+#include "dap_common.h"
 #include "dap_chain_common.h"
-#include "dap_enc_key.h"
+#include "dap_chain_datum_tx.h"
 
 /**
- * Make transfer transaction & insert to cache
- *
- * return 1 Ok, 0 Invalid signature, -1 Not found signature or other Error
+ * @struct dap_chain_tx_out
+ * @brief Transaction item out_cond
  */
-int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
-        dap_chain_addr_t* a_addr_from, dap_chain_addr_t* a_addr_to, dap_chain_addr_t* a_addr_fee,
-        uint64_t a_value, uint64_t a_value_fee);
-
-/**
- * Make condition transaction & insert to cache
- *
- * return 1 Ok, 0 not enough funds to create cond, -1 other Error
- */
-int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from,
-        dap_chain_addr_t* a_addr_from, dap_chain_addr_t* a_addr_fee,
-        uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size);
-
+typedef struct dap_chain_tx_out_cond {
+    struct {
+        dap_chain_tx_item_type_t type :8; ///           @param    type            @brief  Transaction item type
+        uint64_t value; ///                       @param    value           @brief  Number of Datoshis ( DAP/10^9 ) to be transfered
+        uint32_t cond_size; /// Condition parameters size
+    } header; /// Only header's hash is used for verification
+    uint8_t cond[]; // condition parameters dap_chain_net_srv_abstract
+}DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;

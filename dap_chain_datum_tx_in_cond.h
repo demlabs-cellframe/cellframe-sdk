@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
  * DeM Labs Open source community https://github.com/demlabsinc
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -21,29 +21,22 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #pragma once
 
 #include <stdint.h>
-
+#include "dap_common.h"
 #include "dap_chain_common.h"
-#include "dap_enc_key.h"
-
+#include "dap_chain_datum_tx.h"
 /**
- * Make transfer transaction & insert to cache
- *
- * return 1 Ok, 0 Invalid signature, -1 Not found signature or other Error
+ * @struct dap_chain_tx_item
+ * @brief Sections belongs to heading tx section, with inputs, outputs and others tx relatated items
  */
-int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
-        dap_chain_addr_t* a_addr_from, dap_chain_addr_t* a_addr_to, dap_chain_addr_t* a_addr_fee,
-        uint64_t a_value, uint64_t a_value_fee);
 
-/**
- * Make condition transaction & insert to cache
- *
- * return 1 Ok, 0 not enough funds to create cond, -1 other Error
- */
-int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from,
-        dap_chain_addr_t* a_addr_from, dap_chain_addr_t* a_addr_fee,
-        uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size);
-
+typedef struct dap_chain_tx_in_out {
+    struct {
+        dap_chain_tx_item_type_t type :8; /// @param    type            @brief Transaction item type
+        dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
+        uint32_t tx_out_prev_idx; ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
+        uint16_t cond; // condition
+    } header; /// Only header's hash is used for verification
+}DAP_ALIGN_PACKED dap_chain_tx_in_out_t;

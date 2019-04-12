@@ -32,6 +32,8 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_items.h"
 
 static size_t dap_chain_tx_in_get_size(dap_chain_tx_in_t *a_item)
@@ -159,6 +161,24 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr,
 }
 
 /**
+ * Create item dap_chain_tx_out_cond_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create(uint64_t a_value,
+        const void *a_cond, size_t a_cond_size)
+{
+    if(!a_cond)
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    l_item->header.type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.cond_size = a_cond_size;
+    memcpy(l_item->cond, a_cond, a_cond_size);
+    return l_item;
+}
+
+/**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error
@@ -250,7 +270,7 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
         const uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
         if(!l_tx_item)
             break;
-        items_list = dap_list_append(items_list, (uint8_t*)l_tx_item);
+        items_list = dap_list_append(items_list, (uint8_t*) l_tx_item);
         l_items_count++;
         l_item_idx_start++;
     }
