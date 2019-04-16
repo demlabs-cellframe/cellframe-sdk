@@ -66,9 +66,15 @@ static const COMMAND commands[] =
                 "global_db node add -addr {<node address> | -alias <node alias>} -shard <shard id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n"
                         "global_db node del -addr <node address> | -alias <node alias>\n"
                         "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n"
-                        "global_db node dump -addr <node address> | -alias <node alias>" },
+                        "global_db node dump\n"
+                        "global_db node dump -addr <node address> | -alias <node alias>\n"
+                        "global_db node get\n"
+                        "global_db node set -addr <node address> | -alias <node alias>\n"
+                        "global_db node remote_set -addr <node address> | -alias <node alias>"
+            },
             { "node", com_node, "Work with node",
                 "node alias {<node address> | -alias <node alias>}\n"
+                        "node connect {<node address> | -alias <node alias>}\n"
                         "node handshake {<node address> | -alias <node alias>}" },
             { "ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
                 "ping [-c <count>] host" },
