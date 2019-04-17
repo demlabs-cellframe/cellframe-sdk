@@ -27,6 +27,8 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
 
+#include "dap_chain_datum_tx_cache.h"
+
 #define LOG_TAG "dap_chain_cs_dag_pos"
 
 typedef struct dap_chain_cs_dag_pos_pvt
@@ -36,8 +38,9 @@ typedef struct dap_chain_cs_dag_pos_pvt
 
 #define PVT(a) ((dap_chain_cs_dag_pos_pvt_t *) a->_pvt )
 
-static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag);
-static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
+static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
 
 /**
  * @brief dap_chain_cs_dag_pos_init
@@ -45,7 +48,7 @@ static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chai
  */
 int dap_chain_cs_dag_pos_init()
 {
-    dap_chain_cs_add ("dag-pos", s_chain_cs_callback_new );
+    dap_chain_cs_add ("dag-pos", s_callback_new );
     return 0;
 }
 
@@ -62,23 +65,27 @@ void dap_chain_cs_dag_pos_deinit()
  * @param a_chain
  * @param a_chain_cfg
  */
-static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_pos_t * l_pos = DAP_NEW_Z ( dap_chain_cs_dag_pos_t);
     l_dag->_inheritor = l_pos;
-    l_dag->callback_delete = s_chain_cs_dag_callback_delete;
+    l_dag->callback_delete = s_callback_delete;
+    l_dag->callback_event_verify = s_callback_event_verify;
     l_pos->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_pos_pvt_t );
 
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
+
+    l_pos->hold_value = dap_config_get_item_int64_default( a_chain_cfg,"dag-pos","hold_value",1);
+
 }
 
 /**
  * @brief s_chain_cs_dag_callback_delete
  * @param a_dag
  */
-static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag)
+static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 {
     dap_chain_cs_dag_pos_t * l_pos = DAP_CHAIN_CS_DAG_POS ( a_dag );
 
@@ -91,3 +98,27 @@ static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag)
        DAP_DELETE ( l_pos->_inheritor );
     }
 }
+
+/**
+ * @brief s_callback_event_verify
+ * @param a_dag
+ * @param a_dag_event
+ * @return
+ */
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
+{
+    dap_chain_cs_dag_pos_t * l_pos =DAP_CHAIN_CS_DAG_POS( a_dag ) ;
+    dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
+    if ( a_dag_event->header.signs_count == 1 ){
+        dap_chain_addr_t l_addr;
+        dap_chain_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
+        dap_enc_key_t * l_key = dap_chain_sign_to_enc_key( l_sign);
+        dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
+        dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
+
+        return dap_chain_datum_tx_cache_calc_balance (&l_addr) >= l_pos->hold_value ? 0 : -1;
+    }else
+       return -2; // Wrong signatures number
+}
+
+

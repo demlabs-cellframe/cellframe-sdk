@@ -29,6 +29,7 @@ typedef struct dap_chain_cs_dag_pos
 {
     dap_chain_t * chain;
     dap_chain_cs_dag_t * dag;
+    uint64_t hold_value;
     void * _pvt;
     void * _inheritor;
 } dap_chain_cs_dag_pos_t;
