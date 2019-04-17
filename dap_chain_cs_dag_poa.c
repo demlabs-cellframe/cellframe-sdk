@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -40,10 +40,9 @@ typedef struct dap_chain_cs_dag_poa_pvt
 
 #define PVT(a) ((dap_chain_cs_dag_poa_pvt_t *) a->_pvt )
 
-static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag);
-static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
-static int s_chain_cs_dag_callback_event_input(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
-static int s_chain_cs_dag_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
+static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
+static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
 
 /**
  * @brief dap_chain_cs_dag_poa_init
@@ -51,7 +50,7 @@ static int s_chain_cs_dag_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_
  */
 int dap_chain_cs_dag_poa_init()
 {
-    dap_chain_cs_add ("dag-poa", s_chain_cs_callback_new );
+    dap_chain_cs_add ("dag-poa", s_callback_new );
     return 0;
 }
 
@@ -68,15 +67,14 @@ void dap_chain_cs_dag_poa_deinit()
  * @param a_chain
  * @param a_chain_cfg
  */
-static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_dag_poa_t);
     l_dag->_inheritor = l_poa;
-    l_dag->callback_delete = s_chain_cs_dag_callback_delete;
-    l_dag->callback_event_input = s_chain_cs_dag_callback_event_input;
-    l_dag->callback_event_verify = s_chain_cs_dag_callback_event_verify;
+    l_dag->callback_delete = s_callback_delete;
+    l_dag->callback_event_verify = s_callback_event_verify;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
 
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
@@ -96,13 +94,14 @@ static void s_chain_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chai
             }
         }
     }
+    log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
 }
 
 /**
  * @brief s_chain_cs_dag_callback_delete
  * @param a_dag
  */
-static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag)
+static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 {
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA ( a_dag );
 
@@ -123,16 +122,7 @@ static void s_chain_cs_dag_callback_delete(dap_chain_cs_dag_t * a_dag)
     }
 }
 
-/**
- * @brief s_chain_cs_dag_callback_event_input
- * @param a_dag
- * @param a_dag_event
- * @return
- */
-static int s_chain_cs_dag_callback_event_input(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
-{
-    return s_chain_cs_dag_callback_event_verify (a_dag,a_dag_event);
-}
+
 
 /**
  * @brief s_chain_cs_dag_callback_event_verify
@@ -140,7 +130,7 @@ static int s_chain_cs_dag_callback_event_input(dap_chain_cs_dag_t * a_dag, dap_c
  * @param a_dag_event
  * @return
  */
-static int s_chain_cs_dag_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
 {
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
     if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
@@ -156,3 +146,4 @@ static int s_chain_cs_dag_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_
     }else
        return -2; // Wrong signatures number
 }
+
