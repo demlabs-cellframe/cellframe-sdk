@@ -193,7 +193,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if(dap_chain_global_db_set(a_key, request_str, request_size)) {
+                    if(dap_chain_global_db_gr_set(a_key, request_str, request_size, DAP_CHAIN_GDB_GROUP_DATUM_POOL)) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
@@ -204,7 +204,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
-                    char *str = dap_chain_global_db_get((const char*) a_key, NULL);
+                    char *str = dap_chain_global_db_gr_get((const char*) a_key, NULL,DAP_CHAIN_GDB_GROUP_DATUM_POOL);
                     if(str) {
                         dg->response = strdup("1");
                         DAP_DELETE(str);
@@ -222,7 +222,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-                    if(dap_chain_global_db_del((const char*) a_key)) {
+                    if(dap_chain_global_db_gr_del( ((const char*) a_key),DAP_CHAIN_GDB_GROUP_DATUM_POOL) ) {
                         dg->response = strdup("1");
                         DAP_DELETE(str);
                         log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);

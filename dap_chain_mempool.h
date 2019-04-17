@@ -15,6 +15,7 @@
  */
 
 #define DAP_DATUM_MEMPOOL_VERSION "01"
+#define DAP_CHAIN_GDB_GROUP_DATUM_POOL "datum_pool"
 
 // action
 enum {
