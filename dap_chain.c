@@ -168,20 +168,13 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
 /**
  * @brief dap_chain_load_from_cfg
  * @param a_chain_net_name
+ * @param a_chain_net_id
  * @param a_chain_cfg_path
  * @return
  */
-dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char * a_chain_cfg_name)
+dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
 {
     if ( a_chain_net_name){
-        dap_chain_net_id_t l_chain_net_id = {0};
-        if ( sscanf(a_chain_net_name,"0x%llX",&l_chain_net_id.uint64) !=1 )
-            if ( sscanf(a_chain_net_name,"0x%llx",&l_chain_net_id.uint64) !=1 )
-                if ( sscanf(a_chain_net_name,"%llu",&l_chain_net_id.uint64) !=1 ){
-                    log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",a_chain_net_name);
-                    return NULL;
-                }
-
         dap_config_t * l_cfg = dap_config_open(a_chain_cfg_name);
         if (l_cfg) {
             dap_chain_t * l_chain = NULL;
@@ -190,8 +183,8 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char 
             const char * l_chain_name = NULL;
             // Recognize chains id
             if ( l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id") ){
-                if ( sscanf(l_chain_id_str,"0x%llX",&l_chain_id.uint64) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%llx",&l_chain_id.uint64) !=1 ) {
+                if ( sscanf(l_chain_id_str,"0x%016llX",&l_chain_id.uint64) !=1 ){
+                    if ( sscanf(l_chain_id_str,"0x%016llx",&l_chain_id.uint64) !=1 ) {
                         if ( sscanf(l_chain_id_str,"%llu",&l_chain_id.uint64) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
@@ -200,14 +193,22 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, const char 
                     }
                 }
             }
-            // Read chain name
+            if (l_chain_id_str ) {
+                log_it (L_NOTICE, "Chain id 0x%016lX  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;
+            }else {
+                log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec",l_chain_id_str);
+                dap_config_close(l_cfg);
+                return NULL;
+
+            }
+            // Read chain nam
             if ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ){
                 log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
             }
 
-            l_chain =  dap_chain_create(a_chain_net_name,l_chain_name, l_chain_net_id,l_chain_id);
+            l_chain =  dap_chain_create(a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
                         l_chain_id.uint64 );
