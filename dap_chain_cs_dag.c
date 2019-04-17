@@ -46,15 +46,15 @@ typedef struct dap_chain_cs_dag_pvt {
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 // Atomic element organization callbacks
-static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_t *);// Accept new event in dag
-static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_t *);// Verify new event in dag
-static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_t *);// Get dag event size
-static size_t s_chain_callback_atom_get_static_hdr_size(dap_chain_t *);// Get dag event header size
+static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_t *);                      //    Accept new event in dag
+static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_t *);                   //    Verify new event in dag
+static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_t *);                                 //    Get dag event size
+static size_t s_chain_callback_atom_get_static_hdr_size(dap_chain_t *);                               //    Get dag event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain ); // Get the fisrt event from dag
-static dap_chain_atom_t* s_chain_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter ); // Get the fisrt event from dag
-static dap_chain_atom_t* s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter ); // Get the next event from dag
-static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter ); // Get the fisrt event from dag
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain );              //    Get the fisrt event from dag
+static dap_chain_atom_t* s_chain_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter ); //    Get the fisrt event from dag
+static dap_chain_atom_t* s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter );  //    Get the next event from dag
+static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt event from dag
 
 // Datum ops
 
@@ -99,7 +99,7 @@ void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
-    a_chain->callback_atom_verify[0] = s_chain_callback_atom_add ;  // Verify new element in chain
+    a_chain->callback_atom_verify = s_chain_callback_atom_verify ;  // Verify new element in chain
     a_chain->callback_atom_hdr_get_size  = s_chain_callback_atom_hdr_get_size; // Get dag event size
     a_chain->callback_atom_get_hdr_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
 
@@ -117,7 +117,11 @@ void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // Others
     a_chain->_inheritor = l_chain_cs_dag;
 
-    log_it (L_NOTICE, "DAG chain initialized");
+    l_chain_cs_dag->is_single_line = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_single_line",false);
+    if ( l_chain_cs_dag->is_single_line )
+        log_it (L_NOTICE, "DAG chain initialized (single line)");
+    else
+        log_it (L_NOTICE, "DAG chain initialized (multichain)");
 }
 
 /**
@@ -157,7 +161,9 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_t * a
  */
 static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_t *  a_atom)
 {
-    return -1; // TODO
+    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
+    return l_dag->callback_event_input ( l_dag, l_event );
 }
 
 /**
@@ -259,3 +265,5 @@ static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t * a_datum_
 {
     // TODO
 }
+
+

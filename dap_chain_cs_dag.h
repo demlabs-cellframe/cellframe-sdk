@@ -33,6 +33,7 @@ typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain
 typedef struct dap_chain_cs_dag
 {
     dap_chain_t * chain;
+    bool is_single_line;
     dap_chain_cs_dag_callback_t callback_delete;
     dap_chain_cs_dag_callback_event_t callback_event_input;
     dap_chain_cs_dag_callback_event_t callback_event_verify;
