@@ -9,6 +9,8 @@
 
 #define LOG_TAG "dap_config"
 
+dap_config_t * g_config = NULL;
+
 /**
  * @brief The dap_config_item struct
  */
@@ -337,6 +339,18 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
 }
 
 /**
+ * @brief dap_config_get_item_int64
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @return
+ */
+int64_t dap_config_get_item_int64(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    return atoll(dap_config_get_item_str(a_config,a_section_path,a_item_name));
+}
+
+/**
  * @brief dap_config_get_item_uint16
  * @param a_config
  * @param a_section_path
@@ -375,6 +389,20 @@ uint16_t dap_config_get_item_uint16_default(dap_config_t * a_config, const char 
 {
     const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
     return l_str_ret? (uint16_t) atoi(l_str_ret):a_default;
+}
+
+/**
+ * @brief dap_config_get_item_int64_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_default
+ * @return
+ */
+int64_t dap_config_get_item_int64_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int64_t a_default)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    return l_str_ret? (int64_t) atoll(l_str_ret):a_default;
 }
 
 
