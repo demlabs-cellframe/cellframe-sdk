@@ -148,6 +148,7 @@ char* dap_chain_addr_to_str(dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_str_to_addr(const char *str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id);
+
 int dap_chain_addr_check_sum(dap_chain_addr_t *a_addr);
 
 

@@ -26,9 +26,9 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_hashtree_roots.h"
-#include "dap_chain_datum_coin.h"
+#include "dap_chain_datum_token.h"
 
-#define LOG_TAG "chain_datum"
+#define LOG_TAG "dap_chain_datum"
 
 /**
  * @brief dap_chain_datum_data_size

@@ -22,17 +22,31 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "dap_chain_sign.h"
 
-#include "dap_chain_pkey.h"
-
+// Token declaration
 typedef struct dap_chain_datum_token{
     struct {
-        uint64_t token_id;
-        uint8_t  token_uuid[16];/// Unique ID
+        uint16_t version;
+        char ticker[10];
+        uint64_t total_supply;
+        uint16_t signs_number; // Emission auth signs
     } DAP_ALIGN_PACKED header;
-    dap_chain_pkey_t pkey; /// Token owner's public key
+    uint8_t signs[]; // Signs if exists
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
-size_t dap_chain_datum_token_create_output_calc(dap_enc_key_t * a_key);
-int dap_chain_datum_token_create_output(dap_enc_key_t * a_key, uint64_t a_token_id, uint8_t a_token_uuid[16]
-                                                , void * a_output);
+// Token emission
+typedef struct dap_chain_datum_token_emission{
+    uint16_t version;
+    char ticker[10];
+    dap_chain_addr_t address; // Emission holder's address
+    uint64_t value;
+} DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
+
+
+//
+void dap_chain_datum_token_register(dap_chain_datum_token_t * a_token);
+dap_chain_sign_t * dap_chain_datum_token_get_sign( dap_chain_datum_token_t * a_token, size_t a_token_size_max, uint16_t a_sign_number);
+
+dap_chain_datum_token_t* dap_chain_datum_token_find_by_ticker(const char a_ticker[10] );
+dap_chain_datum_token_t* dap_chain_datum_token_find_by_hash(dap_chain_hash_fast_t * a_hash );

@@ -35,6 +35,8 @@
 typedef struct dap_chain_tx_token{
     struct {
         dap_chain_tx_item_type_t type:8;
-        char id[8];
+        char ticker[10];
+        uint8_t padding; // Padding
+        dap_chain_hash_fast_t token_emission_hash;
     } header; /// Only header's hash is used for verification
 } DAP_ALIGN_PACKED dap_chain_tx_token_t;

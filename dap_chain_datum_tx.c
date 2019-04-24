@@ -57,7 +57,7 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx)
  *
  * return size, 0 Error
  */
-int dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
+size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
 {
     if(!a_tx)
         return 0;
