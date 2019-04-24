@@ -425,7 +425,7 @@ int64_t dap_config_get_item_int64_default(dap_config_t * a_config, const char * 
  * @param a_default
  * @return
  */
-uint64_t dap_config_get_item_int64_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint64_t a_default)
+uint64_t dap_config_get_item_uint64_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint64_t a_default)
 {
     const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
     return l_str_ret? (uint64_t) atoll(l_str_ret):a_default;
