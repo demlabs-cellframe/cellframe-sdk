@@ -1,7 +1,8 @@
 /* DAP String Functions */
 
-#ifndef __DAP_STR_FUNC_H
-#define __DAP_STR_FUNC_H
+#pragma once
+
+#include <sys/types.h>
 
 #include <limits.h>
 #include <stdbool.h>
@@ -42,7 +43,7 @@ char* dap_strjoin(const char *a_separator, ...);
 char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tokens);
 int dap_str_countv(char **a_str_array);
 // copies a NULL-terminated array of strings
-char** dap_strdupv(char **a_str_array);
+char** dap_strdupv(const char **a_str_array);
 // frees the array itself and all of its strings.
 void dap_strfreev(char **a_str_array);
 
@@ -62,4 +63,3 @@ char* dap_strreverse(char *a_string);
 #define DAP_USEC_PER_SEC 1000000
 void dap_usleep(time_t a_microseconds);
 
-#endif /* __DAP_STR_FUNC_H */

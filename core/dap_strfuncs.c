@@ -439,7 +439,7 @@ int dap_str_countv(char **a_str_array)
  *
  * Returns: (nullable): a new %NULL-terminated array of strings.
  */
-char** dap_strdupv(char **a_str_array)
+char** dap_strdupv(const char **a_str_array)
 {
     if(a_str_array)
     {
