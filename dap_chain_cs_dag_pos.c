@@ -23,23 +23,27 @@
 */
 
 #include "dap_common.h"
+#include "dap_string.h"
+#include "dap_strfuncs.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
 
-#include "dap_chain_datum_tx_cache.h"
+#include "dap_chain_utxo.h"
 
 #define LOG_TAG "dap_chain_cs_dag_pos"
 
 typedef struct dap_chain_cs_dag_pos_pvt
 {
-    uint8_t padding;
+    char ** tokens_hold;
+    uint64_t * tokens_hold_value;
+    size_t tokens_hold_size;
 } dap_chain_cs_dag_pos_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pos_pvt_t *) a->_pvt )
 
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
-static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
 
 /**
@@ -55,7 +59,7 @@ int dap_chain_cs_dag_pos_init()
 /**
  * @brief dap_chain_cs_dag_pos_deinit
  */
-void dap_chain_cs_dag_pos_deinit()
+void dap_chain_cs_dag_pos_deinit(void)
 {
 
 }
@@ -65,7 +69,7 @@ void dap_chain_cs_dag_pos_deinit()
  * @param a_chain
  * @param a_chain_cfg
  */
-static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
@@ -77,7 +81,43 @@ static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
 
-    l_pos->hold_value = dap_config_get_item_int64_default( a_chain_cfg,"dag-pos","hold_value",1);
+    char ** l_tokens_hold = NULL;
+    char ** l_tokens_hold_value_str = NULL;
+    uint16_t l_tokens_hold_size = 0;
+    uint16_t l_tokens_hold_value_size = 0;
+
+    l_tokens_hold = dap_config_get_array_str( a_chain_cfg,"dag-pos","tokens_hold",&l_tokens_hold_size);
+    l_tokens_hold_value_str = dap_config_get_array_str( a_chain_cfg,"dag-pos","tokens_hold_value",&l_tokens_hold_value_size);
+
+    if ( l_tokens_hold_size != l_tokens_hold_value_size ){
+        log_it(L_CRITICAL, "tokens_hold and tokens_hold_value are different size!");
+        goto lb_err;
+    }
+    l_pos_pvt->tokens_hold_size = l_tokens_hold_size;
+    l_pos_pvt->tokens_hold = l_tokens_hold;
+    l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t, l_tokens_hold_value_size +1);
+    for (size_t i = 0; i < l_tokens_hold_value_size; i++){
+        if ( ( l_pos_pvt->tokens_hold_value[i] = atoll(l_tokens_hold_value_str[i]) == 0 )){
+             log_it(L_CRITICAL, "Token %s has inproper hold value \"%s\"",l_pos_pvt->tokens_hold[i],
+                    l_pos_pvt->tokens_hold_value[i]);
+             goto lb_err;
+        }
+    }
+
+    DAP_DELETE( l_tokens_hold_value_str);
+    return 0;
+
+lb_err:
+    for (int i = 0; i < l_tokens_hold_size; i++ )
+        DAP_DELETE(l_tokens_hold[i]);
+    DAP_DELETE(l_tokens_hold);
+    DAP_DELETE( l_pos_pvt->tokens_hold_value);
+    DAP_DELETE( l_pos_pvt);
+    DAP_DELETE(l_pos );
+    l_dag->_inheritor = NULL;
+    l_dag->callback_delete = NULL;
+    l_dag->callback_event_verify = NULL;
+    return -1;
 
 }
 
@@ -91,7 +131,7 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 
     if ( l_pos->_pvt ) {
         dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
-        DAP_DELETE ( l_pos->_pvt);
+        DAP_DELETE ( l_pos_pvt);
     }
 
     if ( l_pos->_inheritor ) {
@@ -113,10 +153,15 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         dap_chain_addr_t l_addr;
         dap_chain_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
         dap_enc_key_t * l_key = dap_chain_sign_to_enc_key( l_sign);
+
         dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
         dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
 
-        return dap_chain_datum_tx_cache_calc_balance (&l_addr) >= l_pos->hold_value ? 0 : -1;
+        for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
+            if ( dap_chain_utxo_calc_balance (&l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
+                return 0;
+        }
+        return -1;
     }else
        return -2; // Wrong signatures number
 }
