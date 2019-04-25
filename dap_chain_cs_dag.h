@@ -44,8 +44,8 @@ typedef struct dap_chain_cs_dag
 
 #define DAP_CHAIN_CS_DAG(a) ( (dap_chain_cs_dag_t *) (a)->_inheritor)
 
-int dap_chain_cs_dag_init();
-void dap_chain_cs_dag_deinit();
+int dap_chain_cs_dag_init(void);
+void dap_chain_cs_dag_deinit(void);
 
-void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);

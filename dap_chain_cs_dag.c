@@ -69,7 +69,7 @@ static dap_chain_datum_t* s_chain_callback_datum_iter_get_next( dap_chain_datum_
  * @brief dap_chain_cs_dag_init
  * @return
  */
-int dap_chain_cs_dag_init()
+int dap_chain_cs_dag_init(void)
 {
     dap_chain_class_add( "dag", dap_chain_cs_dag_new );
 
@@ -79,7 +79,7 @@ int dap_chain_cs_dag_init()
 /**
  * @brief dap_chain_cs_dag_deinit
  */
-void dap_chain_cs_dag_deinit()
+void dap_chain_cs_dag_deinit(void)
 {
 
 }
@@ -89,7 +89,7 @@ void dap_chain_cs_dag_deinit()
  * @param a_chain
  * @param a_chain_cfg
  */
-void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_t * l_chain_cs_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
     l_chain_cs_dag->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
@@ -122,6 +122,8 @@ void dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         log_it (L_NOTICE, "DAG chain initialized (single line)");
     else
         log_it (L_NOTICE, "DAG chain initialized (multichain)");
+
+    return 0;
 }
 
 /**
@@ -138,7 +140,6 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_inheritor);
     if(l_dag->_pvt)
         DAP_DELETE(l_dag->_pvt);
-    DAP_DELETE(l_dag);
 }
 
 /**
