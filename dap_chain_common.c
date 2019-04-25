@@ -78,7 +78,7 @@ size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, 
  * @param a_addr
  * @return
  */
-char* dap_chain_addr_to_str(dap_chain_addr_t *a_addr)
+char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
 {
     size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t));
     char * l_ret = DAP_NEW_SIZE(char, l_ret_size);
@@ -141,7 +141,7 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
  * @param a_addr
  * @return 1 Ok, -1 Invalid a_addr or checksum
  */
-int dap_chain_addr_check_sum(dap_chain_addr_t *a_addr)
+int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
 {
     if(!a_addr)
         return -1;

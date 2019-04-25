@@ -32,48 +32,37 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_in_cond.h"
-#include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_items.h"
 
-static size_t dap_chain_tx_in_get_size(dap_chain_tx_in_t *a_item)
+static size_t dap_chain_tx_in_get_size(const dap_chain_tx_in_t *a_item)
 {
+    (void) a_item;
     size_t size = sizeof(dap_chain_tx_in_t); // + item->header.sig_size;
     return size;
 }
 
-static size_t dap_chain_tx_in_cond_get_size(dap_chain_tx_in_cond_t *a_item)
+static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
 {
-    size_t size = sizeof(dap_chain_tx_in_cond_t);
-    return size;
-}
-
-static size_t dap_chain_tx_out_get_size(dap_chain_tx_out_t *a_item)
-{
+    (void) a_item;
     size_t size = sizeof(dap_chain_tx_out_t);
     return size;
 }
 
-static size_t dap_chain_tx_out_cond_get_size(dap_chain_tx_out_cond_t *a_item)
-{
-    size_t size = sizeof(dap_chain_tx_out_cond_t) + a_item->header.pub_key_size + a_item->header.cond_size;
-    return size;
-}
-
-static size_t dap_chain_tx_pkey_get_size(dap_chain_tx_pkey_t *a_item)
+static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
 {
     size_t size = sizeof(dap_chain_tx_pkey_t) + a_item->header.sig_size;
     return size;
 }
 
-static size_t dap_chain_tx_sig_get_size(dap_chain_tx_sig_t *item)
+static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *item)
 {
     size_t size = sizeof(dap_chain_tx_sig_t) + item->header.sig_size;
     return size;
 }
 
-static size_t dap_chain_tx_token_get_size(dap_chain_tx_token_t *a_item)
+static size_t dap_chain_tx_token_get_size(const dap_chain_tx_token_t *a_item)
 {
+    (void) a_item;
     size_t size = sizeof(dap_chain_tx_token_t);
     return size;
 }
@@ -85,7 +74,7 @@ static size_t dap_chain_tx_token_get_size(dap_chain_tx_token_t *a_item)
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
 {
-    dap_chain_tx_in_t *l_item_tx_in = (dap_chain_tx_in_t*) a_item;
+    const dap_chain_tx_in_t *l_item_tx_in = (const dap_chain_tx_in_t*) a_item;
     dap_chain_tx_item_type_t type = (l_item_tx_in) ? l_item_tx_in->header.type : TX_ITEM_TYPE_ANY;
     return type;
 }
@@ -95,32 +84,26 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
  *
  * return size, 0 Error
  */
-int dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
+size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
 {
-    dap_chain_tx_in_t *item_tx_in = (dap_chain_tx_in_t*) a_item;
+    const dap_chain_tx_in_t *item_tx_in = (const dap_chain_tx_in_t*) a_item;
     dap_chain_tx_item_type_t type = dap_chain_datum_tx_item_get_type(a_item);
     size_t size = 0;
     switch (type) {
     case TX_ITEM_TYPE_IN: // Transaction inputs
-        size = dap_chain_tx_in_get_size((dap_chain_tx_in_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
-        size = dap_chain_tx_in_cond_get_size((dap_chain_tx_in_cond_t*) a_item);
+        size = dap_chain_tx_in_get_size((const dap_chain_tx_in_t*) a_item);
         break;
     case TX_ITEM_TYPE_OUT: // Transaction outputs
-        size = dap_chain_tx_out_get_size((dap_chain_tx_out_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_OUT_COND: // Transaction output with condition
-        size = dap_chain_tx_out_cond_get_size((dap_chain_tx_out_cond_t*) a_item);
+        size = dap_chain_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
         break;
     case TX_ITEM_TYPE_PKEY: // Transaction public keys
-        size = dap_chain_tx_pkey_get_size((dap_chain_tx_pkey_t*) a_item);
+        size = dap_chain_tx_pkey_get_size((const dap_chain_tx_pkey_t*) a_item);
         break;
     case TX_ITEM_TYPE_SIG: // Transaction signatures
-        size = dap_chain_tx_sig_get_size((dap_chain_tx_sig_t*) a_item);
+        size = dap_chain_tx_sig_get_size((const dap_chain_tx_sig_t*) a_item);
         break;
     case TX_ITEM_TYPE_TOKEN: // token item
-        size = dap_chain_tx_token_get_size((dap_chain_tx_token_t*) a_item);
+        size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
         break;
     default:
         return 0;
@@ -133,16 +116,18 @@ int dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(const char *a_name)
+dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t * a_datum_token_hash,const char * a_ticker)
 {
-    if(!a_name)
+    if(!a_ticker)
         return NULL;
-    int a_name_len = strlen(a_name);
+    size_t a_ticker_len = strlen(a_ticker);
     dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
     l_item->header.type = TX_ITEM_TYPE_TOKEN;
-    if(a_name_len >= sizeof(l_item->header.id))
-        a_name_len = sizeof(l_item->header.id) - 1;
-    strncpy(l_item->header.id, a_name, a_name_len);
+    memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
+    if(a_ticker_len >= sizeof(l_item->header.ticker))
+        a_ticker_len = sizeof(l_item->header.ticker) - 1;
+    strncpy(l_item->header.ticker, a_ticker, a_ticker_len);
+
     return l_item;
 }
 
@@ -167,7 +152,7 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr, uint64_t a_value)
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value)
 {
     if(!a_addr)
         return NULL;
@@ -175,31 +160,6 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr,
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
     memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
-    return l_item;
-}
-
-/**
- * Create item dap_chain_tx_out_cond_t
- *
- * return item, NULL Error
- */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create(dap_enc_key_t *a_key, dap_chain_addr_t *a_addr,
-        uint64_t a_value, const void *a_cond, size_t a_cond_size)
-{
-    if(!a_key || !a_cond)
-        return NULL;
-    size_t l_pub_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
-
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t,
-            sizeof(dap_chain_tx_out_cond_t) + l_pub_key_size + a_cond_size);
-    l_item->header.type = TX_ITEM_TYPE_OUT_COND;
-    l_item->header.value = a_value;
-    l_item->header.pub_key_size = l_pub_key_size;
-    l_item->header.cond_size = a_cond_size;
-    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
-    memcpy(l_item->data, l_pub_key, l_pub_key_size);
-    memcpy(l_item->data + l_pub_key_size, a_cond, a_cond_size);
     return l_item;
 }
 
@@ -220,7 +180,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
             sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
-    l_tx_sig->header.sig_size = l_chain_sign_size;
+    l_tx_sig->header.sig_size =(uint32_t) l_chain_sign_size;
     memcpy(l_tx_sig->sig, l_chain_sign, l_chain_sign_size);
     DAP_DELETE(l_chain_sign);
     return l_tx_sig;
@@ -231,7 +191,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  *
  * return sign, NULL Error
  */
-dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
+dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(const dap_chain_tx_sig_t *a_tx_sig)
 {
     if(!a_tx_sig || !a_tx_sig->header.sig_size)
         return NULL;
@@ -295,7 +255,7 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
         const uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
         if(!l_tx_item)
             break;
-        items_list = dap_list_append(items_list, (uint8_t*) l_tx_item);
+        items_list = dap_list_append(items_list, (uint8_t*)l_tx_item);
         l_items_count++;
         l_item_idx_start++;
     }

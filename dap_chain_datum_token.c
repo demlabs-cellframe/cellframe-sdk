@@ -23,33 +23,25 @@
 */
 #include <stdio.h>
 #include <string.h>
-#include "dap_chain_datum_coin.h"
-
-dap_chain_datum_token_t s_token_null = {0};
+#include "dap_chain_datum_token.h"
 
 /**
- * @brief dap_chain_datum_token_create_output_calc
- * @param a_key
- * @return
+ * @brief dap_chain_datum_token_register
+ * @param a_token
  */
-size_t dap_chain_datum_token_create_output_calc(dap_enc_key_t * a_key)
+void dap_chain_datum_token_register(dap_chain_datum_token_t * a_token)
 {
-    return sizeof (s_token_null.header) + dap_chain_pkey_from_enc_key_output_calc(a_key);
+
 }
 
 /**
- * @brief dap_chain_datum_token_create_output
- * @param a_key
- * @param a_token_id
- * @param a_token_uuid
- * @param a_output
+ * @brief dap_chain_datum_token_get_sign
+ * @param a_token
+ * @param a_token_size_max
+ * @param a_sign_number
  * @return
  */
-int dap_chain_datum_token_create_output(dap_enc_key_t * a_key, uint64_t a_token_id, uint8_t a_token_uuid[16]
-                                            , void * a_output)
-{
-    dap_chain_datum_token_t * l_token = (dap_chain_datum_token_t * ) a_output;
-    l_token->header.token_id = a_token_id;
-    memcpy(l_token->header.token_uuid,a_token_uuid,sizeof(*a_token_uuid));
-    return dap_chain_pkey_from_enc_key_output(a_key,& (l_token->pkey) );
-}
+dap_chain_sign_t * dap_chain_datum_token_get_sign( dap_chain_datum_token_t * a_token, size_t a_token_size_max, uint16_t a_sign_number);
+
+dap_chain_datum_token_t* dap_chain_datum_token_find_by_ticker(const char a_ticker[10] );
+dap_chain_datum_token_t* dap_chain_datum_token_find_by_hash(dap_chain_hash_fast_t * a_hash );

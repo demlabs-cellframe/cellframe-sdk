@@ -28,7 +28,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 
-
+#define DAP_CHAIN_DATUM_VERSION 0x00
 
 /// End section, means all the rest of the block is empty
 #define dap_chain_datum_END                 0x0000
@@ -58,6 +58,7 @@
 
 /// Token
 #define DAP_CHAIN_DATUM_TOKEN                0xf000
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
 
 
 #define DAP_CHAIN_DATUM_ID_SIZE 4
@@ -77,6 +78,7 @@ typedef struct dap_chain_datum{
         uint8_t version_id; /// Datum version
         uint16_t type_id; /// Section type id
         uint32_t data_size; /// Data section size
+        uint64_t ts_create; /// Create timestamp (GM time)
     } DAP_ALIGN_PACKED header;
     uint8_t data[]; // datum stored data goes after the last sign
                                // Sign block goes after the last hash, every sign type
@@ -99,3 +101,5 @@ typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t * 
 
 
 size_t dap_chain_datum_data_size(dap_chain_datum_t * a_datum);
+
+dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
