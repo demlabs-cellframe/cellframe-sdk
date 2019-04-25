@@ -43,7 +43,7 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
  *
  * return 1 Ok, 0 not enough funds to create cond, -1 other Error
  */
-int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from,
-        dap_chain_addr_t* a_addr_from, dap_chain_addr_t* a_addr_fee,
+int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
+        dap_chain_addr_t *a_addr_from, dap_chain_addr_t* a_addr_cond, dap_chain_addr_t* a_addr_fee,
         uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size);
 

@@ -285,6 +285,9 @@ static int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx)
     {
         // find 'out' items
         dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT, NULL);
+        dap_list_t *l_list_out2 = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_COND,
+        NULL);
+        l_list_out = dap_list_concat(l_list_out, l_list_out2); // add l_list_out2 onto the end of l_list_out
         bool l_is_err = false;
         // find all previous transactions
         dap_list_t *l_list_tmp = l_list_out;
@@ -530,7 +533,7 @@ uint64_t dap_chain_datum_tx_cache_calc_balance(dap_chain_addr_t *a_addr)
 }
 
 /**
- * Get the transaction in the cache by the addr in out item
+ * Get the transaction in the cache by the addr in 'out' item
  *
  * a_public_key[in] public key that signed the transaction
  * a_public_key_size[in] public key size
@@ -625,4 +628,87 @@ const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_by_pkey(char *a_p
     }
     pthread_mutex_unlock(&s_hash_list_mutex);
     return l_cur_tx;
+}
+
+/**
+ * Get the transaction in the cache with the out_cond item
+ *
+ * a_addr[in] wallet address, whose owner can use the service
+ */
+const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_out_cond(dap_chain_addr_t *a_addr,
+        dap_chain_hash_fast_t *a_tx_first_hash)
+{
+    if(!a_addr || !a_tx_first_hash)
+        return NULL;
+    dap_chain_datum_tx_t *l_cur_tx = NULL;
+    int l_ret = -1;
+    bool is_null_hash = dap_hash_fast_is_blank(a_tx_first_hash);
+    bool is_search_enable = is_null_hash;
+    list_cached_item_t *l_iter_current, *l_item_tmp;
+    pthread_mutex_lock(&s_hash_list_mutex);
+    HASH_ITER(hh, s_datum_list , l_iter_current, l_item_tmp)
+    {
+        dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
+        dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
+        // start searching from the next hash after a_tx_first_hash
+        if(!is_search_enable) {
+            if(dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash))
+                is_search_enable = true;
+            continue;
+        }
+        // Get sign item from transaction
+        int l_tx_out_cond_size = 0;
+        const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
+                l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
+
+        if(l_tx_out_cond && !memcmp(&l_tx_out_cond->addr, a_addr, sizeof(dap_chain_addr_t))) {
+            l_cur_tx = l_tx_tmp;
+            memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_hash_list_mutex);
+    return l_cur_tx;
+}
+
+/**
+ * Get the value from all transactions in the cache with out_cond item
+ *
+ * a_addr[in] wallet address, whose owner can use the service
+ * a_sign [in] signature of a_addr hash for check valid key
+ * a_sign_size [in] signature size
+ *
+ * a_public_key[in] public key that signed the transaction
+ * a_public_key_size[in] public key size
+ */
+uint64_t dap_chain_node_datum_tx_cache_get_out_cond_value(dap_chain_addr_t *a_addr, dap_chain_tx_out_cond_t **tx_out_cond)
+{
+    uint64_t l_ret_value = 0;
+
+    const dap_chain_datum_tx_t *l_tx_tmp;
+    dap_chain_hash_fast_t l_tx_first_hash = { 0 }; // start hash
+    //memcpy(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));
+    /* size_t l_pub_key_size = a_key_from->pub_key_data_size;
+     uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key_from, &l_pub_key_size);*/
+
+    // Find all transactions
+    do {
+        l_tx_tmp = dap_chain_node_datum_tx_cache_find_out_cond(a_addr, &l_tx_first_hash);
+
+        // Get out_cond item from transaction
+        if(l_tx_tmp) {
+            const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
+                    (dap_chain_datum_tx_t*) l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
+
+            // TODO check relations a_addr with cond_data and public key
+
+            if(l_tx_out_cond){
+                l_ret_value += l_tx_out_cond->header.value;
+                if(tx_out_cond)
+                    *tx_out_cond = (dap_chain_tx_out_cond_t*)l_tx_out_cond;
+            }
+        }
+    }
+    while(l_tx_tmp);
+    return l_ret_value;
 }

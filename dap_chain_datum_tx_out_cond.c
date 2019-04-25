@@ -21,22 +21,30 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
 
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum_tx.h"
-/**
- * @struct dap_chain_tx_item
- * @brief Sections belongs to heading tx section, with inputs, outputs and others tx relatated items
- */
+#include "dap_chain_datum_tx_out_cond.h"
 
-typedef struct dap_chain_tx_in_cond {
-    struct {
-        dap_chain_tx_item_type_t type :8; /// @param    type            @brief Transaction item type
-        dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
-        uint32_t tx_out_prev_idx; ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
-        uint16_t cond; // condition
-    } header; /// Only header's hash is used for verification
-}DAP_ALIGN_PACKED dap_chain_tx_in_cond_t;
+
+uint8_t* dap_chain_datum_tx_out_cond_item_get_pkey(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_pkey_size_out)
+{
+    if(a_tx_out_cond) {
+        if(a_pkey_size_out)
+            *a_pkey_size_out = a_tx_out_cond->header.pub_key_size;
+        return a_tx_out_cond->data;
+    }
+    return NULL;
+}
+
+uint8_t* dap_chain_datum_tx_out_cond_item_get_cond(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_cond_size_out)
+{
+    if(a_tx_out_cond) {
+        if(a_cond_size_out)
+            *a_cond_size_out = a_tx_out_cond->header.cond_size;
+        return a_tx_out_cond->data + a_tx_out_cond->header.pub_key_size;
+    }
+    return NULL;
+}
+

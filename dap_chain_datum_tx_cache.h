@@ -29,6 +29,7 @@
 //#include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_out_cond.h"
 
 int dap_chain_node_datum_tx_cache_init(dap_enc_key_t *a_key, const char *a_token_name, dap_chain_addr_t *a_addr,
         uint64_t a_value);
@@ -77,10 +78,18 @@ bool dap_chain_node_datum_tx_cache_is_used_out_item(dap_chain_hash_fast_t *a_tx_
  */
 uint64_t dap_chain_datum_tx_cache_calc_balance(dap_chain_addr_t *a_addr);
 
-// Get the transaction in the cache by the addr in out item
+
+// Get the transaction in the cache by the addr in 'out' item
 const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_by_addr(dap_chain_addr_t *a_addr,
         dap_chain_hash_fast_t *a_tx_first_hash);
 
 // Get the transaction in the cache by the public key that signed the transaction, starting with a_tx_first_hash
 const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_by_pkey(char *a_public_key, size_t a_public_key_size,
         dap_chain_hash_fast_t *a_tx_first_hash);
+
+// Get the transaction in the cache with the out_cond item
+const dap_chain_datum_tx_t* dap_chain_node_datum_tx_cache_find_out_cond(dap_chain_addr_t *a_addr,
+        dap_chain_hash_fast_t *a_tx_first_hash);
+
+uint64_t dap_chain_node_datum_tx_cache_get_out_cond_value(dap_chain_addr_t *a_addr, dap_chain_tx_out_cond_t **tx_out_cond);
+

@@ -42,9 +42,21 @@ static size_t dap_chain_tx_in_get_size(dap_chain_tx_in_t *a_item)
     return size;
 }
 
+static size_t dap_chain_tx_in_cond_get_size(dap_chain_tx_in_cond_t *a_item)
+{
+    size_t size = sizeof(dap_chain_tx_in_cond_t);
+    return size;
+}
+
 static size_t dap_chain_tx_out_get_size(dap_chain_tx_out_t *a_item)
 {
     size_t size = sizeof(dap_chain_tx_out_t);
+    return size;
+}
+
+static size_t dap_chain_tx_out_cond_get_size(dap_chain_tx_out_cond_t *a_item)
+{
+    size_t size = sizeof(dap_chain_tx_out_cond_t) + a_item->header.pub_key_size + a_item->header.cond_size;
     return size;
 }
 
@@ -92,8 +104,14 @@ int dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
     case TX_ITEM_TYPE_IN: // Transaction inputs
         size = dap_chain_tx_in_get_size((dap_chain_tx_in_t*) a_item);
         break;
+    case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
+        size = dap_chain_tx_in_cond_get_size((dap_chain_tx_in_cond_t*) a_item);
+        break;
     case TX_ITEM_TYPE_OUT: // Transaction outputs
         size = dap_chain_tx_out_get_size((dap_chain_tx_out_t*) a_item);
+        break;
+    case TX_ITEM_TYPE_OUT_COND: // Transaction output with condition
+        size = dap_chain_tx_out_cond_get_size((dap_chain_tx_out_cond_t*) a_item);
         break;
     case TX_ITEM_TYPE_PKEY: // Transaction public keys
         size = dap_chain_tx_pkey_get_size((dap_chain_tx_pkey_t*) a_item);
@@ -165,16 +183,23 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr,
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create(uint64_t a_value,
-        const void *a_cond, size_t a_cond_size)
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create(dap_enc_key_t *a_key, dap_chain_addr_t *a_addr,
+        uint64_t a_value, const void *a_cond, size_t a_cond_size)
 {
-    if(!a_cond)
+    if(!a_key || !a_cond)
         return NULL;
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    size_t l_pub_key_size = 0;
+    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t,
+            sizeof(dap_chain_tx_out_cond_t) + l_pub_key_size + a_cond_size);
     l_item->header.type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
+    l_item->header.pub_key_size = l_pub_key_size;
     l_item->header.cond_size = a_cond_size;
-    memcpy(l_item->cond, a_cond, a_cond_size);
+    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
+    memcpy(l_item->data, l_pub_key, l_pub_key_size);
+    memcpy(l_item->data + l_pub_key_size, a_cond, a_cond_size);
     return l_item;
 }
 

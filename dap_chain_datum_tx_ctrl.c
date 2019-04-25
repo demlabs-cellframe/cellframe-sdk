@@ -66,7 +66,7 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
         uint64_t l_value_need = a_value + a_value_fee;
         while(l_value_transfer < l_value_need)
         {
-            // Get the transaction in the cache by the addr in out item
+            // Get the transaction in the cache by the addr in 'out' item
             const dap_chain_datum_tx_t *l_tx = dap_chain_node_datum_tx_cache_find_by_addr(a_addr_from,
                     &l_tx_cur_hash);
             if(!l_tx)
@@ -188,8 +188,8 @@ int dap_chain_datum_tx_ctrl_create_transfer(dap_enc_key_t *a_key_from,
  *
  * return 1 Ok, 0 not enough funds to create cond, -1 other Error
  */
-int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from,
-        dap_chain_addr_t* a_addr_from, dap_chain_addr_t* a_addr_fee,
+int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
+        dap_chain_addr_t* a_addr_from, dap_chain_addr_t *a_addr_cond, dap_chain_addr_t* a_addr_fee,
         uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
     // check valid param
@@ -267,10 +267,10 @@ int dap_chain_datum_tx_ctrl_create_cond(dap_enc_key_t *a_key_from,
         assert(l_value_to_items == l_value_deposit);
         dap_list_free_full(l_list_used_out, free);
     }
-    // add 'out' items
+    // add 'out_cond' and 'out' items
     {
         uint64_t l_value_pack = 0; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_value, a_cond, a_cond_size) == 1) {
+        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, a_addr_cond, a_value, a_cond, a_cond_size) == 1) {
             l_value_pack += a_value;
             // transaction fee
             if(a_addr_fee) {

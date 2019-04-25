@@ -92,7 +92,7 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
 {
     dap_chain_tx_in_t *l_tx_in = dap_chain_datum_tx_item_in_create(a_tx_prev_hash, a_tx_out_prev_idx);
     if(l_tx_in) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_in);
+        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_in);
         DAP_DELETE(l_tx_in);
         return 1;
     }
@@ -108,7 +108,7 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, dap_chain_addr_
 {
     dap_chain_tx_out_t *l_tx_out = dap_chain_datum_tx_item_out_create(a_addr, a_value);
     if(l_tx_out) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out);
+        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_out);
         DAP_DELETE(l_tx_out);
         return 1;
     }
@@ -120,17 +120,18 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, dap_chain_addr_
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, uint64_t a_value, const void *a_cond, size_t a_cond_size)
+int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key, dap_chain_addr_t *a_addr,
+        uint64_t a_value, const void *a_cond, size_t a_cond_size)
 {
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create(a_value, a_cond, a_cond_size);
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create(a_key, a_addr, a_value, a_cond,
+            a_cond_size);
     if(l_tx_out) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out);
+        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_out);
         DAP_DELETE(l_tx_out);
         return 1;
     }
     return -1;
 }
-
 
 /**
  * Sign a transaction (Add sign item to transaction)

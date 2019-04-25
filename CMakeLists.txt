@@ -10,6 +10,7 @@ set(DAP_CHAIN_SRCS
         dap_chain_datum_tx_ctrl.c
         dap_chain_datum_tx.c
         dap_chain_datum_tx_token.c
+        dap_chain_datum_tx_out_cond.c
         dap_chain_datum_coin.c
         dap_chain_pvt.c
         dap_chain.c

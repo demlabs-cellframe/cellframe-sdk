@@ -39,5 +39,5 @@ typedef struct dap_chain_tx_sig{
 //        dap_chain_sign_type_t sig_type; /// Signature type
         uint32_t sig_size; /// Signature size
     } header; /// Only header's hash is used for verification
-    uint8_t sig[]; /// @param sig @brief raw signature data
+    uint8_t sig[]; /// @param sig @brief raw signature data + public key (dap_chain_sign_t)
 } DAP_ALIGN_PACKED dap_chain_tx_sig_t;

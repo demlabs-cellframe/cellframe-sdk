@@ -34,9 +34,17 @@
  */
 typedef struct dap_chain_tx_out_cond {
     struct {
-        dap_chain_tx_item_type_t type :8; ///           @param    type            @brief  Transaction item type
-        uint64_t value; ///                       @param    value           @brief  Number of Datoshis ( DAP/10^9 ) to be transfered
+        dap_chain_tx_item_type_t type :8; // Transaction item type
+        uint64_t value; // Number of Datoshis ( DAP/10^9 ) to be reserver for service
+        uint32_t pub_key_size; /// Public key size
         uint32_t cond_size; /// Condition parameters size
-    } header; /// Only header's hash is used for verification
-    uint8_t cond[]; // condition parameters dap_chain_net_srv_abstract
+    } header;
+    dap_chain_addr_t addr; // wallet address, whose owner can use the service
+    uint8_t data[]; // serialized public key + condition parameters dap_chain_net_srv_abstract
 }DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
+
+uint8_t* dap_chain_datum_tx_out_cond_item_get_pkey(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_pkey_size_out);
+
+uint8_t* dap_chain_datum_tx_out_cond_item_get_cond(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_cond_size_out);
+
+
