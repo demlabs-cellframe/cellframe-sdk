@@ -89,7 +89,7 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, dap_chain_addr_t *a_addr, uint64_t a_value);
+int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint64_t a_value);
 
 /**
 * Sign a transaction (Create sign item and insert to transaction)

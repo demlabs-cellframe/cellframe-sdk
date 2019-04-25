@@ -57,7 +57,7 @@ int s_prepare_env();
  * @brief dap_chain_init
  * @return
  */
-int dap_chain_init()
+int dap_chain_init(void)
 {
     if (dap_chain_cert_init() != 0) {
         log_it(L_CRITICAL,"Can't chain certificate storage module");
@@ -67,9 +67,9 @@ int dap_chain_init()
     uint16_t l_utxo_flags = 0;
 
     if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"full" ) == 0  ){
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_DS;
+        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
     }else if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"master" ) == 0  ){
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_DS;
+        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
         l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
         l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
     }else if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"root" ) == 0  ){
@@ -85,7 +85,7 @@ int dap_chain_init()
 /**
  * @brief dap_chain_deinit
  */
-void dap_chain_deinit()
+void dap_chain_deinit(void)
 {
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {

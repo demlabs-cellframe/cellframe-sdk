@@ -46,7 +46,7 @@ typedef struct dap_chain_atom_iter{
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
 typedef void (*dap_chain_callback_t)(dap_chain_t *);
-typedef void (*dap_chain_callback_cfg_t)(dap_chain_t*, dap_config_t *);
+typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t*, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef int (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_t * );
@@ -94,8 +94,8 @@ typedef struct dap_chain{
 
 #define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
 
-int dap_chain_init();
-void dap_chain_deinit();
+int dap_chain_init(void);
+void dap_chain_deinit(void);
 
 
 dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );

@@ -34,32 +34,35 @@
 #include "dap_chain_datum_tx_out.h"
 #include "dap_chain_datum_tx_items.h"
 
-static size_t dap_chain_tx_in_get_size(dap_chain_tx_in_t *a_item)
+static size_t dap_chain_tx_in_get_size(const dap_chain_tx_in_t *a_item)
 {
+    (void) a_item;
     size_t size = sizeof(dap_chain_tx_in_t); // + item->header.sig_size;
     return size;
 }
 
-static size_t dap_chain_tx_out_get_size(dap_chain_tx_out_t *a_item)
+static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
 {
+    (void) a_item;
     size_t size = sizeof(dap_chain_tx_out_t);
     return size;
 }
 
-static size_t dap_chain_tx_pkey_get_size(dap_chain_tx_pkey_t *a_item)
+static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
 {
     size_t size = sizeof(dap_chain_tx_pkey_t) + a_item->header.sig_size;
     return size;
 }
 
-static size_t dap_chain_tx_sig_get_size(dap_chain_tx_sig_t *item)
+static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *item)
 {
     size_t size = sizeof(dap_chain_tx_sig_t) + item->header.sig_size;
     return size;
 }
 
-static size_t dap_chain_tx_token_get_size(dap_chain_tx_token_t *a_item)
+static size_t dap_chain_tx_token_get_size(const dap_chain_tx_token_t *a_item)
 {
+    (void) a_item;
     size_t size = sizeof(dap_chain_tx_token_t);
     return size;
 }
@@ -124,6 +127,7 @@ dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t
     if(a_ticker_len >= sizeof(l_item->header.ticker))
         a_ticker_len = sizeof(l_item->header.ticker) - 1;
     strncpy(l_item->header.ticker, a_ticker, a_ticker_len);
+
     return l_item;
 }
 
@@ -148,7 +152,7 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr, uint64_t a_value)
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value)
 {
     if(!a_addr)
         return NULL;
@@ -176,7 +180,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
             sizeof(dap_chain_tx_sig_t) + l_chain_sign_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
-    l_tx_sig->header.sig_size = l_chain_sign_size;
+    l_tx_sig->header.sig_size =(uint32_t) l_chain_sign_size;
     memcpy(l_tx_sig->sig, l_chain_sign, l_chain_sign_size);
     DAP_DELETE(l_chain_sign);
     return l_tx_sig;
@@ -187,7 +191,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  *
  * return sign, NULL Error
  */
-dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
+dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(const dap_chain_tx_sig_t *a_tx_sig)
 {
     if(!a_tx_sig || !a_tx_sig->header.sig_size)
         return NULL;

@@ -34,20 +34,21 @@
 
 #define LOG_TAG "dap_chain_cs"
 
-typedef struct dap_chain_cs_callback_item
+typedef struct dap_chain_callback_new_cfg_item
 {
     char name[32];
-    dap_chain_callback_cfg_t callback_init;
+    dap_chain_callback_new_cfg_t callback_init;
     UT_hash_handle hh;
-} dap_chain_cs_callback_item_t;
+} dap_chain_callback_new_cfg_item_t;
 
-dap_chain_cs_callback_item_t * s_cs_callbacks = NULL;
+static dap_chain_callback_new_cfg_item_t * s_cs_callbacks = NULL;
+static dap_chain_callback_new_cfg_item_t * s_class_callbacks = NULL;
 
 /**
  * @brief dap_chain_cs_init
  * @return
  */
-int dap_chain_cs_init()
+int dap_chain_cs_init(void)
 {
     return 0;
 }
@@ -55,7 +56,7 @@ int dap_chain_cs_init()
 /**
  * @brief dap_chain_cs_deinit
  */
-void dap_chain_cs_deinit()
+void dap_chain_cs_deinit(void)
 {
 
 }
@@ -65,9 +66,12 @@ void dap_chain_cs_deinit()
  * @param a_cs_str
  * @param a_callback_init
  */
-void dap_chain_class_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callback_init)
+void dap_chain_class_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
 {
-    // TODO
+    dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
+    strncpy(l_item->name, a_cs_str, sizeof (l_item->name) );
+    l_item->callback_init = a_callback_init;
+    HASH_ADD_STR( s_class_callbacks, name, l_item);
 }
 
 /**
@@ -78,7 +82,16 @@ void dap_chain_class_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_cal
  */
 int dap_chain_class_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-   return -1; //TODO
+    dap_chain_callback_new_cfg_item_t *l_item = NULL;
+
+    HASH_FIND_STR(s_class_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
+    if ( l_item ) {
+        l_item->callback_init( a_chain, a_chain_cfg);
+        // TODO
+        return 0;
+    } else {
+        return -1;
+    }
 }
 
 
@@ -87,9 +100,9 @@ int dap_chain_class_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  * @param a_cs_str
  * @param a_callback_init
  */
-void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callback_init)
+void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
 {
-    dap_chain_cs_callback_item_t *l_item = DAP_NEW_Z ( dap_chain_cs_callback_item_t );
+    dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) );
     l_item->callback_init = a_callback_init;
     HASH_ADD_STR( s_cs_callbacks, name, l_item);
@@ -103,8 +116,7 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_cfg_t a_callba
  */
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_callback_item_t *l_item = NULL;
-    DAP_CHAIN_PVT_LOCAL(a_chain);
+    dap_chain_callback_new_cfg_item_t *l_item = NULL;
 
     HASH_FIND_STR(s_cs_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
     if ( l_item ) {

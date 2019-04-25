@@ -104,7 +104,7 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, dap_chain_addr_t *a_addr, uint64_t a_value)
+int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint64_t a_value)
 {
     dap_chain_tx_out_t *l_tx_out = dap_chain_datum_tx_item_out_create(a_addr, a_value);
     if(l_tx_out) {

@@ -49,7 +49,9 @@
 
 
 
-int dap_chain_utxo_init(dap_chain_cell_id_t a_local_cell_id, uint16_t a_check_flags);
+int dap_chain_utxo_init( uint16_t a_check_flags);
+
+void dap_chain_utxo_set_local_cell_id ( dap_chain_cell_id_t a_local_cell_id);
 
 dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx);
 
@@ -72,9 +74,9 @@ int dap_chain_utxo_token_add(dap_chain_datum_token_t *a_token);
 /**
  * Add token emission datum
  */
-int dap_chain_utxo_token_emission_add(dap_chain_datum_token_emission_t *a_token_emission);
+int dap_chain_utxo_token_emission_add(const char * a_token_ticker, dap_chain_datum_token_emission_t *a_token_emission);
 
-dap_chain_datum_token_emission_t * dap_chain_utxo_token_emission_find(dap_chain_hash_fast_t *a_token_emission_hash);
+dap_chain_datum_token_emission_t * dap_chain_utxo_token_emission_find(const char * a_token_ticker, dap_chain_hash_fast_t *a_token_emission_hash);
 
 const char* dap_chain_utxo_tx_get_token_ticker_by_hash(dap_chain_hash_fast_t *tx_hash);
 
@@ -122,8 +124,10 @@ uint64_t dap_chain_utxo_calc_balance(dap_chain_addr_t *a_addr,const char a_token
 const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_hash(dap_chain_hash_fast_t *tx_hash);
 
 // Get the transaction in the cache by the addr in out item
-const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_addr(dap_chain_addr_t *a_addr,
+const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_addr(const dap_chain_addr_t *a_addr,
         dap_chain_hash_fast_t *a_tx_first_hash);
+
+
 
 // Get the transaction in the cache by the public key that signed the transaction, starting with a_tx_first_hash
 const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_pkey(char *a_public_key, size_t a_public_key_size,

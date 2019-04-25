@@ -31,6 +31,8 @@
 
 #include "dap_list.h"
 #include "dap_hash.h"
+#include "dap_string.h"
+#include "dap_strfuncs.h"
 #include "dap_chain_utxo.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_token.h"
@@ -89,16 +91,19 @@ static pthread_mutex_t s_tokens_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static uint16_t s_check_flags;
 static bool s_check_ds,s_check_cells_ds,s_check_token_emission;
-static dap_chain_cell_id_t s_local_cell_id;
+static dap_chain_cell_id_t s_local_cell_id= {0};
+
+
+static const dap_chain_utxo_tx_item_t* tx_item_find_by_addr (dap_chain_addr_t *a_addr,dap_chain_hash_fast_t *a_tx_first_hash);
+
 /**
  * @brief dap_chain_utxo_init
  * @param a_local_cell_id Local cell id
  * @param a_check_flags
  * @return
  */
-int dap_chain_utxo_init(dap_chain_cell_id_t a_local_cell_id, uint16_t a_check_flags)
+int dap_chain_utxo_init( uint16_t a_check_flags)
 {
-    s_local_cell_id.uint64 = a_local_cell_id.uint64;
     s_check_flags = a_check_flags;
     s_check_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
     s_check_cells_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_CELLS_DS;
@@ -107,29 +112,65 @@ int dap_chain_utxo_init(dap_chain_cell_id_t a_local_cell_id, uint16_t a_check_fl
     return 0;
 }
 
+/**
+ * @brief dap_chain_utxo_token_emission_add
+ * @param a_token_emission
+ * @return
+ */
+int dap_chain_utxo_token_emission_add(const char * a_token_ticker, dap_chain_datum_token_emission_t *a_token_emission)
+{
+   dap_chain_utxo_token_emission_item_t * l_token_emission_item = DAP_NEW_Z(dap_chain_utxo_token_emission_item_t);
+
+}
+
+dap_chain_datum_token_emission_t * dap_chain_utxo_token_emission_find(const char * a_token_ticker, dap_chain_hash_fast_t *a_token_emission_hash)
+{
+
+}
+
+
+/**
+ * @brief dap_chain_utxo_set_local_cell_id
+ * @param a_local_cell_id
+ */
+void dap_chain_utxo_set_local_cell_id ( dap_chain_cell_id_t a_local_cell_id)
+{
+    s_local_cell_id.uint64 = a_local_cell_id.uint64;
+}
 
 void dap_chain_utxo_addr_get_token_ticker_all(dap_chain_addr_t * a_addr, char *** a_tickers, size_t * a_tickers_size )
 {
 
+    const dap_chain_utxo_tx_item_t * l_tx_item = tx_item_find_by_addr(a_addr, NULL);
+    if (l_tx_item){
 
-    const dap_chain_datum_tx_t * l_tx = dap_chain_utxo_tx_find_by_addr(a_addr, NULL);
-    if ( l_tx ){
         size_t l_tickers_size = 10;
-        char ** l_tickers = DAP_NEW_Z_SIZE(char *,l_tickers_size);
+        char ** l_tickers = DAP_NEW_Z_SIZE(char *,l_tickers_size*sizeof(char*));
+        *a_tickers = l_tickers;
         size_t l_tickers_pos=0;
-        while (l_tx){
-            dap_chain_utxo_tx_item_t * l_tx_item = NULL, * l_tx_item_tmp = NULL;
-
-            bool l_is_in_list = false;
+        while (l_tx_item){
+            bool l_is_not_in_list = true;
             for (size_t i = 0; i < l_tickers_size; i ++){
-                if ( strcmp(l_tickers[i],
+                if ( strcmp(l_tickers[i], l_tx_item->token_tiker) == 0 ){
+                    l_is_not_in_list = false;
+                    break;
+                }
             }
-            l_tickers_pos++;
-            if (l_tickers_pos == l_tickers_size ){
-                l_tickers_size +=  (l_tickers_size/2);
-                l_tickers = DAP_REALLOC(l_tickers,l_tickers_size);
+            if ( l_is_not_in_list){
+                if ( (l_tickers_pos+1 ) == l_tickers_size ){
+                    l_tickers_size +=  (l_tickers_size/2);
+                    l_tickers = DAP_REALLOC(l_tickers,l_tickers_size);
+                }
+                l_tickers[l_tickers_pos] = dap_strdup(l_tx_item->token_tiker);
+                l_tickers_pos++;
             }
+            dap_chain_hash_fast_t* l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx_item->tx);
+            l_tx_item = tx_item_find_by_addr(a_addr, l_tx_hash);
+            DAP_DELETE(l_tx_hash);
         }
+        l_tickers_size = l_tickers_pos+1;
+        l_tickers = DAP_REALLOC(l_tickers, l_tickers_size);
+        *a_tickers_size = l_tickers_size;
     }
 }
 
@@ -296,10 +337,10 @@ int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t *
                 const dap_chain_tx_sig_t *l_tx_sig = (const dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL,
                         TX_ITEM_TYPE_SIG, NULL);
                 // Get sign from sign item
-                dap_chain_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
+                const dap_chain_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
                 // Get public key from sign
                 size_t l_pkey_ser_size = 0;
-                uint8_t *l_pkey_ser = dap_chain_sign_get_pkey(l_sign, &l_pkey_ser_size);
+                const uint8_t *l_pkey_ser = dap_chain_sign_get_pkey(l_sign, &l_pkey_ser_size);
                 // calculate hash from public key
                 dap_hash_fast(l_pkey_ser, l_pkey_ser_size, &l_hash_pkey);
             }
@@ -361,7 +402,7 @@ int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t *
 
         if ( s_check_token_emission ){ // Check the token emission
             dap_chain_datum_token_emission_t * l_token_emission =
-                    dap_chain_utxo_token_emission_find(& l_token->header.token_emission_hash);
+                    dap_chain_utxo_token_emission_find(l_token->header.ticker, & l_token->header.token_emission_hash);
             if (l_token_emission ){
                 if ( l_token_emission->value != l_values_from_cur_tx ){
                     dap_list_free_full(l_list_bound_items, free);
@@ -536,7 +577,7 @@ _dap_int128_t dap_chain_utxo_count(void)
 /**
  * Check whether used 'out' items (local function)
  */
-static bool dap_chain_node_datum_tx_cache_is_used_out_item_inside(dap_chain_utxo_tx_item_t *a_item, int a_idx_out)
+static bool dap_chain_utxo_item_is_used_out(dap_chain_utxo_tx_item_t *a_item, int a_idx_out)
 {
     bool l_used_out = false;
     if(!a_item) {
@@ -561,9 +602,8 @@ static bool dap_chain_node_datum_tx_cache_is_used_out_item_inside(dap_chain_utxo
 bool dap_chain_utxo_tx_hash_is_used_out_item(dap_chain_hash_fast_t *a_tx_hash, int a_idx_out)
 {
     dap_chain_utxo_tx_item_t *l_item_out = NULL;
-    dap_chain_datum_tx_t *l_tx =
-            (dap_chain_datum_tx_t*) dap_chain_utxo_find_inside(a_tx_hash, &l_item_out);
-    return dap_chain_node_datum_tx_cache_is_used_out_item_inside(l_item_out, a_idx_out);
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) dap_chain_utxo_find_inside(a_tx_hash, &l_item_out);
+    return dap_chain_utxo_item_is_used_out(l_item_out, a_idx_out);
 }
 
 /**
@@ -599,7 +639,7 @@ uint64_t dap_chain_utxo_calc_balance(dap_chain_addr_t *a_addr,const char a_token
             // if transaction has the out item with requested addr and requested token
             if(l_tx_out && &l_tx_out->addr && !memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                 // if 'out' item not used & transaction is valid
-                if(!dap_chain_node_datum_tx_cache_is_used_out_item_inside(l_iter_current, l_out_idx_tmp) &&
+                if(!dap_chain_utxo_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
                         dap_chain_datum_tx_verify_sign(l_tx_tmp))
                     balance += l_tx_out->header.value;
             }
@@ -621,47 +661,67 @@ uint64_t dap_chain_utxo_calc_balance(dap_chain_addr_t *a_addr,const char a_token
  * a_public_key_size[in] public key size
  * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
  */
-const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_addr(dap_chain_addr_t *a_addr,
+static const dap_chain_utxo_tx_item_t* tx_item_find_by_addr(dap_chain_addr_t *a_addr,
         dap_chain_hash_fast_t *a_tx_first_hash)
 {
     if(!a_addr || !a_tx_first_hash)
         return NULL;
-    dap_chain_datum_tx_t *l_cur_tx = NULL;
     int l_ret = -1;
+    bool is_tx_found = false;
     bool is_null_hash = dap_hash_fast_is_blank(a_tx_first_hash);
     bool is_search_enable = is_null_hash;
     dap_chain_utxo_tx_item_t *l_iter_current, *l_item_tmp;
     pthread_mutex_lock(&s_utxo_mutex);
     HASH_ITER(hh, s_utxo , l_iter_current, l_item_tmp)
     {
-        dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
-        dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
-        // start searching from the next hash after a_tx_first_hash
-        if(!is_search_enable) {
-            if(dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash))
-                is_search_enable = true;
-            continue;
-        }
-        // Get 'out' items from transaction
-        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx_tmp, TX_ITEM_TYPE_OUT, NULL);
-        dap_list_t *l_list_tmp = l_list_out_items;
-        while(l_list_tmp) {
-            const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
-            // if transaction has the out item with requested addr
-            if(l_tx_out && &l_tx_out->addr && !memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
-                l_cur_tx = l_tx_tmp;
-                memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
-                break;
-            }
-            l_list_tmp = dap_list_next(l_list_tmp);
-        }
-        dap_list_free(l_list_tmp);
-        // already found transaction
-        if(l_cur_tx)
-            break;
+                            dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
+                            dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
+                            dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
+                            // start searching from the next hash after a_tx_first_hash
+                            if(!is_search_enable) {
+                                if(dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash))
+                                    is_search_enable = true;
+                                continue;
+                            }
+                            // Get 'out' items from transaction
+                            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx_tmp, TX_ITEM_TYPE_OUT, NULL);
+                            dap_list_t *l_list_tmp = l_list_out_items;
+                            while(l_list_tmp) {
+                                const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
+                                // if transaction has the out item with requested addr
+                                if(l_tx_out &&
+                                        !memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))
+                                        ) {
+                                    memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
+                                    is_tx_found = true;
+                                    break;
+                                }
+                                l_list_tmp = dap_list_next(l_list_tmp);
+                            }
+                            dap_list_free(l_list_tmp);
+                            // already found transaction
+                            if(is_tx_found)
+                                break;
+
     }
     pthread_mutex_unlock(&s_utxo_mutex);
-    return l_cur_tx;
+    if (is_tx_found)
+        return l_iter_current;
+    else
+        return  NULL;
+}
+
+ /**
+ * @brief dap_chain_utxo_tx_find_by_addr
+ * @param a_addr
+ * @param a_tx_first_hash
+ * @return
+ */
+const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_addr(const dap_chain_addr_t *a_addr,
+        dap_chain_hash_fast_t *a_tx_first_hash)
+{
+        const dap_chain_utxo_tx_item_t* l_tx_item = tx_item_find_by_addr (a_addr,a_tx_first_hash);
+        return l_tx_item->tx;
 }
 
 /**
@@ -697,7 +757,7 @@ const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_pkey(char *a_public_key, s
         const dap_chain_tx_sig_t *l_tx_sig = (const dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
                 TX_ITEM_TYPE_SIG, NULL);
         // Get dap_chain_sign_t from item
-        dap_chain_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
+        const dap_chain_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
         if(l_sig) {
             // compare public key in transaction with a_public_key
             if(a_public_key_size == l_sig->header.sign_pkey_size &&

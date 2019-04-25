@@ -72,7 +72,7 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(dap_chain_addr_t *a_addr, uint64_t a_value);
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value);
 
 /**
  * Create item dap_chain_tx_sig_t
@@ -86,7 +86,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  *
  * return sign, NULL Error
  */
-dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
+dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(const dap_chain_tx_sig_t *a_tx_sig);
 
 /**
  * Get item from transaction
