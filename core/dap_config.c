@@ -236,7 +236,8 @@ dap_config_t * dap_config_open(const char * a_name)
                                                 l_item->data_str_array = (char**) malloc (sizeof(char*) * l_item->array_length);
                                                 // parsing items in array
                                                 int j = 0;
-                                                char *token = strtok(values, ",");
+                                                char * l_tmp = NULL;
+                                                char *token = strtok_r(values, ",",&l_tmp);
                                                 while(token) {
 
                                                     // trim token whitespace
@@ -248,7 +249,7 @@ dap_config_t * dap_config_open(const char * a_name)
 
                                                     l_item->data_str_array[j] = strdup(token);
 
-                                                    token = strtok(NULL, ",");
+                                                    token = strtok_r(NULL, ",",&l_tmp);
                                                     j++;
                                                 }
 
