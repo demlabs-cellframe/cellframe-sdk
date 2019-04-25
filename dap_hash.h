@@ -35,7 +35,7 @@ typedef enum dap_hash_type {
     DAP_HASH_TYPE_SLOW_0 = 1,
 } dap_hash_type_t;
 
-inline static void dap_hash(void * a_data_in, size_t a_data_in_size,
+inline static void dap_hash(const void * a_data_in, size_t a_data_in_size,
                      void * a_data_out, size_t a_data_out_size,
                      dap_hash_type_t a_type ){
     switch (a_type){
@@ -51,6 +51,6 @@ inline static void dap_hash(void * a_data_in, size_t a_data_in_size,
 
 }
 
-int dap_hash_fast(void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out);
+int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out);
 bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash);
 bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2);

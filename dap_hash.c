@@ -27,7 +27,7 @@
 
 #define LOG_TAG "dap_hash"
 
-int dap_hash_fast(void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out)
+int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out)
 {
     if(!a_data_in || !a_data_in_size || !a_hash_out)
         return -1;
@@ -38,7 +38,7 @@ int dap_hash_fast(void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t 
 bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash)
 {
     uint8_t *l_hast_bytes = (uint8_t*) a_hash;
-    for(int i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
+    for(size_t i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
         if(l_hast_bytes[i])
             return false;
     }

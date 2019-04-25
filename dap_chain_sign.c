@@ -32,8 +32,8 @@
 
 #define LOG_TAG "dap_chain_sign"
 
-dap_chain_sign_t * s_sign_null = NULL;
-bliss_signature_t s_sign_bliss_null = {0};
+static dap_chain_sign_t * s_sign_null = NULL;
+static bliss_signature_t s_sign_bliss_null = {0};
 
 // calc signature size
 size_t dap_chain_sign_create_output_cals_size(dap_enc_key_t * a_key, size_t a_output_wish_size )
@@ -188,7 +188,13 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
     return NULL;
 }
 
-uint8_t* dap_chain_sign_get_sign(dap_chain_sign_t *a_sign, size_t *a_sign_out)
+/**
+ * @brief dap_chain_sign_get_sign
+ * @param a_sign
+ * @param a_sign_out
+ * @return
+ */
+const uint8_t* dap_chain_sign_get_sign(const dap_chain_sign_t *a_sign, size_t *a_sign_out)
 {
     if(!a_sign)
         return NULL;
@@ -197,7 +203,13 @@ uint8_t* dap_chain_sign_get_sign(dap_chain_sign_t *a_sign, size_t *a_sign_out)
     return a_sign->pkey_n_sign + a_sign->header.sign_pkey_size;
 }
 
-uint8_t* dap_chain_sign_get_pkey(dap_chain_sign_t *a_sign, size_t *a_pub_key_out)
+/**
+ * @brief dap_chain_sign_get_pkey
+ * @param a_sign
+ * @param a_pub_key_out
+ * @return
+ */
+const uint8_t* dap_chain_sign_get_pkey(const dap_chain_sign_t *a_sign, size_t *a_pub_key_out)
 {
     if(!a_sign)
         return NULL;
