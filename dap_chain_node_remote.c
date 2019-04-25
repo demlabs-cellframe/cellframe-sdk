@@ -28,7 +28,7 @@
 #include "dap_common.h"
 #include "dap_chain_node_remote.h"
 
-typedef struct list_linked_item {
+typedef struct dap_chain_utxo_tx_item {
     dap_chain_node_addr_t address;
     dap_chain_node_client_t *client;
     UT_hash_handle hh;

@@ -37,6 +37,7 @@ dap_chain_node_addr_t* get_name_by_alias(const char *alias);
  */
 const COMMAND* find_command(const char *name);
 
+
 /**
  * global_db command
  */
@@ -72,6 +73,12 @@ int com_ping(int argc, const char** argv, char **str_reply);
  * Help command
  */
 int com_help(int argc, const char ** argv, char **str_reply);
+
+
+int com_token_declare ( int argc, const char ** argv, char ** str_reply);
+
+int com_token_emit (int argc, const char ** argv, char ** str_reply);
+
 
 /**
  * com_tx_create command

@@ -31,6 +31,7 @@
 
 #include "dap_common.h"
 #include "dap_config.h"
+#include "dap_chain_utxo.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_ctl.h"
 #include "dap_module.h"
@@ -178,6 +179,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  */
 int dap_chain_net_init()
 {
+    return 0;
     static dap_config_t *l_cfg=NULL;
     if((l_cfg = dap_config_open( "network/default" ) ) == NULL) {
         log_it(L_ERROR,"Can't open default network config");
@@ -208,10 +210,10 @@ int dap_chain_net_init()
         if ( l_chains_dir ){
             struct dirent * l_dir_entry;
             while ( l_dir_entry = readdir(l_chains_dir) ){
-                l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1;
+                char * l_entry_name = strdup(l_dir_entry->d_name);
+                l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1+strlen (l_entry_name)-3;
                 l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);
 
-                char * l_entry_name = strdup(l_dir_entry->d_name);
                 if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
                     if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
                         l_entry_name [strlen(l_entry_name)-4] = 0;
@@ -220,7 +222,7 @@ int dap_chain_net_init()
                         //dap_config_open(l_chains_path);
 
                         // Create chain object
-                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name,l_entry_name);
+                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chains_path);
                         if(l_chain)
                             DL_APPEND( l_net->pub.chains, l_chain);
                         free(l_entry_name);
