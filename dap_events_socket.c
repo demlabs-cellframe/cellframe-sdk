@@ -119,7 +119,7 @@ dap_events_socket_t * dap_events_socket_wrap2(dap_server_t * a_server, struct da
     assert(a_events);
     assert(a_callbacks);
     assert(a_server);
-    log_it(L_DEBUG,"Sap event socket wrapped around %d sock", a_sock);
+    log_it(L_DEBUG,"Dap event socket wrapped around %d sock", a_sock);
     dap_events_socket_t * ret = DAP_NEW_Z(dap_events_socket_t);
     ret->socket = a_sock;
     ret->events = a_events;
