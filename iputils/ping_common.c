@@ -146,6 +146,7 @@ void usage(void)
                     "\nFor more details see ping(8).\n"
             );
     //exit(2);
+    exit(2);
 }
 
 void limit_capabilities(void)

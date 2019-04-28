@@ -51,6 +51,7 @@ typedef struct dap_chain_net_pvt{
     pthread_t proc_tid;
     pthread_cond_t proc_cond;
     dap_chain_node_role_t node_role;
+    uint8_t padding[4];
     //dap_client_t client;
     dap_chain_node_ctl_t * node;
 } dap_chain_net_pvt_t;
@@ -61,14 +62,14 @@ typedef struct dap_chain_net_item{
     UT_hash_handle hh;
 } dap_chain_net_item_t;
 
-#define PVT(a) ( (dap_chain_net_pvt_t *) a->pvt )
-#define PVT_S(a) ( (dap_chain_net_pvt_t *) a.pvt )
+#define PVT(a) ( (dap_chain_net_pvt_t *) (void*) a->pvt )
+#define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
 
-dap_chain_net_item_t * s_net_items = NULL;
+static dap_chain_net_item_t * s_net_items = NULL;
 
-size_t            s_net_configs_count = 0;
-pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
+static size_t            s_net_configs_count = 0;
+static pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * @brief s_net_proc_thread
@@ -79,7 +80,13 @@ pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void * s_net_proc_thread ( void * a_net)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
-
+    bool is_looping = true ;
+    while( is_looping ) {
+        pthread_mutex_lock(&s_net_proc_loop_mutex);
+        pthread_cond_wait(&s_net_proc_loop_cond,&s_net_proc_loop_mutex);
+        pthread_mutex_unlock(&s_net_proc_loop_mutex);
+        log_it( L_DEBUG, "Waked up net proc thread");
+    }
     return NULL;
 }
 
@@ -179,7 +186,6 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  */
 int dap_chain_net_init()
 {
-    return 0;
     static dap_config_t *l_cfg=NULL;
     if((l_cfg = dap_config_open( "network/default" ) ) == NULL) {
         log_it(L_ERROR,"Can't open default network config");
@@ -189,7 +195,7 @@ int dap_chain_net_init()
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" ),
-                                            dap_config_get_item_str(l_cfg , "general" , "node-default" )
+                                            dap_config_get_item_str(l_cfg , "general" , "node-alias" )
                                            );
         // Do specific actions
         switch ( PVT( l_net )->node_role.enums ) {
@@ -209,7 +215,7 @@ int dap_chain_net_init()
         DAP_DELETE (l_chains_path);
         if ( l_chains_dir ){
             struct dirent * l_dir_entry;
-            while ( l_dir_entry = readdir(l_chains_dir) ){
+            while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
                 char * l_entry_name = strdup(l_dir_entry->d_name);
                 l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1+strlen (l_entry_name)-3;
                 l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);

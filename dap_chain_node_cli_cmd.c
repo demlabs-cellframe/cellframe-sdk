@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
+#include <ctype.h>
 #include <glib.h>
 #include <time.h>
 #include <arpa/inet.h>
@@ -64,17 +65,16 @@
 static int find_option_val(const char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
 {
     int arg_index = arg_start;
-    int arg_character, on_or_off, next_arg, i;
-    char *arg_string;
+    const char *arg_string;
 
     while(arg_index < arg_end)
     {
-        arg_string = (char *) argv[arg_index];
+        arg_string = argv[arg_index];
         // find opt_name
         if(arg_string && opt_name && !strcmp(arg_string, opt_name)) {
             // find opt_value
             if(opt_value) {
-                arg_string = (char *) argv[++arg_index];
+                arg_string = argv[++arg_index];
                 if(arg_string) {
                     *opt_value = arg_string;
                     return arg_index;
@@ -143,9 +143,9 @@ dap_chain_node_addr_t* get_name_by_alias(const char *a_alias)
     if(!a_alias)
         return NULL;
     const char *a_key = a_alias;
-    size_t l_addr_out = 0;
-    l_addr = (dap_chain_node_addr_t*) dap_chain_global_db_gr_get(a_key, &l_addr_out, GROUP_ALIAS);
-    if(l_addr_out != sizeof(dap_chain_node_addr_t)) {
+    size_t l_addr_size = 0;
+    l_addr = (dap_chain_node_addr_t*) (void*) dap_chain_global_db_gr_get(a_key, &l_addr_size, GROUP_ALIAS);
+    if(l_addr_size != sizeof(dap_chain_node_addr_t)) {
 //        l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
 //        if(hex2bin((char*) l_addr, (const unsigned char *) addr_str, sizeof(dap_chain_node_addr_t) * 2) == -1) {
         DAP_DELETE(l_addr);
@@ -171,12 +171,12 @@ static dap_list_t* get_aliases_by_name(dap_chain_node_addr_t *a_addr)
     dap_global_db_obj_t **objs = dap_chain_global_db_gr_load(GROUP_ALIAS, &data_size);
     if(!objs || !data_size)
         return NULL;
-    for(int i = 0; i < data_size; i++) {
-        dap_chain_node_addr_t addr_i;
+    for(size_t i = 0; i < data_size; i++) {
+        //dap_chain_node_addr_t addr_i;
         dap_global_db_obj_t *obj = objs[i];
         if(!obj)
             break;
-        dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t*) obj->value;
+        dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t*) (void*) obj->value;
         if(l_addr && obj->value_len == sizeof(dap_chain_node_addr_t) && a_addr->uint64 == l_addr->uint64) {
             list_aliases = dap_list_prepend(list_aliases, strdup(obj->key));
         }
@@ -1482,7 +1482,7 @@ int com_token_emit ( int argc, const char ** argv, char ** str_reply)
 
 
     int n = 0;
-    char ** l_certs_tmp_ptrs = NULL;
+    char * l_certs_tmp_ptrs = NULL;
     char * l_certs_str_dup = strdup( l_certs_str);
     char *l_cert_str = strtok_r(l_certs_str_dup, ",",&l_certs_tmp_ptrs);
 
