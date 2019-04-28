@@ -69,14 +69,14 @@ int dap_chain_utxo_tx_add(dap_chain_datum_tx_t *a_tx);
  *
  */
 
-int dap_chain_utxo_token_add(dap_chain_datum_token_t *a_token);
+int dap_chain_utxo_token_add(dap_chain_datum_token_t *a_token, size_t a_token_size);
 
 /**
  * Add token emission datum
  */
-int dap_chain_utxo_token_emission_add(const char * a_token_ticker, dap_chain_datum_token_emission_t *a_token_emission);
+int dap_chain_utxo_token_emission_add(const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size);
 
-dap_chain_datum_token_emission_t * dap_chain_utxo_token_emission_find(const char * a_token_ticker, dap_chain_hash_fast_t *a_token_emission_hash);
+dap_chain_datum_token_emission_t * dap_chain_utxo_token_emission_find(const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash);
 
 const char* dap_chain_utxo_tx_get_token_ticker_by_hash(dap_chain_hash_fast_t *tx_hash);
 
@@ -113,7 +113,7 @@ bool dap_chain_utxo_tx_hash_is_used_out_item(dap_chain_hash_fast_t *a_tx_hash, i
  * Calculate balance of addr
  *
  */
-uint64_t dap_chain_utxo_calc_balance(dap_chain_addr_t *a_addr,const char a_token_ticker[8]);
+uint64_t dap_chain_utxo_calc_balance(const dap_chain_addr_t *a_addr,const char *a_token_ticker);
 
 
 /**

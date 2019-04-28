@@ -36,10 +36,10 @@
 #define DAP_CHAIN_SHARD_ID_SIZE 8
 #define DAP_CHAIN_NET_ID_SIZE 8
 #define DAP_CHAIN_NODE_ROLE_SIZE 2
-#define DAP_CHAIN_HASH_SIZE 32
+#define DAP_CHAIN_HASH_SLOW_SIZE 32
 #define DAP_CHAIN_HASH_FAST_SIZE 32
-#define DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX 24
 #define DAP_CHAIN_TIMESTAMP_SIZE 8
+#define DAP_CHAIN_TICKER_SIZE_MAX 10
 // Chain ID of the whole system
 typedef union dap_chain_id{
     uint8_t raw[DAP_CHAIN_ID_SIZE];
@@ -77,9 +77,9 @@ typedef union dap_chain_net_id{
 } DAP_ALIGN_PACKED dap_chain_net_id_t;
 
 
-typedef union dap_chain_hash{
-    uint8_t raw[DAP_CHAIN_HASH_SIZE];
-} DAP_ALIGN_PACKED dap_chain_hash_t;
+typedef union dap_chain_hash_slow{
+    uint8_t raw[DAP_CHAIN_HASH_SLOW_SIZE];
+} DAP_ALIGN_PACKED dap_chain_hash_slow_t;
 
 typedef union dap_chain_hash_fast{
     uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
@@ -133,15 +133,16 @@ typedef struct dap_chain_addr{
     union{
         //dap_chain_hash_fast_t hash;
         struct {
-            uint8_t key_spend[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX];
-            uint8_t key_view[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX];
+            uint8_t key_spend[sizeof(dap_chain_hash_fast_t)/2];
+            uint8_t key_view[sizeof(dap_chain_hash_fast_t)/2];
         } key_sv;
-        uint8_t key[DAP_CHAIN_ADDR_KEY_SMALL_SIZE_MAX*2];
+        uint8_t key[sizeof(dap_chain_hash_fast_t)];
+        uint8_t hash[sizeof(dap_chain_hash_fast_t)];
     } data;
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
-size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max);
+size_t dap_chain_hash_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
@@ -158,7 +159,7 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
  * @param a_hash
  * @return
  */
-static inline char * dap_chain_hash_to_str_new(dap_chain_hash_t * a_hash)
+static inline char * dap_chain_hash_to_str_new(dap_chain_hash_slow_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
@@ -179,7 +180,7 @@ static inline char * dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_ha
  * @param a_hash
  * @details
  */
-static inline dap_chain_hash_kind_t dap_chain_hash_kind_check(dap_chain_hash_t * a_hash, const uint8_t a_valuable_head  )
+static inline dap_chain_hash_kind_t dap_chain_hash_kind_check(dap_chain_hash_slow_t * a_hash, const uint8_t a_valuable_head  )
 {
     register uint8_t i;
     register uint8_t l_hash_first = a_hash->raw[0];

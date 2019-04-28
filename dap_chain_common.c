@@ -38,7 +38,7 @@
  * @param a_str_max
  * @return
  */
-size_t dap_chain_hash_to_str(dap_chain_hash_t * a_hash, char * a_str, size_t a_str_max)
+size_t dap_chain_hash_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max)
 {
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
     if(a_str_max < c_hash_str_size) {
@@ -129,8 +129,9 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
     size_t l_pub_key_data_size;
     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
     // serialized key -> key hash
+
     if(dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key)==1)
-        memcpy(a_addr->data.key, l_hash_public_key.raw, sizeof(l_hash_public_key.raw));
+        memcpy(a_addr->data.hash, l_hash_public_key.raw, sizeof(l_hash_public_key.raw));
 
     // calc checksum
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);

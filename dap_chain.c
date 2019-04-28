@@ -64,6 +64,15 @@ int dap_chain_init(void)
         return -4;
 
     }
+    uint16_t l_ca_folders_size = 0;
+    char ** l_ca_folders;
+    l_ca_folders = dap_config_get_array_str(g_config,"resources","ca_folders",&l_ca_folders_size);
+    for (uint16_t i=0; i < l_ca_folders_size; i++){
+        dap_chain_cert_add_folder(l_ca_folders[i]);
+        DAP_DELETE( l_ca_folders[i]);
+    }
+
+    DAP_DELETE( l_ca_folders);
     uint16_t l_utxo_flags = 0;
 
     if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"full" ) == 0  ){
@@ -229,9 +238,11 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
             }
 
             l_chain =  dap_chain_create(a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
+
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
                         l_chain_id.uint64 );
+                /*
                 if ( dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) {
                     DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
                                 dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
@@ -245,7 +256,7 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
                     log_it (L_ERROR, "Not set file storage path");
                     dap_chain_delete(l_chain);
                     l_chain = NULL;
-                }
+                }*/
             }else{
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
