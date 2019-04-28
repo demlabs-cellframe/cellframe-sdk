@@ -190,7 +190,7 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
             for ( i = 0; i < l_wallet_internal->certs_count ; i ++) {
                 dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = {0};
                 l_wallet_cert_hdr.version = 1;
-                uint8_t * l_buf = dap_chain_cert_save_mem(l_wallet_internal->certs[i], &l_wallet_cert_hdr.cert_raw_size);
+                uint8_t * l_buf = dap_chain_cert_mem_save(l_wallet_internal->certs[i], &l_wallet_cert_hdr.cert_raw_size);
                 //l_wallet_cert_hdr.cert_raw_size = dap_chain_cert_save_mem_size(  l_wallet_internal->certs[i] );
                 //uint8_t * l_buf = DAP_NEW_SIZE (uint8_t, l_wallet_cert_hdr.cert_raw_size);
                 fwrite( &l_wallet_cert_hdr,1, sizeof (l_wallet_cert_hdr), l_file);
