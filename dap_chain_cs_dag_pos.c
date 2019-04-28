@@ -71,6 +71,7 @@ void dap_chain_cs_dag_pos_deinit(void)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
+    return -1;
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_pos_t * l_pos = DAP_NEW_Z ( dap_chain_cs_dag_pos_t);
