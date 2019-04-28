@@ -138,7 +138,7 @@ struct dap_enc_key_callbacks{
         .gen_alice_shared_key = NULL,
         .new_callback = dap_enc_sig_picnic_key_new,
         .gen_key_public = NULL,
-        .gen_key_public_size = NULL,
+        .gen_key_public_size = dap_enc_picnic_calc_signature_size,
         .delete_callback = dap_enc_sig_picnic_key_delete,
         .new_generate_callback = dap_enc_sig_picnic_key_new_generate,
         .enc_out_size = NULL,
@@ -368,7 +368,7 @@ int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key,const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;

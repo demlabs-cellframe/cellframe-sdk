@@ -191,7 +191,7 @@ dap_list_t *dap_list_insert(dap_list_t *list, void* data, int position)
     else if(position == 0)
         return dap_list_prepend(list, data);
 
-    tmp_list = dap_list_nth(list, position);
+    tmp_list = dap_list_nth(list,(unsigned int) position);
     if(!tmp_list)
         return dap_list_append(list, data);
 

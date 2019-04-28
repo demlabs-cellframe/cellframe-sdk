@@ -32,6 +32,6 @@ bliss_signature_t* dap_enc_sig_bliss_read_signature(uint8_t *a_buf, size_t a_buf
 uint8_t* dap_enc_sig_bliss_write_private_key(const bliss_private_key_t* a_private_key, size_t *a_buflen_out);
 uint8_t* dap_enc_sig_bliss_write_public_key(const bliss_public_key_t* a_public_key, size_t *a_buflen_out);
 bliss_private_key_t* dap_enc_sig_bliss_read_private_key(uint8_t *a_buf, size_t a_buflen);
-bliss_public_key_t* dap_enc_sig_bliss_read_public_key(uint8_t *a_buf, size_t a_buflen);
+bliss_public_key_t* dap_enc_sig_bliss_read_public_key(const uint8_t *a_buf, size_t a_buflen);
 
 

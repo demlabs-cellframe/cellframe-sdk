@@ -280,7 +280,7 @@ bliss_private_key_t* dap_enc_sig_bliss_read_private_key(uint8_t *a_buf, size_t a
 }
 
 /* Deserialize a public key. */
-bliss_public_key_t* dap_enc_sig_bliss_read_public_key(uint8_t *a_buf, size_t a_buflen)
+bliss_public_key_t* dap_enc_sig_bliss_read_public_key(const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(bliss_kind_t)))
         return NULL;
