@@ -44,7 +44,7 @@ typedef enum dap_stream_ch_chain_state{
 
 typedef struct dap_stream_ch_chain {
     pthread_mutex_t mutex;
-    dap_chain_hash_t block_id;
+    dap_chain_hash_slow_t block_id;
 
 } dap_stream_ch_chain_t;
 
