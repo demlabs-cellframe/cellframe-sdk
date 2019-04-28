@@ -336,7 +336,7 @@ static void* dap_http_client_thread(void * arg)
                           }
                           dap_http_client_internal_delete(l_client_internal);
                       } else {
-                        log_it(L_CRITICAL, "Can't get private information from libcurl handle to perform the reply to SAP connection");
+                        log_it(L_CRITICAL, "Can't get private information from libcurl handle to perform the reply to DAP connection");
                       }
                       curl_multi_remove_handle(m_curl_mh, e);
                       curl_easy_cleanup(e);
