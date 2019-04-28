@@ -36,12 +36,13 @@ typedef struct dap_chain_cs_dag_poa_pvt
     char * auth_certs_prefix;
     uint16_t auth_certs_count;
     uint16_t auth_certs_count_verify; // Number of signatures, needed for event verification
+    uint8_t padding[4];
 } dap_chain_cs_dag_poa_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_poa_pvt_t *) a->_pvt )
 
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
-static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
 
 /**
@@ -67,7 +68,7 @@ void dap_chain_cs_dag_poa_deinit()
  * @param a_chain
  * @param a_chain_cfg
  */
-static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
@@ -79,22 +80,25 @@ static void s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
     if (dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") ) {
-        l_poa_pvt->auth_certs_count = dap_config_get_item_int32_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
-        l_poa_pvt->auth_certs_count_verify = dap_config_get_item_int32_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
+        l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
+        l_poa_pvt->auth_certs_count_verify = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
         l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") );
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_chain_cert_t *, l_poa_pvt->auth_certs_count );
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 snprintf(l_cert_name,sizeof(l_cert_name),"%s.%u",l_poa_pvt->auth_certs_prefix, i);
-                if ( l_poa_pvt->auth_certs[i] = dap_chain_cert_find_by_name( l_cert_name) )
+                if ( l_poa_pvt->auth_certs[i] = dap_chain_cert_find_by_name( l_cert_name) ) {
                     log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
-                else
+                } else{
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+                    return -1;
+                }
             }
         }
     }
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
+    return 0;
 }
 
 /**
