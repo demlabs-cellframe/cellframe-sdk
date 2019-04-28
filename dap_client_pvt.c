@@ -722,7 +722,6 @@ void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data
                 l_client_internal->stream_key =
                         dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, l_stream_key, strlen(l_stream_key), NULL, 0, 32);
 
-                //streamSocket->connectToHost(SapSession::me()->address(),SapSession::me()->port().toUShort(),QIODevice::ReadWrite);
 
                 if(l_client_internal->stage == STAGE_STREAM_CTL) { // We are on the right stage
                     l_client_internal->stage_status = STAGE_STATUS_DONE;

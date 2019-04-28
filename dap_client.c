@@ -24,7 +24,7 @@ int dap_client_init()
 {
     static bool s_is_first_time=true;
     if (s_is_first_time ){
-        log_it(L_INFO, "Init SAP client module");
+        log_it(L_INFO, "Init DAP client module");
         dap_http_client_init();
         dap_client_pvt_init();
         s_is_first_time = false;
@@ -40,7 +40,7 @@ void dap_client_deinit()
 {
     dap_client_pvt_deinit();
     dap_http_client_deinit();
-    log_it(L_INFO, "Deinit SAP client module");
+    log_it(L_INFO, "Deinit DAP client module");
 }
 
 /**
