@@ -38,12 +38,12 @@
  * @param a_cert_file_path
  * @return
  */
-int dap_chain_cert_save_file(dap_chain_cert_t * a_cert, const char * a_cert_file_path)
+int dap_chain_cert_file_save(dap_chain_cert_t * a_cert, const char * a_cert_file_path)
 {
     FILE * l_file = fopen(a_cert_file_path,"w");
     if( l_file ){
         uint32_t l_data_size = 0;
-        void * l_data = dap_chain_cert_save_mem(a_cert, &l_data_size);
+        void * l_data = dap_chain_cert_mem_save(a_cert, &l_data_size);
         if ( l_data ){
             size_t l_retbytes;
             if ( (l_retbytes = fwrite(l_data,1,l_data_size,l_file)) != l_data_size ){
@@ -70,16 +70,21 @@ int dap_chain_cert_save_file(dap_chain_cert_t * a_cert, const char * a_cert_file
  * @param a_cert_size_out
  * @return
  */
-uint8_t* dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, uint32_t *a_cert_size_out)
+uint8_t* dap_chain_cert_mem_save(dap_chain_cert_t * a_cert, uint32_t *a_cert_size_out)
 {
     dap_chain_cert_file_hdr_t l_hdr={0};
     uint32_t l_data_offset = 0;
     dap_enc_key_t * l_key = a_cert->enc_key;
     uint8_t *l_data = NULL;
 
-    size_t l_priv_key_data_size, l_pub_key_data_size;
-    uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_key, &l_pub_key_data_size);
-    uint8_t *l_priv_key_data = dap_enc_key_serealize_priv_key(l_key, &l_priv_key_data_size);
+    size_t l_priv_key_data_size = a_cert->enc_key->priv_key_data,
+            l_pub_key_data_size = a_cert->enc_key->pub_key_data_size;
+    uint8_t *l_pub_key_data = a_cert->enc_key->pub_key_data_size ?
+                dap_enc_key_serealize_pub_key(l_key, &l_pub_key_data_size) :
+                NULL;
+    uint8_t *l_priv_key_data = a_cert->enc_key->priv_key_data ?
+                dap_enc_key_serealize_priv_key(l_key, &l_priv_key_data_size) :
+                NULL;
 
     l_hdr.sign = DAP_CHAIN_CERT_FILE_HDR_SIGN;
     l_hdr.type = DAP_CHAIN_CERT_FILE_TYPE_PUBLIC;
@@ -115,13 +120,15 @@ uint8_t* dap_chain_cert_save_mem(dap_chain_cert_t * a_cert, uint32_t *a_cert_siz
     memcpy(l_data +l_data_offset, l_pub_key_data ,l_pub_key_data_size );
     l_data_offset += l_pub_key_data_size;
 
-    memcpy(l_data +l_data_offset, l_priv_key_data ,l_priv_key_data_size );
-    l_data_offset += l_priv_key_data_size;
+    if ( l_priv_key_data_size ) {
+        memcpy(l_data +l_data_offset, l_priv_key_data ,l_priv_key_data_size );
+        l_data_offset += l_priv_key_data_size;
+    }
 
-    memcpy(l_data +l_data_offset, l_key->_inheritor ,l_key->_inheritor_size );
-    l_data_offset += l_key->_inheritor_size;
-
-
+    if ( l_key->_inheritor_size ) {
+        memcpy(l_data +l_data_offset, l_key->_inheritor ,l_key->_inheritor_size );
+        l_data_offset += l_key->_inheritor_size;
+    }
 lb_exit:
     DAP_DELETE(l_pub_key_data);
     DAP_DELETE(l_priv_key_data);

@@ -21,9 +21,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <sys/types.h>
+#include <dirent.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_common.h"
@@ -55,7 +58,8 @@ typedef struct dap_chain_cert_pvt
 
 #define PVT(a) ( ( dap_chain_cert_pvt_t *)(a->_pvt) )
 
-dap_chain_cert_item_t * s_certs = NULL;
+static dap_chain_cert_item_t * s_certs = NULL;
+
 dap_chain_cert_t * dap_chain_cert_new(const char * a_name);
 void dap_chain_cert_delete(dap_chain_cert_t * a_cert);
 /**
@@ -179,7 +183,7 @@ dap_chain_cert_t * dap_chain_cert_generate(const char * a_cert_name
 {
     dap_chain_cert_t * l_cert = dap_chain_cert_generate_mem(a_cert_name,a_key_type);
     if ( l_cert){
-        if ( dap_chain_cert_save_file(l_cert, a_file_path) == 0 ){
+        if ( dap_chain_cert_file_save(l_cert, a_file_path) == 0 ){
             return l_cert;
         } else{
             dap_chain_cert_delete(l_cert);
@@ -286,6 +290,23 @@ dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *
 }
 
 /**
+ * @brief dap_chain_cert_save_to_folder
+ * @param a_cert
+ * @param a_file_dir_path
+ */
+int dap_chain_cert_save_to_folder(dap_chain_cert_t * a_cert, const char *a_file_dir_path)
+{
+    int ret = 0;
+    const char * l_cert_name = a_cert->name;
+    size_t l_cert_path_length = strlen(l_cert_name)+8+strlen(a_file_dir_path);
+    char * l_cert_path = DAP_NEW_Z_SIZE(char,l_cert_path_length);
+    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_file_dir_path,l_cert_name);
+    ret = dap_chain_cert_file_save(a_cert,l_cert_path);
+    DAP_DELETE( l_cert_path);
+    return ret;
+}
+
+/**
  * @brief dap_chain_cert_to_pkey
  * @param a_cert
  * @return
@@ -339,21 +360,27 @@ void dap_chain_cert_dump(dap_chain_cert_t * a_cert)
 {
     printf ("Certificate name: %s\n",a_cert->name);
     printf ("Signature type: %s\n", dap_chain_sign_type_to_str( dap_chain_sign_type_from_key_type(a_cert->enc_key->type) ) );
-    printf ("Private key size: %u\n",a_cert->enc_key->priv_key_data_size);
-    printf ("Public key size: %u\n", a_cert->enc_key->pub_key_data_size);
-    printf ("Metadata section size: %u\n",a_cert->metadata?strlen(a_cert->metadata):0);
-    printf ("Certificates signatures chain size: %u\n",dap_chain_cert_count_cert_sign (a_cert));
+    printf ("Private key size: %lu\n",a_cert->enc_key->priv_key_data_size);
+    printf ("Public key size: %lu\n", a_cert->enc_key->pub_key_data_size);
+    printf ("Metadata section size: %lu\n",a_cert->metadata?strlen(a_cert->metadata):0);
+    printf ("Certificates signatures chain size: %lu\n",dap_chain_cert_count_cert_sign (a_cert));
 }
 
 
 /**
  * @brief dap_chain_cert_add_folder
- * @param a_cert_name_prefix
  * @param a_folder_path
  */
-void dap_chain_cert_add_folder(const char * a_cert_name_prefix,const char *a_folder_path)
+void dap_chain_cert_add_folder(const char *a_folder_path)
 {
-
+    DIR * l_dir = opendir(a_folder_path);
+    if( l_dir ) {
+        struct dirent * l_dir_entry;
+        while((l_dir_entry=readdir(l_dir))!=NULL){
+            log_it(L_DEBUG,"%s",l_dir_entry->d_name);
+        }
+        closedir(l_dir);
+    }
 }
 
 /**

@@ -194,7 +194,7 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
  * @param a_sign_out
  * @return
  */
-const uint8_t* dap_chain_sign_get_sign(const dap_chain_sign_t *a_sign, size_t *a_sign_out)
+uint8_t* dap_chain_sign_get_sign(dap_chain_sign_t *a_sign, size_t *a_sign_out)
 {
     if(!a_sign)
         return NULL;
@@ -209,7 +209,7 @@ const uint8_t* dap_chain_sign_get_sign(const dap_chain_sign_t *a_sign, size_t *a
  * @param a_pub_key_out
  * @return
  */
-const uint8_t* dap_chain_sign_get_pkey(const dap_chain_sign_t *a_sign, size_t *a_pub_key_out)
+uint8_t* dap_chain_sign_get_pkey(dap_chain_sign_t *a_sign, size_t *a_pub_key_out)
 {
     if(!a_sign)
         return NULL;
@@ -227,7 +227,7 @@ dap_enc_key_t *dap_chain_sign_to_enc_key(dap_chain_sign_t * a_chain_sign)
 {
     dap_enc_key_t * l_ret =  dap_enc_key_new( dap_chain_sign_type_to_key_type( a_chain_sign->header.type  ) );
     size_t l_pkey_size = 0;
-    uint8_t *l_pkey = dap_chain_sign_get_pkey(a_chain_sign, &l_pkey_size);
+    const uint8_t *l_pkey = dap_chain_sign_get_pkey(a_chain_sign, &l_pkey_size);
     // deserialize public key
     dap_enc_key_deserealize_pub_key(l_ret, l_pkey, l_pkey_size);
     return l_ret;

@@ -166,6 +166,7 @@ static inline uint64_t swap64(uint64_t x) {
 #endif /* __OpenBSD__ */
 
 #if defined(__GNUC__)
+#undef UNUSED
 #define UNUSED __attribute__((unused))
 #else
 #define UNUSED
