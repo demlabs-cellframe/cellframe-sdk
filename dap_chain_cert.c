@@ -155,18 +155,19 @@ int dap_chain_cert_add_cert_sign(dap_chain_cert_t * a_cert, dap_chain_cert_t * a
 dap_chain_cert_t * dap_chain_cert_generate_mem(const char * a_cert_name,
                                                dap_enc_key_type_t a_key_type )
 {
-    dap_chain_cert_t * l_cert = dap_chain_cert_new(a_cert_name);
-    l_cert->enc_key = dap_enc_key_new_generate(a_key_type, NULL, 0, NULL, 0, 0);
-    if ( l_cert->enc_key ){
+    dap_enc_key_t *l_enc_key = dap_enc_key_new_generate(a_key_type, NULL, 0, NULL, 0, 0);
+    if ( l_enc_key ){
+        dap_chain_cert_t * l_cert = dap_chain_cert_new(a_cert_name);
+        l_cert->enc_key = l_enc_key;
         log_it(L_DEBUG,"Certificate generated");
-        dap_chain_cert_item_t * l_cert_item = DAP_NEW_Z(dap_chain_cert_item_t);
-        snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_cert_name);
-        HASH_ADD_STR(s_certs,name,l_cert_item);
+        //dap_chain_cert_item_t * l_cert_item = DAP_NEW_Z(dap_chain_cert_item_t);
+        //snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_cert_name);
+        //HASH_ADD_STR(s_certs,name,l_cert_item);
         log_it(L_DEBUG,"Certificate name %s recorded", a_cert_name);
         return l_cert;
     } else {
         log_it(L_ERROR,"Can't generate key in memory!");
-        dap_chain_cert_delete(l_cert);
+        //dap_chain_cert_delete(l_cert);
         return NULL;
     }
 }
