@@ -86,7 +86,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
  */
 size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
 {
-    const dap_chain_tx_in_t *item_tx_in = (const dap_chain_tx_in_t*) a_item;
+    //const dap_chain_tx_in_t *item_tx_in = (const dap_chain_tx_in_t*) a_item;
     dap_chain_tx_item_type_t type = dap_chain_datum_tx_item_get_type(a_item);
     size_t size = 0;
     switch (type) {
@@ -191,12 +191,11 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  *
  * return sign, NULL Error
  */
-dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(const dap_chain_tx_sig_t *a_tx_sig)
+dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
 {
     if(!a_tx_sig || !a_tx_sig->header.sig_size)
         return NULL;
-    dap_chain_sign_t *l_chain_sign = (dap_chain_sign_t*) a_tx_sig->sig;
-    return l_chain_sign;
+    return (dap_chain_sign_t*) a_tx_sig->sig;
 }
 
 /**
@@ -208,7 +207,7 @@ dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(const dap_chain_tx_sig_t 
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size)
 {
     if(!a_tx)
@@ -217,7 +216,7 @@ const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_it
     int l_item_idx = 0;
     while(l_tx_items_pos < l_tx_items_size) {
         uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
-        int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
+        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item);
         if(!l_item_size)
             return NULL;
         // check index
@@ -227,7 +226,7 @@ const uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_it
                 if(a_item_idx_start)
                     *a_item_idx_start = l_item_idx;
                 if(a_item_out_size)
-                    *a_item_out_size = l_item_size;
+                    *a_item_out_size = (int) l_item_size;
                 return l_item;
             }
         }
@@ -252,7 +251,7 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
     int l_items_count = 0, l_item_idx_start = 0;
     // Get sign item from transaction
     while(1) {
-        const uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
+        uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
         if(!l_tx_item)
             break;
         items_list = dap_list_append(items_list, (uint8_t*)l_tx_item);

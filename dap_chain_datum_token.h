@@ -30,7 +30,8 @@ typedef struct dap_chain_datum_token{
         uint16_t version;
         char ticker[10];
         uint64_t total_supply;
-        uint16_t signs_number; // Emission auth signs
+        uint16_t signs_valid; // Emission auth signs
+        uint16_t signs_total; // Emission auth signs
     } DAP_ALIGN_PACKED header;
     uint8_t signs[]; // Signs if exists
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
@@ -41,11 +42,12 @@ typedef struct dap_chain_datum_token_emission{
     char ticker[10];
     dap_chain_addr_t address; // Emission holder's address
     uint64_t value;
+    uint8_t signs[]; // Signs if exists
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 
 
 //
-void dap_chain_datum_token_register(dap_chain_datum_token_t * a_token);
+
 dap_chain_sign_t * dap_chain_datum_token_get_sign( dap_chain_datum_token_t * a_token, size_t a_token_size_max, uint16_t a_sign_number);
 
 dap_chain_datum_token_t* dap_chain_datum_token_find_by_ticker(const char a_ticker[10] );
