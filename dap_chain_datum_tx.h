@@ -27,15 +27,23 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
-typedef enum dap_chain_tx_item_type{
-    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction inputs
-    TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction outputs
+typedef enum dap_chain_tx_item_type {
+    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
+    TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
     TX_ITEM_TYPE_TOKEN = 0x40,
+    TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
+    TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
 
     TX_ITEM_TYPE_ANY = 0xff,
 } dap_chain_tx_item_type_t;
+
+typedef enum dap_chain_tx_cond_type {
+    COND_SERVICE_PROVIDE = 0x20, //
+    COND_SERVICE_BILL = 0x30, //
+
+} dap_chain_tx_cond_type_t;
 
 /**
   * @struct dap_chain_datum_tx
@@ -90,6 +98,14 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  * return 1 Ok, -1 Error
  */
 int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint64_t a_value);
+
+/**
+ * Create 'out_cond' item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key, dap_chain_addr_t *a_addr,
+        uint64_t a_value, const void *a_cond, size_t a_cond_size);
 
 /**
 * Sign a transaction (Create sign item and insert to transaction)

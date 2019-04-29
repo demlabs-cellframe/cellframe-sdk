@@ -51,6 +51,9 @@
 
 int dap_chain_utxo_init( uint16_t a_check_flags);
 
+// Load utxo from mempool
+int dap_chain_utxo_load(void);
+
 void dap_chain_utxo_set_local_cell_id ( dap_chain_cell_id_t a_local_cell_id);
 
 dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx);
@@ -82,6 +85,8 @@ const char* dap_chain_utxo_tx_get_token_ticker_by_hash(dap_chain_hash_fast_t *tx
 
 void dap_chain_utxo_addr_get_token_ticker_all(dap_chain_addr_t * a_addr, char *** a_tickers, size_t * a_tickers_size );
 
+// Checking a new transaction before adding to the cache
+int dap_chain_utxo_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_list_bound_items);
 
 int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_list_bound_items);
 

@@ -37,6 +37,8 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_token.h"
+#include "dap_chain_mempool.h"
+#include "dap_chain_global_db.h"
 
 #define LOG_TAG "dap_chain_utxo"
 
@@ -109,7 +111,54 @@ int dap_chain_utxo_init( uint16_t a_check_flags)
     s_check_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
     s_check_cells_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_CELLS_DS;
     s_check_token_emission = a_check_flags & DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+    // load utxo from mempool
+    return dap_chain_utxo_load();
+}
 
+
+static int compare_datum_items(const void * l_a, const void * l_b)
+{
+    dap_chain_datum_t *l_item_a = (dap_chain_datum_t*) l_a;
+    dap_chain_datum_t *l_item_b = (dap_chain_datum_t*) l_b;
+    if(l_item_a->header.ts_create == l_item_b->header.ts_create)
+        return 0;
+    if(l_item_a->header.ts_create < l_item_b->header.ts_create)
+        return -1;
+    return 1;
+}
+/**
+ * Load utxo from mempool
+ *
+ * return 0 if OK otherwise  negative error code
+ */
+int dap_chain_utxo_load(void)
+{
+    // protect from reloading
+    if(dap_chain_utxo_count() > 0)
+        return 0;
+    //  Read the entire database into an array of size bytes
+    size_t l_data_size;
+    dap_global_db_obj_t **data = dap_chain_global_db_gr_load(c_dap_datum_mempool_gdb_group, &l_data_size);
+    // make list of datums
+    dap_list_t *l_datum_list = NULL, *l_list_tmp = NULL;
+    for(size_t i = 0; i < l_data_size; i++) {
+        l_datum_list = dap_list_prepend(l_datum_list, data[i]->value);
+    }
+    // sort list by time
+    l_datum_list = dap_list_sort(l_datum_list, (DapCompareFunc) compare_datum_items);
+    l_list_tmp = l_datum_list;
+    // add datum_tx from list to utxo
+    while(l_list_tmp) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_list_tmp->data;
+        if(l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+            if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size)
+                dap_chain_utxo_tx_add(l_tx);
+        }
+        l_list_tmp = dap_list_next(l_list_tmp);
+    }
+    dap_list_free(l_datum_list);
+    dap_chain_global_db_objs_delete(data);
     return 0;
 }
 
@@ -204,8 +253,8 @@ void dap_chain_utxo_set_local_cell_id ( dap_chain_cell_id_t a_local_cell_id)
  */
 void dap_chain_utxo_addr_get_token_ticker_all(dap_chain_addr_t * a_addr, char *** a_tickers, size_t * a_tickers_size )
 {
-
-    const dap_chain_utxo_tx_item_t * l_tx_item = tx_item_find_by_addr(a_addr, NULL);
+    dap_chain_hash_fast_t l_tx_first_hash = {0};
+    const dap_chain_utxo_tx_item_t * l_tx_item = tx_item_find_by_addr(a_addr, &l_tx_first_hash);
     if (l_tx_item){
 
         size_t l_tickers_size = 10;
@@ -215,7 +264,7 @@ void dap_chain_utxo_addr_get_token_ticker_all(dap_chain_addr_t * a_addr, char **
         while (l_tx_item){
             bool l_is_not_in_list = true;
             for (size_t i = 0; i < l_tickers_size; i ++){
-                if ( strcmp(l_tickers[i], l_tx_item->token_tiker) == 0 ){
+                if (l_tickers[i] && strcmp(l_tickers[i], l_tx_item->token_tiker) == 0 ){
                     l_is_not_in_list = false;
                     break;
                 }
@@ -288,7 +337,8 @@ const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_hash(dap_chain_hash_fast_t
  *
  * return 1 OK, -1 error
  */
-int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_list_bound_items)
+// Checking a new transaction before adding to the cache
+int dap_chain_utxo_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_list_bound_items)
 {
     /*
      Steps of checking for current transaction tx2 and every previous transaction tx1:
@@ -355,7 +405,7 @@ int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t *
             l_is_first_transaction = true;
         }
         // Get previous transaction in the cache by hash
-        dap_chain_utxo_tx_item_t *l_item_out;
+        dap_chain_utxo_tx_item_t *l_item_out = NULL;
         dap_chain_datum_tx_t *l_tx_prev =
                  s_find_datum_tx_by_hash(&tx_prev_hash, &l_item_out); // dap_chain_datum_tx_t *l_tx_prev = (dap_chain_datum_tx_t*) dap_chain_node_datum_tx_cache_find(&tx_prev_hash);
         bound_item->item_out = l_item_out;
@@ -504,11 +554,12 @@ int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t *
 int dap_chain_utxo_tx_add(dap_chain_datum_tx_t *a_tx)
 {
     int ret = 1;
+    if(!a_tx)
+        return -1;
     dap_list_t *l_list_bound_items = NULL;
-    if(dap_chain_node_datum_tx_cache_check(a_tx,&l_list_bound_items) != 1)
+    if(dap_chain_utxo_tx_cache_check(a_tx, &l_list_bound_items) < 0)
         return -1;
     dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-
 
     // Mark 'out' items in cache if they were used & delete previous transactions from cache if it need
     // find all bound pairs 'in' and 'out'
@@ -522,15 +573,16 @@ int dap_chain_utxo_tx_add(dap_chain_datum_tx_t *a_tx)
         /// Mark 'out' item in cache because it used
         dap_chain_hash_fast_t *l_tx_prev_hash =
                 &(l_prev_item_out->tx_hash_spent_fast[l_tx_in->header.tx_out_prev_idx]);
-        memcpy(l_tx_prev_hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
+        memcpy(l_tx_prev_hash, l_tx_hash, sizeof(dap_chain_hash_fast_t));
         // add a used output
         l_prev_item_out->n_outs_used++;
         char * l_tx_prev_hash_str = dap_chain_hash_fast_to_str_new(l_tx_prev_hash);
 
         // delete previous transactions from cache because all out is used
         if(l_prev_item_out->n_outs_used == l_prev_item_out->n_outs) {
-            dap_chain_hash_fast_t tx_prev_hash = bound_item->tx_prev_hash_fast;
-            int res = dap_chain_utxo_tx_remove(&tx_prev_hash);
+            dap_chain_hash_fast_t l_tx_prev_hash_to_del = bound_item->tx_prev_hash_fast;
+            // remove from memory utxo
+            int res = dap_chain_utxo_tx_remove(&l_tx_prev_hash_to_del);
             if(res == -2) {
                 log_it(L_ERROR, "Can't delete previous transactions because hash=0x%x not found", l_tx_prev_hash_str);
                 assert(0);
@@ -539,6 +591,13 @@ int dap_chain_utxo_tx_add(dap_chain_datum_tx_t *a_tx)
                 log_it(L_ERROR, "Can't delete previous transactions with hash=0x%x", l_tx_prev_hash_str);
                 assert(0);
             }
+            // remove from mempool utxo
+            char *l_tx_prev_hash_to_del_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
+            if(!dap_chain_global_db_gr_del(l_tx_prev_hash_to_del_str, c_dap_datum_mempool_gdb_group)) {
+                log_it(L_ERROR, "Can't delete previous transactions from mempool with hash=0x%x",
+                        l_tx_prev_hash_str);
+            }
+            DAP_DELETE( l_tx_prev_hash_to_del_str);
         }
         DAP_DELETE( l_tx_prev_hash_str);
         // go to next previous transaction
@@ -709,7 +768,7 @@ uint64_t dap_chain_utxo_calc_balance(const dap_chain_addr_t *a_addr,const char *
                 const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
 
                 // if transaction has the out item with requested addr
-                if(l_tx_out
+                if(l_tx_out && &l_tx_out->addr
                         && !memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t)
                         )) {
                     // if 'out' item not used & transaction is valid
@@ -795,7 +854,7 @@ const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_addr(const dap_chain_addr_
         dap_chain_hash_fast_t *a_tx_first_hash)
 {
         const dap_chain_utxo_tx_item_t* l_tx_item = tx_item_find_by_addr (a_addr,a_tx_first_hash);
-        return l_tx_item->tx;
+        return (l_tx_item) ? l_tx_item->tx : NULL;
 }
 
 /**
