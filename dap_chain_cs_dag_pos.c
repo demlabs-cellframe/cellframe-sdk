@@ -21,6 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <stdlib.h>
 
 #include "dap_common.h"
 #include "dap_string.h"
@@ -71,7 +72,6 @@ void dap_chain_cs_dag_pos_deinit(void)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    return -1;
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_pos_t * l_pos = DAP_NEW_Z ( dap_chain_cs_dag_pos_t);
@@ -95,17 +95,22 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         goto lb_err;
     }
     l_pos_pvt->tokens_hold_size = l_tokens_hold_size;
-    l_pos_pvt->tokens_hold = l_tokens_hold;
-    l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t, l_tokens_hold_value_size +1);
+    l_pos_pvt->tokens_hold = DAP_NEW_Z_SIZE( char*, sizeof(char*) *
+                                             l_tokens_hold_size );
+
+    l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t,
+                                                  (l_tokens_hold_value_size +1) *sizeof (uint64_t));
+
     for (size_t i = 0; i < l_tokens_hold_value_size; i++){
-        if ( ( l_pos_pvt->tokens_hold_value[i] = atoll(l_tokens_hold_value_str[i]) == 0 )){
+        l_pos_pvt->tokens_hold[i] = dap_strdup( l_tokens_hold[i] );
+        if ( ( l_pos_pvt->tokens_hold_value[i] =
+               strtoull(l_tokens_hold_value_str[i],NULL,10) ) == 0 ) {
              log_it(L_CRITICAL, "Token %s has inproper hold value \"%s\"",l_pos_pvt->tokens_hold[i],
-                    l_pos_pvt->tokens_hold_value[i]);
+                    l_pos_pvt->tokens_hold_value[i] );
              goto lb_err;
         }
     }
 
-    DAP_DELETE( l_tokens_hold_value_str);
     return 0;
 
 lb_err:
