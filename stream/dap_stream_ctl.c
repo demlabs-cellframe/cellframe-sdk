@@ -111,6 +111,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             l_new_session = true;
         }
         else if(strcmp(dg->url_path, "socket_forward" ) == 0) {
+            l_channels_str[0]  = '\0';
             l_new_session = true;
         }
         /* }else if (strcmp(dg->url_path,"stream_ctl")==0) {
