@@ -22,5 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-int dap_chain_net_srv_vpn_init();
+#include "dap_chain_net_srv.h"
+
+int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit();
