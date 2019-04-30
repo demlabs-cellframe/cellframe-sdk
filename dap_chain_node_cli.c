@@ -85,8 +85,12 @@ static const COMMAND commands[] =
             { "help", com_help, "Description of command parameters", "" },
             { "?", com_help, "Synonym for 'help'", "" },
             { "wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]" },
+            { "token_emit", com_token_emit, "Token emission",
+                "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>" },
             { "tx_create", com_tx_create, "Make transaction",
-                "tx_create from <addr> to <addr> value <val> [fee <addr> value_fee <val>]" },
+                "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]" },
+            { "tx_cond_create", com_tx_cond_create, "Make cond transaction",
+                "tx_cond_create todo" },
             { "tx_verify", com_tx_verify, "Verifing transaction",
                 "tx_verify  -wallet <wallet name> [-path <wallet path>]" },
             { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }

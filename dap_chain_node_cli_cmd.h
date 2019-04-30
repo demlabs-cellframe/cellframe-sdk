@@ -93,6 +93,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply);
  * Create transaction
  */
 int com_tx_create(int argc, const char ** argv, char **str_reply);
+int com_tx_cond_create(int argc, const char ** argv, char **str_reply);
 
 /**
  * tx_verify command
