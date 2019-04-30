@@ -25,9 +25,9 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <ctype.h>
 #include <glib.h>
 #include <time.h>
+#include <ctype.h> // for isspace()
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
@@ -45,6 +45,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_net_srv.h"
 
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx_items.h"
@@ -730,7 +731,7 @@ static int com_global_db_set_remote(dap_chain_node_info_t *a_node_info, const ch
 
     // send request
     res = dap_chain_node_client_send_chain_net_request(client, dap_stream_ch_chain_net_get_id(),
-    STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR, (char*)&l_node_info->hdr.address.uint64, sizeof(uint64_t)); //, NULL);
+    STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR, (char*) &l_node_info->hdr.address.uint64, sizeof(uint64_t)); //, NULL);
     if(res != 1) {
         set_reply_text(a_str_reply, "no request sent");
         // clean client struct
@@ -1324,7 +1325,7 @@ int com_help(int argc, const char ** argv, char **str_reply)
  */
 int com_tx_wallet(int argc, const char ** argv, char **str_reply)
 {
-    const char *c_wallets_path =  dap_config_get_item_str(g_config,"general","wallets_path");
+    const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
     // Get address of wallet
     enum {
         CMD_NONE, CMD_WALLET_LIST, CMD_WALLET_INFO
@@ -1385,30 +1386,43 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
         // wallet info
     case CMD_WALLET_INFO: {
         dap_chain_wallet_t *l_wallet = NULL;
-        if(wallet_name)
+        dap_chain_addr_t *l_addr = NULL;
+
+        if(wallet_name) {
             l_wallet = dap_chain_wallet_open(wallet_name, c_wallets_path);
-        if(l_wallet) {
-            dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+            l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+        }
+        if(!l_addr && addr_str)
+            l_addr = dap_chain_str_to_addr(addr_str);
+
+        if(l_addr) {
             char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
-            dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
+            if(l_wallet)
+                dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
             dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
 
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
-            dap_chain_utxo_addr_get_token_ticker_all(l_addr, &l_addr_tokens,&l_addr_tokens_size);
-            dap_string_append_printf(l_string_ret, "balance:\n");
-            for (size_t i = 0; i < l_addr_tokens_size ; i ++ ){
-                if ( l_addr_tokens[i] ){
+            dap_chain_utxo_addr_get_token_ticker_all(l_addr, &l_addr_tokens, &l_addr_tokens_size);
+            if(l_addr_tokens_size>0)
+                dap_string_append_printf(l_string_ret, "balance:\n");
+            else
+                dap_string_append_printf(l_string_ret, "balance: 0\n");
+            for(size_t i = 0; i < l_addr_tokens_size; i++) {
+                if(l_addr_tokens[i]) {
                     uint64_t balance = dap_chain_utxo_calc_balance(l_addr, l_addr_tokens[i]);
-                    dap_string_append_printf(l_string_ret, "          %llu %s\n",l_addr_tokens[i], balance);
+                    dap_string_append_printf(l_string_ret, "          %llu %s\n", balance, l_addr_tokens[i]);
                 }
-                DAP_DELETE( l_addr_tokens[i]);
+                DAP_DELETE(l_addr_tokens[i]);
             }
-            DAP_DELETE( l_addr_tokens );
+            DAP_DELETE(l_addr_tokens);
             DAP_DELETE(l_addr_str);
-            dap_chain_wallet_close(l_wallet);
+            if(l_wallet)
+                dap_chain_wallet_close(l_wallet);
         }
         else {
+            if(l_wallet)
+                dap_chain_wallet_close(l_wallet);
             dap_string_free(l_string_ret, true);
             set_reply_text(str_reply, "wallet not found");
             return -1;
@@ -1431,10 +1445,11 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
  * @param str_reply
  * @return
  */
-int com_token_emit ( int argc, const char ** argv, char ** str_reply)
+int com_token_emit(int argc, const char ** argv, char ** str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
+    char *str_reply_tmp = NULL;
     uint64_t l_emission_value = 0;
 
     const char * l_ticker = NULL;
@@ -1447,7 +1462,7 @@ int com_token_emit ( int argc, const char ** argv, char ** str_reply)
     size_t l_certs_size = 0;
 
     // Wallet address that recieves the emission
-    find_option_val(argv, arg_index, argc, "certs", &l_addr_str);
+    find_option_val(argv, arg_index, argc, "certs", &l_certs_str);
 
     // Wallet address that recieves the emission
     find_option_val(argv, arg_index, argc, "addr", &l_addr_str);
@@ -1475,56 +1490,68 @@ int com_token_emit ( int argc, const char ** argv, char ** str_reply)
         return -3;
     }
 
-    if(!l_certs) {
+    if(!l_certs_str) {
         set_reply_text(str_reply, "token_emit requires parameter 'certs'");
         return -4;
     }
 
-
     int n = 0;
     char * l_certs_tmp_ptrs = NULL;
-    char * l_certs_str_dup = strdup( l_certs_str);
-    char *l_cert_str = strtok_r(l_certs_str_dup, ",",&l_certs_tmp_ptrs);
+    char * l_certs_str_dup = strdup(l_certs_str);
+    char *l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
+    //debug
+    {
+        const char * l_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
+        dap_chain_net_id_t a_net_id;
+        a_net_id.uint64 = 0x123;
+        dap_chain_sign_type_t l_type;
+        l_type.type = 0x0003;// SIG_TYPE_TESLA=0x0003
+        dap_chain_wallet_t *wallet1 = dap_chain_wallet_create("tesla_first", l_wallets_path, a_net_id, l_type);
+        dap_chain_wallet_t *wallet2 = dap_chain_wallet_create("tesla_second", l_wallets_path, a_net_id, l_type);
+        wallet1 = NULL;
+    }
 
     // First we just calc items
     while(l_cert_str) {
-        l_cert_str = strtok_r(NULL, ",",&l_certs_tmp_ptrs);
+        l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
         l_certs_size++;
     }
     // init certs array
     l_certs = DAP_NEW_Z_SIZE(dap_chain_cert_t*, l_certs_size);
 
     // Second pass we parse them all
-    l_cert_str = strtok_r(l_certs_str_dup, ",",&l_certs_tmp_ptrs);
+    strcpy(l_certs_str_dup, l_certs_str);
+    l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
 
-    size_t l_certs_pos=0;
+    size_t l_certs_pos = 0;
     while(l_cert_str) {
 
         // trim token whitespace
-        if (isspace(l_cert_str[0]))
+        if(isspace(l_cert_str[0]))
             l_cert_str = l_cert_str + 1;
-        if (isspace(l_cert_str[strlen(l_cert_str) - 1]))
+        if(isspace(l_cert_str[strlen(l_cert_str) - 1]))
             l_cert_str[strlen(l_cert_str) - 1] = 0;
         l_certs[l_certs_pos] = dap_chain_cert_find_by_name(l_cert_str);
-        if (l_certs[l_certs_pos]){
+        if(l_certs[l_certs_pos]) {
             l_certs_pos++;
         } else {
             set_reply_text(str_reply, "Error: can't find %s certificate", l_cert_str);
             return -6;
         }
-        l_cert_str = strtok_r(NULL, ",",&l_certs_tmp_ptrs);
+        l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
     }
     free(l_certs_str_dup);
 
-    if ( !l_certs_size ){
-        set_reply_text(str_reply, "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
+    if(!l_certs_size) {
+        set_reply_text(str_reply,
+                "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
         return -5;
     }
 
     dap_chain_addr_t * l_addr = dap_chain_str_to_addr(l_addr_str);
 
-    if ( !l_addr ){
-        set_reply_text(str_reply, "address \"%s\" is invalid",l_addr_str);
+    if(!l_addr) {
+        set_reply_text(str_reply, "address \"%s\" is invalid", l_addr_str);
         return -4;
     }
 
@@ -1532,36 +1559,37 @@ int com_token_emit ( int argc, const char ** argv, char ** str_reply)
     dap_chain_datum_token_emission_t * l_token_emission;
     dap_chain_hash_fast_t l_token_emission_hash;
     l_token_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
-    strncpy(l_token_emission->ticker,l_ticker,sizeof (l_token_emission->ticker));
+    strncpy(l_token_emission->ticker, l_ticker, sizeof(l_token_emission->ticker));
     l_token_emission->value = l_emission_value;
-    dap_hash_fast(l_token_emission,sizeof(dap_chain_datum_token_emission_t),&l_token_emission_hash);
-
+    dap_hash_fast(l_token_emission, sizeof(dap_chain_datum_token_emission_t), &l_token_emission_hash);
     dap_chain_datum_t * l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
-                                                                  l_token_emission,
-                                                                  sizeof(dap_chain_datum_token_emission_t));
+            l_token_emission,
+            sizeof(dap_chain_datum_token_emission_t));
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
-    DAP_DELETE( l_token_emission);
+    DAP_DELETE(l_token_emission);
 
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum_emission,l_datum_emission_size,&l_key_hash);
+    dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
     // Add to mempool emission token
-    if(dap_chain_global_db_gr_set(l_key_str,(uint8_t *) l_datum_emission, l_datum_emission_size
-                                  , dap_config_get_item_str_default(g_config,"mempool","gdb_group","datum-pool" ))) {
-        set_reply_text(str_reply, "datum emission %s is placed in datum pool ",l_key_str);
+    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_emission, l_datum_emission_size
+            , dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
+        str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_key_str);
     }
-    DAP_DELETE( l_key_str);
-
+    else{
+        set_reply_text(str_reply, "datum emission %s is not placed in datum pool ", l_key_str);
+        return -1;
+    }
+    DAP_DELETE(l_key_str);
 
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     dap_chain_hash_fast_t l_datum_token_hash = { 0 };
     // create items
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_token_emission_hash,
-                                                                         l_ticker);
+    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_token_emission_hash, l_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
 
@@ -1571,8 +1599,8 @@ int com_token_emit ( int argc, const char ** argv, char ** str_reply)
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
 
     // Sign all that we have with certs
-    for ( size_t i; i < l_certs_size; i++)
-        dap_chain_datum_tx_add_sign_item(&l_tx,l_certs[i]->enc_key );
+    for(size_t i = 0; i < l_certs_size; i++)
+        dap_chain_datum_tx_add_sign_item(&l_tx, l_certs[i]->enc_key);
 
     DAP_DELETE(l_certs);
     DAP_DELETE(l_tx_token);
@@ -1583,23 +1611,64 @@ int com_token_emit ( int argc, const char ** argv, char ** str_reply)
 
     // Pack transaction into the datum
     dap_chain_datum_t * l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
-    size_t l_datum_tx_size = sizeof(l_datum_emission->header) + l_datum_tx->header.data_size;
+    size_t l_datum_tx_size = dap_chain_datum_data_size(l_datum_tx);
 
-    DAP_DELETE( l_tx);
-
-    dap_hash_fast(l_datum_tx,l_datum_tx_size,&l_key_hash);
+    // use l_tx hash for compatible with utho hash
+    dap_hash_fast(l_tx, l_tx_size, &l_key_hash);//dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    DAP_DELETE(l_tx);
 
     // Add to mempool emission token
-    if(dap_chain_global_db_gr_set(l_key_str,(uint8_t *) l_datum_tx, l_datum_tx_size
-                                  , dap_config_get_item_str_default(g_config,"mempool","gdb_group","datum-pool" ))) {
-        set_reply_text(str_reply, "datum tx %s is placed in datum pool ",l_key_str);
+    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_tx, l_datum_tx_size
+            , dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
+        set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp, l_key_str);
+        dap_chain_utxo_tx_add((dap_chain_datum_tx_t*)l_datum_tx->data);
     }
-    DAP_DELETE( l_key_str);
-
-
+    else{
+        set_reply_text(str_reply, "%s\ndatum tx %s is not placed in datum pool ", str_reply_tmp, l_key_str);
+        return -2;
+    }
+    DAP_DELETE(str_reply_tmp);
+    DAP_DELETE(l_key_str);
 
     return 0;
+}
+
+/**
+ * com_tx_cond_create command
+ *
+ * Create transaction
+ */
+int com_tx_cond_create(int argc, const char ** argv, char **str_reply)
+{
+    // test
+    const char * l_token_ticker = NULL;
+    const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
+    const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
+    const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
+    int l_value = 50;
+
+    dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet_from, 0);
+    dap_chain_wallet_t *l_wallet_cond = dap_chain_wallet_open(c_wallet_name_cond, c_wallets_path);
+    dap_enc_key_t *l_key_cond = dap_chain_wallet_get_key(l_wallet_from, 0);
+    // where to take coins for service
+    const dap_chain_addr_t *addr_from = dap_chain_wallet_get_addr(l_wallet_from);
+    // who will be use service, usually the same address (addr_from)
+    const dap_chain_addr_t *addr_cond = dap_chain_wallet_get_addr(l_wallet_cond);
+
+    dap_chain_net_srv_abstract_t l_cond;
+    l_cond.price = l_value;
+    int res = dap_chain_mempool_tx_create_cond(l_key, l_key_cond, (dap_chain_addr_t*) addr_from,
+            (dap_chain_addr_t*) addr_cond,
+            NULL, l_token_ticker, l_value, 0, (const void*) &l_cond, sizeof(dap_chain_net_srv_abstract_t));
+
+    dap_chain_wallet_close(l_wallet_from);
+    dap_chain_wallet_close(l_wallet_cond);
+    set_reply_text(str_reply, "tx_cond_create res=%d", res);
+    if(res == 1)
+        return 0;
+    return -1;
 }
 
 /**
@@ -1619,7 +1688,7 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     const char * l_token_ticker = NULL;
     uint64_t value = 0;
     uint64_t value_fee = 0;
-    find_option_val(argv, arg_index, argc, "from_wallet_name", &l_from_wallet_name );
+    find_option_val(argv, arg_index, argc, "from_wallet_name", &l_from_wallet_name);
     find_option_val(argv, arg_index, argc, "to_addr", &addr_base58_to);
     find_option_val(argv, arg_index, argc, "token", &l_token_ticker);
 
@@ -1631,9 +1700,12 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     if(find_option_val(argv, arg_index, argc, "value", &str_tmp)) {
         value = strtoull(str_tmp, NULL, 10);
     }
-
+    if(!l_from_wallet_name) {
+        set_reply_text(str_reply, "tx_create requires parameter 'from_wallet_name'");
+        return -1;
+    }
     if(!addr_base58_to) {
-        set_reply_text(str_reply, "tx_create requires parameter 'to'");
+        set_reply_text(str_reply, "tx_create requires parameter 'to_addr'");
         return -1;
     }
     if(!value) {
@@ -1645,14 +1717,20 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         return -1;
     }
 
-    const char *c_wallets_path = dap_config_get_item_str(g_config,"general","wallets_path");
-    dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name,c_wallets_path);
+    const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
+    dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, c_wallets_path);
 
-    if(! l_wallet ) {
-        set_reply_text(str_reply, "wallet %s does not exist",l_from_wallet_name);
+    if(!l_wallet) {
+        set_reply_text(str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -1;
     }
-
+/*    //debug
+    {
+        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_tesla", c_wallets_path);
+        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
+        char *addr = dap_chain_addr_to_str(l_addr_tesla);
+        addr = 0;
+    }*/
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
     dap_chain_addr_t *addr_to = dap_chain_str_to_addr(addr_base58_to);
     dap_chain_addr_t *addr_fee = dap_chain_str_to_addr(addr_base58_fee);
@@ -1674,10 +1752,9 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
     //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
 
-
-    int res = dap_chain_mempool_tx_create(dap_chain_wallet_get_key(l_wallet,0), addr_from, addr_to, addr_fee, l_token_ticker, value, value_fee);
-    dap_string_append_printf(string_ret, "transfer=%s\n", (res == 1) ? "Ok" : "False");
-
+    int res = dap_chain_mempool_tx_create(dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to, addr_fee,
+            l_token_ticker, value, value_fee);
+    dap_string_append_printf(string_ret, "transfer=%s\n", (res == 0) ? "Ok" : (res==-2)? "False, not enough funds for transfer" : "False");
 
     char *str_ret_tmp = dap_string_free(string_ret, false);
     char *str_ret = strdup(str_ret_tmp);
@@ -1687,7 +1764,7 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     DAP_DELETE(addr_to);
     DAP_DELETE(addr_fee);
     dap_chain_wallet_close(l_wallet);
-    return 0;
+    return res;
 }
 
 /**
