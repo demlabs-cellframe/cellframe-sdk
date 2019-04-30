@@ -45,7 +45,7 @@ dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_da
    l_datum->header.type_id = a_type_id;
    l_datum->header.data_size = (uint32_t) a_data_size;
    l_datum->header.version_id = DAP_CHAIN_DATUM_VERSION;
-   l_datum->header.ts_create =(uint64_t) timegm(NULL);
+   l_datum->header.ts_create =(uint64_t) time(NULL);
    return  l_datum;
 }
 
