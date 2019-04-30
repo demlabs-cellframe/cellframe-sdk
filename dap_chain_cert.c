@@ -348,7 +348,7 @@ int dap_chain_cert_compare_with_sign (dap_chain_cert_t * a_cert,dap_chain_sign_t
  */
 size_t dap_chain_cert_count_cert_sign(dap_chain_cert_t * a_cert)
 {
-    int ret;
+    size_t ret;
     dap_chain_sign_item_t * l_cert_item = NULL;
     DL_COUNT(  PVT(a_cert)->signs,l_cert_item,ret);
     return ret > 0 ? ret : 0 ;
