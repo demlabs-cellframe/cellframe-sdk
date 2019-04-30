@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -45,7 +45,7 @@ int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
 
 dap_chain_net_t * dap_chain_net_new (const char * a_id,  const char * a_name,
-                                     const char* a_node_role , const char* a_node_name );
+                                     const char* a_node_role );
 
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);

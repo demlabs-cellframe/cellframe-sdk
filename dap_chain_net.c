@@ -33,7 +33,6 @@
 #include "dap_config.h"
 #include "dap_chain_utxo.h"
 #include "dap_chain_net.h"
-#include "dap_chain_node_ctl.h"
 #include "dap_module.h"
 
 #define _XOPEN_SOURCE 700
@@ -53,7 +52,6 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_role_t node_role;
     uint8_t padding[4];
     //dap_client_t client;
-    dap_chain_node_ctl_t * node;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -146,7 +144,7 @@ static void s_net_proc_kill( dap_chain_net_t * a_net )
  * @return
  */
 dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
-                                    const char * a_node_role, const char * a_node_name)
+                                    const char * a_node_role)
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
@@ -154,13 +152,6 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
         if (strcmp (a_node_role, "root")==0){
             PVT(ret)->node_role.enums = ROOT;
             log_it (L_NOTICE, "Node role \"root\" selected");
-        }
-
-        PVT(ret)->node = dap_chain_node_ctl_open(a_node_name);
-        if ( PVT(ret)->node ){
-
-        } else {
-            log_it( L_ERROR, "Can't open \"%s\" node's config",a_node_name);
         }
     } else {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
@@ -175,7 +166,6 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
  */
 void dap_chain_net_delete( dap_chain_net_t * a_net )
 {
-    DAP_DELETE( PVT(a_net)->node);
     DAP_DELETE( PVT(a_net) );
 }
 
@@ -194,8 +184,7 @@ int dap_chain_net_init()
         dap_chain_net_t * l_net = dap_chain_net_new(
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
-                                            dap_config_get_item_str(l_cfg , "general" , "node-role" ),
-                                            dap_config_get_item_str(l_cfg , "general" , "node-alias" )
+                                            dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
         // Do specific actions
         switch ( PVT( l_net )->node_role.enums ) {
