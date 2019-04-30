@@ -28,14 +28,14 @@
 
 #define LOG_TAG "chain_net_srv"
 
-size_t m_uid_count;
-dap_chain_net_srv_uid_t * m_uid;
+static size_t m_uid_count;
+static dap_chain_net_srv_uid_t * m_uid;
 
 /**
  * @brief dap_chain_net_srv_init
  * @return
  */
-int dap_chain_net_srv_init()
+int dap_chain_net_srv_init(void)
 {
     m_uid = NULL;
     m_uid_count = 0;
@@ -45,7 +45,7 @@ int dap_chain_net_srv_init()
 /**
  * @brief dap_chain_net_srv_deinit
  */
-void dap_chain_net_srv_deinit()
+void dap_chain_net_srv_deinit(void)
 {
 
 }
@@ -73,7 +73,7 @@ dap_chain_net_srv_t * dap_chain_net_srv_get( dap_chain_net_srv_uid_t a_uid)
  * @brief dap_chain_net_srv_count
  * @return
  */
-const size_t dap_chain_net_srv_count()
+size_t dap_chain_net_srv_count()
 {
 
 }
