@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include "dap_common.h"
 #include "dap_math_ops.h"
 
@@ -13,3 +14,46 @@ typedef union{
     dap_uint128_t raw_ui128[1];
 #endif
 }  dap_chain_net_srv_uid_t;
+
+
+//Classes of services
+enum {
+    SERV_CLASS_ONCE = 1, // one-time service
+    SERV_CLASS_PERMANENT = 2
+};
+
+//Types of services
+enum {
+    SERV_ID_VPN = 1,
+};
+
+typedef struct dap_chain_net_srv_abstract
+{
+    uint64_t proposal_id; // id trade proposal. Must be unique to the node.
+
+    uint8_t class; //Class of service
+    uint8_t type_id; //Type of service
+    union {
+        struct {
+            int bandwith;
+            int abuse_resistant;
+            int limit_bytes;
+        } vpn;
+        /*struct {
+            int value;
+        } another_srv;*/
+    } proposal_params;
+
+    //size_t pub_key_data_size;
+    //void * pub_key_data;
+
+    uint64_t price; //  service price, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+    uint8_t price_units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+    char decription[128];
+} DAP_ALIGN_PACKED dap_chain_net_srv_abstract_t;
+
+// generate new dap_chain_net_srv_uid_t
+bool dap_chain_net_srv_gen_uid(dap_chain_net_srv_uid_t *a_srv);
+
+uint64_t dap_chain_net_srv_client_auth(char *a_addr_base58, uint8_t *a_sign, size_t a_sign_size,
+        const dap_chain_net_srv_abstract_t **a_cond_out);
