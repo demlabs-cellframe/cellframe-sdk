@@ -23,7 +23,6 @@
  */
 #pragma once
 
-#include "dap_chain_node_ctl.h"
 #include "dap_chain_net_srv_common.h"
 
 //Classes of services
@@ -39,7 +38,6 @@ enum {
 
 typedef struct dap_chain_net_srv
 {
-    dap_chain_node_ctl_t * node;
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
 
     void * _internal;
@@ -72,7 +70,15 @@ int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit();
 
 void dap_chain_net_srv_add(dap_chain_net_srv_t * a_srv);
+<<<<<<< HEAD
 dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
 const size_t dap_chain_net_srv_count();
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list();
+=======
+void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
+void dap_chain_net_srv_del_all(void);
+dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t *a_uid);
+size_t dap_chain_net_srv_count(void);
+const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
+>>>>>>> bugfix-12345
 
