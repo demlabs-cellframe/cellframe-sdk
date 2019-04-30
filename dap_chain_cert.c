@@ -30,6 +30,8 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_common.h"
+#include "dap_string.h"
+#include "dap_strfuncs.h"
 #include "dap_chain_cert.h"
 #include "dap_chain_cert_file.h"
 //#include "dap_hash.h"
@@ -270,14 +272,14 @@ void dap_chain_cert_delete(dap_chain_cert_t * a_cert)
 /**
  * @brief dap_chain_cert_add_file
  * @param a_cert_name
- * @param a_file_path
+ * @param a_folder_path
  * @return
  */
-dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_file_path)
+dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_folder_path)
 {
-    size_t l_cert_path_length = strlen(a_cert_name)+8+strlen(a_file_path);
+    size_t l_cert_path_length = strlen(a_cert_name)+8+strlen(a_folder_path);
     char * l_cert_path = DAP_NEW_Z_SIZE(char,l_cert_path_length);
-    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_file_path,a_cert_name);
+    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_folder_path,a_cert_name);
     if( access( l_cert_path, F_OK ) == -1 ) {
         log_it (L_ERROR, "File %s is not exists! ", l_cert_path);
         exit(-701);
@@ -378,7 +380,22 @@ void dap_chain_cert_add_folder(const char *a_folder_path)
     if( l_dir ) {
         struct dirent * l_dir_entry;
         while((l_dir_entry=readdir(l_dir))!=NULL){
-            log_it(L_DEBUG,"%s",l_dir_entry->d_name);
+            const char * l_filename = l_dir_entry->d_name;
+            size_t l_filename_len = strlen (l_filename);
+            // Check if its not special dir entries . or ..
+            if( strcmp(l_filename,".") && strcmp(l_filename,"..") ){
+                // If not check the file's suffix
+                const char l_suffix[]=".dcert";
+                size_t l_suffix_len = strlen(l_suffix);
+                if (strncmp(l_filename+ l_filename_len-l_suffix_len,l_suffix,l_suffix_len) == 0 ){
+                    char * l_cert_name = dap_strdup(l_filename);
+                    l_cert_name[l_filename_len-l_suffix_len] = '\0'; // Remove suffix
+                    // Load the cert file
+                    log_it(L_DEBUG,"Trying to load %s",l_filename);
+                    dap_chain_cert_add_file(l_cert_name,a_folder_path);
+                }
+            }
+
         }
         closedir(l_dir);
     }

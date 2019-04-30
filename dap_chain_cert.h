@@ -52,7 +52,7 @@ dap_chain_cert_t * dap_chain_cert_generate_mem(const char * a_cert_name,
 
 dap_chain_addr_t * dap_chain_cert_to_addr(dap_chain_cert_t * a_cert, dap_chain_net_id_t a_net_id);
 
-dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_file_path);
+dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *a_folder_path);
 int dap_chain_cert_save_to_folder(dap_chain_cert_t * a_cert, const char *a_file_dir_path);
 void dap_chain_cert_add_folder(const char *a_folder_path);
 void dap_chain_cert_dump(dap_chain_cert_t * a_cert);
