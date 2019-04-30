@@ -210,7 +210,7 @@ static dap_chain_node_addr_t* com_global_db_get_addr(dap_chain_node_info_t *node
     return address;
 }
 
-static char* com_global_db_get_key_for_addr(dap_chain_node_addr_t *address)
+char* com_global_db_get_key_for_addr(dap_chain_node_addr_t *address)
 {
     char *a_key = dap_chain_global_db_hash((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
     return a_key;
@@ -450,7 +450,7 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
 
     // find link in node_info_read
     int index_link = -1;
-    for(int i = 0; i < node_info_read->hdr.links_number; i++) {
+    for(size_t i = 0; i < node_info_read->hdr.links_number; i++) {
         if(node_info_read->links[i].uint64 == link->uint64) {
             // link already present
             index_link = i;
@@ -853,7 +853,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
         }
         // handler of command 'global_db node add'
         return com_global_db_add(&node_info, alias_str, shard_str, ipv4_str, ipv6_str, str_reply);
-        break;
+        //break;
 
     case CMD_DEL:
         // handler of command 'global_db node del'
@@ -1646,7 +1646,7 @@ int com_tx_cond_create(int argc, const char ** argv, char **str_reply)
     const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
     const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
     const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
-    int l_value = 50;
+    uint64_t l_value = 50;
 
     dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
     dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet_from, 0);
@@ -1659,8 +1659,8 @@ int com_tx_cond_create(int argc, const char ** argv, char **str_reply)
 
     dap_chain_net_srv_abstract_t l_cond;
     l_cond.price = l_value;
-    int res = dap_chain_mempool_tx_create_cond(l_key, l_key_cond, (dap_chain_addr_t*) addr_from,
-            (dap_chain_addr_t*) addr_cond,
+    int res = dap_chain_mempool_tx_create_cond(l_key, l_key_cond, addr_from,
+            addr_cond,
             NULL, l_token_ticker, l_value, 0, (const void*) &l_cond, sizeof(dap_chain_net_srv_abstract_t));
 
     dap_chain_wallet_close(l_wallet_from);
