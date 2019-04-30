@@ -66,19 +66,13 @@ typedef struct dap_chain_net_srv_abstract
     char decription[128];
 } DAP_ALIGN_PACKED dap_chain_net_srv_abstract_t;
 
-int dap_chain_net_srv_init();
-void dap_chain_net_srv_deinit();
+int dap_chain_net_srv_init(void);
+void dap_chain_net_srv_deinit(void);
 
 void dap_chain_net_srv_add(dap_chain_net_srv_t * a_srv);
-<<<<<<< HEAD
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
-const size_t dap_chain_net_srv_count();
-const dap_chain_net_srv_uid_t * dap_chain_net_srv_list();
-=======
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_del_all(void);
 dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t *a_uid);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
->>>>>>> bugfix-12345
 

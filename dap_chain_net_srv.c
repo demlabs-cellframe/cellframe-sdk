@@ -31,63 +31,14 @@
 static size_t m_uid_count;
 static dap_chain_net_srv_uid_t * m_uid;
 
-/**
- * @brief dap_chain_net_srv_init
- * @return
- */
-int dap_chain_net_srv_init()
-{
-    m_uid = NULL;
-    m_uid_count = 0;
+typedef struct service_list {
+    dap_chain_net_srv_uid_t uid;
+    dap_chain_net_srv_t * srv;
+    UT_hash_handle hh;
+} service_list_t;
 
-    return 0;
-}
+// list of active services
+static service_list_t *s_srv_list = NULL;
+// for separate access to s_srv_list
+static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/**
- * @brief dap_chain_net_srv_deinit
- */
-void dap_chain_net_srv_deinit()
-{
-
-}
-
-/**
- * @brief dap_chain_net_srv_add
- * @param a_srv
- */
-void dap_chain_net_srv_add(dap_chain_net_srv_t * a_srv)
-{
-
-}
-
-/**
- * @brief dap_chain_net_srv_get
- * @param a_uid
- * @return
- */
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
-{
-
-}
-
-/**
- * @brief dap_chain_net_srv_count
- * @return
- */
-<<<<<<< HEAD
-const size_t dap_chain_net_srv_count()
-=======
- size_t dap_chain_net_srv_count(void)
->>>>>>> bugfix-12345
-{
-
-}
-
-/**
- * @brief dap_chain_net_srv_list
- * @return
- */
-const dap_chain_net_srv_uid_t * dap_chain_net_srv_list()
-{
-
-}
