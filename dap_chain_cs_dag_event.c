@@ -42,59 +42,42 @@
  * @param a_hashes_count
  * @return
  */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_cs_dag_t * a_dag,dap_chain_datum_t * a_datum
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_datum_t * a_datum
                                                 ,dap_enc_key_t * a_key ,
                                                 dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
 {
     size_t l_hashes_size = sizeof(*a_hashes)*a_hashes_count;
-    size_t l_datum_size =  dap_chain_datum_data_size(a_datum);
-    size_t l_signs_size = 0;// dap_chain_sign_get_size(a_key);
-    dap_chain_cs_dag_event_t * l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t,
-                                                         sizeof(l_event_new->header)
-                                                         + l_hashes_size
-                                                         + l_signs_size
-                                                         + l_datum_size
+    size_t l_datum_size =  dap_chain_datum_size(a_datum);
+    dap_chain_cs_dag_event_t * l_event_new = NULL;
+    size_t l_event_size = sizeof(l_event_new->header)
+            + l_hashes_size
+            + l_datum_size;
+    l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t,
+                                                         l_event_size
                                                          );
     l_event_new->header.timestamp = (uint64_t) timegm(NULL);
+    memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
+    memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
 
-    memcpy(l_event_new->hashes_n_signs_n_datum, a_hashes, l_hashes_size );
-
-//    dap_chain_sign_t * l_sign = dap_chain_sign_create(a_key)
-
-//    dap_chain_sign_create(a_key,)
-//    memcpy(l_event_new->hashes_n_signs_n_datum+l_hashes_size, );
-//    a_dag->callback_event_input(a_dag,l_event_new);
-
-}
-
-/**
- * @brief dap_chain_cs_dag_event_delete
- * @param a_dag
- * @param a_event
- */
-void dap_chain_cs_dag_event_delete(dap_chain_cs_dag_t * a_dag,dap_chain_cs_dag_event_t * a_event)
-{
-
-}
-
-
-/**
- * @brief dap_chain_cs_dag_event_get_datum
- * @param a_event
- * @return
- */
-dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a_event)
-{
-    uint8_t * l_signs = a_event->hashes_n_signs_n_datum
-            +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
-    uint16_t l_signs_offset = 0;
-    uint16_t l_signs_passed;
-    for ( l_signs_passed=0;  l_signs_passed < a_event->header.signs_count; l_signs_passed++){
-        dap_chain_sign_t * l_sign = (dap_chain_sign_t *) l_signs+l_signs_offset;
-        l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+    if ( a_key ){
+        dap_chain_sign_t * l_sign = dap_chain_sign_create(a_key,l_event_new,
+                                                          l_hashes_size+  sizeof(l_event_new->header)
+                                                          + l_datum_size ,0);
+        if ( l_sign ){
+            size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+            l_event_new = (dap_chain_cs_dag_event_t* )DAP_REALLOC(l_event_new,l_event_size+l_sign_size );
+            memcpy(l_event_new->hashes_n_datum_n_signs+l_event_size,l_sign,l_sign_size);
+            l_event_size += l_sign_size;
+        }else {
+            log_it(L_ERROR,"Can't sign dag event!");
+            return NULL;
+        }
+    }else {
+        log_it(L_NOTICE, "Created unsigned dag event");
     }
-    return (dap_chain_datum_t*)  l_signs+l_signs_offset;
+    return l_event_new;
 }
+
 
 /**
  * @brief dap_chain_cs_dag_event_get_sign
@@ -105,8 +88,8 @@ dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a
 dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number)
 {
     if (a_event->header.signs_count < a_sign_number ){
-        uint8_t * l_signs = a_event->hashes_n_signs_n_datum
-                +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
+        size_t l_offset_to_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_event);
+        uint8_t * l_signs = ((uint8_t*) a_event)+l_offset_to_sign;
         uint16_t l_signs_offset = 0;
         uint16_t l_signs_passed;
         for ( l_signs_passed=0;  l_signs_passed < a_sign_number; l_signs_passed++){

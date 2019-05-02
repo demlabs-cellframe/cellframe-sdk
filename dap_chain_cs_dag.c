@@ -39,6 +39,8 @@ typedef struct dap_chain_cs_dag_event_item {
 
 typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events;
+    dap_chain_cs_dag_event_item_t * events_trashhold;
+
     dap_chain_cs_dag_event_item_t * events_round_new;
     dap_chain_cs_dag_event_item_t * events_round_prev_lasts;
 } dap_chain_cs_dag_pvt_t;
@@ -150,7 +152,34 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
  */
 static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_t * a_atom)
 {
-    return -1; // TODO
+    int ret = s_chain_callback_atom_verify (a_chain, a_atom);
+    if ( ret != 0 ){
+        log_it(L_WARNING,"Wrong event, can't accept, verification returned %d",ret);
+        return  -1;
+    }
+    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
+
+    ret = l_dag->callback_cs_input(l_dag,l_event);
+    if ( ret != 0 ){
+        log_it(L_WARNING,"Consensus can't accept the event, verification returned %d",ret);
+        return  -2;
+    }
+    dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    l_event_item->event = l_event;
+    dap_hash_fast(l_event, dap_chain_cs_dag_event_calc_size(l_event),&l_event_item->hash );
+
+    dap_chain_cs_dag_event_item_t * l_event_search = NULL;
+    HASH_FIND(hh, PVT(l_dag)->events,&l_event_item->hash,sizeof (l_event_search->hash),  l_event_search);
+    if ( l_event_search ) {
+        char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
+        log_it(L_ERROR, "Dag event %s is already present in dag",l_hash_str);
+        DAP_DELETE(l_event_item);
+        DAP_DELETE(l_hash_str);
+        return -3;
+    }
+    HASH_ADD(hh, PVT(l_dag)->events,hash,sizeof (l_event_item->hash),  l_event_item);
+    return 0;
 }
 
 
@@ -164,7 +193,7 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_t 
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
-    return l_dag->callback_event_input ( l_dag, l_event );
+    return l_dag->callback_cs_verify ( l_dag, l_event );
 }
 
 /**
