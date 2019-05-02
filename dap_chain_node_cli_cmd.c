@@ -301,15 +301,15 @@ static bool dap_chain_node_info_save(dap_chain_node_info_t *node_info, char **st
  * return 0 Ok, -1 error
  */
 static int com_global_db_add(dap_chain_node_info_t *node_info, const char *alias_str,
-        const char *shard_str, const char *ipv4_str, const char *ipv6_str, char **str_reply)
+        const char *cell_str, const char *ipv4_str, const char *ipv6_str, char **str_reply)
 {
 
     if(!node_info->hdr.address.uint64) {
         set_reply_text(str_reply, "not found -addr parameter");
         return -1;
     }
-    if(!shard_str) {
-        set_reply_text(str_reply, "not found -shard parameter");
+    if(!cell_str) {
+        set_reply_text(str_reply, "not found -cell parameter");
         return -1;
     }
     if(!ipv4_str && !ipv6_str) {
@@ -322,10 +322,10 @@ static int com_global_db_add(dap_chain_node_info_t *node_info, const char *alias
         if(ipv6_str)
             inet_pton(AF_INET6, ipv6_str, &(node_info->hdr.ext_addr_v6));
     }
-    // check match addr to shard or no
-    /*dap_chain_node_addr_t *addr = dap_chain_node_gen_addr(&node_info->hdr.shard_id);
-     if(!dap_chain_node_check_addr(&node_info->hdr.address, &node_info->hdr.shard_id)) {
-     set_reply_text(str_reply, "shard does not match addr");
+    // check match addr to cell or no
+    /*dap_chain_node_addr_t *addr = dap_chain_node_gen_addr(&node_info->hdr.cell_id);
+     if(!dap_chain_node_check_addr(&node_info->hdr.address, &node_info->hdr.cell_id)) {
+     set_reply_text(str_reply, "cell does not match addr");
      return -1;
      }*/
     if(alias_str) {
@@ -598,14 +598,14 @@ static int com_global_db_dump(dap_chain_node_info_t *a_node_info, const char *al
         // set short reply with node param
         if(l_objs)
             dap_string_append_printf(l_string_reply,
-                    "node address 0x%llx\tshard 0x%llx\tipv4 %s\tnumber of links %d",
-                    node_info_read->hdr.address, node_info_read->hdr.shard_id,
+                    "node address 0x%llx\tcell 0x%llx\tipv4 %s\tnumber of links %d",
+                    node_info_read->hdr.address, node_info_read->hdr.cell_id,
                     str_ip4, node_info_read->hdr.links_number);
         else
             // set full reply with node param
             dap_string_append_printf(l_string_reply,
-                    "node address 0x%llx\nshard 0x%llx%s\nipv4 %s\nipv6 %s\nlinks %d%s",
-                    node_info_read->hdr.address, node_info_read->hdr.shard_id, aliases_string->str,
+                    "node address 0x%llx\ncell 0x%llx%s\nipv4 %s\nipv6 %s\nlinks %d%s",
+                    node_info_read->hdr.address, node_info_read->hdr.cell_id, aliases_string->str,
                     str_ip4, str_ip6,
                     node_info_read->hdr.links_number, links_string->str);
         dap_string_free(aliases_string, true);
@@ -818,12 +818,12 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     //arg_index = arg_index_n; // no need, they are already equal must be
     assert(arg_index == arg_index_n);
     arg_index++;
-    const char *addr_str = NULL, *alias_str = NULL, *shard_str = NULL, *link_str = NULL;
+    const char *addr_str = NULL, *alias_str = NULL, *cell_str = NULL, *link_str = NULL;
     const char *ipv4_str = NULL, *ipv6_str = NULL;
     // find addr, alias
     find_option_val(argv, arg_index, argc, "-addr", &addr_str);
     find_option_val(argv, arg_index, argc, "-alias", &alias_str);
-    find_option_val(argv, arg_index, argc, "-shard", &shard_str);
+    find_option_val(argv, arg_index, argc, "-cell", &cell_str);
     find_option_val(argv, arg_index, argc, "-ipv4", &ipv4_str);
     find_option_val(argv, arg_index, argc, "-ipv6", &ipv6_str);
     find_option_val(argv, arg_index, argc, "-link", &link_str);
@@ -836,8 +836,8 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     if(addr_str) {
         digit_from_string(addr_str, node_info.hdr.address.raw, sizeof(node_info.hdr.address.raw));
     }
-    if(shard_str) {
-        digit_from_string(shard_str, node_info.hdr.shard_id.raw, sizeof(node_info.hdr.shard_id.raw)); //DAP_CHAIN_SHARD_ID_SIZE);
+    if(cell_str) {
+        digit_from_string(cell_str, node_info.hdr.cell_id.raw, sizeof(node_info.hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
     }
     if(link_str) {
         digit_from_string(link_str, link.raw, sizeof(link.raw));
@@ -852,7 +852,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
             return -1;
         }
         // handler of command 'global_db node add'
-        return com_global_db_add(&node_info, alias_str, shard_str, ipv4_str, ipv6_str, str_reply);
+        return com_global_db_add(&node_info, alias_str, cell_str, ipv4_str, ipv6_str, str_reply);
         //break;
 
     case CMD_DEL:
@@ -1611,7 +1611,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
 
     // Pack transaction into the datum
     dap_chain_datum_t * l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
-    size_t l_datum_tx_size = dap_chain_datum_data_size(l_datum_tx);
+    size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
 
     // use l_tx hash for compatible with utho hash
     dap_hash_fast(l_tx, l_tx_size, &l_key_hash);//dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
