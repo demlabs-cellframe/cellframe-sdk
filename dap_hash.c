@@ -35,6 +35,7 @@ int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_f
             DAP_HASH_TYPE_KECCAK);
     return 1;
 }
+
 bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash)
 {
     uint8_t *l_hast_bytes = (uint8_t*) a_hash;
