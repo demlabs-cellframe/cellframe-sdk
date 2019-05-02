@@ -77,7 +77,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_pos_t * l_pos = DAP_NEW_Z ( dap_chain_cs_dag_pos_t);
     l_dag->_inheritor = l_pos;
     l_dag->callback_delete = s_callback_delete;
-    l_dag->callback_event_verify = s_callback_event_verify;
+    l_dag->callback_cs_verify = s_callback_event_verify;
     l_pos->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_pos_pvt_t );
 
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
@@ -122,7 +122,7 @@ lb_err:
     DAP_DELETE(l_pos );
     l_dag->_inheritor = NULL;
     l_dag->callback_delete = NULL;
-    l_dag->callback_event_verify = NULL;
+    l_dag->callback_cs_verify = NULL;
     return -1;
 
 }
