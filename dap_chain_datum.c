@@ -49,15 +49,3 @@ dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_da
    return  l_datum;
 }
 
-
-/**
- * @brief dap_chain_datum_data_size
- * @param a_datum
- * @return
- */
-size_t dap_chain_datum_data_size(dap_chain_datum_t * a_datum)
-{
-    if(!a_datum)
-        return 0;
-    return  sizeof(a_datum->header) + a_datum->header.data_size;
-}

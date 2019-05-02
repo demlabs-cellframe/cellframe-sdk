@@ -33,6 +33,9 @@
 struct dap_chain;
 typedef struct dap_chain dap_chain_t;
 
+struct dap_chain_cell;
+typedef struct dap_chain_cell dap_chain_cell_t;
+
 // Atomic element
 typedef void * dap_chain_atom_t;
 
@@ -50,7 +53,8 @@ typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t*, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef int (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_t * );
-typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)();
+typedef int (*dap_chain_callback_atom_size_t)(dap_chain_t *, dap_chain_atom_t * ,size_t);
+typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 typedef size_t (*dap_chain_callback_atom_hdr_get_size_t)(dap_chain_atom_t * );
 
 typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t * );
@@ -65,6 +69,9 @@ typedef struct dap_chain{
     dap_chain_net_id_t net_id;
     char * name;
     char * net_name;
+
+    // Nested cells (hashtab by cell_id
+    dap_chain_cell_t * cells;
 
     // To hold it in double-linked lists
     struct dap_chain * next;
@@ -99,6 +106,9 @@ void dap_chain_deinit(void);
 
 
 dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );
+
+int dap_chain_load_all (dap_chain_t * l_chain);
+int dap_chain_save_all (dap_chain_t * l_chain);
 
 //dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);

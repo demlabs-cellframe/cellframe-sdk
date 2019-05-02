@@ -49,6 +49,3 @@ typedef struct dap_chain_pvt
 
 #define DAP_CHAIN_PVT_LOCAL_NEW(a) dap_chain_pvt_t * l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t); a->_pvt = l_chain_pvt
 
-int dap_chain_pvt_cells_load( dap_chain_t * a_chain);
-int dap_chain_pvt_cells_save( dap_chain_t * a_chain);
-int dap_chain_pvt_cells_update( dap_chain_t * a_chain);

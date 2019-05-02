@@ -21,10 +21,13 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <sys/types.h>
+#include <dirent.h>
 
 #include <unistd.h>
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain.h"
@@ -34,13 +37,12 @@
 #include <uthash.h>
 #include <pthread.h>
 
-
 #define LOG_TAG "chain"
 
 typedef struct dap_chain_item_id {
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
-} DAP_ALIGN_PACKED dap_chain_item_id_t;
+}  dap_chain_item_id_t;
 
 typedef struct dap_chain_item {
     dap_chain_item_id_t item_id;
@@ -48,7 +50,7 @@ typedef struct dap_chain_item {
    UT_hash_handle hh;
 } dap_chain_item_t;
 
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t s_chain_items_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 static dap_chain_item_t * s_chain_items = NULL;
 
 int s_prepare_env();
@@ -73,6 +75,12 @@ int dap_chain_init(void)
     }
 
     DAP_DELETE( l_ca_folders);
+
+    // Cell sharding init
+    dap_chain_cell_init();
+
+
+    // UTXO model
     uint16_t l_utxo_flags = 0;
 
     if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"full" ) == 0  ){
@@ -97,10 +105,12 @@ int dap_chain_init(void)
 void dap_chain_deinit(void)
 {
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
+    pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(s_chain_items->chain);
           DAP_DELETE(l_item);
         }
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
 /**
@@ -134,7 +144,9 @@ dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_cha
     l_ret_item->chain = l_ret;
     memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret_item->item_id.net_id.raw ,a_chain_net_id.raw,sizeof(a_chain_net_id));
+    pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_ADD(hh,s_chain_items,item_id,sizeof(dap_chain_item_id_t),l_ret_item);
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
     return l_ret;
 }
 
@@ -149,6 +161,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
         .id = a_chain->id,
         .net_id = a_chain->net_id,
     };
+    pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
 
     if( l_item){
@@ -169,6 +182,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }else
        log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
 /**
@@ -186,7 +200,9 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
     };
     dap_chain_item_t * l_ret_item = NULL;
 
+    pthread_rwlock_rdlock(&s_chain_items_rwlock);
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_ret_item);
+    pthread_rwlock_rdlock(&s_chain_items_rwlock);
     if ( l_ret_item ){
         return l_ret_item->chain;
     }else
@@ -207,9 +223,10 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
         dap_config_t * l_cfg = dap_config_open(a_chain_cfg_name);
         if (l_cfg) {
             dap_chain_t * l_chain = NULL;
-            dap_chain_id_t l_chain_id = {0};
+            dap_chain_id_t l_chain_id = {{0}};
             const char * l_chain_id_str = NULL;
             const char * l_chain_name = NULL;
+
             // Recognize chains id
             if ( l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id") ){
                 if ( sscanf(l_chain_id_str,"0x%016llX",&l_chain_id.uint64) !=1 ){
@@ -222,6 +239,8 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
                     }
                 }
             }
+
+
             if (l_chain_id_str ) {
                 log_it (L_NOTICE, "Chain id 0x%016lX  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;
             }else {
@@ -242,21 +261,21 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
                         l_chain_id.uint64 );
-                /*
+
                 if ( dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) {
                     DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
                                 dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
-                    if ( dap_chain_pvt_cells_load ( l_chain ) != 0 ){
+                    if ( dap_chain_load_all( l_chain ) != 0 ){
                         log_it (L_NOTICE, "Loaded chain files");
                     }else {
-                        dap_chain_pvt_cells_save( l_chain );
+                        dap_chain_save_all( l_chain );
                         log_it (L_NOTICE, "Initialized chain files");
                     }
                 } else{
                     log_it (L_ERROR, "Not set file storage path");
                     dap_chain_delete(l_chain);
                     l_chain = NULL;
-                }*/
+                }
             }else{
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
@@ -272,6 +291,56 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
         log_it (L_WARNING, "NULL net_id string");
         return NULL;
     }
+}
+
+/**
+ * @brief dap_chain_save_all
+ * @param l_chain
+ * @return
+ */
+int dap_chain_save_all (dap_chain_t * l_chain)
+{
+    int ret = -1;
+    dap_chain_cell_t * l_item, *l_item_tmp = NULL;
+    HASH_ITER(hh,l_chain->cells,l_item,l_item_tmp){
+        dap_chain_cell_file_update(l_item);
+        if (ret <0 )
+            ret++;
+    }
+    return ret;
+}
+
+/**
+ * @brief dap_chain_load_all
+ * @param l_chain
+ * @return
+ */
+int dap_chain_load_all (dap_chain_t * l_chain)
+{
+    int ret = -2;
+    DIR * l_dir = opendir(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+    if( l_dir ) {
+        struct dirent * l_dir_entry;
+        ret = -1;
+        while((l_dir_entry=readdir(l_dir))!=NULL){
+            const char * l_filename = l_dir_entry->d_name;
+            size_t l_filename_len = strlen (l_filename);
+            // Check if its not special dir entries . or ..
+            if( strcmp(l_filename,".") && strcmp(l_filename,"..") ){
+                // If not check the file's suffix
+                const char l_suffix[]=".dchaincell";
+                size_t l_suffix_len = strlen(l_suffix);
+                if (strncmp(l_filename+ l_filename_len-l_suffix_len,l_suffix,l_suffix_len) == 0 ){
+                    if ( dap_chain_cell_load(l_chain,l_filename) == 0 )
+                        ret = 0;
+                }
+            }
+
+        }
+        closedir(l_dir);
+
+    }
+    return  ret;
 }
 
 /**
