@@ -49,3 +49,5 @@ void dap_chain_cs_dag_deinit(void);
 
 int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);
+
+void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag);
