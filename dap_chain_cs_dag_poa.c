@@ -75,7 +75,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_dag_poa_t);
     l_dag->_inheritor = l_poa;
     l_dag->callback_delete = s_callback_delete;
-    l_dag->callback_event_verify = s_callback_event_verify;
+    l_dag->callback_cs_verify = s_callback_event_verify;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
 
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
