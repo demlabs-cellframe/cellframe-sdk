@@ -60,6 +60,13 @@
 
 #include "ping.h"
 
+/* IPv6 packet information.  */
+struct in6_pktinfo
+  {
+    struct in6_addr ipi6_addr;	/* src/dst IPv6 address */
+    unsigned int ipi6_ifindex;	/* send/recv interface index */
+  };
+
 ping_func_set_st ping6_func_set = {
     .send_probe = ping6_send_probe,
     .receive_error_msg = ping6_receive_error_msg,
