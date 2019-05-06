@@ -130,6 +130,10 @@ dap_chain_sign_type_t dap_chain_sign_type_from_str(const char * a_type_str)
 static int dap_chain_sign_create_output(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size,
         void * a_output, size_t *a_output_size)
 {
+    if(!a_key || !a_key->priv_key_data || !a_key->priv_key_data_size){
+        log_it (L_ERROR, "Can't find the private key to create signature");
+        return -1;
+    }
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
         case DAP_ENC_KEY_TYPE_SIG_PICNIC:
