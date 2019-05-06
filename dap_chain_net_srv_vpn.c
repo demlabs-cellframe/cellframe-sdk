@@ -338,18 +338,18 @@ void srv_ch_sf_new(dap_stream_ch_t* ch, void* arg)
             l_sign_txt = l_str[1];
         }
         l_addr_base58 =
-                "EXh66KVCxChbKJLxXTwipYMooUpoGvpwpkcjpmGLbubwzqR2vVsH9HEgT2LcU2hDs2BTFkaNC8itE8nuCWxskVtRJG4iaubBDcRWAt2awtCVHAULffQGrwe8ocRCzS";
+                "RpiDC8c1SxrT7TUExyGWNErgV6HtwkKhSd1yLEkTA9qHcSiYA4GXjE67KJQay2TzHdG2ouk42d8GgLyABu6rP55JeFYzBkqZ7CqijDEw";
         l_sign_txt = "123";
         uint8_t *l_sign = l_sign_txt;
         size_t l_sign_size = 0;
-        dap_chain_net_srv_abstract_t *l_cond = NULL;
+        const dap_chain_net_srv_abstract_t *l_cond = NULL;
         uint64_t l_value = dap_chain_net_srv_client_auth(l_addr_base58, l_sign, l_sign_size, &l_cond);
 
         // add service
         {
             dap_chain_net_srv_t l_srv;
             memcpy(&l_srv.srv_common, l_cond, sizeof(dap_chain_net_srv_abstract_t));
-            dap_chain_net_srv_gen_uid(&l_srv.uid);
+            dap_chain_net_srv_gen_uid((uint8_t*)&l_srv.uid,sizeof(l_srv.uid));
             dap_chain_net_srv_add(&l_srv);
             memcpy(&sf->srv_uid.raw, &l_srv.uid, sizeof(dap_chain_net_srv_uid_t)); // Unique ID for service.
         }
