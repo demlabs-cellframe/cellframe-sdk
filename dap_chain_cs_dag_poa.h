@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -35,5 +35,5 @@ typedef struct dap_chain_cs_dag_poa
 #define DAP_CHAIN_CS_DAG_POA(a) ( (dap_chain_cs_dag_poa_t *) (a)->_inheritor)
 
 
-int dap_chain_cs_dag_poa_init();
-void dap_chain_cs_dag_poa_deinit();
+int dap_chain_cs_dag_poa_init(void);
+void dap_chain_cs_dag_poa_deinit(void);

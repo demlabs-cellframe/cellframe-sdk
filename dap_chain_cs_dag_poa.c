@@ -23,9 +23,12 @@
 */
 #include <string.h>
 #include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_chain_node_cli.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
+
 #include "dap_chain_cert.h"
 
 #define LOG_TAG "dap_chain_cs_dag_poa"
@@ -45,20 +48,29 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
 
+// CLI commands
+static int s_cli_dag_poa(int argc, const char ** argv, char **str_reply);
+
 /**
  * @brief dap_chain_cs_dag_poa_init
  * @return
  */
-int dap_chain_cs_dag_poa_init()
+int dap_chain_cs_dag_poa_init(void)
 {
+    // Add consensus constructor
     dap_chain_cs_add ("dag-poa", s_callback_new );
+
+    // Add CLI commands
+    dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
+                "<chain name> sign_event <event hash in new round>\n"
+                                        );
     return 0;
 }
 
 /**
  * @brief dap_chain_cs_dag_poa_deinit
  */
-void dap_chain_cs_dag_poa_deinit()
+void dap_chain_cs_dag_poa_deinit(void)
 {
 
 }
@@ -87,7 +99,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_chain_cert_t *, l_poa_pvt->auth_certs_count );
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                snprintf(l_cert_name,sizeof(l_cert_name),"%s.%u",l_poa_pvt->auth_certs_prefix, i);
+                snprintf(l_cert_name,sizeof(l_cert_name),"%s.%lu",l_poa_pvt->auth_certs_prefix, i);
                 if ( l_poa_pvt->auth_certs[i] = dap_chain_cert_find_by_name( l_cert_name) ) {
                     log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
                 } else{
@@ -151,3 +163,36 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
        return -2; // Wrong signatures number
 }
 
+/**
+ * @brief s_cli_commands
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @return
+ */
+static int s_cli_dag_poa(int argc, const char ** argv, char **str_reply)
+{
+    enum { SUBCMD_SIGN_EVENT, SUBCMD_UNDEFINED=0 } l_subcmd={0};
+    int arg_index = 2;
+    // find 'node' as second parameter only
+    arg_index = dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "dag_poa", NULL);
+    if(!arg_index || argc < 4) {
+        dap_chain_node_cli_set_reply_text(str_reply, "parameters are not valid");
+        return -1;
+    }
+    const char * l_chain_name = argv[1];
+
+    int arg_index_n = ++arg_index;
+    const char * l_subcmd_str = argv[arg_index];
+    if((arg_index_n = dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "sign_event", NULL)) != 0) {
+        l_subcmd = SUBCMD_SIGN_EVENT;
+    }
+    switch (l_subcmd) {
+        case SUBCMD_SIGN_EVENT:{
+            log_it(L_INFO,"Sign event command");
+        }break;
+        default:
+            dap_chain_node_cli_set_reply_text(str_reply,"undefined command \"%s\"",l_subcmd_str);
+            return -1;
+    }
+}
