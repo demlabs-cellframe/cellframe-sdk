@@ -281,7 +281,7 @@ int dap_chain_mempool_tx_create_cond(dap_enc_key_t *a_key_from, dap_enc_key_t *a
         // nothing to tranfer (not enough funds)
         if(!l_list_used_out || l_value_transfer < l_value_need) {
             dap_list_free_full(l_list_used_out, free);
-            return 0;
+            return -2;
         }
     }
 
@@ -304,7 +304,7 @@ int dap_chain_mempool_tx_create_cond(dap_enc_key_t *a_key_from, dap_enc_key_t *a
     // add 'out_cond' and 'out' items
     {
         uint64_t l_value_pack = 0; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, a_addr_cond, a_value, a_cond, a_cond_size) == 1) {
+        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, (dap_chain_addr_t*)a_addr_cond, a_value, a_cond, a_cond_size) == 1) {
             l_value_pack += a_value;
             // transaction fee
             if(a_addr_fee) {
@@ -328,19 +328,22 @@ int dap_chain_mempool_tx_create_cond(dap_enc_key_t *a_key_from, dap_enc_key_t *a
         return -1;
     }
 
-    size_t l_datum_data_size = dap_chain_datum_tx_get_size(l_tx);
-    dap_chain_datum_t * l_datum = DAP_NEW_Z_SIZE(dap_chain_datum_t, sizeof(l_datum->header) + l_datum_data_size);
-    memcpy(l_datum->data, l_tx, l_datum_data_size);
-    l_datum->header.data_size = l_datum_data_size;
-    l_datum->header.version_id = DAP_CHAIN_DATUM_VERSION;
-    DAP_DELETE(l_tx);
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
 
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_data_size + sizeof(l_datum->header), &l_key_hash);
+    dap_hash_fast(l_tx, l_tx_size, &l_key_hash);
+    DAP_DELETE(l_tx);
+
+
+
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_data_size
+    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
             , c_dap_datum_mempool_gdb_group)) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
+        // add transaction to utxo
+        if(dap_chain_utxo_tx_add((dap_chain_datum_tx_t*) l_datum->data)<0)
+            log_it(L_ERROR, "Transaction %s not placed in UTXO", l_key_str);
     }
     DAP_DELETE(l_key_str);
 
