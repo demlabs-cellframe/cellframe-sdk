@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <linux/types.h>
 #include <linux/sockios.h>
-#include <linux/ipv6.h>
 # define __USE_KERNEL_IPV6_DEFS
 #include <sys/file.h>
 #include <sys/time.h>
@@ -68,6 +67,7 @@
 
 #include <ifaddrs.h>
 #include <netinet/in.h>
+#include <linux/ipv6.h>
 #include <arpa/inet.h>
 #include <linux/types.h>
 #include <linux/errqueue.h>

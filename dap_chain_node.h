@@ -38,7 +38,7 @@
 typedef union dap_chain_node_addr{
     uint64_t uint64;
     uint8_t raw[sizeof(uint64_t)];  // Access to selected octects
-} dap_chain_node_addr_t;
+} DAP_ALIGN_PACKED dap_chain_node_addr_t;
 
 /**
   *  Node Declaration request
@@ -76,7 +76,7 @@ typedef struct dap_chain_node_info
 {
     struct {
         dap_chain_node_addr_t address;
-        dap_chain_cell_id_t shard_id;
+        dap_chain_cell_id_t cell_id;
         uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;

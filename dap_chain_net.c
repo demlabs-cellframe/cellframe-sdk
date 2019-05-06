@@ -30,10 +30,11 @@
 #include "utlist.h"
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_chain_utxo.h"
 #include "dap_chain_net.h"
-#include "dap_chain_node_ctl.h"
+#include "dap_chain_node_client.h"
 #include "dap_module.h"
 
 #define _XOPEN_SOURCE 700
@@ -42,6 +43,12 @@
 #include <dirent.h>
 
 #define LOG_TAG "chain_net"
+
+typedef  enum dap_chain_net_state{
+    NET_STATE_BEGIN = 0,
+    NET_STATE_LINKS_CONNECTING,
+    NET_STATE_LINKS_ESTABLISHED,
+} dap_chain_net_state_t;
 
 /**
   * @struct dap_chain_net_pvt
@@ -52,8 +59,9 @@ typedef struct dap_chain_net_pvt{
     pthread_cond_t proc_cond;
     dap_chain_node_role_t node_role;
     uint8_t padding[4];
-    //dap_client_t client;
-    dap_chain_node_ctl_t * node;
+
+    dap_chain_node_client_t * clients_by_node_addr;
+    dap_chain_net_state_t state;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -98,27 +106,6 @@ static void s_net_proc_start( dap_chain_net_t * a_net )
 {
     if ( pthread_create(& PVT(a_net)->proc_tid ,NULL, s_net_proc_thread, a_net) == 0 ){
         log_it (L_NOTICE,"Network processing thread started");
-        dap_chain_node_role_t l_role;
-        switch (l_role.enums = PVT (a_net)->node_role.enums){
-            case ROOT:
-                log_it(L_DEBUG , "Root node functions initialized");
-            case ROOT_DELEGATE:
-                log_it(L_DEBUG , "Root delegate node functions initialized");
-            case ARCHIVE:
-                log_it(L_DEBUG , "Archive node functions initialized");
-            case SHARD_DELEGATE:
-                if ( l_role.enums != ARCHIVE ){
-                    log_it(L_DEBUG , "Shard delegate node functions initialized");
-                }
-            case MASTER:
-                log_it(L_DEBUG , "Master node functions initialized");
-            case FULL:
-                log_it(L_DEBUG , "Full node functions initialized");
-            case LIGHT:
-                log_it(L_DEBUG , "Light node functions initialized");
-            default:
-                log_it(L_NOTICE, "Node role initialized");
-        }
     }
 }
 
@@ -146,21 +133,14 @@ static void s_net_proc_kill( dap_chain_net_t * a_net )
  * @return
  */
 dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
-                                    const char * a_node_role, const char * a_node_name)
+                                    const char * a_node_role)
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-    if ( sscanf(a_id,"0x%0llx", &ret->pub.id.uint64 ) == 1 ){
+    if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root")==0){
             PVT(ret)->node_role.enums = ROOT;
             log_it (L_NOTICE, "Node role \"root\" selected");
-        }
-
-        PVT(ret)->node = dap_chain_node_ctl_open(a_node_name);
-        if ( PVT(ret)->node ){
-
-        } else {
-            log_it( L_ERROR, "Can't open \"%s\" node's config",a_node_name);
         }
     } else {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
@@ -175,7 +155,6 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
  */
 void dap_chain_net_delete( dap_chain_net_t * a_net )
 {
-    DAP_DELETE( PVT(a_net)->node);
     DAP_DELETE( PVT(a_net) );
 }
 
@@ -194,19 +173,31 @@ int dap_chain_net_init()
         dap_chain_net_t * l_net = dap_chain_net_new(
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
-                                            dap_config_get_item_str(l_cfg , "general" , "node-role" ),
-                                            dap_config_get_item_str(l_cfg , "general" , "node-alias" )
+                                            dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
-        // Do specific actions
-        switch ( PVT( l_net )->node_role.enums ) {
-            case ROOT:
-            case ROOT_DELEGATE:
-            case SHARD_DELEGATE:
-               // dap_chain_net_ca_load ( dap_config_get_item_str (""));
-            default:
-                log_it(L_DEBUG,"Net config loaded");
+        l_net->pub.gdb_groups_prefix = dap_strdup (
+                    dap_config_get_item_str_default(l_cfg , "dag" , "gdb_groups_prefix","" ) );
 
+
+        // UTXO model
+        uint16_t l_utxo_flags = 0;
+        switch ( PVT( l_net )->node_role.enums ) {
+            case ROOT_MASTER:
+            case ROOT:
+            case ARCHIVE:
+                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+            case MASTER:
+                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
+            case CELL_MASTER:
+                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+            case FULL:
+            case LIGHT:
+                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
         }
+        dap_chain_utxo_init(l_utxo_flags);
+
+
+
         // Init chains
         size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
         char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
@@ -241,6 +232,38 @@ int dap_chain_net_init()
             return -2;
         }
 
+        // Do specific role actions post-chain created
+        switch ( PVT( l_net )->node_role.enums ) {
+            case ROOT_MASTER:{
+                // Set to process everything in datum pool
+                dap_chain_t * l_chain = NULL;
+                DL_FOREACH(l_net->pub.chains, l_chain ) l_chain->is_datum_pool_proc = true;
+                log_it(L_INFO,"Root master node role established");
+            } break;
+            case ROOT:{
+                // Set to process only zerochain
+                dap_chain_id_t l_chain_id = {{0}};
+                dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
+                l_chain->is_datum_pool_proc = true;
+                log_it(L_INFO,"Root node role established");
+            } break;
+            case CELL_MASTER:
+            case MASTER:{
+                // Set to process only plasma chain (id 0x0000000000000001 )
+                dap_chain_id_t l_chain_id = { .raw = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x01} };
+                dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
+                l_chain->is_datum_pool_proc = true;
+
+                log_it(L_INFO,"Master node role established");
+            } break;
+            case FULL:{
+                log_it(L_INFO,"Full node role established");
+            } break;
+            case LIGHT:
+            default:
+                log_it(L_INFO,"Light node role established");
+
+        }
 
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
@@ -288,6 +311,11 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
         return NULL;
 }
 
+/**
+ * @brief dap_chain_net_id_by_name
+ * @param a_name
+ * @return
+ */
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name( a_name );
@@ -295,4 +323,9 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
     if (l_net)
         l_ret.uint64 = l_net->pub.id.uint64;
     return l_ret;
+}
+
+void dap_chain_net_proc_datapool (dap_chain_net_t * a_net)
+{
+
 }

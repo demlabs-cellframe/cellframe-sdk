@@ -4,7 +4,6 @@ project (dap_chain_net)
 set(DAP_CHAIN_NET_SRCS 
 	dap_chain_net.c 
         dap_chain_node.c
-        dap_chain_node_ctl.c
         dap_chain_node_cli.c
         dap_chain_node_cli_cmd.c
         dap_chain_node_client.c
@@ -14,7 +13,6 @@ set(DAP_CHAIN_NET_SRCS
 set(DAP_CHAIN_NET_HEADERS
         dap_chain_net.h
         dap_chain_node.h
-        dap_chain_node_ctl.h
         dap_chain_node_cli.h
         dap_chain_node_cli_cmd.h
         dap_chain_node_client.h
