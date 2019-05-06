@@ -92,6 +92,8 @@ typedef struct dap_chain dap_chain_t;
 typedef struct dap_chain_datum_iter{
     dap_chain_t * chain;
     dap_chain_datum_t * cur;
+    void * cur_item;
+    void * atom_iter;
 } dap_chain_datum_iter_t;
 
 typedef dap_chain_datum_iter_t* (*dap_chain_datum_callback_iter_create_t)(dap_chain_t * );

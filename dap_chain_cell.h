@@ -39,10 +39,38 @@ typedef struct dap_chain_cell {
     FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
     uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
 
-
-
     UT_hash_handle hh;
 } dap_chain_cell_t;
+
+/**
+ *
+ */
+#define DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE 32
+typedef struct dap_chain_cell_delc_req {
+    dap_chain_addr_t wallet_address;  // Need new wallet address where the hold coins should be directed. Must have undefined cell
+    uint64_t create_ts;
+    union{
+        uint8_t raw[DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE];
+        char str[DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE];
+    } info;
+} DAP_ALIGN_PACKED dap_chain_cell_decl_req_t;
+
+/**
+  * @struct dap_chain_cell_decl
+  * @details New cell declaration
+  *
+  */
+#define DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE 32
+typedef struct dap_chain_cell_decl{
+    dap_chain_cell_decl_req_t request;
+    dap_chain_cell_id_t cell_id;
+    uint64_t accept_ts;
+    union{
+        uint8_t raw[DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE];
+        char str[DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE];
+    } accept_info;
+} DAP_ALIGN_PACKED dap_chain_cell_decl_t;
+
 
 int dap_chain_cell_init(void);
 int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path);

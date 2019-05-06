@@ -99,7 +99,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
                     if ( fread(&l_element_size,1,sizeof(l_element_size),l_cell->file_storage) ==
                          sizeof(l_element_size) ){
                         if ( l_element_size > 0 ){
-                            dap_chain_atom_t * l_element = DAP_NEW_Z_SIZE (dap_chain_atom_t, l_element_size );
+                            dap_chain_atom_ptr_t * l_element = DAP_NEW_Z_SIZE (dap_chain_atom_ptr_t, l_element_size );
                             if ( fread( l_element,1,l_element_size,l_cell->file_storage ) == l_element_size ) {
                                 l_cell->chain->callback_atom_add (a_chain, l_element );
                             }
@@ -156,7 +156,7 @@ int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
     if ( a_cell->file_storage ){
         dap_chain_t * l_chain = a_cell->chain;
         dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create (l_chain);
-        dap_chain_atom_t *l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter);
+        dap_chain_atom_ptr_t *l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter);
         size_t l_atom_size = l_chain->callback_atom_hdr_get_size(l_atom);
         size_t l_total_wrote_bytes = 0;
         while ( l_atom  && l_atom_size){

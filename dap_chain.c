@@ -79,21 +79,7 @@ int dap_chain_init(void)
     // Cell sharding init
     dap_chain_cell_init();
 
-
-    // UTXO model
-    uint16_t l_utxo_flags = 0;
-
-    if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"full" ) == 0  ){
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
-    }else if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"master" ) == 0  ){
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-    }else if (strcmp(dap_config_get_item_str(g_config,"general","node_role"),"root" ) == 0  ){
-        l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-    }
     dap_chain_cs_init();
-    dap_chain_utxo_init(l_utxo_flags);
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
@@ -249,7 +235,7 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
                 return NULL;
 
             }
-            // Read chain nam
+            // Read chain name
             if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL ){
                 log_it (L_ERROR,"Can't read chain net name ",l_chain_id_str);
                 dap_config_close(l_cfg);
@@ -257,7 +243,6 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
             }
 
             l_chain =  dap_chain_create(a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
-
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
                         l_chain_id.uint64 );
