@@ -31,8 +31,8 @@
 
 #define LOG_TAG "chain_net_srv"
 
-size_t m_uid_count;
-dap_chain_net_srv_uid_t * m_uid;
+static size_t m_uid_count;
+static dap_chain_net_srv_uid_t * m_uid;
 
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
@@ -136,7 +136,7 @@ dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t *a_uid)
  * @brief dap_chain_net_srv_count
  * @return
  */
-const size_t dap_chain_net_srv_count(void)
+ size_t dap_chain_net_srv_count(void)
 {
     size_t l_count = 0;
     service_list_t *l_sdata, *l_sdata_tmp;
