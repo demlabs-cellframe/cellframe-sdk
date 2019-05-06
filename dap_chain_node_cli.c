@@ -413,6 +413,7 @@ void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, 
     snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
     l_cmd_item->doc = strdup( a_doc);
     l_cmd_item->doc_ex = strdup( a_doc_ex);
+    l_cmd_item->func = a_func;
     HASH_ADD_STR(s_commands,name,l_cmd_item);
     log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
 }

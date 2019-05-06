@@ -142,6 +142,22 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
             PVT(ret)->node_role.enums = ROOT;
             log_it (L_NOTICE, "Node role \"root\" selected");
         }
+        else if(strcmp(a_node_role, "master") == 0) {
+            PVT(ret)->node_role.enums = MASTER;
+            log_it(L_NOTICE, "Node role \"root\" selected");
+        }
+        else if(strcmp(a_node_role, "archive") == 0) {
+            PVT(ret)->node_role.enums = ARCHIVE;
+            log_it(L_NOTICE, "Node role \"root\" selected");
+        }
+        else if(strcmp(a_node_role, "full") == 0) {
+            PVT(ret)->node_role.enums = FULL;
+            log_it(L_NOTICE, "Node role \"root\" selected");
+        }
+        else if(strcmp(a_node_role, "ligth") == 0) {
+            PVT(ret)->node_role.enums = LIGHT;
+            log_it(L_NOTICE, "Node role \"root\" selected");
+        }
     } else {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
     }
@@ -186,13 +202,17 @@ int dap_chain_net_init()
             case ROOT:
             case ARCHIVE:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+                break;
             case MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
+                break;
             case CELL_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+                break;
             case FULL:
             case LIGHT:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
+                break;
         }
         dap_chain_utxo_init(l_utxo_flags);
 
