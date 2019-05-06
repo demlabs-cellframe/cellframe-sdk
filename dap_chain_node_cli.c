@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 //#include <glib.h>
 
 #ifndef _WIN32
@@ -60,56 +61,8 @@ typedef int SOCKET;
 
 static SOCKET server_sockfd = -1;
 
-static const COMMAND commands[] =
-        {
-            { "global_db", com_global_db, "Work with global database",
-                "global_db node add -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n"
-                        "global_db node del -addr <node address> | -alias <node alias>\n"
-                        "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n"
-                        "global_db node dump\n"
-                        "global_db node dump -addr <node address> | -alias <node alias>\n"
-                        "global_db node get\n"
-                        "global_db node set -addr <node address> | -alias <node alias>\n"
-                        "global_db node remote_set -addr <node address> | -alias <node alias>"
-            },
-            { "node", com_node, "Work with node",
-                "node alias {<node address> | -alias <node alias>}\n"
-                        "node connect {<node address> | -alias <node alias>}\n"
-                        "node handshake {<node address> | -alias <node alias>}" },
-            { "ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
-                "ping [-c <count>] host" },
-            { "traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
-                "traceroute host" },
-            { "tracepath", com_tracepath, "Traces path to a network host along this path",
-                "tracepath host" },
-            { "help", com_help, "Description of command parameters", "" },
-            { "?", com_help, "Synonym for 'help'", "" },
-            { "wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]" },
-            { "token_emit", com_token_emit, "Token emission",
-                "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>" },
-            { "tx_create", com_tx_create, "Make transaction",
-                "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]" },
-            { "tx_cond_create", com_tx_cond_create, "Make cond transaction",
-                "tx_cond_create todo" },
-            { "tx_verify", com_tx_verify, "Verifing transaction",
-                "tx_verify  -wallet <wallet name> [-path <wallet path>]" },
-            { (char *) NULL, (cmdfunc_t *) NULL, (char *) NULL }
-        };
+static dap_chain_node_cmd_item_t * s_commands = NULL;
 
-/**
- *  Look up NAME as the name of a command, and return a pointer to that
- *  command.  Return a NULL pointer if NAME isn't a command name.
- */
-const COMMAND* find_command(const char *name)
-{
-    register int i;
-
-    for(i = 0; commands[i].name; i++)
-        if(strcmp(name, commands[i].name) == 0)
-            return (&commands[i]);
-
-    return ((COMMAND *) NULL);
-}
 
 /**
  * Wait for data
@@ -160,7 +113,7 @@ static bool is_valid_socket(SOCKET sock)
         // feature of disconnection under Unix (QNX)
         // under Windows, with socket closed res = 0, in Unix res = -1
         char buf[2];
-        int res = recv(sock, buf, 1, MSG_PEEK); // MSG_PEEK  The data is treated as unread and the next recv() function shall still return this data.
+        long res = recv(sock, buf, 1, MSG_PEEK); // MSG_PEEK  The data is treated as unread and the next recv() function shall still return this data.
         if(res < 0)
             return false;
         // data in the buffer must be(count_desc>0), but read 0 bytes(res=0)
@@ -176,10 +129,10 @@ static bool is_valid_socket(SOCKET sock)
  * timeout in milliseconds
  * return the number of read bytes (-1 err or -2 timeout)
  */
-int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
+long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
 {
     struct pollfd fds;
-    int res;
+    long res;
     fds.fd = sock;
     fds.events = POLLIN; // | POLLNVAL | POLLHUP | POLLERR | POLLPRI;// | POLLRDNORM;//POLLOUT |
     res = poll(&fds, 1, timeout);
@@ -193,7 +146,7 @@ int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
     //    res = read(sock, (char*) buf, bufsize);
     res = recv(sock, (char*) buf, bufsize, 0); //MSG_WAITALL
     if(res <= 0) { //EINTR=4  ENOENT=2 EINVAL=22 ECONNRESET=254
-        printf("[s_recv] recv()=%d errno=%d\n", res, errno);
+        printf("[s_recv] recv()=%ld errno=%d\n", res, errno);
     }
     return res;
 }
@@ -209,18 +162,18 @@ int s_recv(SOCKET sock, unsigned char *buf, int bufsize, int timeout)
 char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout)
 {
     bool bSuccess = false;
-    int nRecv = 0; // count of bytes received
-    int stop_str_len = (stop_str) ? strlen(stop_str) : 0;
+    long nRecv = 0; // count of bytes received
+    size_t stop_str_len = (stop_str) ? strlen(stop_str) : 0;
     // if there is nothing to look for
     if(!stop_str_len)
         return NULL;
-    int lpszBuffer_len = 256;
-    char *lpszBuffer = calloc(1, lpszBuffer_len);
+    size_t lpszBuffer_len = 256;
+    char *lpszBuffer = DAP_NEW_Z_SIZE(char, lpszBuffer_len);
     // received string will not be larger than MAX_REPLY_LEN
     while(1) //nRecv < MAX_REPLY_LEN)
     {
         // read one byte
-        int ret = s_recv(nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
+        long ret = s_recv(nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
         //int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
         if(ret <= 0)
                 {
@@ -228,13 +181,13 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
         }
         nRecv += ret;
         //printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
-        while((nRecv + 1) >= lpszBuffer_len)
+        while((nRecv + 1) >= (long) lpszBuffer_len)
         {
             lpszBuffer_len *= 2;
             lpszBuffer = (char*) realloc(lpszBuffer, lpszBuffer_len);
         }
         // search for the required string
-        if(nRecv >= stop_str_len) {
+        if(nRecv >=  (long) stop_str_len) {
             // found the required string
             if(!strncasecmp(lpszBuffer + nRecv - stop_str_len, stop_str, stop_str_len)) {
                 bSuccess = true;
@@ -246,16 +199,16 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
     if(bSuccess) {
         // delete the searched string
         if(del_stop_str) {
-            lpszBuffer[nRecv - stop_str_len] = '\0';
+            lpszBuffer[nRecv -  (long) stop_str_len] = '\0';
             if(dwLen)
-                *dwLen = nRecv - stop_str_len;
+                *dwLen =(int) nRecv - (int) stop_str_len;
         }
         else {
             lpszBuffer[nRecv] = '\0';
             if(dwLen)
-                *dwLen = nRecv;
+                *dwLen = (int) nRecv;
         }
-        lpszBuffer = realloc(lpszBuffer, *dwLen + 1);
+        lpszBuffer = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
         return lpszBuffer;
     }
     // in case of an error or missing string
@@ -322,10 +275,10 @@ static void* thread_one_client_func(void *args)
                 list = dap_list_next(list);
                 // execute command
                 char *str_cmd = dap_strdup_printf("%s", cmd_name);
-                const COMMAND *command = find_command(cmd_name);
+                dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_find(cmd_name);
                 int res = -1;
                 char *str_reply = NULL;
-                if(command)
+                if(l_cmd)
                 {
                     while(list) {
                         str_cmd = dap_strdup_printf("%s;%s", str_cmd, list->data);
@@ -336,8 +289,8 @@ static void* thread_one_client_func(void *args)
 
                     char **argv = dap_strsplit(str_cmd, ";", -1);
                     // Call the command function
-                    if(command && command->func)
-                        res = (*(command->func))(argc, (const char **) argv, &str_reply);
+                    if(l_cmd && l_cmd->func)
+                        res = (*(l_cmd->func))(argc, (const char **) argv, &str_reply);
                     dap_strfreev(argv);
                 }
                 else
@@ -397,6 +350,96 @@ static void* thread_main_func(void *args)
 }
 
 /**
+ * Write text to reply string
+ */
+void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
+{
+    if(str_reply) {
+        if(*str_reply) {
+            assert(!*str_reply);
+            DAP_DELETE(*str_reply);
+            *str_reply = NULL;
+        }
+        va_list args;
+        va_start(args, str);
+        *str_reply = dap_strdup_vprintf(str, args); //*str_reply = dap_strdup(str);
+        va_end(args);
+    }
+}
+
+/**
+ * find option value
+ *
+ * return index of string in argv, or 0 if not found
+ */
+int dap_chain_node_cli_find_option_val(const char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
+{
+    int arg_index = arg_start;
+    const char *arg_string;
+
+    while(arg_index < arg_end)
+    {
+        arg_string = argv[arg_index];
+        // find opt_name
+        if(arg_string && opt_name && !strcmp(arg_string, opt_name)) {
+            // find opt_value
+            if(opt_value) {
+                arg_string = argv[++arg_index];
+                if(arg_string) {
+                    *opt_value = arg_string;
+                    return arg_index;
+                }
+            }
+            else
+                // need only opt_name
+                return arg_index;
+        }
+        arg_index++;
+    }
+    return 0;
+}
+
+/**
+ * @brief s_cmd_item_create
+ * @param a_name
+ * @param func
+ * @param doc
+ * @param doc_ex
+ * @return
+ */
+void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, const char *a_doc, const char *a_doc_ex)
+{
+    dap_chain_node_cmd_item_t *l_cmd_item = DAP_NEW_Z(dap_chain_node_cmd_item_t);
+    snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
+    l_cmd_item->doc = strdup( a_doc);
+    l_cmd_item->doc_ex = strdup( a_doc_ex);
+    HASH_ADD_STR(s_commands,name,l_cmd_item);
+    log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
+}
+
+/**
+ * @brief dap_chain_node_cli_command_get_first
+ * @return
+ */
+dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_get_first()
+{
+    return s_commands;
+}
+
+/**
+ * @brief dap_chain_node_cli_command_find
+ * @param a_name
+ * @return
+ */
+dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
+{
+    dap_chain_node_cmd_item_t *l_cmd_item = NULL;
+    HASH_FIND_STR(s_commands,a_name,l_cmd_item);
+    return l_cmd_item;
+}
+
+
+/**
  * Initialization of the server side of the interaction
  * with the console kelvin-node-cli
  *
@@ -407,9 +450,41 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     struct sockaddr_un server = { AF_UNIX, UNIX_SOCKET_FILE };
     //server.sun_family = AF_UNIX;
     //strcpy(server.sun_path, SOCKET_FILE);
+    dap_chain_node_cli_cmd_item_create ("global_db", com_global_db, "Work with global database",
+                                                   "global_db wallet_info set -addr <wallet address> -cell <cell id> \n"
+                                                   "global_db cells add -cell <cell id> \n"
+                                                   "global_db node add -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n"
+                                                            "global_db node del -addr <node address> | -alias <node alias>\n"
+                                                            "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n"
+                                                            "global_db node dump\n"
+                                                            "global_db node dump -addr <node address> | -alias <node alias>\n"
+                                                            "global_db node get\n"
+                                                            "global_db node set -addr <node address> | -alias <node alias>\n"
+                                                  "global_db node remote_set -addr <node address> | -alias <node alias>");
+    dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
+            "node alias {<node address> | -alias <node alias>}\n"
+                    "node connect {<node address> | -alias <node alias>}\n"
+                    "node handshake {<node address> | -alias <node alias>}");
+    dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
+            "ping [-c <count>] host");
+    dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
+            "traceroute host");
+    dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, "Traces path to a network host along this path",
+            "tracepath host");
+    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters", "");
+    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for 'help'", "");
+    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]");
+    dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
+            "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>");
+    dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
+            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]" );
+    dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
+            "tx_cond_create todo" );
+    dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
+            "tx_verify  -wallet <wallet name> [-path <wallet path>]" );
+
 
     // init client for handshake
-    dap_chain_node_client_init();
 
     SOCKET sockfd;
 

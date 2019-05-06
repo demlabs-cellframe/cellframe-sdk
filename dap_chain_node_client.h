@@ -24,24 +24,27 @@
 #include <pthread.h>
 #include <stdbool.h>
 
+#include "uthash.h"
 #include "dap_client.h"
 #include "dap_chain_node.h"
 
 // connection states
-enum {
+typedef enum dap_chain_node_client_state{
     NODE_CLIENT_STATE_ERROR = -1,
     NODE_CLIENT_STATE_INIT,
-    NODE_CLIENT_STATE_CONNECT,
-    NODE_CLIENT_STATE_CONNECTED,
-    //NODE_CLIENT_STATE_SEND,
-    //NODE_CLIENT_STATE_SENDED,
     NODE_CLIENT_STATE_GET_NODE_ADDR,
     NODE_CLIENT_STATE_SET_NODE_ADDR,
     NODE_CLIENT_STATE_PING,
     NODE_CLIENT_STATE_PONG,
-
+    NODE_CLIENT_STATE_CONNECT,
+    NODE_CLIENT_STATE_CONNECTED,
+    //NODE_CLIENT_STATE_SEND,
+    //NODE_CLIENT_STATE_SENDED,
+    NODE_CLIENT_STATE_SYNC_GDB,
+    NODE_CLIENT_STATE_SYNC_CHAINS,
+    NODE_CLIENT_STATE_STANDBY,
     NODE_CLIENT_STATE_END
-};
+} dap_chain_node_client_state_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 
@@ -49,7 +52,8 @@ typedef void (*dap_chain_node_client_callback_t) (dap_chain_node_client_t *, voi
 
 // state for a client connection
 typedef struct dap_chain_node_client {
-    int state;
+    dap_chain_node_client_state_t state;
+    dap_chain_cell_id_t cell_id;
     dap_client_t *client;
     dap_events_t *events;
 
@@ -58,12 +62,18 @@ typedef struct dap_chain_node_client {
     pthread_mutex_t wait_mutex;
     uint8_t *recv_data;
     size_t recv_data_len;
+
+    // For hash indexing
+    UT_hash_handle hh;
+    dap_chain_node_addr_t remote_node_addr;
+    struct in_addr remote_ipv4;
+    struct in6_addr remote_ipv6;
 } dap_chain_node_client_t;
 
 
 int dap_chain_node_client_init(void);
 
-void dap_chain_node_client_deinit();
+void dap_chain_node_client_deinit(void);
 
 /**
  * Create handshake to server
@@ -92,5 +102,5 @@ int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_clie
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int chain_node_client_wait(dap_chain_node_client_t *client, int waited_state, int timeout_ms);
+int chain_node_client_wait(dap_chain_node_client_t *client, dap_chain_node_client_state_t waited_state, int timeout_ms);
 

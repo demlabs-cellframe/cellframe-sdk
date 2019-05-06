@@ -36,6 +36,7 @@ typedef struct dap_chain_net{
     struct {
         dap_chain_net_id_t id;
         char * name;
+        char * gdb_groups_prefix;
         dap_chain_t * chains; // double-linked list of chains
     } pub;
     uint8_t pvt[];
@@ -49,6 +50,7 @@ dap_chain_net_t * dap_chain_net_new (const char * a_id,  const char * a_name,
 
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
+void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
