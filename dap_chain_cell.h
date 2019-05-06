@@ -26,35 +26,15 @@
 #include <stdio.h>
 #include "uthash.h"
 #include "dap_chain_common.h"
+
 typedef struct dap_chain dap_chain_t;
-
-#define DAP_CHAIN_CELL_FILE_VERSION 1
-#define DAP_CHAIN_CELL_FILE_SIGNATURE 0xfa340bef153eba48
-#define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
-#define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
-
-
-/**
-  * @struct dap_chain_cell_file_header
-  */
-typedef struct dap_chain_cell_file_header
-{
-    uint64_t signature;
-    uint32_t version;
-    uint8_t type;
-    dap_chain_id_t chain_id;
-    dap_chain_net_id_t chain_net_id;
-    dap_chain_cell_id_t cell_id;
-} DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
 
 typedef struct dap_chain_cell dap_chain_cell_t;
 
-
-
-
 typedef struct dap_chain_cell {
-    dap_chain_t * chain;
     dap_chain_cell_id_t id;
+    dap_chain_t * chain;
+
     char * file_storage_path;
     FILE * file_storage; /// @param file_cache @brief Cache for raw blocks
     uint8_t file_storage_type; /// @param file_storage_type  @brief Is file_storage is raw, compressed or smth else
@@ -62,5 +42,36 @@ typedef struct dap_chain_cell {
     UT_hash_handle hh;
 } dap_chain_cell_t;
 
-int dap_chain_cell_load_file ( dap_chain_cell_t * a_cell, const char * a_cell_file_path );
-int dap_chain_cell_save_file ( dap_chain_cell_t * a_cell, const char * a_cell_file_path);
+/**
+ *
+ */
+#define DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE 32
+typedef struct dap_chain_cell_delc_req {
+    dap_chain_addr_t wallet_address;  // Need new wallet address where the hold coins should be directed. Must have undefined cell
+    uint64_t create_ts;
+    union{
+        uint8_t raw[DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE];
+        char str[DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE];
+    } info;
+} DAP_ALIGN_PACKED dap_chain_cell_decl_req_t;
+
+/**
+  * @struct dap_chain_cell_decl
+  * @details New cell declaration
+  *
+  */
+#define DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE 32
+typedef struct dap_chain_cell_decl{
+    dap_chain_cell_decl_req_t request;
+    dap_chain_cell_id_t cell_id;
+    uint64_t accept_ts;
+    union{
+        uint8_t raw[DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE];
+        char str[DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE];
+    } accept_info;
+} DAP_ALIGN_PACKED dap_chain_cell_decl_t;
+
+
+int dap_chain_cell_init(void);
+int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path);
+int dap_chain_cell_file_update( dap_chain_cell_t * a_cell);

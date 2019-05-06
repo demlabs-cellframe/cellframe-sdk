@@ -60,10 +60,10 @@ typedef union dap_chain_cell_id{
   */
 typedef union dap_chain_node_role{
     enum {
-        ROOT=0x00,
-        ROOT_DELEGATE=0x01,
+        ROOT_MASTER=0x00,
+        ROOT=0x01,
         ARCHIVE=0x02,
-        SHARD_DELEGATE=0x10,
+        CELL_MASTER=0x10,
         MASTER = 0x20,
         FULL=0xf0,
         LIGHT=0xff } enums;
@@ -79,11 +79,11 @@ typedef union dap_chain_net_id{
 
 typedef union dap_chain_hash_slow{
     uint8_t raw[DAP_CHAIN_HASH_SLOW_SIZE];
-} DAP_ALIGN_PACKED dap_chain_hash_slow_t;
+}  dap_chain_hash_slow_t;
 
 typedef union dap_chain_hash_fast{
     uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
-} DAP_ALIGN_PACKED dap_chain_hash_fast_t;
+} dap_chain_hash_fast_t;
 
 typedef enum dap_chain_hash_kind {
     HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1
@@ -138,6 +138,7 @@ typedef struct dap_chain_addr{
         } key_sv;
         uint8_t key[sizeof(dap_chain_hash_fast_t)];
         uint8_t hash[sizeof(dap_chain_hash_fast_t)];
+        dap_chain_hash_fast_t hash_fast;
     } data;
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;

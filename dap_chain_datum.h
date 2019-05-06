@@ -92,6 +92,8 @@ typedef struct dap_chain dap_chain_t;
 typedef struct dap_chain_datum_iter{
     dap_chain_t * chain;
     dap_chain_datum_t * cur;
+    void * cur_item;
+    void * atom_iter;
 } dap_chain_datum_iter_t;
 
 typedef dap_chain_datum_iter_t* (*dap_chain_datum_callback_iter_create_t)(dap_chain_t * );
@@ -100,6 +102,11 @@ typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_next_t)(dap_chain
 typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *  );
 
 
-size_t dap_chain_datum_data_size(dap_chain_datum_t * a_datum);
+static inline size_t dap_chain_datum_size(dap_chain_datum_t * a_datum)
+{
+    if(!a_datum)
+        return 0;
+    return  sizeof(a_datum->header) + a_datum->header.data_size;
+}
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
