@@ -35,14 +35,15 @@
 
 /**
  * @brief dap_chain_cs_dag_event_new
- * @param a_dag
+ * @param a_chain_id
+ * @param a_cell_id
  * @param a_datum
  * @param a_key
  * @param a_hashes
  * @param a_hashes_count
  * @return
  */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_datum_t * a_datum
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum
                                                 ,dap_enc_key_t * a_key ,
                                                 dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
 {
@@ -55,7 +56,9 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_datum_t * a_datu
     l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t,
                                                          l_event_size
                                                          );
-    l_event_new->header.timestamp = (uint64_t) timegm(NULL);
+    l_event_new->header.ts_created = (uint64_t) timegm(NULL);
+    l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
+    l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
     memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
     memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
 

@@ -33,7 +33,9 @@ typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef struct dap_chain_class_dag_event_hdr {
         uint16_t version;
-        uint64_t timestamp;
+        uint64_t ts_created;
+        dap_chain_id_t chain_id;
+        dap_chain_cell_id_t cell_id; // Cell id if celled dag
         uint16_t hash_count; // Number of hashes
         uint16_t signs_count; // Number of signs nested with event
 } DAP_ALIGN_PACKED dap_chain_class_dag_event_hdr_t;
@@ -44,7 +46,7 @@ typedef struct dap_chain_cs_dag_event {
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_t;
 
 
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_datum_t * a_datum,
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum,
                                                 dap_enc_key_t * a_key,
                                                 dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
 
@@ -84,6 +86,11 @@ static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *
     return sizeof( a_event->header ) + l_hashes_size +l_signs_offset +l_datum_size;
 }
 
+/**
+ * @brief dap_chain_cs_dag_event_calc_size_excl_signs
+ * @param a_event
+ * @return
+ */
 static inline size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t * a_event)
 {
     size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);

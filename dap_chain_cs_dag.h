@@ -30,12 +30,23 @@ typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
 typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *);
 
+typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(dap_chain_cs_dag_t *,
+                                                                               dap_chain_cell_id_t,
+                                                                               dap_chain_datum_t *,
+                                                                               dap_chain_hash_fast_t *,
+                                                                               size_t);
+
 typedef struct dap_chain_cs_dag
 {
     dap_chain_t * chain;
     bool is_single_line;
+    bool is_celled;
+
+    uint16_t datum_add_hashes_count;
+    char * events_round_new_gdb_group;
+
     dap_chain_cs_dag_callback_t callback_delete;
-    dap_chain_cs_dag_callback_event_t callback_cs_input;
+    dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
     dap_chain_cs_dag_callback_event_t callback_cs_verify;
 
     void * _pvt;
@@ -51,3 +62,5 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);
 
 void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag);
+dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag,
+                                                              dap_chain_hash_fast_t * a_hash);
