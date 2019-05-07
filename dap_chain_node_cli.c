@@ -298,7 +298,7 @@ static void* thread_one_client_func(void *args)
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
                     log_it(L_ERROR, str_reply);
                 }
-                char *reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                char *reply_body = dap_strdup_printf("ret_code: %d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
                 // return the result of the command function
                 char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
                         strlen(reply_body), reply_body);
@@ -472,8 +472,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "traceroute host\n");
     dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, "Traces path to a network host along this path",
             "tracepath host\n");
-    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters\n", "");
-    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for 'help'\n", "");
+    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters",
+                                        "help [<command>]\n"
+                                        "\tObtain help for <command> or get the total list of the commands\n"
+                                        );
+    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for \"help\"",
+                                        "? [<command>]\n"
+                                        "\tObtain help for <command> or get the total list of the commands\n"
+                                        );
     dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]\n");
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
             "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>\n");

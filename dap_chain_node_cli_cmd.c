@@ -1272,15 +1272,12 @@ int com_help(int argc, const char ** argv, char **str_reply)
         dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_get_first();
         dap_string_printf(l_help_list_str,"");
         while (l_cmd ){
-            dap_string_append_printf(l_help_list_str,"\t\t--== %s ==-- \n\n %s \n",
-                                     l_cmd->doc? l_cmd->doc : l_cmd->name,
-                                     l_cmd->doc_ex ? l_cmd->doc_ex : "");
+            dap_string_append_printf(l_help_list_str,"%s:\t\t\t%s\n",
+                                     l_cmd->name, l_cmd->doc? l_cmd->doc: "(undocumented command)");
             l_cmd = (dap_chain_node_cmd_item_t*) l_cmd->hh.next;
         }
         dap_chain_node_cli_set_reply_text(str_reply,
-                                          "help <cmd name>\n"
-                                          "\t<cmd name> Command for help\n"
-                                          "%s\n",l_help_list_str->len? l_help_list_str->str : "");
+                                          "Available commands:\n\n%s\n", l_help_list_str->len? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
         return 0;
     }
     return -1;
