@@ -770,7 +770,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
         cmd_num = CMD_SET;
     }
     else if((arg_index_n = dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "remote_set",
-            NULL)) != 0) {
+    NULL)) != 0) {
         cmd_num = CMD_REMOTE_SET;
     }
     if(cmd_num == CMD_NONE) {
@@ -1278,28 +1278,29 @@ int com_ping(int argc, const char** argv, char **str_reply)
 int com_help(int argc, const char ** argv, char **str_reply)
 {
     if(argc > 1) {
-        log_it (L_DEBUG,"Help for command %s",argv[1]);
+        log_it(L_DEBUG, "Help for command %s", argv[1]);
         dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_find(argv[1]);
         if(l_cmd) {
             dap_chain_node_cli_set_reply_text(str_reply, "%s:\n%s", l_cmd->doc, l_cmd->doc_ex);
             return 0;
-        }else {
+        } else {
             dap_chain_node_cli_set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
             return -1;
         }
     } else {
         // TODO Read list of commands & return it
-        log_it (L_DEBUG,"General help requested");
+        log_it(L_DEBUG, "General help requested");
         dap_string_t * l_help_list_str = dap_string_new(NULL);
         dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_get_first();
-        dap_string_printf(l_help_list_str,"");
-        while (l_cmd ){
-            dap_string_append_printf(l_help_list_str,"%s:\t\t\t%s\n",
-                                     l_cmd->name, l_cmd->doc? l_cmd->doc: "(undocumented command)");
+        dap_string_printf(l_help_list_str, "");
+        while(l_cmd) {
+            dap_string_append_printf(l_help_list_str, "%s:\t\t\t%s\n",
+                    l_cmd->name, l_cmd->doc ? l_cmd->doc : "(undocumented command)");
             l_cmd = (dap_chain_node_cmd_item_t*) l_cmd->hh.next;
         }
         dap_chain_node_cli_set_reply_text(str_reply,
-                                          "Available commands:\n\n%s\n", l_help_list_str->len? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
+                "Available commands:\n\n%s\n",
+                l_help_list_str->len ? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
         return 0;
     }
     return -1;
@@ -1315,13 +1316,16 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
     const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
     // Get address of wallet
     enum {
-        CMD_NONE, CMD_WALLET_LIST, CMD_WALLET_INFO
+        CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     const char *cmd_str = NULL;
     // find  add parameter ('alias' or 'handshake')
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", NULL)) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "new", NULL)) {
+        cmd_num = CMD_WALLET_NEW;
+    }
+    else if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", NULL)) {
         cmd_num = CMD_WALLET_LIST;
     }
     else if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "info", NULL)) {
@@ -1330,7 +1334,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
     arg_index++;
     if(cmd_num == CMD_NONE) {
         dap_chain_node_cli_set_reply_text(str_reply,
-                "format of command: wallet [list | info -addr <addr> -w <wallet_name>]");
+                "format of command: wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name>]");
         return -1;
     }
 
@@ -1343,7 +1347,30 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
 
     dap_string_t *l_string_ret = dap_string_new(NULL);
     switch (cmd_num) {
-    // wallet list
+    // new wallet
+    case CMD_WALLET_NEW: {
+        if(!wallet_name) {
+            dap_chain_node_cli_set_reply_text(str_reply,
+                    "wallet name option <-w>  not defined");
+            return -1;
+        }
+        dap_chain_sign_type_t l_sign_type = { SIG_TYPE_TESLA };
+        dap_chain_net_id_t l_net_id = { 0x1 };
+        // Creates new wallet
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(wallet_name, c_wallets_path, l_net_id, l_sign_type);
+        dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+        if(!l_wallet || !l_addr) {
+            dap_chain_node_cli_set_reply_text(str_reply, "wallet is not created");
+            return -1;
+        }
+        char *l_addr_str = dap_chain_addr_to_str(l_addr);
+        dap_string_append_printf(l_string_ret, "wallet '%s' successfully created\n", l_wallet->name);
+        dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
+        DAP_DELETE(l_addr_str);
+        dap_chain_wallet_close(l_wallet);
+    }
+        break;
+        // wallet list
     case CMD_WALLET_LIST: {
         GDir *l_dir = g_dir_open(c_wallets_path, 0, NULL);
         if(l_dir) {
@@ -1447,7 +1474,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     const char * l_certs_str = NULL;
 
     dap_chain_cert_t ** l_certs = NULL;
-    size_t l_certs_size = 0;
+    size_t l_certs_count = 0;
 
     // Wallet address that recieves the emission
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "certs", &l_certs_str);
@@ -1487,20 +1514,14 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     char * l_certs_tmp_ptrs = NULL;
     char * l_certs_str_dup = strdup(l_certs_str);
     char *l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
-    //debug
-/*    {
-        dap_chain_cert_t *l_cert1 = dap_chain_cert_generate("cert_b","/tmp/cert_b.dcert",DAP_ENC_KEY_TYPE_SIG_BLISS);
-        dap_chain_cert_t *l_cert2 = dap_chain_cert_generate("cert_p","/tmp/cert_p.dcert",DAP_ENC_KEY_TYPE_SIG_PICNIC);
-        dap_chain_cert_t *l_cert3 = dap_chain_cert_generate("cert_t","/tmp/cert_t.dcert",DAP_ENC_KEY_TYPE_SIG_TESLA);
-    }*/
 
     // First we just calc items
     while(l_cert_str) {
         l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
-        l_certs_size++;
+        l_certs_count++;
     }
     // init certs array
-    l_certs = DAP_NEW_Z_SIZE(dap_chain_cert_t*, l_certs_size);
+    l_certs = DAP_NEW_Z_SIZE(dap_chain_cert_t*, l_certs_count * sizeof(dap_chain_cert_t));
 
     // Second pass we parse them all
     strcpy(l_certs_str_dup, l_certs_str);
@@ -1525,7 +1546,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     }
     free(l_certs_str_dup);
 
-    if(!l_certs_size) {
+    if(!l_certs_count) {
         dap_chain_node_cli_set_reply_text(str_reply,
                 "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
         return -5;
@@ -1582,7 +1603,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
 
     // Sign all that we have with certs
-    for(size_t i = 0; i < l_certs_size; i++) {
+    for(size_t i = 0; i < l_certs_count; i++) {
         if(dap_chain_datum_tx_add_sign_item(&l_tx, l_certs[i]->enc_key) < 0) {
             dap_chain_node_cli_set_reply_text(str_reply, "No private key for certificate=%s",
                     l_certs[i]->name);
@@ -1605,7 +1626,6 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     DAP_DELETE(l_tx);
-
 
     // Add to mempool emission token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_tx, l_datum_tx_size

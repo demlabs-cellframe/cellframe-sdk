@@ -480,7 +480,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]\n");
+    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
+            "wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name>]\n");
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
             "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>\n");
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
