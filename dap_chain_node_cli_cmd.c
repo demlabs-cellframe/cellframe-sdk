@@ -1278,19 +1278,30 @@ int com_ping(int argc, const char** argv, char **str_reply)
 int com_help(int argc, const char ** argv, char **str_reply)
 {
     if(argc > 1) {
+        log_it (L_DEBUG,"Help for command %s",argv[1]);
         dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_find(argv[1]);
         if(l_cmd) {
             dap_chain_node_cli_set_reply_text(str_reply, "%s:\n%s", l_cmd->doc, l_cmd->doc_ex);
-            return 1;
+            return 0;
+        }else {
+            dap_chain_node_cli_set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
+            return -1;
         }
-        dap_chain_node_cli_set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
-        return -1;
-    }
-    else {
+    } else {
         // TODO Read list of commands & return it
+        log_it (L_DEBUG,"General help requested");
+        dap_string_t * l_help_list_str = dap_string_new(NULL);
+        dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_get_first();
+        dap_string_printf(l_help_list_str,"");
+        while (l_cmd ){
+            dap_string_append_printf(l_help_list_str,"%s:\t\t\t%s\n",
+                                     l_cmd->name, l_cmd->doc? l_cmd->doc: "(undocumented command)");
+            l_cmd = (dap_chain_node_cmd_item_t*) l_cmd->hh.next;
+        }
+        dap_chain_node_cli_set_reply_text(str_reply,
+                                          "Available commands:\n\n%s\n", l_help_list_str->len? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
+        return 0;
     }
-    if(str_reply)
-        dap_chain_node_cli_set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
     return -1;
 }
 
