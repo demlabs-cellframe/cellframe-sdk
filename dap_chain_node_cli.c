@@ -278,8 +278,7 @@ static void* thread_one_client_func(void *args)
                 dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_find(cmd_name);
                 int res = -1;
                 char *str_reply = NULL;
-                if(l_cmd)
-                {
+                if(l_cmd){
                     while(list) {
                         str_cmd = dap_strdup_printf("%s;%s", str_cmd, list->data);
                         list = dap_list_next(list);
@@ -291,10 +290,11 @@ static void* thread_one_client_func(void *args)
                     // Call the command function
                     if(l_cmd && l_cmd->func)
                         res = (*(l_cmd->func))(argc, (const char **) argv, &str_reply);
+                    else {
+                        log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd);
+                    }
                     dap_strfreev(argv);
-                }
-                else
-                {
+                } else {
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
                     log_it(L_ERROR, str_reply);
                 }
@@ -413,6 +413,7 @@ void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, 
     snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
     l_cmd_item->doc = strdup( a_doc);
     l_cmd_item->doc_ex = strdup( a_doc_ex);
+    l_cmd_item->func = a_func;
     HASH_ADD_STR(s_commands,name,l_cmd_item);
     log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
 }
@@ -451,37 +452,37 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     //server.sun_family = AF_UNIX;
     //strcpy(server.sun_path, SOCKET_FILE);
     dap_chain_node_cli_cmd_item_create ("global_db", com_global_db, "Work with global database",
-                                                   "global_db wallet_info set -addr <wallet address> -cell <cell id> \n"
-                                                   "global_db cells add -cell <cell id> \n"
-                                                   "global_db node add -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n"
-                                                            "global_db node del -addr <node address> | -alias <node alias>\n"
-                                                            "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n"
-                                                            "global_db node dump\n"
-                                                            "global_db node dump -addr <node address> | -alias <node alias>\n"
-                                                            "global_db node get\n"
-                                                            "global_db node set -addr <node address> | -alias <node alias>\n"
-                                                  "global_db node remote_set -addr <node address> | -alias <node alias>");
+                                                   "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
+                                                   "global_db cells add -cell <cell id> \n\n"
+                                                   "global_db node add -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+                                                            "global_db node del -addr <node address> | -alias <node alias>\n\n"
+                                                            "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+                                                            "global_db node dump\n\n"
+                                                            "global_db node dump -addr <node address> | -alias <node alias>\n\n"
+                                                            "global_db node get\n\n"
+                                                            "global_db node set -addr <node address> | -alias <node alias>\n\n"
+                                                  "global_db node remote_set -addr <node address> | -alias <node alias>\n");
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
-            "node alias {<node address> | -alias <node alias>}\n"
-                    "node connect {<node address> | -alias <node alias>}\n"
-                    "node handshake {<node address> | -alias <node alias>}");
+            "node alias {<node address> | -alias <node alias>}\n\n"
+                    "node connect {<node address> | -alias <node alias>}\n\n"
+                    "node handshake {<node address> | -alias <node alias>}\n");
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
-            "ping [-c <count>] host");
+            "ping [-c <count>] host\n");
     dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
-            "traceroute host");
+            "traceroute host\n");
     dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, "Traces path to a network host along this path",
-            "tracepath host");
-    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters", "");
-    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for 'help'", "");
-    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]");
+            "tracepath host\n");
+    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters\n", "");
+    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for 'help'\n", "");
+    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]\n");
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>");
+            "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>\n");
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]" );
+            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-            "tx_cond_create todo" );
+            "tx_cond_create todo\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
-            "tx_verify  -wallet <wallet name> [-path <wallet path>]" );
+            "tx_verify  -wallet <wallet name> [-path <wallet path>]\n" );
 
 
     // init client for handshake
