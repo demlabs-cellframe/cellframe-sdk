@@ -25,6 +25,7 @@
 #include "dap_chain_sign.h"
 
 // Token declaration
+
 typedef struct dap_chain_datum_token{
     struct {
         uint16_t version;
@@ -34,6 +35,7 @@ typedef struct dap_chain_datum_token{
         uint16_t signs_total; // Emission auth signs
     } DAP_ALIGN_PACKED header;
     uint8_t signs[]; // Signs if exists
+
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 // Token emission
@@ -45,10 +47,3 @@ typedef struct dap_chain_datum_token_emission{
     uint8_t signs[]; // Signs if exists
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 
-
-//
-
-dap_chain_sign_t * dap_chain_datum_token_get_sign( dap_chain_datum_token_t * a_token, size_t a_token_size_max, uint16_t a_sign_number);
-
-dap_chain_datum_token_t* dap_chain_datum_token_find_by_ticker(const char a_ticker[10] );
-dap_chain_datum_token_t* dap_chain_datum_token_find_by_hash(dap_chain_hash_fast_t * a_hash );
