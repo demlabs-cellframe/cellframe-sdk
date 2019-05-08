@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include "uthash.h"
 #include "utlist.h"
@@ -72,6 +73,60 @@ int dap_chain_cert_init()
 {
     return 0;
 }
+
+/**
+ * @brief dap_chain_cert_parse_str_list
+ * @param a_certs_str
+ * @param a_certs
+ * @param a_certs_size_t
+ * @return summary size for signatures of all certs in list
+ */
+size_t dap_chain_cert_parse_str_list(const char * a_certs_str, dap_chain_cert_t *** a_certs, size_t * a_certs_size)
+{
+    char * l_certs_tmp_ptrs = NULL;
+    char * l_certs_str_dup = strdup(a_certs_str);
+    char *l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
+
+    // First we just calc items
+    while(l_cert_str) {
+        l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
+        (*a_certs_size)++;
+    }
+    // init certs array
+    dap_chain_cert_t **l_certs;
+    *a_certs = l_certs =  DAP_NEW_Z_SIZE(dap_chain_cert_t*, (*a_certs_size) );
+
+    // Second pass we parse them all
+    strcpy(l_certs_str_dup, a_certs_str);
+    l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
+
+    size_t l_certs_pos = 0;
+    size_t l_sign_total_size =0;
+    while(l_cert_str) {
+
+        // trim token whitespace
+        if(isspace(l_cert_str[0]))
+            l_cert_str = l_cert_str + 1;
+        if(isspace(l_cert_str[strlen(l_cert_str) - 1]))
+            l_cert_str[strlen(l_cert_str) - 1] = 0;
+        l_certs[l_certs_pos] = dap_chain_cert_find_by_name(l_cert_str);
+        if(l_certs[l_certs_pos]) {
+            l_sign_total_size += dap_chain_cert_sign_output_size(l_certs[l_certs_pos],0);
+            l_certs_pos++;
+        } else {
+            log_it(L_WARNING,"Can't load cert %s",l_cert_str);
+            DAP_DELETE(*a_certs);
+            *a_certs = NULL;
+            *a_certs_size = 0;
+            break;
+        }
+        l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
+    }
+    free(l_certs_str_dup);
+    return  l_sign_total_size;
+}
+
+
 
 /**
  * @brief dap_chain_cert_sign_output_size

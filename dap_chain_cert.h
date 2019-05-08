@@ -44,6 +44,7 @@ int dap_chain_cert_init();
 
 dap_chain_cert_t * dap_chain_cert_new(const char * a_name);
 
+size_t dap_chain_cert_parse_str_list(const char * a_certs_str, dap_chain_cert_t *** a_certs, size_t * a_certs_size);
 
 dap_chain_cert_t * dap_chain_cert_generate(const char * a_cert_name,const char * a_file_path,dap_enc_key_type_t a_key_type );
 
