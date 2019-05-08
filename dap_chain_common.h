@@ -85,9 +85,9 @@ typedef union dap_chain_hash_fast{
     uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
 } dap_chain_hash_fast_t;
 
-typedef enum dap_chain_hash_kind {
+typedef enum dap_chain_hash_slow_kind {
     HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1
-} dap_chain_hash_kind_t;
+} dap_chain_hash_slow_kind_t;
 
 typedef union dap_chain_pkey_type{
     enum {
@@ -143,7 +143,7 @@ typedef struct dap_chain_addr{
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
-size_t dap_chain_hash_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
+size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
@@ -160,11 +160,11 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
  * @param a_hash
  * @return
  */
-static inline char * dap_chain_hash_to_str_new(dap_chain_hash_slow_t * a_hash)
+static inline char * dap_chain_hash_slow_to_str_new(dap_chain_hash_slow_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
-    dap_chain_hash_to_str(a_hash,ret,c_hash_str_size);
+    dap_chain_hash_slow_to_str(a_hash,ret,c_hash_str_size);
     return ret;
 }
 
@@ -181,7 +181,7 @@ static inline char * dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_ha
  * @param a_hash
  * @details
  */
-static inline dap_chain_hash_kind_t dap_chain_hash_kind_check(dap_chain_hash_slow_t * a_hash, const uint8_t a_valuable_head  )
+static inline dap_chain_hash_slow_kind_t dap_chain_hash_slow_kind_check(dap_chain_hash_slow_t * a_hash, const uint8_t a_valuable_head  )
 {
     register uint8_t i;
     register uint8_t l_hash_first = a_hash->raw[0];

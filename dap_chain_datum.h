@@ -57,7 +57,7 @@
 
 
 /// Token
-#define DAP_CHAIN_DATUM_TOKEN                0xf000
+#define DAP_CHAIN_DATUM_TOKEN_DECL                0xf000
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
 
 

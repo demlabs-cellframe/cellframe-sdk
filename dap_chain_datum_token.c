@@ -25,23 +25,3 @@
 #include <string.h>
 #include "dap_chain_datum_token.h"
 
-/**
- * @brief dap_chain_datum_token_register
- * @param a_token
- */
-void dap_chain_datum_token_register(dap_chain_datum_token_t * a_token)
-{
-
-}
-
-/**
- * @brief dap_chain_datum_token_get_sign
- * @param a_token
- * @param a_token_size_max
- * @param a_sign_number
- * @return
- */
-dap_chain_sign_t * dap_chain_datum_token_get_sign( dap_chain_datum_token_t * a_token, size_t a_token_size_max, uint16_t a_sign_number);
-
-dap_chain_datum_token_t* dap_chain_datum_token_find_by_ticker(const char a_ticker[10] );
-dap_chain_datum_token_t* dap_chain_datum_token_find_by_hash(dap_chain_hash_fast_t * a_hash );
