@@ -452,6 +452,54 @@ void *memzero(void *a_buf, size_t n)
     return a_buf;
 }
 
+/**
+ * Convert binary data to binhex encoded data.
+ *
+ * out output buffer, must be twice the number of bytes to encode.
+ * len is the size of the data in the in[] buffer to encode.
+ * return the number of bytes encoded, or -1 on error.
+ */
+size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len)
+{
+    size_t ct = a_len;
+    static char hex[] = "0123456789ABCDEF";
+    const uint8_t *l_in = (const uint8_t *)a_in;
+    if(!a_in || !a_out )
+        return 0;
+    // hexadecimal lookup table
+    while(ct-- > 0){
+        *a_out++ = hex[*l_in >> 4];
+        *a_out++ = hex[*l_in++ & 0x0F];
+    }
+    return a_len;
+}
+
+/**
+ * Convert binhex encoded data to binary data
+ *
+ * len is the size of the data in the in[] buffer to decode, and must be even.
+ * out outputbuffer must be at least half of "len" in size.
+ * The buffers in[] and out[] can be the same to allow in-place decoding.
+ * return the number of bytes encoded, or 0 on error.
+ */
+size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len)
+{
+    // '0'-'9' = 0x30-0x39
+    // 'a'-'f' = 0x61-0x66
+    // 'A'-'F' = 0x41-0x46
+    size_t ct = a_len;
+    if(!a_in || !a_out || (a_len & 1))
+        return 0;
+    while(ct > 0) {
+        char ch1 = ((*a_in >= 'a') ? (*a_in++ - 'a' + 10) : ((*a_in >= 'A') ? (*a_in++ - 'A' + 10) : (*a_in++ - '0'))) << 4;
+        char ch2 = ((*a_in >= 'a') ? (*a_in++ - 'a' + 10) : ((*a_in >= 'A') ? (*a_in++ - 'A' + 10) : (*a_in++ - '0'))); // ((*in >= 'A') ? (*in++ - 'A' + 10) : (*in++ - '0'));
+        *a_out++ =(uint8_t) ch1 + (uint8_t) ch2;
+        ct -= 2;
+    }
+    return a_len;
+}
+
+
 #ifdef __MINGW32__
 /*!
  * \brief Execute shell command silently

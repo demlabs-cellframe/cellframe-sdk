@@ -25,6 +25,8 @@
 #pragma once
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -78,6 +80,10 @@ char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
 void *memzero(void *mem, size_t n);
 void dap_dump_hex(const void* data, size_t size);
+
+size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len);
+size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len);
+
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
