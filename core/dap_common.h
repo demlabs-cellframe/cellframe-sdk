@@ -83,6 +83,7 @@ void dap_dump_hex(const void* data, size_t size);
 
 size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len);
 size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len);
+void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len);
 
 
 #ifdef __MINGW32__

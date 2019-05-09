@@ -29,6 +29,12 @@
 #ifndef _WIN32
 #include <pthread.h>
 #include <syslog.h>
+
+
+// Quick and dirty, I'm not sure but afair somewhere it was in UNIX systems too
+#define min(a,b) (((a)<(b))?(a):(b))
+#define max(a,b) (((a)>(b))?(a):(b))
+
 #else
 #include <stdlib.h>
 #include <windows.h>
@@ -51,6 +57,7 @@ int pthread_mutex_unlock(HANDLE *obj) {
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include "dap_common.h"
 #define LAST_ERROR_MAX 255
@@ -497,6 +504,26 @@ size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len)
         ct -= 2;
     }
     return a_len;
+}
+
+/**
+ * Convert string to digit
+ */
+void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
+{
+    if(!num_str)
+        return;
+    uint64_t val;
+    if(!strncasecmp(num_str, "0x", 2)) {
+        val = strtoull(num_str + 2, NULL, 16);
+    }
+    else {
+        val = strtoull(num_str, NULL, 10);
+    }
+    // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
+    val = le64toh(val);
+    memset(raw, 0, raw_len);
+    memcpy(raw, &val, min(raw_len, sizeof(uint64_t)));
 }
 
 
