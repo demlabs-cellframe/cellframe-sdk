@@ -32,7 +32,7 @@
  *
  * return addr, NULL if not found
  */
-dap_chain_node_addr_t* get_name_by_alias(const char *alias);
+dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(const char *alias);
 
 
 
@@ -73,8 +73,19 @@ int com_ping(int argc, const char** argv, char **str_reply);
 int com_help(int argc, const char ** argv, char **str_reply);
 
 
-int com_token_declare ( int argc, const char ** argv, char ** str_reply);
+/**
+ * Token declaration
+ */
+int com_token_decl ( int argc, const char ** argv, char ** str_reply);
 
+/**
+ * Token declaration add sign
+ */
+int com_token_decl_sign ( int argc, const char ** argv, char ** str_reply);
+
+/**
+ * Token emission
+ */
 int com_token_emit (int argc, const char ** argv, char ** str_reply);
 
 

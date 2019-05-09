@@ -481,8 +481,24 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]\n");
+
+    // Token commands
+    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
+            "token_decl net <net name> chain <chain name> token <token ticker> total_supply <total supply> sign_total <sign total> sign_valid <sign valid> certs <certs list>\n"
+            "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <sign valid> from <sign total> signatures on valid emission\n"
+            "token_decl_sign net <net name> chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "\t Sign existent <datum hash> in mempool with <certs list>\n"
+            );
+
+    dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
+            "token_decl_sign net <net name> chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "\t Sign existent <datum hash> in mempool with <certs list>\n"
+            );
+
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit addr <addr> tokent <token> certs <cert> emission_value <val>\n");
+            "token_emit net <net name> chain_emission <chain for emission> chain_base_tx <chain for base tx> addr <addr> token <token ticker> certs <cert> emission_value <val>\n");
+
+    // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
             "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",

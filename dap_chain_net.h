@@ -24,6 +24,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <string.h>
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 
@@ -53,4 +54,23 @@ void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
+dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
+
+dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
+
+/**
+ * @brief dap_chain_net_get_gdb_group_mempool
+ * @param l_chain
+ * @return
+ */
+static inline char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
+{
+    dap_chain_net_t * l_net = dap_chain_net_by_id(l_chain->net_id);
+    const char c_mempool_group_str[]="mempool";
+    size_t l_ret_size =  strlen( l_net->pub.gdb_groups_prefix ) + 1 +
+            strlen( l_chain->name)+1+strlen(c_mempool_group_str)+1;
+    char * l_ret = DAP_NEW_Z_SIZE(char, l_ret_size);
+    snprintf( l_ret,l_ret_size,"%s.%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+    return l_ret;
+}

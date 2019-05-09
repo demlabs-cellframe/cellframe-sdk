@@ -66,6 +66,7 @@ typedef struct dap_chain_net_pvt{
 
 typedef struct dap_chain_net_item{
     char name [DAP_CHAIN_NET_NAME_MAX];
+    dap_chain_net_id_t net_id;
     dap_chain_net_t * chain_net;
     UT_hash_handle hh;
 } dap_chain_net_item_t;
@@ -74,6 +75,7 @@ typedef struct dap_chain_net_item{
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
 
 static dap_chain_net_item_t * s_net_items = NULL;
+static dap_chain_net_item_t * s_net_items_ids = NULL;
 
 static size_t            s_net_configs_count = 0;
 static pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
@@ -176,7 +178,7 @@ int dap_chain_net_init()
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
         l_net->pub.gdb_groups_prefix = dap_strdup (
-                    dap_config_get_item_str_default(l_cfg , "dag" , "gdb_groups_prefix","" ) );
+                    dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
 
 
         // UTXO model
@@ -270,7 +272,9 @@ int dap_chain_net_init()
         snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
+        l_net_item->net_id.uint64 = l_net->pub.id.uint64;
         HASH_ADD_STR(s_net_items,name,l_net_item);
+        HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item->net_id),l_net_item);
 
         // Start the proc thread
         s_net_proc_start(l_net);
@@ -312,6 +316,23 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
 }
 
 /**
+ * @brief dap_chain_net_by_id
+ * @param a_id
+ * @return
+ */
+dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
+{
+    dap_chain_net_item_t * l_net_item = NULL;
+    HASH_FIND(hh,s_net_items,&a_id,sizeof (a_id), l_net_item );
+    if ( l_net_item )
+        return l_net_item->chain_net;
+    else
+        return NULL;
+
+}
+
+
+/**
  * @brief dap_chain_net_id_by_name
  * @param a_name
  * @return
@@ -324,6 +345,23 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
         l_ret.uint64 = l_net->pub.id.uint64;
     return l_ret;
 }
+
+/**
+ * @brief dap_chain_net_get_chain_by_name
+ * @param l_net
+ * @param a_name
+ * @return
+ */
+dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name)
+{
+   dap_chain_t * l_chain;
+   DL_FOREACH(l_net->pub.chains, l_chain){
+        if(strcmp(l_chain->name,a_name) == 0)
+            return  l_chain;
+   }
+   return NULL;
+}
+
 
 void dap_chain_net_proc_datapool (dap_chain_net_t * a_net)
 {
