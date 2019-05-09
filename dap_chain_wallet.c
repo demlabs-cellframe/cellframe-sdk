@@ -105,7 +105,7 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
  * @param a_wallet
  * @return
  */
-const dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet)
+dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet)
 {
     if(!a_wallet)
         return NULL;
