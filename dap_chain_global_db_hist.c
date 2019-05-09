@@ -214,7 +214,7 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
         }
     }
     // sort list by key (time str)
-    dap_list_sort(l_list, (DapCompareFunc) compare_items);
+    dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
 
     /*/ dbg - sort result
      l_data_size_out = dap_list_length(l_list);
@@ -234,7 +234,7 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
  */
 void dap_db_log_del_list(dap_list_t *a_list)
 {
-    dap_list_free_full(a_list, (DapDestroyNotify) dap_chain_global_db_obj_delete);
+    dap_list_free_full(a_list, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
 }
 
 /**
