@@ -28,14 +28,14 @@
 #include "dap_common.h"
 #include "dap_chain_node_remote.h"
 
-typedef struct dap_chain_utxo_tx_item {
+typedef struct dap_chain_node_link_item {
     dap_chain_node_addr_t address;
     dap_chain_node_client_t *client;
     UT_hash_handle hh;
-} list_linked_item_t;
+} dap_chain_node_link_item_t;
 
 // List of connections
-static list_linked_item_t *conn_list = NULL;
+static dap_chain_node_link_item_t *conn_list = NULL;
 
 // for separate access to connect_list
 static pthread_mutex_t connect_list_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -46,16 +46,16 @@ static pthread_mutex_t connect_list_mutex = PTHREAD_MUTEX_INITIALIZER;
  *
  * return 0 OK, -1 error, -2 already present
  */
-int chain_node_client_list_add(dap_chain_node_addr_t *a_address, dap_chain_node_client_t *a_client)
+int dap_chain_node_client_list_add(dap_chain_node_addr_t *a_address, dap_chain_node_client_t *a_client)
 {
     int l_ret = 0;
     if(!a_address || !a_client)
         return -1;
-    list_linked_item_t *item_tmp = NULL;
+    dap_chain_node_link_item_t *item_tmp = NULL;
     pthread_mutex_lock(&connect_list_mutex);
     HASH_FIND(hh, conn_list, a_address, sizeof(dap_chain_node_addr_t), item_tmp); // address already in the hash?
     if(item_tmp == NULL) {
-        item_tmp = DAP_NEW(list_linked_item_t);
+        item_tmp = DAP_NEW(dap_chain_node_link_item_t);
         item_tmp->address.uint64 = a_address->uint64;
         item_tmp->client = a_client;
         HASH_ADD(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp); // address: name of key field
@@ -79,7 +79,7 @@ int chain_node_client_list_del(dap_chain_node_addr_t *address)
     int ret = -1;
     if(!address)
         return -1;
-    list_linked_item_t *item_tmp;
+    dap_chain_node_link_item_t *item_tmp;
     pthread_mutex_lock(&connect_list_mutex);
     HASH_FIND(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp);
     if(item_tmp != NULL) {
@@ -105,7 +105,7 @@ int chain_node_client_list_del(dap_chain_node_addr_t *address)
 void chain_node_client_list_del_all(void)
 {
     int ret = -1;
-    list_linked_item_t *iter_current, *item_tmp;
+    dap_chain_node_link_item_t *iter_current, *item_tmp;
     pthread_mutex_lock(&connect_list_mutex);
     HASH_ITER(hh, conn_list , iter_current, item_tmp) {
         // close connection
@@ -127,7 +127,7 @@ const dap_chain_node_client_t* chain_node_client_find(dap_chain_node_addr_t *add
     if(!address)
         return NULL;
     dap_chain_node_client_t *client_ret = NULL;
-    list_linked_item_t *item_tmp;
+    dap_chain_node_link_item_t *item_tmp;
     pthread_mutex_lock(&connect_list_mutex);
     HASH_FIND(hh, conn_list, address, sizeof(dap_chain_node_addr_t), item_tmp); // address already in the hash?
     if(item_tmp != NULL) {

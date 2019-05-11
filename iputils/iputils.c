@@ -4,7 +4,6 @@
 
 #include <stdio.h>
 #include <stdbool.h>
-//#include <glib.h>
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 

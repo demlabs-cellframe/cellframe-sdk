@@ -56,7 +56,6 @@
 #include <netinet/ip_icmp.h>
 #include <ifaddrs.h>
 #include <math.h>
-//#include <glib.h>
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 

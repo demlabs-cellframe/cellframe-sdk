@@ -22,17 +22,19 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <glib.h>
 #include <time.h>
-#include <ctype.h> // for isspace()
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include <ctype.h>
+#include <dirent.h>
 
 #include "iputils/iputils.h"
 #include "dap_string.h"
@@ -62,55 +64,11 @@
 #define LOG_TAG "chain_node_cli_cmd"
 
 /**
- * Convert string to digit
- */
-static void digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
-{
-    if(!num_str)
-        return;
-    uint64_t val;
-    if(!strncasecmp(num_str, "0x", 2)) {
-        val = strtoull(num_str + 2, NULL, 16);
-    }
-    else {
-        val = strtoull(num_str, NULL, 10);
-    }
-    // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
-    val = le64toh(val);
-    memset(raw, 0, raw_len);
-    memcpy(raw, &val, min(raw_len, sizeof(uint64_t)));
-}
-
-/**
- * Add alias in base
- */
-static bool add_alias(const char *alias, dap_chain_node_addr_t *addr)
-{
-    const char *a_key = alias;
-//    char a_value[2 * sizeof(dap_chain_node_addr_t) + 1];
-//    if(bin2hex(a_value, (const unsigned char *) addr, sizeof(dap_chain_node_addr_t)) == -1)
-//        return false;
-//    a_value[2 * sizeof(dap_chain_node_addr_t)] = '\0';
-    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t*) addr, sizeof(dap_chain_node_addr_t), GROUP_ALIAS);
-    return res;
-}
-
-/**
- * Delete alias from base
- */
-static bool del_alias(const char *alias)
-{
-    const char *a_key = alias;
-    bool res = dap_chain_global_db_gr_del(a_key, GROUP_ALIAS);
-    return res;
-}
-
-/**
  * Find in base addr by alias
  *
  * return addr, NULL if not found
  */
-dap_chain_node_addr_t* get_name_by_alias(const char *a_alias)
+dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(const char *a_alias)
 {
     dap_chain_node_addr_t *l_addr = NULL;
     if(!a_alias)
@@ -173,7 +131,7 @@ static dap_chain_node_addr_t* com_global_db_get_addr(dap_chain_node_info_t *node
 {
     dap_chain_node_addr_t *address = NULL;
     if(alias_str && !addr->uint64) {
-        address = get_name_by_alias(alias_str);
+        address = dap_chain_node_addr_get_by_alias(alias_str);
     }
     if(addr->uint64) {
         address = DAP_NEW(dap_chain_node_addr_t);
@@ -285,7 +243,7 @@ static int com_global_db_add(dap_chain_node_info_t *node_info, const char *alias
      }*/
     if(alias_str) {
         // add alias
-        if(!add_alias(alias_str, &node_info->hdr.address)) {
+        if(!dap_chain_node_alias_register(alias_str, &node_info->hdr.address)) {
             log_it(L_WARNING, "can't save alias %s", alias_str);
             dap_chain_node_cli_set_reply_text(str_reply, "alias '%s' can't be mapped to addr=0x%lld",
                     alias_str, node_info->hdr.address.uint64);
@@ -342,10 +300,10 @@ static int com_global_db_del(dap_chain_node_info_t *node_info, const char *alias
                 while(list)
                 {
                     const char *alias = (const char *) list->data;
-                    del_alias(alias);
+                    dap_chain_node_alias_delete(alias);
                     list = dap_list_next(list);
                 }
-                dap_list_free_full(list_aliases, (DapDestroyNotify) free);
+                dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
             }
             // set text response
             dap_chain_node_cli_set_reply_text(str_reply, "node deleted");
@@ -536,7 +494,7 @@ static int com_global_db_dump(dap_chain_node_info_t *a_node_info, const char *al
                 dap_string_append_printf(aliases_string, "\nalias %s", alias);
                 list = dap_list_next(list);
             }
-            dap_list_free_full(list_aliases, (DapDestroyNotify) free);
+            dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
         }
         else
             dap_string_append(aliases_string, "\nno aliases");
@@ -796,13 +754,13 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     memset(&node_info, 0, sizeof(dap_chain_node_info_t));
     memset(&link, 0, sizeof(dap_chain_node_addr_t));
     if(addr_str) {
-        digit_from_string(addr_str, node_info.hdr.address.raw, sizeof(node_info.hdr.address.raw));
+        dap_digit_from_string(addr_str, node_info.hdr.address.raw, sizeof(node_info.hdr.address.raw));
     }
     if(cell_str) {
-        digit_from_string(cell_str, node_info.hdr.cell_id.raw, sizeof(node_info.hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+        dap_digit_from_string(cell_str, node_info.hdr.cell_id.raw, sizeof(node_info.hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
     }
     if(link_str) {
-        digit_from_string(link_str, link.raw, sizeof(link.raw));
+        dap_digit_from_string(link_str, link.raw, sizeof(link.raw));
     }
 
     switch (cmd_num)
@@ -887,182 +845,195 @@ int com_node(int argc, const char ** argv, char **str_reply)
     dap_chain_node_addr_t address;
     memset(&address, 0, sizeof(dap_chain_node_addr_t));
     const char *addr_str = NULL, *alias_str = NULL;
+    const char * l_net_str = NULL;
 // find addr, alias
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &addr_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-alias", &alias_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
 
-    digit_from_string(addr_str, address.raw, sizeof(address.raw));
+    dap_digit_from_string(addr_str, address.raw, sizeof(address.raw));
+
+    if( l_net_str == NULL){
+        dap_chain_node_cli_set_reply_text(str_reply, "No -net <net name> option in command %s", argv[1]);
+        return -11;
+    }
+
+    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
+
+    if( l_net == NULL){
+        dap_chain_node_cli_set_reply_text(str_reply, "%s: Can't find such network %s", argv[1], l_net_str);
+        return -12;
+    }
 
     switch (cmd_num)
-    {
-    // add alias
-    case CMD_ALIAS:
-        if(alias_str) {
-            if(addr_str) {
-                // add alias
-                if(!add_alias(alias_str, &address))
-                    log_it(L_WARNING, "can't save alias %s", alias_str);
+        {
+        // add alias
+        case CMD_ALIAS:
+            if(alias_str) {
+                if(addr_str) {
+                    // add alias
+                    if(!dap_chain_node_alias_register(alias_str, &address))
+                        log_it(L_WARNING, "can't save alias %s", alias_str);
+                    else {
+                        dap_chain_node_cli_set_reply_text(str_reply, "alias mapped successfully");
+                    }
+                }
                 else {
-                    dap_chain_node_cli_set_reply_text(str_reply, "alias mapped successfully");
+                    dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -addr is not found");
+                    return -1;
                 }
             }
             else {
-                dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -addr is not found");
+                dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -alias is not found");
                 return -1;
             }
-        }
-        else {
-            dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -alias is not found");
-            return -1;
-        }
 
-        break;
-        // make connect
-    case CMD_CONNECT: {
-        // get address from alias if addr not defined
-        if(alias_str && !address.uint64) {
-            dap_chain_node_addr_t *address_tmp = get_name_by_alias(alias_str);
-            if(address_tmp) {
-                memcpy(&address, address_tmp, sizeof(address_tmp));
-                DAP_DELETE(address_tmp);
+            break;
+            // make connect
+        case CMD_CONNECT: {
+            // get address from alias if addr not defined
+            if(alias_str && !address.uint64) {
+                dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(alias_str);
+                if(address_tmp) {
+                    memcpy(&address, address_tmp, sizeof(address_tmp));
+                    DAP_DELETE(address_tmp);
+                }
+                else {
+                    dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+                    return -1;
+                }
             }
-            else {
-                dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+            if(!address.uint64) {
+                dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
                 return -1;
             }
-        }
-        if(!address.uint64) {
-            dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
-            return -1;
-        }
 
-        // get cur node addr
-        uint64_t l_cur_node_addr = dap_db_get_cur_node_addr(); //0x12345
-        if(!l_cur_node_addr) {
-            dap_chain_node_cli_set_reply_text(str_reply, "node has no address");
-            return -1;
-        }
-
-        dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
-        if(!node_info) {
-            return -1;
-        }
-        // start connect
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
-        if(!client) {
-            dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
-            DAP_DELETE(node_info);
-            return -1;
-        }
-        // wait connected
-        int timeout_ms = 15000; //15 sec = 15000 ms
-        int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
-            // clean client struct
-            dap_chain_node_client_close(client);
-            DAP_DELETE(node_info);
-            return -1;
-        }
-
-        // send request
-        size_t l_data_size_out = 0;
-        // Get last timestamp in log
-        time_t l_timestamp_start = dap_db_log_get_last_timestamp();
-        size_t l_data_send_len = 0;
-        uint8_t *l_data_send = dap_stream_ch_chain_net_make_packet(l_cur_node_addr, node_info->hdr.address.uint64,
-                l_timestamp_start, NULL, 0, &l_data_send_len);
-
-        uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
-        res = dap_chain_node_client_send_chain_net_request(client, l_ch_id,
-        STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_data_send, l_data_send_len); //, NULL);
-        DAP_DELETE(l_data_send);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
-            // clean client struct
-            dap_chain_node_client_close(client);
-            DAP_DELETE(node_info);
-            return -1;
-        }
-
-        // wait for finishing of request
-        timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
-        // TODO add progress info to console
-        res = chain_node_client_wait(client, NODE_CLIENT_STATE_END, timeout_ms);
-        DAP_DELETE(node_info);
-        dap_client_disconnect(client->client);
-        dap_chain_node_client_close(client);
-        switch (res) {
-        case 0:
-            dap_chain_node_cli_set_reply_text(str_reply, "timeout");
-            return -1;
-        case 1:
-            dap_chain_node_cli_set_reply_text(str_reply, "nodes sync completed");
-            return 0;
-        default:
-            dap_chain_node_cli_set_reply_text(str_reply, "error");
-            return -1;
-        }
-
-    }
-        break;
-        // make handshake
-    case CMD_HANDSHAKE: {
-        // get address from alias if addr not defined
-        if(alias_str && !address.uint64) {
-            dap_chain_node_addr_t *address_tmp = get_name_by_alias(alias_str);
-            if(address_tmp) {
-                memcpy(&address, address_tmp, sizeof(address_tmp));
-                DAP_DELETE(address_tmp);
-            }
-            else {
-                dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+            // get cur node addr
+            uint64_t l_cur_node_addr = dap_db_get_cur_node_addr(); //0x12345
+            if(!l_cur_node_addr) {
+                dap_chain_node_cli_set_reply_text(str_reply, "node has no address");
                 return -1;
             }
-        }
-        if(!address.uint64) {
-            dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
-            return -1;
-        }
 
-        dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
-        if(!node_info)
-            return -1;
-        int timeout_ms = 10000; //10 sec = 10000 ms
-        // start handshake
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
-        if(!client) {
-            dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
-            DAP_DELETE(node_info);
-            return -1;
-        }
-        // wait handshake
-        int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
-            // clean client struct
-            dap_chain_node_client_close(client);
-            DAP_DELETE(node_info);
-            return -1;
-        }
-        DAP_DELETE(node_info);
+            dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
+            if(!node_info) {
+                return -1;
+            }
+            // start connect
+            dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+            if(!client) {
+                dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
+                DAP_DELETE(node_info);
+                return -1;
+            }
+            // wait connected
+            int timeout_ms = 15000; //15 sec = 15000 ms
+            int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            if(res != 1) {
+                dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
+                // clean client struct
+                dap_chain_node_client_close(client);
+                DAP_DELETE(node_info);
+                return -1;
+            }
 
-        //Add new established connection in the list
-        int ret = chain_node_client_list_add(&address, client);
-        switch (ret)
-        {
-        case -1:
+            // send request
+            size_t l_data_size_out = 0;
+            // Get last timestamp in log
+            time_t l_timestamp_start = dap_db_log_get_last_timestamp();
+            size_t l_data_send_len = 0;
+            uint8_t *l_data_send = dap_stream_ch_chain_net_make_packet(l_cur_node_addr, node_info->hdr.address.uint64,
+                    l_timestamp_start, NULL, 0, &l_data_send_len);
+
+            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
+            res = dap_chain_node_client_send_chain_net_request(client, l_ch_id,
+                        STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_data_send, l_data_send_len); //, NULL);
+            DAP_DELETE(l_data_send);
+            if(res != 1) {
+                dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
+                // clean client struct
+                dap_chain_node_client_close(client);
+                DAP_DELETE(node_info);
+                return -1;
+            }
+
+            // wait for finishing of request
+            timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+            // TODO add progress info to console
+            res = chain_node_client_wait(client, NODE_CLIENT_STATE_END, timeout_ms);
+            DAP_DELETE(node_info);
+            dap_client_disconnect(client->client);
             dap_chain_node_client_close(client);
-            dap_chain_node_cli_set_reply_text(str_reply, "connection established, but not saved");
-            return -1;
-        case -2:
-            dap_chain_node_client_close(client);
-            dap_chain_node_cli_set_reply_text(str_reply, "connection already present");
-            return -1;
+            switch (res) {
+            case 0:
+                dap_chain_node_cli_set_reply_text(str_reply, "timeout");
+                return -1;
+            case 1:
+                dap_chain_node_cli_set_reply_text(str_reply, "nodes sync completed");
+                return 0;
+            default:
+                dap_chain_node_cli_set_reply_text(str_reply, "error");
+                return -1;
+            }
+
         }
-        dap_chain_node_cli_set_reply_text(str_reply, "connection established");
-    }
-        break;
+            break;
+            // make handshake
+        case CMD_HANDSHAKE: {
+            // get address from alias if addr not defined
+            if(alias_str && !address.uint64) {
+                dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(alias_str);
+                if(address_tmp) {
+                    memcpy(&address, address_tmp, sizeof(address_tmp));
+                    DAP_DELETE(address_tmp);
+                }
+                else {
+                    dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+                    return -1;
+                }
+            }
+            if(!address.uint64) {
+                dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
+                return -1;
+            }
+
+            dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
+            if(!node_info)
+                return -1;
+            int timeout_ms = 10000; //10 sec = 10000 ms
+            // start handshake
+            dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+            if(!client) {
+                dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
+                DAP_DELETE(node_info);
+                return -1;
+            }
+            // wait handshake
+            int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            if(res != 1) {
+                dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
+                // clean client struct
+                dap_chain_node_client_close(client);
+                DAP_DELETE(node_info);
+                return -1;
+            }
+            DAP_DELETE(node_info);
+
+            //Add new established connection in the list
+            int ret = dap_chain_node_client_list_add(&address, client);
+            switch (ret)
+            {
+            case -1:
+                dap_chain_node_client_close(client);
+                dap_chain_node_cli_set_reply_text(str_reply, "connection established, but not saved");
+                return -1;
+            case -2:
+                dap_chain_node_client_close(client);
+                dap_chain_node_cli_set_reply_text(str_reply, "connection already present");
+                return -1;
+            }
+            dap_chain_node_cli_set_reply_text(str_reply, "connection established");
+        } break;
     }
     return 0;
 }
@@ -1372,18 +1343,18 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
         break;
         // wallet list
     case CMD_WALLET_LIST: {
-        GDir *l_dir = g_dir_open(c_wallets_path, 0, NULL);
-        if(l_dir) {
-            const char *l_file = NULL;
-            do {
-                l_file = g_dir_read_name(l_dir);
-                int l_file_len = (l_file) ? strlen(l_file) : 0;
-                if(l_file_len > 8 && !g_strcmp0(l_file + l_file_len - 8, ".dwallet")) {
-                    char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file);
+        DIR * l_dir = opendir(c_wallets_path);
+        if( l_dir ) {
+            struct dirent * l_dir_entry;
+            while((l_dir_entry=readdir(l_dir))!=NULL){
+                const char *l_file_name = l_dir_entry->d_name;
+                size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
+                if( (l_file_name_len > 8 )&& ( strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0 ) ) {
+                    char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
                     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
                     if(l_wallet) {
-                        dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
-                        char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+                        dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet);
+                        char *l_addr_str = dap_chain_addr_to_str(l_addr);
                         dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
                         dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
                         DAP_DELETE(l_addr_str);
@@ -1392,8 +1363,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
                     DAP_DELETE(l_file_path_tmp);
                 }
             }
-            while(l_file);
-            g_dir_close(l_dir);
+            closedir(l_dir);
         }
     }
         break;
@@ -1454,6 +1424,466 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
 }
 
 /**
+ * @brief s_values_parse_net_chain
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @param l_chain
+ * @param l_net
+ * @return
+ */
+int s_values_parse_net_chain(int *a_arg_index,int argc, const char ** argv, char ** a_str_reply,
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net)
+{
+    const char * l_chain_str = NULL;
+    const char * l_net_str = NULL;
+    // Net name
+    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-net", &l_net_str);
+
+    // Chain name
+    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-chain", &l_chain_str);
+
+    // Select chain network
+    if(!l_net_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'net'",argv[0]);
+        return -42;
+    }else {
+        if ( ( *a_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"",argv[0],l_net_str);
+            return -43;
+        }
+    }
+
+    // Select chain
+    if(!l_chain_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain'",argv[0]);
+        return -44;
+    }else {
+        if ( ( *a_chain  = dap_chain_net_get_chain_by_name(*a_net, l_chain_str ) ) == NULL ){ // Can't find such chain
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid chain name in chain net %s",
+                                              argv[0] , l_net_str);
+            return -45;
+        }
+    }
+    return  0;
+
+}
+
+/**
+ * @brief com_token_decl_sign
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @return
+ */
+int com_token_decl_sign(int argc, const char ** argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+
+    const char * l_datum_hash_str = NULL;
+    // Chain name
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "datum", &l_datum_hash_str);
+
+    if ( l_datum_hash_str ){
+        const char * l_certs_str = NULL;
+        dap_chain_cert_t ** l_certs = NULL;
+        size_t l_certs_size = 0;
+        dap_chain_t * l_chain;
+
+        dap_chain_net_t * l_net = NULL;
+
+        if ( s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0 )
+            return -1;
+
+        // Load certs lists
+        size_t l_signs_size = dap_chain_cert_parse_str_list(l_certs_str,&l_certs, &l_certs_size);
+        if(!l_certs_size) {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "token_create command requres at least one valid certificate to sign the basic transaction of emission");
+            return -7;
+        }
+        size_t l_certs_count = l_certs_size / sizeof(dap_chain_cert_t *);
+
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+
+        log_it (L_DEBUG, "Requested to sign token declaration %s in gdb://%s with certs %s",
+                l_gdb_group_mempool,l_datum_hash_str,                l_certs_str);
+
+        dap_chain_datum_t * l_datum = NULL;
+        size_t l_datum_size = 0;
+        if( (l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get(
+                    l_datum_hash_str ,&l_datum_size,l_gdb_group_mempool )) != NULL ) {
+
+            // Check if its token declaration
+            if ( l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL ){
+                dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
+                size_t l_datum_token_size = l_datum->header.data_size;
+                size_t l_signs_size = l_datum_token_size - sizeof(l_datum_token->header);
+
+                // Check for signatures, are they all in set and are good enought?
+                size_t l_signs_count = 0;
+
+                for ( size_t l_offset = 0; l_offset < l_signs_size; l_signs_count++ ) {
+                    dap_chain_sign_t * l_sign = (dap_chain_sign_t *) l_datum_token->signs + l_offset;
+                    l_offset += dap_chain_sign_get_size(l_sign);
+                    if ( dap_chain_sign_verify(l_sign,&l_datum_token->header,sizeof (l_datum_token->header) ) != 1 ){
+                        log_it(L_WARNING,"Wrong signature for datum_token with key %s in mempool!",l_datum_hash_str );
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with datum token has wrong signature %u, break process and exit",
+                                                          l_datum_hash_str, l_signs_count+1);
+                        DAP_DELETE(l_datum);
+                        DAP_DELETE(l_datum_token);
+                        DAP_DELETE(l_gdb_group_mempool);
+                        return -666;
+                    }
+                }
+                log_it( L_DEBUG,"Datum % with token declaration: %u signatures are verified well", l_signs_count);
+
+                // Check if all signs are present
+                if ( l_signs_count == l_datum_token->header.signs_total ){
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with datum token has all signs on board. Can't add anything in it");
+                    DAP_DELETE(l_datum);
+                    DAP_DELETE(l_datum_token);
+                    DAP_DELETE(l_gdb_group_mempool);
+                    return -7;
+                } // Check if more signs that could be (corrupted datum)
+                else if ( l_signs_count > l_datum_token->header.signs_total ){
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Warning! Datum %s with datum token has more signs on board (%u) than its possible to have (%u)!",
+                                                      l_signs_count, l_datum_token->header.signs_total );
+                    DAP_DELETE(l_datum);
+                    DAP_DELETE(l_datum_token);
+                    DAP_DELETE(l_gdb_group_mempool);
+                    return -8;
+                } // Check if we have enough place to sign the datum token declaration
+                else if (  l_datum_token->header.signs_total - l_signs_count < l_certs_count ){
+                    l_datum = DAP_REALLOC(l_datum, l_datum_size+ l_signs_size ); // add place for new signatures
+                    size_t l_offset =  0;
+                    for ( size_t i = 0 ; i < l_certs_count ; i++ ){
+                        dap_chain_sign_t * l_sign = dap_chain_sign_create( l_certs[i]->enc_key,
+                                                                           &l_datum_token->header,
+                                                                           sizeof (l_datum_token->header), 0 );
+                        size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+                        if ( l_offset + l_sign_size <= l_signs_size ){
+                            memcpy( l_datum_token->signs  + l_datum_token_size - sizeof (l_datum_token->header) + l_offset,
+                                l_sign,l_sign_size );
+                            log_it (L_DEBUG, "Added datum token declaration sign with cert %s", l_certs[i]->name);
+                        }
+
+                        DAP_DELETE( l_sign);
+                        l_offset += l_sign_size;
+                        if (l_offset > l_signs_size ){
+                            break;
+                        }
+                    }
+                    l_datum_size += l_signs_size;
+
+
+                    // Recalc hash, string and place new datum
+
+                    // Calc datum's hash
+                    dap_chain_hash_fast_t l_key_hash;
+                    dap_hash_fast(l_datum,l_datum_size, &l_key_hash);
+                    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+
+                    // Add datum to mempool with datum_token hash as a key
+                    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size,l_gdb_group_mempool )) {
+                        // Remove old datum from pool
+                        if (dap_chain_global_db_gr_del(l_datum_hash_str,l_gdb_group_mempool) ){
+                            dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s produced from %s is replacing the %s in datum pool",
+                                                              l_key_str, l_datum_hash_str,l_datum_hash_str);
+
+                            DAP_DELETE(l_datum);
+                            DAP_DELETE(l_datum_token);
+                            DAP_DELETE(l_gdb_group_mempool);
+                            return  0;
+                        } else {
+                            dap_chain_node_cli_set_reply_text(a_str_reply, "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
+                                                               l_datum_hash_str,l_key_str);
+                            DAP_DELETE(l_datum);
+                            DAP_DELETE(l_datum_token);
+                            DAP_DELETE(l_gdb_group_mempool);
+                            return 1;
+                        }
+
+                    }
+                    else{
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! datum %s produced from %s can't be placed in mempool",
+                                                          l_key_str, l_datum_hash_str);
+                        DAP_DELETE(l_datum);
+                        DAP_DELETE(l_datum_token);
+                        DAP_DELETE(l_gdb_group_mempool);
+                        return -2;
+                    }
+
+                } else {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Not enought place for new signature (%u is left when we need %u signatures)",
+                                                       l_datum_token->header.signs_total - l_signs_count, l_certs_count );
+                    return -6;
+                }
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Wrong datum type. token_decl_sign sign only token declarations datum");
+                return -61;
+            }
+        }else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl_sign can't find datum with %s hash in the mempool of %s:%s", l_net->pub.name,l_chain->name);
+            return -5;
+        }
+    }else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl_sign need datum <datum hash> argument");
+        return -2;
+    }
+}
+
+
+/**
+ * @brief com_token_decl_list
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @return
+ */
+int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    dap_chain_t * l_chain;
+    dap_chain_net_t * l_net = NULL;
+
+    if (s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
+        return -1;
+
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool,&l_objs_size);
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_size);
+    for ( size_t i = 0; i< l_objs_size; i++){
+        dap_chain_datum_t * l_datum =(dap_chain_datum_t* ) l_objs[i]->value;
+        char buf[50];
+        time_t l_ts_create = (time_t) l_datum->header.ts_create;
+        dap_string_append_printf(l_str_tmp,"0x%s: type_id=%s ts_create=%s data_size=%u\n",
+                                 l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
+                                    ctime_r( &l_ts_create,buf ),l_datum->header.data_size );
+    }
+    dap_chain_global_db_objs_delete(l_objs);
+    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+    dap_string_free(l_str_tmp,false);
+    return  0;
+}
+
+/**
+ * @brief com_mempool_proc
+ * @param argc
+ * @param argv
+ * @param a_str_reply
+ * @return
+ */
+int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    dap_chain_t * l_chain;
+    dap_chain_net_t * l_net = NULL;
+
+    if (s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
+        return -1;
+
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool,&l_objs_size);
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    if ( l_objs_size ) {
+        dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name);
+
+
+        size_t l_datums_size = l_objs_size;
+        dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,sizeof(dap_chain_datum_t*)*l_datums_size);
+        for ( size_t i = 0; i< l_objs_size; i++){
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t* ) l_objs[i]->value;
+            l_datums[i] = l_datum;
+            char buf[50];
+            time_t l_ts_create = (time_t) l_datum->header.ts_create;
+            dap_string_append_printf(l_str_tmp,"0x%s: type_id=%s ts_create=%s data_size=%u\n",
+                                     l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
+                                        ctime_r( &l_ts_create,buf ),l_datum->header.data_size );
+        }
+        size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain,l_datums,l_datums_size);
+        // Delete processed objects
+        for ( size_t i = 0; i< l_objs_processed; i++){
+            dap_chain_global_db_gr_del(l_objs[i]->key,l_gdb_group_mempool);
+            dap_string_append_printf(l_str_tmp,"New event created, removed datum 0x%s from mempool \n",l_objs[i]->key);
+        }
+        dap_chain_global_db_objs_delete(l_objs);
+
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+        dap_string_free(l_str_tmp,false);
+    }else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s.^s: No records in mempool",l_net->pub.name,l_chain->name);
+    }
+    return 0;
+}
+
+/**
+ * @brief com_token_decl
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @return
+ */
+int com_token_decl(int argc, const char ** argv, char ** str_reply)
+{
+    int arg_index = 1;
+    const char *str_tmp = NULL;
+    char *str_reply_tmp = NULL;
+    const char * l_ticker = NULL;
+
+    const char * l_total_supply_str = NULL;
+    uint64_t l_total_supply = 0;
+
+    const char * l_signs_emission_str = NULL;
+    uint16_t l_signs_emission = 0;
+
+    const char * l_signs_total_str = NULL;
+    uint16_t l_signs_total = 0;
+
+
+    const char * l_certs_str = NULL;
+
+    dap_chain_cert_t ** l_certs = NULL;
+    size_t l_certs_size = 0;
+
+    dap_chain_t * l_chain;
+    dap_chain_net_t * l_net = NULL;
+
+    if (s_values_parse_net_chain(&arg_index,argc,argv,str_reply,&l_chain, &l_net) < 0)
+        return -1;
+
+
+
+    // Total supply value
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "total_supply", &l_total_supply_str);
+
+    // Token ticker
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "token", &l_ticker);
+
+
+    // Certificates thats will be used to sign currend datum token
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "certs", &l_certs_str);
+
+    // Signs number thats own emissioncan't find
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "signs_total", &l_signs_total_str);
+
+    // Signs minimum number thats need to authorize the emission
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "signs_emission", &l_signs_emission_str);
+
+    if(!l_total_supply_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'total_supply'");
+        return -11;
+    }else {
+        char * l_tmp = NULL;
+        if ( ( l_total_supply = strtoull(l_total_supply_str,&l_tmp,10) ) == 0 ){
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'total_supply' to be unsigned integer value that fits in 8 bytes");
+            return -2;
+        }
+    }
+
+    // Signs emission
+    if(!l_signs_emission_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'signs_emission'");
+        return -3;
+    }else {
+        char * l_tmp = NULL;
+        if ( ( l_signs_emission  =(uint16_t)  strtol(l_signs_emission_str,&l_tmp,10) ) == 0 ){
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'signs_emission' to be unsigned integer value that fits in 2 bytes");
+            return -4;
+        }
+    }
+
+    // Signs total
+    if(!l_signs_total_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'signs_total'");
+        return -31;
+    }else {
+        char * l_tmp = NULL;
+        if ( ( l_signs_total  =(uint16_t)  strtol(l_signs_total_str,&l_tmp,10) ) == 0 ){
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'signs_total' to be unsigned integer value that fits in 2 bytes");
+            return -41;
+        }
+    }
+
+
+    // Check for ticker
+    if(!l_ticker) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'token'");
+        return -5;
+    }
+
+
+    // Check certs list
+    if(!l_certs_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'certs'");
+        return -6;
+    }
+
+    // Load certs lists
+    size_t l_signs_size = dap_chain_cert_parse_str_list(l_certs_str,&l_certs, &l_certs_size);
+    if(!l_certs_size) {
+        dap_chain_node_cli_set_reply_text(str_reply,
+                "token_create command requres at least one valid certificate to sign the basic transaction of emission");
+        return -7;
+    }
+
+    // If we have more certs than we need signs - use only first part of the list
+    if (l_certs_size > l_signs_total )
+        l_certs_size = l_signs_total;
+
+    // Create new datum token
+    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t,sizeof(l_datum_token->header) +
+                                                             l_signs_size);
+    l_datum_token->header.version = 1; // Current version
+    snprintf(l_datum_token->header.ticker,sizeof(l_datum_token->header.ticker),"%s",l_ticker);
+    l_datum_token->header.total_supply = l_total_supply;
+    l_datum_token->header.signs_total = l_signs_total;
+    l_datum_token->header.signs_valid = l_signs_emission;
+
+    size_t l_signs_offset = 0;
+    // Sign header with all certificates in the list and add signs to the end of ticker declaration
+    // Important:
+    for ( size_t i = 0 ; i < l_certs_size; i++ ){
+        dap_chain_sign_t * l_sign = dap_chain_cert_sign( l_certs[i],
+                                                         l_datum_token,
+                                                         sizeof(l_datum_token->header),
+                                                         0);
+        size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+        memcpy(l_datum_token->signs+l_signs_offset,l_sign,l_sign_size);
+        DAP_DELETE(l_sign);
+    }
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,l_datum_token,
+                                                         sizeof (l_datum_token->header)+ l_signs_size);
+    size_t l_datum_size = dap_chain_datum_size(l_datum);
+
+    // Calc datum's hash
+    dap_chain_hash_fast_t l_key_hash;
+    dap_hash_fast(l_datum,l_datum_size, &l_key_hash);
+    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+
+    // Add datum to mempool with datum_token hash as a key
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size,l_gdb_group_mempool )) {
+        dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum %s with token %s is placed in datum pool ", str_reply_tmp, l_key_str,l_ticker);
+        DAP_DELETE(l_datum);
+        DAP_DELETE(l_datum_token);
+        DAP_DELETE(l_gdb_group_mempool);
+        return  0;
+    }
+    else{
+        dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is not placed in datum pool ", str_reply_tmp, l_key_str);
+        DAP_DELETE(l_datum);
+        DAP_DELETE(l_datum_token);
+        DAP_DELETE(l_gdb_group_mempool);
+        return -2;
+    }
+
+}
+
+/**
  * @brief com_token_emit
  * @param argc
  * @param argv
@@ -1475,6 +1905,13 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
 
     dap_chain_cert_t ** l_certs = NULL;
     size_t l_certs_count = 0;
+
+    const char * l_chain_str = NULL;
+    dap_chain_t * l_chain;
+
+    const char * l_net_str = NULL;
+    dap_chain_net_t * l_net = NULL;
+
 
     // Wallet address that recieves the emission
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "certs", &l_certs_str);
@@ -1501,7 +1938,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     }
 
     if(!l_ticker) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'tokent'");
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'token'");
         return -3;
     }
 
@@ -1510,41 +1947,8 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         return -4;
     }
 
-    int n = 0;
-    char * l_certs_tmp_ptrs = NULL;
-    char * l_certs_str_dup = strdup(l_certs_str);
-    char *l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
-
-    // First we just calc items
-    while(l_cert_str) {
-        l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
-        l_certs_count++;
-    }
-    // init certs array
-    l_certs = DAP_NEW_Z_SIZE(dap_chain_cert_t*, l_certs_count * sizeof(dap_chain_cert_t));
-
-    // Second pass we parse them all
-    strcpy(l_certs_str_dup, l_certs_str);
-    l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
-
-    size_t l_certs_pos = 0;
-    while(l_cert_str) {
-
-        // trim token whitespace
-        if(isspace(l_cert_str[0]))
-            l_cert_str = l_cert_str + 1;
-        if(isspace(l_cert_str[strlen(l_cert_str) - 1]))
-            l_cert_str[strlen(l_cert_str) - 1] = 0;
-        l_certs[l_certs_pos] = dap_chain_cert_find_by_name(l_cert_str);
-        if(l_certs[l_certs_pos]) {
-            l_certs_pos++;
-        } else {
-            dap_chain_node_cli_set_reply_text(str_reply, "Error: can't find %s certificate", l_cert_str);
-            return -6;
-        }
-        l_cert_str = strtok_r(NULL, ",", &l_certs_tmp_ptrs);
-    }
-    free(l_certs_str_dup);
+    // Load certs
+    dap_chain_cert_parse_str_list(l_certs_str,&l_certs,&l_certs_size);
 
     if(!l_certs_count) {
         dap_chain_node_cli_set_reply_text(str_reply,
@@ -1552,12 +1956,40 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         return -5;
     }
 
+
     dap_chain_addr_t * l_addr = dap_chain_str_to_addr(l_addr_str);
 
     if(!l_addr) {
         dap_chain_node_cli_set_reply_text(str_reply, "address \"%s\" is invalid", l_addr_str);
         return -4;
     }
+
+
+    // Select chain network
+    if(!l_net_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'net'");
+        return -42;
+    }else {
+        if ( ( l_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'net' to be valid chain network name");
+            return -43;
+        }
+    }
+
+    // Select chain
+    if(!l_chain_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain'");
+        return -44;
+    }else {
+        if ( ( l_chain  = dap_chain_net_get_chain_by_name(l_net, l_chain_str ) ) == NULL ){ // Can't find such chain
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain' to be valid chain name in chain net %s",l_net_str);
+            return -45;
+        }
+    }
+
+    // Get mempool group for this chain
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+
 
     // Create emission datum
     dap_chain_datum_token_emission_t * l_token_emission;
@@ -1579,7 +2011,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
 
     // Add to mempool emission token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_emission, l_datum_emission_size
-            , dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
+            , l_gdb_group_mempool)) {
         str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_key_str);
     }
     else {
@@ -1623,15 +2055,17 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
 
     // use l_tx hash for compatible with utho hash
-    dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
+    //dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
+    // calc datum hash
+    dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     DAP_DELETE(l_tx);
 
-    // Add to mempool emission token
+
+    // Add to mempool tx token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_tx, l_datum_tx_size
-            , dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
-        dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp,
-                l_key_str);
+            , l_gdb_group_mempool)) {
+        dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp, l_key_str);
         dap_chain_utxo_tx_add((dap_chain_datum_tx_t*) l_datum_tx->data);
     }
     else {

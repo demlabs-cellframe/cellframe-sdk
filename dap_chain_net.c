@@ -44,12 +44,6 @@
 
 #define LOG_TAG "chain_net"
 
-typedef  enum dap_chain_net_state{
-    NET_STATE_BEGIN = 0,
-    NET_STATE_LINKS_CONNECTING,
-    NET_STATE_LINKS_ESTABLISHED,
-} dap_chain_net_state_t;
-
 /**
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
@@ -61,11 +55,17 @@ typedef struct dap_chain_net_pvt{
     uint8_t padding[4];
 
     dap_chain_node_client_t * clients_by_node_addr;
+    dap_chain_node_client_t * clients_by_ipv4;
+    dap_chain_node_client_t * clients_by_ipv6;
+    size_t clients_count;
+
     dap_chain_net_state_t state;
+    dap_chain_net_state_t state_target;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
     char name [DAP_CHAIN_NET_NAME_MAX];
+    dap_chain_net_id_t net_id;
     dap_chain_net_t * chain_net;
     UT_hash_handle hh;
 } dap_chain_net_item_t;
@@ -74,10 +74,80 @@ typedef struct dap_chain_net_item{
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
 
 static dap_chain_net_item_t * s_net_items = NULL;
+static dap_chain_net_item_t * s_net_items_ids = NULL;
 
 static size_t            s_net_configs_count = 0;
 static pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int s_net_states_proc(dap_chain_net_t * l_net);
+
+static const char * c_net_states[]={
+    [NET_STATE_BEGIN] = "NET_STATE_BEGIN",
+    [NET_STATE_LINKS_CONNECTING] = "NET_STATE_LINKS_CONNECTING",
+    [NET_STATE_LINKS_ESTABLISHED]= "NET_STATE_LINKS_ESTABLISHED",
+    [NET_STATE_SYNC_GDB]= "NET_STATE_SYNC_GDB",
+    [NET_STATE_SYNC_CHAINS]= "NET_STATE_SYNC_CHAINS",
+    [NET_STATE_STAND_BY]= "NET_STATE_STAND_BY"
+};
+
+/**
+ * @brief s_net_state_to_str
+ * @param l_state
+ * @return
+ */
+inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
+{
+    return c_net_states[l_state];
+}
+
+/**
+ * @brief dap_chain_net_state_go_to
+ * @param a_net
+ * @param a_new_state
+ */
+int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
+{
+    if (PVT(a_net)->state_target == a_new_state){
+        log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+    }
+    PVT(a_net)->state_target = a_new_state;
+    return s_net_states_proc(a_net);
+}
+
+
+/**
+ * @brief s_net_states_proc
+ * @param l_net
+ */
+int s_net_states_proc(dap_chain_net_t * l_net)
+{
+    int ret=0;
+    switch ( PVT(l_net)->state ){
+        case NET_STATE_BEGIN:{
+            if ( PVT(l_net)->state_target != NET_STATE_BEGIN )
+                dap_chain_net_links_establish(l_net);
+        }break;
+        case NET_STATE_LINKS_CONNECTING:{
+
+            log_it(L_DEBUG,"Connected %u/% links", PVT(l_net)->clients_count );
+            ret = 1;
+        }break;
+        case NET_STATE_LINKS_ESTABLISHED:{
+
+        }break;
+        case NET_STATE_SYNC_GDB:{
+
+        }break;
+        case NET_STATE_SYNC_CHAINS:{
+
+        }break;
+        case NET_STATE_STAND_BY:{
+
+        } break;
+    }
+    return ret;
+}
 
 /**
  * @brief s_net_proc_thread
@@ -94,6 +164,7 @@ static void * s_net_proc_thread ( void * a_net)
         pthread_cond_wait(&s_net_proc_loop_cond,&s_net_proc_loop_mutex);
         pthread_mutex_unlock(&s_net_proc_loop_mutex);
         log_it( L_DEBUG, "Waked up net proc thread");
+        s_net_states_proc(l_net);
     }
     return NULL;
 }
@@ -102,7 +173,7 @@ static void * s_net_proc_thread ( void * a_net)
  * @brief net_proc_start
  * @param a_cfg
  */
-static void s_net_proc_start( dap_chain_net_t * a_net )
+static void s_net_proc_thread_start( dap_chain_net_t * a_net )
 {
     if ( pthread_create(& PVT(a_net)->proc_tid ,NULL, s_net_proc_thread, a_net) == 0 ){
         log_it (L_NOTICE,"Network processing thread started");
@@ -137,10 +208,39 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
+
     if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
-        if (strcmp (a_node_role, "root")==0){
-            PVT(ret)->node_role.enums = ROOT;
+        if (strcmp (a_node_role, "root_master")==0){
+            PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
+            log_it (L_NOTICE, "Node role \"root master\" selected");
+        } else if (strcmp( a_node_role,"root") == 0){
+            PVT(ret)->node_role.enums = NODE_ROLE_ROOT;
             log_it (L_NOTICE, "Node role \"root\" selected");
+
+        } else if (strcmp( a_node_role,"archive") == 0){
+            PVT(ret)->node_role.enums = NODE_ROLE_ARCHIVE;
+            log_it (L_NOTICE, "Node role \"archive\" selected");
+
+        } else if (strcmp( a_node_role,"cell_master") == 0){
+            PVT(ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
+            log_it (L_NOTICE, "Node role \"cell master\" selected");
+
+        }else if (strcmp( a_node_role,"master") == 0){
+            PVT(ret)->node_role.enums = NODE_ROLE_MASTER;
+            log_it (L_NOTICE, "Node role \"master\" selected");
+
+        }else if (strcmp( a_node_role,"full") == 0){
+            PVT(ret)->node_role.enums = NODE_ROLE_FULL;
+            log_it (L_NOTICE, "Node role \"full\" selected");
+
+        }else if (strcmp( a_node_role,"light") == 0){
+            PVT(ret)->node_role.enums = NODE_ROLE_LIGHT;
+            log_it (L_NOTICE, "Node role \"light\" selected");
+
+        }else{
+            log_it(L_ERROR,"Unknown node role \"%s\"",a_node_role);
+            DAP_DELETE(ret);
+            return  NULL;
         }
         else if(strcmp(a_node_role, "master") == 0) {
             PVT(ret)->node_role.enums = MASTER;
@@ -160,6 +260,8 @@ dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
         }
     } else {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
+        DAP_DELETE(ret);
+        return  NULL;
     }
     return ret;
 
@@ -192,25 +294,25 @@ int dap_chain_net_init()
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
         l_net->pub.gdb_groups_prefix = dap_strdup (
-                    dap_config_get_item_str_default(l_cfg , "dag" , "gdb_groups_prefix","" ) );
+                    dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
 
 
         // UTXO model
         uint16_t l_utxo_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
-            case ROOT_MASTER:
-            case ROOT:
-            case ARCHIVE:
+            case NODE_ROLE_ROOT_MASTER:
+            case NODE_ROLE_ROOT:
+            case NODE_ROLE_ARCHIVE:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
                 break;
-            case MASTER:
+            case NODE_ROLE_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
                 break;
-            case CELL_MASTER:
+            case NODE_ROLE_CELL_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
                 break;
-            case FULL:
-            case LIGHT:
+            case NODE_ROLE_FULL:
+            case NODE_ROLE_LIGHT:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
                 break;
         }
@@ -254,21 +356,21 @@ int dap_chain_net_init()
 
         // Do specific role actions post-chain created
         switch ( PVT( l_net )->node_role.enums ) {
-            case ROOT_MASTER:{
+            case NODE_ROLE_ROOT_MASTER:{
                 // Set to process everything in datum pool
                 dap_chain_t * l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain ) l_chain->is_datum_pool_proc = true;
                 log_it(L_INFO,"Root master node role established");
             } break;
-            case ROOT:{
+            case NODE_ROLE_ROOT:{
                 // Set to process only zerochain
                 dap_chain_id_t l_chain_id = {{0}};
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
                 l_chain->is_datum_pool_proc = true;
                 log_it(L_INFO,"Root node role established");
             } break;
-            case CELL_MASTER:
-            case MASTER:{
+            case NODE_ROLE_CELL_MASTER:
+            case NODE_ROLE_MASTER:{
                 // Set to process only plasma chain (id 0x0000000000000001 )
                 dap_chain_id_t l_chain_id = { .raw = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x01} };
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
@@ -276,10 +378,10 @@ int dap_chain_net_init()
 
                 log_it(L_INFO,"Master node role established");
             } break;
-            case FULL:{
+            case NODE_ROLE_FULL:{
                 log_it(L_INFO,"Full node role established");
             } break;
-            case LIGHT:
+            case NODE_ROLE_LIGHT:
             default:
                 log_it(L_INFO,"Light node role established");
 
@@ -287,14 +389,19 @@ int dap_chain_net_init()
 
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
+        dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);
         snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
+        l_net_item->net_id.uint64 = l_net->pub.id.uint64;
         HASH_ADD_STR(s_net_items,name,l_net_item);
 
+        memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
+        HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
+
         // Start the proc thread
-        s_net_proc_start(l_net);
-        log_it(L_NOTICE, "Сhain network initialized");
+        s_net_proc_thread_start(l_net);
+        log_it(L_NOTICE, "Сhain network \"%s\" initialized",l_net_item->name);
         return 0;
     }
 }
@@ -304,16 +411,6 @@ int dap_chain_net_init()
  */
 void dap_chain_net_deinit()
 {
-}
-
-/**
- * @brief dap_chain_net_load
- * @param a_name
- * @return
- */
-dap_chain_net_t * dap_chain_net_load (const char * a_name)
-{
-
 }
 
 /**
@@ -332,6 +429,23 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
 }
 
 /**
+ * @brief dap_chain_net_by_id
+ * @param a_id
+ * @return
+ */
+dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
+{
+    dap_chain_net_item_t * l_net_item = NULL;
+    HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
+    if ( l_net_item )
+        return l_net_item->chain_net;
+    else
+        return NULL;
+
+}
+
+
+/**
  * @brief dap_chain_net_id_by_name
  * @param a_name
  * @return
@@ -344,6 +458,23 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
         l_ret.uint64 = l_net->pub.id.uint64;
     return l_ret;
 }
+
+/**
+ * @brief dap_chain_net_get_chain_by_name
+ * @param l_net
+ * @param a_name
+ * @return
+ */
+dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name)
+{
+   dap_chain_t * l_chain;
+   DL_FOREACH(l_net->pub.chains, l_chain){
+        if(strcmp(l_chain->name,a_name) == 0)
+            return  l_chain;
+   }
+   return NULL;
+}
+
 
 void dap_chain_net_proc_datapool (dap_chain_net_t * a_net)
 {

@@ -119,23 +119,8 @@ dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id);
  */
 bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id);
 
-/**
- * Convert binary data to binhex encoded data.
- *
- * out output buffer, must be twice the number of bytes to encode.
- * len is the size of the data in the in[] buffer to encode.
- * return the number of bytes encoded, or -1 on error.
- */
-int bin2hex(char *out, const unsigned char *in, int len);
 
-/**
- * Convert binhex encoded data to binary data
- *
- * len is the size of the data in the in[] buffer to decode, and must be even.
- * out outputbuffer must be at least half of "len" in size.
- * The buffers in[] and out[] can be the same to allow in-place decoding.
- * return the number of bytes encoded, or -1 on error.
- */
-int hex2bin(char *out, const unsigned char *in, int len);
+bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *addr);
+bool dap_chain_node_alias_delete(const char *alias);
 
 
