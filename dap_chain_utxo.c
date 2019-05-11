@@ -144,7 +144,7 @@ int dap_chain_utxo_load(void)
         l_datum_list = dap_list_prepend(l_datum_list, data[i]->value);
     }
     // sort list by time
-    l_datum_list = dap_list_sort(l_datum_list, (DapCompareFunc) compare_datum_items);
+    l_datum_list = dap_list_sort(l_datum_list, (dap_callback_compare_t) compare_datum_items);
     l_list_tmp = l_datum_list;
     // add datum_tx from list to utxo
     while(l_list_tmp) {

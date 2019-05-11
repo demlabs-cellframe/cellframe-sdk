@@ -74,6 +74,28 @@ size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, 
 }
 
 /**
+ * @brief dap_chain_str_to_hash_fast_to_str
+ * @param a_hash_str
+ * @param a_hash
+ * @return
+ */
+int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash)
+{
+    const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
+    size_t l_hash_str_len = strlen( a_hash_str);
+    if ( l_hash_str_len == c_hash_str_size ){
+        for (size_t l_offset = 2; l_offset < c_hash_str_size ; l_offset+=2 ){
+            if ( ( sscanf(a_hash_str+l_offset,"%02hhx",a_hash->raw+l_offset-2) != 1) ||
+                 ( sscanf(a_hash_str+l_offset,"%02hhX",a_hash->raw+l_offset-2) != 1)
+                 )
+                return -10* ((int) l_offset); // Wrong char
+        }
+        return  0;
+    }else  // Wromg string len
+        return -1;
+}
+
+/**
  * @brief dap_chain_addr_to_str
  * @param a_addr
  * @return

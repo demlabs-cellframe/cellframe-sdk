@@ -31,9 +31,9 @@
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
 /// End section, means all the rest of the block is empty
-#define dap_chain_datum_END                 0x0000
+#define DAP_CHAIN_DATUM_BLOCK_END                 0x0000
 /// Section with additional roots, for example transaction roots
-#define dap_chain_datum_hashtree_roots 0x0001
+#define DAP_CHAIN_DATUM_BLOCK_ROOTS 0x0001
 
 /// Transaction header section
 #define DAP_CHAIN_DATUM_TX                  0x0100
@@ -42,9 +42,9 @@
 #define DAP_CHAIN_DATUM_TX_REQUEST          0x0300
 
 /// Smart contract: DVM code section
-#define DAP_CHAIN_DATUM_DVM_CODE            0x0900
+#define DAP_CHAIN_DATUM_WASM_CODE            0x0900
 /// Smart contract: DVM code section
-#define DAP_CHAIN_DATUM_DVM_DATA            0x0901
+#define DAP_CHAIN_DATUM_WASM_DATA            0x0901
 
 /// Smart contract: EVM code section
 #define DAP_CHAIN_DATUM_EVM_CODE            0x0910
@@ -60,6 +60,17 @@
 #define DAP_CHAIN_DATUM_TOKEN_DECL                0xf000
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
 
+static const char * c_datum_type_str[]={
+    [DAP_CHAIN_DATUM_TX]="DATUM_TX",
+    [DAP_CHAIN_DATUM_TX_REQUEST]="DATUM_TX_REQUEST",
+    [DAP_CHAIN_DATUM_WASM_CODE]="DATUM_WASM_CODE",
+    [DAP_CHAIN_DATUM_WASM_DATA]="DATUM_WASM_DATA",
+    [DAP_CHAIN_DATUM_EVM_CODE]="DATUM_EVM_CODE",
+    [DAP_CHAIN_DATUM_EVM_DATA]="DATUM_EVM_DATA",
+    [DAP_CHAIN_DATUM_PKEY]="DATUM_PKEY",
+    [DAP_CHAIN_DATUM_TOKEN_DECL]="DATUM_TOKEN_DECL",
+    [DAP_CHAIN_DATUM_TOKEN_EMISSION]="DATUM_TOKEN_EMISSION",
+};
 
 #define DAP_CHAIN_DATUM_ID_SIZE 4
 
@@ -86,6 +97,7 @@ typedef struct dap_chain_datum{
                               // After signs goes data block and and till the end of datum.
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
+
 struct dap_chain;
 typedef struct dap_chain dap_chain_t;
 
@@ -110,3 +122,4 @@ static inline size_t dap_chain_datum_size(dap_chain_datum_t * a_datum)
 }
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
+
