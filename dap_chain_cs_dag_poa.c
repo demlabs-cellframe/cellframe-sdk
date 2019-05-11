@@ -60,10 +60,6 @@ int dap_chain_cs_dag_poa_init(void)
     // Add consensus constructor
     dap_chain_cs_add ("dag-poa", s_callback_new );
 
-    // Add CLI commands
-    dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
-                "<chain name> sign_event <event hash in new round>\n"
-                                        );
     return 0;
 }
 
@@ -163,36 +159,3 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
        return -2; // Wrong signatures number
 }
 
-/**
- * @brief s_cli_commands
- * @param argc
- * @param argv
- * @param str_reply
- * @return
- */
-static int s_cli_dag_poa(int argc, const char ** argv, char **str_reply)
-{
-    enum { SUBCMD_SIGN_EVENT, SUBCMD_UNDEFINED=0 } l_subcmd={0};
-    int arg_index = 2;
-    // find 'node' as second parameter only
-    arg_index = dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "dag_poa", NULL);
-    if(!arg_index || argc < 4) {
-        dap_chain_node_cli_set_reply_text(str_reply, "parameters are not valid");
-        return -1;
-    }
-    const char * l_chain_name = argv[1];
-
-    int arg_index_n = ++arg_index;
-    const char * l_subcmd_str = argv[arg_index];
-    if((arg_index_n = dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "sign_event", NULL)) != 0) {
-        l_subcmd = SUBCMD_SIGN_EVENT;
-    }
-    switch (l_subcmd) {
-        case SUBCMD_SIGN_EVENT:{
-            log_it(L_INFO,"Sign event command");
-        }break;
-        default:
-            dap_chain_node_cli_set_reply_text(str_reply,"undefined command \"%s\"",l_subcmd_str);
-            return -1;
-    }
-}
