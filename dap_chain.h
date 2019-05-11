@@ -63,7 +63,7 @@ typedef dap_chain_atom_ptr_t* (*dap_chain_callback_atom_iter_get_first_t)(dap_ch
 typedef dap_chain_atom_ptr_t* (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  );
 typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
 
-typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * ,dap_chain_cell_id_t, dap_chain_datum_t **, size_t );
+typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
 
 

@@ -60,13 +60,13 @@ typedef union dap_chain_cell_id{
   */
 typedef union dap_chain_node_role{
     enum {
-        ROOT_MASTER=0x00,
-        ROOT=0x01,
-        ARCHIVE=0x02,
-        CELL_MASTER=0x10,
-        MASTER = 0x20,
-        FULL=0xf0,
-        LIGHT=0xff } enums;
+        NODE_ROLE_ROOT_MASTER=0x00,
+        NODE_ROLE_ROOT=0x01,
+        NODE_ROLE_ARCHIVE=0x02,
+        NODE_ROLE_CELL_MASTER=0x10,
+        NODE_ROLE_MASTER = 0x20,
+        NODE_ROLE_FULL=0xf0,
+        NODE_ROLE_LIGHT=0xff } enums;
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
 } DAP_ALIGN_PACKED dap_chain_node_role_t;
 
@@ -145,6 +145,7 @@ typedef struct dap_chain_addr{
 
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
+int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_str_to_addr(const char *str);
