@@ -838,182 +838,195 @@ int com_node(int argc, const char ** argv, char **str_reply)
     dap_chain_node_addr_t address;
     memset(&address, 0, sizeof(dap_chain_node_addr_t));
     const char *addr_str = NULL, *alias_str = NULL;
+    const char * l_net_str = NULL;
 // find addr, alias
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &addr_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-alias", &alias_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
 
     dap_digit_from_string(addr_str, address.raw, sizeof(address.raw));
 
+    if( l_net_str == NULL){
+        dap_chain_node_cli_set_reply_text(str_reply, "No -net <net name> option in command %s", argv[1]);
+        return -11;
+    }
+
+    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
+
+    if( l_net == NULL){
+        dap_chain_node_cli_set_reply_text(str_reply, "%s: Can't find such network %s", argv[1], l_net_str);
+        return -12;
+    }
+
     switch (cmd_num)
-    {
-    // add alias
-    case CMD_ALIAS:
-        if(alias_str) {
-            if(addr_str) {
-                // add alias
-                if(!dap_chain_node_alias_register(alias_str, &address))
-                    log_it(L_WARNING, "can't save alias %s", alias_str);
+        {
+        // add alias
+        case CMD_ALIAS:
+            if(alias_str) {
+                if(addr_str) {
+                    // add alias
+                    if(!dap_chain_node_alias_register(alias_str, &address))
+                        log_it(L_WARNING, "can't save alias %s", alias_str);
+                    else {
+                        dap_chain_node_cli_set_reply_text(str_reply, "alias mapped successfully");
+                    }
+                }
                 else {
-                    dap_chain_node_cli_set_reply_text(str_reply, "alias mapped successfully");
+                    dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -addr is not found");
+                    return -1;
                 }
             }
             else {
-                dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -addr is not found");
+                dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -alias is not found");
                 return -1;
             }
-        }
-        else {
-            dap_chain_node_cli_set_reply_text(str_reply, "alias can't be mapped because -alias is not found");
-            return -1;
-        }
 
-        break;
-        // make connect
-    case CMD_CONNECT: {
-        // get address from alias if addr not defined
-        if(alias_str && !address.uint64) {
-            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(alias_str);
-            if(address_tmp) {
-                memcpy(&address, address_tmp, sizeof(address_tmp));
-                DAP_DELETE(address_tmp);
+            break;
+            // make connect
+        case CMD_CONNECT: {
+            // get address from alias if addr not defined
+            if(alias_str && !address.uint64) {
+                dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(alias_str);
+                if(address_tmp) {
+                    memcpy(&address, address_tmp, sizeof(address_tmp));
+                    DAP_DELETE(address_tmp);
+                }
+                else {
+                    dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+                    return -1;
+                }
             }
-            else {
-                dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+            if(!address.uint64) {
+                dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
                 return -1;
             }
-        }
-        if(!address.uint64) {
-            dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
-            return -1;
-        }
 
-        // get cur node addr
-        uint64_t l_cur_node_addr = dap_db_get_cur_node_addr(); //0x12345
-        if(!l_cur_node_addr) {
-            dap_chain_node_cli_set_reply_text(str_reply, "node has no address");
-            return -1;
-        }
-
-        dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
-        if(!node_info) {
-            return -1;
-        }
-        // start connect
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
-        if(!client) {
-            dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
-            DAP_DELETE(node_info);
-            return -1;
-        }
-        // wait connected
-        int timeout_ms = 15000; //15 sec = 15000 ms
-        int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
-            // clean client struct
-            dap_chain_node_client_close(client);
-            DAP_DELETE(node_info);
-            return -1;
-        }
-
-        // send request
-        size_t l_data_size_out = 0;
-        // Get last timestamp in log
-        time_t l_timestamp_start = dap_db_log_get_last_timestamp();
-        size_t l_data_send_len = 0;
-        uint8_t *l_data_send = dap_stream_ch_chain_net_make_packet(l_cur_node_addr, node_info->hdr.address.uint64,
-                l_timestamp_start, NULL, 0, &l_data_send_len);
-
-        uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
-        res = dap_chain_node_client_send_chain_net_request(client, l_ch_id,
-                    STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_data_send, l_data_send_len); //, NULL);
-        DAP_DELETE(l_data_send);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
-            // clean client struct
-            dap_chain_node_client_close(client);
-            DAP_DELETE(node_info);
-            return -1;
-        }
-
-        // wait for finishing of request
-        timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
-        // TODO add progress info to console
-        res = chain_node_client_wait(client, NODE_CLIENT_STATE_END, timeout_ms);
-        DAP_DELETE(node_info);
-        dap_client_disconnect(client->client);
-        dap_chain_node_client_close(client);
-        switch (res) {
-        case 0:
-            dap_chain_node_cli_set_reply_text(str_reply, "timeout");
-            return -1;
-        case 1:
-            dap_chain_node_cli_set_reply_text(str_reply, "nodes sync completed");
-            return 0;
-        default:
-            dap_chain_node_cli_set_reply_text(str_reply, "error");
-            return -1;
-        }
-
-    }
-        break;
-        // make handshake
-    case CMD_HANDSHAKE: {
-        // get address from alias if addr not defined
-        if(alias_str && !address.uint64) {
-            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(alias_str);
-            if(address_tmp) {
-                memcpy(&address, address_tmp, sizeof(address_tmp));
-                DAP_DELETE(address_tmp);
-            }
-            else {
-                dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+            // get cur node addr
+            uint64_t l_cur_node_addr = dap_db_get_cur_node_addr(); //0x12345
+            if(!l_cur_node_addr) {
+                dap_chain_node_cli_set_reply_text(str_reply, "node has no address");
                 return -1;
             }
-        }
-        if(!address.uint64) {
-            dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
-            return -1;
-        }
 
-        dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
-        if(!node_info)
-            return -1;
-        int timeout_ms = 10000; //10 sec = 10000 ms
-        // start handshake
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
-        if(!client) {
-            dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
-            DAP_DELETE(node_info);
-            return -1;
-        }
-        // wait handshake
-        int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
-            // clean client struct
-            dap_chain_node_client_close(client);
-            DAP_DELETE(node_info);
-            return -1;
-        }
-        DAP_DELETE(node_info);
+            dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
+            if(!node_info) {
+                return -1;
+            }
+            // start connect
+            dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+            if(!client) {
+                dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
+                DAP_DELETE(node_info);
+                return -1;
+            }
+            // wait connected
+            int timeout_ms = 15000; //15 sec = 15000 ms
+            int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            if(res != 1) {
+                dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
+                // clean client struct
+                dap_chain_node_client_close(client);
+                DAP_DELETE(node_info);
+                return -1;
+            }
 
-        //Add new established connection in the list
-        int ret = chain_node_client_list_add(&address, client);
-        switch (ret)
-        {
-        case -1:
+            // send request
+            size_t l_data_size_out = 0;
+            // Get last timestamp in log
+            time_t l_timestamp_start = dap_db_log_get_last_timestamp();
+            size_t l_data_send_len = 0;
+            uint8_t *l_data_send = dap_stream_ch_chain_net_make_packet(l_cur_node_addr, node_info->hdr.address.uint64,
+                    l_timestamp_start, NULL, 0, &l_data_send_len);
+
+            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
+            res = dap_chain_node_client_send_chain_net_request(client, l_ch_id,
+                        STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_data_send, l_data_send_len); //, NULL);
+            DAP_DELETE(l_data_send);
+            if(res != 1) {
+                dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
+                // clean client struct
+                dap_chain_node_client_close(client);
+                DAP_DELETE(node_info);
+                return -1;
+            }
+
+            // wait for finishing of request
+            timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+            // TODO add progress info to console
+            res = chain_node_client_wait(client, NODE_CLIENT_STATE_END, timeout_ms);
+            DAP_DELETE(node_info);
+            dap_client_disconnect(client->client);
             dap_chain_node_client_close(client);
-            dap_chain_node_cli_set_reply_text(str_reply, "connection established, but not saved");
-            return -1;
-        case -2:
-            dap_chain_node_client_close(client);
-            dap_chain_node_cli_set_reply_text(str_reply, "connection already present");
-            return -1;
+            switch (res) {
+            case 0:
+                dap_chain_node_cli_set_reply_text(str_reply, "timeout");
+                return -1;
+            case 1:
+                dap_chain_node_cli_set_reply_text(str_reply, "nodes sync completed");
+                return 0;
+            default:
+                dap_chain_node_cli_set_reply_text(str_reply, "error");
+                return -1;
+            }
+
         }
-        dap_chain_node_cli_set_reply_text(str_reply, "connection established");
-    }
-        break;
+            break;
+            // make handshake
+        case CMD_HANDSHAKE: {
+            // get address from alias if addr not defined
+            if(alias_str && !address.uint64) {
+                dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(alias_str);
+                if(address_tmp) {
+                    memcpy(&address, address_tmp, sizeof(address_tmp));
+                    DAP_DELETE(address_tmp);
+                }
+                else {
+                    dap_chain_node_cli_set_reply_text(str_reply, "no address found by alias");
+                    return -1;
+                }
+            }
+            if(!address.uint64) {
+                dap_chain_node_cli_set_reply_text(str_reply, "addr not found");
+                return -1;
+            }
+
+            dap_chain_node_info_t *node_info = dap_chain_node_info_read(&address, str_reply);
+            if(!node_info)
+                return -1;
+            int timeout_ms = 10000; //10 sec = 10000 ms
+            // start handshake
+            dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+            if(!client) {
+                dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
+                DAP_DELETE(node_info);
+                return -1;
+            }
+            // wait handshake
+            int res = chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            if(res != 1) {
+                dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
+                // clean client struct
+                dap_chain_node_client_close(client);
+                DAP_DELETE(node_info);
+                return -1;
+            }
+            DAP_DELETE(node_info);
+
+            //Add new established connection in the list
+            int ret = dap_chain_node_client_list_add(&address, client);
+            switch (ret)
+            {
+            case -1:
+                dap_chain_node_client_close(client);
+                dap_chain_node_cli_set_reply_text(str_reply, "connection established, but not saved");
+                return -1;
+            case -2:
+                dap_chain_node_client_close(client);
+                dap_chain_node_cli_set_reply_text(str_reply, "connection already present");
+                return -1;
+            }
+            dap_chain_node_cli_set_reply_text(str_reply, "connection established");
+        } break;
     }
     return 0;
 }
@@ -1375,29 +1388,30 @@ int s_values_parse_net_chain(int *a_arg_index,int argc, const char ** argv, char
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
     // Net name
-    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "net", &l_net_str);
+    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-net", &l_net_str);
 
     // Chain name
-    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "chain", &l_chain_str);
+    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-chain", &l_chain_str);
 
     // Select chain network
     if(!l_net_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_create requires parameter 'net'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'net'",argv[0]);
         return -42;
     }else {
         if ( ( *a_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
-            dap_chain_node_cli_set_reply_text(a_str_reply, "token_create requires parameter 'net' to be valid chain network name");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"",argv[0],l_net_str);
             return -43;
         }
     }
 
     // Select chain
     if(!l_chain_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_create requires parameter 'chain'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain'",argv[0]);
         return -44;
     }else {
         if ( ( *a_chain  = dap_chain_net_get_chain_by_name(*a_net, l_chain_str ) ) == NULL ){ // Can't find such chain
-            dap_chain_node_cli_set_reply_text(a_str_reply, "token_create requires parameter 'chain' to be valid chain name in chain net %s",l_net_str);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid chain name in chain net %s",
+                                              argv[0] , l_net_str);
             return -45;
         }
     }
@@ -1577,16 +1591,83 @@ int com_token_decl_sign(int argc, const char ** argv, char ** a_str_reply)
  * @param str_reply
  * @return
  */
-int com_mempool_list(int argc, const char ** argv, char ** str_reply)
+int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain;
     dap_chain_net_t * l_net = NULL;
 
-    if (s_values_parse_net_chain(&arg_index,argc,argv,str_reply,&l_chain, &l_net) < 0)
+    if (s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
         return -1;
 
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool,&l_objs_size);
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_size);
+    for ( size_t i = 0; i< l_objs_size; i++){
+        dap_chain_datum_t * l_datum =(dap_chain_datum_t* ) l_objs[i]->value;
+        char buf[50];
+        time_t l_ts_create = (time_t) l_datum->header.ts_create;
+        dap_string_append_printf(l_str_tmp,"0x%s: type_id=%s ts_create=%s data_size=%u\n",
+                                 l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
+                                    ctime_r( &l_ts_create,buf ),l_datum->header.data_size );
+    }
+    dap_chain_global_db_objs_delete(l_objs);
+    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+    dap_string_free(l_str_tmp,false);
+    return  0;
+}
+
+/**
+ * @brief com_mempool_proc
+ * @param argc
+ * @param argv
+ * @param a_str_reply
+ * @return
+ */
+int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    dap_chain_t * l_chain;
+    dap_chain_net_t * l_net = NULL;
+
+    if (s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
+        return -1;
+
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool,&l_objs_size);
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    if ( l_objs_size ) {
+        dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name);
+
+
+        size_t l_datums_size = l_objs_size;
+        dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,sizeof(dap_chain_datum_t*)*l_datums_size);
+        for ( size_t i = 0; i< l_objs_size; i++){
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t* ) l_objs[i]->value;
+            l_datums[i] = l_datum;
+            char buf[50];
+            time_t l_ts_create = (time_t) l_datum->header.ts_create;
+            dap_string_append_printf(l_str_tmp,"0x%s: type_id=%s ts_create=%s data_size=%u\n",
+                                     l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
+                                        ctime_r( &l_ts_create,buf ),l_datum->header.data_size );
+        }
+        size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain,l_datums,l_datums_size);
+        // Delete processed objects
+        for ( size_t i = 0; i< l_objs_processed; i++){
+            dap_chain_global_db_gr_del(l_objs[i]->key,l_gdb_group_mempool);
+            dap_string_append_printf(l_str_tmp,"New event created, removed datum 0x%s from mempool \n",l_objs[i]->key);
+        }
+        dap_chain_global_db_objs_delete(l_objs);
+
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+        dap_string_free(l_str_tmp,false);
+    }else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s.^s: No records in mempool",l_net->pub.name,l_chain->name);
+    }
+    return 0;
 }
 
 /**

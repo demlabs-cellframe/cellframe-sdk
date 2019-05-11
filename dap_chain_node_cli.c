@@ -452,16 +452,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     //server.sun_family = AF_UNIX;
     //strcpy(server.sun_path, SOCKET_FILE);
     dap_chain_node_cli_cmd_item_create ("global_db", com_global_db, "Work with global database",
-                                                   "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
-                                                   "global_db cells add -cell <cell id> \n\n"
-                                                   "global_db node add -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                                                            "global_db node del -addr <node address> | -alias <node alias>\n\n"
-                                                            "global_db node link {add|del} {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                                                            "global_db node dump\n\n"
-                                                            "global_db node dump -addr <node address> | -alias <node alias>\n\n"
-                                                            "global_db node get\n\n"
-                                                            "global_db node set -addr <node address> | -alias <node alias>\n\n"
-                                                  "global_db node remote_set -addr <node address> | -alias <node alias>\n");
+           "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
+           "global_db cells add -cell <cell id> \n\n"
+           "global_db node add  -net <net name> -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+                    "global_db node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
+                    "global_db node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+                    "global_db node dump  -net <net name>\n\n"
+                    "global_db node dump  -net <net name> -addr <node address> | -alias <node alias>\n\n"
+                    "global_db node get -net <net name>\n\n"
+                    "global_db node set -net <net name> -addr <node address> | -alias <node alias>\n\n"
+          "global_db node remote_set -addr <node address> | -alias <node alias>\n");
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
             "node alias {<node address> | -alias <node alias>}\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"
@@ -480,23 +480,31 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info -addr <addr> -w <wallet_name>]\n");
+    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info [ -addr <addr> | -w <wallet_name>] \n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
-            "token_decl net <net name> chain <chain name> token <token ticker> total_supply <total supply> sign_total <sign total> sign_valid <sign valid> certs <certs list>\n"
+            "token_decl -net <net name> -chain <chain name> token <token ticker> total_supply <total supply> sign_total <sign total> sign_valid <sign valid> certs <certs list>\n"
             "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <sign valid> from <sign total> signatures on valid emission\n"
-            "token_decl_sign net <net name> chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign net <net name> chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit net <net name> chain_emission <chain for emission> chain_base_tx <chain for base tx> addr <addr> token <token ticker> certs <cert> emission_value <val>\n");
+            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> addr <addr> token <token ticker> certs <cert> emission_value <val>\n");
+
+    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network and chain id",
+            "mempool_list -net <net name> -chain <chain name>\n");
+
+    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entries for selected chain network and chain id",
+            "mempool_list -net <net name> -chain <chain name>\n");
+
+
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",

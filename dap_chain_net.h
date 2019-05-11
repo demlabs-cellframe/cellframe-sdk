@@ -22,16 +22,26 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #include <stdint.h>
 #include <string.h>
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 
-#include <sys/socket.h>
-#include <netinet/in.h>
 
 #define DAP_CHAIN_NET_NAME_MAX 32
+
+typedef  enum dap_chain_net_state{
+    NET_STATE_BEGIN = 0,
+    NET_STATE_LINKS_CONNECTING,
+    NET_STATE_LINKS_ESTABLISHED,
+    NET_STATE_SYNC_GDB,
+    NET_STATE_SYNC_CHAINS,
+    NET_STATE_STAND_BY,
+} dap_chain_net_state_t;
+
 
 typedef struct dap_chain_net{
     struct {
@@ -49,6 +59,11 @@ void dap_chain_net_deinit(void);
 dap_chain_net_t * dap_chain_net_new (const char * a_id,  const char * a_name,
                                      const char* a_node_role );
 
+int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
+
+inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_STAND_BY); }
+inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_BEGIN); }
+inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
@@ -59,6 +74,8 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
 
+void dap_chain_net_links_connect(dap_chain_net_t * a_net);
+
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
  * @param l_chain
@@ -67,10 +84,13 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 static inline char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
 {
     dap_chain_net_t * l_net = dap_chain_net_by_id(l_chain->net_id);
-    const char c_mempool_group_str[]="mempool";
-    size_t l_ret_size =  strlen( l_net->pub.gdb_groups_prefix ) + 1 +
-            strlen( l_chain->name)+1+strlen(c_mempool_group_str)+1;
-    char * l_ret = DAP_NEW_Z_SIZE(char, l_ret_size);
-    snprintf( l_ret,l_ret_size,"%s.%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+    char * l_ret = NULL;
+    if ( l_net ) {
+        const char c_mempool_group_str[]="mempool";
+        size_t l_ret_size =  strlen( l_net->pub.gdb_groups_prefix ) + 1 +
+                strlen( l_chain->name)+1+strlen(c_mempool_group_str)+1;
+        l_ret = DAP_NEW_Z_SIZE(char, l_ret_size);
+        snprintf( l_ret,l_ret_size,"%s.%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+    }
     return l_ret;
 }

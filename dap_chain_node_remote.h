@@ -31,7 +31,7 @@
  *
  * return 0 OK, -1 error, -2 already present
  */
-int chain_node_client_list_add(dap_chain_node_addr_t *address, dap_chain_node_client_t *client);
+int dap_chain_node_client_list_add(dap_chain_node_addr_t *address, dap_chain_node_client_t *client);
 
 /**
  * Delete established connection from the list
