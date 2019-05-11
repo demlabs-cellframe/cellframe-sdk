@@ -33,6 +33,7 @@ typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef struct dap_chain_class_dag_event_hdr {
         uint16_t version;
+        uint64_t round_id;
         uint64_t ts_created;
         dap_chain_id_t chain_id;
         dap_chain_cell_id_t cell_id; // Cell id if celled dag
