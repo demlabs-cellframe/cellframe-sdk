@@ -60,6 +60,9 @@ int pthread_mutex_unlock(HANDLE *obj) {
 #include <stdlib.h>
 #include <assert.h>
 #include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
+#include "dap_list.h"
 #define LAST_ERROR_MAX 255
 
 #define LOG_TAG "dap_common"
@@ -123,6 +126,76 @@ void dap_common_deinit()
     if(s_log_file) fclose(s_log_file);
 }
 
+// list of logs
+static dap_list_t *s_list_logs = NULL;
+
+// get logs from list
+char *log_get_item(time_t a_start_time, int limit)
+{
+    uint64_t l_count = 0;
+    dap_list_t *l_list = s_list_logs;
+    l_list = dap_list_last(l_list);
+    // find first item
+    while(l_list) {
+        dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
+        if(a_start_time > l_item->t){
+            l_list = dap_list_next(l_list);
+            break;
+        }
+        l_count++;
+        l_list = dap_list_previous(l_list);
+    }
+    // no new logs
+    if(!l_count)
+        return NULL;
+    // if need all list
+    if(!l_list)
+        l_list = s_list_logs;
+
+    // create return string
+    dap_string_t *l_string = dap_string_new("");
+    l_count = 0;
+    while(l_list && limit > l_count) {
+        dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
+        dap_string_append_printf(l_string, "%lld;%s\n", (int64_t) l_item->t, l_item->str);
+        l_list = dap_list_next(l_list);
+        l_count++;
+    }
+    char *l_ret_str = dap_string_free(l_string, false);
+    return l_ret_str;
+}
+
+// save log to list
+static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum log_level a_ll,
+        const char * a_format, va_list a_ap)
+{
+    dap_string_t *l_string = dap_string_new("");
+    dap_string_append_printf(l_string, "[%s] ", a_time_str);
+    if(a_ll == L_DEBUG) {
+        l_string = dap_string_append(l_string, "[DBG] ");
+    } else if(a_ll == L_INFO) {
+        l_string = dap_string_append(l_string, "[INF] ");
+    } else if(a_ll == L_NOTICE) {
+        l_string = dap_string_append(l_string, "[ * ] ");
+    } else if(a_ll == L_WARNING) {
+        l_string = dap_string_append(l_string, "[WRN] ");
+    } else if(a_ll == L_ERROR) {
+        l_string = dap_string_append(l_string, "[ERR] ");
+    } else if(a_ll == L_CRITICAL) {
+        l_string = dap_string_append(l_string, "[!!!] ");
+    }
+
+    if(a_log_tag != NULL) {
+        dap_string_append_printf(l_string, log_tag_fmt_str, a_log_tag);
+    }
+    dap_string_append_vprintf(l_string, a_format, a_ap);
+
+    dap_list_logs_item_t *l_item = DAP_NEW(dap_list_logs_item_t);
+    l_item->t = a_t;
+    l_item->str = dap_string_free(l_string, false);
+    s_list_logs = dap_list_append(s_list_logs, l_item);
+}
+
 /**
  * @brief _log_it Writes information to the log
  * @param[in] log_tag Tag
@@ -143,7 +216,7 @@ void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
 
 void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_list ap)
 {
-    va_list ap2;
+    va_list ap2,ap3;
 
     static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
@@ -173,6 +246,7 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
 
 
     va_copy(ap2,ap);
+    va_copy(ap3,ap);
     time_t t=time(NULL);
     struct tm* tmp=localtime(&t);
     static char s_time[1024]={0};
@@ -204,12 +278,16 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
         if (s_log_file ) fprintf(s_log_file,log_tag_fmt_str,log_tag);
         printf(log_tag_fmt_str,log_tag);
     }
-
     if (s_log_file ) vfprintf(s_log_file,format,ap);
     vprintf(format,ap2);
     if (s_log_file ) fprintf(s_log_file,"\n");
     printf("\x1b[0m\n");
     va_end(ap2);
+
+    // save log to list
+    log_add_to_list(t, s_time, log_tag, ll, format, ap3);
+    va_end(ap3);
+
     if (s_log_file ) fflush(s_log_file);
     fflush(stdout);
     pthread_mutex_unlock(&mutex);

@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #define dap_return_if_fail(expr)			{if(!(expr)) {return;}}
 #define dap_return_val_if_fail(expr,val)	{if(!(expr)) {return (val);}}
