@@ -53,7 +53,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
  */
 int dap_chain_cs_dag_pos_init()
 {
-    dap_chain_cs_add ("dag-pos", s_callback_new );
+    dap_chain_cs_add ("dag_pos", s_callback_new );
     return 0;
 }
 
