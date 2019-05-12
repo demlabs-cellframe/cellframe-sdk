@@ -35,6 +35,7 @@ typedef enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_TOKEN = 0x40,
     TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
     TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
+    TX_ITEM_TYPE_OUT_SERVICE_RECEIPT = 0x70,
 
     TX_ITEM_TYPE_ANY = 0xff,
 } dap_chain_tx_item_type_t;

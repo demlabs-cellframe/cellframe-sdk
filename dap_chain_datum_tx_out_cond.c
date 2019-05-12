@@ -1,6 +1,7 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * DeM Labs Open source community https://github.com/demlabsinc
  * Copyright  (c) 2017-2019
