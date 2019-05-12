@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "dap_chain_datum.h"
+#include "dap_http.h"
 /*
  // datum mempool structure
  typedef struct dap_datum_mempool {
@@ -28,7 +29,7 @@ typedef struct dap_datum_mempool {
     dap_chain_datum_t **data;// mass of datums
 }DAP_ALIGN_PACKED dap_datum_mempool_t;
 
-int dap_datum_mempool_init();
+int dap_datum_mempool_init(void);
 
 extern const char* c_dap_datum_mempool_gdb_group;
 
@@ -38,7 +39,7 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *datum_mempool_str, 
 void dap_datum_mempool_clean(dap_datum_mempool_t *datum);
 void dap_datum_mempool_free(dap_datum_mempool_t *datum);
 
-void dap_chain_mempool_add_proc(struct dap_http * sh, const char * url);
+void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
 
 int dap_chain_mempool_tx_create(dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to, const dap_chain_addr_t* a_addr_fee,

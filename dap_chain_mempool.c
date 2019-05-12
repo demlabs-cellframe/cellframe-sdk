@@ -67,7 +67,7 @@ typedef struct list_used_item {
 
 const char* c_dap_datum_mempool_gdb_group = NULL;
 
-int dap_datum_mempool_init()
+int dap_datum_mempool_init(void)
 {
     c_dap_datum_mempool_gdb_group = dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool");
     return 0;
@@ -595,7 +595,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
  * @param sh HTTP server instance
  * @param url URL string
  */
-void dap_chain_mempool_add_proc(struct dap_http * sh, const char * url)
+void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
 {
-    dap_http_simple_proc_add(sh, url, 4096, chain_mempool_proc);
+    dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
 }
