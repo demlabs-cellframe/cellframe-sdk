@@ -231,24 +231,25 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
     }
     HASH_ADD(hh, l_events,hash,sizeof (l_event_item->hash),  l_event_item);
     if ( l_events == PVT(l_dag)->events){
+        dap_chain_cs_dag_event_item_t * l_event_last = NULL;
         // Check the events and update the lasts
         for ( dap_chain_hash_fast_t * l_link_hash = (dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs ;
-                  l_link_hash < ( dap_chain_hash_fast_t *) (
+                  l_link_hash != ( dap_chain_hash_fast_t *) (
                   l_event->hashes_n_datum_n_signs + l_event->header.hash_count*sizeof (*l_link_hash) );
                   l_link_hash += sizeof (dap_chain_hash_fast_t ) ) {
-            dap_chain_cs_dag_event_item_t * l_event_last = NULL;
+            l_event_last = NULL;
             HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_link_hash,sizeof(l_link_hash), l_event_last);
             if ( l_event_last ){ // If present in unlinked - remove
                 HASH_DEL(PVT(l_dag)->events_lasts_unlinked,l_event_last);
                 DAP_DELETE(l_event_last);
             }
-            // and then adds itself
-            l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-            l_event_last->ts_added = l_event_item->ts_added;
-            l_event_last->event = l_event;
-            HASH_ADD(hh,PVT(l_dag)->events_lasts_unlinked,hash,sizeof (l_event_last->hash),l_event_last);
 
         }
+        // and then adds itself
+        l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+        l_event_last->ts_added = l_event_item->ts_added;
+        l_event_last->event = l_event;
+        HASH_ADD(hh,PVT(l_dag)->events_lasts_unlinked,hash,sizeof (l_event_last->hash),l_event_last);
     }
     pthread_rwlock_unlock( l_events_rwlock );
     // Now check the treshold if some events now are ready to move to the main table
@@ -339,20 +340,20 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 if( dap_chain_global_db_gr_set( l_event_hash_str, (uint8_t *) l_event, dap_chain_cs_dag_event_calc_size(l_event),
                                                 l_dag->gdb_group_events_round_new ) ){
                     log_it(L_INFO,"Event %s placed in the new forming round",l_event_hash_str);
+                        // Clear old ext link and place itself as event_lasts
 
-                    // Clear old ext link and place itself as event_lasts
-
-                   dap_chain_cs_dag_event_item_t * l_event_unlinked_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-                   memcpy ( &l_event_unlinked_item->hash, &l_event_ext_item->hash, sizeof (l_event_ext_item->hash) );
-                   l_event_unlinked_item->event = l_event;
-                   l_event_unlinked_item->ts_added = (time_t) l_event->header.ts_created;
-                   pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-                   HASH_ADD(hh, PVT(l_dag)->events_lasts_unlinked,hash,sizeof(l_event_unlinked_item->hash),l_event_unlinked_item );
+                    dap_chain_cs_dag_event_item_t * l_event_unlinked_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+                    memcpy ( &l_event_unlinked_item->hash, &l_event_ext_item->hash, sizeof (l_event_ext_item->hash) );
+                    l_event_unlinked_item->event = l_event;
+                    l_event_unlinked_item->ts_added = (time_t) l_event->header.ts_created;
+                    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
+                    HASH_ADD(hh, PVT(l_dag)->events_lasts_unlinked,hash,sizeof(l_event_unlinked_item->hash),l_event_unlinked_item );
                     if (l_event_ext_item){
                         HASH_DEL(PVT(l_dag)->events_lasts_unlinked, l_event_ext_item);
                         DAP_DELETE(l_event_ext_item);
                     }
                     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+
                     l_datum_processed++;
                 }else {
                     log_it(L_ERROR,"Can't add new event to the new events round");
