@@ -374,6 +374,10 @@ int dap_chain_net_load(const char * a_net_name)
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
+        if(!l_net) {
+            log_it(L_ERROR,"Can't create l_net");
+            return -1;
+        }
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
 
@@ -425,8 +429,9 @@ int dap_chain_net_load(const char * a_net_name)
                         dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chains_path);
                         if(l_chain){
                             DL_APPEND( l_net->pub.chains, l_chain);
-                            if(l_chain->callback_created)
-                                l_chain->callback_created(l_chain,l_cfg);
+                            // fix - dap_chain_t has no member 'callback_created'
+                            //if(l_chain->callback_created)
+                            //    l_chain->callback_created(l_chain,l_cfg);
                         }
                         free(l_entry_name);
                     }

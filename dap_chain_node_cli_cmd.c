@@ -2269,7 +2269,7 @@ int com_print_log(int argc, const char ** argv, char **str_reply)
     l_ts_after = (l_str_ts_after) ? strtoll(l_str_ts_after, 0, 10) : -1;
     l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
 
-    if(l_ts_after<0 || !l_str_ts_after) {
+    if(l_ts_after < 0 || !l_str_ts_after) {
         dap_chain_node_cli_set_reply_text(str_reply, "requires valid parameter 'l_ts_after'");
         return -1;
     }
@@ -2278,8 +2278,14 @@ int com_print_log(int argc, const char ** argv, char **str_reply)
         return -1;
     }
 
-    char *l_str_ret = NULL;
+    // get logs from list
+    char *l_str_ret = log_get_item(l_ts_after, l_limit);
+    if(!l_str_ret) {
+        dap_chain_node_cli_set_reply_text(str_reply, "no logs");
+        return -1;
+    }
     dap_chain_node_cli_set_reply_text(str_reply, l_str_ret);
-    return -1;
+    DAP_DELETE(l_str_ret);
+    return 0;
 }
 
