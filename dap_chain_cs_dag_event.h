@@ -62,6 +62,8 @@ static inline dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_d
             +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
 }
 
+// Important: returns new deep copy of event
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, dap_enc_key_t * l_key);
 dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number);
 
 /**

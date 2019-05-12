@@ -81,6 +81,25 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     return l_event_new;
 }
 
+/**
+ * @brief dap_chain_cs_dag_event_sign_add
+ * @param a_event
+ * @param l_key
+ * @return
+ */
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event,
+                                                                      dap_enc_key_t * l_key)
+{
+    size_t l_event_size = dap_chain_cs_dag_event_calc_size( a_event );
+    size_t l_event_signing_size = dap_chain_cs_dag_event_calc_size_excl_signs( a_event );
+    dap_chain_sign_t * l_sign = dap_chain_sign_create(l_key,a_event,l_event_signing_size,0);
+    size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
+    memcpy(l_event_new, a_event,l_event_size);
+    memcpy(l_event_new+l_event_size,l_sign,l_sign_size);
+    l_event_new->header.signs_count++;
+    return l_event_new;
+}
 
 /**
  * @brief dap_chain_cs_dag_event_get_sign
