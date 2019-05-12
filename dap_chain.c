@@ -261,6 +261,7 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
                     dap_chain_delete(l_chain);
                     l_chain = NULL;
                 }
+
             }else{
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
