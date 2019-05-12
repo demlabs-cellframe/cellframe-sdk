@@ -1904,7 +1904,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     const char * l_certs_str = NULL;
 
     dap_chain_cert_t ** l_certs = NULL;
-    size_t l_certs_count = 0;
+    size_t l_certs_size = 0;
 
     const char * l_chain_str = NULL;
     dap_chain_t * l_chain;
@@ -1950,7 +1950,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     // Load certs
     dap_chain_cert_parse_str_list(l_certs_str,&l_certs,&l_certs_size);
 
-    if(!l_certs_count) {
+    if(!l_certs_size) {
         dap_chain_node_cli_set_reply_text(str_reply,
                 "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
         return -5;
@@ -2035,7 +2035,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
 
     // Sign all that we have with certs
-    for(size_t i = 0; i < l_certs_count; i++) {
+    for(size_t i = 0; i < l_certs_size; i++) {
         if(dap_chain_datum_tx_add_sign_item(&l_tx, l_certs[i]->enc_key) < 0) {
             dap_chain_node_cli_set_reply_text(str_reply, "No private key for certificate=%s",
                     l_certs[i]->name);
@@ -2228,3 +2228,37 @@ int com_tx_verify(int argc, const char ** argv, char **str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
     return -1;
 }
+
+/**
+ * print_log command
+ *
+ * Print log info
+ * print_log [ts_after <timestamp >] [limit <line numbers>]
+ */
+int com_print_log(int argc, const char ** argv, char **str_reply)
+{
+    int arg_index = 1;
+    const char * l_str_ts_after = NULL;
+    const char * l_str_limit = NULL;
+    int64_t l_ts_after = 0;
+    int32_t l_limit = 0;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "ts_after", &l_str_ts_after);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "limit", &l_str_limit);
+
+    l_ts_after = (l_str_ts_after) ? strtoll(l_str_ts_after, 0, 10) : -1;
+    l_limit = (l_str_limit) ? strtol(l_str_limit, 0, 10) : -1;
+
+    if(l_ts_after<0 || !l_str_ts_after) {
+        dap_chain_node_cli_set_reply_text(str_reply, "requires valid parameter 'l_ts_after'");
+        return -1;
+    }
+    if(!l_limit) {
+        dap_chain_node_cli_set_reply_text(str_reply, "requires valid parameter 'limit'");
+        return -1;
+    }
+
+    char *l_str_ret = NULL;
+    dap_chain_node_cli_set_reply_text(str_reply, l_str_ret);
+    return -1;
+}
+

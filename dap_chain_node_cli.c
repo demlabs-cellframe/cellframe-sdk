@@ -515,6 +515,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
             "tx_verify  -wallet <wallet name> [-path <wallet path>]\n" );
 
+    // Log
+    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
+                "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
+
 
     // init client for handshake
 
