@@ -81,6 +81,8 @@ typedef struct dap_chain{
     struct dap_chain * next;
     struct dap_chain * prev;
 
+
+    dap_chain_callback_new_cfg_t callback_created;
     dap_chain_callback_t callback_delete;
 
     dap_chain_callback_atom_t callback_atom_add;
