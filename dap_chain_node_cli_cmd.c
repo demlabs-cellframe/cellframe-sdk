@@ -1394,27 +1394,28 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int argc, con
     else
        return -100;
 
-    // Select chain network
+    // Select network
     if(!l_net_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'net'",argv[0]);
-        return -42;
+        return -101;
     }
-    // Chain name
-    if ( a_chain )
-        dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-chain", &l_chain_str);
 
     if ( ( *a_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"",argv[0],l_net_str);
-        return -43;
+        return -102;
     }
 
+    // Chain name
+    if ( a_chain ){
+        dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-chain", &l_chain_str);
 
-    // Select chain
-    if(l_chain_str) {
-        if ( ( *a_chain  = dap_chain_net_get_chain_by_name(*a_net, l_chain_str ) ) == NULL ){ // Can't find such chain
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid chain name in chain net %s",
-                                              argv[0] , l_net_str);
-            return -45;
+        // Select chain
+        if(l_chain_str) {
+            if ( ( *a_chain  = dap_chain_net_get_chain_by_name(*a_net, l_chain_str ) ) == NULL ){ // Can't find such chain
+                dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid chain name in chain net %s",
+                                                  argv[0] , l_net_str);
+                return -103;
+            }
         }
     }
     return  0;
@@ -1858,8 +1859,11 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     dap_chain_cert_t ** l_certs = NULL;
     size_t l_certs_size = 0;
 
-    const char * l_chain_str = NULL;
-    dap_chain_t * l_chain;
+    const char * l_chain_emission_str = NULL;
+    dap_chain_t * l_chain_emission = NULL;
+
+    const char * l_chain_base_tx_str = NULL;
+    dap_chain_t * l_chain_base_tx = NULL;
 
     const char * l_net_str = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -1916,7 +1920,6 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         return -4;
     }
 
-
     // Select chain network
     if(!l_net_str) {
         dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'net'");
@@ -1928,19 +1931,35 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         }
     }
 
-    // Select chain
-    if(!l_chain_str) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain'");
+
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "chain_emission", &l_chain_emission_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "chain_base_tx", &l_chain_base_tx_str);
+
+    // Select chain emission
+    if(!l_chain_emission_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain_emission'");
         return -44;
     }else {
-        if ( ( l_chain  = dap_chain_net_get_chain_by_name(l_net, l_chain_str ) ) == NULL ){ // Can't find such chain
-            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain' to be valid chain name in chain net %s",l_net_str);
+        if ( ( l_chain_emission  = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str ) ) == NULL ){ // Can't find such chain
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain_emission' to be valid chain name in chain net %s",l_net_str);
             return -45;
         }
     }
 
+    // Select chain emission
+    if(!l_chain_base_tx_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain_base_tx'");
+        return -46;
+    }else {
+        if ( ( l_chain_base_tx  = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str ) ) == NULL ){ // Can't find such chain
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain_emission' to be valid chain name in chain net %s",l_net_str);
+            return -47;
+        }
+    }
+
     // Get mempool group for this chain
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    char * l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
+    char * l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool(l_chain_base_tx);
 
 
     // Create emission datum
@@ -1963,7 +1982,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
 
     // Add to mempool emission token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_emission, l_datum_emission_size
-            , l_gdb_group_mempool)) {
+            , l_gdb_group_mempool_emission)) {
         str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_key_str);
     }
     else{
@@ -2009,7 +2028,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
 
     // Add to mempool tx token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_tx, l_datum_tx_size
-            , l_gdb_group_mempool)) {
+            , l_gdb_group_mempool_base_tx)) {
         dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp, l_key_str);
     }
     else{

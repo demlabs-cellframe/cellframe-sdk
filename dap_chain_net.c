@@ -55,10 +55,11 @@
 typedef struct dap_chain_net_pvt{
     pthread_t proc_tid;
     pthread_cond_t proc_cond;
+    pthread_mutex_t proc_mutex;
     dap_chain_node_role_t node_role;
     uint8_t padding[4];
 
-    dap_chain_node_client_t * clients_by_node_addr;
+    dap_chain_node_client_t * links_by_node_addr;
     dap_chain_node_client_t * clients_by_ipv4;
     dap_chain_node_client_t * clients_by_ipv6;
     size_t clients_count;
@@ -80,11 +81,9 @@ typedef struct dap_chain_net_item{
 static dap_chain_net_item_t * s_net_items = NULL;
 static dap_chain_net_item_t * s_net_items_ids = NULL;
 
-static pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const char * c_net_states[]={
-    [NET_STATE_BEGIN] = "NET_STATE_BEGIN",
+    [NET_STATE_OFFLINE] = "NET_STATE_OFFLINE",
     [NET_STATE_LINKS_CONNECTING] = "NET_STATE_LINKS_CONNECTING",
     [NET_STATE_LINKS_ESTABLISHED]= "NET_STATE_LINKS_ESTABLISHED",
     [NET_STATE_SYNC_GDB]= "NET_STATE_SYNC_GDB",
@@ -134,8 +133,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
 {
     int ret=0;
     switch ( PVT(l_net)->state ){
-        case NET_STATE_BEGIN:{
-            if ( PVT(l_net)->state_target != NET_STATE_BEGIN ){
+        case NET_STATE_OFFLINE:{
+            if ( PVT(l_net)->state_target != NET_STATE_OFFLINE ){
 
             }
         }break;
@@ -171,10 +170,11 @@ static void * s_net_proc_thread ( void * a_net)
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
     bool is_looping = true ;
     while( is_looping ) {
-        pthread_mutex_lock(&s_net_proc_loop_mutex);
-        pthread_cond_wait(&s_net_proc_loop_cond,&s_net_proc_loop_mutex);
-        pthread_mutex_unlock(&s_net_proc_loop_mutex);
+        pthread_mutex_lock( &PVT(l_net)->proc_mutex );
+        pthread_cond_wait(&PVT(l_net)->proc_cond,&PVT(l_net)->proc_mutex);
+        pthread_mutex_unlock( &PVT(l_net)->proc_mutex );
         log_it( L_DEBUG, "Waked up net proc thread");
+
         s_net_states_proc(l_net);
     }
     return NULL;
@@ -219,7 +219,8 @@ static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name ,
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-
+    pthread_mutex_init( &PVT(ret)->proc_mutex, NULL);
+    pthread_cond_init( &PVT(ret)->proc_cond, NULL);
     if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root_master")==0){
             PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
@@ -280,7 +281,10 @@ int dap_chain_net_init()
 {
     dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
         "net -net <chain net name> sync < all | gdb | chains >\n"
-            "\tSyncronyze gdb, chains or everything\n\n" );
+            "\tSyncronyze gdb, chains or everything\n\n"
+        "net -net <chain net name> link < list | add | del | info | establish >\n"
+            "\tList,add,del, dump or establish links\n\n"
+                                        );
 
 }
 
@@ -291,9 +295,65 @@ int dap_chain_net_init()
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, const char ** argv, char **str_reply)
+static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
 {
+    int arg_index=1;
+    dap_chain_net_t * l_net;
+    int ret = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,NULL,&l_net);
+    if ( l_net ){
+        const char * l_sync_str = NULL;
+        const char * l_links_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
 
+        if ( l_links_str ){
+            if ( strcmp(l_links_str,"list") == 0 ) {
+
+            } else if ( strcmp(l_links_str,"add") == 0 ) {
+
+            } else if ( strcmp(l_links_str,"del") == 0 ) {
+
+            }  else if ( strcmp(l_links_str,"info") == 0 ) {
+
+            } else if ( strcmp (l_links_str,"disconnect_all") == 0 ){
+                ret = 0;
+                dap_chain_net_stop(l_net);
+            }else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "Subcommand \"link\" requires one of parameter: list\n");
+                ret = -3;
+            }
+
+        } else if( l_sync_str) {
+            if ( strcmp(l_sync_str,"all") == 0 ) {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "SYNC_ALL state requested to state machine. Current state: %s\n",
+                                                  c_net_states[ PVT(l_net)->state] );
+                dap_chain_net_sync_all(l_net);
+            } else if ( strcmp(l_sync_str,"gdb") == 0) {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "SYNC_GDB state requested to state machine. Current state: %s\n",
+                                                  c_net_states[ PVT(l_net)->state] );
+                dap_chain_net_sync_gdb(l_net);
+
+            }  else if ( strcmp(l_sync_str,"chains") == 0) {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "SYNC_CHAINS state requested to state machine. Current state: %s\n",
+                                                  c_net_states[ PVT(l_net)->state] );
+                dap_chain_net_sync_chains(l_net);
+
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "Subcommand \"sync\" requires one of parameter: all,gdb,chains\n");
+                ret = -2;
+            }
+        } else {
+            dap_chain_node_cli_set_reply_text(a_str_reply,"Command requires one of subcomand: sync, links\n");
+            ret = -1;
+        }
+
+    }
+    return  ret;
 }
 
 
