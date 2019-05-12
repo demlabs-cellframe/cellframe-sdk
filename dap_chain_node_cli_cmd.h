@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include "dap_chain.h"
+#include "dap_chain_net.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_cli.h"
 
@@ -35,6 +37,8 @@
 dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(const char *alias);
 
 
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int argc, const char ** argv, char ** a_str_reply,
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
 
 /**
  * global_db command

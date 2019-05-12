@@ -1382,33 +1382,35 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
  * @param l_net
  * @return
  */
-int s_values_parse_net_chain(int *a_arg_index,int argc, const char ** argv, char ** a_str_reply,
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int argc, const char ** argv, char ** a_str_reply,
                              dap_chain_t ** a_chain, dap_chain_net_t ** a_net)
 {
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
-    // Net name
-    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-net", &l_net_str);
 
-    // Chain name
-    dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-chain", &l_chain_str);
+    // Net name
+    if ( a_net )
+        dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-net", &l_net_str);
+    else
+       return -100;
 
     // Select chain network
     if(!l_net_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'net'",argv[0]);
         return -42;
-    }else {
-        if ( ( *a_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"",argv[0],l_net_str);
-            return -43;
-        }
+    }
+    // Chain name
+    if ( a_chain )
+        dap_chain_node_cli_find_option_val(argv, *a_arg_index, argc, "-chain", &l_chain_str);
+
+    if ( ( *a_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"",argv[0],l_net_str);
+        return -43;
     }
 
+
     // Select chain
-    if(!l_chain_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain'",argv[0]);
-        return -44;
-    }else {
+    if(l_chain_str) {
         if ( ( *a_chain  = dap_chain_net_get_chain_by_name(*a_net, l_chain_str ) ) == NULL ){ // Can't find such chain
             dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid chain name in chain net %s",
                                               argv[0] , l_net_str);
@@ -1442,7 +1444,7 @@ int com_token_decl_sign(int argc, const char ** argv, char ** a_str_reply)
 
         dap_chain_net_t * l_net = NULL;
 
-        if ( s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0 )
+        if ( dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0 )
             return -1;
 
         // Load certs lists
@@ -1597,7 +1599,7 @@ int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
     dap_chain_t * l_chain;
     dap_chain_net_t * l_net = NULL;
 
-    if (s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
         return -1;
 
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
@@ -1632,7 +1634,7 @@ int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply)
     dap_chain_t * l_chain;
     dap_chain_net_t * l_net = NULL;
 
-    if (s_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
         return -1;
 
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
@@ -1702,7 +1704,7 @@ int com_token_decl(int argc, const char ** argv, char ** str_reply)
     dap_chain_t * l_chain;
     dap_chain_net_t * l_net = NULL;
 
-    if (s_values_parse_net_chain(&arg_index,argc,argv,str_reply,&l_chain, &l_net) < 0)
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,str_reply,&l_chain, &l_net) < 0)
         return -1;
 
 

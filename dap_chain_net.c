@@ -30,11 +30,15 @@
 #include "utlist.h"
 
 #include "dap_common.h"
+#include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_chain_utxo.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
+
 #include "dap_module.h"
 
 #define _XOPEN_SOURCE 700
@@ -76,11 +80,8 @@ typedef struct dap_chain_net_item{
 static dap_chain_net_item_t * s_net_items = NULL;
 static dap_chain_net_item_t * s_net_items_ids = NULL;
 
-static size_t            s_net_configs_count = 0;
 static pthread_cond_t    s_net_proc_loop_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t    s_net_proc_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-int s_net_states_proc(dap_chain_net_t * l_net);
 
 static const char * c_net_states[]={
     [NET_STATE_BEGIN] = "NET_STATE_BEGIN",
@@ -88,8 +89,17 @@ static const char * c_net_states[]={
     [NET_STATE_LINKS_ESTABLISHED]= "NET_STATE_LINKS_ESTABLISHED",
     [NET_STATE_SYNC_GDB]= "NET_STATE_SYNC_GDB",
     [NET_STATE_SYNC_CHAINS]= "NET_STATE_SYNC_CHAINS",
-    [NET_STATE_STAND_BY]= "NET_STATE_STAND_BY"
+    [NET_STATE_SYNC_ALL]= "NET_STATE_STAND_BY"
 };
+
+static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
+inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state);
+static int s_net_states_proc(dap_chain_net_t * l_net);
+static void * s_net_proc_thread ( void * a_net);
+static void s_net_proc_thread_start( dap_chain_net_t * a_net );
+static void s_net_proc_kill( dap_chain_net_t * a_net );
+
+static int s_cli_net(int argc, const char ** argv, char **str_reply);
 
 /**
  * @brief s_net_state_to_str
@@ -120,13 +130,14 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
  * @brief s_net_states_proc
  * @param l_net
  */
-int s_net_states_proc(dap_chain_net_t * l_net)
+static int s_net_states_proc(dap_chain_net_t * l_net)
 {
     int ret=0;
     switch ( PVT(l_net)->state ){
         case NET_STATE_BEGIN:{
-            if ( PVT(l_net)->state_target != NET_STATE_BEGIN )
-                dap_chain_net_links_establish(l_net);
+            if ( PVT(l_net)->state_target != NET_STATE_BEGIN ){
+
+            }
         }break;
         case NET_STATE_LINKS_CONNECTING:{
 
@@ -142,7 +153,7 @@ int s_net_states_proc(dap_chain_net_t * l_net)
         case NET_STATE_SYNC_CHAINS:{
 
         }break;
-        case NET_STATE_STAND_BY:{
+        case NET_STATE_SYNC_ALL:{
 
         } break;
     }
@@ -203,7 +214,7 @@ static void s_net_proc_kill( dap_chain_net_t * a_net )
  * @param a_node_name
  * @return
  */
-dap_chain_net_t * dap_chain_net_new(const char * a_id, const char * a_name ,
+static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name ,
                                     const char * a_node_role)
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
@@ -267,12 +278,39 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  */
 int dap_chain_net_init()
 {
+    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
+        "net -net <chain net name> sync < all | gdb | chains >\n"
+            "\tSyncronyze gdb, chains or everything\n\n" );
+
+    return dap_chain_net_load("default");
+}
+
+/**
+ * @brief s_cli_net
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @return
+ */
+static int s_cli_net(int argc, const char ** argv, char **str_reply)
+{
+
+}
+
+
+int dap_chain_net_load(const char * a_net_name)
+{
     static dap_config_t *l_cfg=NULL;
-    if((l_cfg = dap_config_open( "network/default" ) ) == NULL) {
+    dap_string_t *l_cfg_path = dap_string_new("network/");
+    dap_string_append(l_cfg_path,a_net_name);
+
+    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
         log_it(L_ERROR,"Can't open default network config");
+        dap_string_free(l_cfg_path,true);
         return -1;
-    }else{
-        dap_chain_net_t * l_net = dap_chain_net_new(
+    } else {
+        dap_string_free(l_cfg_path,true);
+        dap_chain_net_t * l_net = s_net_new(
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
@@ -322,8 +360,11 @@ int dap_chain_net_init()
 
                         // Create chain object
                         dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chains_path);
-                        if(l_chain)
+                        if(l_chain){
                             DL_APPEND( l_net->pub.chains, l_chain);
+                            if(l_chain->callback_created)
+                                l_chain->callback_created(l_chain,l_cfg);
+                        }
                         free(l_entry_name);
                     }
                 }
