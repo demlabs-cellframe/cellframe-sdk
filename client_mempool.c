@@ -259,7 +259,7 @@ static int client_mempool_send_request(client_mempool_t *mempool, dap_datum_memp
     size_t a_request_size = 1;
     uint8_t *a_request = (datum_mempool) ? dap_datum_mempool_serialize(datum_mempool, &a_request_size) : (uint8_t*) " ";
     uint8_t *a_request_out = DAP_NEW_Z_SIZE(uint8_t, a_request_size * 2); // a_request + 1 byte for type action
-    bin2hex(a_request_out, a_request, a_request_size);
+    dap_bin2hex(a_request_out, a_request, a_request_size);
     client_mempool_reset(mempool, CLIENT_MEMPOOL_SEND);
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(mempool->a_client);
     l_client_internal->is_close_session = is_last_req;
