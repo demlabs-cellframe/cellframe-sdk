@@ -77,7 +77,7 @@ uint8_t* dap_chain_cert_mem_save(dap_chain_cert_t * a_cert, uint32_t *a_cert_siz
     dap_enc_key_t * l_key = a_cert->enc_key;
     uint8_t *l_data = NULL;
 
-    size_t l_priv_key_data_size = a_cert->enc_key->priv_key_data,
+    size_t l_priv_key_data_size = a_cert->enc_key->priv_key_data_size,
             l_pub_key_data_size = a_cert->enc_key->pub_key_data_size;
     uint8_t *l_pub_key_data = a_cert->enc_key->pub_key_data_size ?
                 dap_enc_key_serealize_pub_key(l_key, &l_pub_key_data_size) :
