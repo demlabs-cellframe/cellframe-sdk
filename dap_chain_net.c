@@ -282,7 +282,6 @@ int dap_chain_net_init()
         "net -net <chain net name> sync < all | gdb | chains >\n"
             "\tSyncronyze gdb, chains or everything\n\n" );
 
-    return dap_chain_net_load("default");
 }
 
 /**
