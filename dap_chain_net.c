@@ -54,8 +54,8 @@
   */
 typedef struct dap_chain_net_pvt{
     pthread_t proc_tid;
-    pthread_cond_t proc_cond;
-    pthread_mutex_t proc_mutex;
+    pthread_cond_t state_proc_cond;
+    pthread_mutex_t state_mutex;
     dap_chain_node_role_t node_role;
     uint8_t padding[4];
 
@@ -117,11 +117,14 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
+    pthread_mutex_lock( &PVT(a_net)->state_mutex);
     if (PVT(a_net)->state_target == a_new_state){
         log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
     }
     PVT(a_net)->state_target = a_new_state;
-    return s_net_states_proc(a_net);
+    pthread_mutex_unlock( &PVT(a_net)->state_mutex);
+    pthread_cond_signal(&PVT(a_net)->state_proc_cond);
+    return 0;
 }
 
 
@@ -135,8 +138,34 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
     switch ( PVT(l_net)->state ){
         case NET_STATE_OFFLINE:{
             if ( PVT(l_net)->state_target != NET_STATE_OFFLINE ){
+                // Check if there are root nodes in list
 
+                switch ( PVT(l_net)->node_role.enums){
+                    case NODE_ROLE_ROOT_MASTER:
+                    case NODE_ROLE_ROOT:{
+                    }break;
+                    case NODE_ROLE_ARCHIVE:
+                    case NODE_ROLE_CELL_MASTER:
+                    case NODE_ROLE_MASTER:
+                    case NODE_ROLE_FULL:
+                    case NODE_ROLE_LIGHT:
+                    default:{};
+                };
             }
+        }break;
+        case NET_STATE_LINKS_PINGING:{
+            switch ( PVT(l_net)->node_role.enums){
+                case NODE_ROLE_ROOT_MASTER:
+                case NODE_ROLE_ROOT:{
+                }break;
+                case NODE_ROLE_ARCHIVE:
+                case NODE_ROLE_CELL_MASTER:
+                case NODE_ROLE_MASTER:
+                case NODE_ROLE_FULL:
+                case NODE_ROLE_LIGHT:
+                default:{}
+            };
+
         }break;
         case NET_STATE_LINKS_CONNECTING:{
 
@@ -170,9 +199,9 @@ static void * s_net_proc_thread ( void * a_net)
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
     bool is_looping = true ;
     while( is_looping ) {
-        pthread_mutex_lock( &PVT(l_net)->proc_mutex );
-        pthread_cond_wait(&PVT(l_net)->proc_cond,&PVT(l_net)->proc_mutex);
-        pthread_mutex_unlock( &PVT(l_net)->proc_mutex );
+        pthread_mutex_lock( &PVT(l_net)->state_mutex );
+        pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
+        pthread_mutex_unlock( &PVT(l_net)->state_mutex );
         log_it( L_DEBUG, "Waked up net proc thread");
 
         s_net_states_proc(l_net);
@@ -198,7 +227,7 @@ static void s_net_proc_thread_start( dap_chain_net_t * a_net )
 static void s_net_proc_kill( dap_chain_net_t * a_net )
 {
     if ( PVT(a_net)->proc_tid ) {
-        pthread_cond_signal(& PVT(a_net)->proc_cond);
+        pthread_cond_signal(& PVT(a_net)->state_proc_cond);
         log_it(L_NOTICE,"Sent KILL signal to the net process thread %d, waiting for shutdown...",PVT(a_net)->proc_tid);
         pthread_join( PVT(a_net)->proc_tid , NULL);
         log_it(L_NOTICE,"Net process thread %d shutted down",PVT(a_net)->proc_tid);
@@ -219,8 +248,8 @@ static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name ,
 {
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-    pthread_mutex_init( &PVT(ret)->proc_mutex, NULL);
-    pthread_cond_init( &PVT(ret)->proc_cond, NULL);
+    pthread_mutex_init( &PVT(ret)->state_mutex, NULL);
+    pthread_cond_init( &PVT(ret)->state_proc_cond, NULL);
     if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root_master")==0){
             PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
@@ -395,7 +424,19 @@ int dap_chain_net_load(const char * a_net_name)
         }
         dap_chain_utxo_init(l_utxo_flags);
 
-
+        // Check if seed nodes are present in local db alias
+        size_t l_seed_aliases_size = 0;
+        char ** l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases",&l_seed_aliases_size);
+        size_t l_seed_ipv4_size = 0;
+        char ** l_seed_ipv4 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv4",&l_seed_aliases_size);
+        for ( size_t i = 0; i < l_seed_aliases_size; i++ ){
+            dap_chain_node_addr_t * l_node_addr;
+            l_node_addr = dap_chain_node_alias_find(l_seed_aliases[i]);
+            if (l_node_addr == NULL ){
+                log_it(L_NOTICE,"Not found \"%s\" seed node alias record, addding in gdb",l_seed_aliases[i]);
+                //    dap_chain_node_client_list_add(l_seed_ipv4)
+            }
+        }
 
         // Init chains
         size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
