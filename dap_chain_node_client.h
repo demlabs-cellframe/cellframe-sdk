@@ -57,7 +57,7 @@ typedef struct dap_chain_node_client {
     dap_client_t *client;
     dap_events_t *events;
 
-    dap_chain_node_client_callback_t callback_stream_connected;
+    dap_chain_node_client_callback_t callback_connected;
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
     uint8_t *recv_data;
@@ -102,5 +102,5 @@ int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_clie
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int chain_node_client_wait(dap_chain_node_client_t *client, dap_chain_node_client_state_t waited_state, int timeout_ms);
+int dap_chain_node_client_wait(dap_chain_node_client_t *client, dap_chain_node_client_state_t waited_state, int timeout_ms);
 

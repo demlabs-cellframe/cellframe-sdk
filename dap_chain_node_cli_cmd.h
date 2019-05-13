@@ -118,3 +118,4 @@ int com_tx_verify(int argc, const char ** argv, char **str_reply);
 int com_mempool_delete(int argc, const char ** argv, char ** a_str_reply);
 int com_mempool_list(int argc, const char ** argv, char ** a_str_reply);
 int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply);
+
