@@ -502,8 +502,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "mempool_list -net <net name> -chain <chain name>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entries for selected chain network and chain id",
-            "mempool_list -net <net name> -chain <chain name>\n");
+            "mempool_proc -net <net name> -chain <chain name>\n");
 
+    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash>",
+            "mempool_delete -net <net name> -chain <chain name> -datum <datum hash>\n");
 
 
     // Transaction commands

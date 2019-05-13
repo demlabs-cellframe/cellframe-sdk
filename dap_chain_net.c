@@ -64,6 +64,10 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_client_t * clients_by_ipv6;
     size_t clients_count;
 
+    char ** seed_aliases;
+    uint16_t seed_aliases_count;
+    uint8_t padding2[6];
+
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
 } dap_chain_net_pvt_t;
@@ -100,6 +104,7 @@ static void s_net_proc_kill( dap_chain_net_t * a_net );
 
 static int s_cli_net(int argc, const char ** argv, char **str_reply);
 
+static bool s_seed_mode = false;
 /**
  * @brief s_net_state_to_str
  * @param l_state
@@ -139,7 +144,6 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
         case NET_STATE_OFFLINE:{
             if ( PVT(l_net)->state_target != NET_STATE_OFFLINE ){
                 // Check if there are root nodes in list
-
                 switch ( PVT(l_net)->node_role.enums){
                     case NODE_ROLE_ROOT_MASTER:
                     case NODE_ROLE_ROOT:{
@@ -199,12 +203,12 @@ static void * s_net_proc_thread ( void * a_net)
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
     bool is_looping = true ;
     while( is_looping ) {
+        s_net_states_proc(l_net);
         pthread_mutex_lock( &PVT(l_net)->state_mutex );
         pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
         pthread_mutex_unlock( &PVT(l_net)->state_mutex );
         log_it( L_DEBUG, "Waked up net proc thread");
 
-        s_net_states_proc(l_net);
     }
     return NULL;
 }
@@ -298,6 +302,7 @@ static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name ,
  */
 void dap_chain_net_delete( dap_chain_net_t * a_net )
 {
+    if (PVT(a_net)->seed_aliases)
     DAP_DELETE( PVT(a_net) );
 }
 
@@ -314,7 +319,8 @@ int dap_chain_net_init()
         "net -net <chain net name> link < list | add | del | info | establish >\n"
             "\tList,add,del, dump or establish links\n\n"
                                         );
-
+    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+    return  0;
 }
 
 /**
@@ -425,18 +431,8 @@ int dap_chain_net_load(const char * a_net_name)
         dap_chain_utxo_init(l_utxo_flags);
 
         // Check if seed nodes are present in local db alias
-        size_t l_seed_aliases_size = 0;
-        char ** l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases",&l_seed_aliases_size);
-        size_t l_seed_ipv4_size = 0;
-        char ** l_seed_ipv4 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv4",&l_seed_aliases_size);
-        for ( size_t i = 0; i < l_seed_aliases_size; i++ ){
-            dap_chain_node_addr_t * l_node_addr;
-            l_node_addr = dap_chain_node_alias_find(l_seed_aliases[i]);
-            if (l_node_addr == NULL ){
-                log_it(L_NOTICE,"Not found \"%s\" seed node alias record, addding in gdb",l_seed_aliases[i]);
-                //    dap_chain_node_client_list_add(l_seed_ipv4)
-            }
-        }
+        PVT(l_net)->seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
+                                                             ,&PVT(l_net)->seed_aliases_count);
 
         // Init chains
         size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
@@ -482,12 +478,15 @@ int dap_chain_net_load(const char * a_net_name)
                 dap_chain_t * l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain ) l_chain->is_datum_pool_proc = true;
                 log_it(L_INFO,"Root master node role established");
-            } break;
+            } // Master root includes root
             case NODE_ROLE_ROOT:{
                 // Set to process only zerochain
                 dap_chain_id_t l_chain_id = {{0}};
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
-                l_chain->is_datum_pool_proc = true;
+                if (l_chain )
+                   l_chain->is_datum_pool_proc = true;
+
+                PVT(l_net)->state_target = NET_STATE_SYNC_ALL;
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:
@@ -496,11 +495,12 @@ int dap_chain_net_load(const char * a_net_name)
                 dap_chain_id_t l_chain_id = { .raw = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x01} };
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
                 l_chain->is_datum_pool_proc = true;
-
+                PVT(l_net)->state_target = NET_STATE_SYNC_ALL;
                 log_it(L_INFO,"Master node role established");
             } break;
             case NODE_ROLE_FULL:{
                 log_it(L_INFO,"Full node role established");
+                PVT(l_net)->state_target = NET_STATE_SYNC_ALL;
             } break;
             case NODE_ROLE_LIGHT:
             default:
@@ -508,6 +508,9 @@ int dap_chain_net_load(const char * a_net_name)
 
         }
 
+        if (s_seed_mode) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
+            PVT(l_net)->state_target = NET_STATE_OFFLINE;
+        }
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
         dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);

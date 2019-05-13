@@ -1597,29 +1597,81 @@ int com_token_decl_sign(int argc, const char ** argv, char ** a_str_reply)
 int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
-    dap_chain_t * l_chain;
+    dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) < 0)
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) != 0){
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
         return -1;
-
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-    size_t l_objs_size = 0;
-    dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool,&l_objs_size);
-    dap_string_t * l_str_tmp = dap_string_new(NULL);
-    dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_size);
-    for ( size_t i = 0; i< l_objs_size; i++){
-        dap_chain_datum_t * l_datum =(dap_chain_datum_t* ) l_objs[i]->value;
-        char buf[50];
-        time_t l_ts_create = (time_t) l_datum->header.ts_create;
-        dap_string_append_printf(l_str_tmp,"0x%s: type_id=%s ts_create=%s data_size=%u\n",
-                                 l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
-                                    ctime_r( &l_ts_create,buf ),l_datum->header.data_size );
     }
-    dap_chain_global_db_objs_delete(l_objs);
-    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-    dap_string_free(l_str_tmp,false);
-    return  0;
+
+    if ( l_chain && l_net ){
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        dap_string_t * l_str_tmp = dap_string_new(NULL);
+
+        size_t l_objs_size = 0;
+
+        dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool,&l_objs_size);
+        dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_size);
+        for ( size_t i = 0; i< l_objs_size; i++){
+            dap_chain_datum_t * l_datum =(dap_chain_datum_t* ) l_objs[i]->value;
+            char buf[50];
+            time_t l_ts_create = (time_t) l_datum->header.ts_create;
+            dap_string_append_printf(l_str_tmp,"%s: type_id=%s  data_size=%u ts_create=%s",
+                                     l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
+                                        l_datum->header.data_size,ctime_r( &l_ts_create,buf ) );
+        }
+
+        // Clean up
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+        dap_chain_global_db_objs_delete(l_objs);
+        dap_string_free(l_str_tmp,false);
+
+        return  0;
+    }else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
+        return -2;
+    }
+}
+
+/**
+ * @brief com_mempool_delete
+ * @param argc
+ * @param argv
+ * @param a_str_reply
+ * @return
+ */
+int com_mempool_delete(int argc, const char ** argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    dap_chain_t * l_chain = NULL;
+    dap_chain_net_t * l_net = NULL;
+
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) != 0){
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
+        return -1;
+    }
+
+    if ( l_chain && l_net ){
+        const char * l_datum_hash_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+        if ( l_datum_hash_str ){
+            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+            if ( dap_chain_global_db_gr_del(l_datum_hash_str,l_gdb_group_mempool) ) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted",l_datum_hash_str);
+                return  0;
+            }else {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s",l_datum_hash_str);
+                return  -4;
+            }
+        }else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option",argv[0]);
+            return -3;
+        }
+    }else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
+        return -2;
+    }
 }
 
 /**
@@ -1672,6 +1724,8 @@ int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply)
     }
     return 0;
 }
+
+
 
 /**
  * @brief com_token_decl
