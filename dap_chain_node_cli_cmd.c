@@ -594,7 +594,7 @@ static int com_global_db_cur_node_set(dap_chain_node_info_t *a_node_info, const 
  * str_reply[out] for reply
  * return 0 Ok, -1 error
  */
-static int com_global_db_set_remote(dap_chain_node_info_t *a_node_info, const char *a_alias_str, char **a_str_reply)
+static int com_global_db_cur_node_set_from_remote(dap_chain_node_info_t *a_node_info, const char *a_alias_str, char **a_str_reply)
 {
     if(!a_node_info->hdr.address.uint64 && !a_alias_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
@@ -694,7 +694,7 @@ static int com_global_db_set_remote(dap_chain_node_info_t *a_node_info, const ch
 int com_global_db(int argc, const char ** argv, char **str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_DUMP, CMD_CUR_NODE_GET, CMD_CUR_NODE_SET, CMD_REMOTE_SET
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_DUMP, CMD_CUR_NODE_GET, CMD_CUR_NODE_SET, CMD_CUR_NODE_SET_FROM_REMOTE
     };
     //printf("com_global_db\n");
     int arg_index = 1;
@@ -731,7 +731,7 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     }
     else if((arg_index_n = dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "remote_set",
     NULL)) != 0) {
-        cmd_num = CMD_REMOTE_SET;
+        cmd_num = CMD_CUR_NODE_SET_FROM_REMOTE;
     }
     if(cmd_num == CMD_NONE) {
         dap_chain_node_cli_set_reply_text(str_reply, "command %s not recognized", argv[1]);
@@ -803,9 +803,9 @@ int com_global_db(int argc, const char ** argv, char **str_reply)
     case CMD_CUR_NODE_SET:
         // handler of command 'global_db cur_node set'
         return com_global_db_cur_node_set(l_node_info, alias_str, str_reply);
-    case CMD_REMOTE_SET:
+    case CMD_CUR_NODE_SET_FROM_REMOTE:
         // handler of command 'global_db node remote_set'
-        return com_global_db_set_remote(l_node_info, alias_str, str_reply);
+        return com_global_db_cur_node_set_from_remote(l_node_info, alias_str, str_reply);
 
     default:
         dap_chain_node_cli_set_reply_text(str_reply, "command %s not recognized", argv[1]);
