@@ -563,7 +563,7 @@ void *memzero(void *a_buf, size_t n)
  * len is the size of the data in the in[] buffer to encode.
  * return the number of bytes encoded, or -1 on error.
  */
-size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len)
+size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len)
 {
     size_t ct = a_len;
     static char hex[] = "0123456789ABCDEF";
@@ -586,7 +586,7 @@ size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len)
  * The buffers in[] and out[] can be the same to allow in-place decoding.
  * return the number of bytes encoded, or 0 on error.
  */
-size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len)
+size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
 {
     // '0'-'9' = 0x30-0x39
     // 'a'-'f' = 0x61-0x66

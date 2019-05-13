@@ -90,8 +90,8 @@ void dap_random_string_fill(char *str, size_t length);
 void *memzero(void *mem, size_t n);
 void dap_dump_hex(const void* data, size_t size);
 
-size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len);
-size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len);
+size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len);
+size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len);
 
 
