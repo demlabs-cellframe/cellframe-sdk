@@ -59,6 +59,15 @@ extern "C" {
 int dap_common_init( const char * a_log_file );
 void dap_common_deinit(void);
 
+#define DAP_LIST_LOG_MAX    1000
+// list of logs
+typedef struct dap_list_logs_item{
+    time_t t;
+    char *str;
+} dap_list_logs_item_t;
+// get logs from list
+char *log_get_item(time_t a_start_time, int limit);
+
 void _log_it(const char * log_tag, enum log_level, const char * format,...);
 void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list ap );
 #define log_it(_log_level,...) _log_it(LOG_TAG,_log_level,##__VA_ARGS__)

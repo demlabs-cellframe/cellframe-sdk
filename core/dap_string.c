@@ -32,6 +32,12 @@ static void dap_string_maybe_expand(dap_string_t *a_string, size_t a_len)
 {
     if(a_string->len + a_len >= a_string->allocated_len) {
         a_string->allocated_len = nearest_power(1, a_string->len + a_len + 1);
+
+        /*char *l_str = DAP_NEW_Z_SIZE(char, a_string->allocated_len);
+        if(a_string->str)
+            strcpy(l_str, a_string->str);
+        DAP_DELETE(a_string->str);
+        a_string->str = l_str;*/
         a_string->str = DAP_REALLOC(a_string->str, a_string->allocated_len);
     }
 }
