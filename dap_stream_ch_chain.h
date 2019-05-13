@@ -24,6 +24,8 @@
 
 #pragma once
 
-int dap_stream_ch_chain_init();
-void dap_stream_ch_chain_deinit();
+#include <stdint.h>
+int dap_stream_ch_chain_init(void);
+void dap_stream_ch_chain_deinit(void);
 
+inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }

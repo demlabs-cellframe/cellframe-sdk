@@ -61,10 +61,11 @@ static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg);
 int dap_stream_ch_chain_init()
 {
     log_it(L_NOTICE,"Chain blocks and datums exchange channel initialized");
-    dap_stream_ch_proc_add('C',s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_stream_ch_proc_add(dap_stream_ch_chain_get_id(),s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
 
     return 0;
 }
+
 
 /**
  * @brief dap_stream_ch_chain_deinit
@@ -112,7 +113,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id,  l_chain_pkt->hdr.chain_id);
             if ( l_chain ) {
                 switch ( l_chain_pkt->hdr.type ) {
-                    case STREAM_CH_CHAIN_PKT_TYPE_REQUEST:{
+                    case STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_REQUEST:{
                     }break;
                     case STREAM_CH_CHAIN_PKT_TYPE_DATUM:{
                     }break;

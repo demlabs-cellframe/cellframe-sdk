@@ -30,25 +30,22 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
 
-#define STREAM_CH_CHAIN_PKT_TYPE_REQUEST       0x00
-#define STREAM_CH_CHAIN_PKT_TYPE_BLOCK         0x11
-#define STREAM_CH_CHAIN_PKT_TYPE_DATUM         0x12
-#define STREAM_CH_CHAIN_PKT_TYPE_GLOVAL_DB     0x13
+#define STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_REQUEST       0x00
+#define STREAM_CH_CHAIN_PKT_TYPE_BLOCK                     0x11
+#define STREAM_CH_CHAIN_PKT_TYPE_DATUM                     0x12
+#define STREAM_CH_CHAIN_PKT_TYPE_GLOVAL_DB                 0x13
 
 typedef union dap_stream_ch_chain_request{
-    enum {
-            CHAIN_REQUEST_CHAIN_BLOCKS_RANGE_HASH,
-            CHAIN_REQUEST_CHAIN_BLOCKS_RANGE_DATE,
-            CHAIN_REQUEST_CHAIN_DATUM_RANGE_HASH,
-            CHAIN_REQUEST_CHAIN_DATUM_RANGE_DATE,
-         } enums:16;
-    uint16_t u16;
+    dap_chain_hash_fast_t hash_from;
+    dap_chain_hash_fast_t hash_to;
+    uint64_t ts_from;
+    uint64_t ts_to;
 } dap_stream_ch_chain_request_t;
 
 typedef struct dap_stream_ch_chain_pkt_hdr{
-    dap_chain_id_t chain_id;
     dap_chain_net_id_t net_id;
-    dap_chain_cell_id_t shard_id;
+    dap_chain_id_t chain_id;
+    dap_chain_cell_id_t cell_id;
     uint8_t type;
     uint8_t padding1[3];
     uint64_t tid;
