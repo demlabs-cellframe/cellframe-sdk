@@ -485,8 +485,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
-            "token_decl -net <net name> -chain <chain name> token <token ticker> total_supply <total supply> sign_total <sign total> sign_valid <sign valid> certs <certs list>\n"
-            "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <sign valid> from <sign total> signatures on valid emission\n"
+            "token_decl -net <net name> -chain <chain name> token <token ticker> total_supply <total supply> signs_total <sign total> signs_emission <signs for emission> certs <certs list>\n"
+            "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
             "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
@@ -503,8 +503,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "mempool_list -net <net name> -chain <chain name>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entries for selected chain network and chain id",
-            "mempool_list -net <net name> -chain <chain name>\n");
+            "mempool_proc -net <net name> -chain <chain name>\n");
 
+    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash>",
+            "mempool_delete -net <net name> -chain <chain name> -datum <datum hash>\n");
 
 
     // Transaction commands

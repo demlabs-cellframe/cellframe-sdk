@@ -77,6 +77,19 @@ bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *add
 }
 
 /**
+ * @brief dap_chain_node_alias_find
+ * @param alias
+ * @return
+ */
+dap_chain_node_addr_t * dap_chain_node_alias_find(const char *a_alias)
+{
+    size_t l_addr_size =0;
+    dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *)
+            dap_chain_global_db_gr_get(a_alias, &l_addr_size, GROUP_ALIAS);
+    return  l_addr;
+}
+
+/**
  * Delete alias from base
  */
 bool dap_chain_node_alias_delete(const char *alias)
