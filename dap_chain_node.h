@@ -80,6 +80,7 @@ typedef struct dap_chain_node_info
         uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
+        uint16_t ext_port; // Port thats node listening
         char alias[256];
     } DAP_ALIGN_PACKED hdr;
     dap_chain_node_addr_t links[]; // dap_chain_addr_t
@@ -119,7 +120,7 @@ dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id);
  */
 bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id);
 
-
+dap_chain_node_addr_t * dap_chain_node_alias_find(const char *alias);
 bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *addr);
 bool dap_chain_node_alias_delete(const char *alias);
 
