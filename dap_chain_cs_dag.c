@@ -812,7 +812,7 @@ static int s_cli_dag(int argc, const char ** argv, char **a_str_reply)
                     char * l_ctime_tmp = NULL;
                     time_t l_ts_reated = (time_t) l_event->header.ts_created;
                      // Header
-                    dap_string_append_printf(l_str_tmp,"Event 0x%s:\n", l_event_hash_str);
+                    dap_string_append_printf(l_str_tmp,"Event %s:\n", l_event_hash_str);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tversion: 0x%04sX\n",l_event->header.version);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tcell_id: 0x%016llX\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tchain_id: 0x%016llX\n",l_event->header.chain_id.uint64);
@@ -874,9 +874,24 @@ static int s_cli_dag(int argc, const char ** argv, char **a_str_reply)
             }break;
             case SUBCMD_EVENT_LIST:{
                 char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
+                dap_string_t * l_str_tmp = dap_string_new(NULL);
                 dap_global_db_obj_t ** l_objs;
                 size_t l_objs_count = 0;
                 l_objs = dap_chain_global_db_gr_load(l_gdb_group_events,&l_objs_count);
+                dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_count);
+
+                for (size_t i = 0; i< l_objs_count; i++){
+                    dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i]->value;
+                    char buf[50];
+                    time_t l_ts_create = (time_t) l_event->header.ts_created;
+                    dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
+                                             l_objs[i]->key, ctime_r( &l_ts_create,buf ) );
+
+                }
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                dap_string_free(l_str_tmp,false);
+                DAP_DELETE( l_gdb_group_events);
+                ret = 0;
             }break;
 
             case SUBCMD_UNDEFINED: {
