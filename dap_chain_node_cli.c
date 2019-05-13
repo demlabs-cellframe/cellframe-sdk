@@ -480,7 +480,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("wallet", com_tx_wallet, "Wallet info", "wallet [list | info [ -addr <addr> | -w <wallet_name>] \n");
+    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
+            "wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name>]\n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
@@ -515,6 +516,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "tx_cond_create todo\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
             "tx_verify  -wallet <wallet name> [-path <wallet path>]\n" );
+
+    // Log
+    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
+                "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
 
     // init client for handshake
