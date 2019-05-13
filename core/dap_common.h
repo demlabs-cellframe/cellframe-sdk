@@ -59,6 +59,7 @@ extern "C" {
 int dap_common_init( const char * a_log_file );
 void dap_common_deinit(void);
 
+#define DAP_LIST_LOG_MAX    1000
 // list of logs
 typedef struct dap_list_logs_item{
     time_t t;

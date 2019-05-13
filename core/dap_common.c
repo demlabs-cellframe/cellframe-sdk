@@ -128,17 +128,21 @@ void dap_common_deinit()
 
 // list of logs
 static dap_list_t *s_list_logs = NULL;
+// for separate access to logs
+static pthread_mutex_t s_list_logs_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // get logs from list
 char *log_get_item(time_t a_start_time, int limit)
 {
-    uint64_t l_count = 0;
+    int l_count = 0;
+    pthread_mutex_lock(&s_list_logs_mutex);
     dap_list_t *l_list = s_list_logs;
+
     l_list = dap_list_last(l_list);
     // find first item
     while(l_list) {
         dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
-        if(a_start_time > l_item->t){
+        if(a_start_time > l_item->t) {
             l_list = dap_list_next(l_list);
             break;
         }
@@ -146,8 +150,10 @@ char *log_get_item(time_t a_start_time, int limit)
         l_list = dap_list_previous(l_list);
     }
     // no new logs
-    if(!l_count)
+    if(!l_count){
+        pthread_mutex_unlock(&s_list_logs_mutex);
         return NULL;
+    }
     // if need all list
     if(!l_list)
         l_list = s_list_logs;
@@ -161,6 +167,8 @@ char *log_get_item(time_t a_start_time, int limit)
         l_list = dap_list_next(l_list);
         l_count++;
     }
+    pthread_mutex_unlock(&s_list_logs_mutex);
+
     char *l_ret_str = dap_string_free(l_string, false);
     return l_ret_str;
 }
@@ -169,6 +177,7 @@ char *log_get_item(time_t a_start_time, int limit)
 static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum log_level a_ll,
         const char * a_format, va_list a_ap)
 {
+    pthread_mutex_lock(&s_list_logs_mutex);
     dap_string_t *l_string = dap_string_new("");
     dap_string_append_printf(l_string, "[%s] ", a_time_str);
     if(a_ll == L_DEBUG) {
@@ -194,6 +203,16 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
     l_item->t = a_t;
     l_item->str = dap_string_free(l_string, false);
     s_list_logs = dap_list_append(s_list_logs, l_item);
+
+    // remove old items
+    unsigned int l_count = dap_list_length(s_list_logs);
+    if(l_count > DAP_LIST_LOG_MAX) {
+        // remove items from the beginning
+        for(unsigned int i = 0; i < l_count - DAP_LIST_LOG_MAX; i++) {
+            s_list_logs = dap_list_remove(s_list_logs, s_list_logs->data);
+        }
+    }
+    pthread_mutex_unlock(&s_list_logs_mutex);
 }
 
 /**
