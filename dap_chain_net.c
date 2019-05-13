@@ -496,6 +496,10 @@ int dap_chain_net_load(const char * a_net_name)
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
+        if(!l_net) {
+            log_it(L_ERROR,"Can't create l_net");
+            return -1;
+        }
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
 
