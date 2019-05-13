@@ -424,17 +424,13 @@ int dap_chain_net_load(const char * a_net_name)
             case NODE_ROLE_ROOT:
             case NODE_ROLE_ARCHIVE:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-                break;
             case NODE_ROLE_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
-                break;
             case NODE_ROLE_CELL_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-                break;
             case NODE_ROLE_FULL:
             case NODE_ROLE_LIGHT:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
-                break;
         }
         dap_chain_utxo_init(l_utxo_flags);
 
@@ -466,9 +462,8 @@ int dap_chain_net_load(const char * a_net_name)
                         dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chains_path);
                         if(l_chain){
                             DL_APPEND( l_net->pub.chains, l_chain);
-                            // fix - dap_chain_t has no member 'callback_created'
-                            //if(l_chain->callback_created)
-                            //    l_chain->callback_created(l_chain,l_cfg);
+                            if(l_chain->callback_created)
+                                l_chain->callback_created(l_chain,l_cfg);
                         }
                         free(l_entry_name);
                     }
