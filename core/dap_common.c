@@ -115,6 +115,10 @@ int dap_common_init(const char * a_log_file)
             return -1;
         }
     }
+
+    // Set max items in log list
+    dap_log_set_max_item(10);
+
     return 0;
 }
 
@@ -130,9 +134,21 @@ void dap_common_deinit()
 static dap_list_t *s_list_logs = NULL;
 // for separate access to logs
 static pthread_mutex_t s_list_logs_mutex = PTHREAD_MUTEX_INITIALIZER;
+static unsigned int s_max_items = 1000;
 
-// get logs from list
-char *log_get_item(time_t a_start_time, int limit)
+/*
+ * Set max items in log list
+ */
+void dap_log_set_max_item(unsigned int a_max)
+{
+    if(a_max>0)
+        s_max_items = a_max;
+}
+
+/*
+ * Get logs from list
+ */
+char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
     int l_count = 0;
     pthread_mutex_lock(&s_list_logs_mutex);
@@ -161,7 +177,7 @@ char *log_get_item(time_t a_start_time, int limit)
     // create return string
     dap_string_t *l_string = dap_string_new("");
     l_count = 0;
-    while(l_list && limit > l_count) {
+    while(l_list && a_limit > l_count) {
         dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
         dap_string_append_printf(l_string, "%lld;%s\n", (int64_t) l_item->t, l_item->str);
         l_list = dap_list_next(l_list);
@@ -206,9 +222,9 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
 
     // remove old items
     unsigned int l_count = dap_list_length(s_list_logs);
-    if(l_count > DAP_LIST_LOG_MAX) {
+    if(l_count > s_max_items) {
         // remove items from the beginning
-        for(unsigned int i = 0; i < l_count - DAP_LIST_LOG_MAX; i++) {
+        for(unsigned int i = 0; i < l_count - s_max_items; i++) {
             s_list_logs = dap_list_remove(s_list_logs, s_list_logs->data);
         }
     }
@@ -492,7 +508,7 @@ void dap_random_string_fill(char *str, size_t length) {
  */
 char * dap_random_string_create_alloc(size_t a_length)
 {
-    char * ret = (char*) malloc(a_length+1);
+    char * ret = DAP_NEW_SIZE(char, a_length+1);
     size_t i;
     for(i=0; i<a_length; ++i) {
         int index = rand() % (sizeof(l_possible_chars)-1);
