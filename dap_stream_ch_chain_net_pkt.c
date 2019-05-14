@@ -29,7 +29,7 @@ size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,
     char *l_buf = DAP_NEW_SIZE(char, l_buf_size);
     memcpy(l_buf, &l_hdr, sizeof(l_hdr));
     memcpy(l_buf + sizeof(l_hdr), a_data, a_data_size);
-    int l_ret  = dap_stream_ch_pkt_write(a_ch, STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_REQUEST, l_buf, l_buf_size);
+    size_t l_ret  = dap_stream_ch_pkt_write(a_ch, a_type , l_buf, l_buf_size);
     DAP_DELETE(l_buf);
     return l_ret;
 }

@@ -26,6 +26,7 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include "dap_stream_ch.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 
 typedef void (*dap_stream_ch_chain_net_callback_t)(dap_stream_ch_chain_net_pkt_t *a_pkt, size_t a_pkt_data_size, void *arg);

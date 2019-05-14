@@ -45,7 +45,12 @@ static void s_stream_ch_delete(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
-typedef struct session_data {
+typedef enum dap_chain_net_session_state{
+    CHAIN_NET_SESSION_STATE_IDLE=0,
+    CHAIN_NET_SESSION_STATE_REQUESTED_ADDR,
+} dap_chain_net_session_state_t;
+
+typedef struct dap_chain_net_session_data {
     unsigned int id;
     //int sock;
     int message_id;
@@ -55,9 +60,10 @@ typedef struct session_data {
     dap_list_t *list_tr; // list of transactions
     dap_chain_node_addr_t node_remote;
     dap_chain_node_addr_t node_cur;
+    dap_chain_net_session_state_t state;
 
     UT_hash_handle hh;
-} session_data_t;
+} dap_chain_net_session_data_t;
 
 typedef struct message_data {
     time_t timestamp_start;
@@ -66,7 +72,7 @@ typedef struct message_data {
 } DAP_ALIGN_PACKED message_data_t;
 
 // list of active sessions
-static session_data_t *s_chain_net_data = NULL;
+static dap_chain_net_session_data_t *s_chain_net_data = NULL;
 // for separate access to session_data_t
 static pthread_mutex_t s_hash_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -102,11 +108,11 @@ static const message_data_t *dap_stream_ch_chain_net_parse_packet(uint8_t* a_dat
 static void session_data_update(unsigned int a_id, int a_messsage_id, dap_list_t *a_list, message_data_t *a_data,
         time_t a_timestamp_cur)
 {
-    session_data_t *l_sdata;
+    dap_chain_net_session_data_t *l_sdata;
     pthread_mutex_lock(&s_hash_mutex);
     HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
     if(l_sdata == NULL) {
-        l_sdata = DAP_NEW_Z(session_data_t);
+        l_sdata = DAP_NEW_Z(dap_chain_net_session_data_t);
         l_sdata->id = a_id;
         HASH_ADD_INT(s_chain_net_data, id, l_sdata);
     }
@@ -127,9 +133,9 @@ static void session_data_update(unsigned int a_id, int a_messsage_id, dap_list_t
     pthread_mutex_unlock(&s_hash_mutex);
 }
 
-static session_data_t* session_data_find(unsigned int a_id)
+static dap_chain_net_session_data_t* session_data_find(unsigned int a_id)
 {
-    session_data_t *l_sdata;
+    dap_chain_net_session_data_t *l_sdata;
     pthread_mutex_lock(&s_hash_mutex);
     HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
     pthread_mutex_unlock(&s_hash_mutex);
@@ -138,7 +144,7 @@ static session_data_t* session_data_find(unsigned int a_id)
 
 static void session_data_del(unsigned int a_id)
 {
-    session_data_t *l_sdata;
+    dap_chain_net_session_data_t *l_sdata;
     pthread_mutex_lock(&s_hash_mutex);
     HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
     if(l_sdata) {
@@ -150,7 +156,7 @@ static void session_data_del(unsigned int a_id)
 
 static void session_data_del_all()
 {
-    session_data_t *l_sdata, *l_sdata_tmp;
+    dap_chain_net_session_data_t *l_sdata, *l_sdata_tmp;
     pthread_mutex_lock(&s_hash_mutex);
     HASH_ITER(hh, s_chain_net_data , l_sdata, l_sdata_tmp)
     {
@@ -253,10 +259,22 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_stream_ch_set_ready_to_write(a_ch, false);
             }
                 break;
-                // get node address
             case STREAM_CH_CHAIN_NET_PKT_TYPE_GET_NODE_ADDR: {
                 log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_GET_NODE_ADDR");
                 dap_stream_ch_set_ready_to_write(a_ch, false);
+            }
+                // get node address
+            case STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST: {
+                log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST");
+                dap_chain_net_session_data_t *l_session_data = session_data_find(a_ch->stream->session->id);
+                if (l_session_data ) {
+                    l_session_data->state = CHAIN_NET_SESSION_STATE_REQUESTED_ADDR;
+                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                }else {
+                    log_it(L_ERROR, "Can't find session_id=%u to produce addr in reply",
+                            a_ch->stream->session->id);
+                    dap_stream_ch_set_ready_to_write(a_ch, false);
+                }
             }
                 break;
                 // set new node address
@@ -371,7 +389,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             if(l_ch_chain_net->notify_callback) {
                 if(l_chain_pkt->hdr.type == STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC) {
-                    session_data_t *l_data = session_data_find(a_ch->stream->session->id);
+                    dap_chain_net_session_data_t *l_data = session_data_find(a_ch->stream->session->id);
                     // end of session
                     if(!l_data->list_tr)
                         l_ch_chain_net->notify_callback(NULL, l_ch_pkt_data_size, l_ch_chain_net->notify_callback_arg);
@@ -389,6 +407,32 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 }
 
 /**
+ * @brief s_session_state_proc
+ * @param a_ch
+ */
+void s_session_state_proc(dap_stream_ch_t * a_ch )
+{
+    dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
+
+   dap_chain_net_session_data_t *l_session_data = session_data_find(a_ch->stream->session->id);
+   //printf("*packet out session_id=%u\n", a_ch->stream->session->id);
+   if(!l_session_data) {
+       log_it(L_WARNING, "Can't find session_data");
+       dap_stream_ch_set_ready_to_write(a_ch, false);
+       return;
+   }
+
+   switch (l_session_data->state){
+       case CHAIN_NET_SESSION_STATE_REQUESTED_ADDR:{
+//            dap_chain_node_addr_t * l_addr = dap_chain_node_gen_addr( l_ch_chain_net-> )
+       }break;
+       case CHAIN_NET_SESSION_STATE_IDLE:{
+            log_it(L_NOTICE,"Session idle state, nothing to do");
+       }break;
+   }
+}
+
+/**
  * @brief s_stream_ch_packet_out
  * @param ch
  * @param arg
@@ -398,7 +442,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     pthread_mutex_lock(&l_ch_chain_net->mutex);
 
-    session_data_t *l_data = session_data_find(a_ch->stream->session->id);
+    dap_chain_net_session_data_t *l_data = session_data_find(a_ch->stream->session->id);
     //printf("*packet out session_id=%u\n", a_ch->stream->session->id);
     if(!l_data) {
         log_it(L_WARNING, "if packet_out() l_data=NULL");
@@ -426,7 +470,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     int len = dap_list_length(l_list);
     //printf("*len=%d\n", len);
     if(l_list) {
-        size_t l_item_size_out = 0;
+        size_t   l_item_size_out = 0;
         uint8_t *l_item = NULL;
         while(l_list && !l_item) {
             l_item = dap_db_log_pack((dap_global_db_obj_t *) l_list->data, &l_item_size_out);
