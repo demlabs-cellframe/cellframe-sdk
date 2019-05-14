@@ -19,7 +19,7 @@ static pthread_mutex_t ldb_mutex = PTHREAD_MUTEX_INITIALIZER;
  */
 static bool is_local_group(const char *a_group)
 {
-    if(!strcmp(a_group, GROUP_ALIAS) || !strcmp(a_group, GROUP_REMOTE_NODE))
+    if( strncmp(a_group, "local.",6)==0 )
         return true;
     return false;
 }

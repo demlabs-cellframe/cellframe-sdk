@@ -62,6 +62,11 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out)
     while(l_keys[i]) {
 
         dap_store_obj_t *l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
+        if (l_obj == NULL){
+            dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
+            dap_strfreev(l_keys);
+            return NULL;
+        }
         memcpy(l_store_obj + i, l_obj, sizeof(dap_store_obj_t));
         DAP_DELETE(l_obj);
         i++;
