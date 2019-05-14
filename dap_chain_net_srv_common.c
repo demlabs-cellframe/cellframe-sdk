@@ -1,9 +1,35 @@
+/*
+ * Authors:
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Aleksandr Lysikov <alexander.lysikov@demlabs.net>
+ * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2019
+ * All rights reserved.
+
+ This file is part of DAP (Deus Applications Prototypes) the open source project
+
+ DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ DAP is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <stdint.h>
 #include "dap_strfuncs.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_net_srv_common.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_utxo.h"
+#include "dap_stream.h"
 
 /**
  * copy a_value_dst to a_uid_src
@@ -90,3 +116,23 @@ uint64_t dap_chain_net_srv_client_auth(char *a_addr_base58, uint8_t *a_sign, siz
         *a_cond_out = (const dap_chain_net_srv_abstract_t*) l_cond;
     return l_value;
 }
+
+// callback for traffic
+void dap_chain_net_srv_traffic_callback(dap_server_t *a_server)
+{
+    pthread_mutex_lock(&a_server->mutex_on_hash);
+    dap_client_remote_t *l_client = a_server->clients;
+    if(l_client) {
+        dap_stream_t *l_stream = DAP_STREAM(l_client);
+        if(l_stream)
+            for(int i = 0; i < l_stream->channel_count; i++) {
+                dap_stream_ch_t * ch = l_stream->channel[i];
+                dap_chain_net_srv_t *net_srv = (dap_chain_net_srv_t*) (ch->internal);
+                // callback for service
+                if(net_srv && net_srv->callback_trafic)
+                    net_srv->callback_trafic(l_client, ch);
+            }
+    }
+    pthread_mutex_unlock(&a_server->mutex_on_hash);
+}
+

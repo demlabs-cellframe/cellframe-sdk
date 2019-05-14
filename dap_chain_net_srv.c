@@ -1,6 +1,7 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <kahovski@gmail.com>
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Aleksandr Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * DeM Labs Open source community https://github.com/demlabsinc
  * Copyright  (c) 2017-2018
@@ -80,7 +81,7 @@ void dap_chain_net_srv_add(dap_chain_net_srv_t * a_srv)
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &a_srv->uid, sizeof(dap_chain_net_srv_uid_t));
         l_sdata->srv = DAP_NEW(dap_chain_net_srv_t);
-        memcpy(&l_sdata->srv, a_srv, sizeof(dap_chain_net_srv_t));    ;
+        memcpy(&l_sdata->srv, a_srv, sizeof(dap_chain_net_srv_t));
         HASH_ADD(hh, s_srv_list, uid, sizeof(a_srv->uid), l_sdata);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);

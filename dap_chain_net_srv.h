@@ -1,6 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Aleksandr Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
@@ -25,16 +26,6 @@
 
 #include "dap_chain_net_srv_common.h"
 
-typedef struct dap_chain_net_srv
-{
-    dap_chain_net_srv_uid_t uid; // Unique ID for service.
-    dap_chain_net_srv_abstract_t srv_common;
-
-    void * _internal;
-    void * _inhertor;
-} dap_chain_net_srv_t;
-
-
 
 int dap_chain_net_srv_init(void);
 void dap_chain_net_srv_deinit(void);
@@ -46,3 +37,5 @@ dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t *a_uid);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 
+// callback for traffic
+void dap_chain_net_srv_traffic_callback(dap_server_t *a_server);
