@@ -8,13 +8,12 @@
 #include "dap_config.h"
 #include "dap_list.h"
 
-#define GROUP_NODE "addrs_leased"
-#define GROUP_ALIAS "aliases_leased"
-#define GROUP_DATUM "datums"
-#define GROUP_REMOTE_NODE "remote_node"
-//#define GROUP_CURRENT_NODE "current_node"
-
-#define GROUP_NAME_DEFAULT GROUP_DATUM
+#define GROUP_GLOBAL_ADDRS_LEASED "global.addrs_leased"
+#define GROUP_GLOBAL_ALIAS "global.aliases"
+#define GROUP_GLOBAL_DATUM "global.datums"
+#define GROUP_GLOBAL_HISTORY "global.history"
+#define GROUP_LOCAL_NODE_LAST_TS "local.nodelist"
+#define GROUP_LOCAL_GENERAL "local.general"
 
 typedef struct dap_global_db_obj {
     char *key;
@@ -38,7 +37,7 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t **objs);
 
 int dap_chain_global_db_init(dap_config_t * a_config);
 
-void dap_chain_global_db_deinit();
+void dap_chain_global_db_deinit(void);
 
 /**
  * Get entry from base
@@ -86,11 +85,11 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
 char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
 
 // Get data according the history log
-uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, int *a_data_size_out);
+uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out);
 // Parse data from dap_db_log_pack()
-void* dap_db_log_unpack(uint8_t *a_data, int a_data_size, int *a_store_obj_count);
+void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_obj_count);
 // Get timestamp from dap_db_log_pack()
-time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, int a_data_size);
+time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, size_t a_data_size);
 
 // Get last timestamp in log
 time_t dap_db_log_get_last_timestamp(void);

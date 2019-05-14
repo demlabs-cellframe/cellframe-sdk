@@ -47,7 +47,6 @@ static int dap_db_add_msg(struct ldb_message *a_msg)
         //log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(a_msg->dn));
         return 0;
     }
-    return -1;
 }
 
 int dap_db_init(const char *path)
@@ -59,19 +58,21 @@ int dap_db_init(const char *path)
     };
     if((ldb = ldb_init(mem_ctx, NULL)) != LDB_SUCCESS) {
         log_it(L_INFO, "ldb context initialized");
-        char tdb_path[strlen(path) + TDB_PREFIX_LEN];
-        memset(tdb_path, '\0', strlen(path) + TDB_PREFIX_LEN);
-        strcat(tdb_path, "tdb://"); // using tdb for simplicity, no need for separate LDAP server
-        strcat(tdb_path, path);
+        char *l_tdb_path = DAP_NEW_Z_SIZE(char,strlen(path) + TDB_PREFIX_LEN );
+        memset(l_tdb_path, '\0', strlen(path) + TDB_PREFIX_LEN);
+        strcat(l_tdb_path, "tdb://"); // using tdb for simplicity, no need for separate LDAP server
+        strcat(l_tdb_path, path);
         struct ldb_result *data_message;
-        if(ldb_connect(ldb, tdb_path, 0, NULL) != LDB_SUCCESS) {
+        if(ldb_connect(ldb, l_tdb_path, 0, NULL) != LDB_SUCCESS) {
             log_it(L_ERROR, "Couldn't connect to database");
+            DAP_DELETE(l_tdb_path);
             return 1;
         }
-        dap_db_path = strdup(tdb_path);
+        dap_db_path = strdup(l_tdb_path);
         const char *query = "(dn=*)";
-        if(ldb_search(ldb, mem_ctx, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, query) != LDB_SUCCESS) {
+        if(ldb_search(ldb, mem_ctx, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, "%s", query) != LDB_SUCCESS) {
             log_it(L_ERROR, "Database querying failed");
+            DAP_DELETE(l_tdb_path);
             return 2;
         }
         struct ldb_message *msg;
@@ -120,13 +121,13 @@ int dap_db_init(const char *path)
             talloc_free(msg);
         }
         talloc_free(data_message);
+        DAP_DELETE(l_tdb_path);
         return 0;
     }
     else {
         log_it(L_ERROR, "Couldn't initialize LDB context");
         return -2;
     }
-    return -1;
 }
 
 int dap_db_del_msg(struct ldb_dn *ldn)
@@ -143,7 +144,6 @@ int dap_db_del_msg(struct ldb_dn *ldn)
         //log_it(L_INFO, "Entry %s deleted", ldb_dn_get_linearized(ldn));
         return 0;
     }
-    return -1;
 }
 
 /**
@@ -157,7 +157,7 @@ int dap_db_del_msg(struct ldb_dn *ldn)
  * (&(department=1234)(city=Paris)) Matches to all users that have exactly the value 1234 for the attribute department and exactly the value Paris for the attribute city .
  *
  */
-pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *group)
+pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count)
 {
     struct ldb_result *data_message;
     /*
@@ -176,7 +176,7 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
         return NULL;
     }
     //sample: query = "(objectClass=addr_leased)";
-    if(ldb_search(ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, query) != LDB_SUCCESS) {
+    if(ldb_search(ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, a_query) != LDB_SUCCESS) {
         log_it(L_ERROR, "Database querying failed");
         return NULL;
     }
@@ -194,11 +194,8 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
         talloc_free(data_message);
         return NULL;
     }
-    int dap_store_len = data_message->count;
-    int q;
-    for(q = 0; q < dap_store_len; ++q) {
-        unsigned int num_elements;
-        struct ldb_message_element *elements;
+    size_t dap_store_len = data_message->count;
+    for(size_t q = 0; q < dap_store_len; ++q) {
         store_data[q].section = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "section", "")); //strdup("kelvin_nodes");
         store_data[q].group = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "objectClass", "")); //strdup(group);
         store_data[q].type = 1;
@@ -218,19 +215,19 @@ pdap_store_obj_t dap_db_read_data(const char *query, int *count, const char *gro
         //log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
     }
     talloc_free(data_message);
-    if(count)
-        *count = dap_store_len;
+    if(a_count)
+        *a_count = dap_store_len;
     return store_data;
 }
 
 /**
  * clean memory
  */
-void dab_db_free_pdap_store_obj_t(pdap_store_obj_t store_data, int count)
+void dab_db_free_pdap_store_obj_t(pdap_store_obj_t store_data, size_t count)
 {
     if(!store_data)
         return;
-    for(int i = 0; i < count; i++) {
+    for(size_t i = 0; i < count; i++) {
         pdap_store_obj_t store_one = store_data + i;
         DAP_DELETE(store_one->section);
         DAP_DELETE(store_one->group);
@@ -261,7 +258,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
         return NULL;
     }
 
-    int q = 0;
+    size_t q = 0;
     for(ldif_msg = ldb_ldif_read_file(ldb, fs); ldif_msg; ldif_msg = ldb_ldif_read_file(ldb, fs), q++) {
         if(q % 256 == 0) {
             store_data = (pdap_store_obj_t) realloc(store_data, (q + 256) * sizeof(dap_store_obj_t));
@@ -271,11 +268,12 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
          } */ // in case we gonna use extra LDIF functionality
         const char *key = ldb_msg_find_attr_as_string(ldif_msg->msg, "cn", NULL);
         if(key != NULL) {
-            store_data[q].section = strdup("kelvin_nodes");
+            store_data[q].section = strdup("kelvin-testnet");
             store_data[q].group = strdup(group);
             store_data[q].type = 1;
             store_data[q].key = strdup(key);
-            store_data[q].value = strdup(ldb_msg_find_attr_as_string(ldif_msg->msg, "time", NULL));
+            store_data[q].value =(uint8_t*) strdup( ldb_msg_find_attr_as_string(ldif_msg->msg, "time", NULL));
+            store_data[q].value_len = strlen ( (char*) store_data[q].value) +1;
             log_it(L_INFO, "Record %s stored successfully", ldb_dn_get_linearized(ldif_msg->msg->dn));
         }
         ldb_ldif_read_free(ldb, ldif_msg);
@@ -290,7 +288,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
  *
  * dap_store_size the count records
  */
-int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
+int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     int l_ret = 0;
     if(a_store_obj == NULL) {
@@ -303,11 +301,10 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
     }
     //log_it(L_INFO, "We're about to put %d records into database", a_store_count);
     struct ldb_message *l_msg;
-    int q;
     if(a_store_count == 0) {
         a_store_count = 1;
     }
-    for(q = 0; q < a_store_count; q++) {
+    for(size_t q = 0; q < a_store_count; q++) {
         // level 3: leased address, single whitelist entity
 
         // if it is marked, don't save
@@ -351,7 +348,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, int a_store_count)
  *
  * dap_store_size the count records
  */
-int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count)
+int dap_db_delete(pdap_store_obj_t store_obj, size_t a_store_count)
 {
     int ret = 0;
     if(store_obj == NULL) {
@@ -363,12 +360,10 @@ int dap_db_delete(pdap_store_obj_t store_obj, int a_store_count)
         return -2;
     }
     //log_it(L_INFO, "We're delete %d records from database", a_store_count);
-    struct ldb_message *msg;
-    int q;
     if(a_store_count == 0) {
         a_store_count = 1;
     }
-    for(q = 0; q < a_store_count; q++) {
+    for(size_t q = 0; q < a_store_count; q++) {
         char dn[128];
         memset(dn, '\0', 128);
         strcat(dn, "cn=");
@@ -416,14 +411,13 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
  * @param a_size_out[out] size of output structure
  * @return NULL in case of an error
  */
-dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp, int a_store_obj_count)
+dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp, size_t a_store_obj_count)
 {
     if(!a_store_obj || a_store_obj_count < 1)
         return NULL;
     size_t l_data_size_out = sizeof(uint32_t); // size of output data
-    int l_q;
     // calculate output structure size
-    for(l_q = 0; l_q < a_store_obj_count; ++l_q)
+    for(size_t l_q = 0; l_q < a_store_obj_count; ++l_q)
         l_data_size_out += dap_db_get_size_pdap_store_obj_t(&a_store_obj[l_q]);
 
     dap_store_obj_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t) + l_data_size_out);
@@ -433,7 +427,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
     uint32_t l_count = (uint32_t) a_store_obj_count;
     memcpy(l_pkt->data + l_offset, &l_count, sizeof(uint32_t));
     l_offset += sizeof(uint32_t);
-    for(l_q = 0; l_q < a_store_obj_count; ++l_q) {
+    for( size_t l_q = 0; l_q < a_store_obj_count; ++l_q) {
         dap_store_obj_t obj = a_store_obj[l_q];
         uint16_t section_size = (uint16_t) strlen(obj.section);
         uint16_t group_size = (uint16_t) strlen(obj.group);
@@ -468,17 +462,16 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
  * @return NULL in case of an error*
  */
 
-dap_store_obj_t *dap_store_unpacket(dap_store_obj_pkt_t *pkt, int *store_obj_count)
+dap_store_obj_t *dap_store_unpacket(const dap_store_obj_pkt_t *pkt, size_t *store_obj_count)
 {
     if(!pkt || pkt->data_size < 1)
         return NULL;
-    int q;
     uint64_t offset = 0;
     uint32_t count;
     memcpy(&count, pkt->data, sizeof(uint32_t));
     offset += sizeof(uint32_t);
     dap_store_obj_t *store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, count * sizeof(struct dap_store_obj));
-    for(q = 0; q < count; ++q) {
+    for(size_t q = 0; q < count; ++q) {
         dap_store_obj_t *obj = store_obj + q;
         uint16_t str_size;
         memcpy(&obj->type, pkt->data + offset, sizeof(int));
@@ -508,7 +501,7 @@ dap_store_obj_t *dap_store_unpacket(dap_store_obj_pkt_t *pkt, int *store_obj_cou
         memcpy(&obj->value_len, pkt->data + offset, sizeof(size_t));
         offset += sizeof(size_t);
 
-        obj->value = DAP_NEW_Z_SIZE(char, obj->value_len + 1);
+        obj->value = DAP_NEW_Z_SIZE(uint8_t, obj->value_len + 1);
         memcpy(obj->value, pkt->data + offset, obj->value_len);
         offset += obj->value_len;
     }
