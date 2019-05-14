@@ -108,8 +108,6 @@ static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
 
 int client_mempool_init(void)
 {
-    int res = dap_client_init();
-    res = dap_http_client_simple_init();
     dap_config_t *g_config;
     // read listen_port_tcp from settings
     dap_config_init(SYSTEM_CONFIGS_DIR);
@@ -122,7 +120,7 @@ int client_mempool_init(void)
     }
     if(g_config)
         dap_config_close(g_config);
-    return res;
+    return 0;
 }
 
 void client_mempool_deinit()
