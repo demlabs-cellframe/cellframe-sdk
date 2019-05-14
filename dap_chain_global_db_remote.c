@@ -13,12 +13,7 @@
  */
 bool dap_db_set_cur_node_addr(uint64_t a_address)
 {
-    dap_global_db_obj_t l_objs;
-    l_objs.key = "cur_node";
-    l_objs.value = (uint8_t*) &a_address;
-    l_objs.value_len = sizeof(a_address);
-    bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_LOCAL_GENERAL);
-    return l_ret;
+    return dap_chain_global_db_gr_set("cur_node_addr",(uint8_t*) &a_address, sizeof (a_address),GROUP_LOCAL_GENERAL);
 }
 
 /**
@@ -27,7 +22,7 @@ bool dap_db_set_cur_node_addr(uint64_t a_address)
 uint64_t dap_db_get_cur_node_addr(void)
 {
     size_t l_node_addr_len = 0;
-    uint8_t *l_node_addr = dap_chain_global_db_gr_get("cur_node", &l_node_addr_len, GROUP_LOCAL_GENERAL);
+    uint8_t *l_node_addr = dap_chain_global_db_gr_get("cur_node_addr", &l_node_addr_len, GROUP_LOCAL_GENERAL);
     uint64_t l_node_addr_ret = 0;
     if(l_node_addr && l_node_addr_len == sizeof(uint64_t))
         memcpy(&l_node_addr_ret, l_node_addr, l_node_addr_len);
