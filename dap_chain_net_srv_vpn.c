@@ -165,10 +165,11 @@ typedef struct ch_vpn_socket_proxy {
  **/
 typedef struct dap_stream_ch_vpn
 {
+    dap_chain_net_srv_t net_srv;
+    //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
     pthread_mutex_t mutex;
     ch_vpn_socket_proxy_t * socks;
     int raw_l3_sock;
-    dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
 } dap_stream_ch_vpn_t;
 
 typedef struct dap_stream_ch_vpn_remote_single { //
@@ -316,6 +317,25 @@ void srv_ch_sf_tun_destroy()
     raw_server->tun_fd = -1;
 }
 
+
+static void callback_trafic(dap_client_remote_t *a_client, dap_stream_ch_t* a_ch)
+{
+    dap_stream_ch_vpn_t *l_ch_vpn = (dap_stream_ch_vpn_t*)(a_ch->internal);
+    if(!a_client || !l_ch_vpn)
+        return;
+    dap_chain_net_srv_abstract_t *srv_common = &l_ch_vpn->net_srv.srv_common;
+    int bytes_max = srv_common->proposal_params.vpn.limit_bytes;
+    int bytes_cur = a_client->download_stat.buf_size_total;
+    // no more traffic -> disconnect?
+    if(bytes_cur>=bytes_max){
+        //dap_stream_delete(a_ch->stream);
+        //dap_stream_ch_delete(a_ch);
+        //srv_ch_sf_delete(a_ch, NULL);
+    }
+
+}
+
+
 /**
  * @brief stream_sf_new Callback to constructor of object of Ch
  * @param ch
@@ -346,12 +366,18 @@ void srv_ch_sf_new(dap_stream_ch_t* ch, void* arg)
         uint64_t l_value = dap_chain_net_srv_client_auth(l_addr_base58, l_sign, l_sign_size, &l_cond);
 
         // add service
+        //if(l_cond && l_value>0)
         {
             dap_chain_net_srv_t l_srv;
-            memcpy(&l_srv.srv_common, l_cond, sizeof(dap_chain_net_srv_abstract_t));
+            memset(&l_srv,0,sizeof(dap_chain_net_srv_t));
+            l_srv.callback_trafic = callback_trafic;
+            // debug
+            l_srv.srv_common.proposal_params.vpn.limit_bytes = 2000;
+            if(l_cond)
+                memcpy(&l_srv.srv_common, l_cond, sizeof(dap_chain_net_srv_abstract_t));
             dap_chain_net_srv_gen_uid((uint8_t*)&l_srv.uid,sizeof(l_srv.uid));
             dap_chain_net_srv_add(&l_srv);
-            memcpy(&sf->srv_uid.raw, &l_srv.uid, sizeof(dap_chain_net_srv_uid_t)); // Unique ID for service.
+            memcpy(&sf->net_srv, &l_srv, sizeof(dap_chain_net_srv_t)); // Unique ID for service.
         }
 
     }
@@ -441,60 +467,6 @@ static ch_vpn_pkt_t* srv_ch_sf_raw_read()
     return ret;
 }
 
-/*
- static int srv_ch_sf_raw_write(uint8_t op_code, const void * data, size_t data_size)
- {
- pthread_mutex_lock(&raw_server->pkt_out_mutex);
- if(raw_server->pkt_out_windex == (sizeof(raw_server->pkt_out) / sizeof(raw_server->pkt_out[0])))
- raw_server->pkt_out_windex = 0; // ring the buffer!
- if((raw_server->pkt_out_windex < raw_server->pkt_out_rindex) || (raw_server->pkt_out_size == 0)) {
- ch_vpn_pkt_t * pkt = (ch_vpn_pkt_t *) calloc(1, data_size + sizeof(pkt->header));
- pkt->header.op_code = op_code;
- pkt->header.sock_id = raw_server->tun_fd;
- if(data_size > 0) {
- pkt->header.op_data.data_size = data_size;
- memcpy(pkt->data, data, data_size);
- }
-
- raw_server->pkt_out[raw_server->pkt_out_windex] = pkt;
- raw_server->pkt_out_windex++;
- raw_server->pkt_out_size++;
- pthread_mutex_unlock(&raw_server->pkt_out_mutex);
- send_select_break();
- return raw_server->pkt_out_windex;
- } else {
- pthread_mutex_unlock(&raw_server->pkt_out_mutex);
- log_it(L_WARNING, "Raw socket buffer overflow");
- return -1;
- }
- }
-
- static int srv_stream_sf_socket_write(ch_vpn_socket_proxy_t * sf, uint8_t op_code, const void * data, size_t data_size)
- {
- if(sf->pkt_out_size < (sizeof(sf->pkt_out) / sizeof(sf->pkt_out[0]))) {
- ch_vpn_pkt_t * pkt = (ch_vpn_pkt_t *) calloc(1, data_size + sizeof(pkt->header));
- pkt->header.op_code = op_code;
- pkt->header.sock_id = sf->id;
-
- switch (op_code) {
- case VPN_PACKET_OP_CODE_RECV: {
- pkt->header.op_data.data_size = data_size;
- memcpy(pkt->data, data, data_size);
- }
- break;
- default: {
- log_it(L_ERROR, "Unprocessed opcode %u for write to sf socket", op_code);
- free(pkt);
- return -2;
- }
- }
- sf->pkt_out[sf->pkt_out_size] = pkt;
- sf->pkt_out_size++;
- return sf->pkt_out_size;
- } else
- return -1;
- }*/
-
 /**
  * @brief stream_sf_packet_in
  * @param ch
@@ -532,8 +504,7 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                         sizeof(dap_stream_ch_vpn_remote_single_t));
                 n_client->ch = ch;
 
-                if(count_free_addr > 0)
-                        {
+                if(count_free_addr > 0){
                     n_addr.s_addr = list_addr_head->addr.s_addr;
                     LL_DELETE(list_addr_head, list_addr_head);
                 }
