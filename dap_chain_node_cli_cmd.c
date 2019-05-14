@@ -2327,7 +2327,7 @@ int com_print_log(int argc, const char ** argv, char **str_reply)
     }
 
     // get logs from list
-    char *l_str_ret = log_get_item(l_ts_after, l_limit);
+    char *l_str_ret = dap_log_get_item(l_ts_after, l_limit);
     if(!l_str_ret) {
         dap_chain_node_cli_set_reply_text(str_reply, "no logs");
         return -1;
