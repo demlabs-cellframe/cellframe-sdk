@@ -417,9 +417,9 @@ char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tok
     return l_str_array;
 }
 
-int dap_str_countv(char **a_str_array)
+size_t dap_str_countv(char **a_str_array)
 {
-    int l_i = 0;
+    size_t l_i = 0;
     if(a_str_array)
     {
         for(l_i = 0; a_str_array[l_i] != NULL; l_i++)
