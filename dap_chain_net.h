@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "dap_chain_common.h"
+#include "dap_chain_node.h"
 #include "dap_chain.h"
 
 
@@ -35,12 +36,12 @@
 
 typedef  enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
-    NET_STATE_LINKS_PINGING,
+    NET_STATE_LINKS_PING,
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
     NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
-    NET_STATE_SYNC_ALL,
+    NET_STATE_STAND_BY,
 } dap_chain_net_state_t;
 
 
@@ -63,12 +64,12 @@ int dap_chain_net_load(const char * a_net_name);
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 
-inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_ALL); }
+inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_STAND_BY); }
 inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_OFFLINE); }
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
-inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_ALL); }
+inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_STAND_BY); }
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
@@ -79,7 +80,10 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
 
+dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net);
+
 void dap_chain_net_links_connect(dap_chain_net_t * a_net);
+
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

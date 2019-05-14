@@ -356,7 +356,7 @@ void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 {
     if(str_reply) {
         if(*str_reply) {
-            assert(!*str_reply);
+            assert(! *str_reply );
             DAP_DELETE(*str_reply);
             *str_reply = NULL;
         }
@@ -459,9 +459,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "global_db node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
                     "global_db node dump  -net <net name>\n\n"
                     "global_db node dump  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "global_db node get -net <net name>\n\n"
-                    "global_db node set -net <net name> -addr <node address> | -alias <node alias>\n\n"
-          "global_db node remote_set -addr <node address> | -alias <node alias>\n");
+                    "global_db node cur_node get -net <net name>\n\n"
+                    "global_db node cur_node_set -net <net name> -addr <node address> | -alias <node alias>\n\n"
+                    "global_db node cur_node_set_from_remote -addr <node address> | -alias <node alias>\n");
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
             "node alias {<node address> | -alias <node alias>}\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"

@@ -72,7 +72,7 @@ bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *add
 //    if(bin2hex(a_value, (const unsigned char *) addr, sizeof(dap_chain_node_addr_t)) == -1)
 //        return false;
 //    a_value[2 * sizeof(dap_chain_node_addr_t)] = '\0';
-    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t*) addr, sizeof(dap_chain_node_addr_t), GROUP_ALIAS);
+    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t*) addr, sizeof(dap_chain_node_addr_t), GROUP_GLOBAL_ALIAS);
     return res;
 }
 
@@ -85,7 +85,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(const char *a_alias)
 {
     size_t l_addr_size =0;
     dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *)
-            dap_chain_global_db_gr_get(a_alias, &l_addr_size, GROUP_ALIAS);
+            dap_chain_global_db_gr_get(a_alias, &l_addr_size, GROUP_GLOBAL_ALIAS);
     return  l_addr;
 }
 
@@ -95,7 +95,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(const char *a_alias)
 bool dap_chain_node_alias_delete(const char *alias)
 {
     const char *a_key = alias;
-    bool res = dap_chain_global_db_gr_del(a_key, GROUP_ALIAS);
+    bool res = dap_chain_global_db_gr_del(a_key, GROUP_GLOBAL_ALIAS);
     return res;
 }
 
@@ -114,8 +114,66 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
     return (sizeof(dap_chain_node_info_t) + node_info->hdr.links_number * sizeof(dap_chain_node_addr_t));
 }
 
+/**
+ * @brief dap_chain_node_info_save
+ * @param node_info
+ * @return
+ */
+int dap_chain_node_info_save(dap_chain_node_info_t *node_info)
+{
+    if(!node_info || !node_info->hdr.address.uint64)
+        return  -1;
 
+    char *l_key = dap_chain_node_addr_to_hash_str(&node_info->hdr.address);
 
+    if(!l_key)
+        return -2;
+
+    //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
+    size_t node_info_size = dap_chain_node_info_get_size(node_info);
+    bool res = dap_chain_global_db_gr_set(l_key, (const uint8_t *) node_info, node_info_size, GROUP_GLOBAL_ADDRS_LEASED);
+    DAP_DELETE(l_key);
+    //DAP_DELETE(a_value);
+    return res;
+}
+
+/**
+ * Read node from base
+ */
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_node_addr_t *address)
+{
+    char *l_key = dap_chain_node_addr_to_hash_str(address);
+    if(!l_key) {
+        log_it(L_WARNING,"Can't calculate hash of addr");
+        return NULL;
+    }
+    size_t node_info_size = 0;
+    dap_chain_node_info_t *node_info;
+    // read node
+    node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, GROUP_GLOBAL_ADDRS_LEASED);
+
+    if(!node_info) {
+        log_it(L_ERROR, "node not found in base");
+        DAP_DELETE(l_key);
+        return NULL;
+    }
+
+    size_t node_info_size_must_be = dap_chain_node_info_get_size(node_info);
+    if(node_info_size_must_be != node_info_size) {
+        log_it(L_ERROR, "Node has bad size in base=%u (must be %u)", node_info_size, node_info_size_must_be);
+        DAP_DELETE(node_info);
+        DAP_DELETE(l_key);
+        return NULL;
+    }
+
+//    dap_chain_node_info_t *node_info = dap_chain_node_info_deserialize(str, (str) ? strlen(str) : 0);
+//    if(!node_info) {
+//        set_reply_text(str_reply, "node has invalid format in base");
+//    }
+//    DAP_DELETE(str);
+    DAP_DELETE(l_key);
+    return node_info;
+}
 
 
 /**

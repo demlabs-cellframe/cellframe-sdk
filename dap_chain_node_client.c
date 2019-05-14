@@ -49,8 +49,6 @@ static int listen_port_tcp = 8079;
 
 int dap_chain_node_client_init(void)
 {
-    int res = dap_client_init();
-    res = dap_http_client_simple_init();
     dap_config_t *g_config;
     // read listen_port_tcp from settings
     dap_config_init(SYSTEM_CONFIGS_DIR);
@@ -63,7 +61,7 @@ int dap_chain_node_client_init(void)
     }
     if(g_config)
         dap_config_close(g_config);
-    return res;
+    return 0;
 }
 
 void dap_chain_node_client_deinit()
@@ -86,13 +84,15 @@ static void stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 // callback for the end of connection in dap_chain_node_client_connect()->dap_client_go_stage()
 static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
 {
-    dap_chain_node_client_t *client = a_client->_inheritor;
-    assert(client);
-    if(client) {
-        pthread_mutex_lock(&client->wait_mutex);
-        client->state = NODE_CLIENT_STATE_CONNECTED;
-        pthread_cond_signal(&client->wait_cond);
-        pthread_mutex_unlock(&client->wait_mutex);
+    dap_chain_node_client_t *l_node_client = a_client->_inheritor;
+    assert(l_node_client);
+    if(l_node_client) {
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+        if ( l_node_client->callback_connected )
+            l_node_client->callback_connected(l_node_client,a_arg);
+        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
 }
 
@@ -295,7 +295,7 @@ int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_clie
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int timeout_ms)
+int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int timeout_ms)
 {
     int ret = -1;
     if(!a_client)

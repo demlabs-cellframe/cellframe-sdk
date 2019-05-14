@@ -30,6 +30,7 @@
 
 #include "dap_common.h"
 #include "dap_chain_common.h"
+#include "dap_chain_global_db.h"
 
 /**
   * @struct Node address
@@ -123,5 +124,14 @@ bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t 
 dap_chain_node_addr_t * dap_chain_node_alias_find(const char *alias);
 bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *addr);
 bool dap_chain_node_alias_delete(const char *alias);
+
+int dap_chain_node_info_save(dap_chain_node_info_t *node_info);
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_node_addr_t *address);
+
+inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *address)
+{
+    char *a_key = dap_chain_global_db_hash((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
+    return a_key;
+}
 
 
