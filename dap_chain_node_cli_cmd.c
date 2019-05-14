@@ -340,7 +340,7 @@ static int com_global_db_link(dap_chain_node_info_t *node_info, const char *cmd,
     }
     // TODO check the presence of link in the node base
     if(0) {
-        dap_chain_node_cli_set_reply_text(str_reply, "node 0x%llx not found in base", link->uint64);
+        dap_chain_node_cli_set_reply_text(str_reply, "node 0x%016llx not found in base", link->uint64);
         return -1;
     }
 
@@ -500,9 +500,9 @@ static int com_global_db_dump(dap_chain_node_info_t *a_node_info, const char *al
 
         // get links in form of string
         dap_string_t *links_string = dap_string_new(NULL);
-        for(int i = 0; i < node_info_read->hdr.links_number; i++) {
+        for(unsigned int i = 0; i < node_info_read->hdr.links_number; i++) {
             dap_chain_node_addr_t link_addr = node_info_read->links[i];
-            dap_string_append_printf(links_string, "\nlink%02d address : 0x%llx", i, link_addr.uint64);
+            dap_string_append_printf(links_string, "\nlink%02d address : 0x%016llx", i, link_addr.uint64);
         }
 
         if(i)
@@ -510,14 +510,14 @@ static int com_global_db_dump(dap_chain_node_info_t *a_node_info, const char *al
         // set short reply with node param
         if(l_objs)
             dap_string_append_printf(l_string_reply,
-                    "node address 0x%llx\tcell 0x%llx\tipv4 %s\tnumber of links %d",
-                    node_info_read->hdr.address, node_info_read->hdr.cell_id,
+                    "node address 0x%016llx\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
+                    node_info_read->hdr.address.uint64, node_info_read->hdr.cell_id.uint64,
                     str_ip4, node_info_read->hdr.links_number);
         else
             // set full reply with node param
             dap_string_append_printf(l_string_reply,
-                    "node address 0x%llx\ncell 0x%llx%s\nipv4 %s\nipv6 %s\nlinks %d%s",
-                    node_info_read->hdr.address, node_info_read->hdr.cell_id, aliases_string->str,
+                    "node address 0x%016llx\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                    node_info_read->hdr.address.uint64, node_info_read->hdr.cell_id.uint64, aliases_string->str,
                     str_ip4, str_ip6,
                     node_info_read->hdr.links_number, links_string->str);
         dap_string_free(aliases_string, true);

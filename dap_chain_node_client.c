@@ -49,8 +49,6 @@ static int listen_port_tcp = 8079;
 
 int dap_chain_node_client_init(void)
 {
-    int res = dap_client_init();
-    res = dap_http_client_simple_init();
     dap_config_t *g_config;
     // read listen_port_tcp from settings
     dap_config_init(SYSTEM_CONFIGS_DIR);
@@ -63,7 +61,7 @@ int dap_chain_node_client_init(void)
     }
     if(g_config)
         dap_config_close(g_config);
-    return res;
+    return 0;
 }
 
 void dap_chain_node_client_deinit()
