@@ -63,7 +63,7 @@ typedef struct message_data {
     time_t timestamp_start;
     uint64_t addr_from; // node addr
     uint64_t addr_to; // node addr
-} message_data_t;
+} DAP_ALIGN_PACKED message_data_t;
 
 // list of active sessions
 static session_data_t *s_chain_net_data = NULL;
@@ -194,6 +194,7 @@ void dap_stream_ch_chain_net_deinit()
  */
 void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
+    (void) a_arg;
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_net_t);
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     l_ch_chain_net->ch = a_ch;
@@ -207,6 +208,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
  */
 void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
+    (void) a_arg;
     //printf("* del session=%d\n", a_ch->stream->session->id);
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     pthread_mutex_lock(&l_ch_chain_net->mutex);
@@ -241,7 +243,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 // received ping request - > send pong request
             case STREAM_CH_CHAIN_NET_PKT_TYPE_PING: {
                 log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
-                int l_res = dap_stream_ch_chain_net_pkt_write(a_ch, STREAM_CH_CHAIN_NET_PKT_TYPE_PONG, NULL, 0);
+                size_t l_res = dap_stream_ch_chain_net_pkt_write(a_ch, STREAM_CH_CHAIN_NET_PKT_TYPE_PONG, NULL, 0);
                 dap_stream_ch_set_ready_to_write(a_ch, true);
             }
                 break;
@@ -295,7 +297,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                     if(l_data && l_data_size > 0) {
                         //session_data_t *l_data = session_data_find(a_ch->stream->session->id);
-                        int l_data_obj_count = 0;
+                        size_t l_data_obj_count = 0;
 
                         // deserialize data
                         void *l_data_obj = dap_db_log_unpack((uint8_t*) l_data, l_data_size, &l_data_obj_count); // Parse data from dap_db_log_pack()
@@ -424,7 +426,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     int len = dap_list_length(l_list);
     //printf("*len=%d\n", len);
     if(l_list) {
-        int l_item_size_out = 0;
+        size_t l_item_size_out = 0;
         uint8_t *l_item = NULL;
         while(l_list && !l_item) {
             l_item = dap_db_log_pack((dap_global_db_obj_t *) l_list->data, &l_item_size_out);
