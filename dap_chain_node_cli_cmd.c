@@ -75,7 +75,7 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(const char *a_alias)
         return NULL;
     const char *a_key = a_alias;
     size_t l_addr_size = 0;
-    l_addr = (dap_chain_node_addr_t*) (void*) dap_chain_global_db_gr_get(a_key, &l_addr_size, GROUP_ALIAS);
+    l_addr = (dap_chain_node_addr_t*) (void*) dap_chain_global_db_gr_get(a_key, &l_addr_size, GROUP_GLOBAL_ALIAS);
     if(l_addr_size != sizeof(dap_chain_node_addr_t)) {
 //        l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
 //        if(hex2bin((char*) l_addr, (const unsigned char *) addr_str, sizeof(dap_chain_node_addr_t) * 2) == -1) {
@@ -99,7 +99,7 @@ static dap_list_t* get_aliases_by_name(dap_chain_node_addr_t *a_addr)
     dap_list_t *list_aliases = NULL;
     size_t data_size = 0;
     // read all aliases
-    dap_global_db_obj_t **objs = dap_chain_global_db_gr_load(GROUP_ALIAS, &data_size);
+    dap_global_db_obj_t **objs = dap_chain_global_db_gr_load(GROUP_GLOBAL_ALIAS, &data_size);
     if(!objs || !data_size)
         return NULL;
     for(size_t i = 0; i < data_size; i++) {
@@ -155,7 +155,7 @@ static dap_chain_node_info_t* dap_chain_node_info_read_and_reply(dap_chain_node_
     size_t node_info_size = 0;
     dap_chain_node_info_t *node_info;
     // read node
-    node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, GROUP_NODE);
+    node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, GROUP_GLOBAL_ADDRS_LEASED);
 
     if(!node_info) {
         dap_chain_node_cli_set_reply_text(str_reply, "node not found in base");
@@ -197,7 +197,7 @@ static bool dap_chain_node_info_save_and_reply(dap_chain_node_info_t *node_info,
     }
     //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
     size_t node_info_size = dap_chain_node_info_get_size(node_info);
-    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t *) node_info, node_info_size, GROUP_NODE);
+    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t *) node_info, node_info_size, GROUP_GLOBAL_ADDRS_LEASED);
     DAP_DELETE(a_key);
     //DAP_DELETE(a_value);
     return res;
@@ -290,7 +290,7 @@ static int com_global_db_del(dap_chain_node_info_t *node_info, const char *alias
     if(a_key)
     {
         // delete node
-        bool res = dap_chain_global_db_gr_del(a_key, GROUP_NODE);
+        bool res = dap_chain_global_db_gr_del(a_key, GROUP_GLOBAL_ADDRS_LEASED);
         if(res) {
             // delete all aliases for node address
             {
@@ -443,7 +443,7 @@ static int com_global_db_dump(dap_chain_node_info_t *a_node_info, const char *al
         // read all nodes
         dap_chain_node_info_t *node_info;
         // read all node
-        l_objs = dap_chain_global_db_gr_load(GROUP_NODE, &l_nodes_count);
+        l_objs = dap_chain_global_db_gr_load(GROUP_GLOBAL_ADDRS_LEASED, &l_nodes_count);
         /*for(size_t i = 0; i < l_nodes_count; i++) {
          dap_global_db_obj_t *l_obj = l_objs[i];
          dap_chain_node_info_t *node_info = (dap_chain_node_info_t *) l_obj->value;
@@ -1649,7 +1649,6 @@ int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
     dap_chain_net_t * l_net = NULL;
 
     if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain, &l_net) != 0){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
         return -1;
     }
 

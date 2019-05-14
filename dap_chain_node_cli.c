@@ -356,7 +356,7 @@ void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 {
     if(str_reply) {
         if(*str_reply) {
-            assert(!*str_reply);
+            assert(! *str_reply );
             DAP_DELETE(*str_reply);
             *str_reply = NULL;
         }
