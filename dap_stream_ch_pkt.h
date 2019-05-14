@@ -46,6 +46,6 @@ int dap_stream_ch_pkt_init();
 void dap_stream_ch_pkt_deinit();
 
 size_t dap_stream_ch_pkt_write_f(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...);
-size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, uint32_t a_data_size);
+size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
 
 size_t dap_stream_ch_send_keepalive(struct dap_stream_ch * a_ch);

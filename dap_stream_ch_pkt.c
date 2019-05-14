@@ -57,7 +57,7 @@ void dap_stream_ch_pkt_deinit()
  * @param data_size
  * @return
  */
-size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, uint32_t a_data_size)
+size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
 {
     pthread_mutex_lock( &a_ch->mutex);
 
@@ -67,7 +67,7 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
 
     memset(&l_hdr,0,sizeof(l_hdr));
     l_hdr.id = a_ch->proc->id;
-    l_hdr.size=a_data_size;
+    l_hdr.size=(uint32_t) a_data_size;
     l_hdr.type=a_type;
     l_hdr.enc_type = a_ch->proc->enc_type;
     l_hdr.seq_id=a_ch->stream->seq_id;
