@@ -24,7 +24,51 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <pthread.h>
+#include "dap_chain_common.h"
+#include "dap_chain.h"
+#include "dap_list.h"
+#include "dap_stream_ch_chain_pkt.h"
+#include "uthash.h"
+
+typedef enum dap_stream_ch_chain_state{
+    CHAIN_STATE_IDLE=0,
+    CHAIN_STATE_SYNC_CHAINS,
+    CHAIN_STATE_SYNC_GLOBAL_DB,
+    CHAIN_STATE_SYNC_ALL,
+} dap_stream_ch_chain_state_t;
+
+typedef struct dap_stream_ch_chain dap_stream_ch_chain_t;
+typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
+                                                      dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+                                                      void * a_arg);
+typedef struct dap_chain_atom_item{
+    dap_chain_hash_fast_t atom_hash;
+    dap_chain_atom_ptr_t atom;
+    UT_hash_handle hh;
+} dap_chain_atom_item_t;
+
+typedef struct dap_stream_ch_chain {
+    pthread_mutex_t mutex;
+
+    dap_list_t *request_global_db_trs; // list of transactions
+    dap_stream_ch_chain_state_t state;
+
+    dap_chain_atom_iter_t * request_atom_iter;
+    dap_chain_atom_item_t * request_atoms_lasts;
+    dap_chain_atom_item_t * request_atoms_processed;
+    dap_stream_ch_chain_sync_request_t request;
+    dap_chain_net_id_t request_net_id;
+    dap_chain_id_t request_chain_id;
+    dap_chain_cell_id_t request_cell_id;
+
+    dap_stream_ch_chain_callback_packet_t notify_callback;
+    void *notify_callback_arg;
+} dap_stream_ch_chain_t;
+
+#define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
+
+
 int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
 

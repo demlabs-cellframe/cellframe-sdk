@@ -25,34 +25,69 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
 
-#define STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_REQUEST       0x00
-#define STREAM_CH_CHAIN_PKT_TYPE_BLOCK                     0x11
-#define STREAM_CH_CHAIN_PKT_TYPE_DATUM                     0x12
-#define STREAM_CH_CHAIN_PKT_TYPE_GLOVAL_DB                 0x13
+#include "dap_stream_ch.h"
 
-typedef union dap_stream_ch_chain_request{
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
+
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS               0x02
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB            0x12
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL                  0x22
+
+
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS             0x03
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL                0x23
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
+
+
+typedef union dap_stream_ch_chain_sync_request{
     dap_chain_hash_fast_t hash_from;
     dap_chain_hash_fast_t hash_to;
-    uint64_t ts_from;
-    uint64_t ts_to;
-} dap_stream_ch_chain_request_t;
+    uint64_t ts_start;
+    uint64_t ts_end;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_sync_request_t;
+
 
 typedef struct dap_stream_ch_chain_pkt_hdr{
+    uint8_t version;
+    uint8_t padding[7];
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
-    uint8_t type;
-    uint8_t padding1[3];
-    uint64_t tid;
-}  __attribute__((packed)) dap_stream_ch_chain_pkt_hdr_t;
+}  DAP_ALIGN_PACKED dap_stream_ch_chain_pkt_hdr_t;
 
 typedef struct dap_stream_ch_chain_pkt{
     dap_stream_ch_chain_pkt_hdr_t hdr;
     uint8_t data[];
-} __attribute__((packed)) dap_stream_ch_chain_pkt_t;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_pkt_t;
 
+static const char* c_dap_stream_ch_chain_pkt_type_str[]={
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL",
+    [DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR"
+
+};
+
+
+size_t dap_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
+                                     dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+        const void * a_data, size_t a_data_size);
+
+inline static size_t dap_stream_ch_chain_pkt_write_error(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id,
+                                                  dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, const char * a_err_string )
+{
+    return  dap_stream_ch_chain_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, a_err_string,strlen (a_err_string)+1 );
+}
