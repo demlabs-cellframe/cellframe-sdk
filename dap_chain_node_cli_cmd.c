@@ -37,6 +37,10 @@
 #include <dirent.h>
 
 #include "iputils/iputils.h"
+
+#include "uthash.h"
+#include "utlist.h"
+
 #include "dap_string.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
@@ -60,6 +64,9 @@
 #include "dap_chain_global_db_remote.h"
 
 #include "dap_stream_ch_chain_net.h"
+#include "dap_stream_ch_chain.h"
+#include "dap_stream_ch_chain_pkt.h"
+#include "dap_stream_ch_chain_net_pkt.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -599,7 +606,7 @@ static int com_global_db_cur_node_set(dap_chain_node_info_t *a_node_info, const 
  * str_reply[out] for reply
  * return 0 Ok, -1 error
  */
-static int com_global_db_cur_node_set_from_remote(dap_chain_node_info_t *a_node_info, const char *a_alias_str, char **a_str_reply)
+static int com_node_request_addr(dap_chain_node_info_t *a_node_info, const char *a_alias_str, char **a_str_reply)
 {
     if(!a_node_info->hdr.address.uint64 && !a_alias_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
@@ -645,8 +652,8 @@ static int com_global_db_cur_node_set_from_remote(dap_chain_node_info_t *a_node_
     }
 
     // send request
-    res = dap_chain_node_client_send_chain_net_request(client, dap_stream_ch_chain_net_get_id(),
-    STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR, (char*) &l_node_info->hdr.address.uint64, sizeof(uint64_t)); //, NULL);
+    res = dap_chain_node_client_send_ch_pkt(client, dap_stream_ch_chain_net_get_id(),
+    DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,NULL,0);
     if(res != 1) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "no request sent");
         // clean client struct
@@ -666,12 +673,7 @@ static int com_global_db_cur_node_set_from_remote(dap_chain_node_info_t *a_node_
         dap_chain_node_cli_set_reply_text(a_str_reply, "timeout");
         return -1;
     case 1: {
-        uint64_t addr = 0;
-        if(client->recv_data_len == sizeof(uint64_t))
-            memcpy(&addr, client->recv_data, sizeof(uint64_t));
-        if(client->recv_data_len > 0)
-            DAP_DELETE(client->recv_data);
-        client->recv_data = NULL;
+        uint64_t addr = dap_db_get_cur_node_addr();
         dap_chain_node_cli_set_reply_text(a_str_reply, "new address for remote node has been set 0x%x", addr);
 
     }
@@ -801,7 +803,7 @@ int com_global_db(int a_argc, const char ** a_argv, char **a_str_reply)
         return com_global_db_cur_node_set(l_node_info, alias_str, a_str_reply);
     case CMD_CUR_NODE_SET_FROM_REMOTE:
         // handler of command 'global_db node remote_set'
-        return com_global_db_cur_node_set_from_remote(l_node_info, alias_str, a_str_reply);
+        return com_node_request_addr(l_node_info, alias_str, a_str_reply);
 
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
@@ -910,69 +912,58 @@ int com_node(int argc, const char ** argv, char **str_reply)
                 return -1;
             }
 
-            dap_chain_node_info_t *node_info = dap_chain_node_info_read_and_reply(&address, str_reply);
-            if(!node_info) {
+            dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read_and_reply(&address, str_reply);
+            if(!l_remote_node_info) {
                 return -1;
             }
             // start connect
-            dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
-            if(!client) {
+            dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_remote_node_info);
+            if(!l_node_client) {
                 dap_chain_node_cli_set_reply_text(str_reply, "can't connect");
-                DAP_DELETE(node_info);
+                DAP_DELETE(l_remote_node_info);
                 return -1;
             }
             // wait connected
             int timeout_ms = 15000; //15 sec = 15000 ms
-            int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
             if(res != 1) {
                 dap_chain_node_cli_set_reply_text(str_reply, "no response from node");
                 // clean client struct
-                dap_chain_node_client_close(client);
-                DAP_DELETE(node_info);
+                dap_chain_node_client_close(l_node_client);
+                DAP_DELETE(l_remote_node_info);
                 return -1;
             }
 
-            // send request
-            size_t l_data_size_out = 0;
-            // Get last timestamp in log
-            time_t l_timestamp_start = dap_db_log_get_last_timestamp();
-            size_t l_data_send_len = 0;
-            uint8_t *l_data_send = dap_stream_ch_chain_net_make_packet(l_cur_node_addr.uint64, node_info->hdr.address.uint64,
-                    l_timestamp_start, NULL, 0, &l_data_send_len);
+            dap_chain_t *l_chain = NULL;
 
-            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
-            res = dap_chain_node_client_send_chain_net_request(client, l_ch_id,
-                        STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_data_send, l_data_send_len); //, NULL);
-            DAP_DELETE(l_data_send);
-            if(res != 1) {
-                dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
-                // clean client struct
-                dap_chain_node_client_close(client);
-                DAP_DELETE(node_info);
-                return -1;
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                // send request
+                // Get last timestamp in log
+                dap_stream_ch_chain_sync_request_t l_sync_request = {{0}};
+                l_sync_request.ts_start = (uint64_t) dap_db_log_get_last_timestamp();
+                dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id() );
+                if( 0 == dap_stream_ch_chain_pkt_write(l_ch_chain,DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL,
+                                                    l_net->pub.id, l_chain->id ,l_remote_node_info->hdr.cell_id,&l_sync_request,
+                                                    sizeof (l_sync_request))) {
+                    dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
+                    // clean client struct
+                    dap_chain_node_client_close(l_node_client);
+                    DAP_DELETE(l_remote_node_info);
+                    return -1;
+                }
+
+                // wait for finishing of request
+                timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                // TODO add progress info to console
+                res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
             }
+            DAP_DELETE(l_remote_node_info);
+            dap_client_disconnect(l_node_client->client);
+            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_cli_set_reply_text(str_reply, "Node sync completed");
+            return 0;
 
-            // wait for finishing of request
-            timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
-            // TODO add progress info to console
-            res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_END, timeout_ms);
-            DAP_DELETE(node_info);
-            dap_client_disconnect(client->client);
-            dap_chain_node_client_close(client);
-            switch (res) {
-            case 0:
-                dap_chain_node_cli_set_reply_text(str_reply, "timeout");
-                return -1;
-            case 1:
-                dap_chain_node_cli_set_reply_text(str_reply, "nodes sync completed");
-                return 0;
-            default:
-                dap_chain_node_cli_set_reply_text(str_reply, "error");
-                return -1;
-            }
-
-        }
-            break;
+        } break;
             // make handshake
         case CMD_HANDSHAKE: {
             // get address from alias if addr not defined
@@ -2327,7 +2318,7 @@ int com_print_log(int argc, const char ** argv, char **str_reply)
     }
 
     // get logs from list
-    char *l_str_ret = log_get_item(l_ts_after, l_limit);
+    char *l_str_ret = dap_log_get_item(l_ts_after, l_limit);
     if(!l_str_ret) {
         dap_chain_node_cli_set_reply_text(str_reply, "no logs");
         return -1;

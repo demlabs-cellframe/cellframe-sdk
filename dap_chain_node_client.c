@@ -34,6 +34,8 @@
 #include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_chain.h"
+#include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_pkt.h"
@@ -46,7 +48,15 @@
 #define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
 
 static int listen_port_tcp = 8079;
+static void s_stage_end_callback(dap_client_t *a_client, void *a_arg);
+static void s_ch_chain_callback_notify_packet(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
+                                                      dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+                                                      void * a_arg);
 
+/**
+ * @brief dap_chain_node_client_init
+ * @return
+ */
 int dap_chain_node_client_init(void)
 {
     dap_config_t *g_config;
@@ -64,37 +74,98 @@ int dap_chain_node_client_init(void)
     return 0;
 }
 
+/**
+ * @brief dap_chain_node_client_deinit
+ */
 void dap_chain_node_client_deinit()
 {
     dap_http_client_simple_deinit();
     dap_client_deinit();
 }
 
-// callback for dap_client_new() in chain_node_client_connect()
+/**
+ * @brief stage_status_callback
+ * @param a_client
+ * @param a_arg
+ */
 static void stage_status_callback(dap_client_t *a_client, void *a_arg)
 {
+    (void) a_client;
+    (void) a_arg;
+
     //printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
 }
-// callback for dap_client_new() in chain_node_client_connect()
-static void stage_status_error_callback(dap_client_t *a_client, void *a_arg)
+
+/**
+ * @brief s_stage_status_error_callback
+ * @param a_client
+ * @param a_arg
+ */
+static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
+    (void) a_arg;
+    if ( DAP_CHAIN_NODE_CLIENT(a_client)->keep_connection &&
+         ( ( dap_client_get_stage(a_client) != STAGE_STREAM_STREAMING )||
+           ( dap_client_get_stage_status(a_client) == STAGE_STATUS_ERROR  ) ) ){
+        log_it(L_NOTICE,"Some errors happends, current state is %s but we need to return back to STAGE_STREAM_STREAMING",
+                 dap_client_get_stage_str(a_client) ) ;
+        dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
+    }
     //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
 }
 
-// callback for the end of connection in dap_chain_node_client_connect()->dap_client_go_stage()
-static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
+/**
+ * @brief a_stage_end_callback
+ * @param a_client
+ * @param a_arg
+ */
+static void s_stage_end_callback(dap_client_t *a_client, void *a_arg)
 {
     dap_chain_node_client_t *l_node_client = a_client->_inheritor;
     assert(l_node_client);
     if(l_node_client) {
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+
+        dap_stream_ch_t * l_ch = dap_client_get_stream_ch( a_client , dap_stream_ch_chain_get_id() );
+        if (l_ch){
+            dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+            l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet;
+            l_ch_chain->notify_callback_arg = l_node_client;
+        }
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         if ( l_node_client->callback_connected )
             l_node_client->callback_connected(l_node_client,a_arg);
+        l_node_client->keep_connection = true;
         pthread_cond_signal(&l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
 }
+
+/**
+ * @brief s_ch_chain_callback_notify_packet
+ * @param a_pkt_type
+ * @param a_pkt
+ * @param a_pkt_data_size
+ * @param a_arg
+ */
+static void s_ch_chain_callback_notify_packet(dap_stream_ch_chain_t* a_ch_chain, uint8_t a_pkt_type,
+                                                      dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+                                                      void * a_arg)
+{
+    dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
+    switch (a_pkt_type) {
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS:{
+            pthread_mutex_lock(&l_node_client->wait_mutex);
+            l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
+            pthread_cond_signal(&l_node_client->wait_cond);
+        }
+        default:{}
+    }
+}
+
 
 /**
  * Create connection to server
@@ -113,8 +184,9 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *no
     pthread_cond_init(&l_node_client->wait_cond, &attr);
     pthread_mutex_init(&l_node_client->wait_mutex, NULL);
     l_node_client->events = NULL; //dap_events_new();
-    l_node_client->client = dap_client_new(l_node_client->events, stage_status_callback, stage_status_error_callback);
+    l_node_client->client = dap_client_new(l_node_client->events, stage_status_callback, s_stage_status_error_callback);
     l_node_client->client->_inheritor = l_node_client;
+    dap_client_set_active_channels(l_node_client->client,"NC");
 
     int hostlen = 128;
     char host[hostlen];
@@ -139,7 +211,7 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *no
 
     l_node_client->state = NODE_CLIENT_STATE_CONNECT;
     // Handshake & connect
-    dap_client_go_stage(l_node_client->client, a_stage_target, a_stage_end_callback);
+    dap_client_go_stage(l_node_client->client, a_stage_target, s_stage_end_callback);
     return l_node_client;
 }
 
@@ -158,135 +230,28 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     }
 }
 
-/*
- // callback for dap_client_request_enc() in client_mempool_send_datum()
- static void s_response_proc(dap_client_t *a_client, void *str, size_t str_len)
- {
- printf("* s_response_proc a_client=%x str=%s str_len=%d\n", a_client, str, str_len);
- dap_chain_node_client_t *l_client = a_client->_inheritor;
- assert(l_client);
- if(l_client) {
- if(str_len > 0) {
- //            l_client->read_data_t.data = DAP_NEW_Z_SIZE(uint8_t, str_len + 1);
- //          if(l_client->read_data_t.data) {
- //                memcpy(l_client->read_data_t.data, str, str_len);
- //                l_client->read_data_t.data_len = str_len;
- }
- }
- pthread_mutex_lock(&l_client->wait_mutex);
- l_client->state = NODE_CLIENT_STATE_SENDED;
- pthread_cond_signal(&l_client->wait_cond);
- pthread_mutex_unlock(&l_client->wait_mutex);
- }
- */
-
-/*// callback for dap_client_request_enc() in client_mempool_send_datum()
- static void s_response_error(dap_client_t *a_client, int val)
- {
- printf("* s_response_error a_client=%x val=%d\n", a_client, val);
- client_mempool_t *mempool = a_client->_inheritor;
- assert(mempool);
- if(mempool) {
- pthread_mutex_lock(&mempool->wait_mutex);
- mempool->state = CLIENT_MEMPOOL_ERROR;
- pthread_cond_signal(&mempool->wait_cond);
- pthread_mutex_unlock(&mempool->wait_mutex);
- }
- }
-
- // set new state and delete previous read data
- static void dap_chain_node_client_reset(dap_chain_node_client_t *a_client, int new_state)
- {
- if(!a_client)
- return;
- pthread_mutex_lock(&a_client->wait_mutex);
- //a_client->read_data_t.data_len = 0;
- //DAP_DELETE(a_client->read_data_t.data);
- //a_client->read_data_t.data = NULL;
- a_client->state = new_state;
- pthread_mutex_unlock(&a_client->wait_mutex);
- }*/
-
-static void dap_chain_node_client_callback(dap_stream_ch_chain_net_pkt_t *a_ch_chain_net, size_t a_data_size,
-        void *a_arg)
-{
-    dap_chain_node_client_t *client = (dap_chain_node_client_t*) a_arg;
-    assert(client);
-    // end of session
-    if(!a_ch_chain_net)
-    {
-        pthread_mutex_lock(&client->wait_mutex);
-        client->state = NODE_CLIENT_STATE_END;
-        pthread_cond_signal(&client->wait_cond);
-        pthread_mutex_unlock(&client->wait_mutex);
-        return;
-    }
-
-    int l_state;
-    //printf("*callback type=%d\n", a_ch_chain_net->hdr.type);
-
-    switch (a_ch_chain_net->hdr.type) {
-    case STREAM_CH_CHAIN_NET_PKT_TYPE_PING:
-        l_state = NODE_CLIENT_STATE_PING;
-        break;
-    case STREAM_CH_CHAIN_NET_PKT_TYPE_PONG:
-        l_state = NODE_CLIENT_STATE_PONG;
-        break;
-    case STREAM_CH_CHAIN_NET_PKT_TYPE_GET_NODE_ADDR:
-        l_state = NODE_CLIENT_STATE_GET_NODE_ADDR;
-        client->recv_data_len = a_data_size;
-        if(client->recv_data_len > 0) {
-            client->recv_data = DAP_NEW_SIZE(uint8_t, a_data_size);
-            memcpy(client->recv_data, a_ch_chain_net->data, a_data_size);
-        }
-
-        break;
-    case STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR:
-        l_state = NODE_CLIENT_STATE_SET_NODE_ADDR;
-        break;
-//    case STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB:
-//        l_state = NODE_CLIENT_STATE_CONNECTED;
-//        break;
-
-    default:
-        l_state = NODE_CLIENT_STATE_ERROR;
-
-    }
-    if(client)
-    {
-        pthread_mutex_lock(&client->wait_mutex);
-        client->state = l_state;
-        pthread_cond_signal(&client->wait_cond);
-        pthread_mutex_unlock(&client->wait_mutex);
-    }
-}
 
 /**
  * Send stream request to server
  */
-int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
-        char *a_buf, size_t a_buf_size)
+int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
+        const void *a_pkt_data, size_t a_pkt_data_size)
 {
     if(!a_client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
         return -1;
-    dap_stream_t *l_stream = dap_client_get_stream(a_client->client);
+
+//    dap_stream_t *l_stream = dap_client_get_stream(a_client->client);
     dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client->client, a_ch_id);
-    if(l_ch)
-    {
-        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-        l_ch_chain->notify_callback = dap_chain_node_client_callback;
-        l_ch_chain->notify_callback_arg = a_client;
-        int l_res = dap_stream_ch_chain_net_pkt_write(l_ch, a_type, a_buf, a_buf_size);
-        if(l_res <= 0)
-            return -1;
-        bool is_ready = true;
-        dap_events_socket_set_writable(l_ch->stream->events_socket, is_ready);
-        //dap_stream_ch_ready_to_write(ch, true);
-    }
-    else
+    if(l_ch){
+//        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
+
+        dap_stream_ch_pkt_write(l_ch, a_type, a_pkt_data, a_pkt_data_size);
+        dap_stream_ch_set_ready_to_write(l_ch, true);
+        return 0;
+    }else
         return -1;
-    return 1;
 }
+
 
 /**
  * wait for the complete of request
