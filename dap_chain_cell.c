@@ -157,7 +157,7 @@ int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
         dap_chain_t * l_chain = a_cell->chain;
         dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create (l_chain);
         dap_chain_atom_ptr_t *l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter);
-        size_t l_atom_size = l_chain->callback_atom_hdr_get_size(l_atom);
+        size_t l_atom_size = l_chain->callback_atom_get_size(l_atom);
         size_t l_total_wrote_bytes = 0;
         while ( l_atom  && l_atom_size){
             if ( fwrite(&l_atom_size,1,sizeof(l_atom_size),a_cell->file_storage) == sizeof(l_atom_size) ){
@@ -177,7 +177,7 @@ int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
                 return -2;
             }
             l_atom = l_chain->callback_atom_iter_get_next( l_atom_iter );
-            l_atom_size = l_chain->callback_atom_hdr_get_size(l_atom);
+            l_atom_size = l_chain->callback_atom_get_size(l_atom);
         }
     }else {
             log_it (L_ERROR,"Can't write cell 0x%016X file \"%s\"",a_cell->id.uint64, a_cell->file_storage_path);
