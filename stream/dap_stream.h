@@ -63,6 +63,8 @@ typedef struct dap_stream {
     struct dap_udp_client * conn_udp; // UDP-client
     dap_events_socket_t * events_socket;
 
+    char * service_key;
+
     bool is_live;
     bool is_client_to_uplink ;
 
