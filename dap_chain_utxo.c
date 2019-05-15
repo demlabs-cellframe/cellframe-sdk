@@ -34,7 +34,6 @@
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_utxo.h"
-#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
@@ -490,19 +489,28 @@ int dap_chain_utxo_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_lis
 
     // Calculate the sum of values in 'out' items from the current transaction
     uint64_t l_values_from_cur_tx = 0;
-    if(!l_is_first_transaction || ( l_is_first_transaction && s_check_token_emission ))
-    {
+    if(!l_is_first_transaction || (l_is_first_transaction && s_check_token_emission))
+            {
         // find 'out' items
         dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT, NULL);
-//        bool l_is_err = false;
-        // find all previous transactions
+        dap_list_t *l_list_out_cond = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_COND,
+                NULL);
+        // accumalate value ​from all  'out' transactions
         dap_list_t *l_list_tmp = l_list_out;
         while(l_list_tmp) {
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*) l_list_tmp->data;
             l_values_from_cur_tx += l_tx_out->header.value;
             l_list_tmp = dap_list_next(l_list_tmp);
         }
+        // accumalate value ​from all  'ut_cond' transactions
+        l_list_tmp = l_list_out_cond;
+        while(l_list_tmp) {
+            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t*) l_list_tmp->data;
+            l_values_from_cur_tx += l_tx_out->header.value;
+            l_list_tmp = dap_list_next(l_list_tmp);
+        }
         dap_list_free(l_list_out);
+        dap_list_free(l_list_out_cond);
     }
 
     // Additional check whether the transaction is first
@@ -591,13 +599,14 @@ int dap_chain_utxo_tx_add(dap_chain_datum_tx_t *a_tx)
                 log_it(L_ERROR, "Can't delete previous transactions with hash=0x%x", l_tx_prev_hash_str);
                 assert(0);
             }
+            // TODO restore when the blockchain appears
             // remove from mempool utxo
-            char *l_tx_prev_hash_to_del_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
+            /*char *l_tx_prev_hash_to_del_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
             if(!dap_chain_global_db_gr_del(l_tx_prev_hash_to_del_str, c_dap_datum_mempool_gdb_group)) {
                 log_it(L_ERROR, "Can't delete previous transactions from mempool with hash=0x%x",
                         l_tx_prev_hash_str);
             }
-            DAP_DELETE( l_tx_prev_hash_to_del_str);
+            DAP_DELETE( l_tx_prev_hash_to_del_str);*/
         }
         DAP_DELETE( l_tx_prev_hash_str);
         // go to next previous transaction
@@ -903,3 +912,88 @@ const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_pkey(char *a_public_key, s
     pthread_rwlock_unlock(&s_utxo_rwlock);
     return l_cur_tx;
 }
+
+/**
+ * Get the transaction in the cache with the out_cond item
+ *
+ * a_addr[in] wallet address, whose owner can use the service
+ */
+const dap_chain_datum_tx_t* dap_chain_utxo_tx_cache_find_out_cond(dap_chain_addr_t *a_addr,
+        dap_chain_hash_fast_t *a_tx_first_hash)
+{
+    if(!a_addr || !a_tx_first_hash)
+        return NULL;
+    dap_chain_datum_tx_t *l_cur_tx = NULL;
+    int l_ret = -1;
+    bool is_null_hash = dap_hash_fast_is_blank(a_tx_first_hash);
+    bool is_search_enable = is_null_hash;
+    dap_chain_utxo_tx_item_t *l_iter_current, *l_item_tmp;
+    pthread_rwlock_rdlock(&s_utxo_rwlock);
+    HASH_ITER(hh, s_utxo, l_iter_current, l_item_tmp)
+    {
+        dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
+        dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
+        // start searching from the next hash after a_tx_first_hash
+        if(!is_search_enable) {
+            if(dap_hash_fast_compare(l_tx_hash_tmp, a_tx_first_hash))
+                is_search_enable = true;
+            continue;
+        }
+        // Get sign item from transaction
+        int l_tx_out_cond_size = 0;
+        const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
+                l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
+
+        if(l_tx_out_cond && !memcmp(&l_tx_out_cond->addr, a_addr, sizeof(dap_chain_addr_t))) {
+            l_cur_tx = l_tx_tmp;
+            memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&s_utxo_rwlock);
+    return l_cur_tx;
+}
+
+/**
+ * Get the value from all transactions in the cache with out_cond item
+ *
+ * a_addr[in] wallet address, whose owner can use the service
+ * a_sign [in] signature of a_addr hash for check valid key
+ * a_sign_size [in] signature size
+ *
+ * a_public_key[in] public key that signed the transaction
+ * a_public_key_size[in] public key size
+ */
+uint64_t dap_chain_utxo_tx_cache_get_out_cond_value(dap_chain_addr_t *a_addr,
+        dap_chain_tx_out_cond_t **tx_out_cond)
+{
+    uint64_t l_ret_value = 0;
+
+    const dap_chain_datum_tx_t *l_tx_tmp;
+    dap_chain_hash_fast_t l_tx_first_hash = { 0 }; // start hash
+    //memcpy(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));
+    /* size_t l_pub_key_size = a_key_from->pub_key_data_size;
+     uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key_from, &l_pub_key_size);*/
+
+    // Find all transactions
+    do {
+        l_tx_tmp = dap_chain_utxo_tx_cache_find_out_cond(a_addr, &l_tx_first_hash);
+
+        // Get out_cond item from transaction
+        if(l_tx_tmp) {
+            const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
+                    (dap_chain_datum_tx_t*) l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
+
+            // TODO check relations a_addr with cond_data and public key
+
+            if(l_tx_out_cond) {
+                l_ret_value += l_tx_out_cond->header.value;
+                if(tx_out_cond)
+                    *tx_out_cond = (dap_chain_tx_out_cond_t*) l_tx_out_cond;
+            }
+        }
+    }
+    while(l_tx_tmp);
+    return l_ret_value;
+}
+

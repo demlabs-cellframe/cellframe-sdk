@@ -193,7 +193,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create(const dap_enc_k
     if(!a_key || !a_cond)
         return NULL;
     size_t l_pub_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key((dap_enc_key_t*)a_key, &l_pub_key_size);
 
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t,
             sizeof(dap_chain_tx_out_cond_t) + l_pub_key_size + a_cond_size);

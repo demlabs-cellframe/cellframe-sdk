@@ -36,6 +36,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_token.h"
+#include "dap_chain_datum_tx_items.h"
 
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION       0x0001
@@ -137,3 +138,11 @@ const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_addr(const dap_chain_addr_
 // Get the transaction in the cache by the public key that signed the transaction, starting with a_tx_first_hash
 const dap_chain_datum_tx_t* dap_chain_utxo_tx_find_by_pkey(char *a_public_key, size_t a_public_key_size,
         dap_chain_hash_fast_t *a_tx_first_hash);
+
+// Get the transaction in the cache with the out_cond item
+const dap_chain_datum_tx_t* dap_chain_utxo_tx_cache_find_out_cond(dap_chain_addr_t *a_addr,
+        dap_chain_hash_fast_t *a_tx_first_hash);
+
+// Get the value from all transactions in the cache with out_cond item
+uint64_t dap_chain_utxo_tx_cache_get_out_cond_value(dap_chain_addr_t *a_addr,
+        dap_chain_tx_out_cond_t **tx_out_cond);

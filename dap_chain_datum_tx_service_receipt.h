@@ -25,7 +25,6 @@
 #pragma once
 
 #include <stdint.h>
-#include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
@@ -33,19 +32,11 @@
  * @struct dap_chain_tx_out
  * @brief Transaction item out_cond
  */
-typedef struct dap_chain_tx_out_cond {
+typedef struct dap_chain_datum_tx_service_receipt {
     struct {
         dap_chain_tx_item_type_t type :8; // Transaction item type
-        uint64_t value; // Number of Datoshis ( DAP/10^9 ) to be reserver for service
-        uint32_t pub_key_size; /// Public key size
-        uint32_t cond_size; /// Condition parameters size
     } header;
-    dap_chain_addr_t addr; // wallet address, whose owner can use the service
-    uint8_t data[]; // serialized public key + condition parameters dap_chain_net_srv_abstract
-}DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
-
-uint8_t* dap_chain_datum_tx_out_cond_item_get_pkey(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_pkey_size_out);
-
-uint8_t* dap_chain_datum_tx_out_cond_item_get_cond(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_cond_size_out);
-
+    dap_chain_hash_fast_t tx_hash_cond; // Hash of the dap_chain_tx_out_cond_t transaction.
+    uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+}DAP_ALIGN_PACKED dap_chain_datum_tx_service_receipt_t;
 
