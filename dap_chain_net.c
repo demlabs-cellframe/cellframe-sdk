@@ -511,17 +511,13 @@ int dap_chain_net_load(const char * a_net_name)
             case NODE_ROLE_ROOT:
             case NODE_ROLE_ARCHIVE:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-                break;
             case NODE_ROLE_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
-                break;
             case NODE_ROLE_CELL_MASTER:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-                break;
             case NODE_ROLE_FULL:
             case NODE_ROLE_LIGHT:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
-                break;
         }
         dap_chain_utxo_init(l_utxo_flags);
 
