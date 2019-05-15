@@ -78,7 +78,8 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
         a_data_size=sizeof(a_ch->buf)-sizeof(l_hdr);
     }
     memcpy(a_ch->buf,&l_hdr,sizeof(l_hdr) );
-    memcpy(a_ch->buf+sizeof(l_hdr),a_data,a_data_size );
+    if( a_data_size )
+        memcpy(a_ch->buf+sizeof(l_hdr),a_data,a_data_size );
 
     size_t l_ret=dap_stream_pkt_write(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
     a_ch->stat.bytes_write+=a_data_size;
