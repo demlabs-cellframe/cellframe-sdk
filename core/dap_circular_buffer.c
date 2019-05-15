@@ -21,7 +21,7 @@ struct s_circularBuffer{
     size_t dataSize; //occupied data size
     size_t tailOffset; //head offset, the oldest byte position offset
     size_t headOffset; //tail offset, the lastest byte position offset
-    u_int8_t *buffer;
+    uint8_t *buffer;
 
 };
 
@@ -308,7 +308,7 @@ size_t circular_buffer_read(circular_buffer_t cBuf, size_t length, void *dataOut
 //print circular buffer's content into str,
 void circular_buffer_print(circular_buffer_t cBuf, bool hex)
 {
-    u_int8_t *b = cBuf->buffer;
+    uint8_t *b = cBuf->buffer;
     size_t cSize = circular_buffer_get_capacity(cBuf);
     char *str = malloc(2*cSize+1);
 

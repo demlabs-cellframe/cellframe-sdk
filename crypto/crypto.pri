@@ -18,6 +18,9 @@ HEADERS += $$PWD/dap_enc.h \
     $$PWD/dap_enc_picnic.h \
     $$PWD/dap_enc_bliss.h \
     $$PWD/dap_enc_tesla.h \
+    $$PWD/dap_crypto_common.h \
+    $$PWD/dap_enc_base58.h \
+    $$PWD/dap_enc_ca.h
 
 SOURCES += $$PWD/dap_enc.c \
     $$PWD/dap_enc_base64.c \
@@ -29,5 +32,7 @@ SOURCES += $$PWD/dap_enc.c \
     $$PWD/dap_enc_picnic.c \
     $$PWD/dap_enc_bliss.c \
     $$PWD/dap_enc_tesla.c \
+    $$PWD/dap_enc_base58.c \
+    $$PWD/dap_enc_ca.c
 
 INCLUDEPATH += $$PWD

@@ -30,7 +30,6 @@
 #include <pthread.h>
 #include <syslog.h>
 
-
 // Quick and dirty, I'm not sure but afair somewhere it was in UNIX systems too
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
@@ -634,7 +633,9 @@ void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
         val = strtoull(num_str, NULL, 10);
     }
     // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     val = le64toh(val);
+#endif
     memset(raw, 0, raw_len);
     memcpy(raw, &val, min(raw_len, sizeof(uint64_t)));
 }
