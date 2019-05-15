@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_http_client.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
@@ -108,6 +109,19 @@ const char* dap_client_get_uplink_addr(dap_client_t * a_client)
 {
     return DAP_CLIENT_PVT(a_client)->uplink_addr;
 }
+
+/**
+ * @brief dap_client_set_active_channels
+ * @param a_client
+ * @param a_active_channels
+ */
+void dap_client_set_active_channels (dap_client_t * a_client, const char * a_active_channels)
+{
+    if ( DAP_CLIENT_PVT(a_client)->active_channels )
+        DAP_DELETE(DAP_CLIENT_PVT(a_client)->active_channels );
+    DAP_CLIENT_PVT(a_client)->active_channels = dap_strdup( a_active_channels);
+}
+
 
 /**
  * @brief dap_client_get_uplink_port

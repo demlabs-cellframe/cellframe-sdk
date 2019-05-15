@@ -54,6 +54,7 @@ typedef struct dap_client_internal
 
     char * last_parsed_node;
     char  * uplink_addr;
+    char * active_channels;
     uint16_t uplink_port;
     uint32_t uplink_protocol_version;
 

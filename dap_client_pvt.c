@@ -114,6 +114,8 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
     if(a_client_pvt->session_key_id)
         DAP_DELETE(a_client_pvt->session_key_id);
+    if ( a_client_pvt->active_channels )
+        DAP_DELETE(a_client_pvt->active_channels );
     if (a_client_pvt->session_key)
         dap_enc_key_delete(a_client_pvt->session_key);
     if (a_client_pvt->session_key_open)
@@ -247,7 +249,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             break;
         case STAGE_STREAM_CONNECTED: {
             log_it(L_INFO, "Go to stage STAGE_STREAM_CONNECTED");
-            dap_stream_ch_new(a_client_pvt->stream, 'N');
+            size_t count_channels = strlen( a_client_pvt->active_channels ) ;
+            for(size_t i = 0; i < count_channels; i++) {
+                dap_stream_ch_new(a_client_pvt->stream,(uint8_t) a_client_pvt->active_channels[i]);
+                //sid->channel[i]->ready_to_write = true;
+            }
 
             char* l_full_path = NULL;
             const char * l_path = "stream";

@@ -128,6 +128,7 @@ const char * dap_client_get_auth_cookie(dap_client_t * a_client);
 dap_stream_t * dap_client_get_stream(dap_client_t * a_client);
 dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id);
 const char * dap_client_get_stream_id(dap_client_t * a_client);
+void dap_client_set_active_channels (dap_client_t * a_client, const char * a_active_channels);
 
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);
