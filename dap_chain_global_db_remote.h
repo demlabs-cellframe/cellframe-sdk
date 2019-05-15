@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <time.h>
 
+#include "dap_chain_common.h"
 // Set addr for current node
 bool dap_db_set_cur_node_addr(uint64_t a_address);
 // Get addr for current node
