@@ -28,35 +28,31 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
+#include "dap_stream_ch.h"
 
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_REQUEST                       0x01
+#define DAP_SREAM_CH_CHAIN_NET_PKT_TYPE_PING                           0x02
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG                          0x03
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST             0x14
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR                     0x11
 
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_REQUEST                0x00
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_PING                   0x01
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_PONG                   0x02
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_BLOCK                  0x11
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_DATUM                  0x12
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_GLOVAL_DB              0x13
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC 0x14
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_GET_NODE_ADDR          0x15
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_SET_NODE_ADDR          0x16
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST      0x17
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_RESPONSE     0x18
-#define STREAM_CH_CHAIN_NET_PKT_TYPE_DBG                    0x99
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST       0x17
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE               0x18
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG                           0x99
+
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR                         0xff
 
 typedef struct stream_ch_chain_net_pkt_hdr{
+    uint8_t version;
+    uint8_t padding[3];
     dap_chain_net_id_t net_id;
-    uint16_t type; // Chain data type
-    uint8_t padding1[2]; // Some padding
-    union{
-        uint64_t raw;
-    };
-}  __attribute__((packed)) dap_stream_ch_chain_net_pkt_hdr_t;
+}  DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_pkt{
     dap_stream_ch_chain_net_pkt_hdr_t hdr;
     uint8_t data[];
-} __attribute__((packed)) dap_stream_ch_chain_net_pkt_t;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_t;
 
-size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, const void * a_data, uint32_t a_data_size);
-size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, const char *a_str, ...);
+size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const void * a_data, size_t a_data_size);
+size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const char *a_str, ...);
 
