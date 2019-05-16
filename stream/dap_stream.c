@@ -164,7 +164,7 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
                 cl_ht->reply_status_code=404;
                 strcpy(cl_ht->reply_reason_phrase,"Not found");
             }else{
-                log_it(L_INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
+                log_it(L_INFO,"Session id %u was found with channels = %s",id,ss->active_channels);
                 if(dap_stream_session_open(ss)==0){ // Create new stream
                     dap_stream_t * sid = stream_new(cl_ht);
                     sid->session=ss;

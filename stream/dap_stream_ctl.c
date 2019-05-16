@@ -101,24 +101,24 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
    // unsigned int action_cmd=0;
     bool l_new_session = false;
 
-    enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
+    enc_http_delegate_t *l_dg = enc_http_request_decode(cl_st);
 
-    if(dg){
+    if(l_dg){
         size_t l_channels_str_size = sizeof(ss->active_channels);
-        char l_channels_str[l_channels_str_size];
-        if(dg->url_path && strlen(dg->url_path) < 30 &&
-                sscanf(dg->url_path, "stream_ctl,channels=%s", l_channels_str) == 1) {
+        char l_channels_str[sizeof(ss->active_channels)];
+        if(l_dg->url_path && strlen(l_dg->url_path) < 30 &&
+                sscanf(l_dg->url_path, "stream_ctl,channels=%s", l_channels_str) == 1) {
             l_new_session = true;
         }
-        else if(strcmp(dg->url_path, "socket_forward" ) == 0) {
+        else if(strcmp(l_dg->url_path, "socket_forward" ) == 0) {
             l_new_session = true;
         }
         /* }else if (strcmp(dg->url_path,"stream_ctl")==0) {
             l_new_session = true;
         }*/
         else{
-            log_it(L_ERROR,"ctl command unknown: %s",dg->url_path);
-            enc_http_delegate_delete(dg);
+            log_it(L_ERROR,"ctl command unknown: %s",l_dg->url_path);
+            enc_http_delegate_delete(l_dg);
             *return_code = Http_Status_MethodNotAllowed;
             return;
         }
@@ -130,19 +130,19 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
             ss->key = dap_enc_key_new_generate(s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
-            enc_http_reply_f(dg,"%u %s",ss->id,key_str);
+            enc_http_reply_f(l_dg,"%u %s",ss->id,key_str);
             *return_code = Http_Status_OK;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);
 
             free(key_str);
         }else{
-            log_it(L_ERROR,"Wrong request: \"%s\"",dg->in_query);
+            log_it(L_ERROR,"Wrong request: \"%s\"",l_dg->in_query);
             *return_code = Http_Status_BadRequest;
         }
 
         unsigned int conn_t = 0;
-        char *ct_str = strstr(dg->in_query, "connection_type");
+        char *ct_str = strstr(l_dg->in_query, "connection_type");
         if (ct_str)
         {
             sscanf(ct_str, "connection_type=%u", &conn_t);
@@ -161,8 +161,8 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 
         log_it(L_INFO,"setup connection_type: %s", connection_type_str[conn_t]);
 
-        enc_http_reply_encode(cl_st,dg);
-        enc_http_delegate_delete(dg);
+        enc_http_reply_encode(cl_st,l_dg);
+        enc_http_delegate_delete(l_dg);
     }else{
         log_it(L_ERROR,"No encryption layer was initialized well");
         *return_code = Http_Status_BadRequest;
