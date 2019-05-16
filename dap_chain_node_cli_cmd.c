@@ -1968,36 +1968,39 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
 
 
     // Wallet address that recieves the emission
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "certs", &l_certs_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-certs", &l_certs_str);
 
     // Wallet address that recieves the emission
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "addr", &l_addr_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
 
     // Token ticker
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "token", &l_ticker);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_ticker);
+
+    // Net addr
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
 
     // Token emission
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "emission_value", &str_tmp)) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-emission_value", &str_tmp)) {
         l_emission_value = strtoull(str_tmp, NULL, 10);
     }
 
     if(!l_emission_value) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'emission_value'");
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter '-emission_value'");
         return -1;
     }
 
     if(!l_addr_str) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'addr'");
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter '-addr'");
         return -2;
     }
 
     if(!l_ticker) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'token'");
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter '-token'");
         return -3;
     }
 
     if(!l_certs_str) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter 'certs'");
+        dap_chain_node_cli_set_reply_text(str_reply, "token_emit requires parameter '-certs'");
         return -4;
     }
 
@@ -2024,7 +2027,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         return -42;
     }else {
         if ( ( l_net  = dap_chain_net_by_name(l_net_str) ) == NULL ){ // Can't find such network
-            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'net' to be valid chain network name");
+            dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter '-net' to be valid chain network name");
             return -43;
         }
     }
