@@ -33,12 +33,14 @@
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
+#include "dap_hash.h"
 #include "dap_chain_utxo.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 
+#include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
@@ -75,6 +77,7 @@ typedef struct dap_chain_net_pvt{
     uint8_t padding2[6];
 
     dap_chain_net_state_t state;
+    dap_chain_net_state_t state_prev;
     dap_chain_net_state_t state_target;
 } dap_chain_net_pvt_t;
 
@@ -98,7 +101,7 @@ static const char * c_net_states[]={
     [NET_STATE_LINKS_ESTABLISHED]= "NET_STATE_LINKS_ESTABLISHED",
     [NET_STATE_SYNC_GDB]= "NET_STATE_SYNC_GDB",
     [NET_STATE_SYNC_CHAINS]= "NET_STATE_SYNC_CHAINS",
-    [NET_STATE_STAND_BY]= "NET_STATE_STAND_BY"
+    [NET_STATE_ONLINE]= "NET_STATE_STAND_BY"
 };
 
 static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
@@ -152,15 +155,30 @@ lb_proc_state:
         case NET_STATE_OFFLINE:{
             log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE",l_net->pub.name);
             if ( PVT(l_net)->state_target != NET_STATE_OFFLINE ){
-                PVT(l_net)->state_target = NET_STATE_LINKS_PING;
+                PVT(l_net)->state = NET_STATE_LINKS_PING;
                 goto lb_proc_state;
             }
         } break;
         case NET_STATE_LINKS_PING:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PING",l_net->pub.name);
-            PVT(l_net)->state_target = NET_STATE_LINKS_CONNECTING;
-            goto lb_proc_state;
+            if ( PVT(l_net)->state_target != NET_STATE_LINKS_PING ){
+                PVT(l_net)->state = NET_STATE_LINKS_CONNECTING;
+                goto lb_proc_state;
+            }else {
+                PVT(l_net)->state = NET_STATE_OFFLINE;
+                goto lb_proc_state;
+            }
         }break;
+        case NET_STATE_LINKS_PONG:{
+            log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PONG",l_net->pub.name);
+            if ( ( PVT( l_net )->state_target != NET_STATE_LINKS_PONG ) &&
+                 ( PVT( l_net )->state_target != NET_STATE_OFFLINE ) ) {
+                PVT(l_net)->state = NET_STATE_LINKS_CONNECTING;
+            }else { // target was to have a pong
+                PVT(l_net)->state = NET_STATE_OFFLINE;
+                goto lb_proc_state;
+            }
+        }
         case NET_STATE_LINKS_CONNECTING:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             if ( PVT(l_net)->node_info ) {
@@ -197,7 +215,7 @@ lb_proc_state:
         case NET_STATE_LINKS_ESTABLISHED:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_ESTABLISHED",l_net->pub.name);
             switch (PVT(l_net)->state_target) {
-                case NET_STATE_STAND_BY:
+                case NET_STATE_ONLINE:
                 case NET_STATE_SYNC_GDB: PVT(l_net)->state = NET_STATE_SYNC_GDB ; goto lb_proc_state;
                 case NET_STATE_SYNC_CHAINS: PVT(l_net)->state = NET_STATE_SYNC_CHAINS ; goto lb_proc_state;
                 default:{}
@@ -207,18 +225,14 @@ lb_proc_state:
             // send request
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
-                size_t l_data_size_out = 0;
+                dap_stream_ch_chain_sync_request_t l_sync_gdb = {{0}};
                 // Get last timestamp in log
-                time_t l_timestamp_start = dap_db_log_get_last_timestamp();
-                size_t l_data_send_len = 0;
-                uint8_t *l_data_send = dap_stream_ch_chain_net_make_packet(PVT(l_net)->node_info->hdr.address.uint64 ,
-                                            l_node_client->remote_node_addr.uint64,
-                        l_timestamp_start, NULL, 0, &l_data_send_len);
-
-                uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for global_db sync
-                int res = dap_chain_node_client_send_chain_net_request(l_node_client, l_ch_id,
-                            STREAM_CH_CHAIN_NET_PKT_TYPE_GLOBAL_DB_REQUEST_SYNC, l_data_send, l_data_send_len); //, NULL);
-                DAP_DELETE(l_data_send);
+                l_sync_gdb.ts_start = (uint64_t) dap_db_log_get_last_timestamp();
+                l_sync_gdb.ts_end = (uint64_t) time(NULL);
+                uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db sync
+                int res = dap_chain_node_client_send_ch_pkt(l_node_client, l_ch_id,
+                           DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB , &l_sync_gdb,
+                                                            sizeof (l_sync_gdb) );
                 if(res != 1) {
                     log_it(L_WARNING,"Can't send GDB sync request");
                     HASH_DEL(PVT(l_net)->links,l_node_client);
@@ -229,7 +243,7 @@ lb_proc_state:
                 // wait for finishing of request
                 int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
                 // TODO add progress info to console
-                res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_END, timeout_ms);
+                res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (res) {
                     case 0:
                         log_it(L_WARNING,"Timeout with link sync");
@@ -241,37 +255,55 @@ lb_proc_state:
                         log_it(L_INFO, "Node sync error %d",res);
                 }
             }
-            if ( PVT(l_net)->state_target == NET_STATE_STAND_BY ){
+            if ( PVT(l_net)->state_target == NET_STATE_ONLINE ){
                 PVT(l_net)->state = NET_STATE_SYNC_CHAINS;
             }else {
-                PVT(l_net)->state = NET_STATE_STAND_BY;
+                PVT(l_net)->state = NET_STATE_ONLINE;
             }
             goto lb_proc_state;
         }break;
         case NET_STATE_SYNC_CHAINS:{
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
+            uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db sync
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
-                uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db sync
-                dap_chain_t * l_chain = NULL;
+                        dap_chain_t * l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain ){
-                    dap_stream_t * l_stream = dap_client_get_stream( l_node_client->client );
-                    if ( l_stream ){
-                        dap_stream_ch_t * l_ch = l_stream->channel [l_ch_id];
-                        if ( l_ch ) {
-                            dap_stream_ch_chain_pkt_t * l_chain_pkt;
-                            size_t l_chain_pkt_size = sizeof (l_chain_pkt->hdr) + sizeof (dap_stream_ch_chain_request_t );
-                            dap_stream_ch_chain_request_t * l_request = (dap_stream_ch_chain_request_t *) l_chain_pkt->data;
-
-                            dap_stream_ch_pkt_write(l_ch,'b',l_chain_pkt,l_chain_pkt_size);
+                    size_t l_lasts_size = 0;
+                    dap_chain_atom_ptr_t * l_lasts;
+                    dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+                    l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter,&l_lasts_size);
+                    if ( l_lasts ) {
+                        dap_stream_ch_chain_sync_request_t l_request = {{0}};
+                        dap_hash_fast(l_lasts[0],l_chain->callback_atom_get_size(l_lasts[0]),&l_request.hash_from );
+                        dap_chain_node_client_send_ch_pkt(l_node_client,l_ch_id,
+                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+                                                      &l_request,sizeof (l_request) );
+                        // wait for finishing of request
+                        int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                        // TODO add progress info to console
+                        int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+                        switch (l_res) {
+                            case 0:
+                                log_it(L_WARNING,"Timeout with link sync");
+                            break;
+                            case 1:
+                                log_it(L_INFO, "Node sync completed");
+                            break;
+                            default:
+                                log_it(L_INFO, "Node sync error %d",l_res);
                         }
+
+                        DAP_DELETE( l_lasts );
                     }
+                    DAP_DELETE( l_atom_iter );
                 }
+
             }
-            PVT(l_net)->state = NET_STATE_STAND_BY;
+            PVT(l_net)->state = NET_STATE_ONLINE;
             goto lb_proc_state;
 
         }break;
-        case NET_STATE_STAND_BY:{
+        case NET_STATE_ONLINE:{
 
         } break;
     }
@@ -612,7 +644,7 @@ int dap_chain_net_load(const char * a_net_name)
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
 
-                PVT(l_net)->state_target = NET_STATE_STAND_BY;
+                PVT(l_net)->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:
@@ -621,12 +653,12 @@ int dap_chain_net_load(const char * a_net_name)
                 dap_chain_id_t l_chain_id = { .raw = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x01} };
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
                 l_chain->is_datum_pool_proc = true;
-                PVT(l_net)->state_target = NET_STATE_STAND_BY;
+                PVT(l_net)->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
             } break;
             case NODE_ROLE_FULL:{
                 log_it(L_INFO,"Full node role established");
-                PVT(l_net)->state_target = NET_STATE_STAND_BY;
+                PVT(l_net)->state_target = NET_STATE_ONLINE;
             } break;
             case NODE_ROLE_LIGHT:
             default:
