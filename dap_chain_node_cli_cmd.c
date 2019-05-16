@@ -1967,9 +1967,6 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     // Token ticker
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_ticker);
 
-    // Net addr
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
-
     // Token emission
     if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-emission_value", &str_tmp)) {
         l_emission_value = strtoull(str_tmp, NULL, 10);
@@ -2012,6 +2009,9 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         return -4;
     }
 
+    // Net addr
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
+
     // Select chain network
     if(!l_net_str) {
         dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'net'");
@@ -2023,13 +2023,12 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         }
     }
 
-
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "chain_emission", &l_chain_emission_str);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "chain_base_tx", &l_chain_base_tx_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain_emission", &l_chain_emission_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain_base_tx", &l_chain_base_tx_str);
 
     // Select chain emission
     if(!l_chain_emission_str) {
-        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'chain_emission'");
+        dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter '-chain_emission'");
         return -44;
     }else {
         if ( ( l_chain_emission  = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str ) ) == NULL ){ // Can't find such chain
