@@ -38,6 +38,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
+#include "dap_chain_net.h"
 
 #define LOG_TAG "dap_chain_utxo"
 
@@ -100,8 +101,8 @@ static const dap_chain_utxo_tx_item_t* tx_item_find_by_addr (const dap_chain_add
 
 /**
  * @brief dap_chain_utxo_init
- * @param a_local_cell_id Local cell id
  * @param a_check_flags
+ * @param a_mempool_group_names_list
  * @return
  */
 int dap_chain_utxo_init( uint16_t a_check_flags)
@@ -111,7 +112,7 @@ int dap_chain_utxo_init( uint16_t a_check_flags)
     s_check_cells_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_CELLS_DS;
     s_check_token_emission = a_check_flags & DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
     // load utxo from mempool
-    return dap_chain_utxo_load();
+    return dap_chain_utxo_load("kelvin-testnet", "plasma");
 }
 
 
@@ -125,21 +126,39 @@ static int compare_datum_items(const void * l_a, const void * l_b)
         return -1;
     return 1;
 }
+
 /**
  * Load utxo from mempool
  *
  * return 0 if OK otherwise  negative error code
  */
-int dap_chain_utxo_load(void)
+int dap_chain_utxo_load(const char *a_net_name, const char *a_chain_name)
 {
     // protect from reloading
     if(dap_chain_utxo_count() > 0)
         return 0;
+    dap_list_t *l_datum_list = NULL, *l_list_tmp = NULL;
+
+    // Read first transaction mempool group name
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
+    dap_chain_t * l_chain_base_tx = (l_net) ? dap_chain_net_get_chain_by_name(l_net, a_chain_name) : NULL;
+    char * l_gdb_group_mempool_base_tx =
+            (l_chain_base_tx) ? dap_chain_net_get_gdb_group_mempool(l_chain_base_tx) : NULL;
+
+    // Read first transaction in mempool_groups from a_mempool_group_names_list
+    size_t l_data_size = 0;
+    dap_global_db_obj_t **data_ft = NULL;
+    if(l_gdb_group_mempool_base_tx) {
+        data_ft = dap_chain_global_db_gr_load(l_gdb_group_mempool_base_tx, &l_data_size);
+        // make list of datums
+        for(size_t i = 0; i < l_data_size; i++) {
+            l_datum_list = dap_list_prepend(l_datum_list, data_ft[i]->value);
+        }
+    }
+
     //  Read the entire database into an array of size bytes
-    size_t l_data_size;
     dap_global_db_obj_t **data = dap_chain_global_db_gr_load(c_dap_datum_mempool_gdb_group, &l_data_size);
     // make list of datums
-    dap_list_t *l_datum_list = NULL, *l_list_tmp = NULL;
     for(size_t i = 0; i < l_data_size; i++) {
         l_datum_list = dap_list_prepend(l_datum_list, data[i]->value);
     }
@@ -156,8 +175,8 @@ int dap_chain_utxo_load(void)
         }
         l_list_tmp = dap_list_next(l_list_tmp);
     }
-    dap_list_free(l_datum_list);
     dap_chain_global_db_objs_delete(data);
+    dap_list_free(l_datum_list);
     return 0;
 }
 

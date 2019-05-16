@@ -43,7 +43,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLIB REQUIRED glib-2.0)
 
-target_link_libraries(dap_chain dap_core dap_chain_crypto dap_chain_mempool dap_chain_global_db ${GLIB_LDFLAGS})
+target_link_libraries(dap_chain dap_core dap_chain_crypto dap_chain_mempool dap_chain_global_db dap_chain_net ${GLIB_LDFLAGS})
 target_include_directories(dap_chain INTERFACE . ${GLIB_INCLUDE_DIRS})
 
 

@@ -53,7 +53,7 @@
 int dap_chain_utxo_init( uint16_t a_check_flags);
 
 // Load utxo from mempool
-int dap_chain_utxo_load(void);
+int dap_chain_utxo_load(const char *a_net_name, const char *a_chain_name);
 
 void dap_chain_utxo_set_local_cell_id ( dap_chain_cell_id_t a_local_cell_id);
 
