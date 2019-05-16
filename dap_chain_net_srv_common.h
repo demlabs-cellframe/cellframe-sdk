@@ -68,7 +68,7 @@ typedef struct dap_chain_net_srv_abstract
         struct {
             int bandwith;
             int abuse_resistant;
-            int limit_bytes;
+            size_t limit_bytes;
         } vpn;
         /*struct {
          int value;
