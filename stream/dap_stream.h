@@ -83,8 +83,6 @@ typedef struct dap_stream {
     dap_stream_ch_t * channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;
 
-    char *service_key;
-
     size_t frame_sent; // Frame counter
 
     size_t seq_id;

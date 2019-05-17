@@ -46,6 +46,7 @@ struct dap_stream_session {
 
     uint8_t enc_type;
 
+    char *service_key;// auth string
     char active_channels[16];// channels for open
 
     stream_session_connection_type_t conn_type;
