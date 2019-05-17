@@ -8,6 +8,7 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
 
+#define LOG_TAG "dap_chain_global_db_remote"
 /**
  * Set addr for current node
  */
@@ -41,6 +42,7 @@ bool dap_db_log_set_last_timestamp_remote(uint64_t a_node_addr, time_t a_timesta
     l_objs.value_len = sizeof(time_t);
     bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_LOCAL_NODE_LAST_TS);
     DAP_DELETE(l_objs.key);
+    log_it( L_NOTICE, "Node 0x%016X set last synced timestamp %llu",a_timestamp);
     return l_ret;
 }
 

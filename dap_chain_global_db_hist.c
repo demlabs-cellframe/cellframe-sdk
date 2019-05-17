@@ -7,6 +7,7 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_hist.h"
 
+#define LOG_TAG "dap_chain_global_db_hist"
 
 static char* dap_db_history_pack_hist(dap_global_db_hist_t *a_rec)
 {
@@ -176,20 +177,24 @@ static int compare_items(const void * l_a, const void * l_b)
 dap_list_t* dap_db_log_get_list(time_t first_timestamp)
 {
     dap_list_t *l_list = NULL;
-    char *l_first_key = dap_strdup_printf("%lld", (int64_t) first_timestamp);
+    size_t l_list_count = 0;
+    char *l_first_key_str = dap_strdup_printf("%lld", (int64_t) first_timestamp);
     size_t l_data_size_out = 0;
     dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_GLOBAL_HISTORY, &l_data_size_out);
     for(size_t i = 0; i < l_data_size_out; i++) {
         dap_global_db_obj_t *l_obj_cur = l_objs[i];
-        if(strcmp(l_first_key, l_obj_cur->key) < 0) {
+//        log_it(L_DEBUG,"%lld and %lld tr",strtoll(l_obj_cur->key,NULL,10), first_timestamp );
+        if( strtoll(l_obj_cur->key,NULL,10) > (long long) first_timestamp  ) {
             dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
             l_item->key = dap_strdup(l_obj_cur->key);
             l_item->value =(uint8_t*) dap_strdup((char*) l_obj_cur->value);
             l_list = dap_list_append(l_list, l_item);
+            l_list_count++;
         }
     }
     // sort list by key (time str)
     dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
+    log_it(L_DEBUG,"Prepared %u items", l_list_count);
 
     /*/ dbg - sort result
      l_data_size_out = dap_list_length(l_list);
@@ -199,7 +204,7 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
      printf("2 %d %s\n", i, l_item->key);
      }*/
 
-    DAP_DELETE(l_first_key);
+    DAP_DELETE(l_first_key_str);
     dap_chain_global_db_objs_delete(l_objs);
     return l_list;
 }

@@ -12,7 +12,7 @@
 #define GROUP_GLOBAL_ALIAS "global.aliases"
 #define GROUP_GLOBAL_DATUM "global.datums"
 #define GROUP_GLOBAL_HISTORY "global.history"
-#define GROUP_LOCAL_NODE_LAST_TS "local.nodelist"
+#define GROUP_LOCAL_NODE_LAST_TS "local.node.last_ts"
 #define GROUP_LOCAL_GENERAL "local.general"
 
 typedef struct dap_global_db_obj {
