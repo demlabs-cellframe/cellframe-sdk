@@ -218,7 +218,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
     const char * l_events_sign_cert = NULL;
-    if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events_sign_cert") ) != NULL ) {
+    if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign--cert") ) != NULL ) {
 
         if ( ( PVT(l_poa)->events_sign_cert = dap_chain_cert_find_by_name(l_events_sign_cert)) == NULL ){
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_cert);
@@ -265,6 +265,11 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
 {
     dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
+    if ( PVT(a_dag)->events_sign_cert == NULL){
+        log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
+        return  NULL;
+    }
+
     if ( s_seed_mode || (a_hashes&& a_hashes_count) ){
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, l_net->pub.cell_id, a_datum,
                                                          PVT(a_dag)->events_sign_cert->enc_key, a_hashes, a_hashes_count);
