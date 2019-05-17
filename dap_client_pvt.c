@@ -176,16 +176,20 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         case STAGE_STREAM_CTL: {
             log_it(L_INFO, "Go to stage STREAM_CTL: prepare the request");
 
-            size_t l_request_size = 10;
+            size_t l_request_size = (size_t) snprintf(NULL, 0, "%d", DAP_CLIENT_PROTOCOL_VERSION);
             char *l_request = DAP_NEW_Z_SIZE(char, l_request_size);
             snprintf(l_request, l_request_size, "%d", DAP_CLIENT_PROTOCOL_VERSION);
             log_it(L_DEBUG, "STREAM_CTL request size %u", strlen(l_request));
 
+            size_t l_suburl_size =1+ (size_t) snprintf(NULL,0,"stream_ctl,channels=%s", a_client_pvt->active_channels);
+            char * l_suburl = DAP_NEW_Z_SIZE(char,l_suburl_size);
+            snprintf( l_suburl, l_suburl_size, "stream_ctl,channels=%s", a_client_pvt->active_channels );
             dap_client_pvt_request_enc(a_client_pvt,
             DAP_UPLINK_PATH_STREAM_CTL,
-                    "stream_ctl,channels=N", "type=tcp,maxconn=4", l_request, l_request_size,
+                    l_suburl, "type=tcp,maxconn=4" , l_request, l_request_size,
                     m_stream_ctl_response, m_stream_ctl_error);
             DAP_DELETE(l_request);
+            DAP_DELETE( l_suburl);
         }
             break;
         case STAGE_STREAM_SESSION: {
