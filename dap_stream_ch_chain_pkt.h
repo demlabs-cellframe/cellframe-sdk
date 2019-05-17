@@ -48,6 +48,7 @@
 
 
 typedef union dap_stream_ch_chain_sync_request{
+    dap_chain_node_addr_t node_addr; // Requesting node's address
     dap_chain_hash_fast_t hash_from;
     dap_chain_hash_fast_t hash_to;
     uint64_t ts_start;

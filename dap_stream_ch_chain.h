@@ -50,6 +50,7 @@ typedef struct dap_chain_atom_item{
 
 typedef struct dap_stream_ch_chain {
     pthread_mutex_t mutex;
+    dap_stream_ch_t * ch;
 
     dap_list_t *request_global_db_trs; // list of transactions
     dap_stream_ch_chain_state_t state;
@@ -61,9 +62,11 @@ typedef struct dap_stream_ch_chain {
     dap_chain_net_id_t request_net_id;
     dap_chain_id_t request_chain_id;
     dap_chain_cell_id_t request_cell_id;
+    time_t request_last_ts;
 
-    dap_stream_ch_chain_callback_packet_t notify_callback;
-    void *notify_callback_arg;
+    dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
+    dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
+    void *callback_notify_arg;
 } dap_stream_ch_chain_t;
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
