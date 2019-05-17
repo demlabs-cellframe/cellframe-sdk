@@ -59,7 +59,10 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     l_event_new->header.ts_created = (uint64_t) timegm(NULL);
     l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
     l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
-    memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
+
+    if ( l_hashes_size )
+        memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
+
     memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
 
     if ( a_key ){
