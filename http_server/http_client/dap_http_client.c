@@ -32,7 +32,7 @@
 #include "dap_http_header.h"
 #include "dap_http_client.h"
 
-#define LOG_TAG "http_client"
+#define LOG_TAG "dap_http_client"
 
 #define BUF_SIZE 2048
 
