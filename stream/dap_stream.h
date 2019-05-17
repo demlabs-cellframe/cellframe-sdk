@@ -95,7 +95,9 @@ typedef struct dap_stream {
 
 #define DAP_STREAM(a) ((dap_stream_t *) (a)->_internal )
 
-int dap_stream_init();
+int dap_stream_init(bool a_dump_packet_headers);
+
+bool dap_stream_get_dump_packet_headers();
 
 void dap_stream_deinit();
 

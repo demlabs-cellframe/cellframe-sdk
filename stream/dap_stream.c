@@ -62,6 +62,9 @@ struct ev_loop *keepalive_loop;
 pthread_t keepalive_thread;
 
 void start_keepalive(struct dap_stream *sid);
+static bool s_dump_packet_headers = false;
+
+bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
 // Start keepalive stream
 void* stream_loop(void * arg)
@@ -75,12 +78,13 @@ void* stream_loop(void * arg)
  * @brief stream_init Init stream module
  * @return  0 if ok others if not
  */
-int dap_stream_init()
+int dap_stream_init( bool a_dump_packet_headers)
 {
     if( dap_stream_ch_init() != 0 ){
         log_it(L_CRITICAL, "Can't init channel types submodule");
         return -1;
     }
+    s_dump_packet_headers = a_dump_packet_headers;
     pthread_create(&keepalive_thread, NULL, stream_loop, NULL);
 
     log_it(L_NOTICE,"Init streaming module");
@@ -387,10 +391,14 @@ void s_data_write(dap_http_client_t * sh, void * arg)
  * @param sh
  * @param arg
  */
-void s_data_read(dap_client_remote_t* sh, void * arg)
+void s_data_read(dap_client_remote_t* a_client, void * arg)
 {
-    dap_stream_t * l_stream =DAP_STREAM(sh);
+    dap_stream_t * l_stream =DAP_STREAM(a_client);
     int * ret = (int *) arg;
+
+    if (s_dump_packet_headers )
+        log_it(L_DEBUG,"dap_stream_data_read: client->buf_in_size=%u" ,
+               a_client->_ready_to_write?"true":"false", a_client->buf_in_size );
 
      *ret = dap_stream_data_proc_read( l_stream);
 }
@@ -554,20 +562,23 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
  * @param sh DAP client instance
  * @param arg Not used
  */
-void stream_dap_data_write(dap_client_remote_t* sh, void * arg){
+void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
     size_t i;
+    (void) arg;
     bool ready_to_write=false;
     //  log_it(L_DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
 
-    for(i=0;i<DAP_STREAM(sh)->channel_count; i++){
-        dap_stream_ch_t * ch = DAP_STREAM(sh)->channel[i];
+    for(i=0;i<DAP_STREAM(a_client )->channel_count; i++){
+        dap_stream_ch_t * ch = DAP_STREAM(a_client )->channel[i];
         if(ch->ready_to_write){
             if(ch->proc->packet_out_callback)
                 ch->proc->packet_out_callback(ch,NULL);
             ready_to_write|=ch->ready_to_write;
         }
     }
-    //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
+    if (s_dump_packet_headers )
+        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%u" ,
+               ready_to_write?"true":"false", a_client->buf_out_size );
 
   /*  if(STREAM(sh)->conn_udp)
         dap_udp_client_ready_to_write(STREAM(sh)->conn,ready_to_write);
@@ -633,50 +644,55 @@ static bool _detect_loose_packet(dap_stream_t * sid)
  * @brief stream_proc_pkt_in
  * @param sid
  */
-void stream_proc_pkt_in(dap_stream_t * sid)
+void stream_proc_pkt_in(dap_stream_t * a_stream)
 {
-    if(sid->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_DATA_PACKET)
+    if(a_stream->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_DATA_PACKET)
     {
-        dap_stream_ch_pkt_t * ch_pkt = (dap_stream_ch_pkt_t *) sid->buf_pkt_in;
+        dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->buf_pkt_in;
 
-		if(dap_stream_pkt_read(sid,sid->pkt_buf_in, ch_pkt, STREAM_BUF_SIZE_MAX)==0){
-            log_it(L_WARNING, "Input: can't decode packet size=%d",sid->pkt_buf_in_data_size);
+        if(dap_stream_pkt_read(a_stream,a_stream->pkt_buf_in, l_ch_pkt, STREAM_BUF_SIZE_MAX)==0){
+            log_it(L_WARNING, "Input: can't decode packet size=%d",a_stream->pkt_buf_in_data_size);
         }
 
-        _detect_loose_packet(sid);
+        _detect_loose_packet(a_stream);
 
         dap_stream_ch_t * ch = NULL;
         size_t i;
-        for(i=0;i<sid->channel_count;i++)
-            if(sid->channel[i]->proc){
-                if(sid->channel[i]->proc->id == ch_pkt->hdr.id ){
-                    ch=sid->channel[i];
+        for(i=0;i<a_stream->channel_count;i++)
+            if(a_stream->channel[i]->proc){
+                if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
+                    ch=a_stream->channel[i];
                 }
             }
         if(ch){
-            ch->stat.bytes_read+=ch_pkt->hdr.size;
+            ch->stat.bytes_read+=l_ch_pkt->hdr.size;
             if(ch->proc)
-                if(ch->proc->packet_in_callback)
-                    ch->proc->packet_in_callback(ch,ch_pkt);
-            if(ch->proc->id == SERVICE_CHANNEL_ID && ch_pkt->hdr.type == STREAM_CH_PKT_TYPE_KEEPALIVE)
-                dap_stream_send_keepalive(sid);
+                if(ch->proc->packet_in_callback){
+                    if ( s_dump_packet_headers ){
+                        log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
+                            l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id , l_ch_pkt->hdr.enc_type);
+                    }
+                    ch->proc->packet_in_callback(ch,l_ch_pkt);
+                }
+            if(ch->proc->id == SERVICE_CHANNEL_ID && l_ch_pkt->hdr.type == STREAM_CH_PKT_TYPE_KEEPALIVE)
+                dap_stream_send_keepalive(a_stream);
         }else{
-            log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) ch_pkt->hdr.id );
+            log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
         }
-    } else if(sid->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
+    } else if(a_stream->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
         stream_srv_pkt_t * srv_pkt = (stream_srv_pkt_t *)malloc(sizeof(stream_srv_pkt_t));
-        memcpy(srv_pkt,sid->pkt_buf_in->data,sizeof(stream_srv_pkt_t));
+        memcpy(srv_pkt,a_stream->pkt_buf_in->data,sizeof(stream_srv_pkt_t));
         uint32_t session_id = srv_pkt->session_id;
-        check_session(session_id,sid->conn);
+        check_session(session_id,a_stream->conn);
         free(srv_pkt);
     } else {
         log_it(L_WARNING, "Unknown header type");
     }
-    sid->keepalive_passed = 0;
-    ev_timer_again (keepalive_loop, &sid->keepalive_watcher);
-    free(sid->pkt_buf_in);
-    sid->pkt_buf_in=NULL;
-    sid->pkt_buf_in_data_size=0;
+    a_stream->keepalive_passed = 0;
+    ev_timer_again (keepalive_loop, &a_stream->keepalive_watcher);
+    free(a_stream->pkt_buf_in);
+    a_stream->pkt_buf_in=NULL;
+    a_stream->pkt_buf_in_data_size=0;
 }
 
 /**

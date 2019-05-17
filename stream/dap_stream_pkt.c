@@ -45,7 +45,6 @@
 static const size_t s_dap_hdr_size=8+2+1+1+4;
 const uint8_t c_dap_stream_sig[8]={0xa0,0x95,0x96,0xa9,0x9e,0x5c,0xfb,0xfa};
 
-
 dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
 {
     uint8_t * sig_start=(uint8_t*) a_data;
