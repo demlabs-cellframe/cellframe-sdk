@@ -73,6 +73,12 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
     l_hdr.seq_id=a_ch->stream->seq_id;
     a_ch->stream->seq_id++;
 
+    if ( dap_stream_get_dump_packet_headers() ){
+        log_it(L_INFO,"Outgoing channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02hhX",
+            (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type );
+    }
+
+
     if(a_data_size+sizeof(l_hdr)> sizeof(a_ch->buf) ){
         log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu", a_data_size, sizeof(a_ch->buf));
         a_data_size=sizeof(a_ch->buf)-sizeof(l_hdr);
