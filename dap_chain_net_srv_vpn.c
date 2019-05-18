@@ -1,6 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Aleksandr Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
@@ -317,24 +318,33 @@ void srv_ch_sf_tun_destroy()
     raw_server->tun_fd = -1;
 }
 
-
 static void callback_trafic(dap_client_remote_t *a_client, dap_stream_ch_t* a_ch)
 {
-    dap_stream_ch_vpn_t *l_ch_vpn = (dap_stream_ch_vpn_t*)(a_ch->internal);
+    dap_stream_ch_vpn_t *l_ch_vpn = CH_SF(a_ch);
+    //dap_stream_ch_vpn_t *l_ch_vpn = (dap_stream_ch_vpn_t*)(a_ch->internal);
     if(!a_client || !l_ch_vpn)
         return;
     dap_chain_net_srv_abstract_t *srv_common = &l_ch_vpn->net_srv.srv_common;
-    int bytes_max = srv_common->proposal_params.vpn.limit_bytes;
-    int bytes_cur = a_client->download_stat.buf_size_total;
+    size_t bytes_max = srv_common->proposal_params.vpn.limit_bytes;
+    static size_t bytes_cur_prev = 0;
+    size_t bytes_cur = a_client->download_stat.buf_size_total;
+    size_t delta_bytes = (bytes_cur > bytes_cur_prev) ? bytes_cur - bytes_cur_prev : 0;
+    // make receipt transaction
+    if(delta_bytes) {
+        const dap_chain_net_srv_abstract_t *l_cond = &(l_ch_vpn->net_srv.srv_common);
+        //l_cond->
+        //if()
+        //if(!dap_chain_mempool_tx_create_receipt(delta_bytes))
+        //    bytes_cur_prev = bytes_cur; // if transaction added successfully
+    }
     // no more traffic -> disconnect?
-    if(bytes_cur>=bytes_max){
+    if(bytes_cur >= bytes_max) {
         //dap_stream_delete(a_ch->stream);
         //dap_stream_ch_delete(a_ch);
         //srv_ch_sf_delete(a_ch, NULL);
     }
 
 }
-
 
 /**
  * @brief stream_sf_new Callback to constructor of object of Ch
@@ -348,34 +358,28 @@ void srv_ch_sf_new(dap_stream_ch_t* ch, void* arg)
     pthread_mutex_init(&sf->mutex, NULL);
     sf->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
     //
-    if(ch->stream->service_key) {
+    if(ch->stream->session->service_key) {
 
-        char **l_str = dap_strsplit(ch->stream->service_key, ";", -1);
-        char *l_addr_base58 = NULL;
-        char *l_sign_txt = NULL;
-        if(dap_str_countv(l_str) == 2) {
-            l_addr_base58 = l_str[0];
-            l_sign_txt = l_str[1];
-        }
-        l_addr_base58 =
-                "RpiDC8c1SxrT7TUExyGWNErgV6HtwkKhSd1yLEkTA9qHcSiYA4GXjE67KJQay2TzHdG2ouk42d8GgLyABu6rP55JeFYzBkqZ7CqijDEw";
-        l_sign_txt = "123";
-        uint8_t *l_sign = l_sign_txt;
-        size_t l_sign_size = 0;
+        char *l_addr_base58;
+        char *l_sign_hash_str;
+        ch->stream->session->service_key =
+                "RpiDC8c1SxrT7TUExyGWNErgV6HtwkKhSd1yLEkTA9qHcSiYA4GXjE67KJQay2TzHdG2ouk42d8GgLyABu6rP55JeFYzBkqZ7CqijDEw;12345";
+
         const dap_chain_net_srv_abstract_t *l_cond = NULL;
-        uint64_t l_value = dap_chain_net_srv_client_auth(l_addr_base58, l_sign, l_sign_size, &l_cond);
+        // get value for service and fill l_cond struct
+        uint64_t l_value = dap_chain_net_srv_client_auth(ch->stream->session->service_key, &l_cond);
 
         // add service
-        //if(l_cond && l_value>0)
-        {
+        if(l_cond && l_value > 0)
+                {
             dap_chain_net_srv_t l_srv;
-            memset(&l_srv,0,sizeof(dap_chain_net_srv_t));
+            memset(&l_srv, 0, sizeof(dap_chain_net_srv_t));
             l_srv.callback_trafic = callback_trafic;
             // debug
             l_srv.srv_common.proposal_params.vpn.limit_bytes = 2000;
             if(l_cond)
                 memcpy(&l_srv.srv_common, l_cond, sizeof(dap_chain_net_srv_abstract_t));
-            dap_chain_net_srv_gen_uid((uint8_t*)&l_srv.uid,sizeof(l_srv.uid));
+            dap_chain_net_srv_gen_uid((uint8_t*) &l_srv.uid, sizeof(l_srv.uid));
             dap_chain_net_srv_add(&l_srv);
             memcpy(&sf->net_srv, &l_srv, sizeof(dap_chain_net_srv_t)); // Unique ID for service.
         }
@@ -504,7 +508,7 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                         sizeof(dap_stream_ch_vpn_remote_single_t));
                 n_client->ch = ch;
 
-                if(count_free_addr > 0){
+                if(count_free_addr > 0) {
                     n_addr.s_addr = list_addr_head->addr.s_addr;
                     LL_DELETE(list_addr_head, list_addr_head);
                 }
