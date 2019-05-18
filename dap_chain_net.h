@@ -1,6 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2019
@@ -30,6 +31,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_chain.h"
+#include "dap_chain_ledger.h"
 
 
 #define DAP_CHAIN_NET_NAME_MAX 32
@@ -53,6 +55,7 @@ typedef struct dap_chain_net{
         char * name;
         char * gdb_groups_prefix;
         dap_chain_t * chains; // double-linked list of chains
+        dap_ledger_t  *ledger;
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
@@ -78,6 +81,7 @@ void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
+dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
 

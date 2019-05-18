@@ -1,6 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
@@ -34,7 +35,6 @@
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_hash.h"
-#include "dap_chain_utxo.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -539,20 +539,20 @@ int dap_chain_net_load(const char * a_net_name)
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
 
 
-        // UTXO model
-        uint16_t l_utxo_flags = 0;
+        // LEDGER model
+        uint16_t l_ledger_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_ROOT:
             case NODE_ROLE_ARCHIVE:
-                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
             case NODE_ROLE_MASTER:
-                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_CELLS_DS;
+                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
             case NODE_ROLE_CELL_MASTER:
-                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
+                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
             case NODE_ROLE_FULL:
             case NODE_ROLE_LIGHT:
-                l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
+                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
         }
 
         // Check if seed nodes are present in local db alias
@@ -683,8 +683,8 @@ int dap_chain_net_load(const char * a_net_name)
         memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
 
-        // init UTXO model
-        dap_chain_utxo_init(l_utxo_flags);
+        // init LEDGER model
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags);
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);
@@ -713,6 +713,19 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
         return l_net_item->chain_net;
     else
         return NULL;
+}
+
+/**
+ * @brief dap_chain_ledger_by_net_name
+ * @param a_net_name
+ * @return
+ */
+dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
+    if(l_net)
+        return l_net->pub.ledger;
+    return NULL;
 }
 
 /**

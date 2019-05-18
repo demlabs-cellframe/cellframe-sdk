@@ -1,7 +1,11 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2019
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
@@ -483,7 +487,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name>]\n");
+            "wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
@@ -513,7 +517,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]\n" );
+            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> net <net name> [fee <addr> value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
             "tx_cond_create todo\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
