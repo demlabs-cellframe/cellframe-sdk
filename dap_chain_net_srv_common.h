@@ -68,7 +68,7 @@ typedef struct dap_chain_net_srv_abstract
         struct {
             int bandwith;
             int abuse_resistant;
-            int limit_bytes;
+            size_t limit_bytes;
         } vpn;
         /*struct {
          int value;
@@ -105,5 +105,4 @@ void dap_chain_net_srv_uid_set(dap_chain_net_srv_uid_t *a_uid_src, uint128_t a_v
 // generate new dap_chain_net_srv_uid_t
 bool dap_chain_net_srv_gen_uid(uint8_t *a_srv, size_t a_srv_size);
 
-uint64_t dap_chain_net_srv_client_auth(char *a_addr_base58, uint8_t *a_sign, size_t a_sign_size,
-        const dap_chain_net_srv_abstract_t **a_cond_out);
+uint64_t dap_chain_net_srv_client_auth(const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out);
