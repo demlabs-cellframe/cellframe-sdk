@@ -499,7 +499,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> addr <addr> token <token ticker> certs <cert> emission_value <val>\n");
+            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> token <token ticker> -certs <cert> -emission_value <val>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network and chain id",
             "mempool_list -net <net name> -chain <chain name>\n");

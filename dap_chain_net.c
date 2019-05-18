@@ -554,7 +554,6 @@ int dap_chain_net_load(const char * a_net_name)
             case NODE_ROLE_LIGHT:
                 l_utxo_flags |= DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
         }
-        dap_chain_utxo_init(l_utxo_flags);
 
         // Check if seed nodes are present in local db alias
         PVT(l_net)->seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
@@ -683,6 +682,9 @@ int dap_chain_net_load(const char * a_net_name)
 
         memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
+
+        // init UTXO model
+        dap_chain_utxo_init(l_utxo_flags);
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);
