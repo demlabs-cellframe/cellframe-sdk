@@ -21,6 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <dap_chain_ledger.h>
 #include <sys/types.h>
 #include <dirent.h>
 
@@ -33,7 +34,6 @@
 #include "dap_chain.h"
 #include "dap_chain_cert.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_utxo.h"
 #include <uthash.h>
 #include <pthread.h>
 
