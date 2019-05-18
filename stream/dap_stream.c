@@ -172,6 +172,9 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
                 if(dap_stream_session_open(ss)==0){ // Create new stream
                     dap_stream_t * sid = stream_new(cl_ht);
                     sid->session=ss;
+                    dap_http_header_t *header = dap_http_header_find(cl_ht->in_headers, "Service-Key");
+                    if (header)
+                        ss->service_key = strdup(header->value);
                     size_t count_channels = strlen(ss->active_channels);
                     for(size_t i = 0; i < count_channels; i++) {
                         dap_stream_ch_new(sid, ss->active_channels[i]);
