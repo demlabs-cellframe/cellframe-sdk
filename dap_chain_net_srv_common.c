@@ -30,6 +30,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_utxo.h"
 #include "dap_stream.h"
+#include "dap_server_http_db_auth.h"
 
 /**
  * copy a_value_dst to a_uid_src
@@ -72,14 +73,24 @@ void dap_chain_net_srv_abstract_set(dap_chain_net_srv_abstract_t *a_cond, uint8_
 /**
  *
  */
-uint64_t dap_chain_net_srv_client_auth(char *a_addr_base58, uint8_t *a_sign, size_t a_sign_size,
-        const dap_chain_net_srv_abstract_t **a_cond_out)
+uint64_t dap_chain_net_srv_client_auth(const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out)
 {
-    dap_chain_addr_t *l_addr = (a_addr_base58) ? dap_chain_str_to_addr(a_addr_base58) : NULL;
+    char *l_addr_base58;
+    char *l_sign_hash_str;
+    if(dap_server_http_db_auth_parse_service_key(a_service_key, &l_addr_base58, &l_sign_hash_str)) {
+        return 0;
+    }
+    if(!dap_server_http_db_auth_check_key(l_addr_base58, l_sign_hash_str)) {
+        // invalid signature
+        return 0;
+    }
+
+    dap_chain_addr_t *l_addr = (l_addr_base58) ? dap_chain_str_to_addr(l_addr_base58) : NULL;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     dap_chain_sign_type_t l_sig_type;
     if(l_addr)
         memcpy(&l_sig_type, &l_addr->sig_type, sizeof(dap_chain_sign_type_t));
+
     // Search all value in transactions with l_addr in 'out_cond' item
     uint64_t l_value = dap_chain_utxo_tx_cache_get_out_cond_value(l_addr, &l_tx_out_cond);
     DAP_DELETE(l_addr);
@@ -91,23 +102,6 @@ uint64_t dap_chain_net_srv_client_auth(char *a_addr_base58, uint8_t *a_sign, siz
     size_t l_cond_size = 0;
     uint8_t *l_cond = dap_chain_datum_tx_out_cond_item_get_cond(l_tx_out_cond, &l_cond_size);
     uint8_t *l_pkey = dap_chain_datum_tx_out_cond_item_get_pkey(l_tx_out_cond, &l_pkey_size);
-
-    // create l_chain_sign for check a_sign
-    dap_chain_sign_t *l_chain_sign = DAP_NEW_Z_SIZE(dap_chain_sign_t,
-            sizeof(dap_chain_sign_t) + a_sign_size + l_pkey_size);
-    l_chain_sign->header.type = l_sig_type;
-    l_chain_sign->header.sign_size = l_pkey_size;
-    l_chain_sign->header.sign_pkey_size = l_pkey_size;
-    // write serialized public key to dap_chain_sign_t
-    memcpy(l_chain_sign->pkey_n_sign, l_pkey, l_pkey_size);
-    // write serialized signature to dap_chain_sign_t
-    memcpy(l_chain_sign->pkey_n_sign + l_pkey_size, a_sign, a_sign_size);
-
-    // check signature
-    if(dap_chain_sign_verify(l_chain_sign, a_sign, a_sign_size) != 1) {
-        // invalid signature
-        return 0;
-    }
 
     if(l_cond_size != sizeof(dap_chain_net_srv_abstract_t)) {
         return 0;
