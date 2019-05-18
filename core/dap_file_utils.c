@@ -181,7 +181,7 @@ char* dap_path_get_basename(const char *a_file_name)
 
 #ifdef _WIN32
     if (l_last_nonslash == 1 &&
-            dap_ascii_isalpha (a_file_name[0]) &&
+            dap_ascii_isalpha(a_file_name[0]) &&
             a_file_name[1] == ':')
     // string only containing slashes and a drive
     return dap_strdup (DAP_DIR_SEPARATOR_S);
@@ -193,7 +193,7 @@ char* dap_path_get_basename(const char *a_file_name)
 
 #ifdef _WIN32
     if (l_base == -1 &&
-            dap_ascii_isalpha (a_file_name[0]) &&
+            dap_ascii_isalpha(a_file_name[0]) &&
             a_file_name[1] == ':')
     l_base = 1;
 #endif
@@ -233,7 +233,7 @@ bool dap_path_is_absolute(const char *a_file_name)
 
 #ifdef _WIN32
     /* Recognize drive letter on native Windows */
-    if (dap_ascii_isalpha (a_file_name[0]) &&
+    if (dap_ascii_isalpha(a_file_name[0]) &&
             a_file_name[1] == ':' && DAP_IS_DIR_SEPARATOR (a_file_name[2]))
     return true;
 #endif
@@ -273,7 +273,7 @@ char* dap_path_get_dirname(const char *a_file_name)
     if(!l_base)
     {
 #ifdef _WIN32
-        if (dap_ascii_isalpha (a_file_name[0]) && a_file_name[1] == ':')
+        if (dap_ascii_isalpha(a_file_name[0]) && a_file_name[1] == ':')
         {
             char l_drive_colon_dot[4];
 
@@ -305,7 +305,7 @@ char* dap_path_get_dirname(const char *a_file_name)
      * returning \\server\share\ .
      */
     if (l_base == a_file_name + 1 &&
-            dap_ascii_isalpha (a_file_name[0]) &&
+            dap_ascii_isalpha(a_file_name[0]) &&
             a_file_name[1] == ':')
     l_base++;
     else if (DAP_IS_DIR_SEPARATOR (a_file_name[0]) &&
