@@ -40,6 +40,9 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 
+#include "dap_chain_global_db.h"
+#include "dap_chain_global_db_remote.h"
+
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
@@ -227,7 +230,7 @@ lb_proc_state:
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {{0}};
                 // Get last timestamp in log
-                l_sync_gdb.ts_start = (uint64_t) dap_db_log_get_last_timestamp();
+                l_sync_gdb.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote(l_node_client->remote_node_addr.uint64);
                 l_sync_gdb.ts_end = (uint64_t) time(NULL);
                 uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db sync
                 int res = dap_chain_node_client_send_ch_pkt(l_node_client, l_ch_id,

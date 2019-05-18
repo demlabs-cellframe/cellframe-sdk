@@ -300,9 +300,11 @@ static void* thread_one_client_func(void *args)
                 }
                 char *reply_body = dap_strdup_printf("ret_code: %d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
                 // return the result of the command function
-                char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
+                char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\n"
+                                                    "Content-Length: %d\r\n\r\n"
+                                                    "%s",
                         strlen(reply_body), reply_body);
-                int ret = send(newsockfd, reply_str, strlen(reply_str) + 1, 1000);
+                int ret = send(newsockfd, reply_str, strlen(reply_str) ,0);
                 DAP_DELETE(str_reply);
                 DAP_DELETE(reply_str);
                 DAP_DELETE(reply_body);

@@ -933,34 +933,59 @@ int com_node(int argc, const char ** argv, char **str_reply)
                 DAP_DELETE(l_remote_node_info);
                 return -1;
             }
+            log_it(L_NOTICE, "Stream connection established, now lets sync all");
+            dap_stream_ch_chain_sync_request_t l_sync_request = {{0}};
+            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id() );
+            l_sync_request.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote( l_remote_node_info->hdr.address.uint64 );
+            //l_sync_request.ts_end = (time_t) time(NULL);
+            l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net)?dap_chain_net_get_cur_addr(l_net)->uint64:
+                                                                                dap_db_get_cur_node_addr();
+            dap_chain_id_t l_chain_id_null = {{0}};
+            dap_chain_cell_id_t l_chain_cell_id_null = {{0}};
+            log_it(L_INFO,"Requested GLOBAL_DB syncronizatoin, %llu:%llu period", l_sync_request.ts_start,
+                   l_sync_request.ts_end ) ;
+            if( 0 == dap_stream_ch_chain_pkt_write(l_ch_chain,DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+                                                   l_net->pub.id, l_chain_id_null ,l_chain_cell_id_null ,&l_sync_request,
+                                                sizeof (l_sync_request))) {
+                dap_chain_node_cli_set_reply_text(str_reply, "Error: Cant send sync chains request");
+                // clean client struct
+                dap_chain_node_client_close(l_node_client);
+                DAP_DELETE(l_remote_node_info);
+                return -1;
+            }
+            dap_stream_ch_set_ready_to_write(l_ch_chain,true);
+            // wait for finishing of request
+            timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+            // TODO add progress info to console
+            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
 
+            // Requesting chains
             dap_chain_t *l_chain = NULL;
-
             DL_FOREACH(l_net->pub.chains, l_chain) {
                 // send request
-                // Get last timestamp in log
                 dap_stream_ch_chain_sync_request_t l_sync_request = {{0}};
-                l_sync_request.ts_start = (uint64_t) dap_db_log_get_last_timestamp();
-                dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id() );
-                if( 0 == dap_stream_ch_chain_pkt_write(l_ch_chain,DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL,
+                if( 0 == dap_stream_ch_chain_pkt_write(l_ch_chain,DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
                                                     l_net->pub.id, l_chain->id ,l_remote_node_info->hdr.cell_id,&l_sync_request,
                                                     sizeof (l_sync_request))) {
-                    dap_chain_node_cli_set_reply_text(str_reply, "no request sent");
+                    dap_chain_node_cli_set_reply_text(str_reply, "Error: Cant send sync chains request");
                     // clean client struct
                     dap_chain_node_client_close(l_node_client);
                     DAP_DELETE(l_remote_node_info);
                     return -1;
                 }
+                log_it(L_NOTICE, "Requested syncronization for chain \"%s\"",l_chain->name);
+                dap_stream_ch_set_ready_to_write(l_ch_chain,true);
 
                 // wait for finishing of request
                 timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
                 // TODO add progress info to console
                 res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
             }
+            log_it(L_INFO,"Chains and gdb are synced");
             DAP_DELETE(l_remote_node_info);
             dap_client_disconnect(l_node_client->client);
             dap_chain_node_client_close(l_node_client);
-            dap_chain_node_cli_set_reply_text(str_reply, "Node sync completed");
+            dap_chain_node_cli_set_reply_text(str_reply, "Node sync completed: Chains and gdb are synced");
             return 0;
 
         } break;
