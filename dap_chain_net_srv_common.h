@@ -29,6 +29,7 @@
 #include "dap_math_ops.h"
 #include "dap_server.h"
 #include "dap_stream_ch.h"
+#include "dap_chain_ledger.h"
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 16
 typedef union {
@@ -105,4 +106,5 @@ void dap_chain_net_srv_uid_set(dap_chain_net_srv_uid_t *a_uid_src, uint128_t a_v
 // generate new dap_chain_net_srv_uid_t
 bool dap_chain_net_srv_gen_uid(uint8_t *a_srv, size_t a_srv_size);
 
-uint64_t dap_chain_net_srv_client_auth(const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out);
+uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
+        const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out);

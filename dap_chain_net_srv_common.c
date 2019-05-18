@@ -26,11 +26,10 @@
 #include <stdint.h>
 #include "dap_strfuncs.h"
 #include "rand/dap_rand.h"
-#include "dap_chain_net_srv_common.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_utxo.h"
 #include "dap_stream.h"
 #include "dap_server_http_db_auth.h"
+#include "dap_chain_net_srv_common.h"
 
 /**
  * copy a_value_dst to a_uid_src
@@ -73,7 +72,8 @@ void dap_chain_net_srv_abstract_set(dap_chain_net_srv_abstract_t *a_cond, uint8_
 /**
  *
  */
-uint64_t dap_chain_net_srv_client_auth(const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out)
+uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
+        const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out)
 {
     char *l_addr_base58;
     char *l_sign_hash_str;
@@ -92,7 +92,7 @@ uint64_t dap_chain_net_srv_client_auth(const char *a_service_key, const dap_chai
         memcpy(&l_sig_type, &l_addr->sig_type, sizeof(dap_chain_sign_type_t));
 
     // Search all value in transactions with l_addr in 'out_cond' item
-    uint64_t l_value = dap_chain_utxo_tx_cache_get_out_cond_value(l_addr, &l_tx_out_cond);
+    uint64_t l_value = dap_chain_ledger_tx_cache_get_out_cond_value(a_ledger, l_addr, &l_tx_out_cond);
     DAP_DELETE(l_addr);
     // not found transaction with l_addr in 'out_cond' item
     if(!l_value)
