@@ -24,7 +24,7 @@
 
 #define STREAM_PKT_SIZE_MAX 500000
 struct dap_stream;
-
+typedef struct dap_stream dap_stream_t;
 #define STREAM_PKT_TYPE_DATA_PACKET 0x00
 #define STREAM_PKT_TYPE_SERVICE_PACKET 0xff
 //#define STREAM_PKT_TYPE_KEEPALIVE 0x11
@@ -50,14 +50,14 @@ typedef struct stream_srv_pkt{
 } __attribute__((packed)) stream_srv_pkt_t;
 
 
-extern const uint8_t dap_sig[8];
+extern const uint8_t c_dap_stream_sig[8];
 
-dap_stream_pkt_t * dap_stream_pkt_detect(void * data, uint32_t data_size);
+dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size);
 
-size_t dap_stream_pkt_read(struct dap_stream * sid,struct dap_stream_pkt * pkt, void * buf_out, size_t buf_out_size);
+size_t dap_stream_pkt_read(dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size);
 
-size_t dap_stream_pkt_write(struct dap_stream * sid, const void * data, uint32_t data_size);
+size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * data, size_t a_data_size);
 
-void dap_stream_send_keepalive(struct dap_stream * sid);
+void dap_stream_send_keepalive( dap_stream_t * a_stream);
 
 
