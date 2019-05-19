@@ -225,10 +225,21 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         size_t l_data_obj_count = 0;
 
                         // deserialize data
-                        void *l_data_obj = dap_db_log_unpack((uint8_t*) l_chain_pkt->data, l_chain_pkt_data_size, &l_data_obj_count); // Parse data from dap_db_log_pack()
+                        dap_store_obj_t *l_store_obj = dap_db_log_unpack((uint8_t*) l_chain_pkt->data, l_chain_pkt_data_size, &l_data_obj_count); // Parse data from dap_db_log_pack()
+                        if ( dap_log_level_get()== L_DEBUG  )
+                            for ( size_t i =0 ; i < l_data_obj_count; i++) {
+                                char l_ts_str[50];
+                                dap_time_to_str_rfc822(l_ts_str,sizeof(l_ts_str),l_store_obj[i].timestamp);
+                                log_it(L_DEBUG,"Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
+                                       " section=\"%s\" timestamp=\"%s\" value_len=%u  ",
+                                       (char) l_store_obj[i].type   , l_store_obj[i].type, l_store_obj[i].group, l_store_obj[i].key,
+                                       l_store_obj[i].section , l_ts_str,
+                                       l_store_obj[i].value_len);
+                            }
+
                         // save data to global_db
-                        if(!dap_chain_global_db_obj_save(l_data_obj, l_data_obj_count)) {
-                            log_it(L_ERROR, "Don't saved to global_db objs=0x%x count=%d", l_data_obj,
+                        if(!dap_chain_global_db_obj_save(l_store_obj, l_data_obj_count)) {
+                            log_it(L_ERROR, "Don't saved to global_db objs=0x%x count=%d", l_store_obj,
                                     l_data_obj_count);
                             dap_stream_ch_chain_pkt_write_error(a_ch,l_chain_pkt->hdr.net_id,
                                                                 l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
@@ -241,8 +252,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                 dap_db_log_set_last_timestamp_remote( l_ch_chain->request.node_addr.uint64 ,
                                                                      dap_db_log_get_last_timestamp() );
                             }
-                            // TODO propagate changes
-                            log_it(L_NOTICE,"!!!Added new GLOBAL_DB but not running sync action for others links. TODO.!!!");
+                            log_it(L_DEBUG,"Added new GLOBAL_DB history pack");
                         }
                     }
                 }break;
