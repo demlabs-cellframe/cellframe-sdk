@@ -137,6 +137,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
  */
 bool dap_db_history_truncate(void)
 {
+    // TODO
     return true;
 }
 
@@ -193,9 +194,8 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
         }
     }
     // sort list by key (time str)
-    dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
-    log_it(L_DEBUG,"Prepared %u items", l_list_count);
-
+    //dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
+    log_it(L_DEBUG,"Prepared %u items (list size %u)", l_list_count, dap_list_length(l_list));
     /*/ dbg - sort result
      l_data_size_out = dap_list_length(l_list);
      for(size_t i = 0; i < l_data_size_out; i++) {
