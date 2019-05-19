@@ -77,8 +77,9 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
 
-#include "dap_chain_utxo.h"//datum_tx_cache.h
+#include "dap_chain_net.h"
 #include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_ledger.h"//datum_tx_cache.h
 
 #define LOG_TAG "srv_vpn"
 
@@ -366,8 +367,11 @@ void srv_ch_sf_new(dap_stream_ch_t* ch, void* arg)
                 "RpiDC8c1SxrT7TUExyGWNErgV6HtwkKhSd1yLEkTA9qHcSiYA4GXjE67KJQay2TzHdG2ouk42d8GgLyABu6rP55JeFYzBkqZ7CqijDEw;12345";
 
         const dap_chain_net_srv_abstract_t *l_cond = NULL;
+        // debug
+        const char *l_net_name = "kelvin-testnet";
+        dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_name);
         // get value for service and fill l_cond struct
-        uint64_t l_value = dap_chain_net_srv_client_auth(ch->stream->session->service_key, &l_cond);
+        uint64_t l_value = dap_chain_net_srv_client_auth(l_ledger, ch->stream->session->service_key, &l_cond);
 
         // add service
         if(l_cond && l_value > 0)
