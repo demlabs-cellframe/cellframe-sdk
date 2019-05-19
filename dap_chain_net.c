@@ -708,7 +708,8 @@ void dap_chain_net_deinit()
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
 {
     dap_chain_net_item_t * l_net_item = NULL;
-    HASH_FIND_STR(s_net_items,a_name,l_net_item );
+    if(a_name)
+        HASH_FIND_STR(s_net_items,a_name,l_net_item );
     if ( l_net_item )
         return l_net_item->chain_net;
     else
