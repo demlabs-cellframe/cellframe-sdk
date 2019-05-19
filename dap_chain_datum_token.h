@@ -38,12 +38,37 @@ typedef struct dap_chain_datum_token{
 
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
+
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH              0x01
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO              0x02
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
 // Token emission
 typedef struct dap_chain_datum_token_emission{
-    uint16_t version;
-    char ticker[10];
-    dap_chain_addr_t address; // Emission holder's address
-    uint64_t value;
-    uint8_t signs[]; // Signs if exists
+    struct  {
+        uint8_t version;
+        uint8_t type; // Emission Type
+        char ticker[10];
+        dap_chain_addr_t address; // Emission holder's address
+        uint64_t value;
+    } DAP_ALIGN_PACKED hdr;
+    union {
+        struct {
+            dap_chain_addr_t addr;
+            int flags;
+            uint64_t lock_time;
+        } DAP_ALIGN_PACKED type_smart_contract;
+        struct {
+            uint64_t value_start;// Default value. Static if nothing else is defined
+            char value_change_algo_codename[32];
+        } DAP_ALIGN_PACKED type_atom_owner;
+        struct {
+            char codename[32];
+        } DAP_ALIGN_PACKED type_algo;
+        struct {
+            uint16_t signs_count;
+            uint8_t  signs[];
+        } DAP_ALIGN_PACKED type_auth;// Signs if exists
+    } data;
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 

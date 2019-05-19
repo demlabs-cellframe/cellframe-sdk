@@ -83,7 +83,7 @@ typedef struct dap_chain_utxo_tx_bound {
     dap_chain_utxo_tx_item_t *item_out;
 } dap_chain_utxo_tx_bound_t;
 
-// List of UTXO - unspent transactions cache
+// List of UTXO - unspent transactions cachef
 static dap_chain_utxo_tx_item_t *s_utxo = NULL;
 static dap_chain_utxo_token_item_t *s_tokens = NULL;
 
@@ -110,15 +110,13 @@ int dap_chain_utxo_init( uint16_t a_check_flags)
     s_check_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_LOCAL_DS;
     s_check_cells_ds = a_check_flags & DAP_CHAIN_UTXO_CHECK_CELLS_DS;
     s_check_token_emission = a_check_flags & DAP_CHAIN_UTXO_CHECK_TOKEN_EMISSION;
-    // load utxo from mempool
-    return dap_chain_utxo_load();
 }
 
 
 static int compare_datum_items(const void * l_a, const void * l_b)
 {
-    dap_chain_datum_t *l_item_a = (dap_chain_datum_t*) l_a;
-    dap_chain_datum_t *l_item_b = (dap_chain_datum_t*) l_b;
+    const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
+    const dap_chain_datum_t *l_item_b = (const dap_chain_datum_t*) l_b;
     if(l_item_a->header.ts_create == l_item_b->header.ts_create)
         return 0;
     if(l_item_a->header.ts_create < l_item_b->header.ts_create)
@@ -170,7 +168,7 @@ int dap_chain_utxo_load(void)
 int dap_chain_utxo_token_emission_add(const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size)
 {
     int ret = 0;
-    const char * c_token_ticker = a_token_emission->ticker;
+    const char * c_token_ticker = a_token_emission->hdr.ticker;
     dap_chain_utxo_token_item_t * l_token_item = NULL;
     pthread_rwlock_rdlock(&s_tokens_rwlock);
     HASH_FIND_STR( s_tokens, c_token_ticker,l_token_item);
@@ -196,10 +194,10 @@ int dap_chain_utxo_token_emission_add(const dap_chain_datum_token_emission_t *a_
             HASH_ADD(hh,l_token_item->token_emissions, datum_token_emission_hash, sizeof(l_token_emission_hash),
                      l_token_emission_item);
             log_it(L_NOTICE, "Added token emission datum of  %llu %s ( 0x%s )",
-                   a_token_emission->value, c_token_ticker, l_hash_str );
+                   a_token_emission->hdr.value, c_token_ticker, l_hash_str );
         }else {
             log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s )",
-                   a_token_emission->value, c_token_ticker, l_hash_str );
+                   a_token_emission->hdr.value, c_token_ticker, l_hash_str );
             ret = -1;
         }
         pthread_rwlock_unlock( l_token_item->token_emissions_rwlock );
@@ -529,7 +527,7 @@ int dap_chain_utxo_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_lis
             dap_chain_datum_token_emission_t * l_token_emission =
                     dap_chain_utxo_token_emission_find(l_tx_token->header.ticker, & l_tx_token->header.token_emission_hash);
             if (l_token_emission ){
-                if ( l_token_emission->value != l_values_from_cur_tx ){
+                if ( l_token_emission->hdr.value != l_values_from_cur_tx ){
                     dap_list_free_full(l_list_bound_items, free);
                     return -1;
                 }
@@ -777,7 +775,7 @@ uint64_t dap_chain_utxo_calc_balance(const dap_chain_addr_t *a_addr,const char *
                 const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
 
                 // if transaction has the out item with requested addr
-                if(l_tx_out && &l_tx_out->addr
+                if(l_tx_out
                         && !memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t)
                         )) {
                     // if 'out' item not used & transaction is valid
