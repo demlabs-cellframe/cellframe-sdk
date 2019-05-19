@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define dap_return_if_fail(expr)			{if(!(expr)) {return;}}
 #define dap_return_val_if_fail(expr,val)	{if(!(expr)) {return (val);}}
@@ -63,4 +64,5 @@ char* dap_strreverse(char *a_string);
 
 #define DAP_USEC_PER_SEC 1000000
 void dap_usleep(time_t a_microseconds);
+
 

@@ -50,7 +50,7 @@
 /**
  * @brief The log_level enum
  */
-enum log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0};
+typedef enum dap_log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0} dap_log_level_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,18 +109,20 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
-void _log_it(const char * log_tag, enum log_level, const char * format,...);
-void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list ap );
+void _log_it(const char * log_tag, enum dap_log_level, const char * format,...);
+void _vlog_it(const char * log_tag, enum dap_log_level, const char * format, va_list ap );
 #define log_it(_log_level,...) _log_it(LOG_TAG,_log_level,##__VA_ARGS__)
 #define vlog_it(a_log_level,a_format,a_ap) _vlog_it(LOG_TAG,a_log_level,a_format,a_ap)
 
 const char * log_error(void);
-void set_log_level(enum log_level ll);
+void dap_log_level_set(enum dap_log_level ll);
+enum dap_log_level dap_log_level_get(void);
+
 void dap_set_log_tag_width(size_t width);
 
 char *dap_itoa(int i);
 
-int time_to_rfc822(char * out, size_t out_size_max, time_t t);
+int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t);
 
 int get_select_breaker(void);
 int send_select_break(void);

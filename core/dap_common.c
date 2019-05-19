@@ -66,8 +66,8 @@ int pthread_mutex_unlock(HANDLE *obj) {
 
 #define LOG_TAG "dap_common"
 
-static char last_error[LAST_ERROR_MAX] = {0};
-static enum log_level log_level = L_DEBUG;
+static char s_last_error[LAST_ERROR_MAX] = {0};
+static enum dap_log_level dap_log_level = L_DEBUG;
 static FILE * s_log_file = NULL;
 
 static char log_tag_fmt_str[10];
@@ -76,8 +76,12 @@ static char log_tag_fmt_str[10];
  * @brief set_log_level Sets the logging level
  * @param[in] ll logging level
  */
-void set_log_level(enum log_level ll) {
-    log_level = ll;
+void dap_log_level_set(enum dap_log_level ll) {
+    dap_log_level = ll;
+}
+
+enum dap_log_level dap_log_level_get(void) {
+    return dap_log_level ;
 }
 
 /**
@@ -189,7 +193,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 }
 
 // save log to list
-static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum log_level a_ll,
+static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum dap_log_level a_ll,
         const char * a_format, va_list a_ap)
 {
     pthread_mutex_lock(&s_list_logs_mutex);
@@ -236,9 +240,9 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
  * @param[in] ll Log level
  * @param[in] format
  */
-void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
+void _log_it(const char * log_tag,enum dap_log_level ll, const char * format,...)
 {
-    if(ll<log_level)
+    if(ll<dap_log_level)
         return;
 
     va_list ap;
@@ -248,7 +252,7 @@ void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
     va_end(ap);
 }
 
-void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_list ap)
+void _vlog_it(const char * log_tag,enum dap_log_level ll, const char * format,va_list ap)
 {
     va_list ap2,ap3;
 
@@ -333,7 +337,7 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
  */
 const char * log_error()
 {
-    return last_error;
+    return s_last_error;
 }
 
 
@@ -374,7 +378,7 @@ char *dap_itoa(int i)
  * @param[in] t UNIX time
  * @return Length of resulting string if ok or lesser than zero if not
  */
-int time_to_rfc822(char * out, size_t out_size_max, time_t t)
+int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 {
     struct tm *tmp;
     tmp=localtime(&t);
