@@ -117,8 +117,9 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_callback_new_cfg_item_t *l_item = NULL;
-
-    HASH_FIND_STR(s_cs_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
+    const char *l_consensus = dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
+    if(l_consensus)
+        HASH_FIND_STR(s_cs_callbacks, l_consensus, l_item );
     if ( l_item ) {
         log_it(L_NOTICE,"Consensus \"%s\" found, prepare to parse config file",l_item->name );
         l_item->callback_init( a_chain, a_chain_cfg);
