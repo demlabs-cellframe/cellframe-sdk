@@ -30,7 +30,7 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
 
-#include "dap_chain_utxo.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_dag_pos"
 
@@ -164,7 +164,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
 
         for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
-            if ( dap_chain_utxo_calc_balance (&l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
+            if ( dap_chain_ledger_calc_balance (NULL, &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
                 return 0;
         }
         return -1;
