@@ -45,11 +45,16 @@ typedef struct dap_chain_gdb_private
     char *group_tx;
     char *group_ledger;
 
+    dap_chain_t *chain;
+    dap_ledger_t *ledger;
+
     pthread_rwlock_t events_rwlock;
 } dap_chain_gdb_private_t;
 
 #define GDB_INTERNAL(a) ( (dap_chain_gdb_private_t* ) (a) ? a->_internal : NULL )
 #define DAP_CHAIN_GDB(a) ( (dap_chain_gdb_t *) (a)->_inheritor)
+
+static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net);
 
 // Atomic element organization callbacks
 static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Accept new event in gdb
@@ -88,6 +93,19 @@ static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 }
 
 /**
+ * Get cell group by dap_chain_t
+ */
+static char* get_cell_group(dap_chain_t * a_chain)
+{
+    char *l_group = NULL;
+    if(!a_chain)
+        return NULL;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    if(l_net)
+        l_group = dap_strdup_printf("cell.0x%016X.", l_net->pub.cell_id.uint64);
+    return l_group;
+}
+/**
  * @brief dap_chain_cs_gdb_init
  * @return
  */
@@ -100,6 +118,11 @@ int dap_chain_gdb_init(void)
     return 0;
 }
 
+static void db_obj_callback_notify(const char a_op_code, const char * a_prefix, const char * a_group,
+        const char * a_key, const void * a_value, const size_t a_value_len)
+{
+    return;
+}
 /**
  * @brief dap_chain_gdb_new
  * @param a_chain
@@ -114,13 +137,30 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->_inheritor = l_gdb;
 
     pthread_rwlock_init(&l_gdb_priv->events_rwlock, NULL);
-    l_gdb_priv->group_tx = dap_strdup(dap_config_get_item_str(a_chain_cfg, CONSENSUS_NAME, "group_tx"));
-    l_gdb_priv->group_ledger = dap_strdup(dap_config_get_item_str(a_chain_cfg, CONSENSUS_NAME, "group_ledger"));
+    l_gdb_priv->celled = dap_config_get_item_bool(a_chain_cfg, CONSENSUS_NAME, "celled");
+    //l_gdb_priv->group_tx = dap_strdup(dap_config_get_item_str(a_chain_cfg, CONSENSUS_NAME, "group_tx"));
+    //l_gdb_priv->group_ledger = dap_strdup(dap_config_get_item_str(a_chain_cfg, CONSENSUS_NAME, "group_ledger"));
+
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    l_gdb_priv->ledger = (l_net) ? l_net->pub.ledger : NULL;
+    l_gdb_priv->chain = a_chain;
+
+    if(!l_gdb_priv->celled)
+        l_gdb_priv->group_tx = dap_strdup("global.");
+    else {
+        // here is not work because dap_chain_net_load() not yet fully performed
+        l_gdb_priv->group_tx = get_cell_group(a_chain);
+    }
+    // Add group prefix that will be tracking all changes
+    dap_chain_global_db_add_history_group_prefix(l_gdb_priv->group_tx);
+    dap_chain_global_db_add_history_group_prefix("global");
+
+    dap_chain_global_db_add_history_callback_notify(l_gdb_priv->group_tx, db_obj_callback_notify);
+    dap_chain_global_db_add_history_callback_notify("global", db_obj_callback_notify);
+    // load ledger
+    int l_res = dap_chain_gdb_ledger_load(l_gdb, l_net);
 
     a_chain->callback_delete = dap_chain_gdb_delete;
-    //dap_chain_cs_dag_t * l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
-    //l_dag->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
-    //l_dag->chain = a_chain;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add; // Accept new element in chain
@@ -165,8 +205,8 @@ void dap_chain_gdb_delete(dap_chain_t * a_chain)
 
 static int compare_datum_items(const void * l_a, const void * l_b)
 {
-    dap_chain_datum_t *l_item_a = (dap_chain_datum_t*) l_a;
-    dap_chain_datum_t *l_item_b = (dap_chain_datum_t*) l_b;
+    const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
+    const dap_chain_datum_t *l_item_b = (const dap_chain_datum_t*) l_b;
     if(l_item_a->header.ts_create == l_item_b->header.ts_create)
         return 0;
     if(l_item_a->header.ts_create < l_item_b->header.ts_create)
@@ -179,19 +219,19 @@ static int compare_datum_items(const void * l_a, const void * l_b)
  *
  * return 0 if OK otherwise  negative error code
  */
-int dap_chain_gdb_ledger_load(dap_chain_gdb_t *l_gdb, dap_ledger_t *a_ledger, const char *a_net_name, const char *a_chain_name)
+static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net)
 {
-    // protect from reloading
-    if(dap_chain_ledger_count(a_ledger) > 0)
-        return 0;
-    dap_chain_gdb_private_t *l_gdb_priv = GDB_INTERNAL(l_gdb);
+    dap_chain_gdb_private_t *l_gdb_priv = GDB_INTERNAL(a_gdb);
     dap_list_t *l_datum_list = NULL, *l_list_tmp = NULL;
+    // protect from reloading
+    if(dap_chain_ledger_count(l_gdb_priv->ledger) > 0)
+        return 0;
 
     // Read first transaction mempool group name
-    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_chain_t * l_chain_base_tx = (l_net) ? dap_chain_net_get_chain_by_name(l_net, a_chain_name) : NULL;
+    //dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
+    //dap_chain_t * l_chain_base_tx = (a_net) ? dap_chain_net_get_chain_by_name(a_net, a_chain_name) : NULL;
     char * l_gdb_group_mempool_base_tx =
-            (l_chain_base_tx) ? dap_chain_net_get_gdb_group_mempool(l_chain_base_tx) : NULL;
+            (l_gdb_priv->chain) ? dap_chain_net_get_gdb_group_mempool(l_gdb_priv->chain) : NULL;
 
     // Read first transaction in mempool_groups from a_mempool_group_names_list
     size_t l_data_size = 0;
@@ -219,7 +259,7 @@ int dap_chain_gdb_ledger_load(dap_chain_gdb_t *l_gdb, dap_ledger_t *a_ledger, co
         if(l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size)
-                dap_chain_ledger_tx_add(a_ledger,l_tx);
+                dap_chain_ledger_tx_add(l_gdb_priv->ledger, l_tx);
         }
         l_list_tmp = dap_list_next(l_list_tmp);
     }
@@ -228,6 +268,24 @@ int dap_chain_gdb_ledger_load(dap_chain_gdb_t *l_gdb, dap_ledger_t *a_ledger, co
     return 0;
 }
 
+/**
+ * @brief s_chain_callback_datums_add
+ * @param a_chain
+ * @param a_datums
+ * @param a_datums_size
+ */
+static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
+        size_t a_datums_count)
+{
+    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
+    dap_chain_gdb_private_t *l_gdb_priv = GDB_INTERNAL(l_gdb);
+    for(size_t i = 0; i < a_datums_count; i++) {
+        dap_chain_datum_t *l_datum_tx = a_datums[i];
+        if(l_datum_tx->header.type_id == DAP_CHAIN_DATUM_TX)
+            dap_chain_ledger_tx_add(l_gdb_priv->ledger, (dap_chain_datum_tx_t*) l_datum_tx->data);
+    }
+    return 0;
+}
 
 /**
  * @brief s_chain_callback_datums_add
@@ -237,6 +295,7 @@ int dap_chain_gdb_ledger_load(dap_chain_gdb_t *l_gdb, dap_ledger_t *a_ledger, co
  */
 static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
 {
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
     return 0;
 }
 
@@ -310,18 +369,6 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash)
-{
-    return 0;
-}
-
-/**
- * @brief s_chain_callback_datums_add
- * @param a_chain
- * @param a_datums
- * @param a_datums_size
- */
-static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
-        size_t a_datums_count)
 {
     return 0;
 }
