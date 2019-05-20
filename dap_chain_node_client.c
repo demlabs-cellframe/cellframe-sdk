@@ -172,7 +172,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
 
             if ( l_request ){
                 if ( l_request->ts_start < (uint64_t) dap_db_log_get_last_timestamp() ){
-                    log_it(L_INFO, "Remote is synced all but we have updates for it");
+                    log_it(L_INFO, "Remote is synced but we have updates for it");
                     // Get log diff
                     a_ch_chain->request_last_ts = dap_db_log_get_last_timestamp();
                     dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->ts_start);

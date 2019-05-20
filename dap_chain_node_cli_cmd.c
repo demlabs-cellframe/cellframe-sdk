@@ -231,16 +231,11 @@ static int com_global_db_add(dap_chain_node_info_t *a_node_info, const char *ali
         dap_chain_node_cli_set_reply_text(str_reply, "not found -cell parameter");
         return -1;
     }
-    if(!ipv4_str && !ipv6_str) {
-        dap_chain_node_cli_set_reply_text(str_reply, "not found -ipv4 or -ipv6 parameter");
-        return -1;
-    }
-    else {
-        if(ipv4_str)
-            inet_pton(AF_INET, ipv4_str, &(a_node_info->hdr.ext_addr_v4));
-        if(ipv6_str)
-            inet_pton(AF_INET6, ipv6_str, &(a_node_info->hdr.ext_addr_v6));
-    }
+    if(ipv4_str)
+        inet_pton(AF_INET, ipv4_str, &(a_node_info->hdr.ext_addr_v4));
+    if(ipv6_str)
+        inet_pton(AF_INET6, ipv6_str, &(a_node_info->hdr.ext_addr_v6));
+
     // check match addr to cell or no
     /*dap_chain_node_addr_t *addr = dap_chain_node_gen_addr(&node_info->hdr.cell_id);
      if(!dap_chain_node_check_addr(&node_info->hdr.address, &node_info->hdr.cell_id)) {
