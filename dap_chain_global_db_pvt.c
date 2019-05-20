@@ -3,15 +3,15 @@
 #include <assert.h>
 #include <time.h>
 
-//#include "talloc.h"
+#include "dap_chain_global_db.h"
 #include "dap_chain_global_db_pvt.h"
 #include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_global_db"
 #define TDB_PREFIX_LEN 7
 
-static struct ldb_context *ldb = NULL;
-static TALLOC_CTX *mem_ctx = NULL;
+static struct ldb_context *s_ldb = NULL;
+static TALLOC_CTX *s_mem_ctx = NULL;
 
 //static int dap_store_len = 0; // initialized only when reading from local db
 static char *dap_db_path = NULL;
@@ -21,56 +21,82 @@ static char *dap_db_path = NULL;
 
 static int dap_db_add_msg(struct ldb_message *a_msg)
 {
-    if(ldb_msg_sanity_check(ldb, a_msg) != LDB_SUCCESS) {
-        log_it(L_ERROR, "LDB message is inconsistent: %s", ldb_errstring(ldb));
+    if(ldb_msg_sanity_check(s_ldb, a_msg) != LDB_SUCCESS) {
+        log_it(L_ERROR, "LDB message is inconsistent: %s", ldb_errstring(s_ldb));
         return -1;
     }
-    ldb_transaction_start(ldb);
-    int status = ldb_add(ldb, a_msg);
+    ldb_transaction_start(s_ldb);
+    int status = ldb_add(s_ldb, a_msg);
     // Delete the entry if it already exist and add again
     if(status == LDB_ERR_ENTRY_ALREADY_EXISTS) {
-        ldb_delete(ldb, a_msg->dn);
-        status = ldb_add(ldb, a_msg);
+        ldb_delete(s_ldb, a_msg->dn);
+        status = ldb_add(s_ldb, a_msg);
     }
     if(status != LDB_SUCCESS) {
         if(status == LDB_ERR_ENTRY_ALREADY_EXISTS) {
             log_it(L_INFO, "Entry %s already present, skipped", ldb_dn_get_linearized(a_msg->dn));
         }
         else {
-            log_it(L_ERROR, "LDB adding error: %s", ldb_errstring(ldb));
+            log_it(L_ERROR, "LDB adding error: %s", ldb_errstring(s_ldb));
         }
-        ldb_transaction_cancel(ldb);
+        ldb_transaction_cancel(s_ldb);
         return -2;
     }
     else {
-        ldb_transaction_commit(ldb);
+        ldb_transaction_commit(s_ldb);
         //log_it(L_INFO, "Entry %s added", ldb_dn_get_linearized(a_msg->dn));
         return 0;
     }
 }
 
+/**
+ * @brief dap_db_group_create
+ * @param a_group
+ */
+void dap_db_group_create(const char * a_group)
+{
+    struct ldb_message *msg;
+
+    // level 2: group record
+    msg = ldb_msg_new(s_ldb);
+    msg->dn = ldb_dn_new(s_mem_ctx, s_ldb, "ou=addrs_leased,dc=kelvin_nodes");
+    ldb_msg_add_string(msg, "ou", a_group );
+    ldb_msg_add_string(msg, "objectClass", "group");
+    ldb_msg_add_string(msg, "section", "kelvin_nodes");
+    ldb_msg_add_string(msg, "description", "Whitelist of Kelvin blockchain nodes");
+    dap_db_add_msg(msg);
+    talloc_free(msg->dn);
+    talloc_free(msg);
+
+}
+
+/**
+ * @brief dap_db_init
+ * @param path
+ * @return
+ */
 int dap_db_init(const char *path)
 {
-    mem_ctx = talloc_new(NULL);
+    s_mem_ctx = talloc_new(NULL);
     if(ldb_global_init() != 0) {
         log_it(L_ERROR, "Couldn't initialize LDB's global information");
         return -1;
     };
-    if((ldb = ldb_init(mem_ctx, NULL)) != LDB_SUCCESS) {
+    if((s_ldb = ldb_init(s_mem_ctx, NULL)) != LDB_SUCCESS) {
         log_it(L_INFO, "ldb context initialized");
         char *l_tdb_path = DAP_NEW_Z_SIZE(char,strlen(path) + TDB_PREFIX_LEN );
         memset(l_tdb_path, '\0', strlen(path) + TDB_PREFIX_LEN);
         strcat(l_tdb_path, "tdb://"); // using tdb for simplicity, no need for separate LDAP server
         strcat(l_tdb_path, path);
         struct ldb_result *data_message;
-        if(ldb_connect(ldb, l_tdb_path, 0, NULL) != LDB_SUCCESS) {
+        if(ldb_connect(s_ldb, l_tdb_path, 0, NULL) != LDB_SUCCESS) {
             log_it(L_ERROR, "Couldn't connect to database");
             DAP_DELETE(l_tdb_path);
             return 1;
         }
         dap_db_path = strdup(l_tdb_path);
         const char *query = "(dn=*)";
-        if(ldb_search(ldb, mem_ctx, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, "%s", query) != LDB_SUCCESS) {
+        if(ldb_search(s_ldb, s_mem_ctx, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, "%s", query) != LDB_SUCCESS) {
             log_it(L_ERROR, "Database querying failed");
             DAP_DELETE(l_tdb_path);
             return 2;
@@ -78,8 +104,8 @@ int dap_db_init(const char *path)
         struct ldb_message *msg;
         if(data_message->count == 0) {
             // level 1: section record
-            msg = ldb_msg_new(ldb);
-            msg->dn = ldb_dn_new(mem_ctx, ldb, "dc=kelvin_nodes");
+            msg = ldb_msg_new(s_ldb);
+            msg->dn = ldb_dn_new(s_mem_ctx, s_ldb, "dc=kelvin_nodes");
             ldb_msg_add_string(msg, "dc", "kelvin_nodes");
             ldb_msg_add_string(msg, "objectClass", "top");
             ldb_msg_add_string(msg, "objectClass", "section");
@@ -87,38 +113,12 @@ int dap_db_init(const char *path)
             talloc_free(msg->dn);
             talloc_free(msg);
 
-            // level 2: group record
-            msg = ldb_msg_new(ldb);
-            msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=addrs_leased,dc=kelvin_nodes");
-            ldb_msg_add_string(msg, "ou", "addrs_leased");
-            ldb_msg_add_string(msg, "objectClass", "group");
-            ldb_msg_add_string(msg, "section", "kelvin_nodes");
-            ldb_msg_add_string(msg, "description", "Whitelist of Kelvin blockchain nodes");
-            dap_db_add_msg(msg);
-            talloc_free(msg->dn);
-            talloc_free(msg);
-
-            // level 2: group record
-            msg = ldb_msg_new(ldb);
-            msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=aliases_leased,dc=kelvin_nodes");
-            ldb_msg_add_string(msg, "ou", "aliases_leased");
-            ldb_msg_add_string(msg, "objectClass", "group");
-            ldb_msg_add_string(msg, "section", "kelvin_nodes");
-            ldb_msg_add_string(msg, "description", "Aliases of Kelvin blockchain nodes");
-            dap_db_add_msg(msg);
-            talloc_free(msg->dn);
-            talloc_free(msg);
-
-            // level 2: group record
-            msg = ldb_msg_new(ldb);
-            msg->dn = ldb_dn_new(mem_ctx, ldb, "ou=datums,dc=kelvin_nodes");
-            ldb_msg_add_string(msg, "ou", "datums");
-            ldb_msg_add_string(msg, "objectClass", "group");
-            ldb_msg_add_string(msg, "section", "kelvin_nodes");
-            ldb_msg_add_string(msg, "description", "List of Datums");
-            dap_db_add_msg(msg);
-            talloc_free(msg->dn);
-            talloc_free(msg);
+            // level 2: groups
+            dap_db_group_create( GROUP_GLOBAL_ADDRS_LEASED);
+            dap_db_group_create( GROUP_GLOBAL_ALIAS);
+            dap_db_group_create( GROUP_GLOBAL_DATUM);
+            dap_db_group_create( GROUP_GLOBAL_HISTORY);
+            dap_db_group_create( GROUP_GLOBAL_ADDRS_LEASED );
         }
         talloc_free(data_message);
         DAP_DELETE(l_tdb_path);
@@ -132,15 +132,15 @@ int dap_db_init(const char *path)
 
 int dap_db_del_msg(struct ldb_dn *ldn)
 {
-    ldb_transaction_start(ldb);
-    int status = ldb_delete(ldb, ldn);
+    ldb_transaction_start(s_ldb);
+    int status = ldb_delete(s_ldb, ldn);
     if(status != LDB_SUCCESS) {
-        log_it(L_ERROR, "LDB deleting error: %s", ldb_errstring(ldb));
-        ldb_transaction_cancel(ldb);
+        log_it(L_ERROR, "LDB deleting error: %s", ldb_errstring(s_ldb));
+        ldb_transaction_cancel(s_ldb);
         return -2;
     }
     else {
-        ldb_transaction_commit(ldb);
+        ldb_transaction_commit(s_ldb);
         //log_it(L_INFO, "Entry %s deleted", ldb_dn_get_linearized(ldn));
         return 0;
     }
@@ -171,12 +171,12 @@ pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count)
      DC      domainComponent (0.9.2342.19200300.100.1.25)
      UID     userId (0.9.2342.19200300.100.1.1)
      */
-    if(ldb_connect(ldb, dap_db_path, LDB_FLG_RDONLY, NULL) != LDB_SUCCESS) {
+    if(ldb_connect(s_ldb, dap_db_path, LDB_FLG_RDONLY, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
         return NULL;
     }
     //sample: query = "(objectClass=addr_leased)";
-    if(ldb_search(ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, a_query) != LDB_SUCCESS) {
+    if(ldb_search(s_ldb, NULL, &data_message, NULL, LDB_SCOPE_DEFAULT, NULL, a_query) != LDB_SUCCESS) {
         log_it(L_ERROR, "Database querying failed");
         return NULL;
     }
@@ -259,7 +259,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
     }
 
     size_t q = 0;
-    for(ldif_msg = ldb_ldif_read_file(ldb, fs); ldif_msg; ldif_msg = ldb_ldif_read_file(ldb, fs), q++) {
+    for(ldif_msg = ldb_ldif_read_file(s_ldb, fs); ldif_msg; ldif_msg = ldb_ldif_read_file(s_ldb, fs), q++) {
         if(q % 256 == 0) {
             store_data = (pdap_store_obj_t) realloc(store_data, (q + 256) * sizeof(dap_store_obj_t));
         }
@@ -276,7 +276,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
             store_data[q].value_len = strlen ( (char*) store_data[q].value) +1;
             log_it(L_INFO, "Record %s stored successfully", ldb_dn_get_linearized(ldif_msg->msg->dn));
         }
-        ldb_ldif_read_free(ldb, ldif_msg);
+        ldb_ldif_read_free(s_ldb, ldif_msg);
     }
     fclose(fs);
     return store_data;
@@ -295,7 +295,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
         log_it(L_ERROR, "Invalid Dap store objects passed");
         return -1;
     }
-    if(ldb_connect(ldb, dap_db_path, 0, NULL) != LDB_SUCCESS) {
+    if(ldb_connect(s_ldb, dap_db_path, 0, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
@@ -311,7 +311,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
         if(a_store_obj[q].timestamp == (time_t) -1)
             continue;
 
-        l_msg = ldb_msg_new(ldb);
+        l_msg = ldb_msg_new(s_ldb);
         char dn[256];
         memset(dn, '\0', 256);
         strcat(dn, "cn=");
@@ -320,7 +320,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
         strcat(dn, ",ou=");
         strcat(dn, a_store_obj[q].group);
         strcat(dn, ",dc=kelvin_nodes");
-        l_msg->dn = ldb_dn_new(mem_ctx, ldb, dn);
+        l_msg->dn = ldb_dn_new(s_mem_ctx, s_ldb, dn);
         int l_res = ldb_msg_add_string(l_msg, "cn", a_store_obj[q].key);
         ldb_msg_add_string(l_msg, "objectClass", a_store_obj[q].group);
         ldb_msg_add_string(l_msg, "section", "kelvin_nodes");
@@ -355,7 +355,7 @@ int dap_db_delete(pdap_store_obj_t store_obj, size_t a_store_count)
         log_it(L_ERROR, "Invalid Dap store objects passed");
         return -1;
     }
-    if(ldb_connect(ldb, dap_db_path, 0, NULL) != LDB_SUCCESS) {
+    if(ldb_connect(s_ldb, dap_db_path, 0, NULL) != LDB_SUCCESS) {
         log_it(L_ERROR, "Couldn't connect to database");
         return -2;
     }
@@ -372,7 +372,7 @@ int dap_db_delete(pdap_store_obj_t store_obj, size_t a_store_count)
         strcat(dn, ",ou=");
         strcat(dn, store_obj[q].group);
         strcat(dn, ",dc=kelvin_nodes");
-        struct ldb_dn *ldn = ldb_dn_new(mem_ctx, ldb, dn);
+        struct ldb_dn *ldn = ldb_dn_new(s_mem_ctx, s_ldb, dn);
         ret += dap_db_del_msg(ldn); // accumulation error codes
         talloc_free(ldn);
     }
@@ -513,10 +513,10 @@ dap_store_obj_t *dap_store_unpacket(const dap_store_obj_pkt_t *pkt, size_t *stor
 
 void dap_db_deinit()
 {
-    talloc_free(ldb);
-    talloc_free(mem_ctx);
+    talloc_free(s_ldb);
+    talloc_free(s_mem_ctx);
     free(dap_db_path);
-    ldb = NULL;
-    mem_ctx = NULL;
+    s_ldb = NULL;
+    s_mem_ctx = NULL;
     dap_db_path = NULL;
 }

@@ -25,6 +25,7 @@ typedef struct dap_store_obj_pkt {
 }__attribute__((packed)) dap_store_obj_pkt_t;
 
 int dap_db_init(const char*);
+void dap_db_group_create(const char *);
 void dap_db_deinit(void);
 
 int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count);

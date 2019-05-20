@@ -21,6 +21,11 @@ typedef struct dap_global_db_obj {
     size_t value_len;
 }DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
 
+typedef void (*dap_global_db_obj_callback_notify_t) (const char a_op_code, const char * a_prefix, const char * a_group,
+                                                     const char * a_key, const void * a_value,
+                                                     const size_t a_value_len);
+
+
 /**
  * Clean struct dap_global_db_obj_t
  */
@@ -40,6 +45,13 @@ int dap_chain_global_db_init(dap_config_t * a_config);
 void dap_chain_global_db_deinit(void);
 
 /**
+ * Setup callbacks and filters
+ */
+
+void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix); // Add group prefix that will be tracking all changes
+void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix, dap_global_db_obj_callback_notify_t a_callback);
+
+/**
  * Get entry from base
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
@@ -49,8 +61,8 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out);
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set(const char *a_key, const uint8_t *a_value, size_t a_value_len, const char *a_group);
-bool dap_chain_global_db_set(const char *a_key, const uint8_t *a_value, size_t a_value_len);
+bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group);
+bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len);
 
 /**
  * Delete entry from base
