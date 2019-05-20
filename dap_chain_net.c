@@ -539,6 +539,18 @@ int dap_chain_net_load(const char * a_net_name)
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
 
 
+        // Add network to the list
+        dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
+        dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);
+        snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
+                     ,dap_config_get_item_str(l_cfg , "general" , "name" ));
+        l_net_item->chain_net = l_net;
+        l_net_item->net_id.uint64 = l_net->pub.id.uint64;
+        HASH_ADD_STR(s_net_items,name,l_net_item);
+
+        memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
+        HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
+
         // LEDGER model
         uint16_t l_ledger_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
@@ -554,6 +566,8 @@ int dap_chain_net_load(const char * a_net_name)
             case NODE_ROLE_LIGHT:
                 l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
         }
+        // init LEDGER model
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags);
 
         // Check if seed nodes are present in local db alias
         PVT(l_net)->seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
@@ -671,20 +685,6 @@ int dap_chain_net_load(const char * a_net_name)
         if (s_seed_mode) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
         }
-        // Add network to the list
-        dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
-        dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);
-        snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
-                     ,dap_config_get_item_str(l_cfg , "general" , "name" ));
-        l_net_item->chain_net = l_net;
-        l_net_item->net_id.uint64 = l_net->pub.id.uint64;
-        HASH_ADD_STR(s_net_items,name,l_net_item);
-
-        memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
-        HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
-
-        // init LEDGER model
-        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags);
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);

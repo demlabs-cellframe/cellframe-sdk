@@ -2110,6 +2110,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     // First calc summary sign size
     size_t l_token_emission_signs_size =0;
     for ( size_t i=0 ; i < l_certs_size ; i++) {
+        // TODO Here must be added serialized size!
         l_token_emission_signs_size += dap_chain_cert_sign_output_size(l_certs[i],0);
     }
 
@@ -2119,7 +2120,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
             sizeof (l_token_emission->data.type_auth.signs_count) +
             l_token_emission_signs_size;
 
-    l_token_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
+    l_token_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_token_emission_size);
     strncpy(l_token_emission->hdr.ticker, l_ticker, sizeof(l_token_emission->hdr.ticker));
     l_token_emission->hdr.value = l_emission_value;
 
