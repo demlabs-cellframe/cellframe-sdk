@@ -167,19 +167,19 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS:{
             dap_stream_ch_chain_sync_request_t * l_request = NULL;
-            //if ( a_pkt_data_size == sizeof ( *l_request))
-            //     l_request = (dap_stream_ch_chain_sync_request_t* ) a_pkt->data;
+            if ( a_pkt_data_size == sizeof ( *l_request))
+                l_request = (dap_stream_ch_chain_sync_request_t* ) a_pkt->data;
 
             if ( l_request ){
                 if ( l_request->ts_start < (uint64_t) dap_db_log_get_last_timestamp() ){
-                    log_it(L_INFO, "Remote is synced all but we have updates for it");
+                    log_it(L_INFO, "Remote is synced but we have updates for it");
                     // Get log diff
                     a_ch_chain->request_last_ts = dap_db_log_get_last_timestamp();
                     dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->ts_start);
 
                     if ( l_list ) {
                         // Add it to outgoing list
-                        l_list->next = a_ch_chain->request_global_db_trs;
+                        l_list->prev = a_ch_chain->request_global_db_trs;
                         a_ch_chain->request_global_db_trs = l_list;
                         a_ch_chain->request_net_id.uint64 = a_pkt->hdr.net_id.uint64;
                         a_ch_chain->request_cell_id.uint64 = a_pkt->hdr.cell_id.uint64;
