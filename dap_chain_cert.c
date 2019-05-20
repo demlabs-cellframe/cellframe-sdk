@@ -94,7 +94,7 @@ size_t dap_chain_cert_parse_str_list(const char * a_certs_str, dap_chain_cert_t 
     }
     // init certs array
     dap_chain_cert_t **l_certs;
-    *a_certs = l_certs =  DAP_NEW_Z_SIZE(dap_chain_cert_t*, (*a_certs_size) );
+    *a_certs = l_certs = DAP_NEW_Z_SIZE(dap_chain_cert_t*, (*a_certs_size) * sizeof(dap_chain_cert_t*) );
 
     // Second pass we parse them all
     strcpy(l_certs_str_dup, a_certs_str);
