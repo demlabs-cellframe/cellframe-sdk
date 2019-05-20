@@ -165,7 +165,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
     int ret = 0;
     dap_ledger_private_t *l_ledger_priv = LEDGER_INTERNAL(a_ledger);
 
-    const char * c_token_ticker = a_token_emission->ticker;
+    const char * c_token_ticker = a_token_emission->hdr.ticker;
     dap_chain_ledger_token_item_t * l_token_item = NULL;
     pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
     HASH_FIND_STR(l_ledger_priv->tokens, c_token_ticker, l_token_item);
@@ -192,10 +192,10 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
             HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash, sizeof(l_token_emission_hash),
                     l_token_emission_item);
             log_it(L_NOTICE, "Added token emission datum of  %llu %s ( 0x%s )",
-                    a_token_emission->value, c_token_ticker, l_hash_str);
+                    a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         } else {
             log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s )",
-                    a_token_emission->value, c_token_ticker, l_hash_str);
+                    a_token_emission->hdr.value, c_token_ticker, l_hash_str);
             ret = -1;
         }
         pthread_rwlock_unlock(l_token_item->token_emissions_rwlock);
@@ -527,7 +527,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     dap_chain_ledger_token_emission_find(a_ledger, l_tx_token->header.ticker,
                             &l_tx_token->header.token_emission_hash);
             if(l_token_emission) {
-                if(l_token_emission->value != l_values_from_cur_tx) {
+                if(l_token_emission->hdr.value != l_values_from_cur_tx) {
                     dap_list_free_full(l_list_bound_items, free);
                     return -1;
                 }
@@ -779,7 +779,7 @@ uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_a
                 const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
 
                 // if transaction has the out item with requested addr
-                if(l_tx_out && &l_tx_out->addr
+                if(l_tx_out
                         && !memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t)
                                 )) {
                     // if 'out' item not used & transaction is valid
