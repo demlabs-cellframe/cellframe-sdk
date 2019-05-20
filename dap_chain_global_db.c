@@ -51,7 +51,7 @@ char * extract_group_prefix (const char * a_group)
     } else {
         l_group_prefix_size = (size_t)l_delimeter- (size_t) a_group;
         if ( l_group_prefix_size > 1 )
-            l_group_prefix = strndup(a_group, l_group_prefix_size-1);
+            l_group_prefix = strndup(a_group, l_group_prefix_size);
     }
     return  l_group_prefix;
 }
@@ -229,7 +229,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
     int l_res = dap_db_add(store_data, 1);
 
     // Extract prefix if added successfuly, add history log and call notify callback if present
-    if (l_res>0 ){
+    if (!l_res ){
         char * l_group_prefix = extract_group_prefix (a_group);
         history_group_item_t * l_history_group_item = NULL;
         if ( l_group_prefix )
@@ -249,7 +249,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
     pthread_mutex_unlock(&ldb_mutex);
     DAP_DELETE(store_data);
 
-    return l_res> 0;
+    return !l_res;
 }
 
 bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len)
