@@ -133,7 +133,18 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&LEDGER_INTERNAL(a_ledger)->tokens_rwlock);
     DAP_DELETE(LEDGER_INTERNAL(a_ledger));
     DAP_DELETE(a_ledger);
+}
 
+
+static int compare_datum_items(const void * l_a, const void * l_b)
+{
+    const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
+    const dap_chain_datum_t *l_item_b = (const dap_chain_datum_t*) l_b;
+    if(l_item_a->header.ts_create == l_item_b->header.ts_create)
+        return 0;
+    if(l_item_a->header.ts_create < l_item_b->header.ts_create)
+        return -1;
+    return 1;
 }
 
 /**
