@@ -33,7 +33,7 @@ typedef enum dap_chain_node_client_state{
     NODE_CLIENT_STATE_ERROR = -1,
     NODE_CLIENT_STATE_INIT=0,
     NODE_CLIENT_STATE_GET_NODE_ADDR=1,
-    NODE_CLIENT_STATE_SET_NODE_ADDR=2,
+    NODE_CLIENT_STATE_NODE_ADDR_LEASED=2,
     NODE_CLIENT_STATE_PING=3,
     NODE_CLIENT_STATE_PONG=4,
     NODE_CLIENT_STATE_CONNECT=5,
@@ -55,6 +55,7 @@ typedef struct dap_chain_node_client {
     dap_chain_cell_id_t cell_id;
     dap_client_t *client;
     dap_events_t *events;
+    char last_error[128];
 
     dap_chain_node_client_callback_t callback_connected;
     pthread_cond_t wait_cond;
@@ -102,5 +103,5 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int dap_chain_node_client_wait(dap_chain_node_client_t *client, dap_chain_node_client_state_t waited_state, int timeout_ms);
+int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms);
 

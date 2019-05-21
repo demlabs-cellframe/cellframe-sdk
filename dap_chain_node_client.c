@@ -163,6 +163,22 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
 {
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
+            pthread_mutex_lock(&l_node_client->wait_mutex);
+            l_node_client->state = NODE_CLIENT_STATE_ERROR ;
+            snprintf(l_node_client->last_error,sizeof (l_node_client->last_error),
+                     "%s", (char*) a_pkt->data );
+            log_it(L_WARNING,"Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
+                   l_node_client->last_error);
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
+            pthread_cond_signal(&l_node_client->wait_cond);
+
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE:
+            pthread_mutex_lock(&l_node_client->wait_mutex);
+            l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
+            pthread_cond_signal(&l_node_client->wait_cond);
+        break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS:{
@@ -294,7 +310,6 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     if(a_client) {
         // clean client
         dap_client_delete(a_client->client);
-        dap_events_delete(a_client->events);
         pthread_cond_destroy(&a_client->wait_cond);
         pthread_mutex_destroy(&a_client->wait_mutex);
         DAP_DELETE(a_client);
@@ -331,7 +346,7 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int timeout_ms)
+int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms)
 {
     int ret = -1;
     if(!a_client)
@@ -345,7 +360,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     // prepare for signal waiting
     struct timespec to;
     clock_gettime(CLOCK_MONOTONIC, &to);
-    int64_t nsec_new = to.tv_nsec + timeout_ms * 1000000ll;
+    int64_t nsec_new = to.tv_nsec + a_timeout_ms * 1000000ll;
     // if the new number of nanoseconds is more than a second
     if(nsec_new > (long) 1e9) {
         to.tv_sec += nsec_new / (long) 1e9;
@@ -357,8 +372,11 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     do {
 
         int wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &to);
-        if(wait == 0 && a_client->state == a_waited_state) {
-            ret = 1;
+        if(wait == 0 && (
+                    a_client->state == a_waited_state ||
+                    a_client->state == NODE_CLIENT_STATE_ERROR )
+          ) {
+            ret = a_client->state == a_waited_state ? 1 : -2;
             break;
         }
         else if(wait == ETIMEDOUT) { // 110 260
