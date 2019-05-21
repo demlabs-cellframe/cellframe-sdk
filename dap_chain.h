@@ -36,7 +36,7 @@ typedef struct dap_chain dap_chain_t;
 struct dap_chain_cell;
 typedef struct dap_chain_cell dap_chain_cell_t;
 
-typedef struct dap_chain_ledger dap_chain_ledger_t;
+typedef struct dap_ledger dap_ledger_t;
 
 // Atomic element
 typedef void * dap_chain_atom_ptr_t;
@@ -79,7 +79,7 @@ typedef struct dap_chain{
     dap_chain_net_id_t net_id;
     char * name;
     char * net_name;
-    dap_chain_ledger_t * ledger; // If present - pointer to associated ledger
+    dap_ledger_t * ledger; // If present - pointer to associated ledger
     bool is_datum_pool_proc;
 
     // Nested cells (hashtab by cell_id
