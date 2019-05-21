@@ -49,7 +49,8 @@ void dap_chain_global_db_deinit(void);
  */
 
 void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix); // Add group prefix that will be tracking all changes
-void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix, dap_global_db_obj_callback_notify_t a_callback);
+void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix,
+                                                     dap_global_db_obj_callback_notify_t a_callback);
 
 /**
  * Get entry from base
