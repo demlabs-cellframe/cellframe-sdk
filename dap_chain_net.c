@@ -120,7 +120,9 @@ static int s_net_states_proc(dap_chain_net_t * l_net);
 static void * s_net_proc_thread ( void * a_net);
 static void s_net_proc_thread_start( dap_chain_net_t * a_net );
 static void s_net_proc_kill( dap_chain_net_t * a_net );
-
+static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
+                                                     const char * a_key, const void * a_value,
+                                                     const size_t a_value_len);
 static int s_cli_net(int argc, const char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
@@ -149,6 +151,25 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     pthread_mutex_unlock( &PVT(a_net)->state_mutex);
     pthread_cond_signal(&PVT(a_net)->state_proc_cond);
     return 0;
+}
+
+/**
+ * @brief s_gbd_history_callback_notify
+ * @param a_op_code
+ * @param a_prefix
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ */
+static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
+                                                     const char * a_key, const void * a_value,
+                                                     const size_t a_value_len)
+{
+    if (a_arg) {
+        dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+        dap_chain_net_sync_all(l_net);
+    }
 }
 
 
@@ -582,6 +603,7 @@ int dap_chain_net_init()
             "\tList,add,del, dump or establish links\n\n"
                                         );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+
     return  0;
 }
 
@@ -704,6 +726,8 @@ int dap_chain_net_load(const char * a_net_name)
         }
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
+        dap_chain_global_db_add_history_group_prefix( l_net->pub.gdb_groups_prefix);
+        dap_chain_global_db_add_history_callback_notify(l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net );
 
 
         // Add network to the list
@@ -775,6 +799,7 @@ int dap_chain_net_load(const char * a_net_name)
 
 
          }
+
         // Init chains
         size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
         char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
@@ -796,7 +821,7 @@ int dap_chain_net_load(const char * a_net_name)
                         //dap_config_open(l_chains_path);
 
                         // Create chain object
-                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chains_path);
+                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name, l_net->pub.id, l_chains_path);
                         if(l_chain){
                             DL_APPEND( l_net->pub.chains, l_chain);
                             if(l_chain->callback_created)

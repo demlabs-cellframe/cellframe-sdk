@@ -1913,7 +1913,7 @@ int com_token_decl(int argc, const char ** argv, char ** str_reply)
     }
 
     // Load certs lists
-    size_t l_signs_size = dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+    size_t l_certs_count = dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
     if(!l_certs_size) {
         dap_chain_node_cli_set_reply_text(str_reply,
                 "token_create command requres at least one valid certificate to sign the basic transaction of emission");
@@ -1925,8 +1925,7 @@ int com_token_decl(int argc, const char ** argv, char ** str_reply)
         l_certs_size = l_signs_total;
 
     // Create new datum token
-    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(l_datum_token->header) +
-            l_signs_size);
+    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(l_datum_token->header));
     l_datum_token->header.version = 1; // Current version
     snprintf(l_datum_token->header.ticker, sizeof(l_datum_token->header.ticker), "%s", l_ticker);
     l_datum_token->header.total_supply = l_total_supply;
@@ -1942,11 +1941,13 @@ int com_token_decl(int argc, const char ** argv, char ** str_reply)
                 sizeof(l_datum_token->header),
                 0);
         size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+        l_datum_token=DAP_REALLOC(l_datum_token,sizeof (l_datum_token->header)+l_signs_offset +l_sign_size);
         memcpy(l_datum_token->signs + l_signs_offset, l_sign, l_sign_size);
+        l_signs_offset += l_sign_size;
         DAP_DELETE(l_sign);
     }
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL, l_datum_token,
-            sizeof(l_datum_token->header) + l_signs_size);
+            sizeof(l_datum_token->header) + l_signs_offset );
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
     // Calc datum's hash
@@ -2106,19 +2107,10 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     char * l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool(l_chain_base_tx);
 
     // Create emission datum
-
-    // First calc summary sign size
-    size_t l_token_emission_signs_size =0;
-    for ( size_t i=0 ; i < l_certs_size ; i++) {
-        // TODO Here must be added serialized size!
-        l_token_emission_signs_size += dap_chain_cert_sign_output_size(l_certs[i],0);
-    }
-
     // then create datum in memory
     dap_chain_datum_token_emission_t * l_token_emission;
     size_t l_token_emission_size = sizeof (l_token_emission->hdr) +
-            sizeof (l_token_emission->data.type_auth.signs_count) +
-            l_token_emission_signs_size;
+            sizeof (l_token_emission->data.type_auth.signs_count);
 
     l_token_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_token_emission_size);
     strncpy(l_token_emission->hdr.ticker, l_ticker, sizeof(l_token_emission->hdr.ticker));
@@ -2129,6 +2121,8 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     for (size_t i =0; i < l_certs_size; i++ ){
         dap_chain_sign_t * l_sign = dap_chain_cert_sign(l_certs[i],&l_token_emission->hdr, sizeof(l_token_emission->hdr),0 );
         size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+        l_token_emission_size += l_sign_size;
+        l_token_emission= DAP_REALLOC(l_token_emission, l_token_emission_size);
         memcpy(l_token_emission->data.type_auth.signs+l_offset,l_sign,l_sign_size);
         l_offset+= l_sign_size;
         DAP_DELETE(l_sign);
