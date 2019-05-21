@@ -226,15 +226,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_stream_ch_set_ready_to_write(a_ch, true);
                             log_it(L_WARNING,"Invalid net id in packet");
                         } else {
-
-                            uint64_t l_cur_node_addr = dap_db_get_cur_node_addr();
-                            if (  l_cur_node_addr == 0 ){
-                                if (dap_db_set_cur_node_addr( l_addr->uint64 ))
-                                    log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
-                                else
-                                    log_it(L_ERROR,"Can't set up cur node address 0x%016llX",l_addr->uint64);
-                            }else
-                                log_it(L_ERROR,"Already have node address 0x%016llX",l_cur_node_addr);
+                            if (dap_db_set_cur_node_addr( l_addr->uint64 ))
+                                log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
+                            else
+                                log_it(L_ERROR,"Can't set up cur node address 0x%016llX",l_addr->uint64);
                         }
                         memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
                     }else {
@@ -250,7 +245,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     uint64_t l_addr = dap_db_get_cur_node_addr();
                     size_t l_send_data_len = sizeof(uint64_t);
                     // send cur node addr
-                    dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST ,
+                    dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR,
                                                       l_ch_chain_net_pkt->hdr.net_id, &l_addr, l_send_data_len);
                     dap_stream_ch_set_ready_to_write(a_ch, true);
                 } break;
