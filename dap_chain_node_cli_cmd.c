@@ -984,6 +984,7 @@ int com_node(int argc, const char ** argv, char **str_reply)
         log_it(L_INFO, "Chains and gdb are synced");
         DAP_DELETE(l_remote_node_info);
         dap_client_disconnect(l_node_client->client);
+        l_node_client->client = NULL;
         dap_chain_node_client_close(l_node_client);
         dap_chain_node_cli_set_reply_text(str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
