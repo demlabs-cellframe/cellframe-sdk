@@ -26,6 +26,7 @@ typedef struct history_group_item
     uint8_t padding[7];
     bool auto_track; // Track history actions automaticly
     dap_global_db_obj_callback_notify_t callback_notify;
+    void * callback_arg;
     UT_hash_handle hh;
 } history_group_item_t;
 
@@ -74,13 +75,14 @@ void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix)
  * @param a_group_prefix
  * @param a_callback
  */
-void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix, dap_global_db_obj_callback_notify_t a_callback)
+void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void * a_arg)
 {
     history_group_item_t * l_item = NULL;
     HASH_FIND_STR(s_history_group_items, a_group_prefix, l_item);
-    if ( l_item )
+    if ( l_item ){
         l_item->callback_notify = a_callback;
-    else
+        l_item->callback_arg = a_arg;
+    }else
         log_it(L_WARNING, "Can't setup notify callback for groups with prefix %s. Possible not in history track state", a_group_prefix);
 }
 
@@ -239,7 +241,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
             if ( l_history_group_item->auto_track )
                 dap_db_history_add('a', store_data, 1);
             if ( l_history_group_item->callback_notify )
-                l_history_group_item->callback_notify('a',l_group_prefix,a_group,a_key,a_value,a_value_len);
+                l_history_group_item->callback_notify(l_history_group_item->callback_arg, 'a',l_group_prefix,a_group,a_key,a_value,a_value_len);
         }
         if ( l_group_prefix)
             DAP_DELETE( l_group_prefix);
@@ -278,7 +280,7 @@ bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
             if ( l_history_group_item->auto_track )
                 dap_db_history_add('d', store_data, 1);
             if ( l_history_group_item->callback_notify )
-                l_history_group_item->callback_notify('d',l_group_prefix,a_group, a_key, NULL, 0);
+                l_history_group_item->callback_notify(l_history_group_item->callback_arg,'d',l_group_prefix,a_group, a_key, NULL, 0);
         }
         if ( l_group_prefix )
             DAP_DELETE(l_group_prefix);
@@ -400,7 +402,8 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
                             dap_db_history_add('a', l_store_data, 1);
                         if ( l_history_group_item->callback_notify ){
                                 if (l_obj){
-                                    l_history_group_item->callback_notify('a',l_group_prefix, l_obj->group , l_obj->key,
+                                    l_history_group_item->callback_notify( l_history_group_item->callback_arg, 'a',
+                                                                          l_group_prefix, l_obj->group , l_obj->key,
                                                                           l_obj->value, l_obj->value_len );
                                 }else {
                                     break;
@@ -451,7 +454,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
                     if ( l_history_group_item->callback_notify ){
                             if (l_obj){
                                 l_history_group_item->callback_notify('a',l_group_prefix, l_obj->group , l_obj->key,
-                                                                      l_obj->value, l_obj->value_len );
+                                              l_history_group_item->callback_arg, l_obj->value, l_obj->value_len );
                             }else {
                                 break;
                             }

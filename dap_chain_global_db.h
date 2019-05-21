@@ -21,7 +21,7 @@ typedef struct dap_global_db_obj {
     size_t value_len;
 }DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
 
-typedef void (*dap_global_db_obj_callback_notify_t) (const char a_op_code, const char * a_prefix, const char * a_group,
+typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
 
@@ -50,7 +50,7 @@ void dap_chain_global_db_deinit(void);
 
 void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix); // Add group prefix that will be tracking all changes
 void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix,
-                                                     dap_global_db_obj_callback_notify_t a_callback);
+                                                     dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
 
 /**
  * Get entry from base
