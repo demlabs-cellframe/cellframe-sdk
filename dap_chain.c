@@ -117,7 +117,7 @@ dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
  * @param a_chain_id
  * @return
  */
-dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
+dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
     DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
@@ -125,6 +125,7 @@ dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_cha
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
     l_ret->name = strdup (a_chain_name);
     l_ret->net_name = strdup (a_chain_net_name);
+    l_ret->ledger = a_ledger;
 
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     l_ret_item->chain = l_ret;
@@ -202,7 +203,7 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
  * @param a_chain_cfg_path
  * @return
  */
-dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
+dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
 {
     log_it (L_DEBUG, "Loading chain from config \"%s\"", a_chain_cfg_name);
     if ( a_chain_net_name){
@@ -242,12 +243,12 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
                 return NULL;
             }
 
-            l_chain =  dap_chain_create(a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
+            l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
                         l_chain_id.uint64 );
 
-                if ( dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) {
+                if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) ) {
                     DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
                                 dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
                     if ( dap_chain_load_all( l_chain ) != 0 ){
@@ -257,9 +258,9 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
                         log_it (L_NOTICE, "Initialized chain files");
                     }
                 } else{
-                    log_it (L_ERROR, "Not set file storage path");
-                    dap_chain_delete(l_chain);
-                    l_chain = NULL;
+                    log_it (L_INFO, "Not set file storage path, will not stored in files");
+                    //dap_chain_delete(l_chain);
+                    //l_chain = NULL;
                 }
 
             }else{
@@ -278,6 +279,18 @@ dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name,dap_chain_ne
         return NULL;
     }
 }
+
+
+/**
+ * @brief dap_chain_has_file_store
+ * @param a_chain
+ * @return
+ */
+bool dap_chain_has_file_store(dap_chain_t * a_chain)
+{
+    return  DAP_CHAIN_PVT(a_chain)->file_storage_dir != NULL;
+}
+
 
 /**
  * @brief dap_chain_save_all

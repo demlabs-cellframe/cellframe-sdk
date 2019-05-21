@@ -46,6 +46,7 @@ typedef struct dap_chain_atom_iter{
     dap_chain_t * chain;
     dap_chain_atom_ptr_t cur;
     void * cur_item;
+    void * _inheritor;
 } dap_chain_atom_iter_t;
 
 
@@ -126,16 +127,17 @@ int dap_chain_init(void);
 void dap_chain_deinit(void);
 
 
-dap_chain_t * dap_chain_create(const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );
+dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger,const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );
 
-int dap_chain_load_all (dap_chain_t * l_chain);
-int dap_chain_save_all (dap_chain_t * l_chain);
+int dap_chain_load_all (dap_chain_t * a_chain);
+int dap_chain_save_all (dap_chain_t * a_chain);
+bool dap_chain_has_file_store(dap_chain_t * a_chain);
 
 //dap_chain_t * dap_chain_open(const char * a_file_storage,const char * a_file_cache);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
-dap_chain_t * dap_chain_load_from_cfg(const char * a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name);
+dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
 

@@ -126,6 +126,35 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 }
 
 /**
+ * @brief s_cell_file_append
+ * @param a_cell
+ * @param a_atom
+ * @param a_atom_size
+ * @return
+ */
+int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, size_t a_atom_size)
+{
+    size_t l_total_wrote_bytes = 0;
+    if ( fwrite(&a_atom_size,1,sizeof(a_atom_size),a_cell->file_storage) == sizeof(a_atom_size) ){
+        l_total_wrote_bytes += sizeof (a_atom_size);
+        if ( fwrite(&a_atom,1,a_atom_size,a_cell->file_storage) == a_atom_size ){
+            l_total_wrote_bytes += a_atom_size;
+        } else {
+            log_it (L_ERROR, "Can't write data from cell 0x%016X to the file \"%s\"",
+                            a_cell->id.uint64,
+                            a_cell->file_storage_path);
+            return -1;
+        }
+    } else {
+        log_it (L_ERROR,"Can't write atom data size from cell 0x%016X in \"%s\"",
+                a_cell->id.uint64,
+                a_cell->file_storage_path);
+        return -2;
+    }
+    return (int)  l_total_wrote_bytes;
+}
+
+/**
  * @brief dap_chain_cell_file_update
  * @param a_cell
  * @return
@@ -158,24 +187,9 @@ int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
         dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create (l_chain);
         dap_chain_atom_ptr_t *l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter);
         size_t l_atom_size = l_chain->callback_atom_get_size(l_atom);
-        size_t l_total_wrote_bytes = 0;
         while ( l_atom  && l_atom_size){
-            if ( fwrite(&l_atom_size,1,sizeof(l_atom_size),a_cell->file_storage) == sizeof(l_atom_size) ){
-                l_total_wrote_bytes += sizeof (l_atom_size);
-                if ( fwrite(&l_atom,1,l_atom_size,a_cell->file_storage) == l_atom_size ){
-                    l_total_wrote_bytes += l_atom_size;
-                } else {
-                    log_it (L_ERROR, "Can't write data from cell 0x%016X to the file \"%s\"",
-                                    a_cell->id.uint64,
-                                    a_cell->file_storage_path);
-                    break;
-                }
-            } else {
-                log_it (L_ERROR,"Can't write atom data size from cell 0x%016X in \"%s\"",
-                        a_cell->id.uint64,
-                        a_cell->file_storage_path);
-                return -2;
-            }
+            if ( dap_chain_cell_file_append (a_cell,l_atom, l_atom_size) <0 )
+                break;
             l_atom = l_chain->callback_atom_iter_get_next( l_atom_iter );
             l_atom_size = l_chain->callback_atom_get_size(l_atom);
         }

@@ -74,7 +74,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
  *
  */
 
-int dap_chain_ledger_token_add(dap_chain_datum_token_t *a_token, size_t a_token_size);
+int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
 
 /**
  * Add token emission datum

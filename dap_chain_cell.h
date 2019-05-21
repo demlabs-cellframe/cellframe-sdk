@@ -28,7 +28,6 @@
 #include "dap_chain_common.h"
 
 typedef struct dap_chain dap_chain_t;
-
 typedef struct dap_chain_cell dap_chain_cell_t;
 
 typedef struct dap_chain_cell {
@@ -75,3 +74,4 @@ typedef struct dap_chain_cell_decl{
 int dap_chain_cell_init(void);
 int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path);
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell);
+int dap_chain_cell_file_append( dap_chain_cell_t * a_cell,const void* a_atom, size_t a_atom_size);
