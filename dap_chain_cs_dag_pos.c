@@ -155,6 +155,10 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 {
     dap_chain_cs_dag_pos_t * l_pos =DAP_CHAIN_CS_DAG_POS( a_dag ) ;
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
+
+    if(a_dag->chain->ledger == NULL)
+        return -3;
+
     if ( a_dag_event->header.signs_count == 1 ){
         dap_chain_addr_t l_addr;
         dap_chain_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
@@ -164,7 +168,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
 
         for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
-            if ( dap_chain_ledger_calc_balance (NULL, &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
+            if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
                 return 0;
         }
         return -1;
