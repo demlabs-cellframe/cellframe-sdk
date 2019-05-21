@@ -807,7 +807,6 @@ int com_global_db(int a_argc, const char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-    return -1;
 }
 
 /**
@@ -990,7 +989,6 @@ int com_node(int argc, const char ** argv, char **str_reply)
         return 0;
 
     }
-        break;
         // make handshake
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
@@ -1422,8 +1420,10 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
                 dap_string_append_printf(l_string_ret, "balance: 0\n");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
-                    uint64_t balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
-                    dap_string_append_printf(l_string_ret, "          %llu %s\n", balance, l_addr_tokens[i]);
+                    uint64_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                    long  double l_balance_coins = (long double) l_balance / 1000000000000.0L;
+                    dap_string_append_printf(l_string_ret, "          %Lf %s\n", l_balance_coins, l_addr_tokens[i]);
+
                 }
                 DAP_DELETE(l_addr_tokens[i]);
             }
@@ -2248,7 +2248,7 @@ int com_tx_cond_create(int argc, const char ** argv, char **str_reply)
 //            "test vpn service");
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
 
-    int res = dap_chain_mempool_tx_create_cond(l_ledger, l_key, l_key_cond, addr_from,
+    int res = dap_chain_mempool_tx_create_cond(NULL, l_key, l_key_cond, addr_from,
             addr_cond,
             NULL, l_token_ticker, l_value, 0, (const void*) &l_cond, sizeof(dap_chain_net_srv_abstract_t));
 
@@ -2275,49 +2275,60 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     const char * l_from_wallet_name = NULL;
     const char * l_token_ticker = NULL;
     const char * l_net_name = NULL;
+    const char * l_chain_name = NULL;
 
     uint64_t value = 0;
     uint64_t value_fee = 0;
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "from_wallet_name", &l_from_wallet_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "to_addr", &addr_base58_to);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "token", &l_token_ticker);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "net", &l_net_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from_wallet", &l_from_wallet_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to_addr", &addr_base58_to);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain", &l_chain_name);
 
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "fee", &addr_base58_fee)) {
-        if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "value_fee", &str_tmp)) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-fee", &addr_base58_fee)) {
+        if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-value_fee", &str_tmp)) {
             value_fee = strtoull(str_tmp, NULL, 10);
         }
     }
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "value", &str_tmp)) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-value", &str_tmp)) {
         value = strtoull(str_tmp, NULL, 10);
     }
     if(!l_from_wallet_name) {
-        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter 'from_wallet_name'");
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-from_wallet'");
         return -1;
     }
     if(!addr_base58_to) {
-        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter 'to_addr'");
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-to_addr'");
         return -1;
     }
     if(!value) {
-        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter 'value'");
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value'");
         return -1;
     }
     if(addr_base58_fee && !value_fee) {
-        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter 'value_fee' if 'fee' is specified");
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value_fee' if '-fee' is specified");
         return -1;
     }
 
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) l_net_name);
     if(!l_net_name) {
-        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter 'net'");
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-net'");
         return -1;
     }
-    else {
-        if((l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
-            dap_chain_node_cli_set_reply_text(str_reply, "not found net by name '%s'", l_net_name);
-            return -1;
-        }
+    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
+    dap_ledger_t *l_ledger = l_net->pub.ledger ;
+    if((l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
+        dap_chain_node_cli_set_reply_text(str_reply, "not found net by name '%s'", l_net_name);
+        return -1;
+    }
+
+    if(!l_chain_name) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-chain'");
+        return -1;
+    }
+    dap_chain_t * l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+    if ( !l_chain ){
+        dap_chain_node_cli_set_reply_text(str_reply, "not found chain name '%s'", l_chain_name);
+        return -1;
     }
 
     const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
@@ -2348,7 +2359,7 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
     //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
 
-    int res = dap_chain_mempool_tx_create(l_ledger, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to, addr_fee,
+    int res = dap_chain_mempool_tx_create( l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to, addr_fee,
             l_token_ticker, value, value_fee);
     dap_string_append_printf(string_ret, "transfer=%s\n",
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");
@@ -2392,7 +2403,7 @@ int com_print_log(int argc, const char ** argv, char **str_reply)
     const char * l_str_ts_after = NULL;
     const char * l_str_limit = NULL;
     int64_t l_ts_after = 0;
-    int32_t l_limit = 0;
+    long l_limit = 0;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "ts_after", &l_str_ts_after);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "limit", &l_str_limit);
 
@@ -2409,7 +2420,7 @@ int com_print_log(int argc, const char ** argv, char **str_reply)
     }
 
     // get logs from list
-    char *l_str_ret = dap_log_get_item(l_ts_after, l_limit);
+    char *l_str_ret = dap_log_get_item(l_ts_after,(int) l_limit);
     if(!l_str_ret) {
         dap_chain_node_cli_set_reply_text(str_reply, "no logs");
         return -1;

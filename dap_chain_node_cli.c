@@ -517,7 +517,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> net <net name> [fee <addr> value_fee <val>]\n" );
+            "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
             "tx_cond_create todo\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
