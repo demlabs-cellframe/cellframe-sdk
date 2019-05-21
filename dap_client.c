@@ -169,6 +169,8 @@ void dap_client_reset(dap_client_t * a_client)
  */
 void dap_client_delete(dap_client_t * a_client)
 {
+    if(!a_client)
+        return;
     dap_client_disconnect(a_client);
 
     dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
@@ -288,13 +290,16 @@ void dap_client_request(dap_client_t * a_client, const char * a_full_path, void 
  */
 int dap_client_disconnect(dap_client_t * a_client)
 {
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
-    if(l_client_internal->stream_socket){
-        if ( l_client_internal->stream_es)
-            dap_events_socket_delete(l_client_internal->stream_es,false);
-        else if (l_client_internal->stream_socket )
+    dap_client_pvt_t * l_client_internal = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
+    if(l_client_internal && l_client_internal->stream_socket){
+        if(l_client_internal->stream_es) {
+            dap_events_socket_delete(l_client_internal->stream_es, false);
+            l_client_internal->stream_es = NULL;
+        }
+        else if (l_client_internal->stream_socket ){
             close (l_client_internal->stream_socket);
-
+            l_client_internal->stream_socket = 0;
+        }
         return 1;
     }
     //l_client_internal->stream_socket = 0;
