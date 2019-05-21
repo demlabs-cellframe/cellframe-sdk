@@ -308,10 +308,10 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         }break;
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-            if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
+            //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
                 dap_chain_ledger_tx_add(a_chain->ledger, l_tx);
-            }else
-                return -2;
+            //}else
+            //    return -2;
         }break;
         default: return -1;
     }
@@ -320,8 +320,10 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
     size_t l_datum_size = dap_chain_datum_size(l_datum);
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash,l_hash_item->key,sizeof(l_hash_item->key)-1);
-    if ( !l_gdb_priv->is_load_mode )
+    if ( !l_gdb_priv->is_load_mode ){
         dap_chain_global_db_gr_set(l_hash_item->key, l_datum, l_datum_size, l_gdb_priv->group_datums);
+    }else
+        log_it(L_DEBUG,"Load mode, doesnt save item %s:%s", l_hash_item->key, l_gdb_priv->group_datums);
 
     DL_APPEND(l_gdb_priv->hash_items, l_hash_item);
     return 0;
