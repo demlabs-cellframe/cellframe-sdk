@@ -270,7 +270,7 @@ bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
     store_data->group = strdup( a_group);
     pthread_mutex_lock(&ldb_mutex);
     int l_res = dap_db_delete(store_data, 1);
-    if ( l_res >0){
+    if (!l_res){
         // Extract prefix
         char * l_group_prefix = extract_group_prefix (a_group);
         history_group_item_t * l_history_group_item = NULL;
@@ -389,7 +389,7 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
             pthread_mutex_lock(&ldb_mutex);
             int l_res = dap_db_add(l_store_data, a_objs_count);
             // Extract prefix if added successfuly, add history log and call notify callback if present
-            if (l_res>0 ){
+            if (!l_res){
                 for (size_t i =0; i< l_objs_count; i++ ){
                     history_group_item_t * l_history_group_item = NULL;
                     dap_store_obj_t* l_obj = l_store_data + i;
@@ -414,7 +414,8 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
                 }
 
             }
-            if(l_res>0)
+            pthread_mutex_unlock(&ldb_mutex);
+            if(!l_res)
                 return true;
         }
         else
@@ -439,7 +440,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     if(l_store_data) {
         pthread_mutex_lock(&ldb_mutex);
         int l_res = dap_db_add(l_store_data, a_objs_count);
-        if (l_res>0 ){
+        if (!l_res){
             for (size_t i =0; i< a_objs_count; i++ ){
                 history_group_item_t * l_history_group_item = NULL;
                 dap_store_obj_t *l_obj = l_store_data + i;

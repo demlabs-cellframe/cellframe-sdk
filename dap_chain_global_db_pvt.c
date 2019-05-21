@@ -6,6 +6,7 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_pvt.h"
 #include "dap_strfuncs.h"
+#include "dap_list.h"
 
 #define LOG_TAG "dap_global_db"
 #define TDB_PREFIX_LEN 7
@@ -149,6 +150,25 @@ int dap_db_del_msg(struct ldb_dn *ldn)
     }
 }
 
+static int compare_message_items(const void * l_a, const void * l_b)
+{
+    const struct ldb_message *l_item_a = (const struct ldb_message*) l_a;
+    const struct ldb_message *l_item_b = (const struct ldb_message*) l_b;
+    const struct ldb_val *l_val_a = ldb_msg_find_ldb_val(l_item_a, "time");
+    const struct ldb_val *l_val_b = ldb_msg_find_ldb_val(l_item_b, "time");
+    time_t timestamp_a = 0;
+    time_t timestamp_b = 0;
+    if(l_val_a)
+        memcpy(&timestamp_a, l_val_a->data, min(sizeof(time_t), l_val_a->length));
+    if(l_val_b)
+        memcpy(&timestamp_b, l_val_b->data, min(sizeof(time_t), l_val_b->length));
+    if(timestamp_a == timestamp_b)
+        return 0;
+    if(timestamp_a < timestamp_b)
+        return -1;
+    return 1;
+}
+
 /**
  * Get data from base
  *
@@ -197,8 +217,41 @@ pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count)
         talloc_free(data_message);
         return NULL;
     }
+
+    dap_list_t *l_list_items = NULL;
+    // fill list
+    for(size_t i = 0; i < data_message->count; i++) {
+        l_list_items = dap_list_prepend(l_list_items, data_message->msgs[i]);
+    }
+    // sort list by time
+    l_list_items = dap_list_sort(l_list_items, (dap_callback_compare_t) compare_message_items);
+
+    dap_list_t *l_list = l_list_items;
+    size_t q = 0;
+    while(l_list) {
+        const struct ldb_message *l_msgs = l_list->data;
+        store_data[q].section = strdup(ldb_msg_find_attr_as_string(l_msgs, "section", "")); //strdup("kelvin_nodes");
+        store_data[q].group = strdup(ldb_msg_find_attr_as_string(l_msgs, "objectClass", "")); //strdup(group);
+        store_data[q].type = 1;
+        store_data[q].key = strdup(ldb_msg_find_attr_as_string(l_msgs, "cn", ""));
+        // get timestamp
+        const struct ldb_val *l_val = ldb_msg_find_ldb_val(l_msgs, "time");
+        if(l_val) {
+            memcpy(&store_data[q].timestamp, l_val->data, min(sizeof(time_t), l_val->length));
+        }
+        // get value
+        l_val = ldb_msg_find_ldb_val(l_msgs, "val");
+        if(l_val) {
+            store_data[q].value_len = l_val->length;
+            store_data[q].value = DAP_NEW_SIZE(uint8_t, l_val->length);
+            memcpy(store_data[q].value, l_val->data, l_val->length);
+        }
+        q++;
+        l_list = dap_list_next(l_list);
+        //log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
+    }
     size_t dap_store_len = data_message->count;
-    for(size_t q = 0; q < dap_store_len; ++q) {
+    /*for(size_t q = 0; q < dap_store_len; ++q) {
         store_data[q].section = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "section", "")); //strdup("kelvin_nodes");
         store_data[q].group = strdup(ldb_msg_find_attr_as_string(data_message->msgs[q], "objectClass", "")); //strdup(group);
         store_data[q].type = 1;
@@ -216,8 +269,9 @@ pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count)
             memcpy(store_data[q].value, l_val->data, l_val->length);
         }
         //log_it(L_INFO, "Record %s read successfully", ldb_dn_get_linearized(data_message->msgs[q]->dn));
-    }
+    }*/
     talloc_free(data_message);
+    dap_list_free(l_list_items);
     if(a_count)
         *a_count = dap_store_len;
     return store_data;
@@ -290,6 +344,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
  * Since we don't know the size, it must be supplied too
  *
  * dap_store_size the count records
+ * return 0 if Ok, <0 if errors
  */
 int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
@@ -350,6 +405,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
  * Delete multiple entries from local database.
  *
  * dap_store_size the count records
+ * return 0 if Ok, <0 if errors
  */
 int dap_db_delete(pdap_store_obj_t store_obj, size_t a_store_count)
 {
