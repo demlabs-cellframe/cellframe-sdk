@@ -50,6 +50,8 @@
 
 #include "dap_common.h"
 #include "dap_list.h"
+#include "dap_chain.h"
+#include "dap_chain_net.h"
 #include "dap_chain_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
@@ -64,11 +66,9 @@ typedef struct list_used_item {
 //dap_chain_tx_out_t *tx_out;
 } list_used_item_t;
 
-const char* c_dap_datum_mempool_gdb_group = NULL;
 
 int dap_datum_mempool_init(void)
 {
-    c_dap_datum_mempool_gdb_group = dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool");
     return 0;
 }
 
@@ -87,14 +87,14 @@ int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum)
  *
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
-int dap_chain_mempool_tx_create(dap_ledger_t  *a_ledger, dap_enc_key_t *a_key_from,
+int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[10],
         uint64_t a_value, uint64_t a_value_fee)
 {
     // check valid param
-    if(!a_ledger | !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
+    if(!a_chain | !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
             (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || !a_value)
         return -1;
@@ -108,7 +108,7 @@ int dap_chain_mempool_tx_create(dap_ledger_t  *a_ledger, dap_enc_key_t *a_key_fr
         while(l_value_transfer < l_value_need)
         {
             // Get the transaction in the cache by the addr in out item
-            const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_ledger, a_addr_from,
+            const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_chain->ledger, a_addr_from,
                     &l_tx_cur_hash);
             if(!l_tx)
                 break;
@@ -124,7 +124,7 @@ int dap_chain_mempool_tx_create(dap_ledger_t  *a_ledger, dap_enc_key_t *a_key_fr
                 if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
 
                     // Check whether used 'out' items
-                    if(!dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
+                    if(!dap_chain_ledger_tx_hash_is_used_out_item (a_chain->ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
 
                         list_used_item_t *item = DAP_NEW(list_used_item_t);
                         memcpy(&item->tx_hash_fast, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
@@ -203,13 +203,12 @@ int dap_chain_mempool_tx_create(dap_ledger_t  *a_ledger, dap_enc_key_t *a_key_fr
     DAP_DELETE(l_tx);
 
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-            , c_dap_datum_mempool_gdb_group)) {
+            ,l_gdb_group)) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
-        // add transaction to ledger
-        if(dap_chain_ledger_tx_add(a_ledger, (dap_chain_datum_tx_t*) l_datum->data) < 0)
-            log_it(L_ERROR, "Transaction %s not placed in LEDGER", l_key_str);
     }
+    DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
 
     return 0;
@@ -220,14 +219,14 @@ int dap_chain_mempool_tx_create(dap_ledger_t  *a_ledger, dap_enc_key_t *a_key_fr
  *
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
-int dap_chain_mempool_tx_create_cond(dap_ledger_t  *a_ledger,
+int dap_chain_mempool_tx_create_cond(dap_chain_t * a_chain,
         dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_cond,
         const dap_chain_addr_t* a_addr_fee, const char a_token_ticker[10],
         uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
     // check valid param
-    if(!a_ledger || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
+    if(!a_chain || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_cond) ||
             (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || !a_value)
         return -1;
@@ -241,7 +240,7 @@ int dap_chain_mempool_tx_create_cond(dap_ledger_t  *a_ledger,
         while(l_value_transfer < l_value_need)
         {
             // Get the transaction in the cache by the addr in out item
-            const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_ledger, a_addr_from,
+            const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_chain->ledger, a_addr_from,
                     &l_tx_cur_hash);
             if(!l_tx)
                 break;
@@ -257,7 +256,7 @@ int dap_chain_mempool_tx_create_cond(dap_ledger_t  *a_ledger,
                 if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
 
                     // Check whether used 'out' items
-                    if(!dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
+                    if(!dap_chain_ledger_tx_hash_is_used_out_item(a_chain->ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
 
                         list_used_item_t *item = DAP_NEW(list_used_item_t);
                         memcpy(&item->tx_hash_fast, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
@@ -337,13 +336,12 @@ int dap_chain_mempool_tx_create_cond(dap_ledger_t  *a_ledger,
     DAP_DELETE(l_tx);
 
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-            , c_dap_datum_mempool_gdb_group)) {
+            , l_gdb_group)) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
-        // add transaction to ledger
-        if(dap_chain_ledger_tx_add(a_ledger, (dap_chain_datum_tx_t*) l_datum->data) < 0)
-            log_it(L_ERROR, "Transaction %s not placed in LEDGER", l_key_str);
     }
+    DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
 
     return 0;
