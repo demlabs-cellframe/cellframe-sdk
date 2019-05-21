@@ -213,6 +213,8 @@ void dap_events_socket_delete(dap_events_socket_t *a_es, bool preserve_inheritor
         HASH_DEL(a_es->events->sockets, a_es);
         pthread_rwlock_unlock(&a_es->events->sockets_rwlock);
         log_it(L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket);
+        if ( a_es->socket )
+            close( a_es->socket);
 
         if(a_es->callbacks->delete_callback)
             a_es->callbacks->delete_callback(a_es, NULL); // Init internal structure
