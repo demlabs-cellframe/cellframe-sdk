@@ -59,6 +59,7 @@ typedef union dap_chain_cell_id{
   */
 typedef union dap_chain_node_addr{
     uint64_t uint64;
+    uint16_t words[sizeof(uint64_t)/2];
     uint8_t raw[sizeof(uint64_t)];  // Access to selected octects
 } DAP_ALIGN_PACKED dap_chain_node_addr_t;
 
