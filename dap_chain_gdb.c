@@ -283,7 +283,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         dap_chain_datum_t * l_datum = a_datums[i];
         s_chain_callback_atom_add(a_chain, l_datum );
     }
-    return 0;
+    return a_datums_count;
 }
 
 /**
