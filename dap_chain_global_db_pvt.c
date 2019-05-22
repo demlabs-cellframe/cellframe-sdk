@@ -111,8 +111,6 @@ int dap_db_init(const char *path)
             ldb_msg_add_string(msg, "objectClass", "top");
             ldb_msg_add_string(msg, "objectClass", "section");
             dap_db_add_msg(msg);
-            talloc_free(msg->dn);
-            talloc_free(msg);
 
             // level 2: groups
             dap_db_group_create( GROUP_GLOBAL_ADDRS_LEASED);
@@ -458,8 +456,8 @@ int dap_db_delete(pdap_store_obj_t store_obj, size_t a_store_count)
 
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
-    size_t size = sizeof(uint32_t) + 3 * sizeof(uint16_t) + sizeof(size_t) + sizeof(time_t) + strlen(store_obj->group) +
-            strlen(store_obj->key) + strlen(store_obj->section) + store_obj->value_len;
+    size_t size = sizeof(uint32_t) + 3 * sizeof(uint16_t) + sizeof(size_t) + sizeof(time_t) + dap_strlen(store_obj->group) +
+            dap_strlen(store_obj->key) + dap_strlen(store_obj->section) + store_obj->value_len;
     return size;
 }
 
@@ -488,9 +486,9 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
     l_offset += sizeof(uint32_t);
     for( size_t l_q = 0; l_q < a_store_obj_count; ++l_q) {
         dap_store_obj_t obj = a_store_obj[l_q];
-        uint16_t section_size = (uint16_t) strlen(obj.section);
-        uint16_t group_size = (uint16_t) strlen(obj.group);
-        uint16_t key_size = (uint16_t) strlen(obj.key);
+        uint16_t section_size = (uint16_t) dap_strlen(obj.section);
+        uint16_t group_size = (uint16_t) dap_strlen(obj.group);
+        uint16_t key_size = (uint16_t) dap_strlen(obj.key);
         memcpy(l_pkt->data + l_offset, &obj.type, sizeof(int));
         l_offset += sizeof(int);
         memcpy(l_pkt->data + l_offset, &section_size, sizeof(uint16_t));
