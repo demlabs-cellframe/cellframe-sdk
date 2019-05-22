@@ -39,8 +39,7 @@ size_t dap_strlen(const char *a_str)
     if(a_str) {
         l_length = strlen(a_str);
     }
-    else
-        return l_length;
+    return l_length;
 }
 
 /**
