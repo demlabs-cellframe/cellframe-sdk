@@ -68,8 +68,9 @@ typedef struct dap_chain_net_pvt{
     pthread_cond_t state_proc_cond;
     pthread_mutex_t state_mutex;
     dap_chain_node_role_t node_role;
-    uint8_t padding[4];
+    uint8_t padding2[4];
 
+    dap_chain_node_addr_t * node_addr;
     dap_chain_node_info_t * node_info; // Current node's info
 
     dap_chain_node_client_t * links;
@@ -79,10 +80,10 @@ typedef struct dap_chain_net_pvt{
     size_t links_addrs_count;
 
     size_t addr_request_attempts;
-
+    bool load_mode;
     char ** seed_aliases;
     uint16_t seed_aliases_count;
-    uint8_t padding2[6];
+    uint8_t padding3[6];
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_prev;
@@ -166,9 +167,12 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len)
 {
+    (void) a_op_code;
+
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-        dap_chain_net_sync_all(l_net);
+        if (!PVT (l_net)->load_mode )
+            dap_chain_net_sync_all(l_net);
     }
 }
 
@@ -254,7 +258,7 @@ lb_proc_state:
             size_t l_links_established = 0;
             for (size_t i =0 ; i < PVT(l_net)->links_addrs_count ; i++ ){
                 log_it(L_INFO,"Establishing connection with ",PVT(l_net)->links_addrs[i].raw);
-                dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read( &PVT(l_net)->links_addrs[i] );
+                dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &PVT(l_net)->links_addrs[i] );
                 if ( l_link_node_info ) {
                     dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_link_node_info );
                     if(!l_node_client) {
@@ -603,6 +607,9 @@ int dap_chain_net_init()
             "\tList,add,del, dump or establish links\n\n"
                                         );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+    dap_chain_global_db_add_history_group_prefix("global");
+
+    dap_chain_global_db_add_history_callback_notify("global", s_gbd_history_callback_notify, NULL );
 
     return  0;
 }
@@ -724,10 +731,15 @@ int dap_chain_net_load(const char * a_net_name)
             log_it(L_ERROR,"Can't create l_net");
             return -1;
         }
+        PVT(l_net)->load_mode = true;
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
         dap_chain_global_db_add_history_group_prefix( l_net->pub.gdb_groups_prefix);
         dap_chain_global_db_add_history_callback_notify(l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net );
+
+        l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
+        l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
+
 
 
         // Add network to the list
@@ -763,23 +775,78 @@ int dap_chain_net_load(const char * a_net_name)
         // Check if seed nodes are present in local db alias
         PVT(l_net)->seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
                                                              ,&PVT(l_net)->seed_aliases_count);
+        uint16_t l_seed_nodes_addrs_len =0;
+        char ** l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs"
+                                                             ,&l_seed_nodes_addrs_len);
+
+        uint16_t l_seed_nodes_ipv4_len =0;
+        char ** l_seed_nodes_ipv4 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv4"
+                                                             ,&l_seed_nodes_ipv4_len);
+
         const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
         const char * l_node_addr_str = dap_config_get_item_str(l_cfg , "general" ,"node-addr");
         const char * l_node_alias_str = dap_config_get_item_str(l_cfg , "general" , "node-alias");
-         if ( l_node_alias_str ){
+
+        log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
+                PVT(l_net)->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
+        for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
+                            i < l_seed_nodes_addrs_len &&
+                            i < l_seed_nodes_ipv4_len
+                                                                    ; i++ ){
+            dap_chain_node_addr_t * l_seed_node_addr;
+            l_seed_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i] );
+            if (l_seed_node_addr == NULL){
+                log_it(L_NOTICE, "Not found alias %s in database, prefill it",PVT(l_net)->seed_aliases[i]);
+                dap_chain_node_info_t * l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+                snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
+                if (sscanf(l_seed_nodes_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
+                    log_it(L_ERROR,"Wrong address format,  should be like 0123::4567::890AB::CDEF");
+                    DAP_DELETE(l_seed_node_addr);
+                    DAP_DELETE(l_node_info);
+                    l_seed_node_addr = NULL;
+                    continue;
+                }
+                if( l_seed_node_addr ){
+                    inet_pton( AF_INET, l_seed_nodes_ipv4[i],&l_node_info->hdr.ext_addr_v4);
+                    l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
+                    int l_ret;
+                    if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
+                        if (dap_chain_node_alias_register(l_net,PVT(l_net)->seed_aliases[i],l_seed_node_addr))
+                            log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list",NODE_ADDR_FP_ARGS(l_seed_node_addr) );
+                        else {
+                            log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS(l_seed_node_addr));
+                        }
+                    }else{
+                        log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d",
+                               NODE_ADDR_FP_ARGS(l_seed_node_addr), l_ret);
+                    }
+                    DAP_DELETE( l_seed_node_addr);
+                }else
+                    log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
+                DAP_DELETE( l_node_info);
+            }else
+                log_it(L_DEBUG,"Seed alias %s is present",PVT(l_net)->seed_aliases[i]);
+
+         }
+         DAP_DELETE( l_seed_nodes_ipv4);
+         DAP_DELETE(l_seed_nodes_addrs);
+
+        if ( l_node_alias_str ){
             dap_chain_node_addr_t * l_node_addr;
             if ( l_node_addr_str == NULL)
-                l_node_addr = dap_chain_node_alias_find(l_node_alias_str);
+                l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
             else{
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-                if ( sscanf(l_node_addr_str, "0x%016lx",&l_node_addr->uint64 ) != 1 ){
-                    sscanf(l_node_addr_str,"0x%016lX",&l_node_addr->uint64);
+                if ( sscanf(l_node_addr_str, "0x%016llx",&l_node_addr->uint64 ) != 1 ){
+                    sscanf(l_node_addr_str,"0x%016llX",&l_node_addr->uint64);
                 }
                 if( l_node_addr->uint64 == 0 ){
                     log_it(L_ERROR,"Can't parse node address");
                     DAP_DELETE(l_node_addr);
                     l_node_addr = NULL;
                 }
+                PVT(l_net)->node_addr = l_node_addr;
                 //}
             }
             if ( l_node_addr ) {
@@ -787,12 +854,15 @@ int dap_chain_net_load(const char * a_net_name)
                 if(!l_addr_hash_str){
                     log_it(L_ERROR,"Can't get hash string for node address!");
                 } else {
-                    PVT(l_net)->node_info = dap_chain_node_info_read (l_node_addr);
+                    PVT(l_net)->node_info = dap_chain_node_info_read (l_net, l_node_addr);
                     if ( PVT(l_net)->node_info ) {
-                        log_it(L_NOTICE,"GDB Info: node_addr_hash: %s  links: %u cell_id: 0x%016X ",
-                               l_addr_hash_str,
+                        log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%0l16X ",
+                               NODE_ADDR_FP_ARGS(l_node_addr),
                                PVT(l_net)->node_info->hdr.links_number,
                                PVT(l_net)->node_info->hdr.cell_id.uint64);
+                    }else {
+                        log_it(L_WARNING, "Not present node_info in database for our own address " NODE_ADDR_FP_STR,
+                               NODE_ADDR_FP_ARGS(l_node_addr) );
                     }
                 }
             }
@@ -834,6 +904,8 @@ int dap_chain_net_load(const char * a_net_name)
             }
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
+            PVT(l_net)->load_mode = false;
+
             return -2;
         }
 
@@ -877,6 +949,7 @@ int dap_chain_net_load(const char * a_net_name)
         if (s_seed_mode) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
         }
+        PVT(l_net)->load_mode = false;
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);
@@ -975,7 +1048,7 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
  */
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
-    return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: NULL;
+    return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: PVT(l_net)->node_addr;
 }
 
 /**

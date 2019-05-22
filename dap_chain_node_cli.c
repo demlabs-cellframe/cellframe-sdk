@@ -463,15 +463,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
            "global_db node add  -net <net name> -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
                     "global_db node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
                     "global_db node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                    "global_db node dump  -net <net name>\n\n"
-                    "global_db node dump  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "global_db node cur_node get -net <net name>\n\n"
-                    "global_db node cur_node_set -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "global_db node cur_node_set_from_remote -addr <node address> | -alias <node alias>\n");
+                        );
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
             "node alias {<node address> | -alias <node alias>}\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"
-                    "node handshake {<node address> | -alias <node alias>}\n");
+                    "node handshake {<node address> | -alias <node alias>}\n"
+                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>]\n\n"
+                                        );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
     dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",

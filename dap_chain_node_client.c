@@ -309,7 +309,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
     if(a_client) {
         // clean client
-        dap_client_delete(a_client->client);
+        //dap_client_delete(a_client->client);
         pthread_cond_destroy(&a_client->wait_cond);
         pthread_mutex_destroy(&a_client->wait_mutex);
         DAP_DELETE(a_client);

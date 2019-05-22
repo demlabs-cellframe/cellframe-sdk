@@ -54,6 +54,9 @@ typedef struct dap_chain_net{
         dap_chain_cell_id_t cell_id; // Cell where the node is connected to. {{0}} if not celled(sharder) blockchain
         char * name;
         char * gdb_groups_prefix;
+        char * gdb_nodes_aliases;
+        char * gdb_nodes;
+
         dap_chain_t * chains; // double-linked list of chains
         dap_ledger_t  *ledger;
     } pub;
@@ -104,7 +107,7 @@ static inline char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
         size_t l_ret_size =  strlen( l_net->pub.gdb_groups_prefix ) + 1 +
                 strlen( l_chain->name)+1+strlen(c_mempool_group_str)+1;
         l_ret = DAP_NEW_Z_SIZE(char, l_ret_size);
-        snprintf( l_ret,l_ret_size,"%s.%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+        snprintf( l_ret,l_ret_size,"%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
     }
     return l_ret;
 }

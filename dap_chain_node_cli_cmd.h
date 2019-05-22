@@ -35,7 +35,7 @@
  *
  * return addr, NULL if not found
  */
-dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(const char *alias);
+dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net, const char *alias);
 
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int argc, const char ** argv, char ** a_str_reply,
