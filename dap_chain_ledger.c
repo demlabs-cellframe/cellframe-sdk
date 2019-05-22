@@ -1020,7 +1020,7 @@ uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, da
 {
     uint64_t l_ret_value = 0;
 
-    const dap_chain_datum_tx_t *l_tx_tmp;
+    dap_chain_datum_tx_t *l_tx_tmp;
     dap_chain_hash_fast_t l_tx_first_hash = { 0 }; // start hash
     //memcpy(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));
     /* size_t l_pub_key_size = a_key_from->pub_key_data_size;
@@ -1032,8 +1032,8 @@ uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, da
 
         // Get out_cond item from transaction
         if(l_tx_tmp) {
-            const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
-                    (dap_chain_datum_tx_t*) l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
+           dap_chain_tx_out_cond_t *l_tx_out_cond  =(dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(
+                     l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
 
             // TODO check relations a_addr with cond_data and public key
 

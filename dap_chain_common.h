@@ -63,6 +63,24 @@ typedef union dap_chain_node_addr{
     uint8_t raw[sizeof(uint64_t)];  // Access to selected octects
 } DAP_ALIGN_PACKED dap_chain_node_addr_t;
 
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define NODE_ADDR_FP_STR      "%04hX::%04hX::%04hX::%04hX"
+#define NODE_ADDR_FP_ARGS(a)  a->words[2],a->words[3],a->words[0],a->words[1]
+#define NODE_ADDR_FPS_ARGS(a)  &a->words[2],&a->words[3],&a->words[0],&a->words[1]
+#define NODE_ADDR_FP_ARGS_S(a)  a.words[2],a.words[3],a.words[0],a.words[1]
+#define NODE_ADDR_FPS_ARGS_S(a)  &a.words[2],&a.words[3],&a.words[0],&a.words[1]
+#else
+#define NODE_ADDR_FP_STR      "%04hX::%04hX::%04hX::%04hX"
+#define NODE_ADDR_FP_ARGS(a)  a->words[3],a->words[2],a->words[1],a->words[0]
+#define NODE_ADDR_FPS_ARGS(a)  &a->words[3],&a->words[2],&a->words[1],&a->words[0]
+#define NODE_ADDR_FP_ARGS_S(a)  a.words[3],a.words[2],a.words[1],a.words[0]
+#define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
+
+#endif
+
+inline static int dap_chain_node_addr_from_str( dap_chain_node_addr_t * a_addr, const char * a_addr_str){
+    return (int) sscanf(a_addr_str,NODE_ADDR_FP_STR,NODE_ADDR_FPS_ARGS(a_addr) )-4;
+}
 /**
   *
   *
