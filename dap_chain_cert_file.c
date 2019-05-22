@@ -221,7 +221,7 @@ dap_chain_cert_t* dap_chain_cert_mem_load(void * a_data, size_t a_data_size)
             memcpy(l_ret->enc_key->_inheritor, l_data + l_data_offset, l_ret->enc_key->_inheritor_size);
         }
         dap_enc_key_update(l_ret->enc_key);
-        log_it(L_NOTICE,"Successfully loaded certificate");
+        log_it(L_NOTICE,"Successfully loaded certificate %s", l_ret->name);
     }else
         log_it(L_ERROR,"Unrecognizable certificate version, corrupted file or you have too old software");
 

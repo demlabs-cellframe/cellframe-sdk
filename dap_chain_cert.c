@@ -446,7 +446,7 @@ void dap_chain_cert_add_folder(const char *a_folder_path)
                     char * l_cert_name = dap_strdup(l_filename);
                     l_cert_name[l_filename_len-l_suffix_len] = '\0'; // Remove suffix
                     // Load the cert file
-                    log_it(L_DEBUG,"Trying to load %s",l_filename);
+                    //log_it(L_DEBUG,"Trying to load %s",l_filename);
                     dap_chain_cert_add_file(l_cert_name,a_folder_path);
                 }
             }
