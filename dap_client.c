@@ -171,7 +171,8 @@ void dap_client_delete(dap_client_t * a_client)
 {
     dap_client_disconnect(a_client);
 
-    dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+    if (DAP_CLIENT_PVT(a_client) )
+         dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
     DAP_DELETE(a_client);
 }
 
