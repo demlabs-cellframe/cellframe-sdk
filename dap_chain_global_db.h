@@ -8,10 +8,7 @@
 #include "dap_config.h"
 #include "dap_list.h"
 
-#define GROUP_GLOBAL_ADDRS_LEASED "global.addrs_leased"
-#define GROUP_GLOBAL_ALIAS "global.aliases"
-#define GROUP_GLOBAL_DATUM "global.datums"
-#define GROUP_GLOBAL_HISTORY "global.history"
+#define GROUP_LOCAL_HISTORY "global.history"
 #define GROUP_LOCAL_NODE_LAST_TS "local.node.last_ts"
 #define GROUP_LOCAL_GENERAL "local.general"
 

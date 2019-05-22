@@ -490,8 +490,8 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
                     }
                     if ( l_history_group_item->callback_notify ){
                             if (l_obj){
-                                l_history_group_item->callback_notify('a',l_group_prefix, l_obj->group , l_obj->key,
-                                              l_history_group_item->callback_arg, l_obj->value, l_obj->value_len );
+                                l_history_group_item->callback_notify(l_history_group_item->callback_arg,'a',l_group_prefix, l_obj->group , l_obj->key,
+                                               l_obj->value, l_obj->value_len );
                             }else {
                                 break;
                             }
@@ -570,7 +570,7 @@ char* dap_db_log_get_diff(size_t *a_data_size_out)
 {
     //DapList *l_group_list = dap_list_append(l_group_list,GROUP_HISTORY);
     size_t l_data_size_out = 0;
-    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_GLOBAL_HISTORY, &l_data_size_out);
+    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
     // make keys & val vector
     char **l_keys_vals0 = DAP_NEW_SIZE(char*, sizeof(char*) * (l_data_size_out * 2 + 2));
     char **l_keys_vals = l_keys_vals0 + 1;
