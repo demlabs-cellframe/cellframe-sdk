@@ -23,6 +23,26 @@ char *strndup(char *str, int len) {
 }
 #endif
 
+
+/**
+ * dap_strlen:
+ * @a_str: (nullable): the string
+ *
+ * If @a_str is %NULL it returns 0
+ *
+ * Returns: length of the string
+ */
+size_t dap_strlen(const char *a_str)
+{
+    size_t l_length = 0;
+
+    if(a_str) {
+        l_length = strlen(a_str);
+    }
+    else
+        return l_length;
+}
+
 /**
  * dap_strdup:
  * @a_str: (nullable): the string to duplicate
