@@ -112,6 +112,8 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_internal)
  */
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
+    if(!a_client_pvt)
+        return;
     if(a_client_pvt->session_key_id)
         DAP_DELETE(a_client_pvt->session_key_id);
     if ( a_client_pvt->active_channels )
