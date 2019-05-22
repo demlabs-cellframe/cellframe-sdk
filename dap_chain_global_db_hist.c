@@ -159,7 +159,7 @@ time_t dap_db_log_get_last_timestamp(void)
         }
         //printf("l_obj_cur->key=%s\n", l_obj_cur->key);
     }
-    time_t l_ret_time = strtoll(last_key, NULL, 10);
+    time_t l_ret_time = last_key? strtoll(last_key, NULL, 10): 0;
     dap_chain_global_db_objs_delete(l_objs);
     return l_ret_time;
 }
