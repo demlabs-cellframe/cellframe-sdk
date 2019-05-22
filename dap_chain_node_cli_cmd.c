@@ -773,9 +773,12 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         log_it(L_NOTICE, "Stream connection established, now lets sync all");
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+        // fill begin time
         l_sync_request.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote(
                 l_remote_node_info->hdr.address.uint64);
+        // fill end time = 0 - no time limit
         //l_sync_request.ts_end = (time_t) time(NULL);
+        // fill current node address
         l_sync_request.node_addr.uint64 =
                 dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
                                                     dap_db_get_cur_node_addr();
@@ -832,6 +835,7 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         log_it(L_INFO, "Chains and gdb are synced");
         DAP_DELETE(l_remote_node_info);
         dap_client_disconnect(l_node_client->client);
+        l_node_client->client = NULL;
         dap_chain_node_client_close(l_node_client);
         dap_chain_node_cli_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
