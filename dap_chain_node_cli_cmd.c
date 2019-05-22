@@ -506,7 +506,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_string_t *links_string = dap_string_new(NULL);
                 for(unsigned int i = 0; i < node_info_read->hdr.links_number; i++) {
                     dap_chain_node_addr_t link_addr = node_info_read->links[i];
-                    dap_string_append_printf(links_string, "\nlink%02d address : 0x%016llx", i, link_addr.uint64);
+                    dap_string_append_printf(links_string, "\nlink%02d address : " NODE_ADDR_FP_STR, i,
+                                             NODE_ADDR_FP_ARGS_S(link_addr) );
                 }
 
                 if(i)
@@ -514,14 +515,14 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 // set short reply with node param
                 if(l_objs)
                     dap_string_append_printf(l_string_reply,
-                            "node address 0x%016llx\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
+                            "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
                             node_info_read->hdr.address.uint64, node_info_read->hdr.cell_id.uint64,
                             str_ip4, node_info_read->hdr.links_number);
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
-                            "node address 0x%016llx\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
-                            node_info_read->hdr.address.uint64, node_info_read->hdr.cell_id.uint64, aliases_string->str,
+                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                            NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address) , node_info_read->hdr.cell_id.uint64, aliases_string->str,
                             str_ip4, str_ip6,
                             node_info_read->hdr.links_number, links_string->str);
                 dap_string_free(aliases_string, true);
