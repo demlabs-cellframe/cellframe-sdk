@@ -114,14 +114,10 @@ int dap_db_init(const char *path)
             talloc_free(msg);
 
             // level 2: groups
-            dap_db_group_create( GROUP_GLOBAL_ADDRS_LEASED);
-            dap_db_group_create( GROUP_GLOBAL_ALIAS);
-            dap_db_group_create( GROUP_GLOBAL_DATUM);
-            dap_db_group_create( GROUP_GLOBAL_HISTORY);
-            dap_db_group_create( GROUP_GLOBAL_ADDRS_LEASED );
+            dap_db_group_create( GROUP_LOCAL_HISTORY);
+            dap_db_group_create( GROUP_LOCAL_GENERAL );
+            dap_db_group_create( GROUP_LOCAL_NODE_LAST_TS);
 
-            talloc_free(msg->dn);
-            talloc_free(msg);
         }
         talloc_free(data_message);
         DAP_DELETE(l_tdb_path);
