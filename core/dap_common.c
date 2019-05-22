@@ -632,8 +632,7 @@ void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
     uint64_t val;
     if(!strncasecmp(num_str, "0x", 2)) {
         val = strtoull(num_str + 2, NULL, 16);
-    }
-    else {
+    }else {
         val = strtoull(num_str, NULL, 10);
     }
     // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
