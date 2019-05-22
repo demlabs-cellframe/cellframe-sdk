@@ -516,14 +516,14 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 if(l_objs)
                     dap_string_append_printf(l_string_reply,
                             "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
-                            node_info_read->hdr.address.uint64, node_info_read->hdr.cell_id.uint64,
-                            str_ip4, node_info_read->hdr.links_number);
+                            node_info_read->hdr.address.uint64,str_ip4, node_info_read->hdr.cell_id.uint64,
+                             node_info_read->hdr.links_number);
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
                             "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
-                            NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address) , node_info_read->hdr.cell_id.uint64, aliases_string->str,
-                            str_ip4, str_ip6,
+                            NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address) , str_ip4, str_ip6,
+                     node_info_read->hdr.cell_id.uint64, aliases_string->str,
                             node_info_read->hdr.links_number, links_string->str);
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);
@@ -797,7 +797,15 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
         // TODO add progress info to console
         res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+        if ( res <0 ){
+            dap_chain_node_client_close(l_node_client);
+            DAP_DELETE(l_remote_node_info);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't connect to node "NODE_ADDR_FP_STR,
+                                              NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
 
+            return -2;
+
+        }
         // Requesting chains
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(l_net->pub.chains, l_chain)
@@ -811,7 +819,7 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
                 // clean client struct
                 dap_chain_node_client_close(l_node_client);
                 DAP_DELETE(l_remote_node_info);
-                return -1;
+                return -3;
             }
             log_it(L_NOTICE, "Requested syncronization for chain \"%s\"", l_chain->name);
             dap_stream_ch_set_ready_to_write(l_ch_chain, true);
@@ -840,24 +848,24 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
             }
             else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "no address found by alias");
-                return -1;
+                return -4;
             }
         }
         if(!l_node_addr.uint64) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
-            return -1;
+            return -5;
         }
 
         dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net,&l_node_addr, a_str_reply);
         if(!node_info)
-            return -1;
+            return -6;
         int timeout_ms = 10000; //10 sec = 10000 ms
         // start handshake
         dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
         if(!client) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "can't connect");
             DAP_DELETE(node_info);
-            return -1;
+            return -7;
         }
         // wait handshake
         int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
@@ -866,7 +874,7 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
             // clean client struct
             dap_chain_node_client_close(client);
             DAP_DELETE(node_info);
-            return -1;
+            return -8;
         }
         DAP_DELETE(node_info);
 
@@ -877,11 +885,11 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         case -1:
             dap_chain_node_client_close(client);
             dap_chain_node_cli_set_reply_text(a_str_reply, "connection established, but not saved");
-            return -1;
+            return -9;
         case -2:
             dap_chain_node_client_close(client);
             dap_chain_node_cli_set_reply_text(a_str_reply, "connection already present");
-            return -1;
+            return -10;
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, "connection established");
     }

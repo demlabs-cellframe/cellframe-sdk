@@ -48,7 +48,7 @@
 #define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
 
 static int listen_port_tcp = 8079;
-static void s_stage_end_callback(dap_client_t *a_client, void *a_arg);
+static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
                                                       dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
                                                       void * a_arg);
@@ -107,12 +107,19 @@ static void stage_status_callback(dap_client_t *a_client, void *a_arg)
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
     (void) a_arg;
+    dap_chain_node_client_t *l_node_client = a_client->_inheritor;
     if ( DAP_CHAIN_NODE_CLIENT(a_client)->keep_connection &&
          ( ( dap_client_get_stage(a_client) != STAGE_STREAM_STREAMING )||
            ( dap_client_get_stage_status(a_client) == STAGE_STATUS_ERROR  ) ) ){
         log_it(L_NOTICE,"Some errors happends, current state is %s but we need to return back to STAGE_STREAM_STREAMING",
                  dap_client_get_stage_str(a_client) ) ;
-        dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
+
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        log_it(L_DEBUG,"Wakeup all who waits");
+        l_node_client->state = NODE_CLIENT_STATE_ERROR;
+        pthread_cond_signal(&l_node_client->wait_cond);
+
+        //dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
     }
     //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
 }
@@ -122,7 +129,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
  * @param a_client
  * @param a_arg
  */
-static void s_stage_end_callback(dap_client_t *a_client, void *a_arg)
+static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 {
     dap_chain_node_client_t *l_node_client = a_client->_inheritor;
     assert(l_node_client);
@@ -259,12 +266,14 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
  *
  * return a connection handle, or NULL, if an error
  */
-dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *node_info)
+dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_node_info)
 {
-    if(!node_info)
+    if(!a_node_info){
+        log_it(L_ERROR,"Can't connect to the node: null object node_info");
         return NULL;
+    }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
-    l_node_client->state = NODE_CLIENT_STATE_INIT;
+    l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
@@ -273,18 +282,19 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *no
     l_node_client->events = NULL; //dap_events_new();
     l_node_client->client = dap_client_new(l_node_client->events, stage_status_callback, s_stage_status_error_callback);
     l_node_client->client->_inheritor = l_node_client;
+    l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
     dap_client_set_active_channels(l_node_client->client,"CN");
 
     int hostlen = 128;
     char host[hostlen];
-    if(node_info->hdr.ext_addr_v4.s_addr)
+    if(a_node_info->hdr.ext_addr_v4.s_addr)
     {
-        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = node_info->hdr.ext_addr_v4 };
+        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
     }
     else
     {
-        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = node_info->hdr.ext_addr_v6 };
+        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
     }
     // address not defined
@@ -298,7 +308,7 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *no
 
     l_node_client->state = NODE_CLIENT_STATE_CONNECT;
     // Handshake & connect
-    dap_client_go_stage(l_node_client->client, l_stage_target, s_stage_end_callback);
+    dap_client_go_stage(l_node_client->client, l_stage_target, s_stage_connected_callback);
     return l_node_client;
 }
 
