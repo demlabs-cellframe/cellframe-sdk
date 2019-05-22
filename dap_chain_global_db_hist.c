@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <pthread.h>
 
 #include <dap_common.h>
 #include <dap_strfuncs.h>
@@ -30,10 +31,23 @@ static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_re
     return 1;
 }
 
-static char* dap_db_history_timestamp()
+static char* dap_db_new_history_timestamp()
 {
+    static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+    // get unique key
+    pthread_mutex_lock(&s_mutex);
+    static time_t s_last_time = 0;
+    static uint64_t s_suffix = 0;
     time_t l_cur_time = time(NULL);
-    return dap_strdup_printf("%lld", (uint64_t) l_cur_time);
+    if(s_last_time == l_cur_time)
+        s_suffix++;
+    else {
+        s_suffix = 0;
+        s_last_time = l_cur_time;
+    }
+    char *l_str = dap_strdup_printf("%lld_%lld", (uint64_t) l_cur_time, s_suffix);
+    pthread_mutex_unlock(&s_mutex);
+    return l_str;
 }
 
 /**
@@ -57,13 +71,24 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
     int i = 0;
     dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_count * sizeof(dap_store_obj_t));
     while(l_keys[i]) {
-
-        dap_store_obj_t *l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
+        dap_store_obj_t *l_obj = NULL;
+        // add record - read record
+        if(l_rec.type=='a')
+            l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
+        // delete record - save only key for record
+        else if(l_rec.type=='d'){// //section=strdup("kelvin_nodes");
+            l_obj = (dap_store_obj_t*)DAP_NEW_Z(dap_store_obj_t);
+            l_obj->group = dap_strdup(l_rec.group);
+            l_obj->key = dap_strdup(l_keys[i]);
+        }
         if (l_obj == NULL){
             dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
             dap_strfreev(l_keys);
             return NULL;
         }
+        // save record type: 'a' or 'd'
+        l_obj->type = l_rec.type;
+
         memcpy(l_store_obj + i, l_obj, sizeof(dap_store_obj_t));
         DAP_DELETE(l_obj);
         i++;
@@ -118,12 +143,13 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     dap_store_obj_t l_store_data;
     // key - timestamp
     // value - keys of added/deleted data
-    l_store_data.key = dap_db_history_timestamp();
+    l_store_data.key = dap_db_new_history_timestamp();
     l_store_data.value = (uint8_t*) strdup(l_str) ;
     l_store_data.value_len = l_str_len+1;
     l_store_data.group = GROUP_LOCAL_HISTORY;
     l_store_data.timestamp = time(NULL);
     int l_res = dap_db_add(&l_store_data, 1);
+    printf("!!!\n!!!HISTORY store save l_res=%d ts=%lld text=%s\n!!!\n",l_res,l_store_data.timestamp,l_str);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
     DAP_DELETE(l_str);
@@ -216,5 +242,3 @@ void dap_db_log_del_list(dap_list_t *a_list)
 {
     dap_list_free_full(a_list, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
 }
-
-
