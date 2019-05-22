@@ -763,8 +763,8 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         // wait connected
         int timeout_ms = 15000; //15 sec = 15000 ms
         int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-        if(res != 1) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node");
+        if(res ) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node: code %d",res);
             // clean client struct
             dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
@@ -2047,7 +2047,6 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
             , l_gdb_group_mempool_base_tx)) {
         dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp,
                 l_key_str);
-        dap_chain_ledger_tx_add(l_net->pub.ledger, (dap_chain_datum_tx_t*) l_datum_tx->data);
     }
     else {
         dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is not placed in datum pool ", str_reply_tmp,

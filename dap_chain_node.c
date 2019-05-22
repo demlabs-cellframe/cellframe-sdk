@@ -143,28 +143,28 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *nod
 /**
  * Read node from base
  */
-dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *address)
+dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *l_address)
 {
-    char *l_key = dap_chain_node_addr_to_hash_str(address);
+    char *l_key = dap_chain_node_addr_to_hash_str(l_address);
     if(!l_key) {
         log_it(L_WARNING,"Can't calculate hash of addr");
         return NULL;
     }
     size_t node_info_size = 0;
-    dap_chain_node_info_t *node_info;
+    dap_chain_node_info_t *l_node_info;
     // read node
-    node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
+    l_node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
 
-    if(!node_info) {
-        log_it(L_ERROR, "node not found in base");
+    if(!l_node_info) {
+        log_it(L_ERROR, "node with key %s (addr " NODE_ADDR_FP_STR ") not found in base",l_key, NODE_ADDR_FP_ARGS(l_address));
         DAP_DELETE(l_key);
         return NULL;
     }
 
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(node_info);
+    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
     if(node_info_size_must_be != node_info_size) {
         log_it(L_ERROR, "Node has bad size in base=%u (must be %u)", node_info_size, node_info_size_must_be);
-        DAP_DELETE(node_info);
+        DAP_DELETE(l_node_info);
         DAP_DELETE(l_key);
         return NULL;
     }
@@ -175,7 +175,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
 //    }
 //    DAP_DELETE(str);
     DAP_DELETE(l_key);
-    return node_info;
+    return l_node_info;
 }
 
 

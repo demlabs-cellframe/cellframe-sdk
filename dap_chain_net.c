@@ -234,7 +234,8 @@ lb_proc_state:
                         PVT(l_net)->links_addrs_count=1;
                         PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                                                                  PVT(l_net)->links_addrs_count);
-                        PVT(l_net)->links_addrs[0].uint64 = 1; // root-0 address
+                        dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[0] );
+                        PVT(l_net)->links_addrs[0].uint64 = l_node_addr->uint64;
                     }else {
                         // TODO read cell's nodelist and populate array with it
                     }
@@ -257,7 +258,8 @@ lb_proc_state:
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             size_t l_links_established = 0;
             for (size_t i =0 ; i < PVT(l_net)->links_addrs_count ; i++ ){
-                log_it(L_INFO,"Establishing connection with ",PVT(l_net)->links_addrs[i].raw);
+                log_it(L_INFO,"Establishing connection with " NODE_ADDR_FP_STR,
+                       NODE_ADDR_FP_ARGS_S( PVT(l_net)->links_addrs[i]) );
                 dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &PVT(l_net)->links_addrs[i] );
                 if ( l_link_node_info ) {
                     dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_link_node_info );
@@ -394,6 +396,7 @@ lb_proc_state:
                 l_sync_gdb.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote(l_node_client->remote_node_addr.uint64);
                 l_sync_gdb.ts_end = (uint64_t) time(NULL);
 
+                log_it(L_DEBUG,"Prepared request to gdb sync from %llu to %llu",l_sync_gdb.ts_start,l_sync_gdb.ts_end);
                 size_t l_res =  dap_stream_ch_chain_pkt_write( dap_client_get_stream_ch(l_node_client->client,
                                                                                    dap_stream_ch_chain_get_id() ) ,
                            DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id, (dap_chain_id_t){{0}} ,

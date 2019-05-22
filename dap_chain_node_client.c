@@ -134,7 +134,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_client_t *l_node_client = a_client->_inheritor;
     assert(l_node_client);
     if(l_node_client) {
-        log_it(L_NOTICE,"Stream connection with node 0x%016X established", l_node_client->remote_node_addr.uint64);
+        log_it(L_NOTICE,"Stream connection with node " NODE_ADDR_FP_STR " established",
+               NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr) );
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
 
@@ -360,7 +361,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 {
     int ret = -1;
     if(!a_client)
-        return -1;
+        return -3;
     pthread_mutex_lock(&a_client->wait_mutex);
     // have waited
     if(a_client->state == a_waited_state) {
@@ -386,11 +387,11 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
                     a_client->state == a_waited_state ||
                     a_client->state == NODE_CLIENT_STATE_ERROR )
           ) {
-            ret = a_client->state == a_waited_state ? 1 : -2;
+            ret = a_client->state == a_waited_state ? 0 : -2;
             break;
         }
         else if(wait == ETIMEDOUT) { // 110 260
-            ret = 0;
+            ret = -1;
             break;
         }
     }
