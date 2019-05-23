@@ -235,7 +235,7 @@ lb_proc_state:
                         PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                                                                  PVT(l_net)->links_addrs_count);
                         dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[0] );
-                        PVT(l_net)->links_addrs[0].uint64 = l_node_addr->uint64;
+                        PVT(l_net)->links_addrs[0].uint64 = l_node_addr? l_node_addr->uint64 : 0;
                     }else {
                         // TODO read cell's nodelist and populate array with it
                     }
