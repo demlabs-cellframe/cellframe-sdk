@@ -106,6 +106,10 @@ size_t dap_enc_decode_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size,
 size_t dap_enc_code(struct dap_enc_key * a_key,const void * a_buf_in,const size_t a_buf_size,
                     void * a_buf_out, const size_t a_buf_out_size_max, dap_enc_data_type_t a_data_type_out)
 {
+    if(!a_key) {
+        log_it(L_ERROR, "key in dap_enc_code() is NULL");
+        return 0;
+    }
     if(a_key->enc_na) {
         if(a_data_type_out == DAP_ENC_DATA_TYPE_RAW) {
             return a_key->enc_na(a_key, a_buf_in, a_buf_size, a_buf_out, a_buf_out_size_max);

@@ -21,10 +21,9 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <stdbool.h>
 
-#ifndef _FILE_UTILS_H_
+#ifndef _DAP_FILE_UTILS_H_
 #define _DAP_FILE_UTILS_H_
 
 #ifdef _WIN32

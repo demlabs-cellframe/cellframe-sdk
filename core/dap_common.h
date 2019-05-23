@@ -50,36 +50,79 @@
 /**
  * @brief The log_level enum
  */
-enum log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0};
+typedef enum dap_log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0} dap_log_level_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef enum {
+    DAP_ASCII_ALNUM = 1 << 0,
+    DAP_ASCII_ALPHA = 1 << 1,
+    DAP_ASCII_CNTRL = 1 << 2,
+    DAP_ASCII_DIGIT = 1 << 3,
+    DAP_ASCII_GRAPH = 1 << 4,
+    DAP_ASCII_LOWER = 1 << 5,
+    DAP_ASCII_PRINT = 1 << 6,
+    DAP_ASCII_PUNCT = 1 << 7,
+    DAP_ASCII_SPACE = 1 << 8,
+    DAP_ASCII_UPPER = 1 << 9,
+    DAP_ASCII_XDIGIT = 1 << 10
+} DapAsciiType;
+
+static const uint16_t s_ascii_table_data[256] = {
+    0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
+    0x004, 0x104, 0x104, 0x004, 0x104, 0x104, 0x004, 0x004,
+    0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
+    0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
+    0x140, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
+    0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
+    0x459, 0x459, 0x459, 0x459, 0x459, 0x459, 0x459, 0x459,
+    0x459, 0x459, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
+    0x0d0, 0x653, 0x653, 0x653, 0x653, 0x653, 0x653, 0x253,
+    0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253,
+    0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253,
+    0x253, 0x253, 0x253, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
+    0x0d0, 0x473, 0x473, 0x473, 0x473, 0x473, 0x473, 0x073,
+    0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073,
+    0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073,
+    0x073, 0x073, 0x073, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x004
+/* the upper 128 are all zeroes */
+};
+
+//const uint16_t * const c_dap_ascii_table = s_ascii_table_data;
+
+#define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0
+#define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0
+
 int dap_common_init( const char * a_log_file );
 void dap_common_deinit(void);
 
-#define DAP_LIST_LOG_MAX    1000
 // list of logs
 typedef struct dap_list_logs_item{
     time_t t;
     char *str;
 } dap_list_logs_item_t;
-// get logs from list
-char *log_get_item(time_t a_start_time, int limit);
 
-void _log_it(const char * log_tag, enum log_level, const char * format,...);
-void _vlog_it(const char * log_tag, enum log_level, const char * format, va_list ap );
+// set max items in log list
+void dap_log_set_max_item(unsigned int a_max);
+// get logs from list
+char *dap_log_get_item(time_t a_start_time, int a_limit);
+
+void _log_it(const char * log_tag, enum dap_log_level, const char * format,...);
+void _vlog_it(const char * log_tag, enum dap_log_level, const char * format, va_list ap );
 #define log_it(_log_level,...) _log_it(LOG_TAG,_log_level,##__VA_ARGS__)
 #define vlog_it(a_log_level,a_format,a_ap) _vlog_it(LOG_TAG,a_log_level,a_format,a_ap)
 
 const char * log_error(void);
-void set_log_level(enum log_level ll);
+void dap_log_level_set(enum dap_log_level ll);
+enum dap_log_level dap_log_level_get(void);
+
 void dap_set_log_tag_width(size_t width);
 
 char *dap_itoa(int i);
 
-int time_to_rfc822(char * out, size_t out_size_max, time_t t);
+int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t);
 
 int get_select_breaker(void);
 int send_select_break(void);
@@ -90,8 +133,8 @@ void dap_random_string_fill(char *str, size_t length);
 void *memzero(void *mem, size_t n);
 void dap_dump_hex(const void* data, size_t size);
 
-size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len);
-size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len);
+size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len);
+size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len);
 
 

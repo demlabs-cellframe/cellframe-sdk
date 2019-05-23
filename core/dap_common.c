@@ -30,7 +30,6 @@
 #include <pthread.h>
 #include <syslog.h>
 
-
 // Quick and dirty, I'm not sure but afair somewhere it was in UNIX systems too
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
@@ -67,8 +66,8 @@ int pthread_mutex_unlock(HANDLE *obj) {
 
 #define LOG_TAG "dap_common"
 
-static char last_error[LAST_ERROR_MAX] = {0};
-static enum log_level log_level = L_DEBUG;
+static char s_last_error[LAST_ERROR_MAX] = {0};
+static enum dap_log_level dap_log_level = L_DEBUG;
 static FILE * s_log_file = NULL;
 
 static char log_tag_fmt_str[10];
@@ -77,8 +76,12 @@ static char log_tag_fmt_str[10];
  * @brief set_log_level Sets the logging level
  * @param[in] ll logging level
  */
-void set_log_level(enum log_level ll) {
-    log_level = ll;
+void dap_log_level_set(enum dap_log_level ll) {
+    dap_log_level = ll;
+}
+
+enum dap_log_level dap_log_level_get(void) {
+    return dap_log_level ;
 }
 
 /**
@@ -115,6 +118,10 @@ int dap_common_init(const char * a_log_file)
             return -1;
         }
     }
+
+    // Set max items in log list
+    dap_log_set_max_item(10);
+
     return 0;
 }
 
@@ -130,9 +137,21 @@ void dap_common_deinit()
 static dap_list_t *s_list_logs = NULL;
 // for separate access to logs
 static pthread_mutex_t s_list_logs_mutex = PTHREAD_MUTEX_INITIALIZER;
+static unsigned int s_max_items = 1000;
 
-// get logs from list
-char *log_get_item(time_t a_start_time, int limit)
+/*
+ * Set max items in log list
+ */
+void dap_log_set_max_item(unsigned int a_max)
+{
+    if(a_max>0)
+        s_max_items = a_max;
+}
+
+/*
+ * Get logs from list
+ */
+char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
     int l_count = 0;
     pthread_mutex_lock(&s_list_logs_mutex);
@@ -161,7 +180,7 @@ char *log_get_item(time_t a_start_time, int limit)
     // create return string
     dap_string_t *l_string = dap_string_new("");
     l_count = 0;
-    while(l_list && limit > l_count) {
+    while(l_list && a_limit > l_count) {
         dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
         dap_string_append_printf(l_string, "%lld;%s\n", (int64_t) l_item->t, l_item->str);
         l_list = dap_list_next(l_list);
@@ -174,7 +193,7 @@ char *log_get_item(time_t a_start_time, int limit)
 }
 
 // save log to list
-static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum log_level a_ll,
+static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum dap_log_level a_ll,
         const char * a_format, va_list a_ap)
 {
     pthread_mutex_lock(&s_list_logs_mutex);
@@ -206,9 +225,9 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
 
     // remove old items
     unsigned int l_count = dap_list_length(s_list_logs);
-    if(l_count > DAP_LIST_LOG_MAX) {
+    if(l_count > s_max_items) {
         // remove items from the beginning
-        for(unsigned int i = 0; i < l_count - DAP_LIST_LOG_MAX; i++) {
+        for(unsigned int i = 0; i < l_count - s_max_items; i++) {
             s_list_logs = dap_list_remove(s_list_logs, s_list_logs->data);
         }
     }
@@ -221,9 +240,9 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
  * @param[in] ll Log level
  * @param[in] format
  */
-void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
+void _log_it(const char * log_tag,enum dap_log_level ll, const char * format,...)
 {
-    if(ll<log_level)
+    if(ll<dap_log_level)
         return;
 
     va_list ap;
@@ -233,7 +252,7 @@ void _log_it(const char * log_tag,enum log_level ll, const char * format,...)
     va_end(ap);
 }
 
-void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_list ap)
+void _vlog_it(const char * log_tag,enum dap_log_level ll, const char * format,va_list ap)
 {
     va_list ap2,ap3;
 
@@ -318,7 +337,7 @@ void _vlog_it(const char * log_tag,enum log_level ll, const char * format,va_lis
  */
 const char * log_error()
 {
-    return last_error;
+    return s_last_error;
 }
 
 
@@ -359,7 +378,7 @@ char *dap_itoa(int i)
  * @param[in] t UNIX time
  * @return Length of resulting string if ok or lesser than zero if not
  */
-int time_to_rfc822(char * out, size_t out_size_max, time_t t)
+int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 {
     struct tm *tmp;
     tmp=localtime(&t);
@@ -492,7 +511,7 @@ void dap_random_string_fill(char *str, size_t length) {
  */
 char * dap_random_string_create_alloc(size_t a_length)
 {
-    char * ret = (char*) malloc(a_length+1);
+    char * ret = DAP_NEW_SIZE(char, a_length+1);
     size_t i;
     for(i=0; i<a_length; ++i) {
         int index = rand() % (sizeof(l_possible_chars)-1);
@@ -563,7 +582,7 @@ void *memzero(void *a_buf, size_t n)
  * len is the size of the data in the in[] buffer to encode.
  * return the number of bytes encoded, or -1 on error.
  */
-size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len)
+size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len)
 {
     size_t ct = a_len;
     static char hex[] = "0123456789ABCDEF";
@@ -586,7 +605,7 @@ size_t dap_bin2hex0(char *a_out, const void *a_in, size_t a_len)
  * The buffers in[] and out[] can be the same to allow in-place decoding.
  * return the number of bytes encoded, or 0 on error.
  */
-size_t dap_hex2bin0(uint8_t *a_out, const char *a_in, size_t a_len)
+size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
 {
     // '0'-'9' = 0x30-0x39
     // 'a'-'f' = 0x61-0x66
@@ -613,12 +632,13 @@ void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
     uint64_t val;
     if(!strncasecmp(num_str, "0x", 2)) {
         val = strtoull(num_str + 2, NULL, 16);
-    }
-    else {
+    }else {
         val = strtoull(num_str, NULL, 10);
     }
     // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     val = le64toh(val);
+#endif
     memset(raw, 0, raw_len);
     memcpy(raw, &val, min(raw_len, sizeof(uint64_t)));
 }

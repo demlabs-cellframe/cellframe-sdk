@@ -14,6 +14,34 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 
+#ifdef _WIN32
+char *strndup(char *str, int len) {
+    char *buf = (char*)malloc(len + 1);
+    memcpy(buf, str, len);
+    buf[len] = 0;
+    return buf;
+}
+#endif
+
+
+/**
+ * dap_strlen:
+ * @a_str: (nullable): the string
+ *
+ * If @a_str is %NULL it returns 0
+ *
+ * Returns: length of the string
+ */
+size_t dap_strlen(const char *a_str)
+{
+    size_t l_length = 0;
+
+    if(a_str) {
+        l_length = strlen(a_str);
+    }
+    return l_length;
+}
+
 /**
  * dap_strdup:
  * @a_str: (nullable): the string to duplicate
@@ -417,9 +445,9 @@ char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tok
     return l_str_array;
 }
 
-int dap_str_countv(char **a_str_array)
+size_t dap_str_countv(char **a_str_array)
 {
-    int l_i = 0;
+    size_t l_i = 0;
     if(a_str_array)
     {
         for(l_i = 0; a_str_array[l_i] != NULL; l_i++)
@@ -486,45 +514,6 @@ void dap_strfreev(char **a_str_array)
         DAP_DELETE(a_str_array);
     }
 }
-
-static const uint16_t s_ascii_table_data[256] = {
-    0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
-    0x004, 0x104, 0x104, 0x004, 0x104, 0x104, 0x004, 0x004,
-    0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
-    0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004, 0x004,
-    0x140, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
-    0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
-    0x459, 0x459, 0x459, 0x459, 0x459, 0x459, 0x459, 0x459,
-    0x459, 0x459, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
-    0x0d0, 0x653, 0x653, 0x653, 0x653, 0x653, 0x653, 0x253,
-    0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253,
-    0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253, 0x253,
-    0x253, 0x253, 0x253, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x0d0,
-    0x0d0, 0x473, 0x473, 0x473, 0x473, 0x473, 0x473, 0x073,
-    0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073,
-    0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073, 0x073,
-    0x073, 0x073, 0x073, 0x0d0, 0x0d0, 0x0d0, 0x0d0, 0x004
-/* the upper 128 are all zeroes */
-};
-/* Functions like the ones in <ctype.h> that are not affected by locale. */
-typedef enum {
-    DAP_ASCII_ALNUM = 1 << 0,
-    DAP_ASCII_ALPHA = 1 << 1,
-    DAP_ASCII_CNTRL = 1 << 2,
-    DAP_ASCII_DIGIT = 1 << 3,
-    DAP_ASCII_GRAPH = 1 << 4,
-    DAP_ASCII_LOWER = 1 << 5,
-    DAP_ASCII_PRINT = 1 << 6,
-    DAP_ASCII_PUNCT = 1 << 7,
-    DAP_ASCII_SPACE = 1 << 8,
-    DAP_ASCII_UPPER = 1 << 9,
-    DAP_ASCII_XDIGIT = 1 << 10
-} DapAsciiType;
-
-const uint16_t * const c_dap_ascii_table = s_ascii_table_data;
-
-#define dap_ascii_isspace(c) ((c_dap_ascii_table[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0)
-#define dap_ascii_isalpha(c) ((c_dap_ascii_table[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0)
 
 /**
  * dap_strchug:
