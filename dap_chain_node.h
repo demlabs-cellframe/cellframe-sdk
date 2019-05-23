@@ -30,16 +30,9 @@
 
 #include "dap_common.h"
 #include "dap_chain_common.h"
+#include "dap_chain_global_db.h"
 
-/**
-  * @struct Node address
-  *
-  */
-typedef union dap_chain_node_addr{
-    uint64_t uint64;
-    uint8_t raw[sizeof(uint64_t)];  // Access to selected octects
-} DAP_ALIGN_PACKED dap_chain_node_addr_t;
-
+typedef struct dap_chain_net dap_chain_net_t;
 /**
   *  Node Declaration request
   *
@@ -113,15 +106,24 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
 /**
  * Generate node addr by shard id
  */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id);
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_t * l_net,dap_chain_cell_id_t *a_cell_id);
 
 /**
  * Check the validity of the node address by shard id
  */
-bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id);
+bool dap_chain_node_check_addr(dap_chain_net_t * l_net,dap_chain_node_addr_t *addr, dap_chain_cell_id_t *a_cell_id);
 
-dap_chain_node_addr_t * dap_chain_node_alias_find(const char *alias);
-bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *addr);
-bool dap_chain_node_alias_delete(const char *alias);
+dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * l_net,const char *alias);
+bool dap_chain_node_alias_register(dap_chain_net_t * l_net,const char *alias, dap_chain_node_addr_t *addr);
+bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
+
+int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_chain_node_addr_t *address);
+
+inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *address)
+{
+    char *a_key = dap_chain_global_db_hash((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
+    return a_key;
+}
 
 

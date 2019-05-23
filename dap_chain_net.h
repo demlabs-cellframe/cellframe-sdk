@@ -1,6 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2019
@@ -28,19 +29,22 @@
 #include <stdint.h>
 #include <string.h>
 #include "dap_chain_common.h"
+#include "dap_chain_node.h"
 #include "dap_chain.h"
+#include "dap_chain_ledger.h"
 
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 
 typedef  enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
-    NET_STATE_LINKS_PINGING,
+    NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
+    NET_STATE_ADDR_REQUEST, // Waiting for address assign
     NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
-    NET_STATE_SYNC_ALL,
+    NET_STATE_ONLINE,
 } dap_chain_net_state_t;
 
 
@@ -50,7 +54,11 @@ typedef struct dap_chain_net{
         dap_chain_cell_id_t cell_id; // Cell where the node is connected to. {{0}} if not celled(sharder) blockchain
         char * name;
         char * gdb_groups_prefix;
+        char * gdb_nodes_aliases;
+        char * gdb_nodes;
+
         dap_chain_t * chains; // double-linked list of chains
+        dap_ledger_t  *ledger;
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
@@ -63,12 +71,12 @@ int dap_chain_net_load(const char * a_net_name);
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 
-inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_ALL); }
+inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_OFFLINE); }
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
-inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_ALL); }
+inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
@@ -76,10 +84,14 @@ void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
+dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
 
+dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net);
+
 void dap_chain_net_links_connect(dap_chain_net_t * a_net);
+
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
@@ -95,7 +107,7 @@ static inline char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
         size_t l_ret_size =  strlen( l_net->pub.gdb_groups_prefix ) + 1 +
                 strlen( l_chain->name)+1+strlen(c_mempool_group_str)+1;
         l_ret = DAP_NEW_Z_SIZE(char, l_ret_size);
-        snprintf( l_ret,l_ret_size,"%s.%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+        snprintf( l_ret,l_ret_size,"%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
     }
     return l_ret;
 }

@@ -1,7 +1,11 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2019
+ * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
 
@@ -300,9 +304,11 @@ static void* thread_one_client_func(void *args)
                 }
                 char *reply_body = dap_strdup_printf("ret_code: %d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
                 // return the result of the command function
-                char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s",
+                char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\n"
+                                                    "Content-Length: %d\r\n\r\n"
+                                                    "%s",
                         strlen(reply_body), reply_body);
-                int ret = send(newsockfd, reply_str, strlen(reply_str) + 1, 1000);
+                int ret = send(newsockfd, reply_str, strlen(reply_str) ,0);
                 DAP_DELETE(str_reply);
                 DAP_DELETE(reply_str);
                 DAP_DELETE(reply_body);
@@ -356,7 +362,7 @@ void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 {
     if(str_reply) {
         if(*str_reply) {
-            assert(!*str_reply);
+            assert(! *str_reply );
             DAP_DELETE(*str_reply);
             *str_reply = NULL;
         }
@@ -457,15 +463,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
            "global_db node add  -net <net name> -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
                     "global_db node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
                     "global_db node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                    "global_db node dump  -net <net name>\n\n"
-                    "global_db node dump  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "global_db node get -net <net name>\n\n"
-                    "global_db node set -net <net name> -addr <node address> | -alias <node alias>\n\n"
-          "global_db node remote_set -addr <node address> | -alias <node alias>\n");
+                        );
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
             "node alias {<node address> | -alias <node alias>}\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"
-                    "node handshake {<node address> | -alias <node alias>}\n");
+                    "node handshake {<node address> | -alias <node alias>}\n"
+                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>]\n\n"
+                                        );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
     dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
@@ -481,7 +485,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name>]\n");
+            "wallet [new -w <wallet_name> | list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
@@ -497,7 +501,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> addr <addr> token <token ticker> certs <cert> emission_value <val>\n");
+            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> token <token ticker> -certs <cert> -emission_value <val>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network and chain id",
             "mempool_list -net <net name> -chain <chain name>\n");
@@ -511,7 +515,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create from_wallet_name <name> to_addr <addr> token <token> value <val> [fee <addr> value_fee <val>]\n" );
+            "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
             "tx_cond_create todo\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",

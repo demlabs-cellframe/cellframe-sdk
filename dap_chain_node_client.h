@@ -31,19 +31,18 @@
 // connection states
 typedef enum dap_chain_node_client_state{
     NODE_CLIENT_STATE_ERROR = -1,
-    NODE_CLIENT_STATE_INIT,
-    NODE_CLIENT_STATE_GET_NODE_ADDR,
-    NODE_CLIENT_STATE_SET_NODE_ADDR,
-    NODE_CLIENT_STATE_PING,
-    NODE_CLIENT_STATE_PONG,
-    NODE_CLIENT_STATE_CONNECT,
-    NODE_CLIENT_STATE_CONNECTED,
+    NODE_CLIENT_STATE_DISCONNECTED=0,
+    NODE_CLIENT_STATE_GET_NODE_ADDR=1,
+    NODE_CLIENT_STATE_NODE_ADDR_LEASED=2,
+    NODE_CLIENT_STATE_PING=3,
+    NODE_CLIENT_STATE_PONG=4,
+    NODE_CLIENT_STATE_CONNECT=5,
+    NODE_CLIENT_STATE_CONNECTED=100,
     //NODE_CLIENT_STATE_SEND,
     //NODE_CLIENT_STATE_SENDED,
-    NODE_CLIENT_STATE_SYNC_GDB,
-    NODE_CLIENT_STATE_SYNC_CHAINS,
-    NODE_CLIENT_STATE_STANDBY,
-    NODE_CLIENT_STATE_END
+    NODE_CLIENT_STATE_SYNC_GDB=101,
+    NODE_CLIENT_STATE_SYNC_CHAINS=102,
+    NODE_CLIENT_STATE_SYNCED=103
 } dap_chain_node_client_state_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -56,19 +55,21 @@ typedef struct dap_chain_node_client {
     dap_chain_cell_id_t cell_id;
     dap_client_t *client;
     dap_events_t *events;
+    char last_error[128];
 
-    dap_chain_node_client_callback_t callback_stream_connected;
+    dap_chain_node_client_callback_t callback_connected;
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
-    uint8_t *recv_data;
-    size_t recv_data_len;
 
     // For hash indexing
     UT_hash_handle hh;
     dap_chain_node_addr_t remote_node_addr;
     struct in_addr remote_ipv4;
     struct in6_addr remote_ipv6;
+
+    bool keep_connection;
 } dap_chain_node_client_t;
+#define DAP_CHAIN_NODE_CLIENT(a) ( (dap_chain_node_client_t *) (a)->_inheritor )
 
 
 int dap_chain_node_client_init(void);
@@ -92,8 +93,8 @@ void dap_chain_node_client_close(dap_chain_node_client_t *client);
 /**
  * Send stream request to server
  */
-int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
-        char *a_buf, size_t a_buf_size);
+int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
+        const void *a_buf, size_t a_buf_size);
 
 /**
  * wait for the complete of request
@@ -102,5 +103,5 @@ int dap_chain_node_client_send_chain_net_request(dap_chain_node_client_t *a_clie
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
-int chain_node_client_wait(dap_chain_node_client_t *client, dap_chain_node_client_state_t waited_state, int timeout_ms);
+int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms);
 

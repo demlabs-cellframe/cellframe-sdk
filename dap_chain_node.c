@@ -34,7 +34,7 @@
 /**
  * Generate node address by shard id
  */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id)
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_t * a_net,dap_chain_cell_id_t *shard_id)
 {
     if(!shard_id)
         return NULL;
@@ -51,9 +51,9 @@ dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_cell_id_t *shard_id)
 }
 
 /**
- * Check the validity of the node address by shard id
+ * Check the validity of the node address by cell id
  */
-bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id)
+bool dap_chain_node_check_addr(dap_chain_net_t * a_net,dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id)
 {
     bool ret = false;
     if(!addr || !shard_id)
@@ -65,14 +65,15 @@ bool dap_chain_node_check_addr(dap_chain_node_addr_t *addr, dap_chain_cell_id_t 
 /**
  * Register alias in base
  */
-bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *addr)
+bool dap_chain_node_alias_register(dap_chain_net_t * a_net,const char *alias, dap_chain_node_addr_t *addr)
 {
     const char *a_key = alias;
 //    char a_value[2 * sizeof(dap_chain_node_addr_t) + 1];
 //    if(bin2hex(a_value, (const unsigned char *) addr, sizeof(dap_chain_node_addr_t)) == -1)
 //        return false;
 //    a_value[2 * sizeof(dap_chain_node_addr_t)] = '\0';
-    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t*) addr, sizeof(dap_chain_node_addr_t), GROUP_ALIAS);
+    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t*) addr, sizeof(dap_chain_node_addr_t)
+                                          , a_net->pub.gdb_nodes_aliases);
     return res;
 }
 
@@ -81,21 +82,21 @@ bool dap_chain_node_alias_register(const char *alias, dap_chain_node_addr_t *add
  * @param alias
  * @return
  */
-dap_chain_node_addr_t * dap_chain_node_alias_find(const char *a_alias)
+dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const char *a_alias)
 {
     size_t l_addr_size =0;
     dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *)
-            dap_chain_global_db_gr_get(a_alias, &l_addr_size, GROUP_ALIAS);
+            dap_chain_global_db_gr_get(a_alias, &l_addr_size, a_net->pub.gdb_nodes_aliases);
     return  l_addr;
 }
 
 /**
  * Delete alias from base
  */
-bool dap_chain_node_alias_delete(const char *alias)
+bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 {
-    const char *a_key = alias;
-    bool res = dap_chain_global_db_gr_del(a_key, GROUP_ALIAS);
+    const char *a_key = a_alias;
+    bool res = dap_chain_global_db_gr_del(a_key, a_net->pub.gdb_nodes_aliases);
     return res;
 }
 
@@ -114,8 +115,68 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
     return (sizeof(dap_chain_node_info_t) + node_info->hdr.links_number * sizeof(dap_chain_node_addr_t));
 }
 
+/**
+ * @brief dap_chain_node_info_save
+ * @param node_info
+ * @return
+ */
+int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *node_info)
+{
+    if(!node_info || !node_info->hdr.address.uint64){
+        log_it(L_ERROR,"Can't save node info: %s", node_info? "null address":"null object" );
+        return  -1;
+    }
+    char *l_key = dap_chain_node_addr_to_hash_str(&node_info->hdr.address);
 
+    if(!l_key){
+        log_it(L_ERROR,"Can't produce key to save node info ");
+        return -2;
+    }
+    //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
+    size_t node_info_size = dap_chain_node_info_get_size(node_info);
+    bool res = dap_chain_global_db_gr_set(l_key, (const uint8_t *) node_info, node_info_size, a_net->pub.gdb_nodes);
+    DAP_DELETE(l_key);
+    //DAP_DELETE(a_value);
+    return res?0:-3;
+}
 
+/**
+ * Read node from base
+ */
+dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *l_address)
+{
+    char *l_key = dap_chain_node_addr_to_hash_str(l_address);
+    if(!l_key) {
+        log_it(L_WARNING,"Can't calculate hash of addr");
+        return NULL;
+    }
+    size_t node_info_size = 0;
+    dap_chain_node_info_t *l_node_info;
+    // read node
+    l_node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
+
+    if(!l_node_info) {
+        log_it(L_ERROR, "node with key %s (addr " NODE_ADDR_FP_STR ") not found in base",l_key, NODE_ADDR_FP_ARGS(l_address));
+        DAP_DELETE(l_key);
+        return NULL;
+    }
+
+    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
+    if(node_info_size_must_be != node_info_size) {
+        log_it(L_ERROR, "Node has bad size in base=%u (must be %u)", node_info_size, node_info_size_must_be);
+        DAP_DELETE(l_node_info);
+        DAP_DELETE(l_key);
+        return NULL;
+    }
+
+//    dap_chain_node_info_t *node_info = dap_chain_node_info_deserialize(str, (str) ? strlen(str) : 0);
+//    if(!node_info) {
+//        set_reply_text(str_reply, "node has invalid format in base");
+//    }
+//    DAP_DELETE(str);
+    DAP_DELETE(l_key);
+    return l_node_info;
+}
 
 
 /**
