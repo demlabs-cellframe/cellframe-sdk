@@ -171,8 +171,8 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
 
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-        if (!PVT (l_net)->load_mode )
-            dap_chain_net_sync_all(l_net);
+        //if (!PVT (l_net)->load_mode )
+        //    dap_chain_net_sync_all(l_net);
     }
 }
 
