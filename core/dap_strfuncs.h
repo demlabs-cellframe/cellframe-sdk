@@ -33,6 +33,11 @@
 #define clamp(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 size_t dap_strlen(const char *a_str);
+// compare a_str1 and a_str2
+int dap_strcmp(const char *a_str1, const char *a_str2);
+// compare a_n characters of a_str1 and a_str2
+int dap_strncmp(const char *a_str1, const char *a_str2, size_t a_n);
+// duplicates a string
 char* dap_strdup(const char *a_str);
 char* dap_strdup_vprintf(const char *a_format, va_list a_args);
 char* dap_strdup_printf(const char *a_format, ...);
@@ -65,5 +70,4 @@ char* dap_strreverse(char *a_string);
 
 #define DAP_USEC_PER_SEC 1000000
 void dap_usleep(time_t a_microseconds);
-
 
