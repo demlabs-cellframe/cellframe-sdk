@@ -155,18 +155,32 @@ static int compare_datum_items(const void * l_a, const void * l_b)
  */
 int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
-    if ( !a_ledger)
+    if ( !a_ledger){
+        log_it(L_ERROR, "NULL ledger, can't add datum with token declaration!");
         return  -1;
+    }
 
-    dap_chain_ledger_token_item_t * l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-    snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header.ticker);
-    l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
-    memcpy(l_token_item->datum_token, a_token,a_token_size);
-    l_token_item->total_supply = a_token->header.total_supply;
-    pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
-    dap_hash_fast(a_token,a_token_size, &l_token_item->datum_token_hash);
+    dap_chain_ledger_token_item_t * l_token_item;
+    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->header.ticker,l_token_item);
 
-    HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item) ;
+    if ( l_token_item == NULL ){
+        l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
+        snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header.ticker);
+        l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
+        memcpy(l_token_item->datum_token, a_token,a_token_size);
+        l_token_item->total_supply = a_token->header.total_supply;
+        pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
+        dap_hash_fast(a_token,a_token_size, &l_token_item->datum_token_hash);
+
+        HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item) ;
+        log_it(L_NOTICE,"Token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu version=%hu )",
+               a_token->header.ticker ,
+               (long double) a_token->header.total_supply / 1000000000000.0L,
+               a_token->header.signs_valid,a_token->header.signs_total, a_token->header.version);
+    }else{
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->header.ticker);
+        return -1;
+    }
     return  0;
 }
 
@@ -225,8 +239,13 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
 
             HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash, sizeof(l_token_emission_hash),
                     l_token_emission_item);
-            log_it(L_NOTICE, "Added token emission datum of  %llu %s ( 0x%s )",
-                    a_token_emission->hdr.value, c_token_ticker, l_hash_str);
+            char * l_token_emission_address_str = dap_chain_addr_to_str( &a_token_emission->hdr.address );
+            log_it(L_NOTICE,
+             "Added token emission datum : type=%s value=%.1llf token=%s to_addr=%s ",
+                     c_dap_chain_datum_token_emission_type_str[ a_token_emission->hdr.type ] ,
+                   ((long double)a_token_emission->hdr.value) / 1000000000000.0L, c_token_ticker,
+                   l_token_emission_address_str);
+            DAP_DELETE(l_token_emission_address_str);
         } else {
             log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s )",
                     a_token_emission->hdr.value, c_token_ticker, l_hash_str);
@@ -259,7 +278,8 @@ dap_chain_datum_token_emission_t * dap_chain_ledger_token_emission_find(dap_ledg
         pthread_rwlock_rdlock( &l_token_item->token_emissions_rwlock);
         HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
                 l_token_emission_item);
-        l_token_emission = l_token_emission_item->datum_token_emission;
+        if( l_token_emission_item)
+            l_token_emission = l_token_emission_item->datum_token_emission;
         pthread_rwlock_unlock( &l_token_item->token_emissions_rwlock);
     }
     pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
@@ -666,13 +686,23 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         memcpy(&l_item_tmp->tx_hash_fast, l_tx_hash, sizeof(dap_chain_hash_fast_t));
         l_item_tmp->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, dap_chain_datum_tx_get_size(a_tx));
         //calculate l_item_tmp->n_outs;
-        {
+
+        // If debug mode dump the UTXO
+        if ( dap_log_level_get() == L_DEBUG){
             l_item_tmp->n_outs = 0;
-            dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_item_tmp->n_outs);
-            dap_list_free(l_tist_tmp);
+            if( l_item_tmp->n_outs){
+                dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_item_tmp->n_outs);
+                for (size_t i =0; i < l_item_tmp->n_outs; i++){
+                    dap_chain_tx_out_t * l_tx_out = l_tist_tmp->data;
+                    char * l_tx_out_addr_str = dap_chain_addr_to_str( &l_tx_out->addr );
+                    log_it(L_DEBUG,"Added tx out to %s",l_tx_out_addr_str );
+                    DAP_DELETE (l_tx_out_addr_str);
+                }
+                dap_list_free(l_tist_tmp);
+            }
         }
         if ( l_token_ticker == NULL) { //No token ticker in previous txs
-            size_t l_tokens_count = 0;
+            int l_tokens_count = 0;
             dap_list_t *l_tokens_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TOKEN, &l_tokens_count );
             if ( l_tokens_count>0 ){
                 dap_chain_tx_token_t * l_token = (dap_chain_tx_token_t*) l_tokens_list->data;

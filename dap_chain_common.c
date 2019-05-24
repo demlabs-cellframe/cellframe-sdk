@@ -117,7 +117,7 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
  * @param a_addr
  * @return
  */
-dap_chain_addr_t* dap_chain_str_to_addr(const char *a_str)
+dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
 {
     size_t l_str_len = (a_str) ? strlen(a_str) : 0;
     if(l_str_len <= 0)

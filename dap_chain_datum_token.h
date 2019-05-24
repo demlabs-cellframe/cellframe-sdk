@@ -39,10 +39,13 @@ typedef struct dap_chain_datum_token{
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED         0x00
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH              0x01
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO              0x02
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
+extern const char *c_dap_chain_datum_token_emission_type_str[];
+
 // Token emission
 typedef struct dap_chain_datum_token_emission{
     struct  {

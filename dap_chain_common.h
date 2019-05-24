@@ -177,7 +177,7 @@ size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, 
 int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
-dap_chain_addr_t* dap_chain_str_to_addr(const char *str);
+dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id);
 

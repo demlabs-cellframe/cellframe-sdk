@@ -252,7 +252,7 @@ dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size)
 {
     if(!a_tx)
@@ -260,7 +260,7 @@ uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx
     uint32_t l_tx_items_pos = 0, l_tx_items_size = a_tx->header.tx_items_size;
     int l_item_idx = 0;
     while(l_tx_items_pos < l_tx_items_size) {
-        uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
+         uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
         int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
         if(!l_item_size)
             return NULL;

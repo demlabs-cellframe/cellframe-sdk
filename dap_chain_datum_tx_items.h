@@ -108,7 +108,7 @@ dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-uint8_t* dap_chain_datum_tx_item_get(dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size);
 
 // Get all item from transaction by type
