@@ -85,7 +85,7 @@ uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
         return 0;
     }
 
-    dap_chain_addr_t *l_addr = (l_addr_base58) ? dap_chain_str_to_addr(l_addr_base58) : NULL;
+    dap_chain_addr_t *l_addr = (l_addr_base58) ? dap_chain_addr_from_str(l_addr_base58) : NULL;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     dap_chain_sign_type_t l_sig_type;
     if(l_addr)
