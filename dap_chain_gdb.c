@@ -309,7 +309,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
-                dap_chain_ledger_tx_add(a_chain->ledger, l_tx);
+                 dap_chain_ledger_tx_add(a_chain->ledger, l_tx);
             //}else
             //    return -2;
         }break;
