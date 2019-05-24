@@ -275,6 +275,7 @@ static void* thread_one_client_func(void *args)
             unsigned int argc = dap_list_length(list);
             // command is found
             if(argc >= 1) {
+            	int l_verbose = 0;
                 char *cmd_name = list->data;
                 list = dap_list_next(list);
                 // execute command
@@ -297,12 +298,18 @@ static void* thread_one_client_func(void *args)
                     else {
                         log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd);
                     }
+                    // find '-verbose' command
+                    l_verbose = dap_chain_node_cli_find_option_val(argv, 1, argc, "-verbose", NULL);
                     dap_strfreev(argv);
                 } else {
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
                     log_it(L_ERROR, str_reply);
                 }
-                char *reply_body = dap_strdup_printf("ret_code: %d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                char *reply_body;
+                if(l_verbose)
+                	reply_body = dap_strdup_printf("%d\r\nret_code: %d\r\n%s\r\n", res, res, (str_reply) ? str_reply : "");
+                else
+                	reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
                 // return the result of the command function
                 char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\n"
                                                     "Content-Length: %d\r\n\r\n"
