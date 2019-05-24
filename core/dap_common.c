@@ -182,9 +182,13 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
     l_count = 0;
     while(l_list && a_limit > l_count) {
         dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
-        dap_string_append_printf(l_string, "%lld;%s\n", (int64_t) l_item->t, l_item->str);
+        //dap_string_append_printf(l_string, "%lld;%s\n", (int64_t) l_item->t, l_item->str);
         l_list = dap_list_next(l_list);
         l_count++;
+        if(l_list && a_limit > l_count)
+        	dap_string_append_printf(l_string, "%s\n", l_item->str);
+        else// last item
+        	dap_string_append_printf(l_string, "%s", l_item->str);
     }
     pthread_mutex_unlock(&s_list_logs_mutex);
 
@@ -198,19 +202,19 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
 {
     pthread_mutex_lock(&s_list_logs_mutex);
     dap_string_t *l_string = dap_string_new("");
-    dap_string_append_printf(l_string, "[%s] ", a_time_str);
+    dap_string_append_printf(l_string, "[%s]\t", a_time_str);
     if(a_ll == L_DEBUG) {
-        l_string = dap_string_append(l_string, "[DBG] ");
+        l_string = dap_string_append(l_string, "[DBG]\t");
     } else if(a_ll == L_INFO) {
-        l_string = dap_string_append(l_string, "[INF] ");
+        l_string = dap_string_append(l_string, "[INF]\t");
     } else if(a_ll == L_NOTICE) {
-        l_string = dap_string_append(l_string, "[ * ] ");
+        l_string = dap_string_append(l_string, "[ * ]\t");
     } else if(a_ll == L_WARNING) {
-        l_string = dap_string_append(l_string, "[WRN] ");
+        l_string = dap_string_append(l_string, "[WRN]\t");
     } else if(a_ll == L_ERROR) {
-        l_string = dap_string_append(l_string, "[ERR] ");
+        l_string = dap_string_append(l_string, "[ERR]\t");
     } else if(a_ll == L_CRITICAL) {
-        l_string = dap_string_append(l_string, "[!!!] ");
+        l_string = dap_string_append(l_string, "[!!!]\t");
     }
 
     if(a_log_tag != NULL) {
