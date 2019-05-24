@@ -9,7 +9,8 @@
 #include "dap_hash.h"
 #include "dap_chain_common.h"
 #include "dap_strfuncs.h"
-#include "dap_chain_global_db_pvt.h"
+//#include "dap_chain_global_db_pvt.h"
+#include "dap_chain_global_db_driver.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
 
@@ -138,14 +139,14 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t **objs)
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
-    const char *a_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    if(a_storage_path){
-        lock();
-        int res = dap_db_init(a_storage_path);
-        unlock();
-        return res;
-    }
-    return -1;
+    const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver",
+            "sqlite");
+    lock();
+    int res = dap_db_driver_init(l_driver_name, l_storage_path);
+    //int res = dap_db_init(a_storage_path);
+    unlock();
+    return res;
 }
 
 /**
@@ -154,7 +155,8 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 void dap_chain_global_db_deinit(void)
 {
     lock();
-    dap_db_deinit();
+    dap_db_driver_deinit();
+    //dap_db_deinit();
     unlock();
     history_group_item_t * l_item = NULL, *l_item_tmp = NULL;
     HASH_ITER(hh, s_history_group_items, l_item, l_item_tmp){

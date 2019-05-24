@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _GLOBAL_DB_DRIVER_H_
+#define _GLOBAL_DB_DRIVER_H_
 
 #include <stdint.h>
 #include "dap_common.h"
@@ -39,3 +40,4 @@ dap_store_obj_t *dap_store_unpacket(const dap_store_obj_pkt_t *a_pkt, size_t *a_
 
 void dab_db_free_pdap_store_obj_t(pdap_store_obj_t a_store_data, size_t a_count);
 
+#endif // #ifndef _GLOBAL_DB_DRIVER_H_

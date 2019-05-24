@@ -1,0 +1,66 @@
+/*
+ * Authors:
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
+ * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2019
+ * All rights reserved.
+
+ This file is part of DAP (Deus Applications Prototypes) the open source project
+
+ DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ DAP is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _GLOBAL_DB_DRIVER_H_
+#define _GLOBAL_DB_DRIVER_H_
+
+#include <stddef.h>
+#include <stdint.h>
+//#include <ctime>
+#include "dap_common.h"
+
+typedef struct dap_store_obj {
+	time_t timestamp;
+	uint8_t type;
+//	char *section;
+	char *group;
+	char *key;
+	uint8_t *value;
+	size_t value_len;
+}DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
+
+typedef struct dap_store_obj_pkt {
+	time_t timestamp;
+	size_t data_size;
+	uint8_t data[];
+}__attribute__((packed)) dap_store_obj_pkt_t;
+
+int dap_db_driver_init(const char *driver_name, const char *a_filename_db);
+void dap_db_driver_deinit(void);
+
+int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
+int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
+
+pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count);
+pdap_store_obj_t dap_db_read_file_data(const char *a_path, const char *a_group); // state of emergency only, if LDB database is inaccessible
+dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);
+dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,
+		time_t a_timestamp, size_t a_store_obj_count);
+dap_store_obj_t *dap_store_unpacket(const dap_store_obj_pkt_t *a_pkt,
+		size_t *a_store_obj_count);
+
+void dab_db_free_pdap_store_obj_t(pdap_store_obj_t a_store_data,
+		size_t a_count);
+
+#endif //_GLOBAL_DB_DRIVER_H_
