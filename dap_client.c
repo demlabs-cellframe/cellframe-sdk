@@ -294,7 +294,7 @@ int dap_client_disconnect(dap_client_t * a_client)
     dap_client_pvt_t * l_client_internal = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
     if(l_client_internal && l_client_internal->stream_socket){
         if(l_client_internal->stream_es) {
-            dap_events_socket_delete(l_client_internal->stream_es, false);
+            dap_events_socket_delete(l_client_internal->stream_es, true);
             l_client_internal->stream_es = NULL;
         }
         else if (l_client_internal->stream_socket ){

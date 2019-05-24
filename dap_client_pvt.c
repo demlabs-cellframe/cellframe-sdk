@@ -855,7 +855,8 @@ void m_es_stream_delete(dap_events_socket_t * a_es, void * arg)
     l_client_pvt->stream_es = NULL;
     dap_stream_session_close(l_client_pvt->stream_session->id);
     l_client_pvt->stream_session = NULL;
-    dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
+    if (l_client_pvt->is_reconnect)
+       dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
 }
 
 /**
