@@ -1967,7 +1967,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     l_token_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_token_emission_size);
     strncpy(l_token_emission->hdr.ticker, l_ticker, sizeof(l_token_emission->hdr.ticker));
     l_token_emission->hdr.value = l_emission_value;
-
+    l_token_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
     // Then add signs
     size_t l_offset=0;
     for (size_t i =0; i < l_certs_size; i++ ){
