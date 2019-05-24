@@ -239,7 +239,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
 
             HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash, sizeof(l_token_emission_hash),
                     l_token_emission_item);
-            char * l_token_emission_address_str = dap_chain_addr_to_str( &a_token_emission->hdr.address );
+            char * l_token_emission_address_str = dap_chain_addr_to_str( &(a_token_emission->hdr.address) );
             log_it(L_NOTICE,
              "Added token emission datum : type=%s value=%.1llf token=%s to_addr=%s ",
                      c_dap_chain_datum_token_emission_type_str[ a_token_emission->hdr.type ] ,
