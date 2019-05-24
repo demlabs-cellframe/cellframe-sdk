@@ -59,14 +59,14 @@ void dap_str_array_test(void)
     const char *l_s_in = "1:23:: Test:  :\n:String:";
     char **l_s_array = dap_strsplit(l_s_in, ":", -1);
 
-    int l_count = 1;
+    size_t l_count = 1;
     char *l_s_tmp = dap_strstr_len(l_s_in, -1, ":");
     while(l_s_tmp) {
         l_s_tmp = dap_strstr_len(l_s_tmp + 1, -1, ":");
         l_count++;
     }
 
-    char **l_s_array_copy = dap_strdupv(l_s_array);
+    char **l_s_array_copy = dap_strdupv((const char*)l_s_array);
 
     dap_assert_PIF(dap_str_countv(l_s_array) == l_count, "String split");
     dap_assert_PIF(dap_str_countv(l_s_array_copy) == l_count, "String copy");
