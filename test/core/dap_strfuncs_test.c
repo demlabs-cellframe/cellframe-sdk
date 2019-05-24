@@ -66,7 +66,7 @@ void dap_str_array_test(void)
         l_count++;
     }
 
-    char **l_s_array_copy = dap_strdupv((const char*)l_s_array);
+    char **l_s_array_copy = dap_strdupv((const char**)l_s_array);
 
     dap_assert_PIF(dap_str_countv(l_s_array) == l_count, "String split");
     dap_assert_PIF(dap_str_countv(l_s_array_copy) == l_count, "String copy");
