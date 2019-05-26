@@ -26,6 +26,7 @@ set(DAP_CHAIN_CRYPTO_HEADERS
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(libdap)
+    add_subdirectory(libdap-crypto)
     add_subdirectory(libdap-chain)
     enable_testing()
     add_subdirectory(test)
