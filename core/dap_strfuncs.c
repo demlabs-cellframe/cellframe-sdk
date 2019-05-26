@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <time.h>
 #include <errno.h>
 
 #include "dap_common.h"
@@ -22,7 +21,6 @@ char *strndup(char *str, int len) {
     return buf;
 }
 #endif
-
 
 /**
  * dap_strlen:
@@ -40,6 +38,36 @@ size_t dap_strlen(const char *a_str)
         l_length = strlen(a_str);
     }
     return l_length;
+}
+
+/**
+ * dap_strcmp:
+ * @a_str1: (nullable): the string
+ * @a_str2: (nullable): the string
+ *
+ * Compare a_str1 and a_str2
+ */
+int dap_strcmp(const char *a_str1, const char *a_str2)
+{
+    if(a_str1 && a_str2) {
+        return strcmp(a_str1, a_str2);
+    }
+    return -1;
+}
+
+/**
+ * dap_strcmp:
+ * @a_str1: (nullable): the string
+ * @a_str2: (nullable): the string
+ *
+ * Compare a_n characters of a_str1 and a_str2
+ */
+int dap_strncmp(const char *a_str1, const char *a_str2, size_t a_n)
+{
+    if(a_str1 && a_str2) {
+        return strncmp(a_str1, a_str2, a_n);
+    }
+    return -1;
 }
 
 /**
@@ -115,27 +143,27 @@ char* dap_strdup_printf(const char *a_format, ...)
 }
 
 /*
-// alternative version
-char* dap_strdup_printf2(const char *a_format, ...)
-{
-    size_t l_buffer_size = 0;
-    char *l_buffer = NULL;
-    va_list l_args;
+ // alternative version
+ char* dap_strdup_printf2(const char *a_format, ...)
+ {
+ size_t l_buffer_size = 0;
+ char *l_buffer = NULL;
+ va_list l_args;
 
-    va_start(l_args, a_format);
-    l_buffer_size += vsnprintf(l_buffer, 0, a_format, l_args);
-    va_end(l_args);
+ va_start(l_args, a_format);
+ l_buffer_size += vsnprintf(l_buffer, 0, a_format, l_args);
+ va_end(l_args);
 
-    if(!l_buffer_size)
-        return NULL;
-    l_buffer = DAP_NEW_SIZE(char, l_buffer_size + 1);
+ if(!l_buffer_size)
+ return NULL;
+ l_buffer = DAP_NEW_SIZE(char, l_buffer_size + 1);
 
-    va_start(l_args, a_format);
-    vsnprintf(l_buffer, l_buffer_size + 1, a_format, l_args);
-    va_end(l_args);
+ va_start(l_args, a_format);
+ vsnprintf(l_buffer, l_buffer_size + 1, a_format, l_args);
+ va_end(l_args);
 
-    return l_buffer;
-}*/
+ return l_buffer;
+ }*/
 
 /**
  * dap_stpcpy:
