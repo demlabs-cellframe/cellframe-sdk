@@ -1274,7 +1274,8 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
                 if(l_addr_tokens[i]) {
                     uint64_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     long  double l_balance_coins = (long double) l_balance / 1000000000000.0L;
-                    dap_string_append_printf(l_string_ret, "          %Lf %s\n", l_balance_coins, l_addr_tokens[i]);
+                    dap_string_append_printf(l_string_ret, "          %.3Lf (%llu) %s\n", l_balance_coins,
+                                             l_balance, l_addr_tokens[i]);
 
                 }
                 DAP_DELETE(l_addr_tokens[i]);

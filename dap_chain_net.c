@@ -887,6 +887,8 @@ int dap_chain_net_load(const char * a_net_name)
         if ( l_chains_dir ){
             struct dirent * l_dir_entry;
             while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
+                if (l_dir_entry->d_name[0]=='\0')
+                    continue;
                 char * l_entry_name = strdup(l_dir_entry->d_name);
                 l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1+strlen (l_entry_name)-3;
                 l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);
@@ -905,10 +907,10 @@ int dap_chain_net_load(const char * a_net_name)
                             if(l_chain->callback_created)
                                 l_chain->callback_created(l_chain,l_cfg);
                         }
-                        free(l_entry_name);
                     }
                 }
                 DAP_DELETE (l_chains_path);
+                DAP_DELETE (l_entry_name);
             }
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
