@@ -90,7 +90,7 @@ typedef struct dap_chain_ledger_tx_bound {
 typedef struct dap_ledger_wallet_balance_key{
     dap_chain_addr_t addr;
     char ticker[10];
-} dap_ledger_wallet_balance_key_t;
+} DAP_ALIGN_PACKED dap_ledger_wallet_balance_key_t;
 
 // in-memory wallet balance
 typedef struct dap_ledger_wallet_balance {
@@ -756,24 +756,27 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
                                 l_addr_str );
                         dap_ledger_wallet_balance_t *wallet_balance = NULL;
                         dap_ledger_wallet_balance_key_t l_balance_key={{0}};
-                        size_t l_token_ticker_size = strlen(l_token_ticker);
                         memcpy(&l_balance_key.addr,&l_out_item->addr, sizeof(l_out_item->addr));
-                        memcpy(&l_balance_key.ticker,l_token_ticker,  l_token_ticker_size);
-                        log_it(L_DEBUG, "Balance key: ticker=\"%s\" (len %u) addr=%s", l_balance_key.ticker,
-                               l_token_ticker_size, l_addr_str);
+                        snprintf (l_balance_key.ticker,sizeof(l_balance_key.ticker),"%s",  l_token_ticker);
                         HASH_FIND (hh, PVT(a_ledger)->balance_accounts,&l_balance_key, sizeof(l_balance_key),
                                   wallet_balance);
                         if (wallet_balance) {
+                            log_it(L_DEBUG,"!!!Existent balance item found");
                             wallet_balance->balance += l_out_item->header.value;
                             //dap_ledger_wallet_balance_t *dummy = NULL;
                             //HASH_REPLACE(hh, PVT(a_ledger)->balance_accounts, l_balance_key, sizeof(l_balance_key), wallet_balance, dummy);
                         } else {
                             wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
-                            memcpy(&wallet_balance->key, &l_balance_key , sizeof(l_balance_key ));
+                            memcpy(&wallet_balance->key, &l_balance_key , sizeof(dap_ledger_wallet_balance_key_t ));
                             //wallet_balance->addr = l_out_item->addr;
                             wallet_balance->balance = l_out_item->header.value;
-                            HASH_ADD(hh, PVT(a_ledger)->balance_accounts, key, sizeof(l_balance_key), wallet_balance);
+                            log_it(L_DEBUG,"!!! Create new balance item: %s %s", l_addr_str,  l_token_ticker);
+                            HASH_ADD(hh, PVT(a_ledger)->balance_accounts, key, sizeof(dap_ledger_wallet_balance_key_t), wallet_balance);
                         }
+                        log_it(L_NOTICE, "Updated balance +%.3Lf %s, now %.3Lf on addr %s",
+                               dap_chain_balance_to_coins (l_out_item->header.value)  ,
+                               dap_chain_balance_to_coins (wallet_balance->balance )  ,
+                               l_token_ticker? l_token_ticker :"???" , l_addr_str);
                         // TODO : put to local db for fast extraction
                         DAP_DELETE (l_addr_str);
                     } else
@@ -948,19 +951,31 @@ uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_a
         const char *a_token_ticker)
 {
     uint64_t l_ret = 0;
-    dap_ledger_wallet_balance_t *l_balance_item = NULL;
-    dap_ledger_wallet_balance_key_t l_balance_key;
+    dap_ledger_wallet_balance_t *l_balance_item = NULL ,* l_balance_item_tmp = NULL;
+    dap_ledger_wallet_balance_key_t l_balance_key = {0};
     memcpy( &l_balance_key.addr, &a_addr, sizeof(a_addr));
-    memcpy( &l_balance_key.ticker, a_token_ticker, MAX(strlen(a_token_ticker),
-                                                     sizeof(l_balance_key.ticker)-1 ));
-    HASH_FIND(hh,PVT(a_ledger)->balance_accounts,&l_balance_key,sizeof(l_balance_key),l_balance_item);
+    snprintf( l_balance_key.ticker,sizeof (l_balance_key.ticker),"%s",a_token_ticker);
+    HASH_FIND(hh,PVT(a_ledger)->balance_accounts,&l_balance_key,sizeof(dap_ledger_wallet_balance_key_t),l_balance_item);
     if (l_balance_item) {
         log_it (L_DEBUG,"Found address in cache with balance %llu", l_balance_item->balance);
         l_ret = l_balance_item->balance;
     }else{
         char * l_addr_str = dap_chain_addr_to_str( a_addr);
-        log_it (L_WARNING,"Can't find address %s in cache", l_addr_str);
+        log_it (L_WARNING,"Can't find balance for address %s token \"%s\" in cache", l_addr_str,
+                a_token_ticker?a_token_ticker: "???");
         DAP_DELETE(l_addr_str);
+        log_it (L_DEBUG,"Total size of hashtable %u", HASH_COUNT( PVT(a_ledger)->balance_accounts ) );
+        HASH_ITER(hh,PVT(a_ledger)->balance_accounts,l_balance_item, l_balance_item_tmp ){
+            char * l_addr_str = dap_chain_addr_to_str( &l_balance_item->key.addr);
+            log_it (L_DEBUG,"\t\tAddr: %s token: %s", l_addr_str, l_balance_item->key.ticker  );
+            DAP_DELETE(l_addr_str);
+            if ( memcmp(&l_balance_item->key.addr, a_addr,sizeof(*a_addr) ) == 0 )
+                if ( strcmp (l_balance_item->key.ticker, a_token_ticker) ==0 ) {
+                    l_ret = l_balance_item->balance;
+                    break;
+                }
+        }
+
     }
     return l_ret;
 }

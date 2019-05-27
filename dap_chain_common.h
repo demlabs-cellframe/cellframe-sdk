@@ -183,7 +183,9 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 
-
+static inline long double dap_chain_balance_to_coins( uint64_t a_balance){
+    return (long double) a_balance / 1000000000000.0L;
+}
 
 /**
  * @brief dap_chain_hash_to_str
