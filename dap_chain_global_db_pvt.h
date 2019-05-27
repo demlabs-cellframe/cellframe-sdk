@@ -32,7 +32,7 @@ void dap_db_deinit(void);
 int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
 
-pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count);
+pdap_store_obj_t dap_db_read_data_ldb(const char *a_query, size_t *a_count);
 pdap_store_obj_t dap_db_read_file_data(const char *a_path, const char *a_group); // state of emergency only, if LDB database is inaccessible
 dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp, size_t a_store_obj_count);

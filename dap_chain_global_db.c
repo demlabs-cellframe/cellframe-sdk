@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <time.h>
+#include <assert.h>
 
 #include "uthash.h"
 
-#include "dap_hash.h"
 #include "dap_chain_common.h"
 #include "dap_strfuncs.h"
 //#include "dap_chain_global_db_pvt.h"
@@ -194,9 +194,13 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
  * @param a_group
  * @return
  */
-uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_out, const char *a_group)
+uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
-    uint8_t *l_ret_value = NULL;
+    dap_store_obj_t *l_store_data = dap_db_read_data(a_group, a_key);
+    return l_store_data;
+
+/*ldb
+ *     uint8_t *l_ret_value = NULL;
     size_t l_count = 0;
     if(!a_key)
         return NULL;
@@ -215,7 +219,7 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_out, cons
     }
     dab_db_free_pdap_store_obj_t(store_data, l_count);
     DAP_DELETE(l_query);
-    return l_ret_value;
+    return l_ret_value;*/
 }
 
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
@@ -230,6 +234,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
+    store_data->type = 'a';
     store_data->key = strdup(a_key );
     store_data->value = DAP_NEW_Z_SIZE(uint8_t,a_value_len);
 
@@ -522,18 +527,7 @@ bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count)
  */
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 {
-    if(!data || data_size <= 0)
-        return NULL;
-    dap_chain_hash_fast_t l_hash;
-    dap_hash_fast( data, data_size, &l_hash);
-    size_t a_str_max = (sizeof(l_hash.raw) + 1) * 2 + 2; /* heading 0x */
-    char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
-    size_t hash_len = dap_chain_hash_fast_to_str(&l_hash, a_str, a_str_max);
-    if(!hash_len) {
-        DAP_DELETE(a_str);
-        return NULL;
-    }
-    return a_str;
+    return dap_db_driver_db_hash(data,data_size);
 }
 
 /**

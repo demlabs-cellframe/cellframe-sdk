@@ -46,13 +46,32 @@ typedef struct dap_store_obj_pkt {
 	uint8_t data[];
 }__attribute__((packed)) dap_store_obj_pkt_t;
 
+typedef int (*dap_db_driver_write_callback_t)(dap_store_obj_t*);
+typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const char *);
+typedef int (*dap_db_driver_callback_t)(void);
+
+
+typedef struct dap_db_driver_callbacks {
+    dap_db_driver_write_callback_t apply_store_obj;
+    dap_db_driver_read_callback_t read_store_obj;
+    dap_db_driver_callback_t transaction_start;
+    dap_db_driver_callback_t transaction_end;
+    dap_db_driver_callback_t deinit;
+} dap_db_driver_callbacks_t;
+
+
 int dap_db_driver_init(const char *driver_name, const char *a_filename_db);
 void dap_db_driver_deinit(void);
 
+dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);
+void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count);
+
+char* dap_db_driver_db_hash(const uint8_t *data, size_t data_size);
+
 int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
+dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key);
 
-pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count);
 pdap_store_obj_t dap_db_read_file_data(const char *a_path, const char *a_group); // state of emergency only, if LDB database is inaccessible
 dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,

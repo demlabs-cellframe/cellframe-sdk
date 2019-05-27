@@ -174,7 +174,7 @@ static int compare_message_items(const void * l_a, const void * l_b)
  * (&(department=1234)(city=Paris)) Matches to all users that have exactly the value 1234 for the attribute department and exactly the value Paris for the attribute city .
  *
  */
-pdap_store_obj_t dap_db_read_data(const char *a_query, size_t *a_count)
+pdap_store_obj_t dap_db_read_data_ldb(const char *a_query, size_t *a_count)
 {
     struct ldb_result *data_message;
     /*
@@ -340,7 +340,7 @@ pdap_store_obj_t dap_db_read_file_data(const char *path, const char *group)
  * dap_store_size the count records
  * return 0 if Ok, <0 if errors
  */
-int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
+int dap_db_add_ldb(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     int l_ret = 0;
     if(a_store_obj == NULL) {
@@ -401,7 +401,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
  * dap_store_size the count records
  * return 0 if Ok, <0 if errors
  */
-int dap_db_delete(pdap_store_obj_t store_obj, size_t a_store_count)
+int dap_db_delete_ldb(pdap_store_obj_t store_obj, size_t a_store_count)
 {
     int ret = 0;
     if(store_obj == NULL) {
