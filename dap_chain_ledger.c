@@ -103,6 +103,15 @@ typedef struct dap_ledger_private {
 } dap_ledger_private_t;
 #define PVT(a) ( (dap_ledger_private_t* ) a->_internal )
 
+// in-memory wallet balance
+typedef struct dap_ledger_wallet_balance {
+    dap_chain_addr_t addr;
+    uint64_t balance;
+    UT_hash_handle hh;
+} dap_ledger_wallet_balance_t;
+
+static dap_ledger_wallet_balance_t *balance_accounts = NULL;
+
 static const dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
         const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash);
 
@@ -701,6 +710,58 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
                 dap_list_free(l_tist_tmp);
             }
         }
+
+        // update balance
+        int l_index_tmp = 0;
+        dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_item_tmp->n_outs);
+        for (dap_list_t *l_item = l_tist_tmp; l_item; l_item = dap_list_next(l_item), ++l_index_tmp) {
+            dap_chain_tx_out_t *l_out_item = l_item->data;
+            if(l_out_item && &l_out_item->addr) {
+                if(!dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &l_item_tmp->tx_hash_fast, l_index_tmp)) {
+                    dap_ledger_wallet_balance_t *wallet_balance = NULL;
+                    HASH_FIND(hh, balance_accounts, &l_out_item->addr, sizeof(wallet_balance->addr), wallet_balance);
+                    if (wallet_balance) {
+                        wallet_balance->balance += l_out_item->header.value;
+                        dap_ledger_wallet_balance_t *dummy = NULL;
+                        HASH_REPLACE(hh, balance_accounts, addr, sizeof(&l_out_item->addr), wallet_balance, dummy);
+                    } else {
+                        wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
+                        memcpy(&wallet_balance->addr, &l_out_item->addr, sizeof(l_out_item->addr));
+                        //wallet_balance->addr = l_out_item->addr;
+                        wallet_balance->balance = l_out_item->header.value;
+                        HASH_ADD(hh, balance_accounts, addr, sizeof(&l_out_item->addr), wallet_balance);
+                    }
+                    // TODO : put to local db for fast extraction
+                }
+            }
+        }
+
+        int l_prev_count = 0;
+        dap_list_t *l_list_tmp_in = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN, &l_prev_count);
+        for (dap_list_t *l_item = l_list_tmp_in; l_item; l_item = dap_list_next(l_item)) {
+            dap_chain_tx_in_t *l_in_item = l_item->data;
+            dap_chain_hash_fast_t tx_prev_hash = l_in_item->header.tx_prev_hash;
+            if (!dap_hash_fast_is_blank(&tx_prev_hash)) {
+                dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_in_item, TX_ITEM_TYPE_OUT, NULL);
+                dap_chain_tx_out_t *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_in_item->header.tx_out_prev_idx);
+                if (l_tx_prev_out) {
+                    //charge_off +=
+                    dap_ledger_wallet_balance_t *wallet_balance = NULL;
+                    HASH_FIND(hh, balance_accounts, &l_tx_prev_out->addr, sizeof(l_tx_prev_out->addr), wallet_balance);
+                    if (wallet_balance) {
+                        wallet_balance->balance -= l_tx_prev_out->header.value;
+                        dap_ledger_wallet_balance_t *dummy = NULL;
+                        HASH_REPLACE(hh, balance_accounts, addr, sizeof(&l_tx_prev_out->addr), wallet_balance, dummy);
+                    } else {
+                        // impossible
+                    }
+                    // TODO : put to local db
+                }
+            }
+        }
+        dap_list_free(l_list_tmp_in);
+
+        dap_list_free(l_tist_tmp);
         if ( l_token_ticker == NULL) { //No token ticker in previous txs
             int l_tokens_count = 0;
             dap_list_t *l_tokens_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TOKEN, &l_tokens_count );
@@ -831,6 +892,15 @@ uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_a
     uint64_t balance = 0;
     if(!a_addr || !dap_chain_addr_check_sum(a_addr))
         return 0;
+    /* proto
+     *
+    dap_ledger_wallet_balance_t *wallet_balance = NULL;
+    HASH_FIND(hh, balance_accounts, a_addr, sizeof(*a_addr), wallet_balance);
+    if (wallet_balance) {
+        balance = wallet_balance->balance;
+    }
+
+    */
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     dap_chain_ledger_tx_item_t *l_iter_current, *l_item_tmp;
     pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
