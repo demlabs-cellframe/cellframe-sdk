@@ -102,7 +102,10 @@ typedef struct dap_ledger_wallet_balance {
 // dap_ledget_t private section
 typedef struct dap_ledger_private {
     // List of ledger - unspent transactions cache
+    dap_chain_ledger_tx_item_t *treshold;
+
     dap_chain_ledger_tx_item_t *ledger_items;
+
     dap_chain_ledger_token_item_t *tokens;
 
     dap_ledger_wallet_balance_t *balance_accounts;
@@ -641,8 +644,14 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     int ret = 1;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     dap_list_t *l_list_bound_items = NULL;
-    if(dap_chain_ledger_tx_cache_check(a_ledger, a_tx, &l_list_bound_items) < 0)
+    log_it (L_DEBUG, "dap_chain_ledger_tx_add() ");
+
+    int l_ret_check;
+    if( (l_ret_check = dap_chain_ledger_tx_cache_check(a_ledger, a_tx, &l_list_bound_items)) < 0){
+        log_it (L_WARNING, "dap_chain_ledger_tx_add() tx not passed the check: code %d ",l_ret_check);
         return -1;
+    }
+    log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed");
     dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
 
     // Mark 'out' items in cache if they were used & delete previous transactions from cache if it need
