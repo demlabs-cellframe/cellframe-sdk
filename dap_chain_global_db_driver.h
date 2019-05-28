@@ -47,9 +47,8 @@ typedef struct dap_store_obj_pkt {
 }__attribute__((packed)) dap_store_obj_pkt_t;
 
 typedef int (*dap_db_driver_write_callback_t)(dap_store_obj_t*);
-typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const char *);
+typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const char *, size_t *);
 typedef int (*dap_db_driver_callback_t)(void);
-
 
 typedef struct dap_db_driver_callbacks {
     dap_db_driver_write_callback_t apply_store_obj;
@@ -70,7 +69,7 @@ char* dap_db_driver_db_hash(const uint8_t *data, size_t data_size);
 
 int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
-dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key);
+dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key, size_t *count_out);
 
 pdap_store_obj_t dap_db_read_file_data(const char *a_path, const char *a_group); // state of emergency only, if LDB database is inaccessible
 dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);

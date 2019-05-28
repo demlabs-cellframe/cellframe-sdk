@@ -173,7 +173,10 @@ void dap_chain_global_db_deinit(void)
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
-    size_t count = 0;
+    dap_store_obj_t *l_store_data = dap_db_read_data(a_group, a_key, NULL);
+    return l_store_data;
+
+/*    size_t count = 0;
     if(!a_key)
         return NULL;
     size_t query_len = (size_t) snprintf(NULL, 0, "(&(cn=%s)(objectClass=%s))", a_key, a_group);
@@ -184,7 +187,7 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
     unlock();
     assert(count <= 1);
     DAP_DELETE(query);
-    return store_data;
+    return store_data;*/
 }
 
 /**
@@ -196,8 +199,15 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
-    dap_store_obj_t *l_store_data = dap_db_read_data(a_group, a_key);
-    return l_store_data;
+    uint8_t *l_ret_value = NULL;
+    dap_store_obj_t *l_store_data = dap_db_read_data(a_group, a_key, a_data_len_out);
+    if(l_store_data) {
+        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
+        memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
+        if(a_data_len_out)
+            *a_data_len_out = l_store_data->value_len;
+    }
+    return l_ret_value;
 
 /*ldb
  *     uint8_t *l_ret_value = NULL;
@@ -332,7 +342,7 @@ dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a
     size_t count = 0;
     // Read data
     lock();
-    pdap_store_obj_t store_obj = dap_db_read_data(l_query, &count);
+    pdap_store_obj_t store_obj = dap_db_read_data(a_group, NULL, &count);
     unlock();
     DAP_DELETE(l_query);
     // Serialization data
@@ -389,7 +399,7 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
             size_t l_count = 0;
             char *l_query = dap_strdup_printf("(&(cn=%s)(objectClass=%s))", l_obj->key, l_obj->group);
             lock();
-            dap_store_obj_t *l_read_store_data = dap_db_read_data(l_query, &l_count);
+            dap_store_obj_t *l_read_store_data = dap_db_read_data(l_query,NULL, &l_count);
             unlock();
             // whether to add a record
             if(l_obj->type == 'a' && l_read_store_data) {

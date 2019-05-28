@@ -62,6 +62,8 @@ typedef struct _SQLITE_ROW_VALUE_
     SQLITE_VALUE *val; // array of field values
 } SQLITE_ROW_VALUE;
 
+static int dap_db_driver_sqlite_exec(sqlite3 *l_db, const char *l_query, char **l_error_message);
+
 /**
  * SQLite library initialization, no thread safe
  *
@@ -83,6 +85,16 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
         dap_db_driver_sqlite_free(l_error_message);
     }
     else {
+        if(!dap_db_driver_sqlite_set_pragma(s_db, "synchronous", "NORMAL")) // 0 | OFF | 1 | NORMAL | 2 | FULL
+            printf("can't set new synchronous mode\n");
+        if(!dap_db_driver_sqlite_set_pragma(s_db, "journal_mode", "OFF")) // DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
+            printf("can't set new journal mode\n");
+
+        if(!dap_db_driver_sqlite_set_pragma(s_db, "page_size", "1024")) // DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
+                    printf("can't set page_size\n");
+  //      *PRAGMA page_size = bytes; // page size DB; it is reasonable to make it equal to the size of the disk cluster 4096
+    //     *PRAGMA cache_size = -kibibytes; // by default it is equal to 2000 pages of database
+//
         a_drv_callback->apply_store_obj = dap_db_driver_sqlite_apply_store_obj;
         a_drv_callback->read_store_obj = dap_db_driver_sqlite_read_store_obj;
         a_drv_callback->transaction_start = dap_db_driver_sqlite_start_transaction;
@@ -160,6 +172,32 @@ void dap_db_driver_sqlite_free(char *memory)
 {
     if(memory)
         sqlite3_free(memory);
+}
+
+/**
+ * Set specific pragma statements
+ * www.sqlite.org/pragma.html
+ *
+ *PRAGMA page_size = bytes; // page size DB; it is reasonable to make it equal to the size of the disk cluster 4096
+ *PRAGMA cache_size = -kibibytes; // by default it is equal to 2000 pages of database
+ *PRAGMA encoding = "UTF-8";  // default = UTF-8
+ *PRAGMA foreign_keys = 1; // default = 0
+ *PRAGMA journal_mode = DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF;
+ *PRAGMA synchronous = 0 | OFF | 1 | NORMAL | 2 | FULL;
+ */
+bool dap_db_driver_sqlite_set_pragma(sqlite3 *a_db, char *a_param, char *a_mode)
+{
+    if(!a_param || !a_mode)
+            {
+        printf("[sqlite_set_pragma] err!!! no param or mode\n");
+        return false;
+    }
+    char *l_str_query = sqlite3_mprintf("PRAGMA %s = %s", a_param, a_mode);
+    int l_rc = dap_db_driver_sqlite_exec(a_db, l_str_query, NULL); // default synchronous=FULL
+    sqlite3_free(l_str_query);
+    if(l_rc == SQLITE_OK)
+        return true;
+    return false;
 }
 
 /**
@@ -431,7 +469,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         log_it(L_ERROR, "Unknown store_obj type '0x%x'", a_store_obj->type);
         return -1;
     }
-    int l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
+    int l_ret = dap_db_driver_sqlite_exec(s_db, l_query, NULL);
     // missing database
     if(l_ret == SQLITE_ERROR) {
         // create table
@@ -440,7 +478,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     }
     dap_db_driver_sqlite_free(l_query);
     // entry with the same hash is already present
-    if(l_ret == SQLITE_CONSTRAINT){
+    if(l_ret == SQLITE_CONSTRAINT) {
         log_it(L_INFO, "Entry with the same hash is already present, %s", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
         return 0;
@@ -456,14 +494,17 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
 
 /**
  * Read data
+ * a_key may be NULL
  */
 dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const char *a_key)
 {
     dap_store_obj_t *l_obj = NULL;
     char *l_error_message = NULL;
     sqlite3_stmt *l_res;
+    if(!a_group || !a_key)
+        return NULL;
     char *l_str_query = sqlite3_mprintf("SELECT ts,value FROM '%s' WHERE key='%s' LIMIT 1", a_group, a_key);
-    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message); // default synchronous=FULL
+    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
     sqlite3_free(l_str_query);
     if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));

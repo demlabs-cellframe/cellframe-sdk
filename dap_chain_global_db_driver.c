@@ -46,11 +46,18 @@ static int save_write_buf(void);
 pthread_mutex_t s_mutex_add_start = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t s_mutex_add_end = PTHREAD_MUTEX_INITIALIZER;
 //pthread_rwlock_rdlock
+// new data in buffer to write
+pthread_mutex_t s_mutex_cond = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t s_cond_add_end; // = PTHREAD_COND_INITIALIZER;
+// writing ended
+pthread_mutex_t s_mutex_write_end = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t s_cond_write_end; // = PTHREAD_COND_INITIALIZER;
+
 dap_list_t *s_list_begin = NULL;
 dap_list_t *s_list_end = NULL;
 
 pthread_t s_write_buf_thread;
+volatile static bool s_write_buf_state = 0;
 static void* func_write_buf(void * arg);
 
 static dap_db_driver_callbacks_t s_drv_callback;
@@ -77,7 +84,9 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
         pthread_condattr_init(&l_condattr);
         pthread_condattr_setclock(&l_condattr, CLOCK_MONOTONIC);
         pthread_cond_init(&s_cond_add_end, &l_condattr);
+        pthread_cond_init(&s_cond_write_end, &l_condattr);
         // thread for save buffer to database
+        s_write_buf_state = true;
         pthread_create(&s_write_buf_thread, NULL, func_write_buf, NULL);
     }
     return l_ret;
@@ -89,7 +98,17 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 
 void dap_db_driver_deinit(void)
 {
-    save_write_buf();
+    // wait for close thread
+    {
+        pthread_mutex_lock(&s_mutex_cond);
+        pthread_cond_broadcast(&s_cond_add_end);
+        pthread_mutex_unlock(&s_mutex_cond);
+
+        s_write_buf_state = false;
+        pthread_join(s_write_buf_thread, NULL);
+    }
+
+    //save_write_buf();
     pthread_mutex_lock(&s_mutex_add_end);
     pthread_mutex_lock(&s_mutex_add_start);
     while(s_list_begin != s_list_end) {
@@ -103,8 +122,11 @@ void dap_db_driver_deinit(void)
     s_list_begin = s_list_end = NULL;
     pthread_mutex_unlock(&s_mutex_add_start);
     pthread_mutex_unlock(&s_mutex_add_end);
+    // deinit driver
     if(s_drv_callback.deinit)
         s_drv_callback.deinit();
+
+    pthread_cond_destroy(&s_cond_add_end);
 
 }
 
@@ -163,13 +185,13 @@ char* dap_db_driver_db_hash(const uint8_t *data, size_t data_size)
  * Wait data to write buffer
  * return 0 - Ok, 1 - timeout
  */
-static int wait_data(int l_timeout_ms)
+static int wait_data(pthread_mutex_t *a_mutex, pthread_cond_t *a_cond, int l_timeout_ms)
 {
     int l_res = 0;
-    pthread_mutex_lock(&s_mutex_add_end);
+    pthread_mutex_lock(a_mutex);
     // endless waiting
     if(l_timeout_ms == -1)
-        l_res = pthread_cond_wait(&s_cond_add_end, &s_mutex_add_end);
+        l_res = pthread_cond_wait(a_cond, a_mutex);
     // waiting no more than timeout in milliseconds
     else {
         struct timespec l_to;
@@ -182,21 +204,55 @@ static int wait_data(int l_timeout_ms)
         }
         else
             l_to.tv_nsec = (long) l_nsec_new;
-        l_res = pthread_cond_timedwait(&s_cond_add_end, &s_mutex_add_end, &l_to);
+        l_res = pthread_cond_timedwait(a_cond, a_mutex, &l_to);
     }
-    pthread_mutex_unlock(&s_mutex_add_end);
+    pthread_mutex_unlock(a_mutex);
     if(l_res == ETIMEDOUT)
         return 1;
     return l_res;
 }
 
+// return 0 if buffer empty, 1 data present
+static bool check_fill_buf(void)
+{
+    dap_list_t *l_list_begin;
+    dap_list_t *l_list_end;
+    pthread_mutex_lock(&s_mutex_add_start);
+    pthread_mutex_lock(&s_mutex_add_end);
+    l_list_end = s_list_end;
+    l_list_begin = s_list_begin;
+    pthread_mutex_unlock(&s_mutex_add_end);
+    pthread_mutex_unlock(&s_mutex_add_start);
+
+    bool l_ret = (l_list_begin != l_list_end) ? 1 : 0;
+//    if(l_ret)
+//        printf("** Wait s_beg=0x%x s_end=0x%x \n", l_list_begin, l_list_end);
+    return l_ret;
+}
+
+// wait apply write buffer
+static void wait_write_buf()
+{
+//    printf("** Start wait data\n");
+    // wait data
+    while(1) {
+        if(!check_fill_buf())
+            break;
+        if(!wait_data(&s_mutex_write_end, &s_cond_write_end, 50))
+            break;
+    }
+//    printf("** End wait data\n");
+}
+
+// save data from buffer to database
 static int save_write_buf(void)
 {
     dap_list_t *l_list_end;
+    // fix end of buffer
     pthread_mutex_lock(&s_mutex_add_end);
     l_list_end = s_list_end;
     pthread_mutex_unlock(&s_mutex_add_end);
-
+    // save data from begin to fixed end
     pthread_mutex_lock(&s_mutex_add_start);
     if(s_list_begin != l_list_end) {
         if(s_drv_callback.transaction_start)
@@ -216,30 +272,43 @@ static int save_write_buf(void)
             }
 
             s_list_begin = dap_list_next(s_list_begin);
+//            printf("** ap2*record *l_beg=0x%x l_nex=0x%x d_beg=0x%x l_end=0x%x d_end=0x%x sl_end=0x%x\n", s_list_begin,
+            //                  s_list_begin->next, s_list_begin->data, l_list_end, l_list_end->data, s_list_end);
+
+            //printf("** free data=0x%x list=0x%x\n", s_list_begin->prev->data, s_list_begin->prev);
             // free memory
             dap_store_obj_free((dap_store_obj_t*) s_list_begin->prev->data, 1);
             dap_list_free1(s_list_begin->prev);
             s_list_begin->prev = NULL;
             cnt++;
-
         }
         if(s_drv_callback.transaction_end)
             s_drv_callback.transaction_end();
+        printf("** writing ended cnt=%d\n", cnt);
+        // writing ended
+        pthread_mutex_lock(&s_mutex_write_end);
+        pthread_cond_broadcast(&s_cond_write_end);
+        pthread_mutex_unlock(&s_mutex_write_end);
     }
     pthread_mutex_unlock(&s_mutex_add_start);
-    // wait data
-    //wait_data
-
+    return 0;
 }
 
+// thread for save data from buffer to database
 static void* func_write_buf(void * arg)
 {
     while(1) {
+        if(!s_write_buf_state)
+            break;
         //save_write_buf
-        if(save_write_buf() == 0)
+        if(save_write_buf() == 0) {
+            if(!s_write_buf_state)
+                break;
             // wait data
-            wait_data(2000); // 2 sec
+            wait_data(&s_mutex_cond, &s_cond_add_end, 2000); // 2 sec
+        }
     }
+    pthread_exit(0);
 }
 
 int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
@@ -247,6 +316,7 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
     //dap_store_obj_t *l_store_obj = dap_store_obj_copy(a_store_obj, a_store_count);
     if(!a_store_obj || !a_store_count)
         return -1;
+    a_store_obj->type = 'a';
     // add all records into write buffer
     pthread_mutex_lock(&s_mutex_add_end);
     for(size_t i = 0; i < a_store_count; i++) {
@@ -257,27 +327,36 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
             pthread_mutex_lock(&s_mutex_add_start);
             s_list_begin = s_list_end;
             pthread_mutex_unlock(&s_mutex_add_start);
+            //printf("*!!add record=0x%x / 0x%x    obj=0x%x / 0x%x\n", s_list_end, s_list_end->data, s_list_end->prev);
         }
         else
             s_list_end->data = l_store_obj_cur;
-        s_list_end = dap_list_append(s_list_end, NULL);
+        dap_list_append(s_list_end, NULL);
         s_list_end = dap_list_last(s_list_end);
+        //printf("**+add record l_cur=0x%x / 0x%x l_new=0x%x / 0x%x\n", s_list_end->prev, s_list_end->prev->data,s_list_end, s_list_end->data);
     }
     // buffer changed
+    pthread_mutex_lock(&s_mutex_cond);
     pthread_cond_broadcast(&s_cond_add_end);
+    pthread_mutex_unlock(&s_mutex_cond);
+
     pthread_mutex_unlock(&s_mutex_add_end);
+    return 0;
 }
 
 int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
-    dap_db_add(a_store_obj, a_store_count);
+    a_store_obj->type = 'd';
+    return dap_db_add(a_store_obj, a_store_count);
 }
 
-dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key)
+dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key, size_t *count_out)
 {
-    // apply write buffer
-    save_write_buf();
+    dap_store_obj_t *l_ret = NULL;
+    // wait apply write buffer
+    wait_write_buf();
     // read record
     if(s_drv_callback.read_store_obj)
-        s_drv_callback.read_store_obj(a_group, a_key);
+        l_ret = s_drv_callback.read_store_obj(a_group, a_key, count_out);
+    return l_ret;
 }
