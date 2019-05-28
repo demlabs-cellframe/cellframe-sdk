@@ -220,7 +220,7 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
         }
     }
     // sort list by key (time str)
-    //dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
+    dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
     log_it(L_DEBUG,"Prepared %u items (list size %u)", l_list_count, dap_list_length(l_list));
     /*/ dbg - sort result
      l_data_size_out = dap_list_length(l_list);
