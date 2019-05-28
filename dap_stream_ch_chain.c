@@ -51,6 +51,9 @@ static void s_stream_ch_new(dap_stream_ch_t* a_ch , void* a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg);
+
+
+
 /**
  * @brief dap_stream_ch_chain_init
  * @return
@@ -245,8 +248,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                         // deserialize data
                         dap_store_obj_t *l_store_obj = dap_db_log_unpack((uint8_t*) l_chain_pkt->data, l_chain_pkt_data_size, &l_data_obj_count); // Parse data from dap_db_log_pack()
-                        if ( dap_log_level_get()== L_DEBUG  )
-                            for ( size_t i =0 ; i < l_data_obj_count; i++) {
+                        //dap_store_obj_t * l_store_obj_reversed = NULL;
+                        //if ( dap_log_level_get()== L_DEBUG  )
+                        //if ( l_data_obj_count && l_store_obj )
+                        //   l_store_obj_reversed = DAP_NEW_Z_SIZE(dap_store_obj_t,l_data_obj_count+1);
+                        // Reverse order
+                        for ( size_t i =0 ; i < l_data_obj_count; i++) {
                                 char l_ts_str[50];
                                 dap_time_to_str_rfc822(l_ts_str,sizeof(l_ts_str),l_store_obj[i].timestamp);
                                 log_it(L_DEBUG,"Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
@@ -254,11 +261,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                        (char) l_store_obj[i].type   , l_store_obj[i].type, l_store_obj[i].group, l_store_obj[i].key,
                                        l_store_obj[i].section , l_ts_str,
                                        l_store_obj[i].value_len);
-                            }
 
+                                //memcpy(l_store_obj_reversed+l_data_obj_count-i-1, l_store_obj+i,sizeof(*l_store_obj) );
+
+                            }
                         // save data to global_db
                         if(!dap_chain_global_db_obj_save(l_store_obj, l_data_obj_count)) {
-                            log_it(L_ERROR, "Don't saved to global_db objs=0x%x count=%d", l_store_obj,
+                            log_it(L_ERROR, "Not saved to global_db objs=0x%x count=%d", l_store_obj,
                                     l_data_obj_count);
                             dap_stream_ch_chain_pkt_write_error(a_ch,l_chain_pkt->hdr.net_id,
                                                                 l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
@@ -273,6 +282,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                             }
                             log_it(L_DEBUG,"Added new GLOBAL_DB history pack");
                         }
+                        //if (l_store_obj)
+                        //    DAP_DELETE(l_store_obj);
+                        //if (l_store_obj_reversed)
+                        //    DAP_DELETE(l_store_obj_reversed);
+
+                    }else{
+                        log_it(L_WARNING,"Packet with GLOBAL_DB atom has zero body size");
                     }
                 }break;
                 default: log_it(L_INFO, "Get %s packet", c_dap_stream_ch_chain_pkt_type_str[l_ch_pkt->hdr.type ]);
@@ -315,19 +331,22 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
         case CHAIN_STATE_SYNC_GLOBAL_DB:{
             // Get log diff
             size_t l_data_size_out = 0;
-            dap_list_t *l_list = l_ch_chain->request_global_db_trs;
+            dap_list_t *l_list = dap_list_last(l_ch_chain->request_global_db_trs);
             //printf("*len=%d\n", len);
             if(l_list) {
                 size_t len = dap_list_length(l_list);
                 size_t   l_item_size_out = 0;
-                uint8_t *l_item = NULL;
-                while(l_list && !l_item) {
-                    l_item = dap_db_log_pack((dap_global_db_obj_t *) l_list->data, &l_item_size_out);
-                    if(!l_item) {
-                        // remove current item from list
-                        dap_chain_global_db_obj_delete((dap_global_db_obj_t *) l_list->data);
-                        l_list = dap_list_delete_link(l_list, l_list);
-                    }
+                uint8_t * l_item = dap_db_log_pack((dap_global_db_obj_t *) l_list->data, &l_item_size_out);
+                if(!l_item) {
+                    log_it(L_WARNING,"Log pack returned NULL???");
+                    // remove current item from list
+                    dap_chain_global_db_obj_delete((dap_global_db_obj_t *) l_list->data);
+                    l_list = l_list->prev;
+                    if (l_list){
+                        dap_list_free(l_list->next);
+                        l_list->next = NULL;
+                    }else
+                        l_ch_chain->request_global_db_trs = NULL;
                 }
                 dap_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
                                               l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
@@ -336,10 +355,13 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
                 // remove current item from list
                 if (l_list ){
                     dap_chain_global_db_obj_delete((dap_global_db_obj_t *) l_list->data);
-
-                    l_list = dap_list_delete_link(l_list, l_list);
+                    l_list = l_list->prev;
+                    if (l_list){
+                        dap_list_free(l_list->next);
+                        l_list->next = NULL;
+                    }else
+                        l_ch_chain->request_global_db_trs = NULL;
                 }
-                l_ch_chain->request_global_db_trs = l_list;
 
             }else{
                 if ( l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB){
