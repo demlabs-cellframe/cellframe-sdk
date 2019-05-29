@@ -160,12 +160,126 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
     DAP_DELETE(a_store_obj);
 }
 
+static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
+{
+    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(size_t) + sizeof(time_t) + dap_strlen(store_obj->group) +
+            dap_strlen(store_obj->key) + store_obj->value_len;
+    return size;
+}
+
+/**
+ * serialization
+ * @param a_store_obj_count count of structures store_obj
+ * @param a_timestamp create data time
+ * @param a_size_out[out] size of output structure
+ * @return NULL in case of an error
+ */
+dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp, size_t a_store_obj_count)
+{
+    if(!a_store_obj || a_store_obj_count < 1)
+        return NULL;
+    size_t l_data_size_out = sizeof(uint32_t); // size of output data
+    // calculate output structure size
+    for(size_t l_q = 0; l_q < a_store_obj_count; ++l_q)
+        l_data_size_out += dap_db_get_size_pdap_store_obj_t(&a_store_obj[l_q]);
+
+    dap_store_obj_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t) + l_data_size_out);
+    l_pkt->data_size = l_data_size_out;
+    l_pkt->timestamp = a_timestamp;
+    uint64_t l_offset = 0;
+    uint32_t l_count = (uint32_t) a_store_obj_count;
+    memcpy(l_pkt->data + l_offset, &l_count, sizeof(uint32_t));
+    l_offset += sizeof(uint32_t);
+    for( size_t l_q = 0; l_q < a_store_obj_count; ++l_q) {
+        dap_store_obj_t obj = a_store_obj[l_q];
+        //uint16_t section_size = (uint16_t) dap_strlen(obj.section);
+        uint16_t group_size = (uint16_t) dap_strlen(obj.group);
+        uint16_t key_size = (uint16_t) dap_strlen(obj.key);
+        memcpy(l_pkt->data + l_offset, &obj.type, sizeof(int));
+        l_offset += sizeof(int);
+        //memcpy(l_pkt->data + l_offset, &section_size, sizeof(uint16_t));
+        //l_offset += sizeof(uint16_t);
+        //memcpy(l_pkt->data + l_offset, obj.section, section_size);
+        //l_offset += section_size;
+        memcpy(l_pkt->data + l_offset, &group_size, sizeof(uint16_t));
+        l_offset += sizeof(uint16_t);
+        memcpy(l_pkt->data + l_offset, obj.group, group_size);
+        l_offset += group_size;
+        memcpy(l_pkt->data + l_offset, &obj.timestamp, sizeof(time_t));
+        l_offset += sizeof(time_t);
+        memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
+        l_offset += sizeof(uint16_t);
+        memcpy(l_pkt->data + l_offset, obj.key, key_size);
+        l_offset += key_size;
+        memcpy(l_pkt->data + l_offset, &obj.value_len, sizeof(size_t));
+        l_offset += sizeof(size_t);
+        memcpy(l_pkt->data + l_offset, obj.value, obj.value_len);
+        l_offset += obj.value_len;
+    }
+    assert(l_data_size_out == l_offset);
+    return l_pkt;
+}
+/**
+ * deserialization
+ * @param store_obj_count[out] count of the output structures store_obj
+ * @return NULL in case of an error*
+ */
+
+dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, size_t *store_obj_count)
+{
+    if(!pkt || pkt->data_size < 1)
+        return NULL;
+    uint64_t offset = 0;
+    uint32_t count;
+    memcpy(&count, pkt->data, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+    dap_store_obj_t *store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, count * sizeof(struct dap_store_obj));
+    for(size_t q = 0; q < count; ++q) {
+        dap_store_obj_t *obj = store_obj + q;
+        uint16_t str_size;
+        memcpy(&obj->type, pkt->data + offset, sizeof(int));
+        offset += sizeof(int);
+
+        //memcpy(&str_size, pkt->data + offset, sizeof(uint16_t));
+        //offset += sizeof(uint16_t);
+        //obj->section = DAP_NEW_Z_SIZE(char, str_size + 1);
+        //memcpy(obj->section, pkt->data + offset, str_size);
+        //offset += str_size;
+
+        memcpy(&str_size, pkt->data + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+        obj->group = DAP_NEW_Z_SIZE(char, str_size + 1);
+        memcpy(obj->group, pkt->data + offset, str_size);
+        offset += str_size;
+
+        memcpy(&obj->timestamp, pkt->data + offset, sizeof(time_t));
+        offset += sizeof(time_t);
+
+        memcpy(&str_size, pkt->data + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+        obj->key = DAP_NEW_Z_SIZE(char, str_size + 1);
+        memcpy(obj->key, pkt->data + offset, str_size);
+        offset += str_size;
+
+        memcpy(&obj->value_len, pkt->data + offset, sizeof(size_t));
+        offset += sizeof(size_t);
+
+        obj->value = DAP_NEW_Z_SIZE(uint8_t, obj->value_len + 1);
+        memcpy(obj->value, pkt->data + offset, obj->value_len);
+        offset += obj->value_len;
+    }
+    assert(pkt->data_size == offset);
+    if(store_obj_count)
+        *store_obj_count = count;
+    return store_obj;
+}
+
 /**
  * Calc hash for data
  *
  * return hash or NULL
  */
-char* dap_db_driver_db_hash(const uint8_t *data, size_t data_size)
+char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
 {
     if(!data || data_size <= 0)
         return NULL;
@@ -311,7 +425,7 @@ static void* func_write_buf(void * arg)
     pthread_exit(0);
 }
 
-int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
+int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     //dap_store_obj_t *l_store_obj = dap_store_obj_copy(a_store_obj, a_store_count);
     if(!a_store_obj || !a_store_count)
@@ -344,19 +458,33 @@ int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
     return 0;
 }
 
-int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count)
+int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     a_store_obj->type = 'd';
-    return dap_db_add(a_store_obj, a_store_count);
+    return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
 }
 
-dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key, size_t *count_out)
+int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count)
+{
+    a_store_obj->type = 'd';
+    return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
+}
+
+/**
+ * Read several items
+ *
+ * a_group - group name
+ * a_key - key name, may by NULL, it means reading the whole group
+ * a_count_out[in], how many items to read, 0 - no limits
+ * a_count_out[out], how many items was read
+ */
+dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *a_count_out)
 {
     dap_store_obj_t *l_ret = NULL;
     // wait apply write buffer
     wait_write_buf();
-    // read record
+    // read records using the selected database engine
     if(s_drv_callback.read_store_obj)
-        l_ret = s_drv_callback.read_store_obj(a_group, a_key, count_out);
+        l_ret = s_drv_callback.read_store_obj(a_group, a_key, a_count_out);
     return l_ret;
 }

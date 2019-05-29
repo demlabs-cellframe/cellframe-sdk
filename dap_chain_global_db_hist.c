@@ -82,7 +82,7 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
             l_obj->key = dap_strdup(l_keys[i]);
         }
         if (l_obj == NULL){
-            dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
+            dap_store_obj_free(l_store_obj, l_count);
             dap_strfreev(l_keys);
             return NULL;
         }
@@ -96,7 +96,7 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
     // serialize data
     dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
 
-    dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
+    dap_store_obj_free(l_store_obj, l_count);
     dap_strfreev(l_keys);
 
     if(l_data_out && a_data_size_out) {
@@ -148,8 +148,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     l_store_data.value_len = l_str_len+1;
     l_store_data.group = GROUP_LOCAL_HISTORY;
     l_store_data.timestamp = time(NULL);
-    int l_res = dap_db_add(&l_store_data, 1);
-    //printf("!!!\n!!!HISTORY store save l_res=%d ts=%lld text=%s\n!!!\n",l_res,l_store_data.timestamp,l_str);
+    int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
     DAP_DELETE(l_str);

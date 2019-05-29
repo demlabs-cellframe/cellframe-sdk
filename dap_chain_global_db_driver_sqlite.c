@@ -91,9 +91,9 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
             printf("can't set new journal mode\n");
 
         if(!dap_db_driver_sqlite_set_pragma(s_db, "page_size", "1024")) // DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
-                    printf("can't set page_size\n");
-  //      *PRAGMA page_size = bytes; // page size DB; it is reasonable to make it equal to the size of the disk cluster 4096
-    //     *PRAGMA cache_size = -kibibytes; // by default it is equal to 2000 pages of database
+            printf("can't set page_size\n");
+        //      *PRAGMA page_size = bytes; // page size DB; it is reasonable to make it equal to the size of the disk cluster 4096
+        //     *PRAGMA cache_size = -kibibytes; // by default it is equal to 2000 pages of database
 //
         a_drv_callback->apply_store_obj = dap_db_driver_sqlite_apply_store_obj;
         a_drv_callback->read_store_obj = dap_db_driver_sqlite_read_store_obj;
@@ -268,16 +268,10 @@ static int dap_db_driver_sqlite_create_group_table(const char *a_table_name)
  * SELECT * FROM data WHERE hex(sd) LIKE '%370%'
  * hex(x'0806') -> '08f6' или quote(sd) -> X'08f6'
  * substr(x'031407301210361320690000',3,2) -> x'0730'
- * преобразование типов:
+ *
  * CAST(substr(sd,5,2) as TEXT)
  * additional function of line to number _uint8
  * byte_to_bin(x'ff') -> 255
- * логические операции:
- // [out] res - идентификатор запроса, память нужно будет удалять через dap_db_driver_sqlite_query_free()
- // "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
- // [out] error_message - сюда будет записано текстовое сообщение об ошибке (память требует удаления через sqlite_free())
- // return: возвращает код ошибки SQL (если не равно SQLITE_OK(0) то ошибка)
- * return 0 if Ok, else error code >0
  */
 static int dap_db_driver_sqlite_query(sqlite3 *db, char *query, sqlite3_stmt **l_res, char **l_error_message)
 {
@@ -493,17 +487,40 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
 }
 
 /**
- * Read data
- * a_key may be NULL
+ * Read several items
+ *
+ * a_group - group name
+ * a_key - key name, may by NULL, it means reading the whole group
+ * a_count_out[in], how many items to read, 0 - no limits
+ * a_count_out[out], how many items was read
  */
-dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const char *a_key)
+dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
     dap_store_obj_t *l_obj = NULL;
     char *l_error_message = NULL;
     sqlite3_stmt *l_res;
-    if(!a_group || !a_key)
+    if(!a_group)
         return NULL;
-    char *l_str_query = sqlite3_mprintf("SELECT ts,value FROM '%s' WHERE key='%s' LIMIT 1", a_group, a_key);
+    // no limit
+    int l_count_out = 0;
+    if(a_count_out)
+        l_count_out = *a_count_out;
+    char *l_str_query;
+    if(a_key) {
+        if(l_count_out)
+            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' WHERE key='%s' LIMIT %d ORDER BY id ASC",
+                    a_group, a_key, l_count_out);
+        else
+            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC", a_group,
+                    a_key);
+    }
+    else {
+        if(l_count_out)
+            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' LIMIT %d ORDER BY id ASC",
+                    a_group, a_key, l_count_out);
+        else
+            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' ORDER BY id ASC", a_group, a_key);
+    }
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
     sqlite3_free(l_str_query);
     if(l_ret != SQLITE_OK) {
@@ -511,7 +528,11 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
         dap_db_driver_sqlite_free(l_error_message);
         return NULL;
     }
+
+    //int b = qlite3_column_count(s_db);
     SQLITE_ROW_VALUE *l_row = NULL;
+    l_count_out = 0;
+    int l_count_sized = 0;
     do {
         l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
         if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)
@@ -519,31 +540,45 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
             log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         }
         if(l_ret == SQLITE_ROW && l_row) {
-            l_obj = DAP_NEW_Z(dap_store_obj_t);
-            l_obj->group = dap_strdup(a_group);
-            l_obj->key = dap_strdup(a_key);
+            if(l_count_out >= l_count_sized) {
+                l_count_sized += 10;
+                l_obj = DAP_REALLOC(l_obj, sizeof(dap_store_obj_t) * l_count_sized);
+                memset(l_obj + l_count_out, 0, sizeof(dap_store_obj_t) * (l_count_sized - l_count_out));
+            }
+            dap_store_obj_t *l_obj_cur = l_obj + l_count_out;
+
+            l_obj_cur->group = dap_strdup(a_group);
+            l_obj_cur->key = dap_strdup(a_key);
 
             for(int l_iCol = 0; l_iCol < l_row->count; l_iCol++) {
                 SQLITE_VALUE *cur_val = l_row->val + l_iCol;
                 switch (l_iCol) {
                 case 0:
                     if(cur_val->type == SQLITE_INTEGER)
-                        l_obj->timestamp = cur_val->val.val_int64;
-                    break; // id
+                        l_obj_cur->timestamp = cur_val->val.val_int64;
+                    break; // ts
                 case 1:
+                    if(cur_val->type == SQLITE_TEXT)
+                        l_obj_cur->key = dap_strdup(cur_val->val.val_str);
+                    break; // key
+                case 2:
                     if(cur_val->type == SQLITE_BLOB)
                     {
-                        l_obj->value_len = (size_t) cur_val->len;
-                        l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
-                        memcpy(l_obj->value, cur_val->val.val_blob, l_obj->value_len);
+                        l_obj_cur->value_len = (size_t) cur_val->len;
+                        l_obj_cur->value = DAP_NEW_SIZE(uint8_t, l_obj_cur->value_len);
+                        memcpy(l_obj_cur->value, cur_val->val.val_blob, l_obj_cur->value_len);
                     }
+                    break;// value
                 }
             }
+            l_count_out++;
         }
         dap_db_driver_sqlite_row_free(l_row);
     } while(l_row);
 
     dap_db_driver_sqlite_query_free(l_res);
 
+    if(a_count_out)
+        *a_count_out = l_count_out;
     return l_obj;
 }

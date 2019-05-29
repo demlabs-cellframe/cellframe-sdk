@@ -65,20 +65,17 @@ void dap_db_driver_deinit(void);
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count);
 
-char* dap_db_driver_db_hash(const uint8_t *data, size_t data_size);
+char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);
 
-int dap_db_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
-int dap_db_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
-dap_store_obj_t* dap_db_read_data(const char *a_group, const char *a_key, size_t *count_out);
+int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count);
+int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
+int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
+dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *count_out);
 
-pdap_store_obj_t dap_db_read_file_data(const char *a_path, const char *a_group); // state of emergency only, if LDB database is inaccessible
-dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,
 		time_t a_timestamp, size_t a_store_obj_count);
-dap_store_obj_t *dap_store_unpacket(const dap_store_obj_pkt_t *a_pkt,
+dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt,
 		size_t *a_store_obj_count);
 
-void dab_db_free_pdap_store_obj_t(pdap_store_obj_t a_store_data,
-		size_t a_count);
 
 #endif //_GLOBAL_DB_DRIVER_H_
