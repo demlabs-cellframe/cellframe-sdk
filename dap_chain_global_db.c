@@ -10,7 +10,6 @@
 #include "dap_chain_common.h"
 #include "dap_strfuncs.h"
 //#include "dap_chain_global_db_pvt.h"
-#include "dap_chain_global_db_driver.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
 
@@ -334,6 +333,41 @@ bool dap_chain_global_db_del(const char *a_key)
 {
     return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
 }
+
+
+/**
+ * Read last item in global_db
+ *
+ * @param data_size[out] size of output array
+ * @return array (note:not Null-terminated string) on NULL in case of an error
+ */
+dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
+{
+    // Read data
+    lock();
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read_last(a_group);
+    unlock();
+    return l_store_obj;
+}
+
+
+
+
+/**
+ * Read the entire database with condition into an array of size bytes
+ *
+ * @param data_size[out] size of output array
+ * @return array (note:not Null-terminated string) on NULL in case of an error
+ */
+dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_data_size_out)
+{
+    // Read data
+    lock();
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_cond_read(a_group, a_first_id, a_data_size_out);
+    unlock();
+    return l_store_obj;
+}
+
 /**
  * Read the entire database into an array of size bytes
  *

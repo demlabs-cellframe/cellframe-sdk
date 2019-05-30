@@ -398,7 +398,7 @@ static int save_write_buf(void)
         }
         if(s_drv_callback.transaction_end)
             s_drv_callback.transaction_end();
-        printf("** writing ended cnt=%d\n", cnt);
+        //printf("** writing ended cnt=%d\n", cnt);
         // writing ended
         pthread_mutex_lock(&s_mutex_write_end);
         pthread_cond_broadcast(&s_cond_write_end);
@@ -430,7 +430,6 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
     //dap_store_obj_t *l_store_obj = dap_store_obj_copy(a_store_obj, a_store_count);
     if(!a_store_obj || !a_store_count)
         return -1;
-    a_store_obj->type = 'a';
     // add all records into write buffer
     pthread_mutex_lock(&s_mutex_add_end);
     for(size_t i = 0; i < a_store_count; i++) {
@@ -460,7 +459,7 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
 
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
-    a_store_obj->type = 'd';
+    a_store_obj->type = 'a';
     return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
 }
 
@@ -468,6 +467,42 @@ int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_sto
 {
     a_store_obj->type = 'd';
     return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
+}
+
+/**
+ * Read last items
+ *
+ * a_group - group name
+ */
+dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group)
+{
+    dap_store_obj_t *l_ret = NULL;
+    // wait apply write buffer
+    wait_write_buf();
+    // read records using the selected database engine
+    if(s_drv_callback.read_last_store_obj)
+        l_ret = s_drv_callback.read_last_store_obj(a_group);
+    return l_ret;
+}
+
+/**
+ * Read several items
+ *
+ * a_group - group name
+ * a_key - key name, may by NULL, it means reading the whole group
+ * a_id - from this id
+ * a_count_out[in], how many items to read, 0 - no limits
+ * a_count_out[out], how many items was read
+ */
+dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint64_t id, size_t *a_count_out)
+{
+    dap_store_obj_t *l_ret = NULL;
+    // wait apply write buffer
+    wait_write_buf();
+    // read records using the selected database engine
+    if(s_drv_callback.read_cond_store_obj)
+        l_ret = s_drv_callback.read_cond_store_obj(a_group, id, a_count_out);
+    return l_ret;
 }
 
 /**

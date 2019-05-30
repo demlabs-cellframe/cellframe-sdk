@@ -44,4 +44,6 @@ int dap_db_driver_sqlite_end_transaction(void);
 // Apply data (write or delete)
 int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj);
 // Read data
+dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group);
+dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
 dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);

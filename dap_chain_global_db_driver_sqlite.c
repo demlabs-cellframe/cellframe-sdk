@@ -97,6 +97,8 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
 //
         a_drv_callback->apply_store_obj = dap_db_driver_sqlite_apply_store_obj;
         a_drv_callback->read_store_obj = dap_db_driver_sqlite_read_store_obj;
+        a_drv_callback->read_cond_store_obj = dap_db_driver_sqlite_read_cond_store_obj;
+        a_drv_callback->read_last_store_obj = dap_db_driver_sqlite_read_last_store_obj;
         a_drv_callback->transaction_start = dap_db_driver_sqlite_start_transaction;
         a_drv_callback->transaction_end = dap_db_driver_sqlite_end_transaction;
         a_drv_callback->deinit = dap_db_driver_sqlite_deinit;
@@ -245,8 +247,8 @@ static int dap_db_driver_sqlite_create_group_table(const char *a_table_name)
         return -1;
     }
     DAP_DELETE(l_query);
-    // create unique index - hash
-    l_query = dap_strdup_printf("create unique index if not exists 'idx_hash_%s' ON '%s' (hash)", a_table_name,
+    // create unique index - key
+    l_query = dap_strdup_printf("create unique index if not exists 'idx_key_%s' ON '%s' (key)", a_table_name,
             a_table_name);
     if(dap_db_driver_sqlite_exec(s_db, (const char*) l_query, &l_error_message) != SQLITE_OK) {
         log_it(L_ERROR, "Create unique index : %s\n", l_error_message);
@@ -442,22 +444,32 @@ int dap_db_driver_sqlite_end_transaction(void)
  */
 int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
 {
-    if(!a_store_obj || !a_store_obj->group || !a_store_obj->key || !a_store_obj->value || !a_store_obj->value_len)
+    if(!a_store_obj || !a_store_obj->group)
         return -1;
     char *l_query = NULL;
     char *l_error_message = NULL;
     if(a_store_obj->type == 'a') {
+        if(!a_store_obj->key || !a_store_obj->value || !a_store_obj->value_len)
+                return -1;
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);
 
         char *l_blob_hash = dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
         char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, a_store_obj->value_len);
+        //add one record
         l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'%s', '%lld', x'%s')",
                 a_store_obj->group, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
         dap_db_driver_sqlite_free(l_blob_hash);
         dap_db_driver_sqlite_free(l_blob_value);
     }
     else if(a_store_obj->type == 'd') {
+        //delete one record
+        if(a_store_obj->key)
+            l_query = sqlite3_mprintf("delete from '%s' where key = '%s'",
+                    a_store_obj->group, a_store_obj->key);
+        // remove all group
+        else
+            l_query = sqlite3_mprintf("drop table if exists '%s'", a_store_obj->group);
     }
     else {
         log_it(L_ERROR, "Unknown store_obj type '0x%x'", a_store_obj->type);
@@ -473,7 +485,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     dap_db_driver_sqlite_free(l_query);
     // entry with the same hash is already present
     if(l_ret == SQLITE_CONSTRAINT) {
-        log_it(L_INFO, "Entry with the same hash is already present, %s", l_error_message);
+        log_it(L_INFO, "Entry with the same key is already present, %s", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
         return 0;
     }
@@ -484,6 +496,141 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         return -1;
     }
     return 0;
+}
+
+static void fill_one_item(const char *a_group, dap_store_obj_t *a_obj, SQLITE_ROW_VALUE *a_row)
+{
+    a_obj->group = dap_strdup(a_group);
+
+    for(int l_iCol = 0; l_iCol < a_row->count; l_iCol++) {
+        SQLITE_VALUE *l_cur_val = a_row->val + l_iCol;
+        switch (l_iCol) {
+        case 0:
+            if(l_cur_val->type == SQLITE_INTEGER)
+                a_obj->id = l_cur_val->val.val_int64;
+            break; // id
+        case 1:
+            if(l_cur_val->type == SQLITE_INTEGER)
+                a_obj->timestamp = l_cur_val->val.val_int64;
+            break; // ts
+        case 2:
+            if(l_cur_val->type == SQLITE_TEXT)
+                a_obj->key = dap_strdup(l_cur_val->val.val_str);
+            break; // key
+        case 3:
+            if(l_cur_val->type == SQLITE_BLOB)
+            {
+                a_obj->value_len = (size_t) l_cur_val->len;
+                a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
+                memcpy(a_obj->value, l_cur_val->val.val_blob, a_obj->value_len);
+            }
+            break; // value
+        }
+    }
+
+}
+
+/**
+ * Read last items
+ *
+ * a_group - group name
+ */
+dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
+{
+    dap_store_obj_t *l_obj = NULL;
+    char *l_error_message = NULL;
+    sqlite3_stmt *l_res;
+    if(!a_group)
+        return NULL;
+    char *l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id DESC LIMIT 1", a_group);
+    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
+    sqlite3_free(l_str_query);
+    if(l_ret != SQLITE_OK) {
+        log_it(L_ERROR, "read last l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        dap_db_driver_sqlite_free(l_error_message);
+        return NULL;
+    }
+
+    SQLITE_ROW_VALUE *l_row = NULL;
+    l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
+    if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)
+    {
+        log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+    }
+    if(l_ret == SQLITE_ROW && l_row) {
+        l_obj = DAP_NEW_Z(dap_store_obj_t);
+        fill_one_item(a_group, l_obj, l_row);
+    }
+    dap_db_driver_sqlite_row_free(l_row);
+    dap_db_driver_sqlite_query_free(l_res);
+
+    return l_obj;
+}
+
+/**
+ * Read several items with conditoin
+ *
+ * a_group - group name
+ * a_id - read from this id
+ * a_count_out[in], how many items to read, 0 - no limits
+ * a_count_out[out], how many items was read
+ */
+dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
+{
+    dap_store_obj_t *l_obj = NULL;
+    char *l_error_message = NULL;
+    sqlite3_stmt *l_res;
+    if(!a_group)
+        return NULL;
+    // no limit
+    int l_count_out = 0;
+    if(a_count_out)
+        l_count_out = *a_count_out;
+    char *l_str_query;
+    if(l_count_out)
+        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC LIMIT %d",
+                a_group, a_id, l_count_out);
+    else
+        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC",
+                a_group, a_id);
+    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
+    sqlite3_free(l_str_query);
+    if(l_ret != SQLITE_OK) {
+        log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        dap_db_driver_sqlite_free(l_error_message);
+        return NULL;
+    }
+
+    //int b = qlite3_column_count(s_db);
+    SQLITE_ROW_VALUE *l_row = NULL;
+    l_count_out = 0;
+    int l_count_sized = 0;
+    do {
+        l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
+        if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)
+        {
+            log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        }
+        if(l_ret == SQLITE_ROW && l_row) {
+            // realloc memory
+            if(l_count_out >= l_count_sized) {
+                l_count_sized += 10;
+                l_obj = DAP_REALLOC(l_obj, sizeof(dap_store_obj_t) * l_count_sized);
+                memset(l_obj + l_count_out, 0, sizeof(dap_store_obj_t) * (l_count_sized - l_count_out));
+            }
+            // fill current item
+            dap_store_obj_t *l_obj_cur = l_obj + l_count_out;
+            fill_one_item(a_group, l_obj_cur, l_row);
+            l_count_out++;
+        }
+        dap_db_driver_sqlite_row_free(l_row);
+    } while(l_row);
+
+    dap_db_driver_sqlite_query_free(l_res);
+
+    if(a_count_out)
+        *a_count_out = l_count_out;
+    return l_obj;
 }
 
 /**
@@ -508,18 +655,18 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     char *l_str_query;
     if(a_key) {
         if(l_count_out)
-            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' WHERE key='%s' LIMIT %d ORDER BY id ASC",
+            l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC LIMIT %d",
                     a_group, a_key, l_count_out);
         else
-            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC", a_group,
-                    a_key);
+            l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC",
+                    a_group, a_key);
     }
     else {
         if(l_count_out)
-            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' LIMIT %d ORDER BY id ASC",
-                    a_group, a_key, l_count_out);
+            l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC LIMIT %d",
+                    a_group, l_count_out);
         else
-            l_str_query = sqlite3_mprintf("SELECT ts,key,value FROM '%s' ORDER BY id ASC", a_group, a_key);
+            l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", a_group);
     }
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
     sqlite3_free(l_str_query);
@@ -540,37 +687,15 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
             log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         }
         if(l_ret == SQLITE_ROW && l_row) {
+            // realloc memory
             if(l_count_out >= l_count_sized) {
                 l_count_sized += 10;
                 l_obj = DAP_REALLOC(l_obj, sizeof(dap_store_obj_t) * l_count_sized);
                 memset(l_obj + l_count_out, 0, sizeof(dap_store_obj_t) * (l_count_sized - l_count_out));
             }
+            // fill currrent item
             dap_store_obj_t *l_obj_cur = l_obj + l_count_out;
-
-            l_obj_cur->group = dap_strdup(a_group);
-            l_obj_cur->key = dap_strdup(a_key);
-
-            for(int l_iCol = 0; l_iCol < l_row->count; l_iCol++) {
-                SQLITE_VALUE *cur_val = l_row->val + l_iCol;
-                switch (l_iCol) {
-                case 0:
-                    if(cur_val->type == SQLITE_INTEGER)
-                        l_obj_cur->timestamp = cur_val->val.val_int64;
-                    break; // ts
-                case 1:
-                    if(cur_val->type == SQLITE_TEXT)
-                        l_obj_cur->key = dap_strdup(cur_val->val.val_str);
-                    break; // key
-                case 2:
-                    if(cur_val->type == SQLITE_BLOB)
-                    {
-                        l_obj_cur->value_len = (size_t) cur_val->len;
-                        l_obj_cur->value = DAP_NEW_SIZE(uint8_t, l_obj_cur->value_len);
-                        memcpy(l_obj_cur->value, cur_val->val.val_blob, l_obj_cur->value_len);
-                    }
-                    break;// value
-                }
-            }
+            fill_one_item(a_group, l_obj_cur, l_row);
             l_count_out++;
         }
         dap_db_driver_sqlite_row_free(l_row);

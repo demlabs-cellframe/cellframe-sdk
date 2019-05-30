@@ -7,6 +7,8 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_list.h"
+#include "dap_chain_global_db_driver.h"
+
 
 #define GROUP_LOCAL_HISTORY "global.history"
 #define GROUP_LOCAL_NODE_LAST_TS "local.node.last_ts"
@@ -73,6 +75,8 @@ bool dap_chain_global_db_del(const char *a_key);
  * @param data_size[out] size of output array
  * @return array (note:not Null-terminated string) on NULL in case of an error
  */
+dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);
+dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_data_size_out);
 dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);
 dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out);
 
@@ -98,7 +102,7 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out);
 // Parse data from dap_db_log_pack()
 void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_obj_count);
 // Get timestamp from dap_db_log_pack()
-time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, size_t a_data_size);
+//time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, size_t a_data_size);
 
 // Get last timestamp in log
 time_t dap_db_log_get_last_timestamp(void);

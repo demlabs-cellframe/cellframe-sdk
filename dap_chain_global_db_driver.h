@@ -27,13 +27,12 @@
 
 #include <stddef.h>
 #include <stdint.h>
-//#include <ctime>
 #include "dap_common.h"
 
 typedef struct dap_store_obj {
-	time_t timestamp;
+	uint64_t id;
+    time_t timestamp;
 	uint8_t type;
-//	char *section;
 	char *group;
 	char *key;
 	uint8_t *value;
@@ -48,11 +47,15 @@ typedef struct dap_store_obj_pkt {
 
 typedef int (*dap_db_driver_write_callback_t)(dap_store_obj_t*);
 typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const char *, size_t *);
+typedef dap_store_obj_t* (*dap_db_driver_read_cond_callback_t)(const char *,uint64_t , size_t *);
+typedef dap_store_obj_t* (*dap_db_driver_read_last_callback_t)(const char *);
 typedef int (*dap_db_driver_callback_t)(void);
 
 typedef struct dap_db_driver_callbacks {
     dap_db_driver_write_callback_t apply_store_obj;
     dap_db_driver_read_callback_t read_store_obj;
+    dap_db_driver_read_last_callback_t read_last_store_obj;
+    dap_db_driver_read_cond_callback_t read_cond_store_obj;
     dap_db_driver_callback_t transaction_start;
     dap_db_driver_callback_t transaction_end;
     dap_db_driver_callback_t deinit;
@@ -70,6 +73,8 @@ char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);
 int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
+dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group);
+dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint64_t id, size_t *a_count_out);
 dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *count_out);
 
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,
