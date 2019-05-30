@@ -34,7 +34,7 @@
 #include "dap_hash.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_global_db.h"
-#include "dap_chain_global_db_pvt.h"
+#include "dap_chain_global_db_driver.h"
 #include "dap_chain_net.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_gdb.h"
