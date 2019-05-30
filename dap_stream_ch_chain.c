@@ -257,9 +257,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                 char l_ts_str[50];
                                 dap_time_to_str_rfc822(l_ts_str,sizeof(l_ts_str),l_store_obj[i].timestamp);
                                 log_it(L_DEBUG,"Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
-                                       " section=\"%s\" timestamp=\"%s\" value_len=%u  ",
+                                       " timestamp=\"%s\" value_len=%u  ",
                                        (char) l_store_obj[i].type   , l_store_obj[i].type, l_store_obj[i].group, l_store_obj[i].key,
-                                       l_store_obj[i].section , l_ts_str,
+                                       l_ts_str,
                                        l_store_obj[i].value_len);
 
                                 //memcpy(l_store_obj_reversed+l_data_obj_count-i-1, l_store_obj+i,sizeof(*l_store_obj) );
