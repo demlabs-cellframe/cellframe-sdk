@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
-#include "dap_chain_global_db_pvt.h"
+#include "dap_chain_global_db_driver.h"
 
 #define GLOBAL_DB_HIST_REC_SEPARATOR "\r;"
 #define GLOBAL_DB_HIST_KEY_SEPARATOR "\a;"

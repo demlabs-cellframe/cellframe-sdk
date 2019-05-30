@@ -6,7 +6,7 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR *.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GLOBAL_DB_SRC} ${DAP_CHAIN_GLOBAL_DB_HDR})
 
-target_link_libraries(dap_chain_global_db dap_core dap_crypto dap_chain dap_chain_crypto ldb talloc tevent)
+target_link_libraries(dap_chain_global_db dap_core dap_crypto dap_chain dap_chain_crypto ldb talloc tevent sqlite3)
 target_include_directories(dap_chain_global_db INTERFACE .)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)

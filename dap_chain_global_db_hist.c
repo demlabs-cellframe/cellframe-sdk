@@ -24,7 +24,7 @@ static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_re
     if(l_count != 4)
         return -1;
     a_rec_out->type = l_strv[0][0];
-    a_rec_out->keys_count = strtoul(l_strv[1], NULL,10);
+    a_rec_out->keys_count = strtoul(l_strv[1], NULL, 10);
     a_rec_out->group = dap_strdup(l_strv[2]);
     a_rec_out->keys = dap_strdup(l_strv[3]);
     dap_strfreev(l_strv);
@@ -73,16 +73,16 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
     while(l_keys[i]) {
         dap_store_obj_t *l_obj = NULL;
         // add record - read record
-        if(l_rec.type=='a')
+        if(l_rec.type == 'a')
             l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
         // delete record - save only key for record
-        else if(l_rec.type=='d'){// //section=strdup("kelvin_nodes");
-            l_obj = (dap_store_obj_t*)DAP_NEW_Z(dap_store_obj_t);
+        else if(l_rec.type == 'd') { // //section=strdup("kelvin_nodes");
+            l_obj = (dap_store_obj_t*) DAP_NEW_Z(dap_store_obj_t);
             l_obj->group = dap_strdup(l_rec.group);
             l_obj->key = dap_strdup(l_keys[i]);
         }
-        if (l_obj == NULL){
-            dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
+        if(l_obj == NULL) {
+            dap_store_obj_free(l_store_obj, l_count);
             dap_strfreev(l_keys);
             return NULL;
         }
@@ -96,7 +96,7 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
     // serialize data
     dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
 
-    dab_db_free_pdap_store_obj_t(l_store_obj, l_count);
+    dap_store_obj_free(l_store_obj, l_count);
     dap_strfreev(l_keys);
 
     if(l_data_out && a_data_size_out) {
@@ -105,8 +105,6 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
     return (uint8_t*) l_data_out;
 
 }
-
-
 
 /**
  * Add data to the history log
@@ -125,7 +123,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
         l_rec.keys = a_store_obj->key;
     else {
         // make keys vector
-        char **l_keys = DAP_NEW_Z_SIZE(char*, sizeof(char*) * ( ((size_t) a_dap_store_count) + 1));
+        char **l_keys = DAP_NEW_Z_SIZE(char*, sizeof(char*) * (((size_t ) a_dap_store_count) + 1));
         size_t i;
         for(i = 0; i < a_dap_store_count; i++) {
             // if it is marked, the data has not been saved
@@ -144,12 +142,11 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     // key - timestamp
     // value - keys of added/deleted data
     l_store_data.key = dap_db_new_history_timestamp();
-    l_store_data.value = (uint8_t*) strdup(l_str) ;
-    l_store_data.value_len = l_str_len+1;
+    l_store_data.value = (uint8_t*) strdup(l_str);
+    l_store_data.value_len = l_str_len + 1;
     l_store_data.group = GROUP_LOCAL_HISTORY;
     l_store_data.timestamp = time(NULL);
-    int l_res = dap_db_add(&l_store_data, 1);
-    //printf("!!!\n!!!HISTORY store save l_res=%d ts=%lld text=%s\n!!!\n",l_res,l_store_data.timestamp,l_str);
+    int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
     DAP_DELETE(l_str);
@@ -172,22 +169,27 @@ bool dap_db_history_truncate(void)
  */
 time_t dap_db_log_get_last_timestamp(void)
 {
-    char *last_key = NULL;
-    size_t l_data_size_out = 0;
-    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
-    if(l_data_size_out > 0)
-        last_key = l_objs[0]->key;
-    for(size_t i = 1; i < l_data_size_out; i++) {
-        dap_global_db_obj_t *l_obj_cur = l_objs[i];
-        if(strcmp(last_key, l_obj_cur->key) < 0) {
-            last_key = l_obj_cur->key;
-            //printf("l_obj_cur->key=%s last_key\n", l_obj_cur->key);
-        }
-        //printf("l_obj_cur->key=%s\n", l_obj_cur->key);
+    //dap_store_obj_t *l_last_obj = dap_chain_global_db_driver_read_last(
+    dap_store_obj_t *l_last_obj = dap_chain_global_db_get_last(GROUP_LOCAL_HISTORY);
+    if(l_last_obj) {
+        return l_last_obj->id;
     }
-    time_t l_ret_time = last_key? strtoll(last_key, NULL, 10): 0;
-    dap_chain_global_db_objs_delete(l_objs);
-    return l_ret_time;
+    /*    char *last_key = NULL;
+     size_t l_data_size_out = 0;
+     dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
+     if(l_data_size_out > 0)
+     last_key = l_objs[0]->key;
+     for(size_t i = 1; i < l_data_size_out; i++) {
+     dap_global_db_obj_t *l_obj_cur = l_objs[i];
+     if(strcmp(last_key, l_obj_cur->key) < 0) {
+     last_key = l_obj_cur->key;
+     //printf("l_obj_cur->key=%s last_key\n", l_obj_cur->key);
+     }
+     //printf("l_obj_cur->key=%s\n", l_obj_cur->key);
+     }
+     time_t l_ret_time = last_key? strtoll(last_key, NULL, 10): 0;
+     dap_chain_global_db_objs_delete(l_objs);
+     return l_ret_time;*/
 }
 
 static int compare_items(const void * l_a, const void * l_b)
@@ -204,24 +206,41 @@ static int compare_items(const void * l_a, const void * l_b)
 dap_list_t* dap_db_log_get_list(time_t first_timestamp)
 {
     dap_list_t *l_list = NULL;
-    size_t l_list_count = 0;
-    char *l_first_key_str = dap_strdup_printf("%lld", (int64_t) first_timestamp);
     size_t l_data_size_out = 0;
-    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
+    dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
+    //dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
     for(size_t i = 0; i < l_data_size_out; i++) {
-        dap_global_db_obj_t *l_obj_cur = l_objs[i];
-//        log_it(L_DEBUG,"%lld and %lld tr",strtoll(l_obj_cur->key,NULL,10), first_timestamp );
-        if( strtoll(l_obj_cur->key,NULL,10) > (long long) first_timestamp  ) {
-            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
-            l_item->key = dap_strdup(l_obj_cur->key);
-            l_item->value =(uint8_t*) dap_strdup((char*) l_obj_cur->value);
-            l_list = dap_list_append(l_list, l_item);
-            l_list_count++;
-        }
+        dap_store_obj_t *l_obj_cur = l_objs + i;
+        dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+        l_item->key = dap_strdup(l_obj_cur->key);
+        l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
+        l_list = dap_list_append(l_list, l_item);
     }
-    // sort list by key (time str)
-    dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
-    log_it(L_DEBUG,"Prepared %u items (list size %u)", l_list_count, dap_list_length(l_list));
+    dap_store_obj_free(l_objs, l_data_size_out);
+
+    return l_list;
+    /*
+     size_t l_list_count = 0;
+     char *l_first_key_str = dap_strdup_printf("%lld", (int64_t) first_timestamp);
+     size_t l_data_size_out = 0;
+
+     for(size_t i = 0; i < l_data_size_out; i++) {
+     dap_global_db_obj_t *l_obj_cur = l_objs[i];
+     //        log_it(L_DEBUG,"%lld and %lld tr",strtoll(l_obj_cur->key,NULL,10), first_timestamp );
+     if( strtoll(l_obj_cur->key,NULL,10) > (long long) first_timestamp  ) {
+     dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+     l_item->key = dap_strdup(l_obj_cur->key);
+     l_item->value =(uint8_t*) dap_strdup((char*) l_obj_cur->value);
+     l_list = dap_list_append(l_list, l_item);
+     l_list_count++;
+     }
+     }
+     // sort list by key (time str)
+     //dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
+     log_it(L_DEBUG,"Prepared %u items (list size %u)", l_list_count, dap_list_length(l_list));
+     DAP_DELETE(l_first_key_str);
+     dap_chain_global_db_objs_delete(l_objs);
+     */
     /*/ dbg - sort result
      l_data_size_out = dap_list_length(l_list);
      for(size_t i = 0; i < l_data_size_out; i++) {
@@ -230,9 +249,6 @@ dap_list_t* dap_db_log_get_list(time_t first_timestamp)
      printf("2 %d %s\n", i, l_item->key);
      }*/
 
-    DAP_DELETE(l_first_key_str);
-    dap_chain_global_db_objs_delete(l_objs);
-    return l_list;
 }
 
 /**
