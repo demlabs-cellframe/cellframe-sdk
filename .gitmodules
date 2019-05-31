@@ -1,4 +1,4 @@
 [submodule "test/libdap-test"]
 	path = test/libdap-test
-	url = https://github.com/kelvinblockchain/libdap-test
+	url = https://github.com/cellframe/libdap-test
 	branch = master
