@@ -453,7 +453,9 @@ void dap_chain_cert_add_folder(const char *a_folder_path)
 
         }
         closedir(l_dir);
-    }
+        log_it(L_NOTICE, "Added folder %s",a_folder_path);
+    }else
+        log_it(L_WARNING, "Can't add folder %s to cert manager",a_folder_path);
 }
 
 /**

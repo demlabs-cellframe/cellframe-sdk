@@ -35,7 +35,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/param.h>
-
 #if defined(__ANDROID__)
 #include <byteswap.h>
 #endif
@@ -207,7 +206,18 @@ static inline void memcpy_swap64(void *dst, const void *src, size_t n) {
   }
 }
 
-#if !defined(BYTE_ORDER) || !defined(LITTLE_ENDIAN) || !defined(BIG_ENDIAN)
+#if !defined(BYTE_ORDER)
+#define BYTE_ORDER __BYTE_ORDER__
+#endif
+#if !defined(LITTLE_ENDIAN)
+#define LITTLE_ENDIAN __LITTLE_ENDIAN__
+#endif
+
+#if !defined(BIG_ENDIAN)
+#define BIG_ENDIAN __BIG_ENDIAN__
+#endif
+
+#if !defined(BYTE_ORDER)|| !defined(LITTLE_ENDIAN) || !defined(BIG_ENDIAN)
 static_assert(false, "BYTE_ORDER is undefined. Perhaps, GNU extensions are not enabled");
 #endif
 
