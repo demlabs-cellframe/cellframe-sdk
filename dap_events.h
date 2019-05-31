@@ -22,7 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
+#include <sys/types.h>
 #include <netinet/in.h>
 
 #include <stdint.h>
