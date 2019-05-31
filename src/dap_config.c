@@ -117,7 +117,7 @@ dap_config_t * dap_config_open(const char * a_name)
             dap_config_internal_t * l_config_internal = DAP_NEW_Z(dap_config_internal_t);
             ret->_internal = l_config_internal;
 
-            char buf[1024];
+            char buf[100024];
             size_t l_global_offset=0;
             size_t l_buf_size=0;
             size_t l_buf_pos_line_start=0;
@@ -485,8 +485,9 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
 char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
                                 const char * a_item_name, uint16_t * array_length) {
     dap_config_item_t * item = dap_config_get_item(a_config, a_section_path, a_item_name);
-    if (item == NULL)
+    if (item == NULL){
         return NULL;
+    }
     if (array_length != NULL)
         *array_length = item->array_length;
     return item->data_str_array;
