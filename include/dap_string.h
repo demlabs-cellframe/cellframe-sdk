@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 typedef struct _dap_string dap_string_t;
 
