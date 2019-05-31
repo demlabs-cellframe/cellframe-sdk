@@ -22,7 +22,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+#include <time.h>
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
@@ -52,7 +52,6 @@
 
 #include "dap_module.h"
 
-#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -639,12 +638,28 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
         const char * l_links_str = NULL;
         const char * l_go_str = NULL;
         const char * l_get_str = NULL;
+        const char * l_stats_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "go", &l_go_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "get", &l_get_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
 
-        if ( l_go_str){
+        if ( l_stats_str ){
+            if ( strcmp(l_stats_str,"tps") == 0 ) {
+                const char * l_to_str = NULL;
+                struct tm l_to_tm = {0};
+                const char * l_from_str = NULL;
+                struct tm l_from_tm = {0};
+
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from ", &l_from_str);
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
+                if (l_from_str ){
+                    //strptime()
+                }
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s");
+            }
+        }if ( l_go_str){
             if ( strcmp(l_go_str,"online") == 0 ) {
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
