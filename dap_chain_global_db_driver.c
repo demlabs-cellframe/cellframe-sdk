@@ -34,6 +34,7 @@
 #include "dap_hash.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
+#include "dap_chain_global_db_driver_cdb.h"
 #include "dap_chain_global_db_driver.h"
 
 #define LOG_TAG "db_driver"
@@ -79,6 +80,8 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
         l_ret = -1;
     if(!dap_strcmp(s_used_driver, "sqlite"))
         l_ret = dap_db_driver_sqlite_init(a_filename_db, &s_drv_callback);
+    if(!dap_strcmp(s_used_driver, "cdb"))
+        l_ret = dap_db_driver_cdb_init(a_filename_db, &s_drv_callback);
     if(!l_ret) {
         pthread_condattr_t l_condattr;
         pthread_condattr_init(&l_condattr);
