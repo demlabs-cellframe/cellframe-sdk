@@ -114,7 +114,6 @@ pcdb_instance *dap_cdb_init_group(char *a_group, int a_flags) {
             cdb_open(l_cdb_i->cdb, l_cdb_path, a_flags) < 0)
     {
         log_it(L_ERROR, "An error occured while opening CDB: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
-        DAP_DELETE(l_cdb_i->cdb);
         DAP_DELETE(l_cdb_i->local_group);
         DAP_DELETE(l_cdb_i);
         return NULL;
