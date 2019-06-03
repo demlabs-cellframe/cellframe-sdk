@@ -599,14 +599,14 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
 {
   char buf[1024];
   time_t current_time = time( NULL );
-  time_to_str_rfc822( buf, sizeof(buf), current_time );
+  dap_time_to_str_rfc822( buf, sizeof(buf), current_time );
 
   dap_http_header_add( &cl_ht->out_headers,"Date", buf );
 
   if ( cl_ht->reply_status_code == 200 ) {
 
     if ( cl_ht->out_last_modified ) {
-      time_to_str_rfc822( buf, sizeof(buf), cl_ht->out_last_modified );
+      dap_time_to_str_rfc822( buf, sizeof(buf), cl_ht->out_last_modified );
       dap_http_header_add( &cl_ht->out_headers, "Last-Modified", buf );
     }
     if ( cl_ht->out_content_type[0] ) {
