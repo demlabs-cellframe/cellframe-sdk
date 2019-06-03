@@ -836,7 +836,7 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_remote_node_info);
         dap_client_disconnect(l_node_client->client);
         l_node_client->client = NULL;
-        dap_chain_node_client_close(l_node_client);
+        //dap_chain_node_client_close(l_node_client);
         dap_chain_node_cli_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
@@ -1243,7 +1243,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
             l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
         }
         if(!l_addr && addr_str)
-            l_addr = dap_chain_str_to_addr(addr_str);
+            l_addr = dap_chain_addr_from_str(addr_str);
 
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) l_net_name);
         if(!l_net_name) {
@@ -1274,7 +1274,8 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
                 if(l_addr_tokens[i]) {
                     uint64_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     long  double l_balance_coins = (long double) l_balance / 1000000000000.0L;
-                    dap_string_append_printf(l_string_ret, "          %Lf %s\n", l_balance_coins, l_addr_tokens[i]);
+                    dap_string_append_printf(l_string_ret, "          %.3Lf (%llu) %s\n", l_balance_coins,
+                                             l_balance, l_addr_tokens[i]);
 
                 }
                 DAP_DELETE(l_addr_tokens[i]);
@@ -1903,7 +1904,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
         return -5;
     }
 
-    dap_chain_addr_t * l_addr = dap_chain_str_to_addr(l_addr_str);
+    dap_chain_addr_t * l_addr = dap_chain_addr_from_str(l_addr_str);
 
     if(!l_addr) {
         dap_chain_node_cli_set_reply_text(str_reply, "address \"%s\" is invalid", l_addr_str);
@@ -1967,7 +1968,8 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
     l_token_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_token_emission_size);
     strncpy(l_token_emission->hdr.ticker, l_ticker, sizeof(l_token_emission->hdr.ticker));
     l_token_emission->hdr.value = l_emission_value;
-
+    l_token_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
+    memcpy(&l_token_emission->hdr.address, l_addr, sizeof (l_token_emission->hdr.address));
     // Then add signs
     size_t l_offset=0;
     for (size_t i =0; i < l_certs_size; i++ ){
@@ -2128,6 +2130,8 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     const char * l_token_ticker = NULL;
     const char * l_net_name = NULL;
     const char * l_chain_name = NULL;
+    const char * l_tx_num_str = NULL;
+    size_t l_tx_num =0;
 
     uint64_t value = 0;
     uint64_t value_fee = 0;
@@ -2136,6 +2140,10 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain", &l_chain_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-tx_num", &l_tx_num_str);
+
+    if ( l_tx_num_str )
+        l_tx_num = strtoul(l_tx_num_str,NULL,10);
 
     if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-fee", &addr_base58_fee)) {
         if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-value_fee", &str_tmp)) {
@@ -2191,8 +2199,8 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         return -1;
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
-    dap_chain_addr_t *addr_to = dap_chain_str_to_addr(addr_base58_to);
-    dap_chain_addr_t *addr_fee = dap_chain_str_to_addr(addr_base58_fee);
+    dap_chain_addr_t *addr_to = dap_chain_addr_from_str(addr_base58_to);
+    dap_chain_addr_t *addr_fee = dap_chain_addr_from_str(addr_base58_fee);
 
     if(!addr_from) {
         dap_chain_node_cli_set_reply_text(str_reply, "source address is invalid");
@@ -2211,7 +2219,9 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
     //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
 
-    int res = dap_chain_mempool_tx_create( l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to, addr_fee,
+    int res = l_tx_num? dap_chain_mempool_tx_create_massive( l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to, addr_fee,
+                                                     l_token_ticker, value, value_fee, l_tx_num)
+              :dap_chain_mempool_tx_create( l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to, addr_fee,
             l_token_ticker, value, value_fee);
     dap_string_append_printf(string_ret, "transfer=%s\n",
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");

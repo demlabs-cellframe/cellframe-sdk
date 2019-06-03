@@ -22,7 +22,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
+#include <time.h>
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
@@ -52,7 +52,6 @@
 
 #include "dap_module.h"
 
-#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -171,8 +170,13 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
 
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-        if (!PVT (l_net)->load_mode )
-            dap_chain_net_sync_all(l_net);
+        if (!PVT (l_net)->load_mode ){
+            if( pthread_mutex_trylock( &PVT (l_net)->state_mutex) == 0 ){
+                if ( PVT(l_net)->state == NET_STATE_ONLINE || PVT(l_net)->state == NET_STATE_ONLINE  )
+                    dap_chain_net_sync_all(l_net);
+                pthread_mutex_unlock( &PVT (l_net)->state_mutex);
+            }
+        }
     }
 }
 
@@ -634,12 +638,28 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
         const char * l_links_str = NULL;
         const char * l_go_str = NULL;
         const char * l_get_str = NULL;
+        const char * l_stats_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "go", &l_go_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "get", &l_get_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
 
-        if ( l_go_str){
+        if ( l_stats_str ){
+            if ( strcmp(l_stats_str,"tps") == 0 ) {
+                const char * l_to_str = NULL;
+                struct tm l_to_tm = {0};
+                const char * l_from_str = NULL;
+                struct tm l_from_tm = {0};
+
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from ", &l_from_str);
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
+                if (l_from_str ){
+                    //strptime()
+                }
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s");
+            }
+        }if ( l_go_str){
             if ( strcmp(l_go_str,"online") == 0 ) {
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
@@ -882,6 +902,8 @@ int dap_chain_net_load(const char * a_net_name)
         if ( l_chains_dir ){
             struct dirent * l_dir_entry;
             while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
+                if (l_dir_entry->d_name[0]=='\0')
+                    continue;
                 char * l_entry_name = strdup(l_dir_entry->d_name);
                 l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1+strlen (l_entry_name)-3;
                 l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);
@@ -900,10 +922,10 @@ int dap_chain_net_load(const char * a_net_name)
                             if(l_chain->callback_created)
                                 l_chain->callback_created(l_chain,l_cfg);
                         }
-                        free(l_entry_name);
                     }
                 }
                 DAP_DELETE (l_chains_path);
+                DAP_DELETE (l_entry_name);
             }
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
