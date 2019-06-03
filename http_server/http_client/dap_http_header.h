@@ -24,10 +24,10 @@
 
 //Structure for holding HTTP header in the bidirectional list
 typedef struct dap_http_header{
-    char * name;
-    char * value;
-    struct dap_http_header * next;
-    struct dap_http_header * prev;
+    char *name;
+    char *value;
+    struct dap_http_header *next;
+    struct dap_http_header *prev;
 } dap_http_header_t;
 
 struct dap_http_client;

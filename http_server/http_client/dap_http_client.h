@@ -46,54 +46,54 @@ typedef struct dap_http_client
     char url_path[2048]; // URL path of requested document
     uint32_t http_version_major; // Major version of HTTP protocol
     uint32_t http_version_minor; // Minor version of HTTP protocol
+    uint32_t action_len;
+    uint32_t url_path_len;
     bool keep_alive;
 
     dap_http_client_state_t state_read;
     dap_http_client_state_t state_write;
 
-    struct dap_http_header * in_headers;
-    uint64_t in_content_length;
+    struct dap_http_header *in_headers;
+    size_t in_content_length;
     char in_content_type[256];
     char in_query_string[1024];
     char in_cookie[1024];
 
-    struct dap_http_header * out_headers;
-    uint64_t out_content_length;
+    struct dap_http_header *out_headers;
+    size_t out_content_length;
     bool out_content_ready;
     char out_content_type[256];
     time_t out_last_modified;
     bool out_connection_close;
 
-    dap_client_remote_t * client;
+    dap_client_remote_t *client;
     struct dap_http * http;
 
     uint16_t reply_status_code;
     char reply_reason_phrase[256];
 
-    struct dap_http_url_proc * proc;
+    struct dap_http_url_proc *proc;
 
-    void * _inheritor;
-    void * _internal;
+    void *_inheritor;
+    void *_internal;
 
 } dap_http_client_t;
 
 #define DAP_HTTP_CLIENT(a)  ((dap_http_client_t *) (a)->_inheritor )
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int dap_http_client_init();
-void dap_http_client_deinit();
+int dap_http_client_init( );
+void dap_http_client_deinit( );
 
+void dap_http_client_new( dap_client_remote_t * cl,void *arg ); // Creates HTTP client's internal structure
+void dap_http_client_delete( dap_client_remote_t * cl,void *arg ); // Free memory for HTTP client's internal structure
 
-void dap_http_client_new(dap_client_remote_t * cl,void * arg); // Creates HTTP client's internal structure
-void dap_http_client_delete(dap_client_remote_t * cl,void * arg); // Free memory for HTTP client's internal structure
-
-void dap_http_client_read( dap_client_remote_t * cl,void * arg); // Process read event
-void dap_http_client_write( dap_client_remote_t * cl,void * arg); // Process write event
-void dap_http_client_error( dap_client_remote_t * cl,void * arg); // Process error event
+void dap_http_client_read( dap_client_remote_t * cl,void *arg ); // Process read event
+void dap_http_client_write( dap_client_remote_t * cl,void *arg ); // Process write event
+void dap_http_client_error( dap_client_remote_t * cl,void *arg ); // Process error event
 
 #ifdef __cplusplus
 }

@@ -20,40 +20,45 @@
 
 #ifndef _DAP_HTTP_SIMPLE_H_
 #define _DAP_HTTP_SIMPLE_H_
+
 #include <stddef.h>
 #include "dap_http.h"
 
-#define DAP_HTTP_SIMPLE_REQUEST_MAX 100000
+//#define DAP_HTTP_SIMPLE_REQUEST_MAX 100000
+
+#define DAP_HTTP_SIMPLE_REQUEST_MAX 65536
 
 struct dap_http_simple;
-typedef void (*dap_http_simple_callback_t)(struct dap_http_simple *,void*);
+typedef void ( *dap_http_simple_callback_t )( struct dap_http_simple *, void * );
 
-typedef struct dap_http_simple{
-    dap_http_client_t * http;
-    union{
-        void * request;
-        char * request_str;
-    };
-    size_t request_size;
+typedef struct dap_http_simple {
 
-    union{
-        void * reply;
-        char * reply_str;
-    };
-    size_t reply_size_max;
-    size_t reply_size;
+  dap_http_client_t *http;
 
-    size_t reply_sent;
-    char reply_mime[256];
+  union {
+    void *request;
+    char *request_str;
+  };
+
+  union {
+    void *reply;
+    char *reply_str;
+  };
+
+  size_t request_size;
+  size_t reply_size;
+  size_t reply_size_max;
+  size_t reply_sent;
+
+  char reply_mime[256];
 
    // dap_http_simple_callback_t reply_proc_post_callback;
 } dap_http_simple_t;
 
 #define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->_inheritor )
 
-
-void dap_http_simple_proc_add(dap_http_t *sh, const char * url_path, size_t reply_size_max, dap_http_simple_callback_t cb); // Add simple processor
-int dap_http_simple_module_init(void);
+void dap_http_simple_proc_add( dap_http_t *sh, const char *url_path, size_t reply_size_max, dap_http_simple_callback_t cb ); // Add simple processor
+int  dap_http_simple_module_init( void );
 void dap_http_simple_module_deinit(void);
 
 // input string must match NameClient/MiminalVersion
@@ -62,15 +67,14 @@ void dap_http_simple_module_deinit(void);
 // ATTENTION: Last parameter must be NULL
 // example call: dap_http_simple_set_supported_user_agents("DapVpnClient/2.2", "Mozila/5.0", NULL);
 // returns false if operation not successful
-bool dap_http_simple_set_supported_user_agents(const char *str_agents, ...);
+bool dap_http_simple_set_supported_user_agents( const char *str_agents, ... );
 
 // if this function was called. We checking version only supported user-agents
 // other will pass automatically ( and request with without user-agents field too )
 // Affects the behavior of the internal function _is_user_agent_supported
-void dap_http_simple_set_pass_unknown_user_agents(bool pass);
+void dap_http_simple_set_pass_unknown_user_agents( bool pass );
 
-
-size_t dap_http_simple_reply(dap_http_simple_t * shs, void * data, size_t data_size);
-size_t dap_http_simple_reply_f(dap_http_simple_t * shs, const char * data, ...);
+size_t dap_http_simple_reply( dap_http_simple_t *shs, void *data, size_t data_size );
+size_t dap_http_simple_reply_f( dap_http_simple_t *shs, const char *data, ... );
 
 #endif

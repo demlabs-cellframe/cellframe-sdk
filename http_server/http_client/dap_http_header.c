@@ -23,6 +23,20 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include "wrappers.h"
+#include <wepoll.h>
+#include "../pthread-win32/pthread.h"
+
+#endif
+
 #include "dap_common.h"
 #include "dap_client_remote.h"
 #include "dap_http_client.h"
@@ -35,10 +49,10 @@
  * @brief dap_http_header_init Init module
  * @return Zero if ok others if not
  */
-int dap_http_header_init()
+int dap_http_header_init( )
 {
-    log_it(L_NOTICE, "Initialized HTTP headers module");
-    return 0;
+  log_it( L_NOTICE, "Initialized HTTP headers module" );
+  return 0;
 }
 
 /**
@@ -46,7 +60,7 @@ int dap_http_header_init()
  */
 void dap_http_header_deinit()
 {
-    log_it(L_INFO, "HTTP headers module deinit");
+  log_it( L_INFO, "HTTP headers module deinit" );
 }
 
 
@@ -58,7 +72,6 @@ void dap_http_header_deinit()
  */
 int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
 {
-
     char name[256], value[1024];
 
     size_t str_len=strlen(str);
@@ -68,8 +81,9 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
         return 1;
 
     //log_it(L_DEBUG, "Parse header string '%s'",str);
-    for(pos=1; pos<str_len;pos++)
-        if(str[pos]==':'){
+    for( pos = 1; pos < str_len; pos ++ )
+
+        if( str[pos] == ':' ) {
             size_t name_len;
             name_len=pos;
             if(name_len>(sizeof(name)-1) )
@@ -91,14 +105,17 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
                     log_it(L_INFO, "Input: Keep-Alive connection detected");
                     cl_ht->keep_alive=true;
                 }
+//                if(strcmp(value,"keep-alive")==0){
+//                    log_it(L_INFO, "Input: Keep-Alive connection detected");
+//                    cl_ht->keep_alive=true;
+//                }
             }else if(strcmp(name,"Content-Type")==0){
-                strncpy(cl_ht->in_content_type,value,sizeof(cl_ht->in_content_type));
+                strncpy( cl_ht->in_content_type, value, sizeof(cl_ht->in_content_type) );
             }else if(strcmp(name,"Content-Length")==0){
-                cl_ht->in_content_length =atoi(value);
+                cl_ht->in_content_length = atoi( value );
             }else  if(strcmp(name,"Cookie")==0){
                 strncpy(cl_ht->in_cookie,value,sizeof(cl_ht->in_cookie));
             }
-
 
             //log_it(L_DEBUG, "Input: Header\t%s '%s'",name,value);
 
@@ -192,11 +209,13 @@ void print_dap_http_headers(dap_http_header_t * top)
  * @param name Name of the header
  * @return NULL if not found or pointer to structure with found item
  */
-dap_http_header_t * dap_http_header_find(dap_http_header_t * top, const char*name)
+dap_http_header_t *dap_http_header_find( dap_http_header_t *top, const char *name )
 {
-    dap_http_header_t * ret;
-    for(ret=top; ret; ret=ret->next)
-        if(strcmp(ret->name,name)==0)
-            return ret;
-    return ret;
+  dap_http_header_t *ret;
+
+  for( ret = top; ret; ret = ret->next )
+    if( strcmp(ret->name, name) == 0 )
+      return ret;
+
+  return ret;
 }
