@@ -139,8 +139,8 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t **objs)
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
     const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver",
-            "sqlite");
+    //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
     lock();
     int res = dap_db_driver_init(l_driver_name, l_storage_path);
     //int res = dap_db_init(a_storage_path);
