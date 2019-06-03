@@ -23,15 +23,27 @@
 */
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <string.h>
-#include <ev.h>
+
+#ifndef _WIN32
+#include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include "wrappers.h"
+#include <wepoll.h>
+#include <pthread.h>
+#endif
 
 #include "dap_common.h"
-#include "dap_client_remote.h"
 #include "dap_server.h"
-
+#include "dap_client_remote.h"
 
 #define LOG_TAG "dap_client_remote"
 
@@ -39,33 +51,35 @@
  * @brief dap_client_init Init clients module
  * @return Zero if ok others if no
  */
-int dap_client_remote_init()
+int dap_client_remote_init( )
 {
-    log_it(L_NOTICE,"Initialized socket client module");
-    return 0;
+  log_it( L_NOTICE, "Initialized socket client module" );
+
+  return 0;
 }
 
 /**
  * @brief dap_client_deinit Deinit clients module
  */
-void dap_client_remote_deinit()
+void dap_client_remote_deinit( )
 {
 
+  return;
 }
 
 /**
  * @brief _save_ip_and_port
  * @param cl
  */
-void _save_ip_and_port(dap_client_remote_t * cl)
+void _save_ip_and_port( dap_client_remote_t * cl )
 {
-    struct sockaddr_in ip_adr_get;
-    socklen_t ip_adr_len;
+  struct sockaddr_in ip_adr_get;
+  socklen_t ip_adr_len;
 
-    getpeername(cl->socket, &ip_adr_get, &ip_adr_len);
+  getpeername( cl->socket, (struct sockaddr * restrict)&ip_adr_get, &ip_adr_len );
 
-    cl->port = ntohs(ip_adr_get.sin_port);
-    strcpy(cl->s_ip, inet_ntoa(ip_adr_get.sin_addr));
+  cl->port = ntohs( ip_adr_get.sin_port );
+  strcpy( cl->s_ip, inet_ntoa(ip_adr_get.sin_addr) );
 }
 
 /**
@@ -74,49 +88,64 @@ void _save_ip_and_port(dap_client_remote_t * cl)
  * @param s Client's socket
  * @return Pointer to the new list's node
  */
-dap_client_remote_t * dap_client_remote_create(dap_server_t * sh, int s, ev_io* w_client)
+dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_server_thread_t *dsth )
 {
-    pthread_mutex_lock(&sh->mutex_on_hash);
+  dap_client_remote_t *dsc = DAP_NEW_Z( dap_client_remote_t );
 
-    dap_client_remote_t * dsc = DAP_NEW_Z(dap_client_remote_t);
-    dap_random_string_fill(dsc->id, CLIENT_ID_SIZE);
-    dsc->socket = s;
-    dsc->server = sh;
-    dsc->watcher_client = w_client;
-    dsc->_ready_to_read = true;
-    dsc->buf_out_offset = 0;
-    _save_ip_and_port(dsc);
+  dap_random_string_fill( dsc->id, CLIENT_ID_SIZE );
 
-    HASH_ADD_INT(sh->clients, socket, dsc);
-    if(sh->client_new_callback)
-        sh->client_new_callback(dsc, NULL); // Init internal structure
+  dsc->socket = s;
+  dsc->server = sh;
+  dsc->tn = dsth->thread_num;
+  dsc->efd = dsth->epoll_fd;
+  dsc->time_connection = dsc->last_time_active = time( NULL) ;
 
-    pthread_mutex_unlock(&sh->mutex_on_hash);
-    log_it(L_DEBUG, "Connected client ip: %s port %d", dsc->s_ip, dsc->port);
+  dsc->pevent.events = EPOLLIN | EPOLLOUT | EPOLLERR;
+  dsc->pevent.data.ptr = dsc;
+
+  dsc->_ready_to_read = true;
+  dsc->buf_out_offset = 0;
+
+  _save_ip_and_port( dsc );
+
+  pthread_mutex_lock( &sh->mutex_on_hash );
+  HASH_ADD_INT( sh->clients, socket, dsc );
+  pthread_mutex_unlock( &sh->mutex_on_hash );
+
+  if ( sh->client_new_callback )
+    sh->client_new_callback( dsc, NULL ); // Init internal structure
+
+  log_it(L_DEBUG, "Create remote client: ip: %s port %d", dsc->s_ip, dsc->port );
+
     //log_it(L_DEBUG, "Create new client. ID: %s", dsc->id);
-    return dsc;
+  return dsc;
 }
 
 /**
  * @brief safe_client_remove Removes the client from the list
  * @param sc Client instance
  */
-void dap_client_remote_remove(dap_client_remote_t *sc, struct dap_server * sh)
+void dap_client_remote_remove( dap_client_remote_t *sc, struct dap_server * sh )
 {
-    pthread_mutex_lock(&sh->mutex_on_hash);
+  log_it(L_DEBUG, "dap_client_remote_remove [THREAD %u] efd %u", sc->tn , sc->efd );
 
-    log_it(L_DEBUG, "Client structure remove");
-    HASH_DEL(sc->server->clients,sc);
+//  EPOLL_HANDLE efd;            // Epoll fd
+//  int tn;             // working thread index
 
-    if(sc->server->client_delete_callback)
-        sc->server->client_delete_callback(sc,NULL); // Init internal structure
-    if(sc->_inheritor)
-        free(sc->_inheritor);
+  pthread_mutex_lock( &sh->mutex_on_hash );
+  HASH_DEL( sc->server->clients, sc );
+  pthread_mutex_unlock( &sh->mutex_on_hash );
 
-    if(sc->socket)
-        close(sc->socket);
-    free(sc);
-    pthread_mutex_unlock(&sh->mutex_on_hash);
+  if( sc->server->client_delete_callback )
+    sc->server->client_delete_callback( sc, NULL ); // Init internal structure
+
+  if( sc->_inheritor )
+    free( sc->_inheritor );
+
+  if( sc->socket )
+    close( sc->socket );
+
+  free( sc );
 }
 
 /**
@@ -125,13 +154,15 @@ void dap_client_remote_remove(dap_client_remote_t *sc, struct dap_server * sh)
  * @param sh
  * @return
  */
-dap_client_remote_t * dap_client_remote_find(int sock, struct dap_server * sh)
+dap_client_remote_t *dap_client_remote_find( int sock, struct dap_server *sh )
 {
-    dap_client_remote_t * ret = NULL;
-    pthread_mutex_lock(&sh->mutex_on_hash);
-    HASH_FIND_INT(sh->clients, &sock, ret);
-    pthread_mutex_unlock(&sh->mutex_on_hash);
-    return ret;
+  dap_client_remote_t *ret = NULL;
+
+  pthread_mutex_lock( &sh->mutex_on_hash );
+  HASH_FIND_INT( sh->clients, &sock, ret );
+  pthread_mutex_unlock( &sh->mutex_on_hash );
+
+  return ret;
 }
 
 /**
@@ -139,20 +170,29 @@ dap_client_remote_t * dap_client_remote_find(int sock, struct dap_server * sh)
  * @param sc
  * @param isReady
  */
-void dap_client_remote_ready_to_read(dap_client_remote_t * sc,bool is_ready)
+void  dap_client_remote_ready_to_read( dap_client_remote_t *sc, bool is_ready )
 {
-    if(is_ready != sc->_ready_to_read) {
-        int events = 0;
-        sc->_ready_to_read=is_ready;
+  if( is_ready != sc->_ready_to_read ) {
 
-        if(sc->_ready_to_read)
-            events |= EV_READ;
+//    log_it( L_ERROR, "remote_ready_to_read() %u efd %X", sc->socket, sc->efd );
 
-        if(sc->_ready_to_write)
-            events |= EV_WRITE;
+    int events = EPOLLERR;
+    sc->_ready_to_read = is_ready;
 
-        ev_io_set(sc->watcher_client, sc->socket, events );
+    if( sc->_ready_to_read ) {
+      events |= EPOLLIN;
     }
+
+    if( sc->_ready_to_write ) {
+      events |= EPOLLOUT;
+    }
+
+    sc->pevent.events = events;
+
+    if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->socket, &sc->pevent) != 0 ) {
+      log_it( L_ERROR, "epoll_ctl failed 000" );
+    }
+  }
 }
 
 /**
@@ -160,20 +200,29 @@ void dap_client_remote_ready_to_read(dap_client_remote_t * sc,bool is_ready)
  * @param sc
  * @param isReady
  */
-void dap_client_remote_ready_to_write(dap_client_remote_t * sc,bool is_ready)
+void  dap_client_remote_ready_to_write( dap_client_remote_t *sc, bool is_ready )
 {
-    if(is_ready != sc->_ready_to_write) {
-        int events = 0;
-        sc->_ready_to_write=is_ready;
+  if ( is_ready != sc->_ready_to_write ) {
 
-        if(sc->_ready_to_read)
-            events |= EV_READ;
+//    log_it( L_ERROR, "remote_ready_to_write() %u efd %X", sc->socket, sc->efd );
 
-        if(sc->_ready_to_write)
-            events |= EV_WRITE;
+    int events = EPOLLERR;
+    sc->_ready_to_write = is_ready;
 
-        ev_io_set(sc->watcher_client, sc->socket, events );
+    if ( sc->_ready_to_read ) {
+      events |= EPOLLIN;
     }
+
+    if ( sc->_ready_to_write ) {
+      events |= EPOLLOUT;
+    }
+
+    sc->pevent.events = events;
+
+    if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->socket, &sc->pevent) != 0 ) {
+      log_it( L_ERROR, "epoll_ctl failed 001" );
+    }
+  }
 }
 
 /**
@@ -183,15 +232,16 @@ void dap_client_remote_ready_to_write(dap_client_remote_t * sc,bool is_ready)
  * @param data_size Size of data to write
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_client_remote_write(dap_client_remote_t *sc, const void * data, size_t data_size)
+size_t dap_client_remote_write( dap_client_remote_t *sc, const void * data, size_t data_size )
 {     
-     if(sc->buf_out_size + data_size > sizeof(sc->buf_out) )  {
-         log_it(L_WARNING, "Client buffer overflow. Packet loosed");
-         return 0;
-     }
-     memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
-     sc->buf_out_size += data_size;
-     return data_size;
+  if ( sc->buf_out_size + data_size > sizeof(sc->buf_out) ) {
+    log_it( L_WARNING, "Client buffer overflow. Packet loosed" );
+    return 0;
+  }
+
+  memcpy( sc->buf_out + sc->buf_out_size, data, data_size );
+  sc->buf_out_size += data_size;
+  return data_size;
 }
 
 /**
@@ -200,20 +250,25 @@ size_t dap_client_remote_write(dap_client_remote_t *sc, const void * data, size_
  * @param a_format Format
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_client_remote_write_f(dap_client_remote_t *a_client, const char * a_format,...)
+size_t dap_client_remote_write_f( dap_client_remote_t *a_client, const char * a_format, ... )
 {
-    size_t max_data_size = sizeof(a_client->buf_out)-a_client->buf_out_size;
-    va_list ap;
-    va_start(ap,a_format);
-    int ret=vsnprintf(a_client->buf_out+a_client->buf_out_size,max_data_size,a_format,ap);
-    va_end(ap);
-    if(ret>0){
-        a_client->buf_out_size += (unsigned long)ret;
-        return (size_t)ret;
-    }else{
-        log_it(L_ERROR,"Can't write out formatted data '%s'",a_format);
-        return 0;
-    }
+  size_t max_data_size = sizeof( a_client->buf_out ) - a_client->buf_out_size;
+
+  va_list ap;
+  va_start( ap, a_format );
+
+  int ret = vsnprintf( a_client->buf_out + a_client->buf_out_size, max_data_size, a_format, ap );
+
+  va_end( ap );
+
+  if( ret > 0 ) {
+    a_client->buf_out_size += (unsigned long)ret;
+    return (size_t)ret;
+  } 
+  else {
+    log_it( L_ERROR, "Can't write out formatted data '%s'", a_format );
+    return 0;
+  }
 }
 
 /**
@@ -223,19 +278,23 @@ size_t dap_client_remote_write_f(dap_client_remote_t *a_client, const char * a_f
  * @param a_data_size Size of data to read
  * @return Actual bytes number that were read
  */
-size_t dap_client_remote_read(dap_client_remote_t *a_client, void * a_data, size_t a_data_size)
+size_t dap_client_remote_read( dap_client_remote_t *a_client, void *a_data, size_t a_data_size )
 {
-    if (a_data_size < a_client->buf_in_size) {
-        memcpy(a_data, a_client->buf_in, a_data_size);
-        memmove(a_data, a_client->buf_in + a_data_size, a_client->buf_in_size - a_data_size);
-    } else {
-        if (a_data_size > a_client->buf_in_size) {
-            a_data_size = a_client->buf_in_size;
-        }
-        memcpy(a_data, a_client->buf_in, a_data_size);
+  if ( a_data_size < a_client->buf_in_size ) {
+
+    memcpy( a_data, a_client->buf_in, a_data_size );
+    memmove( a_client->buf_in, a_client->buf_in + a_data_size, a_client->buf_in_size - a_data_size );
+  } 
+  else {
+    if ( a_data_size > a_client->buf_in_size ) {
+      a_data_size = a_client->buf_in_size;
     }
-    a_client->buf_in_size -= a_data_size;
-    return a_data_size;
+    memcpy( a_data, a_client->buf_in, a_data_size );
+  }
+
+  a_client->buf_in_size -= a_data_size;
+
+  return a_data_size;
 }
 
 
@@ -244,8 +303,9 @@ size_t dap_client_remote_read(dap_client_remote_t *a_client, void * a_data, size
  * @param a_client Client instance
  * @param a_shrink_size Size on wich we shrink the buffer with shifting it left
  */
-void dap_client_remote_shrink_buf_in(dap_client_remote_t * a_client, size_t a_shrink_size)
+void dap_client_remote_shrink_buf_in( dap_client_remote_t *a_client, size_t a_shrink_size )
 {
+#if 0
     if((a_shrink_size==0)||(a_client->buf_in_size==0) ){
         return;
     }else if(a_client->buf_in_size>a_shrink_size){
@@ -258,5 +318,26 @@ void dap_client_remote_shrink_buf_in(dap_client_remote_t * a_client, size_t a_sh
     }else {
         a_client->buf_in_size=0;
     }
+#endif
 
+  if ( a_shrink_size == 0 || a_client->buf_in_size == 0 )
+    return;
+
+  if ( a_client->buf_in_size > a_shrink_size ) {
+
+    size_t buf_size = a_client->buf_in_size - a_shrink_size;
+    memmove( a_client->buf_in, a_client->buf_in + a_shrink_size, buf_size );
+/**
+    void *buf = malloc( buf_size );
+    memcpy( buf, a_client->buf_in + a_shrink_size, buf_size );
+    memcpy( a_client->buf_in, buf, buf_size );
+    // holy shit
+    a_client->buf_in_size = buf_size;
+    free( buf );
+**/
+    a_client->buf_in_size = buf_size;
+  }
+  else {
+    a_client->buf_in_size = 0;
+  }
 }

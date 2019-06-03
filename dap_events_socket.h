@@ -22,16 +22,24 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include "uthash.h"
+#ifndef _WIN32
+#include <sys/epoll.h>
+#endif
+
 struct dap_events;
 struct dap_events_socket;
 struct dap_worker;
+
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (struct dap_events_socket *,void * arg); // Callback for specific client operations
-typedef struct dap_events_socket_callbacks{
+
+typedef struct dap_events_socket_callbacks {
+
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
     dap_events_socket_callback_t read_callback; // Read function
@@ -40,10 +48,11 @@ typedef struct dap_events_socket_callbacks{
 
 } dap_events_socket_callbacks_t;
 
-
 #define DAP_EVENTS_SOCKET_BUF 100000
 
-typedef struct dap_events_socket{
+#if 0
+typedef struct dap_events_socket {
+
     int socket;
     bool signal_close;
 
@@ -64,9 +73,9 @@ typedef struct dap_events_socket{
 
     size_t buf_out_size; // size of data that is in the output buffer
 
-    struct dap_events * events;
+    struct dap_events *events;
 
-    struct dap_worker* dap_worker;
+    struct dap_worker *dap_worker;
     dap_events_socket_callbacks_t *callbacks;
 
     time_t time_connection;
@@ -77,8 +86,47 @@ typedef struct dap_events_socket{
 
     void * _inheritor; // Inheritor data to specific client type, usualy states for state machine
 } dap_events_socket_t; // Node of bidirectional list of clients
+#endif
 
+typedef struct dap_events_socket {
 
+  int32_t socket;
+
+  bool signal_close;
+  bool _ready_to_write;
+  bool _ready_to_read;
+
+  uint32_t buf_out_zero_count;
+  union{
+    uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
+    char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
+  };
+  size_t buf_in_size; // size of data that is in the input buffer
+
+  uint8_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+
+  char hostaddr[1024]; // Address
+  char service[128];
+
+  size_t buf_out_size; // size of data that is in the output buffer
+
+  struct dap_events *events;
+  struct dap_worker *dap_worker;
+  struct epoll_event ev;
+
+  dap_events_socket_callbacks_t *callbacks;
+
+  time_t time_connection;
+  time_t last_time_active;
+  time_t last_ping_request;
+  bool is_pingable;
+
+  UT_hash_handle hh;
+  struct dap_events_socket *next, *prev;
+
+  void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
+
+} dap_events_socket_t; // Node of bidirectional list of clients
 
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
