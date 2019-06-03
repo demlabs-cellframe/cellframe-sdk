@@ -22,15 +22,29 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <unistd.h>
 #include <string.h>
 #include <assert.h>
+
+#ifndef _WIN32
+#include <sys/epoll.h>
+#include <unistd.h>
+#include <fcntl.h>
+#else
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include "wrappers.h"
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_events.h"
 
@@ -42,7 +56,7 @@
  * @brief dap_events_socket_init Init clients module
  * @return Zero if ok others if no
  */
-int dap_events_socket_init()
+int dap_events_socket_init( )
 {
     log_it(L_NOTICE,"Initialized socket client module");
     return 0;
@@ -51,7 +65,7 @@ int dap_events_socket_init()
 /**
  * @brief dap_events_socket_deinit Deinit clients module
  */
-void dap_events_socket_deinit()
+void dap_events_socket_deinit( )
 {
 
 }
@@ -65,44 +79,47 @@ void dap_events_socket_deinit()
  * @param a_callbacks
  * @return
  */
-dap_events_socket_t * dap_events_socket_wrap_no_add( dap_events_t * a_events,
-                                            int a_sock, dap_events_socket_callbacks_t * a_callbacks)
+dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
+                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks )
 {
-    //assert(a_events);
-    assert(a_callbacks);
-    log_it(L_DEBUG,"Dap event socket wrapped around %d sock", a_sock);
-    dap_events_socket_t * ret = DAP_NEW_Z(dap_events_socket_t);
-    ret->socket = a_sock;
-    ret->events = a_events;
-    ret->callbacks = a_callbacks;
-    ret->_ready_to_read=true;
-    return ret;
+//  assert(a_events);
+  assert(a_callbacks);
+
+  log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
+
+  dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
+
+  ret->socket = a_sock;
+  ret->events = a_events;
+  ret->callbacks = a_callbacks;
+  ret->_ready_to_read = true;
+
+  return ret;
 }
 
 /**
  * @brief dap_events_socket_create_after
  * @param a_es
  */
-void dap_events_socket_create_after(dap_events_socket_t * a_es)
+void dap_events_socket_create_after( dap_events_socket_t *a_es )
 {
-    if(a_es->callbacks->new_callback)
-        a_es->callbacks->new_callback(a_es,NULL); // Init internal structure
+  if ( a_es->callbacks->new_callback )
+    a_es->callbacks->new_callback( a_es, NULL ); // Init internal structure
 
-/*
-    pthread_rwlock_wrlock(&a_es->events->sockets_rwlock);
-    a_es->last_ping_request = time(NULL);
-    HASH_ADD_INT(a_es->events->sockets, socket, a_es);
-    pthread_rwlock_unlock(&a_es->events->sockets_rwlock);
+  a_es->last_time_active = a_es->last_ping_request = time( NULL );
 
-    dap_worker_add_events_socket(a_es);
-*/
-    dap_worker_add_events_socket(a_es);
+  dap_worker_add_events_socket( a_es );
 
-    a_es->events = a_es->dap_worker->events;
-    pthread_rwlock_wrlock(&a_es->events->sockets_rwlock);
-    a_es->last_ping_request = time(NULL);
-    HASH_ADD_INT(a_es->events->sockets, socket, a_es);
-    pthread_rwlock_unlock(&a_es->events->sockets_rwlock);
+  pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
+  HASH_ADD_INT( a_es->events->sockets, socket, a_es );
+  pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
+
+  a_es->ev.events = EPOLLIN | EPOLLERR | EPOLLOUT;
+  a_es->ev.data.ptr = a_es;
+
+  if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
+    log_it( L_CRITICAL, "Can't add event socket's handler to epoll_fd" );
+
 }
 
 /**
@@ -113,28 +130,32 @@ void dap_events_socket_create_after(dap_events_socket_t * a_es)
  * @param a_callbacks
  * @return
  */
-dap_events_socket_t * dap_events_socket_wrap2(dap_server_t * a_server, struct dap_events * a_events,
-                                            int a_sock, dap_events_socket_callbacks_t * a_callbacks)
+dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
+                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks )
 {
-    assert(a_events);
-    assert(a_callbacks);
-    assert(a_server);
-    log_it(L_DEBUG,"Dap event socket wrapped around %d sock", a_sock);
-    dap_events_socket_t * ret = DAP_NEW_Z(dap_events_socket_t);
-    ret->socket = a_sock;
-    ret->events = a_events;
-    ret->callbacks = a_callbacks;
+  assert( a_events );
+  assert( a_callbacks );
+  assert( a_server );
 
-    ret->_ready_to_read=true;
-    ret->is_pingable = true;
+  log_it( L_DEBUG,"Sap event socket wrapped around %d sock", a_sock );
+  dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t );
 
-    pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-    ret->last_ping_request = time(NULL);
-    HASH_ADD_INT(a_events->sockets, socket, ret);
-    pthread_rwlock_unlock(&a_events->sockets_rwlock);
-    if(a_callbacks->new_callback)
-        a_callbacks->new_callback(ret,NULL); // Init internal structure
-    return ret;
+  ret->socket = a_sock;
+  ret->events = a_events;
+  ret->callbacks = a_callbacks;
+
+  ret->_ready_to_read = true;
+  ret->is_pingable = true;
+  ret->last_time_active = ret->last_ping_request = time( NULL );
+
+  pthread_rwlock_wrlock( &a_events->sockets_rwlock );
+  HASH_ADD_INT( a_events->sockets, socket, ret );
+  pthread_rwlock_unlock( &a_events->sockets_rwlock );
+
+  if( a_callbacks->new_callback )
+    a_callbacks->new_callback( ret, NULL ); // Init internal structure
+
+  return ret;
 }
 
 /**
@@ -143,13 +164,15 @@ dap_events_socket_t * dap_events_socket_wrap2(dap_server_t * a_server, struct da
  * @param sh
  * @return
  */
-dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * a_events)
+dap_events_socket_t *dap_events_socket_find( int sock, struct dap_events *a_events )
 {
-    dap_events_socket_t * ret = NULL;
-    pthread_rwlock_rdlock(&a_events->sockets_rwlock);
-    HASH_FIND_INT(a_events->sockets, &sock, ret);
-    pthread_rwlock_unlock(&a_events->sockets_rwlock);
-    return ret;
+  dap_events_socket_t *ret = NULL;
+
+  pthread_rwlock_rdlock( &a_events->sockets_rwlock );
+  HASH_FIND_INT( a_events->sockets, &sock, ret );
+  pthread_rwlock_unlock( &a_events->sockets_rwlock );
+
+  return ret;
 }
 
 /**
@@ -157,23 +180,23 @@ dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * a_eve
  * @param sc
  * @param isReady
  */
-void dap_events_socket_set_readable(dap_events_socket_t * sc,bool is_ready)
+void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
 {
-    if(is_ready != sc->_ready_to_read){
-        struct epoll_event ev={0};
-        ev.events = EPOLLERR;
-        sc->_ready_to_read=is_ready;
-        if(sc->_ready_to_read)
-            ev.events  |= EPOLLIN;
-        if(sc->_ready_to_write)
-            ev.events |= EPOLLOUT;
+  if ( is_ready != sc->_ready_to_read ) {
 
-        ev.data.fd=sc->socket;
-        if (epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &ev) == -1) {
-            log_it(L_ERROR,"Can't update read client socket state in the epoll_fd");
-        }else
-            dap_events_thread_wake_up(&sc->events->proc_thread);
-    }
+    sc->ev.events = EPOLLERR;
+    sc->_ready_to_read = is_ready;
+
+    if ( sc->_ready_to_read )
+      sc->ev.events  |= EPOLLIN;
+    if ( sc->_ready_to_write )
+      sc->ev.events |= EPOLLOUT;
+
+    if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
+      log_it( L_ERROR,"Can't update read client socket state in the epoll_fd" );
+    else
+      dap_events_thread_wake_up( &sc->events->proc_thread );
+  }
 }
 
 /**
@@ -181,23 +204,23 @@ void dap_events_socket_set_readable(dap_events_socket_t * sc,bool is_ready)
  * @param sc
  * @param isReady
  */
-void dap_events_socket_set_writable(dap_events_socket_t * sc,bool is_ready)
+void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
 {
-    if(is_ready != sc->_ready_to_write){
-        struct epoll_event ev={0};
-        ev.events = EPOLLERR ;
-        sc->_ready_to_write=is_ready;
-        if(sc->_ready_to_read)
-            ev.events |= EPOLLIN;
-        if(sc->_ready_to_write)
-            ev.events |= EPOLLOUT;
-        ev.data.fd=sc->socket;
-        if (epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &ev) == -1) {
-            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd=%d socket=0x%x",sc->dap_worker->epoll_fd, sc->socket);
-        }else
-            dap_events_thread_wake_up(&sc->events->proc_thread);
-    }
+  if ( is_ready != sc->_ready_to_write ) {
 
+    sc->ev.events = EPOLLERR;
+    sc->_ready_to_write = is_ready;
+
+    if ( sc->_ready_to_read )
+      sc->ev.events |= EPOLLIN;
+    if ( sc->_ready_to_write )
+      sc->ev.events |= EPOLLOUT;
+
+    if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
+      log_it(L_ERROR,"Can't update write client socket state in the epoll_fd");
+    else
+      dap_events_thread_wake_up( &sc->events->proc_thread );
+  }
 }
 
 
@@ -205,29 +228,30 @@ void dap_events_socket_set_writable(dap_events_socket_t * sc,bool is_ready)
  * @brief dap_events_socket_remove Removes the client from the list
  * @param sc Connection instance
  */
-void dap_events_socket_delete(dap_events_socket_t *a_es, bool preserve_inheritor)
+void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inheritor )
 {
-    if (a_es){
-        log_it(L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
-        pthread_rwlock_wrlock(&a_es->events->sockets_rwlock);
-        HASH_DEL(a_es->events->sockets, a_es);
-        pthread_rwlock_unlock(&a_es->events->sockets_rwlock);
-        log_it(L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket);
-        if ( a_es->socket )
-            close( a_es->socket);
+  if ( !a_es ) return;
 
-        if(a_es->callbacks->delete_callback)
-            a_es->callbacks->delete_callback(a_es, NULL); // Init internal structure
+  log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
 
-        if(a_es->_inheritor && !preserve_inheritor)
-//        if(a_es->_inheritor)
-            free(a_es->_inheritor);
+//a_es->ev
 
-        if(a_es->socket){
-            close(a_es->socket);
-        }
-        free(a_es);
-	}
+  pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
+  HASH_DEL( a_es->events->sockets, a_es );
+  pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
+
+  log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
+
+  if( a_es->callbacks->delete_callback )
+    a_es->callbacks->delete_callback( a_es, NULL ); // Init internal structure
+
+  if ( a_es->_inheritor && !preserve_inheritor )
+    free( a_es->_inheritor );
+
+  if ( a_es->socket )
+    close( a_es->socket );
+
+  free( a_es );
 }
 
 /**
@@ -239,6 +263,8 @@ void dap_events_socket_delete(dap_events_socket_t *a_es, bool preserve_inheritor
  */
 size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
+    log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
+
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
      sc->buf_out_size+=data_size;
@@ -253,6 +279,8 @@ size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_
  */
 size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,...)
 {
+    log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
+
     size_t max_data_size = sizeof(sc->buf_out)-sc->buf_out_size;
     va_list ap;
     va_start(ap,format);
@@ -274,8 +302,10 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
  * @param data_size Size of data to read
  * @return Actual bytes number that were read
  */
-size_t dap_events_socket_read(dap_events_socket_t *sc, void * data, size_t data_size)
+size_t dap_events_socket_read(dap_events_socket_t *sc, void *data, size_t data_size)
 {
+    log_it(L_DEBUG,"dap_events_socket_read %u sock data %X size %u", sc->socket, data, data_size );
+
     if(data_size<sc->buf_in_size){
         memcpy(data,sc->buf_in,data_size);
         memmove(data,sc->buf_in+data_size,sc->buf_in_size-data_size);
@@ -305,7 +335,7 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
         memcpy(cl->buf_in,buf,buf_size);
         cl->buf_in_size=buf_size;
         if (buf)
-        	free(buf);
+            free(buf);
     }else{
         //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
         cl->buf_in_size=0;

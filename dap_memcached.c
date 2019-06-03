@@ -1,6 +1,7 @@
-#include "dap_memcached.h"
-#include <libmemcached/memcached.h>
 
+#include "dap_memcached.h"
+
+#include <libmemcached/memcached.h>
 
 #define LOG_TAG "dap_memcached"
 
