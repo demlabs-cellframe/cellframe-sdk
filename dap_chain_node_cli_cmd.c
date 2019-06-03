@@ -516,14 +516,16 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 if(l_objs)
                     dap_string_append_printf(l_string_reply,
                             "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
-                            node_info_read->hdr.address.uint64,str_ip4, node_info_read->hdr.cell_id.uint64,
-                             node_info_read->hdr.links_number);
+                            NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
+                            node_info_read->hdr.cell_id.uint64, str_ip4,
+                            node_info_read->hdr.links_number);
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
                             "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
-                            NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address) , str_ip4, str_ip6,
-                     node_info_read->hdr.cell_id.uint64, aliases_string->str,
+                            NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
+                            node_info_read->hdr.cell_id.uint64,
+                            str_ip4, str_ip6, aliases_string->str,
                             node_info_read->hdr.links_number, links_string->str);
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);
@@ -1260,8 +1262,8 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
         if(l_addr) {
             char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
-                dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
-            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+                dap_string_append_printf(l_string_ret, "wallet: %s\n", l_wallet->name);
+            //dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
 
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
@@ -1269,13 +1271,16 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
             if(l_addr_tokens_size > 0)
                 dap_string_append_printf(l_string_ret, "balance:\n");
             else
-                dap_string_append_printf(l_string_ret, "balance: 0\n");
+                dap_string_append_printf(l_string_ret, "balance:\u00a00");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
                     uint64_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     long  double l_balance_coins = (long double) l_balance / 1000000000000.0L;
-                    dap_string_append_printf(l_string_ret, "          %.3Lf (%llu) %s\n", l_balance_coins,
+                    //dap_string_append_printf(l_string_ret, "          %.3Lf (%llu) %s\n", l_balance_coins,
+                    dap_string_append_printf(l_string_ret, "\t\u00a0%.3Lf (%llu) %s", l_balance_coins,
                                              l_balance, l_addr_tokens[i]);
+                    if(i < l_addr_tokens_size - 1)
+                        dap_string_append_printf(l_string_ret, "\n");
 
                 }
                 DAP_DELETE(l_addr_tokens[i]);
