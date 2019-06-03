@@ -23,9 +23,11 @@
 */
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_config.h"
 #include "dap_hash.h"
+#include "utlist.h"
 
 #include "dap_chain.h"
 #include "dap_chain_datum.h"
@@ -42,7 +44,7 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
-
+#include "dap_chain_net.h"
 #define LOG_TAG "dap_stream_ch_chain"
 
 
@@ -110,8 +112,8 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
  */
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 {
+    static char *s_net_name = NULL;
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
-
     if ( l_ch_chain){
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_pkt_t * l_chain_pkt =(dap_stream_ch_chain_pkt_t *) l_ch_pkt->data;
@@ -123,6 +125,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             }break;
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:{
                 log_it(L_INFO, "In:  SYNCED_GLOBAL_DB pkt");
+                if(s_net_name) {
+                    DAP_DELETE(s_net_name);
+                    s_net_name = NULL;//"kelvin-testnet"
+                }
             }break;
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS:{
                 log_it(L_INFO, "In:  SYNCED_CHAINS pkt");
@@ -256,17 +262,43 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         //   l_store_obj_reversed = DAP_NEW_Z_SIZE(dap_store_obj_t,l_data_obj_count+1);
                         // Reverse order
                         for ( size_t i =0 ; i < l_data_obj_count; i++) {
-                                char l_ts_str[50];
-                                dap_time_to_str_rfc822(l_ts_str,sizeof(l_ts_str),l_store_obj[i].timestamp);
-                                log_it(L_DEBUG,"Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
-                                       " section=\"%s\" timestamp=\"%s\" value_len=%u  ",
-                                       (char) l_store_obj[i].type   , l_store_obj[i].type, l_store_obj[i].group, l_store_obj[i].key,
-                                       l_store_obj[i].section , l_ts_str,
-                                       l_store_obj[i].value_len);
-
-                                //memcpy(l_store_obj_reversed+l_data_obj_count-i-1, l_store_obj+i,sizeof(*l_store_obj) );
-
+                            char l_ts_str[50];
+                            dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_store_obj[i].timestamp);
+                            log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
+                                    " timestamp=\"%s\" value_len=%u  ",
+                                    (char ) l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
+                                    l_store_obj[i].key,
+                                    l_ts_str,
+                                    l_store_obj[i].value_len);
+                            // read net_name
+                            if(!s_net_name)
+                            {
+                                static dap_config_t *l_cfg = NULL;
+                                if((l_cfg = dap_config_open("network/default")) == NULL) {
+                                    log_it(L_ERROR, "Can't open default network config");
+                                } else {
+                                    s_net_name = dap_strdup(dap_config_get_item_str(l_cfg, "general", "name"));
+                                    dap_config_close(l_cfg);
+                                }
                             }
+                            // add datum in ledger if necessary
+                            {
+                                dap_chain_net_t *l_net = dap_chain_net_by_name(s_net_name);
+                                dap_chain_t * l_chain;
+                                if(l_net) {
+                                    DL_FOREACH(l_net->pub.chains, l_chain)
+                                    {
+                                        const char *l_chain_name = l_chain->name; //l_chain_name = dap_strdup("gdb");
+                                        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+                                        //const char *l_group_name = "chain-gdb.kelvin-testnet.chain-F00000000000000F";//dap_chain_gdb_get_group(l_chain);
+                                        if(l_chain->callback_datums_pool_proc_with_group)
+                                            l_chain->callback_datums_pool_proc_with_group(l_chain,
+                                                    (dap_chain_datum_t**) &(l_store_obj->value), 1, l_store_obj[i].group);
+                                    }
+                                }
+                            }
+
+                        }
                         // save data to global_db
                         if(!dap_chain_global_db_obj_save(l_store_obj, l_data_obj_count)) {
                             log_it(L_ERROR, "Not saved to global_db objs=0x%x count=%d", l_store_obj,
