@@ -3,7 +3,9 @@ project(udp-server-test)
 
 set(CMAKE_C_STANDARD 11)
 
-add_subdirectory(libdap-test)
+if ( NOT ( TARGET dap_test ) )
+    add_subdirectory(libdap-test)
+endif()
 
 file(GLOB SRC *.h *.c)
 
