@@ -17,9 +17,10 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #pragma once
-#ifndef _UDP_SERVER_H_
-#define _UDP_SERVER_H_
+
+#ifndef WIN32
 
 #include <stdint.h>
 #include <sys/socket.h>
@@ -30,34 +31,36 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/queue.h>
+#define EPOLL_HANDLE  int
+#else
+#define EPOLL_HANDLE  HANDLE
+#endif
+
 #include "dap_udp_client.h"
 #include "dap_server.h"
 #include "dap_client_remote.h"
 
 struct dap_udp_server;
 
-typedef struct dap_udp_thread{
+typedef struct dap_udp_thread {
     pthread_t tid;
 } dap_udp_thread_t;
 
-typedef void (*dap_udp_server_callback_t) (struct dap_udp_server *,void * arg); // Callback for specific server's operations
+typedef void (*dap_udp_server_callback_t) (struct dap_udp_server *,void *arg); // Callback for specific server's operations
 
-typedef struct dap_udp_server{
-    dap_udp_client_t * clients;
-    dap_udp_client_t * waiting_clients; // List clients for writing data
+typedef struct dap_udp_server {
+
+    dap_udp_client_t *clients;
+    dap_udp_client_t *waiting_clients; // List clients for writing data
     pthread_mutex_t mutex_on_list;
-    void* _inheritor;
-    dap_server_t* dap_server;
+    void *_inheritor;
+    dap_server_t *dap_server;
+
 } dap_udp_server_t;
 
 #define DAP_UDP_SERVER(a) ((dap_udp_server_t *) (a)->_inheritor)
 
-extern void dap_udp_server_delete(dap_server_t * sh); 
-
-extern void dap_udp_server_loop(dap_server_t* udp_server);      // Start server event loop
-
-extern dap_server_t* dap_udp_server_listen(uint16_t port);      // Create and bind server
-
-#endif
-
+extern void dap_udp_server_delete( dap_server_t *sh ); 
+extern void dap_udp_server_loop( dap_server_t *udp_server );      // Start server event loop
+extern dap_server_t *dap_udp_server_listen( uint16_t port );      // Create and bind server
 

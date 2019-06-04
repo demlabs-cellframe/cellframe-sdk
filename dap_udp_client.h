@@ -18,49 +18,49 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#ifndef _UDP_CLIENT_H
-#define _UDP_CLIENT_H
 
-#include <sys/queue.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <sys/queue.h>
-#include "uthash.h"
-#include "dap_client_remote.h"
-#include <ev.h>
 
+#ifndef WIN32
+#include <sys/queue.h>
+#endif
+
+#include "uthash.h"
+
+#include "dap_client_remote.h"
 
 typedef struct dap_udp_server dap_udp_server_t;
 struct dap_udp_client;
 
-#define UDP_CLIENT_BUF 100000
+#define UDP_CLIENT_BUF 65535
 
-typedef struct dap_udp_client{
-    dap_client_remote_t* client;
+typedef struct dap_udp_client {
+
+    dap_client_remote_t *client;
     uint64_t host_key; //key contains host address in first 4 bytes and port in last 4 bytes
 
     UT_hash_handle hh;
+
     struct dap_udp_client *next, *prev;   //pointers for writing queue
     pthread_mutex_t mutex_on_client;
 
-    void * _inheritor; // Internal data to specific client type, usualy states for state machine
+    void *_inheritor; // Internal data to specific client type, usualy states for state machine
+
 } dap_udp_client_t; // Node of bidirectional list of clients
 
 #define DAP_UDP_CLIENT(a) ((dap_udp_client_t *) (a)->_inheritor)
 
+dap_client_remote_t *dap_udp_client_create( dap_server_t *sh, EPOLL_HANDLE efd, unsigned long host, unsigned short port ); // Create new client and add it to the list
+dap_client_remote_t *dap_udp_client_find( dap_server_t *sh, unsigned long host, unsigned short port ); // Find client by host and port
 
-dap_client_remote_t * dap_udp_client_create(dap_server_t * sh, ev_io* w_client, unsigned long host, unsigned short port); // Create new client and add it to the list
-dap_client_remote_t * dap_udp_client_find(dap_server_t * sh, unsigned long host, unsigned short port); // Find client by host and port
+void dap_udp_client_ready_to_read( dap_client_remote_t *sc, bool is_ready );
+void dap_udp_client_ready_to_write( dap_client_remote_t *sc, bool is_ready );
 
-void dap_udp_client_ready_to_read(dap_client_remote_t * sc,bool is_ready);
-void dap_udp_client_ready_to_write(dap_client_remote_t * sc,bool is_ready);
+size_t dap_udp_client_write( dap_client_remote_t *sc, const void * data, size_t data_size );
+size_t dap_udp_client_write_f( dap_client_remote_t *a_client, const char * a_format, ... );
 
-size_t dap_udp_client_write(dap_client_remote_t *sc, const void * data, size_t data_size);
-size_t dap_udp_client_write_f(dap_client_remote_t *a_client, const char * a_format,...);
+void add_waiting_client( dap_client_remote_t *client ); // Add client to writing queue
 
-void add_waiting_client(dap_client_remote_t* client); // Add client to writing queue
-
-void dap_udp_client_get_address(dap_client_remote_t *client, unsigned int* host,unsigned short* port);
-
-#endif
+void dap_udp_client_get_address( dap_client_remote_t *client, unsigned int *host, unsigned short *port );
