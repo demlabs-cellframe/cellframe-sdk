@@ -232,7 +232,7 @@ dap_stream_t * stream_new_udp(dap_client_remote_t * sh)
 
     sh->_internal=ret;
 
-    log_it(L_NOTICE,"New stream instance");
+    log_it(L_NOTICE,"New stream instance udp");
     return ret;
 }
 
@@ -243,6 +243,7 @@ dap_stream_t * stream_new_udp(dap_client_remote_t * sh)
  */
 void check_session(unsigned int id, dap_client_remote_t* cl){
     dap_stream_session_t * ss=NULL;
+
     ss=dap_stream_session_id(id);
     if(ss==NULL){
         log_it(L_ERROR,"No session id %u was found",id);
@@ -288,20 +289,28 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
 
     ret->conn->_internal=ret;
 
-
     log_it(L_NOTICE,"New stream instance");
     return ret;
 }
 
-void dap_stream_delete(dap_stream_t * a_stream)
+void dap_stream_delete( dap_stream_t *a_stream )
 {
-    if(a_stream == NULL)
+    log_it(L_ERROR,"dap_stream_delete( )");
+
+    if(a_stream == NULL) {
+        log_it(L_ERROR,"stream delete NULL instance");
         return;
+    }
     size_t i;
-    for(i = 0; i < a_stream->channel_count; i++)
+
+    for(i = 0; i < a_stream->channel_count; i++) {
         dap_stream_ch_delete(a_stream->channel[i]);
-    if(a_stream->session)
+    }
+
+    if ( a_stream->session ) {
         dap_stream_session_close(a_stream->session->id);
+    }
+
     free(a_stream);
 }
 
@@ -330,6 +339,7 @@ dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es)
 void s_headers_write(dap_http_client_t * sh, void *arg)
 {
     (void) arg;
+
     if(sh->reply_status_code==200){
         dap_stream_t *sid=DAP_STREAM(sh->client);
 
@@ -348,6 +358,7 @@ void s_headers_write(dap_http_client_t * sh, void *arg)
 // Function for keepalive loop
 static void keepalive_cb (EV_P_ ev_timer *w, int revents)
 {
+
     struct dap_stream *sid = w->data;
     if(sid->keepalive_passed < STREAM_KEEPALIVE_PASSES)
     {
@@ -360,6 +371,7 @@ static void keepalive_cb (EV_P_ ev_timer *w, int revents)
         void * arg;
         stream_dap_delete(sid->conn,arg);
     }
+
 }
 
 /**
@@ -399,9 +411,10 @@ void s_data_read(dap_client_remote_t* a_client, void * arg)
     dap_stream_t * l_stream =DAP_STREAM(a_client);
     int * ret = (int *) arg;
 
-    if (s_dump_packet_headers )
+    if (s_dump_packet_headers ) {
         log_it(L_DEBUG,"dap_stream_data_read: client->buf_in_size=%u" ,
-               a_client->_ready_to_write?"true":"false", a_client->buf_in_size );
+               (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
+    }
 
      *ret = dap_stream_data_proc_read( l_stream);
 }
@@ -415,6 +428,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
 {
     bool found_sig=false;
     dap_stream_pkt_t * pkt=NULL;
+
     char *buf_in = (a_stream->conn) ? (char*)a_stream->conn->buf_in : (char*)a_stream->events_socket->buf_in;
     size_t buf_in_size = (a_stream->conn) ? a_stream->conn->buf_in_size : a_stream->events_socket->buf_in_size;
     uint8_t * proc_data =  buf_in;//a_stream->conn->buf_in;
@@ -556,6 +570,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     }else if(proc_data_defrag){
         a_stream->buf_defrag_size=0;
     }
+
     return buf_in_size;//a_stream->conn->buf_in_size;
 }
 
@@ -569,7 +584,7 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
     size_t i;
     (void) arg;
     bool ready_to_write=false;
-    //  log_it(L_DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
+    log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(a_client )->channel_count );
 
     for(i=0;i<DAP_STREAM(a_client )->channel_count; i++){
         dap_stream_ch_t * ch = DAP_STREAM(a_client )->channel[i];
@@ -579,15 +594,18 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
             ready_to_write|=ch->ready_to_write;
         }
     }
-    if (s_dump_packet_headers )
+    if (s_dump_packet_headers ) {
         log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%u" ,
                ready_to_write?"true":"false", a_client->buf_out_size );
+    }
 
   /*  if(STREAM(sh)->conn_udp)
         dap_udp_client_ready_to_write(STREAM(sh)->conn,ready_to_write);
     else
         dap_client_ready_to_write(sh,ready_to_write);*/
     //log_it(L_ERROR,"No stream_data_write_callback is defined");
+
+    log_it(L_ERROR,"stream_dap_data_write ok");
 }
 
 /**
@@ -639,6 +657,7 @@ static bool _detect_loose_packet(dap_stream_t * sid)
 //    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
 //    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
     sid->client_last_seq_id_packet = ch_pkt->hdr.seq_id;
+
     return false;
 }
 
