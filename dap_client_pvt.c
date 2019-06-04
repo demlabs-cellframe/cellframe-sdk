@@ -114,17 +114,21 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
     if(!a_client_pvt)
         return;
+
     if(a_client_pvt->session_key_id)
         DAP_DELETE(a_client_pvt->session_key_id);
+
     if ( a_client_pvt->active_channels )
         DAP_DELETE(a_client_pvt->active_channels );
+
     if (a_client_pvt->session_key)
         dap_enc_key_delete(a_client_pvt->session_key);
+
     if (a_client_pvt->session_key_open)
         dap_enc_key_delete(a_client_pvt->session_key_open);
+
     if (a_client_pvt->stream_key)
         dap_enc_key_delete(a_client_pvt->stream_key);
-
 }
 
 /**
@@ -831,32 +835,46 @@ void m_stage_stream_streaming(dap_client_t * a_client, void* arg)
  * @param a_es
  * @param arg
  */
-void m_es_stream_delete(dap_events_socket_t * a_es, void * arg)
+void m_es_stream_delete( dap_events_socket_t *a_es, void *arg )
 {
     log_it(L_INFO, "====================================================== stream delete/peer reconnect");
-    dap_client_t* l_client = DAP_CLIENT(a_es);
-    if(l_client == NULL) {
+
+    dap_client_t *l_client = DAP_CLIENT(a_es);
+
+    if ( l_client == NULL ) {
         log_it(L_ERROR, "dap_client is not initialized");
         return;
     }
 
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
-    if(l_client_pvt == NULL) {
+    if( l_client_pvt == NULL ) {
         log_it(L_ERROR, "dap_client_pvt is not initialized");
         return;
     }
 
-    dap_stream_delete(l_client_pvt->stream);
+    dap_stream_delete( l_client_pvt->stream );
     l_client_pvt->stream = NULL;
-    if(l_client_pvt->client)
-        dap_client_reset(l_client_pvt->client);
+
+    if( l_client_pvt->client )
+        dap_client_reset (l_client_pvt->client );
 
 //    l_client_pvt->client= NULL;
+
     l_client_pvt->stream_es = NULL;
-    dap_stream_session_close(l_client_pvt->stream_session->id);
+
+//    log_it(L_DEBUG, "dap_stream_session_close()");
+//    sleep(3);
+//    dap_stream_session_close(l_client_pvt->stream_session->id);
+
     l_client_pvt->stream_session = NULL;
-    if (l_client_pvt->is_reconnect)
+
+    if ( l_client_pvt->is_reconnect ) {
+        log_it(L_DEBUG, "l_client_pvt->is_reconnect = true");
+
        dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
+    }
+    else
+        log_it(L_DEBUG, "l_client_pvt->is_reconnect = false");
 }
 
 /**
