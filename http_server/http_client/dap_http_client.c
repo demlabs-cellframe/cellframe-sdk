@@ -570,7 +570,7 @@ void dap_http_client_write( dap_client_remote_t * cl, void *arg )
           log_it( L_DEBUG, "Nothing to output" );
           cl_ht->state_write = DAP_HTTP_CLIENT_STATE_NONE;
           dap_client_remote_ready_to_write( cl, false );
-          cl->signal_close = true;
+          cl->flags |= DAP_SOCK_SIGNAL_CLOSE;
         }
         dap_client_remote_ready_to_read( cl, true );
       }

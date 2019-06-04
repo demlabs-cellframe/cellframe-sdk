@@ -259,7 +259,7 @@ void dap_http_folder_headers_write( dap_http_client_t *cl_ht, void * arg)
     }
     else {
       cl_ht->reply_status_code=Http_Status_NotFound;
-      cl_ht->client->signal_close=true;
+      cl_ht->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
       log_it(L_WARNING,"Can't detect MIME type of %s file: %s",cl_ht_file->local_path,magic_error(up_folder->mime_detector));
     }
   }
@@ -304,7 +304,10 @@ void dap_http_folder_data_write(dap_http_client_t * cl_ht, void * arg)
         //strncat(cl_ht->client->buf_out+cl_ht->client->buf_out_size,"\r\n",sizeof(cl_ht->client->buf_out));
         fclose(cl_ht_file->fd);
         dap_client_remote_ready_to_write(cl_ht->client,false);
-        cl_ht->client->signal_close=!cl_ht->keep_alive;
+
+        if ( !cl_ht->keep_alive )
+            cl_ht->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
+
         cl_ht->state_write=DAP_HTTP_CLIENT_STATE_NONE;
     }
 }
