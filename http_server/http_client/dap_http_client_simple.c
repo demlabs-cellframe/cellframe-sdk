@@ -346,10 +346,10 @@ static void* dap_http_client_thread(void * arg)
         rc = 0;
 
         if(maxfd == -1) {
-            log_it(L_DEBUG, "Waiting for signal");
+//            log_it(L_DEBUG, "Waiting for signal");
             pthread_cond_wait(&m_curl_cond,&m_curl_mutex);
         }  else {
-            log_it(L_DEBUG, "Selecting stuff");
+//            log_it(L_DEBUG, "Selecting stuff");
           /* Note that on some platforms 'timeout' may be modified by select().
              If you need access to the original value save a copy beforehand. */
           rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);

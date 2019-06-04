@@ -495,7 +495,7 @@ void dap_http_simple_data_write( dap_http_client_t *a_http_client, void *a_arg )
 
   if ( !cl_st->reply ) {
 
-    a_http_client->client->signal_close = true;
+    a_http_client->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
     log_it( L_WARNING, "No reply to write, close connection" );
 
     return;
@@ -508,7 +508,7 @@ void dap_http_simple_data_write( dap_http_client_t *a_http_client, void *a_arg )
   if ( cl_st->reply_sent >= a_http_client->out_content_length ) {
     log_it(L_INFO, "All the reply (%u) is sent out", a_http_client->out_content_length );
     //cl_ht->client->signal_close=cl_ht->keep_alive;
-    a_http_client->client->signal_close = true;
+    a_http_client->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
     //dap_client_ready_to_write(cl_ht->client,false);
   }
 
