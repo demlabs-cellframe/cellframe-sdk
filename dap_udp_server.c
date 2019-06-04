@@ -1,78 +1,127 @@
-#include "dap_udp_server.h"
+/*
+ Copyright (c) 2017-2019 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
+  All rights reserved.
+
+ This file is part of DAP (Deus Applications Prototypes) the open source project
+
+    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    DAP is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#include <string.h>
+#include <time.h>
 #include <stdio.h>
-#include "dap_common.h"
+#include <stdlib.h>
+#include <stddef.h>
+#include <signal.h>
+#include <stdint.h>
+
+#ifndef _WIN32
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/select.h>
+#include <sys/queue.h>
 #include <errno.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <ev.h>
+#include <sys/epoll.h>
+#else
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include "wrappers.h"
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
+#include "uthash.h"
 #include "utlist.h"
+
+#include "dap_common.h"
+#include "dap_udp_server.h"
 
 #define LOG_TAG "dap_udp_server"
 
 #define BUFSIZE 1024
 
-char buf[BUFSIZE]; /* message buf */
-struct ev_io w_read;
-struct ev_io w_write;
+char buf[ BUFSIZE ]; /* message buf */
 
-static void write_cb(struct ev_loop* _loop, struct ev_io* watcher, int revents);
-int check_close(dap_client_remote_t* client);
+//struct ev_io w_read;
+//struct ev_io w_write;
+
+EPOLL_HANDLE efd_read  = (EPOLL_HANDLE)-1;
+EPOLL_HANDLE efd_write = (EPOLL_HANDLE)-1;
+
+//static void write_cb( EPOLL_HANDLE efd, int revents );
+
+int check_close( dap_client_remote_t *client );
 
 /**
  */
-void error(char *msg) {
-  perror(msg);
-  exit(1);
+void error( char *msg ) {
+
+  perror( msg );
+  exit( 1 );
 }
 
 /**
  * @brief dap_udp_server_new Initialize server structure
  * @return Server pointer
  */
-dap_server_t * dap_udp_server_new()
+dap_server_t *dap_udp_server_new( )
 {
-    dap_udp_server_t* udp_server = (dap_udp_server_t*)calloc(1,sizeof(dap_udp_server_t));
-    udp_server->waiting_clients = NULL;
-    dap_server_t* sh = (dap_server_t*) calloc(1,sizeof(dap_server_t));
-    sh->_inheritor = udp_server;
-    udp_server->dap_server = sh;
-    return sh;
-}
+  dap_udp_server_t *udp_server = (dap_udp_server_t *)calloc( 1, sizeof(dap_udp_server_t) );
+  udp_server->waiting_clients = NULL;
 
-/**
- * @brief dap_udp_client_loop Create client listening event loop
- */
-void* dap_udp_client_loop(void * arg)
-{
-    dap_server_t* sh = (dap_server_t*)arg;
-    log_it(L_NOTICE, "Start client listener thread");
-    struct ev_loop * ev_client_loop = ev_loop_new(0);
-    w_write.data = sh;
-    ev_io_init(&w_write, write_cb, sh->socket_listener, EV_WRITE);
-    ev_io_start(ev_client_loop, &w_write);
-    ev_loop(ev_client_loop, 0);
-    return NULL;
+  dap_server_t *sh = (dap_server_t *) calloc( 1, sizeof(dap_server_t) );
+  sh->_inheritor = udp_server;
+
+  udp_server->dap_server = sh;
+
+  return sh;
 }
 
 /**
  * @brief dap_udp_server_delete Safe delete server structure
  * @param sh Server instance
  */
-void dap_udp_server_delete(dap_server_t * sh)
+void dap_udp_server_delete( dap_server_t *sh )
 {
-    if(sh->address)
-        free(sh->address);
+  dap_client_remote_t *client, *tmp;
 
-    dap_client_remote_t * client, * tmp;
-    HASH_ITER(hh,sh->clients,client,tmp)
-        dap_client_remote_remove(client, sh);
+  if ( !sh ) return;
 
-    if(sh->server_delete_callback)
-        sh->server_delete_callback(sh,NULL);
-    if(sh->_inheritor)
-        free(sh->_inheritor);
-    free(sh);
+  if( sh->address )
+    free( sh->address );
+
+  HASH_ITER( hh, sh->clients, client, tmp )
+    dap_client_remote_remove( client, sh );
+
+  if ( sh->server_delete_callback )
+    sh->server_delete_callback( sh, NULL );
+
+  if ( sh->_inheritor )
+    free( sh->_inheritor );
+
+  free( sh );
 }
 
 /**
@@ -80,80 +129,93 @@ void dap_udp_server_delete(dap_server_t * sh)
  * @param port Binding port
  * @return Server instance 
  */
-dap_server_t * dap_udp_server_listen(uint16_t port){
-    dap_server_t* sh = dap_udp_server_new();
+dap_server_t *dap_udp_server_listen( uint16_t port ) {
 
-    sh->socket_listener = socket (AF_INET, SOCK_DGRAM, 0);
+  dap_server_t *sh = dap_udp_server_new( );
 
-    if (sh->socket_listener < 0){
-        log_it (L_ERROR,"Socket error %s",strerror(errno));
-        dap_udp_server_delete(sh);
-        return NULL;
-    }
+  sh->socket_listener = socket( AF_INET, SOCK_DGRAM, 0 );
 
-    int optval = 1;
-    if(setsockopt(sh->socket_listener, SOL_SOCKET, SO_REUSEADDR,(const void *)&optval , sizeof(int)) < 0)
-        log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket");
+  if ( sh->socket_listener < 0 ) {
+    log_it ( L_ERROR, "Socket error %s", strerror(errno) );
+    dap_udp_server_delete( sh );
+    return NULL;
+  }
 
-    bzero((char *) &(sh->listener_addr), sizeof(sh->listener_addr));
-    sh->listener_addr.sin_family = AF_INET;
-    sh->listener_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    sh->listener_addr.sin_port = htons(port);
+  int optval = 1;
+  if ( setsockopt( sh->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int)) < 0 )
+    log_it( L_WARNING, "Can't set up REUSEADDR flag to the socket" );
 
-    if(bind (sh->socket_listener, (struct sockaddr *) &(sh->listener_addr), sizeof(sh->listener_addr)) < 0) {
-        log_it(L_ERROR,"Bind error: %s",strerror(errno));
-        dap_udp_server_delete(sh);
-        return NULL;
-    }
-    pthread_mutex_init(&DAP_UDP_SERVER(sh)->mutex_on_list, NULL);
-    return sh;
+  memset( (char *)&(sh->listener_addr), 0, sizeof(sh->listener_addr) );
+
+  sh->listener_addr.sin_family = AF_INET;
+  sh->listener_addr.sin_addr.s_addr = htonl( INADDR_ANY );
+  sh->listener_addr.sin_port = htons( port );
+
+  if ( bind(sh->socket_listener, (struct sockaddr *) &(sh->listener_addr), sizeof(sh->listener_addr)) < 0) {
+    log_it( L_ERROR, "Bind error: %s", strerror(errno) );
+    dap_udp_server_delete( sh );
+    return NULL;
+  }
+
+  pthread_mutex_init( &DAP_UDP_SERVER(sh)->mutex_on_list, NULL );
+
+  return sh;
 }
 
 /**
  * @brief write_cb
  */
-static void write_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
+static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 {
-    if( ( revents & EV_WRITE ) ) {
-        dap_server_t* sh = watcher->data;
-        dap_udp_server_t* udp = DAP_UDP_SERVER(sh);
-        dap_udp_client_t * udp_client, * tmp;
-        pthread_mutex_lock(&udp->mutex_on_list);
-        LL_FOREACH_SAFE(udp->waiting_clients,udp_client,tmp)
-        {            
-            //log_it(L_INFO,"write_cb");
-            //pthread_mutex_lock(&udp_client->mutex_on_client);
-            dap_client_remote_t* client = udp_client->client;
-            if(client != NULL && check_close(client) == 0 && client->_ready_to_write)
-            {
-                if(sh->client_write_callback)
-                    sh->client_write_callback(client, NULL);
-                if(client->buf_out_size > 0)
-                {
-                    //log_it(L_INFO,"write_cb_client");
-                    for(size_t total_sent = 0; total_sent < client->buf_out_size;) {
-                        struct sockaddr_in addr;
-                        addr.sin_family = AF_INET;
-                        dap_udp_client_get_address(client,&addr.sin_addr.s_addr,&addr.sin_port);
-                        int bytes_sent = sendto(sh->socket_listener, client->buf_out + total_sent, client->buf_out_size - total_sent, 0, (struct sockaddr*) &addr, sizeof(addr));
-                        if(bytes_sent < 0) {
-                            log_it(L_ERROR,"Some error occured in send() function");
-                            break;
-                        }
-                        total_sent += bytes_sent;
-                    }
-                    client->buf_out_size = 0;
-                    bzero(client->buf_out, DAP_CLIENT_REMOTE_BUF + 1);
+  dap_udp_client_t *udp_client, *tmp;
 
-                }
-                LL_DELETE(udp->waiting_clients,udp_client);
-            }
-            else if(client == NULL)
-                LL_DELETE(udp->waiting_clients,udp_client);
-            //pthread_mutex_unlock(&udp_client->mutex_on_client);
+//  dap_server_t *sh = watcher->data;
+  dap_udp_server_t *udp = DAP_UDP_SERVER( sh );
+
+  pthread_mutex_lock( &udp->mutex_on_list );
+
+  LL_FOREACH_SAFE( udp->waiting_clients, udp_client, tmp ) {
+
+        //log_it(L_INFO,"write_cb");
+        //pthread_mutex_lock(&udp_client->mutex_on_client);
+
+    dap_client_remote_t *client = udp_client->client;
+
+    if( client != NULL && !check_close(client) && (client->flags & DAP_SOCK_READY_TO_WRITE) ) {
+
+      if ( sh->client_write_callback )
+        sh->client_write_callback( client, NULL );
+
+      if ( client->buf_out_size > 0 ) {
+
+        //log_it(L_INFO,"write_cb_client");
+
+        for( size_t total_sent = 0; total_sent < client->buf_out_size; ) {
+          struct sockaddr_in addr;
+          addr.sin_family = AF_INET;
+          dap_udp_client_get_address( client, (unsigned int *)&addr.sin_addr.s_addr, &addr.sin_port );
+
+          int bytes_sent = sendto( sh->socket_listener, client->buf_out + total_sent, 
+                        client->buf_out_size - total_sent, 0, (struct sockaddr*) &addr, sizeof(addr) );
+
+          if ( bytes_sent < 0 ) {
+            log_it(L_ERROR,"Some error occured in send() function");
+            break;
+          }
+          total_sent += bytes_sent;
         }
-        pthread_mutex_unlock(&udp->mutex_on_list);
+        client->buf_out_size = 0;
+        memset( client->buf_out, 0, DAP_CLIENT_REMOTE_BUF + 1 );
+      }
+      LL_DELETE( udp->waiting_clients, udp_client );
     }
+    else if( client == NULL ) {
+      LL_DELETE( udp->waiting_clients, udp_client );
+    }
+    //pthread_mutex_unlock(&udp_client->mutex_on_client);
+
+  } // for client
+  pthread_mutex_unlock(&udp->mutex_on_list);
 }
 
 /**
@@ -161,106 +223,215 @@ static void write_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
  * @param client Client structure
  * @return 1 if client deleted, 0 if client is no need to delete
  */
-int check_close(dap_client_remote_t* client){
-    if(client->signal_close)
-    {
-        dap_udp_client_t* udp_client = DAP_UDP_CLIENT(client);
-        dap_server_t* sh = client->server;
-        dap_udp_server_t* udp_server = DAP_UDP_SERVER(sh);
-        dap_udp_client_t * client_check, * tmp;
-        LL_FOREACH_SAFE(udp_server->waiting_clients,client_check,tmp)
-            if(client_check->host_key == udp_client->host_key)
-                LL_DELETE(udp_server->waiting_clients,client_check);
-        dap_client_remote_remove(client, sh);
-        return 1;
+int check_close( dap_client_remote_t *client )
+{
+  dap_udp_client_t *client_check, *tmp;
+
+  if( !(client->flags & DAP_SOCK_SIGNAL_CLOSE) ) return 0;
+
+  dap_udp_client_t *udp_client = DAP_UDP_CLIENT( client );
+  dap_server_t *sh = client->server;
+  dap_udp_server_t *udp_server = DAP_UDP_SERVER( sh );
+
+  LL_FOREACH_SAFE( udp_server->waiting_clients, client_check, tmp ) {
+
+    if ( client_check->host_key == udp_client->host_key )
+      LL_DELETE( udp_server->waiting_clients, client_check );
     }
-    return 0;
+
+  dap_client_remote_remove( client, sh );
+
+  return 1;
 }
 
 /**
  * @brief read_cb
  */
-static void read_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
+static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 {
-    //log_it(L_INFO,"read_cb");
-    if ( revents & EV_READ )
-    {
-        struct sockaddr_in clientaddr;
-        int clientlen = sizeof(clientaddr);
-        dap_server_t* sh = watcher->data;
-        bzero(buf, BUFSIZE);
-        socklen_t bytes = recvfrom(sh->socket_listener, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, &clientlen);
-        dap_client_remote_t *client = dap_udp_client_find(sh,clientaddr.sin_addr.s_addr,clientaddr.sin_port);
-        if(client != NULL && check_close(client) != 0)
+//    if ( !(revents & EV_READ) ) return;
+
+    struct sockaddr_in clientaddr;
+    int clientlen = sizeof(clientaddr);
+//    dap_server_t *sh = watcher->data;
+
+    memset( buf, 0, BUFSIZE );
+
+    int32_t bytes = recvfrom( sh->socket_listener, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, &clientlen );
+
+    dap_client_remote_t *client = dap_udp_client_find( sh, clientaddr.sin_addr.s_addr, clientaddr.sin_port );
+
+    if( client != NULL && check_close(client) != 0 )
             return;
-        if(bytes > 0){
-            char * hostaddrp = inet_ntoa(clientaddr.sin_addr);
-            if(hostaddrp == NULL)
-            {
-                dap_udp_server_delete(sh);
-                error("ERROR on inet_ntoa\n");
-            }
-            if(client == NULL)
-            {
-                client = dap_udp_client_create(sh,&w_write,clientaddr.sin_addr.s_addr,clientaddr.sin_port);
-                if(client == NULL)
-                {
-                    dap_udp_server_delete(sh);
-                    error("ERROR create client structure\n");
-                }
-            }
-            dap_udp_client_t* udp_client = client->_inheritor;
-            pthread_mutex_lock(&udp_client->mutex_on_client);
-            size_t bytes_processed = 0;
-            size_t bytes_recieved = bytes;
-            while(bytes_recieved > 0){
-                size_t bytes_to_transfer = 0;
-                if(bytes_recieved > UDP_CLIENT_BUF - client->buf_in_size)
-                    bytes_to_transfer = UDP_CLIENT_BUF - client->buf_in_size;
-                else
-                    bytes_to_transfer = bytes_recieved;
-                memcpy(client->buf_in + client->buf_in_size,buf+bytes_processed,bytes_to_transfer);
-                client->buf_in_size += bytes_to_transfer;
 
-                if(sh->client_read_callback)
-                    sh->client_read_callback(client,NULL);
+    if ( bytes > 0 ) {
+
+        char *hostaddrp = inet_ntoa( clientaddr.sin_addr );
+
+        if ( hostaddrp == NULL ) {
+            dap_udp_server_delete( sh );
+            error("ERROR on inet_ntoa\n");
+        }
+
+        if ( client == NULL ) {
+            client = dap_udp_client_create( sh, efd, clientaddr.sin_addr.s_addr, clientaddr.sin_port );
+            if(client == NULL) {
+                dap_udp_server_delete( sh );
+                error("ERROR create client structure\n");
+            }
+        }
+
+        dap_udp_client_t* udp_client = client->_inheritor;
+
+        pthread_mutex_lock( &udp_client->mutex_on_client );
+
+        size_t bytes_processed = 0;
+        size_t bytes_recieved = bytes;
+
+        while ( bytes_recieved > 0 ) {
+
+            size_t bytes_to_transfer = 0;
+
+            if ( bytes_recieved > UDP_CLIENT_BUF - client->buf_in_size )
+                bytes_to_transfer = UDP_CLIENT_BUF - client->buf_in_size;
+            else
+                bytes_to_transfer = bytes_recieved;
+
+            memcpy( client->buf_in + client->buf_in_size,buf + bytes_processed, bytes_to_transfer );
+            client->buf_in_size += bytes_to_transfer;
+
+            if ( sh->client_read_callback )
+                sh->client_read_callback( client, NULL );
                 
-                bytes_processed += bytes_to_transfer;
-                bytes_recieved -= bytes_to_transfer;
-            }
-            client->buf_in_size = 0;
-            bzero(client->buf_in, DAP_CLIENT_REMOTE_BUF + 1);
-            pthread_mutex_unlock(&udp_client->mutex_on_client);
+            bytes_processed += bytes_to_transfer;
+            bytes_recieved -= bytes_to_transfer;
+        }
 
-        }
-        else if(bytes < 0)
-        {
-            log_it(L_ERROR,"Bytes read Error %s",strerror(errno));
-            if(client != NULL)
-                client->signal_close = true;
+        client->buf_in_size = 0;
+        memset( client->buf_in, 0, DAP_CLIENT_REMOTE_BUF + 1 );
 
-        }
-        else if (bytes == 0)
-        {
-            if(client != NULL)
-                client->signal_close = true;
-        }
+        pthread_mutex_unlock( &udp_client->mutex_on_client );
+
+    }
+    else if ( bytes < 0 ) {
+
+        log_it( L_ERROR, "Bytes read Error %s", strerror(errno) );
+        if( client != NULL )
+            client->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    }
+    else if (bytes == 0) {
+        if ( client != NULL )
+            client->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
+
+/**
+ * @brief dap_udp_client_loop Create client listening event loop
+ */
+void *dap_udp_client_loop( void *arg )
+{
+  dap_server_t *d_server = (dap_server_t *)arg;
+  struct epoll_event  pev;
+  struct epoll_event  events[ 16 ];
+
+  pev.events = EPOLLOUT | EPOLLERR;
+  pev.data.fd = d_server->socket_listener;
+
+  if ( epoll_ctl( efd_write, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
+    log_it( L_ERROR, "epoll_ctl failed 001" );
+    return NULL;
+  }
+
+  log_it( L_NOTICE, "Start client write thread" );
+
+  do {
+
+    int32_t n = epoll_wait( efd_write, events, 16, -1 );
+
+    if ( n == -1 )
+      break;
+
+    for ( int32_t i = 0; i < n; ++ i ) {
+
+      if ( events[i].events & EPOLLOUT ) {
+        write_cb( efd_write, events[i].events, d_server );
+      }
+      else if( events[i].events & EPOLLERR ) {
+        log_it( L_ERROR, "Server socket error event" );
+        break;
+      }
+    }
+
+  } while( 1 );
+
+  return NULL;
+}
+
 
 /**
  * @brief dap_udp_server_loop Start server event loop
  * @param sh Server instance
  */
-void dap_udp_server_loop(dap_server_t * sh)
+void dap_udp_server_loop( dap_server_t *d_server )
 {
-//    sh->proc_thread.tid = pthread_self();
-    pthread_t thread;
-    pthread_create(&thread, NULL, dap_udp_client_loop, sh);
-    struct ev_loop * ev_main_loop = ev_default_loop(0);
-    w_read.data = sh;
-    ev_io_init(&w_read, read_cb, sh->socket_listener, EV_READ);
-    ev_io_start(ev_main_loop, &w_read);
-    ev_run(ev_main_loop, 0);
-}
+  EPOLL_HANDLE efd_read  = epoll_create1( 0 );
+  EPOLL_HANDLE efd_write = epoll_create1( 0 );
+  pthread_t thread;
 
+  if ( (intptr_t)efd_read == -1 || (intptr_t)efd_write == -1 ) {
+
+    log_it( L_ERROR, "epoll_create1 failed" );
+    goto error;
+  }
+
+  pthread_create( &thread, NULL, dap_udp_client_loop, d_server );
+
+  struct epoll_event  pev;
+  struct epoll_event  events[ 16 ];
+
+  pev.events = EPOLLIN | EPOLLERR;
+  pev.data.fd = d_server->socket_listener;
+
+  if ( epoll_ctl( efd_read, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
+    log_it( L_ERROR, "epoll_ctl failed 000" );
+    goto error;
+  }
+
+  while( 1 ) {
+
+    int32_t n = epoll_wait( efd_read, &events[0], 16, -1 );
+
+    if ( !n ) continue;
+    if ( n < 0 ) {
+      log_it( L_ERROR, "Server epoll error" );
+      break;
+    }
+
+    for( int32_t i = 0; i < n; ++ i ) {
+
+      if ( events[i].events & EPOLLIN ) {
+        read_cb( efd_read, events[i].events, d_server );
+      }
+      else if( events[i].events & EPOLLERR ) {
+        log_it( L_ERROR, "Server socket error event" );
+        goto error;
+      }
+    }
+  }
+
+error:
+
+  #ifndef _WIN32
+    if ( efd_read != -1 )
+      close( efd_read );
+    if ( efd_write != -1 )
+      close( efd_write );
+  #else
+    if ( efd_read != INVALID_HANDLE_VALUE )
+      epoll_close( efd_read );
+    if ( efd_write != INVALID_HANDLE_VALUE )
+      epoll_close( efd_write );
+  #endif
+
+  return;
+}
