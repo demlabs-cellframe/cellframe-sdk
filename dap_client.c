@@ -171,10 +171,12 @@ void dap_client_delete(dap_client_t * a_client)
 {
     if(!a_client)
         return;
+
     dap_client_disconnect(a_client);
 
     if (DAP_CLIENT_PVT(a_client) )
          dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+
     DAP_DELETE(a_client);
 }
 
@@ -289,22 +291,31 @@ void dap_client_request(dap_client_t * a_client, const char * a_full_path, void 
  * @param a_client
  * @return
  */
-int dap_client_disconnect(dap_client_t * a_client)
+int dap_client_disconnect( dap_client_t *a_client )
 {
-    dap_client_pvt_t * l_client_internal = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
-    if(l_client_internal && l_client_internal->stream_socket){
-        if (l_client_internal->stream_socket ){
-            close (l_client_internal->stream_socket);
-            l_client_internal->stream_socket = 0;
-        }
-        if(l_client_internal->stream_es) {
-            dap_events_socket_delete(l_client_internal->stream_es, true);
-            l_client_internal->stream_es = NULL;
-        }
+    dap_client_pvt_t *l_client_internal = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
+
+    if ( l_client_internal && l_client_internal->stream_socket ) {
+
+//        if ( l_client_internal->stream_es ) {
+//            dap_events_socket_remove_and_delete( l_client_internal->stream_es, true );
+//            l_client_internal->stream_es = NULL;
+//        }
+
+//        l_client_internal->stream_es->signal_close = true;
+        dap_events_kill_socket( l_client_internal->stream_es );
+
+//        if (l_client_internal->stream_socket ) {
+//            close (l_client_internal->stream_socket);
+        l_client_internal->stream_socket = 0;
+//        }
 
         return 1;
     }
     //l_client_internal->stream_socket = 0;
+
+    log_it(L_DEBUG, "dap_client_disconnect( ) done" );
+
     return -1;
 }
 
