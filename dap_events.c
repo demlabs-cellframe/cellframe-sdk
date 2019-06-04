@@ -200,11 +200,9 @@ void dap_events_delete( dap_events_t *a_events )
 
   if ( a_events ) {
 
-   // TODO REPLACE TO DLIST
     HASH_ITER( hh, a_events->sockets,cur, tmp ) {
       dap_events_socket_delete( cur, false );
     }
-   // TODO REPLACE TO DLIST
 
     if ( a_events->_inheritor )
       free( a_events->_inheritor );
@@ -215,6 +213,33 @@ void dap_events_delete( dap_events_t *a_events )
     free( a_events );
   }
 }
+
+void  dap_events_kill_socket( dap_events_socket_t *a_es )
+{
+  if ( !a_es ) {
+    log_it( L_ERROR, "dap_events_kill_socket( NULL )" );
+    return;
+  }
+
+  uint32_t tn = a_es->dap_worker->number_thread;
+
+  dap_worker_t *w = a_es->dap_worker;
+  dap_events_t *d_ev = w->events;
+
+  pthread_mutex_lock( &w->locker_on_count );
+  if ( a_es->kill_signal ) {
+    pthread_mutex_unlock( &w->locker_on_count );
+    return;
+  }
+
+  log_it( L_DEBUG, "KILL %u socket! [ thread %u ]", a_es->socket, tn );
+
+  a_es->kill_signal = true;
+  DL_LIST_ADD_NODE_HEAD( d_ev->to_kill_sockets, a_es, kprev, knext, w->event_to_kill_count );
+
+  pthread_mutex_unlock( &w->locker_on_count );
+}
+
 
 /**
  * @brief s_socket_info_all_check_activity
@@ -228,7 +253,7 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
   pthread_mutex_lock( &dap_worker->locker_on_count );
   DL_FOREACH_SAFE( d_ev->dlsockets, a_es, tmp ) {
 
-    if ( cur_time >= a_es->last_time_active + s_connection_timeout ) {
+    if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->close_denied ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
 
@@ -239,35 +264,10 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
 
       dap_worker->event_sockets_count --;
       DL_DELETE( d_ev->dlsockets, a_es );
-      dap_events_socket_delete( a_es, true );
+      dap_events_socket_delete( a_es, false );
     }
   }
   pthread_mutex_unlock( &dap_worker->locker_on_count );
-
-/**
-  LL_FOREACH( s_dap_events_sockets[n_thread], ei ) {
-
-    if( ei->es->is_pingable ){
-
-      if ( (time(NULL) - ei->es->last_ping_request) > (time_t)s_connection_timeout ) { // conn timeout
-
-        log_it( L_INFO, "Connection on socket %d close by timeout", ei->es->sockets );
-
-         dap_events_socket_t * cur = dap_events_socket_find( ei->es->socket, sh );
-          if ( cur != NULL ){
-            dap_events_socket_remove_and_delete( cur );
-          } 
-          else {
-            log_it(L_ERROR, "Trying close socket but not find on client hash!");
-            close(ei->es->socket);
-          }
-      } 
-      else if(( time(NULL) - ei->es->last_ping_request ) > (time_t) s_connection_timeout/3 ) {
-        log_it(L_INFO, "Connection on socket %d last chance to remain alive", ei->es->socket);
-      }
-    }
-  }
-**/
 
 }
 
@@ -278,6 +278,7 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
  */
 static void *thread_worker_function( void *arg )
 {
+  dap_events_socket_t *cur, *tmp;
   dap_worker_t *w = (dap_worker_t *)arg;
   time_t next_time_timeout_check = time( NULL ) + s_connection_timeout / 2;
   uint32_t tn = w->number_thread;
@@ -302,7 +303,6 @@ static void *thread_worker_function( void *arg )
   }
   #endif
 
-
   log_it(L_INFO, "Worker %d started, epoll fd %d", w->number_thread, w->epoll_fd);
 
   struct epoll_event *events = &g_epoll_events[ DAP_MAX_EPOLL_EVENTS * tn ];
@@ -322,8 +322,7 @@ static void *thread_worker_function( void *arg )
 
     for( int32_t n = 0; n < selected_sockets; n ++ ) {
 
-      //dap_events_socket_t *cur = dap_events_socket_find( events[n].data.fd, w->events );
-      dap_events_socket_t *cur = (dap_events_socket_t *)events[n].data.ptr;
+      cur = (dap_events_socket_t *)events[n].data.ptr;
 
       if ( !cur ) {
 
@@ -331,9 +330,9 @@ static void *thread_worker_function( void *arg )
         continue;
       }
 
-      if( events[n].events & EPOLLERR ) {
+      if ( events[n].events & EPOLLERR ) {
         log_it( L_ERROR,"Socket error: %s",strerror(errno) );
-        cur->signal_close = true;
+        cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
         cur->callbacks->error_callback( cur, NULL ); // Call callback to process error event
       }
 
@@ -356,20 +355,22 @@ static void *thread_worker_function( void *arg )
         } 
         else if( bytes_read < 0 ) {
           log_it( L_ERROR,"Some error occured in recv() function: %s",strerror(errno) );
-          cur->signal_close = true;
+          dap_events_socket_set_readable( cur, false );
+          cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
         } 
         else if ( bytes_read == 0 ) {
           log_it( L_INFO, "Client socket disconnected" );
-          cur->signal_close = true;
+          dap_events_socket_set_readable( cur, false );
+          cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
         }
       }
 
       // Socket is ready to write
-      if( ( events[n].events & EPOLLOUT || cur->_ready_to_write ) && !cur->signal_close ) {
+      if( ( (events[n].events & EPOLLOUT) || (cur->flags & DAP_SOCK_READY_TO_WRITE) ) && !(cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) {
         ///log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
         cur->callbacks->write_callback( cur, NULL ); // Call callback to process write event
 
-        if( cur->_ready_to_write ) {
+        if( cur->flags & DAP_SOCK_READY_TO_WRITE ) {
 
           static const uint32_t buf_out_zero_count_max = 20;
           cur->buf_out[cur->buf_out_size] = 0;
@@ -394,7 +395,8 @@ static void *thread_worker_function( void *arg )
 
           if ( bytes_sent < 0 ) {
             log_it(L_ERROR,"Some error occured in send() function");
-             break;
+            cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+            break;
           }
           total_sent += bytes_sent;
           //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,sa_cur->buf_out_size);
@@ -403,9 +405,23 @@ static void *thread_worker_function( void *arg )
         cur->buf_out_size = 0;
       }
 
-      if( cur->signal_close ) {
-        log_it( L_INFO, "Got signal to close from the client %s", cur->hostaddr );
+      if ( (cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !cur->close_denied ) {
+
+        pthread_mutex_lock( &w->locker_on_count );
+
+        if ( cur->kill_signal ) {
+          pthread_mutex_unlock( &w->locker_on_count );
+          continue;
+        }
+
+//        pthread_mutex_unlock( &dsth->mutex_dlist_add_remove );
+//        dap_server_kill_socket( dap_cur );
+//        continue;
+
+        log_it( L_INFO, "Got signal to close %s, sock %u [thread %u]", cur->hostaddr, cur->socket, tn );
+
         dap_events_socket_remove_and_delete( cur, false );
+        pthread_mutex_unlock( &w->locker_on_count );
       }
     } // for
 
@@ -416,6 +432,36 @@ static void *thread_worker_function( void *arg )
       next_time_timeout_check = cur_time + s_connection_timeout / 2;
     }
     #endif
+
+    pthread_mutex_lock( &w->locker_on_count );
+    if ( !w->event_to_kill_count ) {
+
+      pthread_mutex_unlock( &w->locker_on_count );
+      continue;
+    }
+
+    cur = w->events->to_kill_sockets;
+
+    do {
+
+//      if ( cur->close_denied ) {
+//        cur = cur->knext;
+//        continue;
+//      }
+
+      log_it( L_INFO, "Kill %u socket .... [ thread %u ]", cur->socket, tn );
+
+      tmp = cur->knext;
+      DL_LIST_REMOVE_NODE( w->events->to_kill_sockets, cur, kprev, knext, w->event_to_kill_count );
+
+      dap_events_socket_remove_and_delete( cur, false );
+      cur = tmp;
+
+    } while ( cur );
+
+    log_it( L_INFO, "[ Thread %u ] coneections: %u, to kill: %u", tn, w->event_sockets_count, w->event_to_kill_count );
+    pthread_mutex_unlock( &w->locker_on_count );
+
   } // while
 
   return NULL;
@@ -477,6 +523,7 @@ int dap_events_start( dap_events_t *a_events )
       return -1;
     }
 
+    s_workers[i].event_to_kill_count = 0;
     s_workers[i].event_sockets_count = 0;
     s_workers[i].number_thread = i;
     s_workers[i].events = a_events;
@@ -519,11 +566,6 @@ void dap_worker_add_events_socket( dap_events_socket_t *a_es)
 
   a_es->dap_worker = l_worker;
   a_es->events = a_es->dap_worker->events;
-
-  pthread_mutex_lock( &l_worker->locker_on_count );
-  l_worker->event_sockets_count ++;
-  DL_APPEND( a_es->events->dlsockets, a_es );
-  pthread_mutex_unlock( &l_worker->locker_on_count );
 }
 
 /**
@@ -537,10 +579,8 @@ void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool prese
   else
      log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
 
-  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
-  a_es->dap_worker->event_sockets_count --;
   DL_DELETE( a_es->events->dlsockets, a_es );
-  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
+  a_es->dap_worker->event_sockets_count --;
 
   dap_events_socket_delete( a_es, preserve_inheritor );
 }

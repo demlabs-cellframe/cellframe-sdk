@@ -40,14 +40,24 @@
 
 typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
 
+#define DAP_BIT( x ) ( 1 << x )
+
+#define DAP_SOCK_READY_TO_READ     DAP_BIT( 0 )
+#define DAP_SOCK_READY_TO_WRITE    DAP_BIT( 1 )
+#define DAP_SOCK_SIGNAL_CLOSE      DAP_BIT( 2 )
+#define DAP_SOCK_ACTIVE            DAP_BIT( 3 )
+
 typedef struct dap_server_thread_s {
 
   EPOLL_HANDLE epoll_fd;
+
   uint32_t thread_num;
   uint32_t connections_count;
+  uint32_t to_kill_count;
 
   struct epoll_event  *epoll_events;
   dap_client_remote_t *dap_remote_clients;
+  dap_client_remote_t *dap_clients_to_kill;
 
   pthread_mutex_t mutex_dlist_add_remove;
 
@@ -91,3 +101,47 @@ void    dap_server_deinit( void ); // Deinit server module
 dap_server_t *dap_server_listen( const char *addr, uint16_t port, dap_server_type_t type );
 
 int32_t dap_server_loop( dap_server_t *d_server );
+
+#define DL_LIST_REMOVE_NODE( head, obj, _prev_, _next_, total )  \
+                                                                 \
+  if ( obj->_next_ ) {                                           \
+                                                                 \
+    if ( obj->_prev_ )                                           \
+      obj->_next_->_prev_ = obj->_prev_;                         \
+    else {                                                       \
+                                                                 \
+      obj->_next_->_prev_ = NULL;                                \
+      head = obj->_next_;                                        \
+    }                                                            \
+  }                                                              \
+                                                                 \
+  if ( obj->_prev_ ) {                                           \
+                                                                 \
+    if ( obj->_next_ )                                           \
+      obj->_prev_->_next_ = obj->_next_;                         \
+    else {                                                       \
+                                                                 \
+      obj->_prev_->_next_ = NULL;                                \
+    }                                                            \
+  }                                                              \
+  -- total;
+
+#define DL_LIST_ADD_NODE_HEAD( head, obj, _prev_, _next_, total )\
+                                                                 \
+  if ( !total ) {                                                \
+                                                                 \
+    obj->_prev_    = NULL;                                       \
+    obj->_next_    = NULL;                                       \
+                                                                 \
+    head = obj;                                                  \
+  }                                                              \
+  else {                                                         \
+                                                                 \
+    head->_prev_ = obj;                                          \
+                                                                 \
+    obj->_prev_ = NULL;                                          \
+    obj->_next_ = head;                                          \
+                                                                 \
+    head = obj;                                                  \
+  }                                                              \
+  ++ total;

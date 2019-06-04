@@ -92,7 +92,10 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
   ret->socket = a_sock;
   ret->events = a_events;
   ret->callbacks = a_callbacks;
-  ret->_ready_to_read = true;
+  ret->flags = DAP_SOCK_READY_TO_READ;
+  ret->close_denied = true;
+
+  log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
   return ret;
 }
@@ -110,6 +113,11 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
 
   dap_worker_add_events_socket( a_es );
 
+  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
+
+  a_es->dap_worker->event_sockets_count ++;
+  DL_APPEND( a_es->events->dlsockets, a_es );
+
   pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
   HASH_ADD_INT( a_es->events->sockets, socket, a_es );
   pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
@@ -120,6 +128,7 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
     log_it( L_CRITICAL, "Can't add event socket's handler to epoll_fd" );
 
+  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
 }
 
 /**
@@ -144,7 +153,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   ret->events = a_events;
   ret->callbacks = a_callbacks;
 
-  ret->_ready_to_read = true;
+  ret->flags = DAP_SOCK_READY_TO_READ;
   ret->is_pingable = true;
   ret->last_time_active = ret->last_ping_request = time( NULL );
 
@@ -182,21 +191,30 @@ dap_events_socket_t *dap_events_socket_find( int sock, struct dap_events *a_even
  */
 void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
 {
-  if ( is_ready != sc->_ready_to_read ) {
+  if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ) )
+    return;
 
-    sc->ev.events = EPOLLERR;
-    sc->_ready_to_read = is_ready;
+  sc->ev.events = EPOLLERR;
 
-    if ( sc->_ready_to_read )
-      sc->ev.events  |= EPOLLIN;
-    if ( sc->_ready_to_write )
-      sc->ev.events |= EPOLLOUT;
+  if ( is_ready )
+    sc->flags |= DAP_SOCK_READY_TO_READ;
+  else
+    sc->flags ^= DAP_SOCK_READY_TO_READ;
 
-    if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
-      log_it( L_ERROR,"Can't update read client socket state in the epoll_fd" );
-    else
-      dap_events_thread_wake_up( &sc->events->proc_thread );
-  }
+  int events = EPOLLERR;
+
+  if( sc->flags & DAP_SOCK_READY_TO_READ )
+    events |= EPOLLIN;
+
+  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
+    events |= EPOLLOUT;
+
+  sc->ev.events = events;
+
+  if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
+    log_it( L_ERROR,"Can't update read client socket state in the epoll_fd" );
+  else
+    dap_events_thread_wake_up( &sc->events->proc_thread );
 }
 
 /**
@@ -206,21 +224,28 @@ void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
  */
 void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
 {
-  if ( is_ready != sc->_ready_to_write ) {
+  if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) )
+    return;
 
-    sc->ev.events = EPOLLERR;
-    sc->_ready_to_write = is_ready;
+  if ( is_ready )
+    sc->flags |= DAP_SOCK_READY_TO_WRITE;
+  else
+    sc->flags ^= DAP_SOCK_READY_TO_WRITE;
 
-    if ( sc->_ready_to_read )
-      sc->ev.events |= EPOLLIN;
-    if ( sc->_ready_to_write )
-      sc->ev.events |= EPOLLOUT;
+  int events = EPOLLERR;
 
-    if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
-      log_it(L_ERROR,"Can't update write client socket state in the epoll_fd");
-    else
-      dap_events_thread_wake_up( &sc->events->proc_thread );
-  }
+  if( sc->flags & DAP_SOCK_READY_TO_READ )
+    events |= EPOLLIN;
+
+  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
+    events |= EPOLLOUT;
+
+  sc->ev.events = events;
+
+  if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
+    log_it(L_ERROR,"Can't update write client socket state in the epoll_fd");
+  else
+    dap_events_thread_wake_up( &sc->events->proc_thread );
 }
 
 
@@ -233,8 +258,6 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
   if ( !a_es ) return;
 
   log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
-
-//a_es->ev
 
   pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
   HASH_DEL( a_es->events->sockets, a_es );
