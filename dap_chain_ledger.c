@@ -242,7 +242,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
     if(l_token_item) {
         dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
         // check if such emission is already present in table
-        dap_chain_hash_fast_t l_token_emission_hash;
+        dap_chain_hash_fast_t l_token_emission_hash={0};
         dap_chain_hash_fast_t * l_token_emission_hash_ptr = &l_token_emission_hash;
         dap_hash_fast(a_token_emission, a_token_emission_size, &l_token_emission_hash);
         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_token_emission_hash);
@@ -327,11 +327,11 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
 {
     dap_chain_hash_fast_t l_tx_first_hash = { 0 };
     const dap_chain_ledger_tx_item_t * l_tx_item = tx_item_find_by_addr(a_ledger, a_addr, &l_tx_first_hash);
+    char ** l_tickers = NULL;
+    size_t l_tickers_size = 10;
     if(l_tx_item) {
-
-        size_t l_tickers_size = 10;
-        char ** l_tickers = DAP_NEW_Z_SIZE(char *, l_tickers_size * sizeof(char*));
-        *a_tickers = l_tickers;
+        l_tickers_size = 10;
+        l_tickers = DAP_NEW_Z_SIZE(char *, l_tickers_size * sizeof(char*));
         size_t l_tickers_pos = 0;
         while(l_tx_item) {
             bool l_is_not_in_list = true;
@@ -355,8 +355,9 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
         }
         l_tickers_size = l_tickers_pos + 1;
         l_tickers = DAP_REALLOC(l_tickers, l_tickers_size);
-        *a_tickers_size = l_tickers_size;
     }
+    *a_tickers = l_tickers;
+    *a_tickers_size = l_tickers_size;
 }
 
 /**

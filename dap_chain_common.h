@@ -202,7 +202,7 @@ static inline char * dap_chain_hash_slow_to_str_new(dap_chain_hash_slow_t * a_ha
 
 static inline char * dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_hash)
 {
-    const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
+    const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */+4/*just to be sure*/  ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
     dap_chain_hash_fast_to_str(a_hash,ret,c_hash_str_size);
     return ret;
