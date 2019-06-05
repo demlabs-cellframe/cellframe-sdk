@@ -329,13 +329,16 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
     const dap_chain_ledger_tx_item_t * l_tx_item = tx_item_find_by_addr(a_ledger, a_addr, &l_tx_first_hash);
     char ** l_tickers = NULL;
     size_t l_tickers_size = 10;
+    size_t l_tickers_pos = 0;
+
     if(l_tx_item) {
         l_tickers_size = 10;
         l_tickers = DAP_NEW_Z_SIZE(char *, l_tickers_size * sizeof(char*));
-        size_t l_tickers_pos = 0;
         while(l_tx_item) {
             bool l_is_not_in_list = true;
             for(size_t i = 0; i < l_tickers_size; i++) {
+                if (l_tickers[i]==NULL)
+                    break;
                 if(l_tickers[i] && strcmp(l_tickers[i], l_tx_item->token_tiker) == 0) {
                     l_is_not_in_list = false;
                     break;
@@ -357,7 +360,7 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
         l_tickers = DAP_REALLOC(l_tickers, l_tickers_size);
     }
     *a_tickers = l_tickers;
-    *a_tickers_size = l_tickers_size;
+    *a_tickers_size = l_tickers_pos;
 }
 
 /**
