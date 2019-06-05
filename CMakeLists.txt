@@ -19,7 +19,7 @@ file(GLOB DAP_SERVER_CORE_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto pthread memcached ev)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto pthread memcached ev)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
