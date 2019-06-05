@@ -73,7 +73,6 @@ dap_stream_session_t * dap_stream_session_pure_new()
 {
     dap_stream_session_t * ret=NULL;
 
-    printf("pire new\n" );
     unsigned int session_id=0,session_id_new=0;
     do{
         session_id_new=session_id=rand()+rand()*0x100+rand()*0x10000+rand()*0x01000000;
@@ -89,7 +88,6 @@ dap_stream_session_t * dap_stream_session_pure_new()
     log_it(L_DEBUG,"Timestamp %u",(unsigned int) ret->time_created);
     HASH_ADD_INT(sessions,id,ret);
 
-    printf("puew new ok\n" );
     return ret;
 }
 
@@ -126,8 +124,6 @@ int dap_stream_session_close(unsigned int id)
         return -1;
     }
 
-    printf("close ses ok\n" );
-
     return stream_session_close2(l_s);
 }
 
@@ -141,12 +137,10 @@ int stream_session_close2(dap_stream_session_t * s)
 
 int dap_stream_session_open(dap_stream_session_t * ss)
 {
-    printf("close open\n" );
     int ret;
     pthread_mutex_lock(&ss->mutex);
     ret=ss->opened;
     if(ss->opened==0) ss->opened=1;
     pthread_mutex_unlock(&ss->mutex);
-    printf("close open ok\n" );
     return ret;
 }
