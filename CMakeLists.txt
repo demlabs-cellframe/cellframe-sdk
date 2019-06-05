@@ -40,7 +40,7 @@ file(GLOB DAP_CLIENT_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CLIENT_HEADERS} ${DAP_CLIENT_SOURCES})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto dap_server dap_udp_server dap_http_server dap_http_client dap_stream dap_session dap_stream_ch pthread memcached ev)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_udp_server dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch pthread memcached ev)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
