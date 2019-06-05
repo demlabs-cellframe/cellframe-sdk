@@ -1190,7 +1190,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
                     "wallet name option <-w>  not defined");
             return -1;
         }
-        dap_chain_sign_type_t l_sign_type = { SIG_TYPE_TESLA };
+        dap_chain_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
         dap_chain_net_id_t l_net_id = { 0x1 };
         // Creates new wallet
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(wallet_name, c_wallets_path, l_net_id, l_sign_type);
@@ -2175,7 +2175,7 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
         return -1;
     }
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
-    dap_ledger_t *l_ledger = l_net->pub.ledger ;
+    dap_ledger_t *l_ledger = l_net? l_net->pub.ledger : NULL ;
     if((l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
         dap_chain_node_cli_set_reply_text(str_reply, "not found net by name '%s'", l_net_name);
         return -1;
