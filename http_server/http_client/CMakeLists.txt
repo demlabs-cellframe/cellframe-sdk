@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project (dap_http)
+project (dap_http_client)
   
 set(HTTP_SRCS dap_http_client.c dap_http_client_simple.c dap_http_header.c)
  
