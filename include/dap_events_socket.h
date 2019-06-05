@@ -92,9 +92,12 @@ typedef struct dap_events_socket {
 
   int32_t socket;
 
-  bool signal_close;
-  bool _ready_to_write;
-  bool _ready_to_read;
+  uint32_t  flags;
+//  bool signal_close;
+  bool close_denied;
+  bool kill_signal;
+//  bool _ready_to_write;
+//  bool _ready_to_read;
 
   uint32_t buf_out_zero_count;
   union{
@@ -123,6 +126,7 @@ typedef struct dap_events_socket {
 
   UT_hash_handle hh;
   struct dap_events_socket *next, *prev;
+  struct dap_events_socket *knext, *kprev;
 
   void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
 

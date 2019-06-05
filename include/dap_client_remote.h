@@ -67,9 +67,9 @@ typedef struct dap_client_remote {
   int socket;
   dap_server_client_id id;
 
-  bool signal_close;
-  bool _ready_to_write;
-  bool _ready_to_read;
+  uint32_t  flags;
+  bool close_denied;
+  bool kill_signal;
 
   uint16_t port;
   str_ip s_ip;
@@ -101,6 +101,7 @@ typedef struct dap_client_remote {
 
   UT_hash_handle hh;
   struct dap_client_remote *next, *prev;
+  struct dap_client_remote *knext, *kprev;
 
   void *_internal;
   void *_inheritor; // Internal data to specific client type, usualy states for state machine

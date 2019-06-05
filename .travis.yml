@@ -11,7 +11,7 @@ before_install:
 script:
     - mkdir build
     - cd build 
-    - cmake -DBUILD_DAP_CORE_SERVER_TESTS=ON ../
+    - cmake .
     - make
     - ctest --verbose
 

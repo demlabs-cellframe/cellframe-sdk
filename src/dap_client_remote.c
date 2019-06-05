@@ -103,7 +103,7 @@ dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_serv
   dsc->pevent.events = EPOLLIN | EPOLLOUT | EPOLLERR;
   dsc->pevent.data.ptr = dsc;
 
-  dsc->_ready_to_read = true;
+  dsc->flags = DAP_SOCK_READY_TO_READ;
   dsc->buf_out_offset = 0;
 
   _save_ip_and_port( dsc );
@@ -172,27 +172,28 @@ dap_client_remote_t *dap_client_remote_find( int sock, struct dap_server *sh )
  */
 void  dap_client_remote_ready_to_read( dap_client_remote_t *sc, bool is_ready )
 {
-  if( is_ready != sc->_ready_to_read ) {
+  if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ) )
+    return;
 
-//    log_it( L_ERROR, "remote_ready_to_read() %u efd %X", sc->socket, sc->efd );
+//  log_it( L_ERROR, "remote_ready_to_read() %u efd %X", sc->socket, sc->efd );
 
-    int events = EPOLLERR;
-    sc->_ready_to_read = is_ready;
+  if ( is_ready )
+    sc->flags |= DAP_SOCK_READY_TO_READ;
+  else
+    sc->flags ^= DAP_SOCK_READY_TO_READ;
 
-    if( sc->_ready_to_read ) {
-      events |= EPOLLIN;
-    }
+  int events = EPOLLERR;
 
-    if( sc->_ready_to_write ) {
-      events |= EPOLLOUT;
-    }
+  if( sc->flags & DAP_SOCK_READY_TO_READ )
+    events |= EPOLLIN;
 
-    sc->pevent.events = events;
+  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
+    events |= EPOLLOUT;
 
-    if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->socket, &sc->pevent) != 0 ) {
-      log_it( L_ERROR, "epoll_ctl failed 000" );
-    }
-  }
+  sc->pevent.events = events;
+
+  if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->socket, &sc->pevent) != 0 )
+    log_it( L_ERROR, "epoll_ctl failed 000" );
 }
 
 /**
@@ -202,27 +203,28 @@ void  dap_client_remote_ready_to_read( dap_client_remote_t *sc, bool is_ready )
  */
 void  dap_client_remote_ready_to_write( dap_client_remote_t *sc, bool is_ready )
 {
-  if ( is_ready != sc->_ready_to_write ) {
+  if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) )
+    return;
 
 //    log_it( L_ERROR, "remote_ready_to_write() %u efd %X", sc->socket, sc->efd );
 
-    int events = EPOLLERR;
-    sc->_ready_to_write = is_ready;
+  if ( is_ready )
+    sc->flags |= DAP_SOCK_READY_TO_WRITE;
+  else
+    sc->flags ^= DAP_SOCK_READY_TO_WRITE;
 
-    if ( sc->_ready_to_read ) {
-      events |= EPOLLIN;
-    }
+  int events = EPOLLERR;
 
-    if ( sc->_ready_to_write ) {
-      events |= EPOLLOUT;
-    }
+  if( sc->flags & DAP_SOCK_READY_TO_READ )
+    events |= EPOLLIN;
 
-    sc->pevent.events = events;
+  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
+    events |= EPOLLOUT;
 
-    if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->socket, &sc->pevent) != 0 ) {
-      log_it( L_ERROR, "epoll_ctl failed 001" );
-    }
-  }
+  sc->pevent.events = events;
+
+  if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->socket, &sc->pevent) != 0 )
+    log_it( L_ERROR, "epoll_ctl failed 001" );
 }
 
 /**
