@@ -763,10 +763,11 @@ int32_t dap_server_loop( dap_server_t *d_server )
     int32_t n = epoll_wait( efd, &events[0], 16, -1 );
 
     if ( n <= 0 ) {
+      if(errno == EINTR)
+        continue;
       log_it( L_ERROR, "Server wakeup no events / error" );
       break;
     }
-
     for( int32_t i = 0; i < n; ++ i ) {
 
       if ( events[i].events & EPOLLIN ) {
