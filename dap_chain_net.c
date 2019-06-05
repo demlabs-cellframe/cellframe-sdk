@@ -666,13 +666,14 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
                 const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
 
                 // Read from/to time
-                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from ", &l_from_str);
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from", &l_from_str);
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-prev_sec", &l_prev_sec_str);
 
                 if (l_from_str ){
                     strptime(l_from_str,c_time_fmt,&l_from_tm);
                 }
+
                 if (l_to_str){
                     strptime(l_to_str,c_time_fmt,&l_to_tm);
                 }
