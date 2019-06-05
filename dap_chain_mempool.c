@@ -232,95 +232,100 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         return -1;
     dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t, a_tx_num+1);
 
+
+
+    // Search unused out:
+    uint64_t l_value_need = a_value + a_value_fee;
+    dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
+    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    uint64_t l_value_transfer = 0; // how many coins to transfer
+
+    while(l_value_transfer < l_value_need){
+        // Get the transaction in the cache by the addr in out item
+        const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_chain->ledger, a_addr_from,
+                &l_tx_prev_hash);
+        if(!l_tx)
+            break;
+        // Get all item from transaction by type
+        int l_item_count = 0;
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
+                &l_item_count);
+        dap_list_t *l_list_tmp = l_list_out_items;
+        int l_out_idx_tmp = 0; // current index of 'out' item
+        while(l_list_tmp) {
+            dap_chain_tx_out_t *out_item = l_list_tmp->data;
+            // if 'out' item has addr = a_addr_from
+            if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
+
+                // Check whether used 'out' items
+                if(!dap_chain_ledger_tx_hash_is_used_out_item (a_chain->ledger, &l_tx_prev_hash, l_out_idx_tmp)) {
+
+                    list_used_item_t *item = DAP_NEW(list_used_item_t);
+                    memcpy(&item->tx_hash_fast, &l_tx_prev_hash, sizeof(dap_chain_hash_fast_t));
+                    item->num_idx_out = l_out_idx_tmp;
+                    item->value = out_item->header.value;
+                    l_list_used_out = dap_list_append(l_list_used_out, item);
+                    l_value_transfer += item->value;
+                    // already accumulated the required value, finish the search for 'out' items
+                    if(l_value_transfer >= l_value_need) {
+                        l_out_idx_tmp++;
+                        break;
+                    }
+                }
+            }
+            // go to the next 'out' item in l_tx transaction
+            l_out_idx_tmp++;
+            l_list_tmp = dap_list_next(l_list_tmp);
+        }
+    }
+
+    // nothing to tranfer (not enough funds)
+    if(!l_list_used_out || l_value_transfer < l_value_need) {
+        dap_list_free_full(l_list_used_out, free);
+        return -2;
+    }
+
+
     for (size_t i=0; i< a_tx_num ; i++){
 
         // find the transactions from which to take away coins
-        dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-        uint64_t l_value_transfer = 0; // how many coins to transfer
-        {
-            dap_chain_hash_fast_t l_tx_cur_hash = { 0 };
-            uint64_t l_value_need = a_value + a_value_fee;
-            while(l_value_transfer < l_value_need)
-            {
-                // Get the transaction in the cache by the addr in out item
-                const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_chain->ledger, a_addr_from,
-                        &l_tx_cur_hash);
-                if(!l_tx)
-                    break;
-                // Get all item from transaction by type
-                int l_item_count = 0;
-                dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
-                        &l_item_count);
-                dap_list_t *l_list_tmp = l_list_out_items;
-                int l_out_idx_tmp = 0; // current index of 'out' item
-                while(l_list_tmp) {
-                    dap_chain_tx_out_t *out_item = l_list_tmp->data;
-                    // if 'out' item has addr = a_addr_from
-                    if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
-
-                        // Check whether used 'out' items
-                        if(!dap_chain_ledger_tx_hash_is_used_out_item (a_chain->ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
-
-                            list_used_item_t *item = DAP_NEW(list_used_item_t);
-                            memcpy(&item->tx_hash_fast, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
-                            item->num_idx_out = l_out_idx_tmp;
-                            item->value = out_item->header.value;
-                            l_list_used_out = dap_list_append(l_list_used_out, item);
-                            l_value_transfer += item->value;
-                            // already accumulated the required value, finish the search for 'out' items
-                            if(l_value_transfer >= l_value_need) {
-                                break;
-                            }
-                        }
-                    }
-                    // go to the next 'out' item in l_tx transaction
-                    l_out_idx_tmp++;
-                    l_list_tmp = dap_list_next(l_list_tmp);
-                }
-                dap_list_free(l_list_out_items);
-            }
-
-            // nothing to tranfer (not enough funds)
-            if(!l_list_used_out || l_value_transfer < l_value_need) {
-                dap_list_free_full(l_list_used_out, free);
-                return -2;
-            }
-        }
 
         // create empty transaction
         dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+        uint64_t l_value_back=0;
         // add 'in' items
-        {
-            dap_list_t *l_list_tmp = l_list_used_out;
-            uint64_t l_value_to_items = 0; // how many coins to transfer
-            while(l_list_tmp) {
-                list_used_item_t *item = l_list_tmp->data;
-                if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
-                    l_value_to_items += item->value;
-                }
-                l_list_tmp = dap_list_next(l_list_tmp);
+        dap_list_t *l_list_tmp = l_list_used_out;
+        uint64_t l_value_to_items = 0; // how many coins to transfer
+
+        // Add in and remove out used items
+        while(l_list_tmp) {
+            list_used_item_t *item = l_list_tmp->data;
+            if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
+                l_value_to_items += item->value;
             }
-            assert(l_value_to_items == l_value_transfer);
-            dap_list_free_full(l_list_used_out, free);
+            l_list_used_out = l_list_tmp->next;
+            DAP_DELETE(l_list_tmp);
+            l_list_tmp = l_list_used_out;
+            if ( l_value_to_items >= l_value_transfer )
+                break;
         }
+
         // add 'out' items
-        {
-            uint64_t l_value_pack = 0; // how much coin add to 'out' items
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
-                l_value_pack += a_value;
-                // transaction fee
-                if(a_addr_fee) {
-                    if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_fee, a_value_fee) == 1)
-                        l_value_pack += a_value_fee;
-                }
+        uint64_t l_value_pack = 0; // how much coin add to 'out' items
+        if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
+            l_value_pack += a_value;
+            // transaction fee
+            if(a_addr_fee) {
+                if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_fee, a_value_fee) == 1)
+                    l_value_pack += a_value_fee;
             }
-            // coin back
-            uint64_t l_value_back = l_value_transfer - l_value_pack;
-            if(l_value_back) {
-                if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
-                    dap_chain_datum_tx_delete(l_tx);
-                    return -3;
-                }
+        }
+        // coin back
+        l_value_back = l_value_transfer - l_value_pack;
+        if(l_value_back) {
+            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+                dap_chain_datum_tx_delete(l_tx);
+                return -3;
             }
         }
 
@@ -329,18 +334,43 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             dap_chain_datum_tx_delete(l_tx);
             return -1;
         }
-
+        // now tx is formed - calc size and hash
         size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
 
         dap_chain_hash_fast_t l_key_hash;
         dap_hash_fast(l_tx, l_tx_size, &l_key_hash);
+        if(l_value_back) {
+            int l_item_count = 0;
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
+                    &l_item_count);
+            dap_list_t *l_list_tmp = l_list_out_items;
+            int l_out_idx_tmp = 0; // current index of 'out' item
+            while(l_list_tmp) {
+                dap_chain_tx_out_t * l_out = l_list_tmp->data ;
+                if ( l_out && memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
+                    list_used_item_t *l_item_back = DAP_NEW(list_used_item_t);
+                    memcpy(&l_item_back->tx_hash_fast, &l_key_hash, sizeof(dap_chain_hash_fast_t));
+                    l_item_back->num_idx_out = l_out_idx_tmp;
+                    l_item_back->value = l_value_back;
+                    l_list_used_out = dap_list_append(l_list_used_out, l_item_back);
+                    log_it(L_DEBUG,"Stored back in hash table");
+                    break;
+                 }
+                l_list_tmp = l_list_tmp->next;
+            }
+            dap_list_free( l_list_out_items);
+        }
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+
+        dap_chain_ledger_tx_add( a_chain->ledger, l_tx);
         DAP_DELETE(l_tx);
 
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_key_hash);;
         l_objs[i].value = (uint8_t*) l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
+
     }
+    dap_list_free(l_list_used_out);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
     if(dap_chain_global_db_gr_save(l_objs,a_tx_num,l_gdb_group) ) {
