@@ -13,6 +13,6 @@ set(DAP_UDP_SERVER_SRCS dap_udp_server.c dap_udp_client.h dap_udp_client.c)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_UDP_SERVER_SRCS})
 
-target_link_libraries(${PROJECT_NAME} dap_core_server ev)
+target_link_libraries(${PROJECT_NAME} dap_core dap_server_core ev)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
