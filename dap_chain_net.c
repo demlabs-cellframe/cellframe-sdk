@@ -612,7 +612,7 @@ int dap_chain_net_init()
             "\tFind and establish links and stay online\n"
         "net -net <chain net name> get status\n"
             "\tLook at current status\n"
-        "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_secs <Seconds>] \n"
+        "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> sync < all | gdb | chains >\n"
             "\tSyncronyze gdb, chains or everything\n\n"
