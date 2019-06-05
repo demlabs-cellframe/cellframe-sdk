@@ -72,6 +72,7 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chai
 typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
 
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
+typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
 
 
@@ -98,6 +99,7 @@ typedef struct dap_chain{
     dap_chain_callback_atom_t callback_atom_verify;
 
     dap_chain_datum_callback_datum_pool_proc_add_t callback_datums_pool_proc;
+    dap_chain_datum_callback_datum_pool_proc_add_with_group_t callback_datums_pool_proc_with_group;
 
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
     dap_chain_callback_atom_hdr_get_size_t callback_atom_get_size; // Get atom's size from header
