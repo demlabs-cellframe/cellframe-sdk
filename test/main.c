@@ -1,9 +1,9 @@
 #include "dap_common.h"
 #include "dap_traffic_track_test.h"
 
-int main(void) {
+int main(int argc, const char * argv[]) {
     // switch off debug info from library
-//    set_log_level(L_CRITICAL);
-//    dap_traffic_track_tests_run();
+    //dap_log_level_set(L_CRITICAL);
+    //dap_traffic_track_tests_run();
     return 0;
 }
