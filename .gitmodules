@@ -1,24 +1,36 @@
 [submodule "libdap"]
 	path = libdap
 	url = https://github.com/kelvinblockchain/libdap
+	branch = master
+[submodule "libdap-crypto"]
+	path = libdap-crypto
+	url = https://github.com/cellframe/libdap-crypto
+	branch = master
 [submodule "libdap-server-core"]
 	path = libdap-server-core
 	url = https://github.com/kelvinblockchain/libdap-server-core
+	branch = master
 [submodule "libdap-server"]
 	path = libdap-server
 	url = https://github.com/kelvinblockchain/libdap-server
+	branch = master
 [submodule "libdap-stream"]
 	path = libdap-stream
 	url = https://github.com/kelvinblockchain/libdap-stream
+	branch = master
 [submodule "libdap-stream-ch"]
 	path = libdap-stream-ch
 	url = https://github.com/kelvinblockchain/libdap-stream-ch
+	branch = master
 [submodule "test/libdap-test"]
 	path = test/libdap-test
 	url = https://github.com/kelvinblockchain/libdap-test
+	branch = master
 [submodule "libdap-stream-ch-chain"]
 	path = libdap-stream-ch-chain
 	url = https://github.com/kelvinblockchain//libdap-stream-ch-chain
+	branch = master
 [submodule "libdap-server-udp"]
 	path = libdap-server-udp
 	url = https://github.com/kelvinblockchain/libdap-server-udp
+	branch = master

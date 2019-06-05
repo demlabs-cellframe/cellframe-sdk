@@ -302,12 +302,8 @@ int dap_client_disconnect( dap_client_t *a_client )
 //            l_client_internal->stream_es = NULL;
 //        }
 
-<<<<<<< HEAD
 //        l_client_internal->stream_es->signal_close = true;
         dap_events_kill_socket( l_client_internal->stream_es );
-=======
-        l_client_internal->stream_es->signal_close = true;
->>>>>>> bec1af426c69b6a96e831f61603c00135bbd9305
 
 //        if (l_client_internal->stream_socket ) {
 //            close (l_client_internal->stream_socket);

@@ -12,7 +12,7 @@ before_install:
 script:
     - mkdir build
     - cd build 
-    - cmake -DBUILD_LIB_DAP_CLIENT_TESTS=ON ../
+    - cmake -DBUILD_DAP_CLIENT_TESTS=ON ../
     - make
     - ctest --verbose
 
