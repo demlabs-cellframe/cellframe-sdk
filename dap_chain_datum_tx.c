@@ -39,7 +39,7 @@
 dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
-    tx->header.lock_time = time(NULL);
+    tx->header.ts_created = time(NULL);
     return tx;
 }
 

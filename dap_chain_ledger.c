@@ -69,6 +69,7 @@ typedef struct dap_chain_ledger_token_item {
 typedef struct dap_chain_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
+    time_t ts_created;
     int n_outs;
     int n_outs_used;
     char token_tiker[10];
@@ -399,7 +400,8 @@ static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger,
  * @param a_tx_hash
  * @return
  */
-const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+
+dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
 {
     return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL);
 }
@@ -719,6 +721,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         l_item_tmp = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
         memcpy(&l_item_tmp->tx_hash_fast, l_tx_hash, sizeof(dap_chain_hash_fast_t));
         l_item_tmp->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, dap_chain_datum_tx_get_size(a_tx));
+        l_item_tmp->ts_created = (time_t) a_tx->header.ts_created;
         //calculate l_item_tmp->n_outs;
 
         // If debug mode dump the UTXO
@@ -739,7 +742,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 
         // Try to find tocken ticker if wasn't
         if ( l_token_ticker == NULL){
-            size_t l_base_tx_count = 0;
+            int l_base_tx_count = 0;
             dap_list_t *l_base_tx_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TOKEN, &l_base_tx_count );
             if (l_base_tx_count >=1  && l_base_tx_list){
                 dap_chain_tx_token_t * l_tx_token =(dap_chain_tx_token_t *) l_base_tx_list->data;
@@ -798,9 +801,10 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         dap_list_t *l_list_tmp_in = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN, &l_prev_count);
         for (dap_list_t *l_item = l_list_tmp_in; l_item; l_item = dap_list_next(l_item)) {
             dap_chain_tx_in_t *l_in_item = l_item->data;
-            dap_chain_hash_fast_t tx_prev_hash = l_in_item->header.tx_prev_hash;
-            if (!dap_hash_fast_is_blank(&tx_prev_hash)) {
-                dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_in_item, TX_ITEM_TYPE_OUT, NULL);
+            dap_chain_hash_fast_t l_tx_prev_hash = l_in_item->header.tx_prev_hash;
+            if (!dap_hash_fast_is_blank(&l_tx_prev_hash)) {
+                dap_chain_datum_tx_t  * l_tx_prev = dap_chain_ledger_tx_find_by_hash( a_ledger,  &l_tx_prev_hash);
+                dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT, NULL);
                 dap_chain_tx_out_t *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_in_item->header.tx_out_prev_idx);
                 if (l_tx_prev_out) {
                     //charge_off +=
@@ -915,6 +919,44 @@ _dap_int128_t dap_chain_ledger_count(dap_ledger_t *a_ledger)
     {
         l_ret++;
     }
+    pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    return l_ret;
+}
+
+/**
+ * @brief dap_chain_ledger_count_from_to
+ * @param a_ledger
+ * @param a_ts_from
+ * @param a_ts_to
+ * @return
+ */
+uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_from, time_t a_ts_to )
+{
+    uint64_t l_ret = 0;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    dap_chain_ledger_tx_item_t *l_iter_current, *l_item_tmp;
+    pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
+    if ( a_ts_from && a_ts_to) {
+        HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp){
+            if ( l_iter_current->ts_created >= a_ts_from && l_iter_current->ts_created <= a_ts_to )
+            l_ret++;
+        }
+    } else if ( a_ts_to ){
+        HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp){
+            if ( l_iter_current->ts_created <= a_ts_to )
+            l_ret++;
+        }
+    } else if ( a_ts_from ){
+        HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp){
+            if ( l_iter_current->ts_created >= a_ts_from )
+            l_ret++;
+        }
+    }else {
+        HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp){
+            l_ret++;
+        }
+    }
+
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     return l_ret;
 }

@@ -113,6 +113,8 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
  */
 _dap_int128_t dap_chain_ledger_count(dap_ledger_t *a_ledger);
 
+uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_from, time_t a_ts_to );
+
 /**
  * Check whether used 'out' items
  */
@@ -133,7 +135,7 @@ uint64_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_ch
  *
  * return transaction, or NULL if transaction not found in the cache
  */
-const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
+ dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 
 // Get the transaction in the cache by the addr in out item
 const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_addr(dap_ledger_t *a_ledger,
