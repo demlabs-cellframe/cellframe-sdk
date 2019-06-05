@@ -1,6 +1,5 @@
 project(server_core_test)
 
-
 if ( NOT ( TARGET dap_test ) )
     add_subdirectory(libdap-test)
 endif()

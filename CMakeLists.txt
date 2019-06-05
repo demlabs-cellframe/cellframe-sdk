@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
-project(dap_server_core)
+
+project (dap_server_core C)
+set(CMAKE_C_STANDARD 11)
+
 add_definitions ("-D_GNU_SOURCE")
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
