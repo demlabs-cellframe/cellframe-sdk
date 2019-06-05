@@ -49,7 +49,9 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
 {
     uint8_t * sig_start=(uint8_t*) a_data;
     dap_stream_pkt_t * ret=NULL;
+
     size_t length_left=data_size;
+
     while( (sig_start=memchr(sig_start, c_dap_stream_sig[0],length_left)) != NULL ){
         length_left= data_size- (size_t)  ( sig_start- (uint8_t *) a_data);
         if(length_left < sizeof(c_dap_stream_sig) )
@@ -62,8 +64,9 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
             }
             break;
         }else
-	    sig_start+=1;
+        sig_start+=1;
     }
+
     return ret;
 }
 
@@ -139,6 +142,7 @@ size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t
         ret += dap_events_socket_write(a_stream->events_socket, &pkt_hdr, sizeof(pkt_hdr));
         ret += dap_events_socket_write(a_stream->events_socket, a_stream->buf, pkt_hdr.size);
         }
+
     return ret;
 }
 
@@ -148,6 +152,7 @@ size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t
  */
 void dap_stream_send_keepalive(dap_stream_t * a_stream)
 {
+
     for(size_t i=0;i<a_stream->channel_count;i++)
         if(a_stream->channel[i]->proc){
             if(a_stream->channel[i]->proc->id == SERVICE_CHANNEL_ID){
@@ -155,6 +160,7 @@ void dap_stream_send_keepalive(dap_stream_t * a_stream)
                 dap_stream_ch_set_ready_to_write(a_stream->channel[i],true);
             }
         }
+
 }
 
 

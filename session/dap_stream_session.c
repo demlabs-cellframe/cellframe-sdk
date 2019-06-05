@@ -46,6 +46,23 @@ void dap_stream_session_deinit()
       }
 }
 
+void dap_stream_session_list()
+{
+    dap_stream_session_t *current, *tmp;
+
+    log_it(L_INFO,"=== sessions list ======");
+
+      HASH_ITER( hh, sessions, current, tmp ) {
+      log_it(L_INFO,"ID %u session %X", current->id, current);
+
+//          HASH_DEL(sessions,current);
+//          stream_session_close2(current);
+      }
+
+    log_it(L_INFO,"=== sessions list ======");
+}
+
+
 static void * session_check(void * data)
 {
     return NULL;
@@ -55,6 +72,7 @@ static void * session_check(void * data)
 dap_stream_session_t * dap_stream_session_pure_new()
 {
     dap_stream_session_t * ret=NULL;
+
     unsigned int session_id=0,session_id_new=0;
     do{
         session_id_new=session_id=rand()+rand()*0x100+rand()*0x10000+rand()*0x01000000;
@@ -69,6 +87,7 @@ dap_stream_session_t * dap_stream_session_pure_new()
     ret->enc_type = 0x01; // Default encryption type
     log_it(L_DEBUG,"Timestamp %u",(unsigned int) ret->time_created);
     HASH_ADD_INT(sessions,id,ret);
+
     return ret;
 }
 
@@ -78,25 +97,33 @@ dap_stream_session_t * dap_stream_session_new(unsigned int media_id, bool open_p
     ret->media_id=media_id;
     ret->open_preview=open_preview;
     ret->create_empty=false;
+
     return ret;
 }
 
-dap_stream_session_t * dap_stream_session_id(unsigned int id)
+dap_stream_session_t *dap_stream_session_id( unsigned int id )
 {
-    dap_stream_session_t * ret;
-    HASH_FIND_INT(sessions,&id,ret);
+    dap_stream_session_t *ret;
+    HASH_FIND_INT( sessions, &id, ret );
+
     return ret;
 }
 
 
 int dap_stream_session_close(unsigned int id)
 {
-    log_it(L_INFO,"Close session id=%d", id);
-    dap_stream_session_t *l_s = dap_stream_session_id(id);
+    log_it(L_INFO,"Close session id %u", id);
+//    sleep( 3 );
+
+    dap_stream_session_list();
+
+    dap_stream_session_t *l_s = dap_stream_session_id( id );
+
     if(!l_s) {
-        log_it(L_WARNING, "Session id=%d not found", id);
+        log_it(L_WARNING, "Session id %u not found", id);
         return -1;
     }
+
     return stream_session_close2(l_s);
 }
 
