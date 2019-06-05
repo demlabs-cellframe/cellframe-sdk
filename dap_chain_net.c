@@ -22,7 +22,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <time.h>
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
@@ -55,6 +54,11 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
+
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
+#define __USE_XOPEN
+#define _GNU_SOURCE
+#include <time.h>
 
 #define LOG_TAG "chain_net"
 
@@ -608,6 +612,8 @@ int dap_chain_net_init()
             "\tFind and establish links and stay online\n"
         "net -net <chain net name> get status\n"
             "\tLook at current status\n"
+        "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_secs <Seconds>] \n"
+            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> sync < all | gdb | chains >\n"
             "\tSyncronyze gdb, chains or everything\n\n"
         "net -net <chain net name> link < list | add | del | info | establish >\n"
@@ -632,6 +638,7 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
 {
     int arg_index=1;
     dap_chain_net_t * l_net;
+
     int ret = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,NULL,&l_net);
     if ( l_net ){
         const char * l_sync_str = NULL;
@@ -646,20 +653,69 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
 
         if ( l_stats_str ){
-            if ( strcmp(l_stats_str,"tps") == 0 ) {
+            if ( strcmp(l_stats_str,"tx") == 0 ) {
                 const char * l_to_str = NULL;
                 struct tm l_to_tm = {0};
+
                 const char * l_from_str = NULL;
                 struct tm l_from_tm = {0};
 
+                const char * l_prev_sec_str = NULL;
+                time_t l_prev_sec_ts;
+
+                const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
+
+                // Read from/to time
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from ", &l_from_str);
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-prev_sec", &l_prev_sec_str);
+
                 if (l_from_str ){
-                    //strptime()
+                    strptime(l_from_str,c_time_fmt,&l_from_tm);
                 }
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s");
+                if (l_to_str){
+                    strptime(l_to_str,c_time_fmt,&l_to_tm);
+                }
+
+                if ( l_to_str == NULL ){ // If not set '-to' - we set up current time
+                    time_t l_ts_now = time(NULL);
+                    localtime_r(&l_ts_now, &l_to_tm);
+                }
+
+                if ( l_prev_sec_str ){
+                    time_t l_ts_now = time(NULL);
+                    l_ts_now -= strtol( l_prev_sec_str, NULL,10 );
+                    localtime_r(&l_ts_now, &l_from_tm );
+                }else if ( l_from_str == NULL ){ // If not set '-from' we set up current time minus 10 seconds
+                    time_t l_ts_now = time(NULL);
+                    l_ts_now -= 10;
+                    localtime_r(&l_ts_now, &l_from_tm );
+                }
+
+                // Form timestamps from/to
+                time_t l_from_ts = mktime(&l_from_tm);
+                time_t l_to_ts = mktime(&l_to_tm);
+
+                // Produce strings
+                char l_from_str_new[50];
+                char l_to_str_new[50];
+                strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
+                strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
+
+
+                dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
+
+                dap_string_append_printf( l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
+                log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
+                uint64_t l_tx_count = dap_chain_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
+                long double l_tps = l_to_ts == l_from_ts ? 0 :
+                                                     (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
+                dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
+                dap_string_append_printf( l_ret_str, "\tTotal:  %llu\n", l_tx_count );
+                dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
+                dap_string_free( l_ret_str, false );
             }
-        }if ( l_go_str){
+        } else if ( l_go_str){
             if ( strcmp(l_go_str,"online") == 0 ) {
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
