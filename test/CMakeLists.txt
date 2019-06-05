@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD 11)
 add_subdirectory(libdap-test)
 
 if(UNIX)
-    file(GLOB PLATROFM_DEP_SRC unix/*.c)
+    file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)
 endif()
 
 add_executable(${PROJECT_NAME} ${SRCS} ${PLATROFM_DEP_SRC})
@@ -22,4 +22,5 @@ add_test(
 
 if(UNIX)
     target_include_directories(${PROJECT_NAME} PRIVATE unix)
+    target_include_directories(${PROJECT_NAME} PRIVATE unix/linux)
 endif()
