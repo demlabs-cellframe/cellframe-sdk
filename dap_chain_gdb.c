@@ -63,7 +63,7 @@ typedef struct dap_chain_gdb_private
     dap_chain_gdb_datum_hash_item_t * hash_items;
 } dap_chain_gdb_private_t;
 
-#define PVT(a) ( (dap_chain_gdb_private_t* ) (a)->_internal )
+#define PVT(a) ( (a) ? (dap_chain_gdb_private_t* ) (a)->_internal : NULL)
 
 static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net);
 
@@ -93,6 +93,9 @@ static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts(dap_chain_atom
 
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
         size_t a_datums_size);
+static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
+        size_t a_datums_size, const char *a_group);
+
 
 /**
  * Stub for consensus
@@ -190,6 +193,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
     a_chain->callback_datums_pool_proc = s_chain_callback_datums_pool_proc;
+    a_chain->callback_datums_pool_proc_with_group = s_chain_callback_datums_pool_proc_with_group;
 
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_chain_callback_atom_iter_get_first; // Get the fisrt element from chain
@@ -216,6 +220,21 @@ void dap_chain_gdb_delete(dap_chain_t * a_chain)
     DAP_DELETE(l_gdb);
     a_chain->_inheritor = NULL;
 }
+
+/**
+ * @brief dap_chain_gdb_get_group
+ * @param a_chain
+ * @return group name for ledger
+ */
+const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
+{
+    if(!a_chain)
+        return NULL;
+    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
+    dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
+    return l_gdb_priv->group_datums;
+}
+
 
 /**
  * @brief compare_datum_items
@@ -284,6 +303,14 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         s_chain_callback_atom_add(a_chain, l_datum );
     }
     return a_datums_count;
+}
+
+static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
+        size_t a_datums_count, const char *a_group)
+{
+    if(dap_strcmp(dap_chain_gdb_get_group(a_chain), a_group))
+        return 0;
+    s_chain_callback_datums_pool_proc(a_chain, a_datums, a_datums_count);
 }
 
 /**

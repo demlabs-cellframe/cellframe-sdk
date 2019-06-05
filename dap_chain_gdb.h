@@ -33,9 +33,10 @@ typedef struct dap_chain_gdb {
     void * _inheritor; // inheritor object
 
 } dap_chain_gdb_t;
-#define DAP_CHAIN_GDB(a) ( (dap_chain_gdb_t *) (a)->_inheritor)
+#define DAP_CHAIN_GDB(a) ( (a) ? (dap_chain_gdb_t *) (a)->_inheritor : NULL)
 
 int dap_chain_gdb_init(void);
 int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_gdb_delete(dap_chain_t * a_chain);
+const char* dap_chain_gdb_get_group(dap_chain_t * a_chain);
 
