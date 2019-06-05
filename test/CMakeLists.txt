@@ -1,18 +1,17 @@
-if(TARGET server_core_test)
-    return() # The project has already been built.
-endif()
 project(server_core_test)
 
-add_subdirectory(libdap-test)
+if ( NOT ( TARGET dap_test ) )
+    add_subdirectory(libdap-test)
+endif()
 
-file(GLOB SOURCES *.c)
-file(GLOB HEADERS *.h)
+file(GLOB DAP_SERVER_CORE_TEST_SOURCES *.c)
+file(GLOB DAP_SERVER_CORE_TEST_HEADERS *.h)
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} ${DAP_SERVER_CORE_TEST_SOURCES} ${DAP_SERVER_CORE_TEST_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto dap_server_core ev)
 
 add_test(
-    NAME core_server_test
-    COMMAND core_server_test
+    NAME server_core_test
+    COMMAND server_core_test
 )

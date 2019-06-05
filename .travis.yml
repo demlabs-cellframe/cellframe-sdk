@@ -6,7 +6,7 @@ notifications:
 
 before_install:
     - git submodule init
-    - git submodule update --recursive
+    - git submodule update
 
 script:
     - mkdir build
@@ -20,5 +20,5 @@ addons:
     sources:
     - ubuntu-toolchain-r-test
     packages:
-    - libev-dev
-
+    - libev-dev 
+    - libmemcached-dev

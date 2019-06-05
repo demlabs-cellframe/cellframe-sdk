@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
 
-if(TARGET dap_server_core)
-    return() # The project has already been built.
-endif()
-
 project (dap_server_core C)
 set(CMAKE_C_STANDARD 11)
 
@@ -14,20 +10,25 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     if ( NOT ( TARGET dap_core ) )
         add_subdirectory(libdap)
     endif()
+
     if ( NOT ( TARGET dap_crypto ) )
         add_subdirectory(libdap-crypto)
     endif()
+
 endif()
 
-if (BUILD_DAP_SERVER_CORE_TESTS)
+file(GLOB DAP_SERVER_CORE_SOURCES src/*.c)
+file(GLOB DAP_SERVER_CORE_HEADERS include/*.h)
+
+add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
+
+target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto pthread memcached ev)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PRIVATE src)
+
+
+if (${BUILD_DAP_SERVER_CORE_TESTS} MATCHES ON)
     enable_testing()
     add_subdirectory(test)
 endif()
 
-file(GLOB CORE_SERVER_SOURCES src/*.c)
-file(GLOB CORE_SERVER_HEADERS include/*.h src/*.h)
-
-add_library(${PROJECT_NAME} STATIC ${CORE_SERVER_SOURCES} ${CORE_SERVER_HEADERS})
-
-target_link_libraries(${PROJECT_NAME} pthread ev memcached dap_core dap_crypto)
-target_include_directories(${PROJECT_NAME} INTERFACE include/ )
