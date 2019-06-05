@@ -401,7 +401,7 @@ void s_data_read(dap_client_remote_t* a_client, void * arg)
 
     if (s_dump_packet_headers )
         log_it(L_DEBUG,"dap_stream_data_read: client->buf_in_size=%u" ,
-               a_client->_ready_to_write?"true":"false", a_client->buf_in_size );
+               dap_client_remote_is_ready_to_write(a_client)?"true":"false", a_client->buf_in_size );
 
      *ret = dap_stream_data_proc_read( l_stream);
 }
