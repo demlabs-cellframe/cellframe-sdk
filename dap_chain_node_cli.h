@@ -31,7 +31,7 @@
 #define UNIX_SOCKET_FILE "/opt/kelvin-node/var/run/node_cli.sock"
 //#define UNIX_SOCKET_FILE "/var/run/node_cli.sock"
 
-typedef int cmdfunc_t(int argc, const char ** argv, char **str_reply);
+typedef int cmdfunc_t(int argc, char ** argv, char **str_reply);
 
 typedef struct dap_chain_node_cmd_item{
     char name[32]; /* User printable name of the function. */
@@ -51,7 +51,7 @@ void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, 
 
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...);
 
-int dap_chain_node_cli_find_option_val(const char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value);
+int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value);
 
 
 /**

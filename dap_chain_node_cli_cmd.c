@@ -546,7 +546,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
  *
  * return 0 OK, -1 Err
  */
-int com_global_db(int a_argc, const char ** a_argv, char **a_str_reply)
+int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK    };
@@ -652,7 +652,7 @@ int com_global_db(int a_argc, const char ** a_argv, char **a_str_reply)
 /**
  * Node command
  */
-int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
+int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT , CMD_DUMP
@@ -849,7 +849,7 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net,alias_str);
             if(address_tmp) {
-                memcpy(&l_node_addr, address_tmp, sizeof(address_tmp));
+                memcpy(&l_node_addr, address_tmp, sizeof(*address_tmp));
                 DAP_DELETE(address_tmp);
             }
             else {
@@ -909,7 +909,7 @@ int com_node(int a_argc, const char ** a_argv, char **a_str_reply)
  *
  * return 0 OK, -1 Err
  */
-int com_traceroute(int argc, const char** argv, char **str_reply)
+int com_traceroute(int argc, char** argv, char **str_reply)
 {
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
@@ -985,7 +985,7 @@ int com_traceroute(int argc, const char** argv, char **str_reply)
  *
  * return 0 OK, -1 Err
  */
-int com_tracepath(int argc, const char** argv, char **str_reply)
+int com_tracepath(int argc, char** argv, char **str_reply)
 {
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
@@ -1056,7 +1056,7 @@ int com_tracepath(int argc, const char** argv, char **str_reply)
  *
  * return 0 OK, -1 Err
  */
-int com_ping(int argc, const char** argv, char **str_reply)
+int com_ping(int argc, char** argv, char **str_reply)
 {
     int n = 4;
     if(argc < 2) {
@@ -1112,7 +1112,7 @@ int com_ping(int argc, const char** argv, char **str_reply)
 /**
  * Help command
  */
-int com_help(int argc, const char ** argv, char **str_reply)
+int com_help(int argc, char ** argv, char **str_reply)
 {
     if(argc > 1) {
         log_it(L_DEBUG, "Help for command %s", argv[1]);
@@ -1148,7 +1148,7 @@ int com_help(int argc, const char ** argv, char **str_reply)
  *
  * Wallet info
  */
-int com_tx_wallet(int argc, const char ** argv, char **str_reply)
+int com_tx_wallet(int argc,  char ** argv, char **str_reply)
 {
     const char *c_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
     // Get address of wallet
@@ -1317,7 +1317,7 @@ int com_tx_wallet(int argc, const char ** argv, char **str_reply)
  * @param l_net
  * @return
  */
-int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, const char ** argv, char ** a_str_reply,
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, char ** argv, char ** a_str_reply,
         dap_chain_t ** a_chain, dap_chain_net_t ** a_net)
 {
     const char * l_chain_str = NULL;
@@ -1365,7 +1365,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, co
  * @param str_reply
  * @return
  */
-int com_token_decl_sign(int argc, const char ** argv, char ** a_str_reply)
+int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
 
@@ -1538,7 +1538,7 @@ int com_token_decl_sign(int argc, const char ** argv, char ** a_str_reply)
  * @param str_reply
  * @return
  */
-int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
+int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
@@ -1585,7 +1585,7 @@ int com_mempool_list(int argc, const char ** argv, char ** a_str_reply)
  * @param a_str_reply
  * @return
  */
-int com_mempool_delete(int argc, const char ** argv, char ** a_str_reply)
+int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
@@ -1627,7 +1627,7 @@ int com_mempool_delete(int argc, const char ** argv, char ** a_str_reply)
  * @param a_str_reply
  * @return
  */
-int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply)
+int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain;
@@ -1678,7 +1678,7 @@ int com_mempool_proc(int argc, const char ** argv, char ** a_str_reply)
  * @param str_reply
  * @return
  */
-int com_token_decl(int argc, const char ** argv, char ** str_reply)
+int com_token_decl(int argc, char ** argv, char ** str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
@@ -1841,7 +1841,7 @@ int com_token_decl(int argc, const char ** argv, char ** str_reply)
  * @param str_reply
  * @return
  */
-int com_token_emit(int argc, const char ** argv, char ** str_reply)
+int com_token_emit(int argc, char ** argv, char ** str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
@@ -2075,7 +2075,7 @@ int com_token_emit(int argc, const char ** argv, char ** str_reply)
  *
  * Create transaction
  */
-int com_tx_cond_create(int argc, const char ** argv, char **str_reply)
+int com_tx_cond_create(int argc, char ** argv, char **str_reply)
 {
     (void) argc;
     // test
@@ -2123,7 +2123,7 @@ int com_tx_cond_create(int argc, const char ** argv, char **str_reply)
  *
  * Create transaction
  */
-int com_tx_create(int argc, const char ** argv, char **str_reply)
+int com_tx_create(int argc, char ** argv, char **str_reply)
 {
     int arg_index = 1;
     int cmd_num = 1;
@@ -2231,11 +2231,9 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
     dap_string_append_printf(string_ret, "transfer=%s\n",
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");
 
-    char *str_ret_tmp = dap_string_free(string_ret, false);
-    char *str_ret = strdup(str_ret_tmp);
-    dap_chain_node_cli_set_reply_text(str_reply, str_ret);
+    dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
+    dap_string_free(string_ret, false);
 
-    DAP_DELETE(str_ret_tmp);
     DAP_DELETE(addr_to);
     DAP_DELETE(addr_fee);
     dap_chain_wallet_close(l_wallet);
@@ -2247,7 +2245,7 @@ int com_tx_create(int argc, const char ** argv, char **str_reply)
  *
  * Verifing transaction
  */
-int com_tx_verify(int argc, const char ** argv, char **str_reply)
+int com_tx_verify(int argc, char ** argv, char **str_reply)
 {
     if(argc > 1) {
         if(str_reply)
@@ -2264,7 +2262,7 @@ int com_tx_verify(int argc, const char ** argv, char **str_reply)
  * Print log info
  * print_log [ts_after <timestamp >] [limit <line numbers>]
  */
-int com_print_log(int argc, const char ** argv, char **str_reply)
+int com_print_log(int argc, char ** argv, char **str_reply)
 {
     int arg_index = 1;
     const char * l_str_ts_after = NULL;

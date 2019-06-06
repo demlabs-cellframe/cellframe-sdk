@@ -127,7 +127,7 @@ static void s_net_proc_kill( dap_chain_net_t * a_net );
 static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
-static int s_cli_net(int argc, const char ** argv, char **str_reply);
+static int s_cli_net(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 /**
@@ -634,7 +634,7 @@ int dap_chain_net_init()
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
+static int s_cli_net(int argc, char ** argv, char **a_str_reply)
 {
     int arg_index=1;
     dap_chain_net_t * l_net;
@@ -687,11 +687,11 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
                     time_t l_ts_now = time(NULL);
                     l_ts_now -= strtol( l_prev_sec_str, NULL,10 );
                     localtime_r(&l_ts_now, &l_from_tm );
-                }else if ( l_from_str == NULL ){ // If not set '-from' we set up current time minus 10 seconds
+                }/*else if ( l_from_str == NULL ){ // If not set '-from' we set up current time minus 10 seconds
                     time_t l_ts_now = time(NULL);
                     l_ts_now -= 10;
                     localtime_r(&l_ts_now, &l_from_tm );
-                }
+                }*/
 
                 // Form timestamps from/to
                 time_t l_from_ts = mktime(&l_from_tm);

@@ -232,7 +232,6 @@ static void* thread_one_client_func(void *args)
 
     int str_len, marker = 0;
     int timeout = 5000; // 5 sec
-    char **argv = NULL;
     int argc = 0;
     dap_list_t *cmd_param_list = NULL;
     while(1)
@@ -291,16 +290,18 @@ static void* thread_one_client_func(void *args)
                     log_it(L_INFO, "execute command=%s", str_cmd);
                     // exec command
 
-                    char **argv = dap_strsplit(str_cmd, ";", -1);
+                    char **l_argv = dap_strsplit(str_cmd, ";", -1);
                     // Call the command function
-                    if(l_cmd && l_cmd->func)
-                        res = (*(l_cmd->func))(argc, (const char **) argv, &str_reply);
-                    else {
+                    if(l_cmd &&  l_argv && l_cmd->func)
+                        res = (*(l_cmd->func))(argc, l_argv, &str_reply);
+                    else if (l_cmd){
+                        log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd);
+                    }else {
                         log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd);
                     }
                     // find '-verbose' command
-                    l_verbose = dap_chain_node_cli_find_option_val(argv, 1, argc, "-verbose", NULL);
-                    dap_strfreev(argv);
+                    l_verbose = dap_chain_node_cli_find_option_val(l_argv, 1, argc, "-verbose", NULL);
+                    dap_strfreev(l_argv);
                 } else {
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
                     log_it(L_ERROR, str_reply);
@@ -385,16 +386,17 @@ void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
  *
  * return index of string in argv, or 0 if not found
  */
-int dap_chain_node_cli_find_option_val(const char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
+int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
 {
     int arg_index = arg_start;
     const char *arg_string;
 
     while(arg_index < arg_end)
     {
-        arg_string = argv[arg_index];
+        char * l_argv_cur = argv[arg_index];
+        arg_string = l_argv_cur;
         // find opt_name
-        if(arg_string && opt_name && !strcmp(arg_string, opt_name)) {
+        if(arg_string && opt_name && arg_string[0] && opt_name[0] && !strcmp(arg_string, opt_name)) {
             // find opt_value
             if(opt_value) {
                 arg_string = argv[++arg_index];
