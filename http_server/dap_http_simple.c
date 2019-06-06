@@ -111,8 +111,8 @@ static pthread_mutex_t mutex_on_queue_http_response = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t http_simple_loop_thread;
 static bool bSimpleLoopThreadQuitSignal = false;
 
-static dap_http_simple_t **pRequestsBuffer = NULL;
-static uint32_t ui32TotalRequests = 0;
+static dap_http_simple_t **s_requests = NULL;
+static uint32_t s_requests_count = 0;
 
 // uint64_t s_TTL_session_key=3600;
 
@@ -120,14 +120,14 @@ static void _free_user_agents_list( void );
 
 int dap_http_simple_module_init( )
 {
-  pRequestsBuffer = (dap_http_simple_t *) malloc( sizeof(dap_http_simple_t *) * DAP_HTTP_SIMPLE_REQUEST_MAX );
-  if ( !pRequestsBuffer ) {
+  s_requests = DAP_NEW_Z_SIZE( dap_http_simple_t *, sizeof(dap_http_simple_t *) * DAP_HTTP_SIMPLE_REQUEST_MAX );
+  if ( !s_requests ) {
 
     log_it( L_ERROR, "Out of memory" );
     return -1;
   }
 
-  ui32TotalRequests = 0;
+  s_requests_count = 0;
 
 //  http_simple_loop = ev_loop_new(0);
 
@@ -154,9 +154,9 @@ void dap_http_simple_module_deinit( void )
 //  ev_loop_destroy( http_simple_loop );
   _free_user_agents_list( );
 
-  if ( pRequestsBuffer ) {
-    free( pRequestsBuffer );
-    pRequestsBuffer = NULL;
+  if ( s_requests ) {
+    free( s_requests );
+    s_requests = NULL;
   } 
 }
 
@@ -166,13 +166,13 @@ static void async_control_proc( void )
 {
   pthread_mutex_lock( &mutex_on_queue_http_response );
 
-  for ( uint32_t i = 0; i < ui32TotalRequests; ++ i ) {
+  for ( uint32_t i = 0; i < s_requests_count; ++ i ) {
 
-    dap_http_simple_proc( pRequestsBuffer[i] );
-    free( pRequestsBuffer[i] );
+    dap_http_simple_proc( s_requests[i] );
+    free( s_requests[i] );
   }
 
-  ui32TotalRequests = 0;
+  s_requests_count = 0;
 
 //  tailq_entry_t *item;
 
@@ -564,16 +564,16 @@ inline void queue_http_request_put( dap_http_simple_t *cl_sh )
 //  item->cl_sh = cl_sh;
 //  TAILQ_INSERT_TAIL(&tailq_head, item, entries);
 
-  if ( ui32TotalRequests >= DAP_HTTP_SIMPLE_REQUEST_MAX ) {
+  if ( s_requests_count >= DAP_HTTP_SIMPLE_REQUEST_MAX ) {
 
     log_it( L_NOTICE, "Requests Buffer is FULL( %u ) ignore request" );
     pthread_mutex_unlock( &mutex_on_queue_http_response );
     return;
   }
 
-  log_it( L_WARNING, "queue_http_request_put >>> %u", ui32TotalRequests );
+  log_it( L_WARNING, "queue_http_request_put >>> %u", s_requests_count );
 
-  pRequestsBuffer[ ui32TotalRequests ++ ] = cl_sh;
+  s_requests[ s_requests_count ++ ] = cl_sh;
 
   pthread_mutex_unlock( &mutex_on_queue_http_response );
 
