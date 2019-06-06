@@ -543,6 +543,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     }
     if(l_store_data) {
         lock();
+        //log_it(L_DEBUG,"Added %u objects", a_objs_count);
         int l_res = dap_chain_global_db_driver_add(l_store_data, a_objs_count);
         unlock();
         if(!l_res) {

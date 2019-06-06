@@ -381,7 +381,7 @@ static int save_write_buf(void)
             assert(l_obj);
             if(s_drv_callback.apply_store_obj) {
                 if(!s_drv_callback.apply_store_obj(l_obj)) {
-                    log_it(L_INFO, "Write item Ok %s/%s\n", l_obj->group, l_obj->key);
+                    //log_it(L_INFO, "Write item Ok %s/%s\n", l_obj->group, l_obj->key);
                 }
                 else {
                     log_it(L_ERROR, "Can't write item %s/%s\n", l_obj->group, l_obj->key);
@@ -443,13 +443,13 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
             pthread_mutex_lock(&s_mutex_add_start);
             s_list_begin = s_list_end;
             pthread_mutex_unlock(&s_mutex_add_start);
-            //printf("*!!add record=0x%x / 0x%x    obj=0x%x / 0x%x\n", s_list_end, s_list_end->data, s_list_end->prev);
+            //log_it(L_DEBUG,"First record in list: *!!add record=0x%x / 0x%x    obj=0x%x / 0x%x\n", s_list_end, s_list_end->data, s_list_end->prev);
         }
         else
             s_list_end->data = l_store_obj_cur;
         dap_list_append(s_list_end, NULL);
         s_list_end = dap_list_last(s_list_end);
-        //printf("**+add record l_cur=0x%x / 0x%x l_new=0x%x / 0x%x\n", s_list_end->prev, s_list_end->prev->data,s_list_end, s_list_end->data);
+        //log_it(L_DEBUG, "**+add record l_cur=0x%x / 0x%x l_new=0x%x / 0x%x\n", s_list_end->prev, s_list_end->prev->data,s_list_end, s_list_end->data);
     }
     // buffer changed
     pthread_mutex_lock(&s_mutex_cond);
@@ -462,13 +462,15 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
 
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
-    a_store_obj->type = 'a';
+    for(size_t i = 0; i < a_store_count; i++)
+        a_store_obj[i].type = 'a';
     return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
 }
 
 int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
-    a_store_obj->type = 'd';
+    for(size_t i = 0; i < a_store_count; i++)
+        a_store_obj[i].type = 'd';
     return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
 }
 

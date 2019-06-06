@@ -355,6 +355,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         dap_cdb_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
         offset += sizeof(time_t);
         l_rec.val = l_val;
+//        log_it(L_DEBUG,"cbd_set() group: %s key: %s \tkey_size: %d\t val_size: %d",a_store_obj->group, l_rec.key, strlen(l_rec.key),offset);
         cdb_set(l_cdb, l_rec.key, strlen(l_rec.key), l_rec.val, offset);
         DAP_DELETE(l_rec.key);
         DAP_DELETE(l_rec.val);
