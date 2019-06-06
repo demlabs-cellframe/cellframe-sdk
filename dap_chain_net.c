@@ -152,8 +152,8 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
         log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
     }
     PVT(a_net)->state_target = a_new_state;
-    pthread_mutex_unlock( &PVT(a_net)->state_mutex);
     pthread_cond_signal(&PVT(a_net)->state_proc_cond);
+    pthread_mutex_unlock( &PVT(a_net)->state_mutex);
     return 0;
 }
 
@@ -191,6 +191,7 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
  */
 static int s_net_states_proc(dap_chain_net_t * l_net)
 {
+    dap_chain_net_pvt_t *pvt_debug = PVT(l_net);
     int ret=0;
 lb_proc_state:
     pthread_mutex_lock(&PVT(l_net)->state_mutex );
@@ -277,7 +278,7 @@ lb_proc_state:
                         break;
                     }
                     // wait connected
-                    int timeout_ms = 15000; //15 sec = 15000 ms
+                    int timeout_ms = 5000; //15 sec = 15000 ms
                     int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
                     if (res == 0 ){
                         log_it(L_NOTICE, "Connected link %u",i);
@@ -369,7 +370,7 @@ lb_proc_state:
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                int timeout_ms = 5000; // 2 min = 120 sec = 120 000 ms
                 // TODO add progress info to console
                 PVT(l_net)->addr_request_attempts++;
                 int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
@@ -402,7 +403,8 @@ lb_proc_state:
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {{0}};
                 // Get last timestamp in log
                 l_sync_gdb.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote(l_node_client->remote_node_addr.uint64);
-                l_sync_gdb.ts_end = (uint64_t) time(NULL);
+                // no limit
+                l_sync_gdb.ts_end = (uint64_t)0;// time(NULL);
 
                 log_it(L_DEBUG,"Prepared request to gdb sync from %llu to %llu",l_sync_gdb.ts_start,l_sync_gdb.ts_end);
                 size_t l_res =  dap_stream_ch_chain_pkt_write( dap_client_get_stream_ch(l_node_client->client,
@@ -417,7 +419,7 @@ lb_proc_state:
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                int timeout_ms = 5000; // 2 min = 120 sec = 120 000 ms
                 // TODO add progress info to console
                 int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (res) {
@@ -478,9 +480,22 @@ lb_proc_state:
             PVT(l_net)->state = NET_STATE_ONLINE;
         }pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
 
-        case NET_STATE_ONLINE:{
-            log_it(L_NOTICE,"State online");
-        } break;
+        case NET_STATE_ONLINE: {
+            log_it(L_NOTICE, "State online");
+            switch ( PVT(l_net)->state_target) {
+            // disconnect
+            case NET_STATE_OFFLINE:
+                PVT(l_net)->state = NET_STATE_OFFLINE;
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+                goto lb_proc_state;
+                // sync
+            case NET_STATE_SYNC_GDB:
+                PVT(l_net)->state = NET_STATE_SYNC_GDB;
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+                goto lb_proc_state;
+            }
+        }
+            break;
     }
     pthread_mutex_unlock(&PVT(l_net)->state_mutex );
     return ret;
@@ -499,7 +514,22 @@ static void * s_net_proc_thread ( void * a_net)
     while( is_looping ) {
         s_net_states_proc(l_net);
         pthread_mutex_lock( &PVT(l_net)->state_mutex );
-        pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
+
+        int l_timeout_ms = 3000;// 3 sec
+        // prepare for signal waiting
+        struct timespec l_to;
+        clock_gettime(CLOCK_MONOTONIC, &l_to);
+        int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
+        // if the new number of nanoseconds is more than a second
+        if(l_nsec_new > (long) 1e9) {
+            l_to.tv_sec += l_nsec_new / (long) 1e9;
+            l_to.tv_nsec = l_nsec_new % (long) 1e9;
+        }
+        else
+            l_to.tv_nsec = (long) l_nsec_new;
+        // signal waiting
+        pthread_cond_timedwait(&PVT(l_net)->state_proc_cond, &PVT(l_net)->state_mutex, &l_to);
+        //pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
         pthread_mutex_unlock( &PVT(l_net)->state_mutex );
         log_it( L_DEBUG, "Waked up net proHASH_COUNT( c thread");
 
@@ -547,7 +577,10 @@ static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name ,
     dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
     pthread_mutex_init( &PVT(ret)->state_mutex, NULL);
-    pthread_cond_init( &PVT(ret)->state_proc_cond, NULL);
+    pthread_condattr_t l_attr;
+    pthread_condattr_init(&l_attr);
+    pthread_condattr_setclock(&l_attr, CLOCK_MONOTONIC);
+    pthread_cond_init( &PVT(ret)->state_proc_cond, &l_attr);
     if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root_master")==0){
             PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
@@ -727,6 +760,13 @@ static int s_cli_net(int argc, const char ** argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
                                                     l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                     c_net_states[PVT(l_net)->state_target]);
+
+            }
+            else if(strcmp(l_go_str, "sync") == 0) {
+                dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_GDB);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
+                        l_net->pub.name, c_net_states[PVT(l_net)->state],
+                        c_net_states[PVT(l_net)->state_target]);
 
             }
 
