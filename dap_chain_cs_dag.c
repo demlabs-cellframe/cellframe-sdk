@@ -94,7 +94,7 @@ static dap_chain_datum_t* s_chain_callback_datum_iter_get_first( dap_chain_datum
 static dap_chain_datum_t* s_chain_callback_datum_iter_get_next( dap_chain_datum_iter_t * a_datum_iter ); // Get the next datum from dag
 */
 
-static int s_cli_dag(int argc, const char ** argv, char **str_reply);
+static int s_cli_dag(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 /**
@@ -705,7 +705,7 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
  * @param str_reply
  * @return
  */
-static int s_cli_dag(int argc, const char ** argv, char **a_str_reply)
+static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 {
     enum {
         SUBCMD_EVENT_CREATE,
