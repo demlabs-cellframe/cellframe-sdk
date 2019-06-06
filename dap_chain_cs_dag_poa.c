@@ -57,7 +57,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
 // CLI commands
-static int s_cli_dag_poa(int argc, const char ** argv, char **str_reply);
+static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 /**
@@ -93,7 +93,7 @@ void dap_chain_cs_dag_poa_deinit(void)
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, const char ** argv, char **a_str_reply)
+static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
 {
     int ret = -666;
     int arg_index = 1;
