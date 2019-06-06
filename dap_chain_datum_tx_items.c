@@ -296,10 +296,10 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
     int l_items_count = 0, l_item_idx_start = 0;
     // Get sign item from transaction
     while(1) {
-        const uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
+        uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
         if(!l_tx_item)
             break;
-        items_list = dap_list_append(items_list, (uint8_t*)l_tx_item);
+        items_list = dap_list_append(items_list, l_tx_item);
         l_items_count++;
         l_item_idx_start++;
     }
