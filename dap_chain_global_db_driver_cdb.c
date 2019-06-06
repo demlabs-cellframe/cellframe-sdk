@@ -74,7 +74,7 @@ static inline uint64_t dap_cdb_hex_to_uint(char *arr, short size) {
 }
 
 static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, char *key, char *val) {
-    if (!key || !val) {
+    if (!key || !val  ) {
         a_obj = NULL;
         return;
     }
