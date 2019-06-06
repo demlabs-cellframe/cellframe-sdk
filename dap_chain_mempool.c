@@ -61,8 +61,8 @@
 typedef struct list_used_item {
     dap_chain_hash_fast_t tx_hash_fast;
     int num_idx_out;
+    uint8_t padding[4];
     uint64_t value;
-
 //dap_chain_tx_out_t *tx_out;
 } list_used_item_t;
 
@@ -79,7 +79,9 @@ int dap_datum_mempool_init(void)
  */
 int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum)
 {
-    return 0;
+    // TODO
+    (void) a_datum;
+    return -1;
 }
 
 /**
@@ -94,7 +96,7 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
         uint64_t a_value, uint64_t a_value_fee)
 {
     // check valid param
-    if(!a_chain | !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
+    if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
             (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || !a_value)
         return -1;
@@ -121,7 +123,7 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
             while(l_list_tmp) {
                 dap_chain_tx_out_t *out_item = l_list_tmp->data;
                 // if 'out' item has addr = a_addr_from
-                if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
+                if(out_item && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
 
                     // Check whether used 'out' items
                     if(!dap_chain_ledger_tx_hash_is_used_out_item (a_chain->ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
@@ -160,7 +162,7 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
         uint64_t l_value_to_items = 0; // how many coins to transfer
         while(l_list_tmp) {
             list_used_item_t *item = l_list_tmp->data;
-            if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
+            if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast,(uint32_t) item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
             }
             l_list_tmp = dap_list_next(l_list_tmp);
@@ -292,8 +294,6 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         return -2;
     }
 
-
-    dap_chain_hash_fast_t l_tx_new_prev_hash = {0};
     for (size_t i=0; i< a_tx_num ; i++){
         log_it(L_DEBUG, "Prepare tx %u",i);
         // find the transactions from which to take away coins
@@ -308,8 +308,13 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // Add in and remove out used items
         while(l_list_tmp) {
             list_used_item_t *item = l_list_tmp->data;
-            if(dap_chain_datum_tx_add_in_item(&l_tx_new, &item->tx_hash_fast, item->num_idx_out) == 1) {
+            char l_in_hash_str[70];
+            dap_chain_hash_fast_to_str(&item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
+            if(dap_chain_datum_tx_add_in_item(&l_tx_new, &item->tx_hash_fast, (uint32_t) item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
+                log_it(L_DEBUG,"Added input %s with %llu datoshi",l_in_hash_str, item->value);
+            }else{
+                log_it(L_WARNING,"Can't add input from %s with %llu datoshi",l_in_hash_str, item->value);
             }
             l_list_used_out = l_list_tmp->next;
             DAP_DELETE(l_list_tmp);
@@ -354,7 +359,6 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
         dap_chain_hash_fast_t l_tx_new_hash;
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
-        memcpy (&l_tx_new_prev_hash, &l_tx_new_hash, sizeof (l_tx_new_hash) );
         // If we have value back - update balance cache
         if(l_value_back) {
             //log_it(L_DEBUG,"We have value back %llu now lets see how many outputs we have", l_value_back);
@@ -368,6 +372,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 dap_chain_tx_out_t * l_out = l_list_tmp->data ;
                 if( ! l_out){
                     log_it(L_WARNING, "Output is NULL, continue check outputs...");
+                    l_out_idx_tmp++;
                     continue;
                 }
                 if ( memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
@@ -375,8 +380,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                     memcpy(&l_item_back->tx_hash_fast, &l_tx_new_hash, sizeof(dap_chain_hash_fast_t));
                     l_item_back->num_idx_out = l_out_idx_tmp;
                     l_item_back->value = l_value_back;
-                    l_list_used_out = dap_list_append(l_list_used_out, l_item_back);
-                    //log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
+                    l_list_used_out = dap_list_prepend(l_list_used_out, l_item_back);
+                    log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
                     break;
                  }
                 l_list_tmp = l_list_tmp->next;
@@ -396,8 +401,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         //continue;
         l_objs[i].value = (uint8_t*) l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
-        //log_it(L_DEBUG, "Prepared obj with key %s (value_len = %llu)",
-        //       l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
+        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %llu)",
+               l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
     }
     dap_list_free(l_list_used_out);
@@ -445,20 +450,20 @@ int dap_chain_mempool_tx_create_cond(dap_chain_t * a_chain,
         while(l_value_transfer < l_value_need)
         {
             // Get the transaction in the cache by the addr in out item
-            const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_chain->ledger, a_token_ticker,a_addr_from,
+            dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_chain->ledger, a_token_ticker,a_addr_from,
                     &l_tx_cur_hash);
             if(!l_tx)
                 break;
             // Get all item from transaction by type
             int l_item_count = 0;
-            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx, TX_ITEM_TYPE_OUT,
                     &l_item_count);
             dap_list_t *l_list_tmp = l_list_out_items;
             int l_out_idx_tmp = 0; // current index of 'out' item
             while(l_list_tmp) {
                 dap_chain_tx_out_t *out_item = l_list_tmp->data;
                 // if 'out' item has addr = a_addr_from
-                if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
+                if(out_item &&  !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
 
                     // Check whether used 'out' items
                     if(!dap_chain_ledger_tx_hash_is_used_out_item(a_chain->ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
@@ -497,7 +502,7 @@ int dap_chain_mempool_tx_create_cond(dap_chain_t * a_chain,
         uint64_t l_value_to_items = 0; // how many coins to transfer
         while(l_list_tmp) {
             list_used_item_t *item = l_list_tmp->data;
-            if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
+            if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast,(uint32_t) item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
             }
             l_list_tmp = dap_list_next(l_list_tmp);
@@ -758,7 +763,7 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum)
 static char* calc_datum_hash(const char *datum_str, size_t datum_size)
 {
     dap_chain_hash_fast_t a_hash;
-    dap_hash((char*) datum_str, datum_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_SLOW_0);
+    dap_hash( datum_str, datum_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_SLOW_0);
     size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
     char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
     size_t hash_len = dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
@@ -829,7 +834,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     if(dg) {
         char *suburl = dg->url_path;
         char *request_str = dg->request_str;
-        int request_size = dg->request_size;
+        int request_size = (int) dg->request_size;
         //printf("!!***!!! chain_mempool_proc arg=%d suburl=%s str=%s len=%d\n", arg, suburl, request_str, request_size);
         if(request_str && request_size > 1) {
             //  find what to do
@@ -844,7 +849,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
             }
             dap_datum_mempool_t *datum_mempool =
                     (action != DAP_DATUM_MEMPOOL_NONE) ?
-                            dap_datum_mempool_deserialize(request_str, (size_t) request_size) : NULL;
+                            dap_datum_mempool_deserialize((uint8_t*) request_str, (size_t) request_size) : NULL;
             if(datum_mempool)
             {
                 dap_datum_mempool_free(datum_mempool);
@@ -855,7 +860,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if(dap_chain_global_db_gr_set(a_key, request_str, request_size,
+                    if(dap_chain_global_db_gr_set(a_key, request_str,(size_t) request_size,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         *return_code = Http_Status_OK;
                     }
@@ -889,7 +894,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                     if(dap_chain_global_db_gr_del(((const char*) a_key),
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         dg->response = strdup("1");
-                        DAP_DELETE(str);
+
                         log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
                     }
                     else
