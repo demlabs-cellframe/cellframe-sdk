@@ -243,7 +243,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     uint64_t l_value_transfer = 0; // how many coins to transfer
 
-    log_it(L_DEBUG,"Create %lu transactions, summary %Lf.7", dap_chain_balance_to_coins(l_value_need) ) ;
+    log_it(L_DEBUG,"Create %lu transactions, summary %Lf.7", a_tx_num,dap_chain_balance_to_coins(l_value_need) ) ;
 
     while(l_value_transfer < l_value_need){
         // Get the transaction in the cache by the addr in out item
@@ -337,7 +337,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // coin back
         l_value_back = l_value_transfer - l_value_pack;
         if(l_value_back) {
-            log_it(L_DEBUG,"Change back %llu", l_value_back);
+            //log_it(L_DEBUG,"Change back %llu", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
                 return -3;
@@ -357,13 +357,13 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         memcpy (&l_tx_new_prev_hash, &l_tx_new_hash, sizeof (l_tx_new_hash) );
         // If we have value back - update balance cache
         if(l_value_back) {
-            log_it(L_DEBUG,"We have value back %llu now lets see how many outputs we have", l_value_back);
+            //log_it(L_DEBUG,"We have value back %llu now lets see how many outputs we have", l_value_back);
             int l_item_count = 0;
             dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT,
                     &l_item_count);
             dap_list_t *l_list_tmp = l_list_out_items;
             int l_out_idx_tmp = 0; // current index of 'out' item
-            log_it(L_DEBUG,"We have %d outputs in new TX", l_item_count);
+            //log_it(L_DEBUG,"We have %d outputs in new TX", l_item_count);
             while(l_list_tmp) {
                 dap_chain_tx_out_t * l_out = l_list_tmp->data ;
                 if( ! l_out){
@@ -376,13 +376,13 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                     l_item_back->num_idx_out = l_out_idx_tmp;
                     l_item_back->value = l_value_back;
                     l_list_used_out = dap_list_append(l_list_used_out, l_item_back);
-                    log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
+                    //log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
                     break;
                  }
                 l_list_tmp = l_list_tmp->next;
                 l_out_idx_tmp++;
             }
-            log_it(L_DEBUG,"Checked all outputs");
+            //log_it(L_DEBUG,"Checked all outputs");
             dap_list_free( l_list_out_items);
         }
         l_value_transfer -= l_value_pack;
@@ -396,8 +396,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         //continue;
         l_objs[i].value = (uint8_t*) l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
-        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %llu)",
-               l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
+        //log_it(L_DEBUG, "Prepared obj with key %s (value_len = %llu)",
+        //       l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
     }
     dap_list_free(l_list_used_out);
