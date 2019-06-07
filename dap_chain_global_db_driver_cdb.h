@@ -44,4 +44,3 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t);
 dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char*);
 dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char*, const char*, size_t*);
 dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char*, uint64_t, size_t*);
-int dap_db_driver_cdb_options(pcdb_options l_opts, CDB* a_cdb);
