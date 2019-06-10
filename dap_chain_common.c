@@ -66,11 +66,15 @@ size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, 
         log_it(L_ERROR, "String for hash too small, need %u but have only %u", c_hash_str_size, a_str_max);
     }
     size_t i;
+    // faster conversion to string
     snprintf(a_str, 3, "0x");
-    for(i = 0; i < sizeof(a_hash->raw); ++i)
-        snprintf(a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i]);
-    a_str[c_hash_str_size] = '\0';
-    return strlen(a_str);
+    size_t l_ret = dap_bin2hex(a_str + 2, a_hash->raw, sizeof(a_hash->raw));
+    //for(i = 0; i < sizeof(a_hash->raw); ++i)
+    //    snprintf(a_str + i * 2 + 2, 3, "%02x", (a_hash->raw[i]));
+    a_str[c_hash_str_size - 1] = '\0';
+    if(!l_ret)
+        return 0;
+    return c_hash_str_size - 1; //strlen(a_str);
 }
 
 /**
