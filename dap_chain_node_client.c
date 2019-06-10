@@ -355,7 +355,7 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
  *
  * timeout_ms timeout in milliseconds
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
- * return -1 false, 0 timeout, 1 end of connection or sending data
+ * return -2 false, -1 timeout, 0 end of connection or sending data
  */
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms)
 {
@@ -366,7 +366,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     // have waited
     if(a_client->state == a_waited_state) {
         pthread_mutex_unlock(&a_client->wait_mutex);
-        return 1;
+        return 0;
     }
     // prepare for signal waiting
     struct timespec to;

@@ -242,7 +242,7 @@ lb_proc_state:
                     if ( l_net->pub.cell_id.uint64 == 0 ){
                         PVT(l_net)->links_addrs_count=1;
                         PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                                                                 PVT(l_net)->links_addrs_count);
+                                                                 PVT(l_net)->links_addrs_count * sizeof(dap_chain_node_addr_t));
                         dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[0] );
                         PVT(l_net)->links_addrs[0].uint64 = l_node_addr? l_node_addr->uint64 : 0;
                     }else {
@@ -375,10 +375,10 @@ lb_proc_state:
                 PVT(l_net)->addr_request_attempts++;
                 int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
                 switch (l_res) {
-                    case 0:
+                    case -1:
                         log_it(L_WARNING,"Timeout with addr leasing");
                     continue; // try with another link
-                    case 1:
+                    case 0:
                         log_it(L_INFO, "Node address leased");
                         PVT(l_net)->state = NET_STATE_SYNC_GDB;
                     pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
@@ -419,21 +419,21 @@ lb_proc_state:
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 5000; // 2 min = 120 sec = 120 000 ms
+                int timeout_ms = 50000; // 2 min = 120 sec = 120 000 ms
                 // TODO add progress info to console
                 int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (res) {
-                    case 0:
+                    case -1:
                         log_it(L_WARNING,"Timeout with link sync");
                     break;
-                    case 1:
+                    case 0:
                         log_it(L_INFO, "Node sync completed");
                     break;
                     default:
                         log_it(L_INFO, "Node sync error %d",res);
                 }
             }
-            if ( PVT(l_net)->state_target == NET_STATE_ONLINE ){
+            if ( PVT(l_net)->state_target >= NET_STATE_ONLINE ){
                 PVT(l_net)->state = NET_STATE_SYNC_CHAINS;
             }else {
                 PVT(l_net)->state = NET_STATE_ONLINE;
@@ -461,10 +461,10 @@ lb_proc_state:
                         // TODO add progress info to console
                         int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                         switch (l_res) {
-                            case 0:
+                            case -1:
                                 log_it(L_WARNING,"Timeout with link sync");
                             break;
-                            case 1:
+                            case 0:
                                 log_it(L_INFO, "Node sync completed");
                             break;
                             default:
