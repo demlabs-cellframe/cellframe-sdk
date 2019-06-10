@@ -120,7 +120,7 @@ int dap_common_init(const char * a_log_file)
     }
 
     // Set max items in log list
-    dap_log_set_max_item(10);
+    dap_log_set_max_item(100);
 
     return 0;
 }
@@ -290,7 +290,9 @@ void _vlog_it(const char * log_tag,enum dap_log_level ll, const char * format,va
     va_copy(ap2,ap);
     va_copy(ap3,ap);
     time_t t=time(NULL);
-    struct tm* tmp=localtime(&t);
+
+    struct tm l_tmp;
+    struct tm* tmp=localtime_r(&t, &l_tmp);// thread save function
     static char s_time[1024]={0};
     strftime(s_time,sizeof(s_time),"%x-%X",tmp);
 
@@ -299,7 +301,7 @@ void _vlog_it(const char * log_tag,enum dap_log_level ll, const char * format,va
 
     if(ll==L_DEBUG){
         if (s_log_file ) fprintf(s_log_file,"[DBG] ");
-        printf(	"\x1b[37;2m[DBG] ");
+        printf("\x1b[37;2m[DBG] ");
     }else if(ll==L_INFO){
         if (s_log_file ) fprintf(s_log_file,"[INF] ");
         printf("\x1b[32;2m[INF] ");
@@ -323,7 +325,7 @@ void _vlog_it(const char * log_tag,enum dap_log_level ll, const char * format,va
     if (s_log_file ) vfprintf(s_log_file,format,ap);
     vprintf(format,ap2);
     if (s_log_file ) fprintf(s_log_file,"\n");
-    printf("\x1b[0m\n");
+    printf("\n");
     va_end(ap2);
 
     // save log to list
