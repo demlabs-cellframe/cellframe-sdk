@@ -242,6 +242,7 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param l_b
  * @return
  */
+/*
 static int compare_datum_items(const void * l_a, const void * l_b)
 {
     const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
@@ -251,7 +252,7 @@ static int compare_datum_items(const void * l_a, const void * l_b)
     if(l_item_a->header.ts_create < l_item_b->header.ts_create)
         return -1;
     return 1;
-}
+}*/
 
 /**
  * Load ledger from mempool
@@ -276,7 +277,7 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
         l_datum_list = dap_list_prepend(l_datum_list, data[i]->value);
     }
     // sort list by time
-    l_datum_list = dap_list_sort(l_datum_list, (dap_callback_compare_t) compare_datum_items);
+    //l_datum_list = dap_list_sort(l_datum_list, (dap_callback_compare_t) compare_datum_items);
     l_list_tmp = l_datum_list;
     // add datum_tx from list to ledger
     while(l_list_tmp) {
@@ -338,7 +339,10 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
             //if ( !l_gdb_priv->is_load_mode ) // If its not load module but mempool proc
             //    l_tx->header.ts_created = time(NULL);
             //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
-                 dap_chain_ledger_tx_add(a_chain->ledger, l_tx);
+
+            // don't save bad transactions to base
+            if(dap_chain_ledger_tx_add(a_chain->ledger, l_tx) != 1)
+                return -1;
             //}else
             //    return -2;
         }break;
