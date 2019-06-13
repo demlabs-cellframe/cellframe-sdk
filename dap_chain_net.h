@@ -42,9 +42,9 @@ typedef  enum dap_chain_net_state{
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
     NET_STATE_ADDR_REQUEST, // Waiting for address assign
+    NET_STATE_ONLINE,
     NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE,
 } dap_chain_net_state_t;
 
 
