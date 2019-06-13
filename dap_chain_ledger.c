@@ -404,7 +404,7 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
             DAP_DELETE(l_tx_hash);
         }
         l_tickers_size = l_tickers_pos + 1;
-        l_tickers = DAP_REALLOC(l_tickers, l_tickers_size);
+        l_tickers = DAP_REALLOC(l_tickers, l_tickers_size * sizeof(char*));
     }
     *a_tickers = l_tickers;
     *a_tickers_size = l_tickers_pos;
@@ -1071,7 +1071,7 @@ uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_a
     dap_ledger_wallet_balance_t *l_balance_item = NULL ,* l_balance_item_tmp = NULL;
     dap_ledger_wallet_balance_key_t l_balance_key = {{0}};
     memcpy( &l_balance_key.addr, &a_addr, sizeof(a_addr));
-    snprintf( l_balance_key.ticker,sizeof (l_balance_key.ticker),"%s",a_token_ticker);
+    snprintf(l_balance_key.ticker, sizeof(l_balance_key.ticker) - 1, "%s", a_token_ticker ? a_token_ticker : "???");
     HASH_FIND(hh,PVT(a_ledger)->balance_accounts,&l_balance_key,sizeof(dap_ledger_wallet_balance_key_t),l_balance_item);
     if (l_balance_item) {
         log_it (L_DEBUG,"Found address in cache with balance %llu", l_balance_item->balance);
