@@ -232,7 +232,9 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
     if(l_count > s_max_items) {
         // remove items from the beginning
         for(unsigned int i = 0; i < l_count - s_max_items; i++) {
+            dap_list_logs_item_t *l_to_del_item = s_list_logs->data;
             s_list_logs = dap_list_remove(s_list_logs, s_list_logs->data);
+            DAP_DELETE(l_to_del_item);
         }
     }
     pthread_mutex_unlock(&s_list_logs_mutex);
