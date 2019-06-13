@@ -107,8 +107,8 @@ static void stage_status_callback(dap_client_t *a_client, void *a_arg)
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
     (void) a_arg;
-    dap_chain_node_client_t *l_node_client = a_client->_inheritor;
-    if ( DAP_CHAIN_NODE_CLIENT(a_client)->keep_connection &&
+    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    if ( l_node_client && l_node_client->keep_connection &&
          ( ( dap_client_get_stage(a_client) != STAGE_STREAM_STREAMING )||
            ( dap_client_get_stage_status(a_client) == STAGE_STATUS_ERROR  ) ) ){
         log_it(L_NOTICE,"Some errors happends, current state is %s but we need to return back to STAGE_STREAM_STREAMING",
@@ -321,6 +321,11 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     if(a_client) {
         // clean client
         //dap_client_delete(a_client->client);
+
+        pthread_mutex_lock(&a_client->wait_mutex);
+        a_client->client->_inheritor = NULL;// because client->_inheritor == a_client
+        pthread_mutex_unlock(&a_client->wait_mutex);
+
         pthread_cond_destroy(&a_client->wait_cond);
         pthread_mutex_destroy(&a_client->wait_mutex);
         DAP_DELETE(a_client);
