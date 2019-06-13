@@ -1267,7 +1267,9 @@ int com_tx_wallet(int argc,  char ** argv, char **str_reply)
 
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
-            dap_chain_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
+            //dap_chain_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
+            // seriously?...
+            dap_chain_ledger_addr_get_token_ticker_all_fast(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
             if(l_addr_tokens_size > 0)
                 dap_string_append_printf(l_string_ret, "balance:\n");
             else
