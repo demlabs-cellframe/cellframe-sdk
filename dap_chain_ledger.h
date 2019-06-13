@@ -90,9 +90,12 @@ const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_chain_hash_fast_t *
 void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);
 
+void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
+        char *** a_tickers, size_t * a_tickers_size);
+
 // Checking a new transaction before adding to the cache
 int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-        dap_list_t **a_list_bound_items);
+        dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
 
 int dap_chain_node_datum_tx_cache_check(dap_chain_datum_tx_t *a_tx, dap_list_t **a_list_bound_items);
 
