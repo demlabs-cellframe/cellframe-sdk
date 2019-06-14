@@ -242,8 +242,8 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param l_b
  * @return
  */
-/*
-static int compare_datum_items(const void * l_a, const void * l_b)
+
+/*static int compare_datum_items(const void * l_a, const void * l_b)
 {
     const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
     const dap_chain_datum_t *l_item_b = (const dap_chain_datum_t*) l_b;
@@ -274,7 +274,7 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
     dap_global_db_obj_t **data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
-        l_datum_list = dap_list_prepend(l_datum_list, data[i]->value);
+        l_datum_list = dap_list_append(l_datum_list, data[i]->value);
     }
     // sort list by time
     //l_datum_list = dap_list_sort(l_datum_list, (dap_callback_compare_t) compare_datum_items);
