@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
  * DeM Labs Open source community https://github.com/demlabsinc
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -22,65 +22,144 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef DAP_OS_ANDROID
-#include <android/log.h>
-#endif
-
-#ifndef _WIN32
-#include <pthread.h>
-#include <syslog.h>
-
-// Quick and dirty, I'm not sure but afair somewhere it was in UNIX systems too
-#define min(a,b) (((a)<(b))?(a):(b))
-#define max(a,b) (((a)>(b))?(a):(b))
-
-#else
+#include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
-#include <process.h>
-typedef HANDLE pthread_mutex_t;
-#define popen _popen
-#define pclose _pclose
-#define pipe(pfds) _pipe(pfds, 4096, 0x8000)
-#define PTHREAD_MUTEX_INITIALIZER 0
-int pthread_mutex_lock(HANDLE **obj)
-{
-    return (( *obj = (HANDLE) CreateMutex(0, 1, 0) ) == NULL) ? 0 : 1;
-}
-int pthread_mutex_unlock(HANDLE *obj) {
-    return (ReleaseMutex(obj) == 0) ? 0 : 1;
-}
-#endif
 #include <time.h> /* 'nanosleep' */
 #include <unistd.h> /* 'pipe', 'read', 'write' */
 #include <string.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
+#include <stdint.h>
+
+#ifdef DAP_OS_ANDROID
+  #include <android/log.h>
+#endif
+
+#ifndef _WIN32
+
+  #include <pthread.h>
+  #include <syslog.h>
+
+  // Quick and dirty, I'm not sure but afair somewhere it was in UNIX systems too
+  #define min(a,b) (((a)<(b))?(a):(b))
+  #define max(a,b) (((a)>(b))?(a):(b))
+
+#else // WIN32
+
+  #include <stdlib.h>
+  #include <windows.h>
+  #include <process.h>
+  #include <pthread.h>
+  ///typedef HANDLE pthread_mutex_t;
+
+  #define popen _popen
+  #define pclose _pclose
+  #define pipe(pfds) _pipe(pfds, 4096, 0x8000)
+
+#endif
+
+
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_list.h"
+
 #define LAST_ERROR_MAX 255
 
 #define LOG_TAG "dap_common"
 
 static char s_last_error[LAST_ERROR_MAX] = {0};
 static enum dap_log_level dap_log_level = L_DEBUG;
-static FILE * s_log_file = NULL;
-
+static FILE *s_log_file = NULL;
 static char log_tag_fmt_str[10];
+
+static pthread_mutex_t s_list_logs_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static uint32_t logh_total    = 0; // log history size
+static uint32_t logh_outindex = 0;
+static uint8_t *log_buffer  = NULL;
+static uint8_t *temp_buffer = NULL;
+static uint8_t *end_of_log_buffer = NULL;
+static dap_log_str_t *log_history = NULL;
+
+const char *log_level_tag[ 16 ] = {
+
+  " [DBG] [       ", // L_DEBUG     = 0 
+  " [INF] [       ", // L_INFO      = 1,
+  " [ * ] [       ", // L_NOTICE    = 2,
+  " [MSG] [       ", // L_MESSAGE   = 3,
+  " [DAP] [       ", // L_DAP       = 4,
+  " [WRN] [       ", // L_WARNING   = 5,
+  " [ATT] [       ", // L_ATT       = 6,
+  " [ERR] [       ", // L_ERROR     = 7,
+  " [ ! ] [       ", // L_CRITICAL  = 8,
+  " [---] [       ", //             = 9
+  " [---] [       ", //             = 10
+  " [---] [       ", //             = 11
+  " [---] [       ", //             = 12
+  " [---] [       ", //             = 13
+  " [---] [       ", //             = 14
+  " [---] [       ", //             = 15
+};
+
+const char *ansi_seq_color[ 16 ] = {
+
+  "\x1b[0;37;40m",   // L_DEBUG     = 0 
+  "\x1b[1;32;40m",   // L_INFO      = 2,
+  "\x1b[0;32;40m",   // L_NOTICE    = 1,
+  "\x1b[1;33;40m",   // L_MESSAGE   = 3,
+  "\x1b[0;36;40m",   // L_DAP       = 4,
+  "\x1b[1;35;40m",   // L_WARNING   = 5,
+  "\x1b[1;36;40m",   // L_ATT       = 6,
+  "\x1b[1;31;40m",   // L_ERROR     = 7,
+  "\x1b[1;37;41m",   // L_CRITICAL  = 8,
+  "", //             = 9
+  "", //             = 10
+  "", //             = 11
+  "", //             = 12
+  "", //             = 13
+  "", //             = 14
+  "", //             = 15
+};
+
+#ifdef _WIN32
+
+  OSVERSIONINFO win32_osvi;
+  bool  bUseANSIEscapeSequences = false;
+  HANDLE hWin32ConOut = INVALID_HANDLE_VALUE;
+
+  WORD log_level_colors[ 16 ] = {
+    7,              // L_DEBUG
+    10,              // L_INFO
+     2,             // L_NOTICE
+    11,             // L_MESSAGE
+     9,             // L_DAP
+    13,             // L_WARNING
+    14,             // L_ATT
+    12,             // L_ERROR
+    (12 << 4) + 15, // L_CRITICAL
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7
+  };
+
+#endif
+
+uint32_t ansi_seq_color_len[ 16 ];
 
 /**
  * @brief set_log_level Sets the logging level
  * @param[in] ll logging level
  */
-void dap_log_level_set(enum dap_log_level ll) {
+void dap_log_level_set( enum dap_log_level ll ) {
     dap_log_level = ll;
 }
 
-enum dap_log_level dap_log_level_get(void) {
+enum dap_log_level dap_log_level_get( void ) {
     return dap_log_level ;
 }
 
@@ -89,15 +168,17 @@ enum dap_log_level dap_log_level_get(void) {
  * @param[in] width Length not more than 99
  */
 void dap_set_log_tag_width(size_t width) {
-    if (width > 99) {
-        fprintf(stderr,"Can't set width %zd", width);
-        return;
-    }
 
-    // construct new log_tag_fmt_str
-    strcpy(log_tag_fmt_str, "[%");
-    strcat(log_tag_fmt_str, dap_itoa((int)width));
-    strcat(log_tag_fmt_str, "s]\t");
+  if (width > 99) {
+      fprintf(stderr,"Can't set width %zd", width);
+      return;
+  }
+
+  // construct new log_tag_fmt_str
+  strcpy( log_tag_fmt_str, "[%" );
+  strcat( log_tag_fmt_str, dap_itoa((int)width) );
+//  strcat( log_tag_fmt_str, itoa((int)width) );
+  strcat( log_tag_fmt_str, "s]\t" );
 }
 
 /**
@@ -105,104 +186,217 @@ void dap_set_log_tag_width(size_t width) {
  * @param[in] a_log_file
  * @return
  */
-int dap_common_init(const char * a_log_file)
+int dap_common_init( const char *a_log_file )
 {
-    srand((unsigned int)time(NULL));
-    // init default log tag 8 width
-    strcpy(log_tag_fmt_str, "[%8s]\t");
+  srand( (unsigned int)time(NULL) );
 
-    if (a_log_file) {
-        s_log_file = fopen(a_log_file , "a");
-        if(s_log_file == NULL) {
-            fprintf(stderr,"Can't open log file %s to append\n", a_log_file);
-            return -1;
-        }
-    }
+  // init default log tag 8 width
+  strcpy( log_tag_fmt_str, "[%8s]\t");
 
-    // Set max items in log list
-    dap_log_set_max_item(100);
+  log_buffer = (uint8_t *)malloc( DAP_LOG_HISTORY_BUFFER_SIZE + 65536 );
+  if ( !log_buffer )
+    goto err;
 
+  temp_buffer = log_buffer + 65536;
+  end_of_log_buffer = log_buffer + DAP_LOG_HISTORY_BUFFER_SIZE;
+
+  log_history = (dap_log_str_t *)malloc( DAP_LOG_HISTORY_MAX_STRINGS * sizeof(dap_log_str_t) );
+  if ( !log_history )
+    goto err;
+
+  for ( uint32_t i = 0; i < DAP_LOG_HISTORY_MAX_STRINGS; ++ i ) {
+    log_history[ i ].t   = 0;
+    log_history[ i ].str = log_buffer + DAP_LOG_HISTORY_STR_SIZE * i;
+  }
+
+  for ( uint32_t i = 0; i < 16; ++ i )
+    ansi_seq_color_len[ i ] = strlen( ansi_seq_color[i] );
+
+  #ifdef _WIN32
+
+    memset( &win32_osvi, 0, sizeof(OSVERSIONINFO) );
+
+    win32_osvi.dwOSVersionInfoSize = sizeof( OSVERSIONINFO );
+    GetVersionEx( (OSVERSIONINFO *)&win32_osvi );
+
+    bUseANSIEscapeSequences = (win32_osvi.dwMajorVersion >= 10);
+    //if ( !bUseANSIEscapeSequences )
+    hWin32ConOut = GetStdHandle( STD_OUTPUT_HANDLE );
+
+    #if 0
+    printf( "Windows version %u.%u platformID %u \n", 
+            win32_osvi.dwMajorVersion, 
+            win32_osvi.dwMinorVersion,
+            win32_osvi.dwPlatformId );
+    #endif
+  #endif
+
+  if ( !a_log_file )
     return 0;
+
+  s_log_file = fopen( a_log_file , "a" );
+  if( s_log_file == NULL ) {
+    fprintf( stderr, "Can't open log file %s to append\n", a_log_file );
+    return -1;
+  }
+
+  return 0;
+
+err:
+  printf( "Fatal Error: Out of memory!\n" );
+  dap_common_deinit( );
+
+  return -1;
 }
 
 /**
  * @brief dap_common_deinit Deinitialise
  */
-void dap_common_deinit()
+void dap_common_deinit( )
 {
-    if(s_log_file) fclose(s_log_file);
+  if ( s_log_file )
+    fclose( s_log_file );
+
+  if( log_history ) 
+    free( log_history );
+
+  if( log_buffer ) 
+    free( log_buffer );
 }
 
-// list of logs
-static dap_list_t *s_list_logs = NULL;
-// for separate access to logs
-static pthread_mutex_t s_list_logs_mutex = PTHREAD_MUTEX_INITIALIZER;
-static unsigned int s_max_items = 1000;
-
-/*
- * Set max items in log list
- */
-void dap_log_set_max_item(unsigned int a_max)
+void log_log( char *str, uint32_t len, time_t t )
 {
-    if(a_max>0)
-        s_max_items = a_max;
+  pthread_mutex_lock( &s_list_logs_mutex );
+
+  while( len ) {
+
+    uint8_t   *out = log_history[ logh_outindex ].str;
+    uint32_t  ilen = len;
+
+    if ( out + len >= end_of_log_buffer )
+      ilen = end_of_log_buffer - out;
+
+    memcpy( out, str, ilen );
+    len -= ilen;
+
+    do {
+
+      log_history[ logh_outindex ].t = t;
+
+      if ( ilen >= DAP_LOG_HISTORY_STR_SIZE ) {
+        log_history[ logh_outindex ].len = DAP_LOG_HISTORY_STR_SIZE;
+        ilen -= DAP_LOG_HISTORY_STR_SIZE;
+      }
+      else {
+        log_history[ logh_outindex ].len = ilen;
+        ilen = 0;
+      }
+
+      ++ logh_outindex; 
+      logh_outindex &= DAP_LOG_HISTORY_M;
+      if ( logh_total < DAP_LOG_HISTORY_MAX_STRINGS )
+        ++ logh_total;
+
+    } while( ilen );
+  }
+
+  pthread_mutex_unlock( &s_list_logs_mutex );
+  return;
+}
+
+uint32_t logh_since( time_t t )
+{
+  uint32_t li = (logh_outindex - 1) & DAP_LOG_HISTORY_M;
+  uint32_t count = logh_total;
+  uint32_t fi = 0;
+  uint32_t si = 0;
+
+  if ( log_history[li].t < t ) // no new logs
+    return 0xFFFFFFFF;
+
+  if (logh_total >= DAP_LOG_HISTORY_MAX_STRINGS )
+    fi = logh_outindex;
+
+  if ( log_history[fi].t >= t ) // all logs is new
+    return fi;
+
+  do {
+
+    if ( log_history[li].t < t ) { 
+      si = li;
+      break;
+    }
+
+    li = (li - 1) & DAP_LOG_HISTORY_M;
+
+  } while ( --count );
+
+  return (si + 1) & DAP_LOG_HISTORY_M;
 }
 
 /*
  * Get logs from list
  */
-char *dap_log_get_item(time_t a_start_time, int a_limit)
+char *dap_log_get_item( time_t a_start_time, int a_limit )
 {
-    int l_count = 0;
-    pthread_mutex_lock(&s_list_logs_mutex);
-    dap_list_t *l_list = s_list_logs;
+  uint32_t l_count;
+  uint32_t si;
+  char *res, *out;
 
-    l_list = dap_list_last(l_list);
-    // find first item
-    while(l_list) {
-        dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
-        if(a_start_time > l_item->t) {
-            l_list = dap_list_next(l_list);
-            break;
-        }
-        l_count++;
-        l_list = dap_list_previous(l_list);
-    }
-    // no new logs
-    if(!l_count){
-        pthread_mutex_unlock(&s_list_logs_mutex);
-        return NULL;
-    }
-    // if need all list
-    if(!l_list)
-        l_list = s_list_logs;
+  pthread_mutex_lock( &s_list_logs_mutex );
 
-    // create return string
-    dap_string_t *l_string = dap_string_new("");
-    l_count = 0;
-    while(l_list && a_limit > l_count) {
-        dap_list_logs_item_t *l_item = (dap_list_logs_item_t*) l_list->data;
-        //dap_string_append_printf(l_string, "%lld;%s\n", (int64_t) l_item->t, l_item->str);
-        l_list = dap_list_next(l_list);
-        l_count++;
-        if(l_list && a_limit > l_count)
-        	dap_string_append_printf(l_string, "%s\n", l_item->str);
-        else// last item
-        	dap_string_append_printf(l_string, "%s", l_item->str);
-    }
-    pthread_mutex_unlock(&s_list_logs_mutex);
+  l_count = logh_total;
 
-    char *l_ret_str = dap_string_free(l_string, false);
-    return l_ret_str;
+  if ( l_count > (uint32_t)a_limit )
+    l_count = a_limit;
+
+  if ( !l_count ) {
+    pthread_mutex_unlock( &s_list_logs_mutex );
+    return NULL;
+  }
+
+  si = logh_since( a_start_time );
+  if ( si == 0xFFFFFFFF || log_history[ si ].t < a_start_time ) {// no new logs
+    pthread_mutex_unlock( &s_list_logs_mutex );
+    return NULL;
+  }
+
+  out = res = (char *)malloc( l_count * DAP_LOG_HISTORY_STR_SIZE + 1 );
+  if ( !res ) {
+    pthread_mutex_unlock( &s_list_logs_mutex );
+    return NULL;
+  }
+
+  do {
+
+    memcpy( out, log_history[ si ].str, log_history[ si ].len );
+    out += log_history[ si ].len;
+
+    si = (si + 1) & DAP_LOG_HISTORY_M;
+    if ( si == logh_outindex || log_history[ si ].t < a_start_time )
+      break;
+
+  } while ( --l_count );
+
+  *out = 0;
+  pthread_mutex_unlock( &s_list_logs_mutex );
+
+  return res;
 }
 
+#if 0
 // save log to list
 static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_log_tag, enum dap_log_level a_ll,
         const char * a_format, va_list a_ap)
 {
-    pthread_mutex_lock(&s_list_logs_mutex);
-    dap_string_t *l_string = dap_string_new("");
-    dap_string_append_printf(l_string, "[%s]\t", a_time_str);
+//    pthread_mutex_lock(&s_list_logs_mutex);
+//    dap_string_t *l_string = dap_string_new("");
+//
+//    dap_string_append_printf(l_string, "[%s]\t", a_time_str);
+
+//    l_string = dap_string_append(l_string, log_level_tag[a_ll] );
+
+/**
     if(a_ll == L_DEBUG) {
         l_string = dap_string_append(l_string, "[DBG]\t");
     } else if(a_ll == L_INFO) {
@@ -216,6 +410,9 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
     } else if(a_ll == L_CRITICAL) {
         l_string = dap_string_append(l_string, "[!!!]\t");
     }
+**/
+
+/**
 
     if(a_log_tag != NULL) {
         dap_string_append_printf(l_string, log_tag_fmt_str, a_log_tag);
@@ -224,6 +421,7 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
 
     dap_list_logs_item_t *l_item = DAP_NEW(dap_list_logs_item_t);
     l_item->t = a_t;
+
     l_item->str = dap_string_free(l_string, false);
     s_list_logs = dap_list_append(s_list_logs, l_item);
 
@@ -232,13 +430,14 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
     if(l_count > s_max_items) {
         // remove items from the beginning
         for(unsigned int i = 0; i < l_count - s_max_items; i++) {
-            dap_list_logs_item_t *l_to_del_item = s_list_logs->data;
             s_list_logs = dap_list_remove(s_list_logs, s_list_logs->data);
-            DAP_DELETE(l_to_del_item);
         }
     }
+
     pthread_mutex_unlock(&s_list_logs_mutex);
+**/
 }
+#endif
 
 /**
  * @brief _log_it Writes information to the log
@@ -246,110 +445,94 @@ static void log_add_to_list(time_t a_t, const char *a_time_str, const char * a_l
  * @param[in] ll Log level
  * @param[in] format
  */
-void _log_it(const char * log_tag,enum dap_log_level ll, const char * format,...)
+
+void _log_it( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 {
-    if(ll<dap_log_level)
-        return;
+  static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  uint8_t   *buf0 = temp_buffer;
+  uint32_t  len,
+            time_offset,
+            tag_offset,
+            msg_offset;
 
-    va_list ap;
+  if ( ll < dap_log_level || ll >= 16 || !log_tag )
+    return;
 
-    va_start(ap,format);
-    _vlog_it(log_tag,ll, format,ap);
-    va_end(ap);
-}
+  time_t t = time( NULL );
+  pthread_mutex_lock( &mutex );
 
-void _vlog_it(const char * log_tag,enum dap_log_level ll, const char * format,va_list ap)
-{
-    va_list ap2,ap3;
+  memcpy( buf0, ansi_seq_color[ll], ansi_seq_color_len[ll] );
+  time_offset = ansi_seq_color_len[ll];
 
-    static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
+  struct tm *tmptime = localtime( &t );
+  len = strftime( (char *)(buf0 + time_offset), 65536, "[%x-%X]", tmptime );
+  tag_offset = time_offset + len;
 
-    pthread_mutex_lock(&mutex);
-#ifdef DAP_OS_ANDROID
-    char buf[4096];
-    vsnprintf(buf,sizeof(buf),format,ap);
-    switch (ll) {
-    case L_INFO:
-        __android_log_write(ANDROID_LOG_INFO,DAP_BRAND,buf);
-        break;
-    case L_WARNING:
-        __android_log_write(ANDROID_LOG_WARN,DAP_BRAND,buf);
-        break;
-    case L_ERROR:
-        __android_log_write(ANDROID_LOG_ERROR,DAP_BRAND,buf);
-        break;
-    case L_CRITICAL:
-        __android_log_write(ANDROID_LOG_FATAL,DAP_BRAND,buf);
-        abort();
-        break;
-    case L_DEBUG:
-    default:
-        __android_log_write(ANDROID_LOG_DEBUG,DAP_BRAND,buf);
-    }
-#endif
+  memcpy( buf0 + tag_offset, log_level_tag[ll], 8 );
+  memcpy( buf0 + tag_offset + 8, log_level_tag[ll], 8 );
+
+  msg_offset = tag_offset + 8;
+
+  while ( *log_tag )
+    buf0[ msg_offset ++ ] = *log_tag ++;
+
+  buf0[ msg_offset ++ ] = ']';
+  buf0[ msg_offset ++ ] = ' ';
+  //  buf0[ msg_offset ++ ] = 9;
+
+  va_list va;
+  va_start( va, fmt );
+
+  len = vsprintf( (char * __restrict )(buf0 + msg_offset), fmt, va );
+  va_end( va );
+
+  len += msg_offset;
+
+  #ifdef DAP_OS_ANDROID
+    buf2[ len ] = 0;
+    __android_log_write( ANDROID_LOG_INFO, DAP_BRAND, buf0 + msg_offset );
+  #endif
+
+  buf0[ len++ ] = 10;
+  if ( s_log_file )
+    fwrite( buf0 + time_offset, len - time_offset, 1, s_log_file );
+
+  //  buf0[ len++ ] = 0;
+  log_log( (char *)(buf0 + time_offset), len - time_offset, t );
+
+  #ifdef _WIN32
+//    if ( !bUseANSIEscapeSequences )
+    SetConsoleTextAttribute( hWin32ConOut, log_level_colors[ll] );
+  //  printf( "%s", (char *)(buf0 + time_offset) );
+  #else
+
+//    memcpy( buf0, len, 
+//    printf( "%s", (char *)buf0 );
+    fwrite( buf0, len, 1, stdout );
+
+  #endif
+
+///stdout
+
+//    printf("\x1b[0m\n");
+//  "\x1b[0;37;40m",   // L_DEBUG     = 0 
 
 
-    va_copy(ap2,ap);
-    va_copy(ap3,ap);
-    time_t t=time(NULL);
-
-    struct tm l_tmp;
-    struct tm* tmp=localtime_r(&t, &l_tmp);// thread save function
-    static char s_time[1024]={0};
-    strftime(s_time,sizeof(s_time),"%x-%X",tmp);
-
-    if (s_log_file ) fprintf(s_log_file,"[%s] ",s_time);
-    printf("[%s] ",s_time);
-
-    if(ll==L_DEBUG){
-        if (s_log_file ) fprintf(s_log_file,"[DBG] ");
-        printf("\x1b[37;2m[DBG] ");
-    }else if(ll==L_INFO){
-        if (s_log_file ) fprintf(s_log_file,"[INF] ");
-        printf("\x1b[32;2m[INF] ");
-    }else if(ll==L_NOTICE){
-        if (s_log_file ) fprintf(s_log_file,"[ * ] ");
-        printf("\x1b[32m[ * ] ");
-    }else if(ll==L_WARNING){
-        if (s_log_file ) fprintf(s_log_file,"[WRN] ");
-        printf("\x1b[31;2m[WRN] ");
-    }else if(ll==L_ERROR){
-        if (s_log_file ) fprintf(s_log_file,"[ERR] ");
-        printf("\x1b[31m[ERR] ");
-    }else if(ll==L_CRITICAL){
-        if (s_log_file ) fprintf(s_log_file,"[!!!] ");
-        printf("\x1b[1;5;31m[!!!] ");
-    }
-    if(log_tag != NULL) {
-        if (s_log_file ) fprintf(s_log_file,log_tag_fmt_str,log_tag);
-        printf(log_tag_fmt_str,log_tag);
-    }
-    if (s_log_file ) vfprintf(s_log_file,format,ap);
-    vprintf(format,ap2);
-    if (s_log_file ) fprintf(s_log_file,"\n");
-    printf("\n");
-    va_end(ap2);
-
-    // save log to list
-    log_add_to_list(t, s_time, log_tag, ll, format, ap3);
-    va_end(ap3);
-
-    if (s_log_file ) fflush(s_log_file);
-    fflush(stdout);
-    pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock( &mutex );
 }
 
 /**
  * @brief log_error Error log
  * @return
  */
-const char * log_error()
+const char *log_error()
 {
     return s_last_error;
 }
 
 
-#define INT_DIGITS 19		/* enough for 64 bit integer */
+#if 1
+#define INT_DIGITS 19   /* enough for 64 bit integer */
 
 /**
  * @brief itoa  The function converts an integer num to a string equivalent and places the result in a string
@@ -360,7 +543,7 @@ char *dap_itoa(int i)
 {
     /* Room for INT_DIGITS digits, - and '\0' */
     static char buf[INT_DIGITS + 2];
-    char *p = buf + INT_DIGITS + 1;	/* points to terminating '\0' */
+    char *p = buf + INT_DIGITS + 1; /* points to terminating '\0' */
     if (i >= 0) {
         do {
             *--p = '0' + (i % 10);
@@ -368,7 +551,7 @@ char *dap_itoa(int i)
         } while (i != 0);
         return p;
     }
-    else {			/* i < 0 */
+    else {      /* i < 0 */
         do {
             *--p = '0' - (i % 10);
             i /= 10;
@@ -377,6 +560,8 @@ char *dap_itoa(int i)
     }
     return p;
 }
+
+#endif
 
 
 /**
@@ -388,46 +573,76 @@ char *dap_itoa(int i)
  */
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 {
-    struct tm *tmp;
-    tmp=localtime(&t);
-    if(tmp== NULL){
-        log_it(L_ERROR,"Can't convert data from unix fromat to structured one");
-        return -2;
-    }else{
-        int ret;
-        ret=strftime(out, out_size_max,"%a, %d %b %y %T %z",tmp);
-        //free(tmp);
-        if(ret>0){
-            return ret;
-        }else{
-            log_it(L_ERROR,"Can't print formatted time in string");
-            return -1;
-        }
-    }
+  struct tm *tmp;
+  tmp = localtime( &t );
+
+  if ( tmp == NULL ) {
+    log_it( L_ERROR, "Can't convert data from unix fromat to structured one" );
+    return -2;
+  }
+
+  int ret;
+
+  #ifndef _WIN32
+    ret = strftime( out, out_size_max, "%a, %d %b %y %T %z", tmp );
+  #else
+    ret = strftime( out, out_size_max, "%a, %d %b %y %H:%M:%S", tmp );
+  #endif
+
+  if ( !ret ) {
+    log_it( L_ERROR, "Can't print formatted time in string" );
+    return -1;
+  }
+
+  return ret;
 }
+
+#define BREAK_LATENCY   1
 
 static int breaker_set[2] = { -1, -1 };
 static int initialized = 0;
-static struct timespec break_latency = {0, 1 * 1000 * 1000 };
+static struct timespec break_latency = { 0, BREAK_LATENCY * 1000 * 1000 };
 
-int get_select_breaker()
+int get_select_breaker( )
 {
-    if (!initialized)
-    {
-        if (pipe(breaker_set) < 0) return -1;
-        else initialized = 1;
-    }
+  if ( !initialized ) {
+    if ( pipe(breaker_set) < 0 )
+      return -1;
+    else
+      initialized = 1;
+  }
 
-    return breaker_set[0];
+  return breaker_set[0];
 }
-int send_select_break()
+
+int send_select_break( )
 {
-    if (!initialized) return -1;
-    char buffer[1];
-    if (write(breaker_set[1], "\0", 1) <= 0) return -1;
-    nanosleep(&break_latency, NULL);
-    if (read(breaker_set[0], buffer, 1) <= 0 || buffer[0] != '\0') return -1;
-    return 0;
+  if ( !initialized )
+    return -1;
+
+  char buffer[1];
+
+  #ifndef _WIN32
+    if ( write(breaker_set[1], "\0", 1) <= 0 )
+  #else
+    if ( _write(breaker_set[1], "\0", 1) <= 0 )
+  #endif
+    return -1;
+
+  #ifndef _WIN32
+    nanosleep( &break_latency, NULL );
+  #else
+    Sleep( BREAK_LATENCY );
+  #endif
+
+  #ifndef _WIN32
+    if ( read(breaker_set[0], buffer, 1) <= 0 || buffer[0] != '\0' )
+  #else
+    if ( _read(breaker_set[0], buffer, 1) <= 0 || buffer[0] != '\0' )
+  #endif
+    return -1;
+
+  return 0;
 }
 
 #ifdef ANDROID1
@@ -449,6 +664,8 @@ void srand(u_int seed)
 }
 
 #endif
+
+#if 0
 
 /**
  * @brief exec_with_ret Executes a command with result return
@@ -498,6 +715,7 @@ char * exec_with_ret_multistring(const char * a_cmd)
 FIN:
     return strdup(retbuf);
 }
+#endif
 
 static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -528,6 +746,7 @@ char * dap_random_string_create_alloc(size_t a_length)
     return ret;
 }
 
+#if 0
 
 #define MAX_PRINT_WIDTH 100
 
@@ -583,6 +802,8 @@ void *memzero(void *a_buf, size_t n)
     return a_buf;
 }
 
+#endif
+
 /**
  * Convert binary data to binhex encoded data.
  *
@@ -595,15 +816,19 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len)
     size_t ct = a_len;
     static char hex[] = "0123456789ABCDEF";
     const uint8_t *l_in = (const uint8_t *)a_in;
+
     if(!a_in || !a_out )
         return 0;
     // hexadecimal lookup table
+
     while(ct-- > 0){
         *a_out++ = hex[*l_in >> 4];
         *a_out++ = hex[*l_in++ & 0x0F];
     }
     return a_len;
 }
+
+// !!!!!!!!!!!!!!!!!!!
 
 /**
  * Convert binhex encoded data to binary data
@@ -630,6 +855,8 @@ size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
     return a_len;
 }
 
+// !!!!!!!!!!!!!!!!!!!
+
 /**
  * Convert string to digit
  */
@@ -652,15 +879,17 @@ void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
 }
 
 
-#ifdef __MINGW32__
+#if 0
 /*!
  * \brief Execute shell command silently
  * \param a_cmd command line
  * \return 0 if success, -1 otherwise
  */
 int exec_silent(const char * a_cmd) {
+
     PROCESS_INFORMATION p_info;
     STARTUPINFOA s_info;
+
     memzero(&s_info, sizeof(s_info));
     memzero(&p_info, sizeof(p_info));
 
