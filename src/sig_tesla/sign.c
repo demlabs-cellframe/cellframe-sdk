@@ -604,11 +604,14 @@ void tesla_public_key_delete(tesla_public_key_t *public_key)
 }
 
 void tesla_private_and_public_keys_delete(tesla_private_key_t *private_key, tesla_public_key_t *public_key){
-
-    free(private_key->data);
-    private_key->data = NULL;
-    free(public_key->data);
-    public_key->data = NULL;
+    if(private_key) {
+        free(private_key->data);
+        private_key->data = NULL;
+    }
+    if(public_key) {
+        free(public_key->data);
+        public_key->data = NULL;
+    }
 }
 
 /********************************************************************************************/
