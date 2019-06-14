@@ -137,7 +137,10 @@ void dap_db_driver_deinit(void)
     // deinit driver
     if(s_drv_callback.deinit)
         s_drv_callback.deinit();
-
+    if(s_used_driver){
+        DAP_DELETE(s_used_driver);
+        s_used_driver = NULL;
+    }
 }
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
@@ -478,13 +481,13 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
 
     if(s_drv_callback.apply_store_obj)
         for(size_t i = 0; i < a_store_count; i++) {
-            dap_store_obj_t *l_obj = dap_store_obj_copy(a_store_obj + i, 1);
-            assert(l_obj);
-            if(!s_drv_callback.apply_store_obj(a_store_obj)) {
+            dap_store_obj_t *l_store_obj_cur = a_store_obj + i;
+            assert(l_store_obj_cur);
+            if(!s_drv_callback.apply_store_obj(l_store_obj_cur)) {
                 //log_it(L_INFO, "Write item Ok %s/%s\n", l_obj->group, l_obj->key);
             }
             else {
-                log_it(L_ERROR, "Can't write item %s/%s\n", l_obj->group, l_obj->key);
+                log_it(L_ERROR, "Can't write item %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
                 l_ret -= 1;
             }
         }
