@@ -265,7 +265,7 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
                 }
                 // read certs
                 fseek(l_file,sizeof (l_file_hdr) + sizeof(uint16_t) + name_len,SEEK_SET);
-                l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_chain_cert_t *,l_wallet_internal->certs_count);
+                l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_chain_cert_t *,l_wallet_internal->certs_count * sizeof(dap_chain_cert_t *));
                 for (i = 0; i < l_wallet_internal->certs_count; i++ ){
                     dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
                     fread(&l_cert_hdr,1,sizeof(l_cert_hdr),l_file);
