@@ -22,7 +22,9 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #pragma once
+
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -30,27 +32,74 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define DAP_NEW(a)    ( (a*) malloc(sizeof(a)))
-#define DAP_NEW_SIZE(a,b)    ( (a*) malloc(b))
-#define DAP_NEW_Z(a) ( (a*) calloc(1,sizeof(a)))
-#define DAP_NEW_Z_SIZE(a,b) ( (a*) calloc(1,b))
-#define DAP_REALLOC(a,b) (realloc(a,b))
+#define DAP_NEW( a )          ( (a*) malloc(sizeof(a)) )
+#define DAP_NEW_SIZE( a, b )  ( (a*) malloc(b) )
+#define DAP_NEW_Z( a )        ( (a*) calloc(1,sizeof(a)) )
+#define DAP_NEW_Z_SIZE( a, b )( (a*) calloc(1,b) )
+#define DAP_REALLOC( a, b )   ( realloc(a,b) )
+#define DAP_DELETE(a)         free( a )
+#define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 
-#define DAP_DELETE(a)   free(a)
-#define DAP_DUP(a) (__typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
-
-#define DAP_PROTOCOL_VERSION 22
+#define DAP_PROTOCOL_VERSION  22
 
 #if defined(__GNUC__) ||defined (__clang__)
-#define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
+  #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #else
-#define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
+  #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #endif
+
+#ifdef _MSC_VER
+  #define DAP_STATIC_INLINE static __forceinline
+  #define DAP_INLINE __forceinline
+#else
+  #define DAP_STATIC_INLINE static __attribute__((always_inline)) inline
+  #define DAP_INLINE __attribute__((always_inline)) inline
+#endif
+
+#ifndef TRUE
+  #define TRUE  true
+  #define FALSE false
+#endif
+
+#ifndef MAX
+  #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
+#ifndef MIN
+  #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+#define DAP_LOG_HISTORY_STR_SIZE    128
+#define DAP_LOG_HISTORY_MAX_STRINGS 1024
+#define DAP_LOG_HISTORY_BUFFER_SIZE (DAP_LOG_HISTORY_STR_SIZE * DAP_LOG_HISTORY_MAX_STRINGS)
+#define DAP_LOG_HISTORY_M           (DAP_LOG_HISTORY_MAX_STRINGS - 1)
 
 /**
  * @brief The log_level enum
  */
-typedef enum dap_log_level{L_CRITICAL=5,L_ERROR=4, L_WARNING=3,L_NOTICE=2,L_INFO=1,L_DEBUG=0} dap_log_level_t;
+
+typedef enum dap_log_level { 
+
+  L_DEBUG     = 0,
+  L_INFO      = 1,
+  L_NOTICE    = 2,
+  L_MESSAGE   = 3,
+  L_DAP       = 4,
+  L_WARNING   = 5,
+  L_ATT       = 6,
+  L_ERROR     = 7, 
+  L_CRITICAL  = 8,
+  L_TOTAL,
+
+} dap_log_level_t;
+
+typedef struct dap_log_str_s {
+
+  time_t    t;
+  uint8_t   *str;
+  uint32_t  len;
+
+} dap_log_str_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,16 +147,11 @@ static const uint16_t s_ascii_table_data[256] = {
 int dap_common_init( const char * a_log_file );
 void dap_common_deinit(void);
 
-// list of logs
-typedef struct dap_list_logs_item{
-    time_t t;
-    char *str;
-} dap_list_logs_item_t;
-
 // set max items in log list
 void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
+
 
 void _log_it(const char * log_tag, enum dap_log_level, const char * format,...);
 void _vlog_it(const char * log_tag, enum dap_log_level, const char * format, va_list ap );
@@ -130,13 +174,11 @@ char * exec_with_ret(const char * a_cmd);
 char * exec_with_ret_multistring(const char * a_cmd);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
-void *memzero(void *mem, size_t n);
 void dap_dump_hex(const void* data, size_t size);
 
 size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len);
 size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len);
-
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
