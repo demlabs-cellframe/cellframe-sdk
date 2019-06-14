@@ -2,11 +2,12 @@
 #include <unistd.h>
 #include <ev.h>
 #include <math.h>
+#if 0
 
 static struct ev_loop *loop;
 
 static struct moc_dap_clients_remote {
-	dap_client_remote_t ** clients;
+  dap_client_remote_t ** clients;
     size_t count;
 } moc_dap_clients_remote;
 
@@ -46,13 +47,13 @@ void init_test_case() {
                                             sizeof(dap_client_remote_t *));
     for(size_t i = 0, j = 0; (i < moc_dap_clients_remote.count) && (j = i + 1); i++) {
         moc_dap_clients_remote.clients[i] =
-        		dap_client_remote_create(_dap_server, j, NULL);
+            dap_client_remote_create(_dap_server, j, NULL);
     }
 }
 
 void cleanup_test_case() {
     for(size_t i = 0; i < moc_dap_clients_remote.count; i++)
-    	dap_client_remote_remove(moc_dap_clients_remote.clients[i], _dap_server);
+      dap_client_remote_remove(moc_dap_clients_remote.clients[i], _dap_server);
     ev_loop_destroy(loop);
     DAP_DELETE(moc_dap_clients_remote.clients);
     DAP_DELETE(_dap_server);
@@ -65,3 +66,4 @@ void dap_traffic_track_tests_run(void) {
     test_callback();
     cleanup_test_case();
 }
+#endif
