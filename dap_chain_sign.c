@@ -169,7 +169,7 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
         uint8_t* l_sign = DAP_NEW_Z_SIZE(uint8_t, l_sign_size);
         // calc signature [sign_size may decrease slightly]
         if(dap_chain_sign_create_output(a_key, a_data, a_data_size, l_sign, &l_sign_size) != 0) {
-            DAP_DELETE(l_sign);
+            dap_enc_key_signature_delete(a_key->type, l_sign);
             DAP_DELETE(l_pub_key);
             return NULL;
         } else {
@@ -184,7 +184,7 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
             l_ret->header.sign_pkey_size = l_pub_key_size;
             l_ret->header.sign_size = l_sign_size;
             DAP_DELETE(l_sign_ser);
-            DAP_DELETE(l_sign);
+            dap_enc_key_signature_delete(a_key->type, l_sign);
             DAP_DELETE(l_pub_key);
             return l_ret;
         }
@@ -271,7 +271,8 @@ int dap_chain_sign_verify(dap_chain_sign_t * a_chain_sign, const void * a_data, 
     default:
         l_ret = -1;
     }
-    DAP_DELETE(l_sign);
+    dap_enc_key_signature_delete(l_key->type, l_sign);
+    dap_enc_key_delete(l_key);
     return l_ret;
 }
 
