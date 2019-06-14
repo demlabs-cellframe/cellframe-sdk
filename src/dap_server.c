@@ -750,6 +750,7 @@ int32_t dap_server_loop( dap_server_t *d_server )
   struct epoll_event  pev;
   struct epoll_event  events[ 16 ];
 
+  memset(&pev, 0, sizeof(struct epoll_event));
   pev.events = EPOLLIN | EPOLLERR;
   pev.data.fd = d_server->socket_listener;
 
