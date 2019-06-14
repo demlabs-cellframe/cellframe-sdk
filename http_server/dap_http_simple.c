@@ -112,29 +112,24 @@ static pthread_t http_simple_loop_thread;
 static bool bSimpleLoopThreadQuitSignal = false;
 
 static dap_http_simple_t **s_requests = NULL;
-static uint32_t s_requests_count = 0;
+static dap_http_simple_t **s_requestsproc = NULL;
 
-// uint64_t s_TTL_session_key=3600;
+static uint32_t s_requests_count = 0;
+static uint32_t s_requestsproc_count = 0;
 
 static void _free_user_agents_list( void );
 
 int dap_http_simple_module_init( )
 {
-  s_requests = DAP_NEW_Z_SIZE( dap_http_simple_t *, sizeof(dap_http_simple_t *) * DAP_HTTP_SIMPLE_REQUEST_MAX );
+  s_requests = (dap_http_simple_t *)malloc( sizeof(dap_http_simple_t *) * DAP_HTTP_SIMPLE_REQUEST_MAX * 2 );
   if ( !s_requests ) {
 
     log_it( L_ERROR, "Out of memory" );
     return -1;
   }
 
+  s_requestsproc = s_requests + DAP_HTTP_SIMPLE_REQUEST_MAX;
   s_requests_count = 0;
-
-//  http_simple_loop = ev_loop_new(0);
-
-//  TAILQ_INIT( &tailq_head );
-
-//  ev_async_init( &async_watcher_http_simple, async_control_proc );
-//  ev_async_start( http_simple_loop, &async_watcher_http_simple );
 
   bSimpleLoopThreadQuitSignal = false;
   pthread_create( &http_simple_loop_thread, NULL, loop_http_simple_proc, NULL );
@@ -144,14 +139,11 @@ int dap_http_simple_module_init( )
 
 void dap_http_simple_module_deinit( void )
 {
-//  ev_async_stop( http_simple_loop, &async_watcher_http_simple );
-
   bSimpleLoopThreadQuitSignal = true;
 
   pthread_mutex_destroy( &mutex_on_queue_http_response );
   pthread_join( http_simple_loop_thread, NULL );
 
-//  ev_loop_destroy( http_simple_loop );
   _free_user_agents_list( );
 
   if ( s_requests ) {
@@ -160,59 +152,42 @@ void dap_http_simple_module_deinit( void )
   } 
 }
 
-//static void async_control_proc( EV_P_ ev_async *w, int revents )
+//#define SIMPLE_LOOP_SLEEP   25 // ms
+#define SIMPLE_LOOP_SLEEP   50 // ms
 
-static void async_control_proc( void )
-{
-  pthread_mutex_lock( &mutex_on_queue_http_response );
-
-  for ( uint32_t i = 0; i < s_requests_count; ++ i ) {
-
-    dap_http_simple_proc( s_requests[i] );
-    free( s_requests[i] );
-  }
-
-  s_requests_count = 0;
-
-//  tailq_entry_t *item;
-
-//  while ( item = TAILQ_FIRST(&tailq_head) ) {
-//    dap_http_simple_proc( item->cl_sh );
-//    TAILQ_REMOVE( &tailq_head, item, entries );
-//    free(item);
-//  }
-
-  pthread_mutex_unlock( &mutex_on_queue_http_response );
-}
-
-#define SIMPLE_LOOP_SLEEP   250 // ms
 static struct timespec simple_loop_sleep = { 0, SIMPLE_LOOP_SLEEP * 1000 * 1000 };
 
 static void *loop_http_simple_proc( void *arg )
 {
   log_it( L_NOTICE, "Start loop http simple thread" );
 
-  return NULL;
   do {
 
-    #ifndef _WIN32
-      nanosleep( &simple_loop_sleep, NULL );
-    #else
-      Sleep( SIMPLE_LOOP_SLEEP );
-    #endif
+    pthread_mutex_lock( &mutex_on_queue_http_response );
+    if ( s_requests_count ) {
 
-///    async_control_proc( );
+      s_requestsproc_count = s_requests_count;
+      s_requests_count = 0;
+      memcpy( s_requestsproc, s_requests, sizeof(void *) * s_requestsproc_count );
+      pthread_mutex_unlock( &mutex_on_queue_http_response );
+
+      for ( uint32_t i = 0; i < s_requestsproc_count; ++ i ) {
+        dap_http_simple_proc( s_requestsproc[i] );
+//        s_requestsproc[i]->http->client->no_close = false;
+//        free( s_requestsproc[i] ); // ???
+      }
+    }
+    else {
+      pthread_mutex_unlock( &mutex_on_queue_http_response );
+      #ifndef _WIN32
+        nanosleep( &simple_loop_sleep, NULL );
+      #else
+        Sleep( SIMPLE_LOOP_SLEEP );
+      #endif
+    }
 
   } while( !bSimpleLoopThreadQuitSignal );
 
-//  for ( i = 0; i < ui32TotalRequests; ++ i ) {
-
-//    dap_http_simple_proc( pRequestsBuffer[i] );
-//    free( pRequestsBuffer[i] );
-//  }
-
-
-//  ev_loop( http_simple_loop, 0 );
   return NULL;
 }
 
@@ -554,15 +529,9 @@ size_t dap_http_simple_reply_f( dap_http_simple_t * shs, const char * data, ... 
 
 inline void queue_http_request_put( dap_http_simple_t *cl_sh )
 {
-  dap_http_simple_proc( cl_sh );
-
-  return;
+//  dap_http_simple_proc( cl_sh );
 
   pthread_mutex_lock( &mutex_on_queue_http_response );
-
-//  tailq_entry_t *item = malloc (sizeof(tailq_entry_t));
-//  item->cl_sh = cl_sh;
-//  TAILQ_INSERT_TAIL(&tailq_head, item, entries);
 
   if ( s_requests_count >= DAP_HTTP_SIMPLE_REQUEST_MAX ) {
 
@@ -574,10 +543,9 @@ inline void queue_http_request_put( dap_http_simple_t *cl_sh )
   log_it( L_WARNING, "queue_http_request_put >>> %u", s_requests_count );
 
   s_requests[ s_requests_count ++ ] = cl_sh;
+//  cl_sh->http->client->no_close = true;
 
   pthread_mutex_unlock( &mutex_on_queue_http_response );
-
-//  ev_async_send( http_simple_loop, &async_watcher_http_simple );
 }
 
 /* Key Expired deprecated code */
