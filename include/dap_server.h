@@ -40,12 +40,12 @@
 
 typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
 
-#define DAP_BIT( x ) ( 1 << x )
+#define BIT( x ) ( 1 << x )
 
-#define DAP_SOCK_READY_TO_READ     DAP_BIT( 0 )
-#define DAP_SOCK_READY_TO_WRITE    DAP_BIT( 1 )
-#define DAP_SOCK_SIGNAL_CLOSE      DAP_BIT( 2 )
-#define DAP_SOCK_ACTIVE            DAP_BIT( 3 )
+#define DAP_SOCK_READY_TO_READ     BIT( 0 )
+#define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
+#define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
+#define DAP_SOCK_ACTIVE            BIT( 3 )
 
 typedef struct dap_server_thread_s {
 
@@ -57,9 +57,11 @@ typedef struct dap_server_thread_s {
 
   struct epoll_event  *epoll_events;
   dap_client_remote_t *dap_remote_clients;
+  dap_client_remote_t *hclients; // Hashmap of clients
   dap_client_remote_t *dap_clients_to_kill;
 
   pthread_mutex_t mutex_dlist_add_remove;
+  pthread_mutex_t mutex_on_hash;
 
 } dap_server_thread_t;
 
@@ -73,8 +75,6 @@ typedef struct dap_server {
   uint16_t port; // Listen port
   char *address; // Listen address
 
-  dap_client_remote_t *clients; // Hashmap of clients
-
   int32_t socket_listener; // Socket for listener
   EPOLL_HANDLE epoll_fd; // Epoll fd
 
@@ -82,7 +82,6 @@ typedef struct dap_server {
 
   void *_inheritor;  // Pointer to the internal data, HTTP for example
 
-  pthread_mutex_t mutex_on_hash;
   dap_cpu_stats_t cpu_stats;
 
   dap_server_callback_t server_delete_callback;

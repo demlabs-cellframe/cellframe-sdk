@@ -93,7 +93,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
   ret->events = a_events;
   ret->callbacks = a_callbacks;
   ret->flags = DAP_SOCK_READY_TO_READ;
-  ret->close_denied = true;
+  ret->no_close = true;
 
   log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 

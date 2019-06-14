@@ -68,7 +68,7 @@ typedef struct dap_client_remote {
   dap_server_client_id id;
 
   uint32_t  flags;
-  bool close_denied;
+  bool no_close;
   bool kill_signal;
 
   uint16_t port;
@@ -98,6 +98,7 @@ typedef struct dap_client_remote {
   time_t last_time_active;
 
   struct dap_server *server;
+  dap_server_thread_t *thread;
 
   UT_hash_handle hh;
   struct dap_client_remote *next, *prev;
@@ -112,7 +113,7 @@ int   dap_client_remote_init( void ); //  Init clients module
 void  dap_client_remote_deinit( void ); // Deinit clients module
 
 dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_server_thread_t *dsth );
-dap_client_remote_t *dap_client_remote_find( int sock, struct dap_server *sh); // Find client by socket
+dap_client_remote_t *dap_client_remote_find( int sock, dap_server_thread_t *t );
 
 bool dap_client_remote_is_ready_to_read( dap_client_remote_t * sc );
 bool dap_client_remote_is_ready_to_write( dap_client_remote_t * sc );
@@ -123,7 +124,8 @@ size_t dap_client_remote_write( dap_client_remote_t *sc, const void * data, size
 size_t dap_client_remote_write_f( dap_client_remote_t *a_client, const char * a_format,... );
 size_t dap_client_remote_read( dap_client_remote_t *sc, void * data, size_t data_size );
 
-void dap_client_remote_remove( dap_client_remote_t *sc, struct dap_server * sh ); // Removes the client from the list
+//void dap_client_remote_remove( dap_client_remote_t *sc, struct dap_server * sh ); // Removes the client from the list
+void dap_client_remote_remove( dap_client_remote_t *sc );
 
 void dap_client_remote_shrink_buf_in( dap_client_remote_t * cl, size_t shrink_size );
 

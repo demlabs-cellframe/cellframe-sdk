@@ -88,7 +88,7 @@ void _save_ip_and_port( dap_client_remote_t * cl )
  * @param s Client's socket
  * @return Pointer to the new list's node
  */
-dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_server_thread_t *dsth )
+dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_server_thread_t *t )
 {
   dap_client_remote_t *dsc = DAP_NEW_Z( dap_client_remote_t );
 
@@ -96,8 +96,9 @@ dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_serv
 
   dsc->socket = s;
   dsc->server = sh;
-  dsc->tn = dsth->thread_num;
-  dsc->efd = dsth->epoll_fd;
+  dsc->tn = t->thread_num;
+  dsc->thread = t;
+  dsc->efd = t->epoll_fd;
   dsc->time_connection = dsc->last_time_active = time( NULL) ;
 
   dsc->pevent.events = EPOLLIN | EPOLLOUT | EPOLLERR;
@@ -108,9 +109,9 @@ dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_serv
 
   _save_ip_and_port( dsc );
 
-  pthread_mutex_lock( &sh->mutex_on_hash );
-  HASH_ADD_INT( sh->clients, socket, dsc );
-  pthread_mutex_unlock( &sh->mutex_on_hash );
+  pthread_mutex_lock( &t->mutex_on_hash );
+  HASH_ADD_INT( t->hclients, socket, dsc );
+  pthread_mutex_unlock( &t->mutex_on_hash );
 
   if ( sh->client_new_callback )
     sh->client_new_callback( dsc, NULL ); // Init internal structure
@@ -125,16 +126,15 @@ dap_client_remote_t *dap_client_remote_create( dap_server_t *sh, int s, dap_serv
  * @brief safe_client_remove Removes the client from the list
  * @param sc Client instance
  */
-void dap_client_remote_remove( dap_client_remote_t *sc, struct dap_server * sh )
+void dap_client_remote_remove( dap_client_remote_t *sc )
 {
   log_it(L_DEBUG, "dap_client_remote_remove [THREAD %u] efd %u", sc->tn , sc->efd );
 
-//  EPOLL_HANDLE efd;            // Epoll fd
-//  int tn;             // working thread index
+  dap_server_thread_t *t = sc->thread;
 
-  pthread_mutex_lock( &sh->mutex_on_hash );
-  HASH_DEL( sc->server->clients, sc );
-  pthread_mutex_unlock( &sh->mutex_on_hash );
+  pthread_mutex_lock( &t->mutex_on_hash );
+  HASH_DEL( t->hclients, sc );
+  pthread_mutex_unlock( &t->mutex_on_hash );
 
   if( sc->server->client_delete_callback )
     sc->server->client_delete_callback( sc, NULL ); // Init internal structure
@@ -154,13 +154,13 @@ void dap_client_remote_remove( dap_client_remote_t *sc, struct dap_server * sh )
  * @param sh
  * @return
  */
-dap_client_remote_t *dap_client_remote_find( int sock, struct dap_server *sh )
+dap_client_remote_t *dap_client_remote_find( int sock, dap_server_thread_t *t )
 {
   dap_client_remote_t *ret = NULL;
 
-  pthread_mutex_lock( &sh->mutex_on_hash );
-  HASH_FIND_INT( sh->clients, &sock, ret );
-  pthread_mutex_unlock( &sh->mutex_on_hash );
+  pthread_mutex_lock( &t->mutex_on_hash );
+  HASH_FIND_INT( t->hclients, &sock, ret );
+  pthread_mutex_unlock( &t->mutex_on_hash );
 
   return ret;
 }

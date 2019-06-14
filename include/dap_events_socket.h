@@ -94,7 +94,7 @@ typedef struct dap_events_socket {
 
   uint32_t  flags;
 //  bool signal_close;
-  bool close_denied;
+  bool no_close;
   bool kill_signal;
 //  bool _ready_to_write;
 //  bool _ready_to_read;
