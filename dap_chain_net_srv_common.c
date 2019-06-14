@@ -114,6 +114,7 @@ uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
 // callback for traffic
 void dap_chain_net_srv_traffic_callback(dap_server_t *a_server)
 {
+#if 0
     pthread_mutex_lock(&a_server->mutex_on_hash);
     dap_client_remote_t *l_client = a_server->clients;
     if(l_client) {
@@ -128,5 +129,6 @@ void dap_chain_net_srv_traffic_callback(dap_server_t *a_server)
             }
     }
     pthread_mutex_unlock(&a_server->mutex_on_hash);
+#endif
 }
 
