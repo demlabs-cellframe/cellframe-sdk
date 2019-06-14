@@ -165,6 +165,7 @@ int32_t dap_server_init( uint32_t count_threads )
     dap_thread->epoll_events = &threads_epoll_events[ i * epoll_max_events ];
 
     pthread_mutex_init( &dap_thread->mutex_dlist_add_remove, NULL );
+    pthread_mutex_init( &dap_thread->mutex_on_hash, NULL );
   }
 
   log_it( L_NOTICE, "Initialized socket server module" );
@@ -187,12 +188,20 @@ err:;
 */
 void  dap_server_deinit( void )
 {
+  dap_client_remote_t *dap_cur, *tmp;
+  dap_server_thread_t *t = &dap_server_threads[0];
+
   dap_client_remote_deinit( );
 
   if ( threads_epoll_events ) {
     free( threads_epoll_events );
 
-    for ( uint32_t i = 0; i < _count_threads; ++i ) {
+    for ( uint32_t i = 0; i < _count_threads; ++i, ++t ) {
+
+      HASH_ITER( hh, t->hclients, dap_cur, tmp )
+        dap_client_remote_remove( dap_cur );
+
+      pthread_mutex_destroy( &dap_server_threads[i].mutex_on_hash );
       pthread_mutex_destroy( &dap_server_threads[i].mutex_dlist_add_remove );
     }
   }
@@ -219,23 +228,16 @@ dap_server_t  *dap_server_new( void )
 */
 void dap_server_delete( dap_server_t *sh )
 {
-  dap_client_remote_t *dap_cur, *tmp;
-
   if ( !sh ) return;
 
   if( sh->address )
     free( sh->address );
-
-  HASH_ITER( hh, sh->clients, dap_cur, tmp )
-    dap_client_remote_remove( dap_cur, sh );
 
   if( sh->server_delete_callback )
     sh->server_delete_callback( sh, NULL );
 
   if ( sh->_inheritor )
     free( sh->_inheritor );
-
-  pthread_mutex_destroy( &sh->mutex_on_hash );
 
   free( sh );
 }
@@ -289,10 +291,9 @@ static inline uint32_t get_thread_index_min_connections( )
 */
 static inline void print_online()
 {
-//  for( uint32_t i = 0; i < _count_threads; i ++ )  {
-//    log_it(L_INFO, "Thread number: %d, count: %d", 
-//               thread_inform[i].thread_number, atomic_load(&thread_inform[i].count_open_connections) );
-//  }
+  for( uint32_t i = 0; i < _count_threads; i ++ )  {
+    log_it( L_INFO, "Thread number: %u, count: %u", i, dap_server_threads[i].connections_count );
+  }
 }
 
 void  dap_server_kill_socket( dap_client_remote_t *dcr )
@@ -394,7 +395,7 @@ static void s_socket_all_check_activity( uint32_t tn, time_t cur_time )
 
   DL_FOREACH_SAFE( dsth->dap_remote_clients, dcr, tmp ) {
 
-    if ( !dcr->kill_signal && cur_time >= dcr->last_time_active + SOCKET_TIMEOUT_TIME && !dcr->close_denied ) {
+    if ( !dcr->kill_signal && cur_time >= dcr->last_time_active + SOCKET_TIMEOUT_TIME && !dcr->no_close ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", dcr->socket );
 
@@ -404,7 +405,7 @@ static void s_socket_all_check_activity( uint32_t tn, time_t cur_time )
       DL_DELETE( dsth->dap_remote_clients, dcr );
       dsth->connections_count --;
 
-      dap_client_remote_remove( dcr, _current_run_server );
+      dap_client_remote_remove( dcr );
     }
   }
   pthread_mutex_unlock( &dsth->mutex_dlist_add_remove );
@@ -504,7 +505,7 @@ static void read_write_cb( dap_client_remote_t *dap_cur, int32_t revents )
 //  log_it(L_ERROR,"OPA !") ;
 //  Sleep(200);
 
-//  if ( (dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !dap_cur->close_denied ) {
+//  if ( (dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !dap_cur->no_close ) {
 //    log_it(L_ERROR,"Close signal" );
 
 //    dap_server_remove_socket( dap_cur );
@@ -568,9 +569,6 @@ dap_server_t *dap_server_listen( const char *addr, uint16_t port, dap_server_typ
   log_it( L_INFO,"Binded %s:%u", addr, port );
   listen( sh->socket_listener, DAP_MAX_THREAD_EVENTS * _count_threads );
 
-  log_it( L_INFO,"pthread_mutex_init" );
-  pthread_mutex_init( &sh->mutex_on_hash, NULL );
-
   return sh;
 }
 
@@ -618,8 +616,14 @@ void  *thread_loop( void *arg )
 //    log_it(L_WARNING,"[THREAD %u] epoll events %u", tn, n  );
 //    Sleep(300);
 
-    if ( n == -1 || bQuitSignal )
+    if ( bQuitSignal )
       break;
+
+    if ( n < 0 ) {
+      if ( errno == EINTR )
+        continue;
+      break;
+    }
 
     time_t cur_time = time( NULL );
 
@@ -640,10 +644,10 @@ void  *thread_loop( void *arg )
           dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
       }
 
-      if ( !(dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) || dap_cur->close_denied )
+      if ( !(dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) || dap_cur->no_close )
         read_write_cb( dap_cur, events[i].events );
 
-      if ( (dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !dap_cur->close_denied ) {
+      if ( (dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !dap_cur->no_close ) {
 
         pthread_mutex_lock( &dsth->mutex_dlist_add_remove );
 
@@ -659,7 +663,7 @@ void  *thread_loop( void *arg )
         log_it( L_INFO, "Got signal to close %u socket, closing...[ %u ]", dap_cur->socket, tn );
 
         dap_server_remove_socket( dap_cur );
-        dap_client_remote_remove( dap_cur, _current_run_server );
+        dap_client_remote_remove( dap_cur );
 
         log_it( L_INFO, "[ Thread %u ] coneections: %u, to kill: %u", tn, dsth->connections_count, dsth->to_kill_count  );
         pthread_mutex_unlock( &dsth->mutex_dlist_add_remove );
@@ -684,7 +688,7 @@ void  *thread_loop( void *arg )
 
     do {
 
-      if ( dap_cur->close_denied ) {
+      if ( dap_cur->no_close ) {
         dap_cur = dap_cur->knext;
         continue;
       }
@@ -695,7 +699,7 @@ void  *thread_loop( void *arg )
       DL_LIST_REMOVE_NODE( dsth->dap_clients_to_kill, dap_cur, kprev, knext, dsth->to_kill_count );
 
       dap_server_remove_socket( dap_cur );
-      dap_client_remote_remove( dap_cur, _current_run_server );
+      dap_client_remote_remove( dap_cur );
       dap_cur = tmp;
 
     } while ( dap_cur );
@@ -750,7 +754,6 @@ int32_t dap_server_loop( dap_server_t *d_server )
   struct epoll_event  pev;
   struct epoll_event  events[ 16 ];
 
-  memset(&pev, 0, sizeof(struct epoll_event));
   pev.events = EPOLLIN | EPOLLERR;
   pev.data.fd = d_server->socket_listener;
 
@@ -759,16 +762,20 @@ int32_t dap_server_loop( dap_server_t *d_server )
     goto error;
   }
 
-  while( 1 ) {
+  while( !bQuitSignal ) {
 
     int32_t n = epoll_wait( efd, &events[0], 16, -1 );
 
+    if ( bQuitSignal )
+      break;
+
     if ( n <= 0 ) {
-      if(errno == EINTR)
+      if ( errno == EINTR )
         continue;
       log_it( L_ERROR, "Server wakeup no events / error" );
       break;
     }
+
     for( int32_t i = 0; i < n; ++ i ) {
 
       if ( events[i].events & EPOLLIN ) {

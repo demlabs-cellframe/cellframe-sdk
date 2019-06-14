@@ -134,6 +134,7 @@ static void _timeout_cb( )
 VOID CALLBACK _timeout_cb( void *lpParameter, BOOL TimerOrWaitFired )
 #endif
 {
+#if 0
   pthread_mutex_lock( &_dap_server->mutex_on_hash );
 
   size_t count_users = HASH_COUNT(_dap_server->clients );
@@ -161,6 +162,7 @@ VOID CALLBACK _timeout_cb( void *lpParameter, BOOL TimerOrWaitFired )
   _dap_server->cpu_stats = dap_cpu_get_stats( );
 
   pthread_mutex_unlock( &_dap_server->mutex_on_hash );
+#endif
 
   if ( _callback != NULL ) {
     pthread_mutex_lock( &_mutex );

@@ -253,7 +253,7 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
   pthread_mutex_lock( &dap_worker->locker_on_count );
   DL_FOREACH_SAFE( d_ev->dlsockets, a_es, tmp ) {
 
-    if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->close_denied ) {
+    if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
 
@@ -315,8 +315,12 @@ static void *thread_worker_function( void *arg )
   while( 1 ) {
 
     int selected_sockets = epoll_wait( w->epoll_fd, events, DAP_MAX_EPOLL_EVENTS, 1000 );
-    if ( selected_sockets == -1 )
+
+    if ( selected_sockets == -1 ) {
+      if ( errno == EINTR )
+        continue;
       break;
+    }
 
     time_t cur_time = time( NULL );
 
@@ -405,7 +409,7 @@ static void *thread_worker_function( void *arg )
         cur->buf_out_size = 0;
       }
 
-      if ( (cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !cur->close_denied ) {
+      if ( (cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !cur->no_close ) {
 
         pthread_mutex_lock( &w->locker_on_count );
 
@@ -444,7 +448,7 @@ static void *thread_worker_function( void *arg )
 
     do {
 
-//      if ( cur->close_denied ) {
+//      if ( cur->no_close ) {
 //        cur = cur->knext;
 //        continue;
 //      }
