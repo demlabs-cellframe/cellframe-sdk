@@ -406,7 +406,7 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
             DAP_DELETE(l_tx_hash);
         }
         l_tickers_size = l_tickers_pos + 1;
-        l_tickers = DAP_REALLOC(l_tickers, l_tickers_size);
+        l_tickers = DAP_REALLOC(l_tickers, l_tickers_size * sizeof(char*));
     }
     *a_tickers = l_tickers;
     *a_tickers_size = l_tickers_pos;
