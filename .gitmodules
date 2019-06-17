@@ -2,3 +2,6 @@
 	path = test/libdap-test
 	url = https://github.com/kelvinblockchain/libdap-test
 	branch = master
+[submodule "libdap"]
+	path = libdap
+	url = https://github.com/cellframe/libdap

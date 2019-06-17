@@ -6,7 +6,7 @@ file(GLOB SRC *.h *.c)
 
 add_executable(${PROJECT_NAME} ${SRC})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_crypto -lm)
+target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto -lm)
 
 add_test(
     NAME crypto-test
