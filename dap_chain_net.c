@@ -515,7 +515,7 @@ static void * s_net_proc_thread ( void * a_net)
         s_net_states_proc(l_net);
         pthread_mutex_lock( &PVT(l_net)->state_mutex );
 
-        int l_timeout_ms = 3000;// 3 sec
+        int l_timeout_ms = 20000;// 20 sec
         // prepare for signal waiting
         struct timespec l_to;
         clock_gettime(CLOCK_MONOTONIC, &l_to);
@@ -670,7 +670,7 @@ int dap_chain_net_init()
 static int s_cli_net(int argc, char ** argv, char **a_str_reply)
 {
     int arg_index=1;
-    dap_chain_net_t * l_net;
+    dap_chain_net_t * l_net = NULL;
 
     int ret = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,NULL,&l_net);
     if ( l_net ){
@@ -952,7 +952,7 @@ int dap_chain_net_load(const char * a_net_name)
          DAP_DELETE( l_seed_nodes_ipv4);
          DAP_DELETE(l_seed_nodes_addrs);
 
-        if ( l_node_alias_str ){
+        if ( l_node_addr_str || l_node_alias_str ){
             dap_chain_node_addr_t * l_node_addr;
             if ( l_node_addr_str == NULL)
                 l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
@@ -971,6 +971,8 @@ int dap_chain_net_load(const char * a_net_name)
             }
             if ( l_node_addr ) {
                 char *l_addr_hash_str = dap_chain_node_addr_to_hash_str(l_node_addr);
+                // save current node address
+                dap_db_set_cur_node_addr(l_node_addr->uint64);
                 if(!l_addr_hash_str){
                     log_it(L_ERROR,"Can't get hash string for node address!");
                 } else {
@@ -985,6 +987,9 @@ int dap_chain_net_load(const char * a_net_name)
                                NODE_ADDR_FP_ARGS(l_node_addr) );
                     }
                 }
+            }
+            else{
+                log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
             }
 
 
@@ -1170,6 +1175,7 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
  */
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
+    dap_chain_net_pvt_t *pvt_dbg = PVT(l_net);
     return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: PVT(l_net)->node_addr;
 }
 

@@ -132,7 +132,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 {
     dap_chain_node_client_t *l_node_client = a_client->_inheritor;
-    assert(l_node_client);
+    //assert(l_node_client);
     if(l_node_client) {
         log_it(L_NOTICE,"Stream connection with node " NODE_ADDR_FP_STR " established",
                NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr) );
@@ -195,10 +195,10 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 l_request = (dap_stream_ch_chain_sync_request_t* ) a_pkt->data;
 
             if ( l_request ){
-                if ( l_request->ts_start < (uint64_t) dap_db_log_get_last_timestamp() ){
+                if ( l_request->ts_start < (uint64_t) dap_db_log_get_last_id() ){
                     log_it(L_INFO, "Remote is synced but we have updates for it");
                     // Get log diff
-                    a_ch_chain->request_last_ts = dap_db_log_get_last_timestamp();
+                    a_ch_chain->request_last_ts = dap_db_log_get_last_id();
                     dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->ts_start);
 
                     if ( l_list ) {
