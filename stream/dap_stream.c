@@ -604,7 +604,7 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
         dap_client_ready_to_write(sh,ready_to_write);*/
     //log_it(L_ERROR,"No stream_data_write_callback is defined");
 
-    log_it(L_ERROR,"stream_dap_data_write ok");
+    log_it(L_DEBUG,"stream_dap_data_write ok");
 }
 
 /**
