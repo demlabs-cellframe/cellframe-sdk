@@ -451,16 +451,16 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     char *l_error_message = NULL;
     if(a_store_obj->type == 'a') {
         if(!a_store_obj->key || !a_store_obj->value || !a_store_obj->value_len)
-                return -1;
-        dap_chain_hash_fast_t l_hash;
-        dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);
+            return -1;
+        //dap_chain_hash_fast_t l_hash;
+        //dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);
 
-        char *l_blob_hash = dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
+        char *l_blob_hash = ""; //dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
         char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, a_store_obj->value_len);
         //add one record
         l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'%s', '%lld', x'%s')",
                 a_store_obj->group, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
-        dap_db_driver_sqlite_free(l_blob_hash);
+        //dap_db_driver_sqlite_free(l_blob_hash);
         dap_db_driver_sqlite_free(l_blob_value);
     }
     else if(a_store_obj->type == 'd') {
@@ -476,27 +476,41 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         log_it(L_ERROR, "Unknown store_obj type '0x%x'", a_store_obj->type);
         return -1;
     }
-    int l_ret = dap_db_driver_sqlite_exec(s_db, l_query, NULL);
-    // missing database
+    // execute request
+    int l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
     if(l_ret == SQLITE_ERROR) {
+        dap_db_driver_sqlite_free(l_error_message);
+        l_error_message = NULL;
         // create table
         dap_db_driver_sqlite_create_group_table(a_store_obj->group);
+        // repeat request
         l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
+
     }
-    dap_db_driver_sqlite_free(l_query);
     // entry with the same hash is already present
     if(l_ret == SQLITE_CONSTRAINT) {
-        log_it(L_INFO, "Entry with the same key is already present, %s", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
-        return 0;
+        l_error_message = NULL;
+        //delete exist record
+        char *l_query_del = sqlite3_mprintf("delete from '%s' where key = '%s'", a_store_obj->group, a_store_obj->key);
+        l_ret = dap_db_driver_sqlite_exec(s_db, l_query_del, &l_error_message);
+        dap_db_driver_sqlite_free(l_query_del);
+        if(l_ret != SQLITE_OK) {
+            log_it(L_INFO, "Entry with the same key is already present and can't delete, %s", l_error_message);
+            dap_db_driver_sqlite_free(l_error_message);
+            l_error_message = NULL;
+        }
+        // repeat request
+        l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
     }
-    if(l_ret != SQLITE_OK)
-    {
+    // missing database
+    if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "sqlite apply error: %s", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
-        return -1;
+        l_ret = -1;
     }
-    return 0;
+    dap_db_driver_sqlite_free(l_query);
+    return l_ret;
 }
 
 static void fill_one_item(const char *a_group, dap_store_obj_t *a_obj, SQLITE_ROW_VALUE *a_row)

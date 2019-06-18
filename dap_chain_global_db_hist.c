@@ -73,11 +73,14 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
     while(l_keys[i]) {
         dap_store_obj_t *l_obj = NULL;
         // add record - read record
-        if(l_rec.type == 'a')
+        if(l_rec.type == 'a'){
             l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
+            l_obj->id = a_obj->id;
+        }
         // delete record - save only key for record
         else if(l_rec.type == 'd') { // //section=strdup("kelvin_nodes");
             l_obj = (dap_store_obj_t*) DAP_NEW_Z(dap_store_obj_t);
+            l_obj->id = a_obj->id;
             l_obj->group = dap_strdup(l_rec.group);
             l_obj->key = dap_strdup(l_keys[i]);
         }
@@ -167,7 +170,7 @@ bool dap_db_history_truncate(void)
 /**
  * Get last timestamp in log
  */
-time_t dap_db_log_get_last_timestamp(void)
+uint64_t dap_db_log_get_last_id(void)
 {
     //dap_store_obj_t *l_last_obj = dap_chain_global_db_driver_read_last(
     dap_store_obj_t *l_last_obj = dap_chain_global_db_get_last(GROUP_LOCAL_HISTORY);
@@ -192,26 +195,27 @@ time_t dap_db_log_get_last_timestamp(void)
      return l_ret_time;*/
 }
 
-static int compare_items(const void * l_a, const void * l_b)
+/*static int compare_items(const void * l_a, const void * l_b)
 {
     const dap_global_db_obj_t *l_item_a = (const dap_global_db_obj_t*) l_a;
     const dap_global_db_obj_t *l_item_b = (const dap_global_db_obj_t*) l_b;
     int l_ret = strcmp(l_item_a->key, l_item_b->key);
     return l_ret;
-}
+}*/
 
 /**
  * Get log diff as list
  */
-dap_list_t* dap_db_log_get_list(time_t first_timestamp)
+dap_list_t* dap_db_log_get_list(uint64_t first_id)
 {
     dap_list_t *l_list = NULL;
     size_t l_data_size_out = 0;
-    dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
+    dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out);
     //dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
     for(size_t i = 0; i < l_data_size_out; i++) {
         dap_store_obj_t *l_obj_cur = l_objs + i;
         dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+        l_item->id = l_obj_cur->id;
         l_item->key = dap_strdup(l_obj_cur->key);
         l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
         l_list = dap_list_append(l_list, l_item);
