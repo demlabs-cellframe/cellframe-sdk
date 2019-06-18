@@ -12,8 +12,8 @@ before_install:
 script:
     - sudo service network-manager start
     - mkdir build
-    - cd build 
-    - cmake -DBUILD_DAP_TESTS=ON ../
+    - cd build
+    - cmake -DBUILD_CRYPTO_TESTS=ON ../
     - make
     - ctest --verbose
 

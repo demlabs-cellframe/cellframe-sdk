@@ -139,8 +139,10 @@ int dap_enc_sig_bliss_verify_sign(struct dap_enc_key * key, const void * msg,
 
 void dap_enc_sig_bliss_key_delete(struct dap_enc_key *key)
 {
-    bliss_b_private_key_delete(key->priv_key_data);
-    bliss_b_public_key_delete(key->pub_key_data);
+    if(key->priv_key_data)
+        bliss_b_private_key_delete(key->priv_key_data);
+    if(key->pub_key_data)
+        bliss_b_public_key_delete(key->pub_key_data);
 }
 
 /* Serialize a signature */
