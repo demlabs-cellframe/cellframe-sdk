@@ -762,10 +762,26 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     log_it ( L_INFO, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
 
+
+    dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
+    pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
+    HASH_FIND(hh, l_ledger_priv->ledger_items, l_tx_hash, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash already in the hash?
+    // transaction already present in the cache list
+    if(l_item_tmp) {
+        // delete transaction from the cache list
+        //ret = dap_chain_ledger_tx_remove(a_ledger, l_tx_hash);
+        // there should be no duplication
+        log_it(L_WARNING, "Transaction (hash=0x%x) deleted from cache because there is an attempt to add it to cache",
+                l_tx_hash);
+        ret = -1;
+    }
+    char * l_token_ticker = NULL;
+    if (ret == -1) {
+        goto FIN;
+    }
     // Mark 'out' items in cache if they were used & delete previous transactions from cache if it need
     // find all bound pairs 'in' and 'out'
     dap_list_t *l_list_tmp = l_list_bound_items;
-    char * l_token_ticker = NULL;
 //    int l_list_tmp_num = 0;
     while(l_list_tmp) {
         dap_chain_ledger_tx_bound_t *bound_item = l_list_tmp->data;
@@ -803,11 +819,17 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
             int res = dap_chain_ledger_tx_remove(a_ledger, &l_tx_prev_hash_to_del);
             if(res == -2) {
                 log_it(L_ERROR, "Can't delete previous transactions because hash=0x%x not found", l_tx_prev_hash_str);
-                return -2;
+                ret = -2;
+                DAP_DELETE(l_tx_prev_hash_str);
+                dap_list_free_full(l_list_bound_items, free);
+                goto FIN;
             }
             else if(res != 1) {
                 log_it(L_ERROR, "Can't delete previous transactions with hash=0x%x", l_tx_prev_hash_str);
-                return -3;
+                ret = -3;
+                DAP_DELETE(l_tx_prev_hash_str);
+                dap_list_free_full(l_list_bound_items, free);
+                goto FIN;
             }
             // TODO restore when the blockchain appears
             // remove from mempool ledger
@@ -874,18 +896,6 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     if (l_list_tx_out)
         dap_list_free(l_list_tx_out);
 
-    dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
-    pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
-    HASH_FIND(hh, l_ledger_priv->ledger_items, l_tx_hash, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash already in the hash?
-    // transaction already present in the cache list
-    if(l_item_tmp) {
-        // delete transaction from the cache list
-        //ret = dap_chain_ledger_tx_remove(a_ledger, l_tx_hash);
-        // there should be no duplication
-        log_it(L_WARNING, "Transaction (hash=0x%x) deleted from cache because there is an attempt to add it to cache",
-                l_tx_hash);
-        ret = -1;
-    }
     // add transaction to the cache list
     if(ret == 1){
         l_item_tmp = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
@@ -927,9 +937,12 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         HASH_ADD(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash_fast: name of key field
         ret = 1;
     }
+FIN:
     pthread_rwlock_tryrdlock (&l_ledger_priv->ledger_rwlock);
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-    DAP_DELETE(l_token_ticker);
+    if (l_token_ticker) {
+        DAP_DELETE(l_token_ticker);
+    }
     DAP_DELETE(l_tx_hash);
     return ret;
 }
