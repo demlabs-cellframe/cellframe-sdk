@@ -2,6 +2,6 @@
 
 int main(void) {
     // switch off debug info from library
-    set_log_level(L_CRITICAL);
+    dap_log_level_set(L_CRITICAL);
     return 0;
 }
