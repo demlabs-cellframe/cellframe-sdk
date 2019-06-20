@@ -195,11 +195,11 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 l_request = (dap_stream_ch_chain_sync_request_t* ) a_pkt->data;
 
             if ( l_request ){
-                if ( l_request->ts_start < (uint64_t) dap_db_log_get_last_id() ){
+                if ( l_request->id_start < (uint64_t) dap_db_log_get_last_id() ){
                     log_it(L_INFO, "Remote is synced but we have updates for it");
                     // Get log diff
                     a_ch_chain->request_last_ts = dap_db_log_get_last_id();
-                    dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->ts_start);
+                    dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->id_start);
 
                     if ( l_list ) {
                         // Add it to outgoing list
@@ -209,6 +209,12 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                         a_ch_chain->request_cell_id.uint64 = a_pkt->hdr.cell_id.uint64;
                         a_ch_chain->request_chain_id.uint64 = a_pkt->hdr.chain_id.uint64;
                         a_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB ;
+
+                        dap_chain_node_addr_t l_node_addr = { 0 };
+                        l_node_addr.uint64 = dap_db_get_cur_node_addr();
+                        dap_stream_ch_chain_pkt_write(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
+                                a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
+                                a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
 
                         log_it(L_INFO, "Sync for remote tr_count=%d",dap_list_length(l_list));
                         dap_stream_ch_set_ready_to_write(a_ch_chain->ch, true);
@@ -319,12 +325,14 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_
 void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
     if(a_client) {
-        // clean client
-        //dap_client_delete(a_client->client);
 
         pthread_mutex_lock(&a_client->wait_mutex);
         a_client->client->_inheritor = NULL;// because client->_inheritor == a_client
         pthread_mutex_unlock(&a_client->wait_mutex);
+
+        // clean client
+        //dap_client_delete(a_client->client);
+        //a_client->client = NULL;
 
         pthread_cond_destroy(&a_client->wait_cond);
         pthread_mutex_destroy(&a_client->wait_mutex);
