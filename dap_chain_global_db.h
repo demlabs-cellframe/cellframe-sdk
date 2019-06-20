@@ -11,7 +11,7 @@
 
 
 #define GROUP_LOCAL_HISTORY "global.history"
-#define GROUP_LOCAL_NODE_LAST_TS "local.node.last_ts"
+#define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 
 typedef struct dap_global_db_obj {

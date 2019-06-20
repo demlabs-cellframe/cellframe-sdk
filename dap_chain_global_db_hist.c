@@ -75,7 +75,9 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
         // add record - read record
         if(l_rec.type == 'a'){
             l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
-            l_obj->id = a_obj->id;
+            // l_obj may be NULL, if this record has been deleted but it is present in history
+            if(l_obj)
+                l_obj->id = a_obj->id;
         }
         // delete record - save only key for record
         else if(l_rec.type == 'd') { // //section=strdup("kelvin_nodes");
