@@ -35,6 +35,7 @@
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB           0x21
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS               0x02
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB            0x12
@@ -51,8 +52,8 @@ typedef struct dap_stream_ch_chain_sync_request{
     dap_chain_node_addr_t node_addr; // Requesting node's address
     dap_chain_hash_fast_t hash_from;
     dap_chain_hash_fast_t hash_to;
-    uint64_t ts_start;
-    uint64_t ts_end;
+    uint64_t id_start;
+    uint64_t id_end;
 } DAP_ALIGN_PACKED dap_stream_ch_chain_sync_request_t;
 
 
