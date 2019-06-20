@@ -129,6 +129,8 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 
     if (a_client_pvt->stream_key)
         dap_enc_key_delete(a_client_pvt->stream_key);
+
+    DAP_DELETE(a_client_pvt);
 }
 
 /**
@@ -310,6 +312,10 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         }
     }
         break;
+//    case STAGE_STATUS_ABORTING: {
+//        log_it(L_ERROR, "Aborting state");
+//    }
+    break;
     case STAGE_STATUS_ERROR: {
         log_it(L_ERROR, "Error state, doing callback if present");
         if(a_client_pvt->stage_status_error_callback) {
@@ -318,10 +324,16 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //a_client_internal->stage_status_error_callback = NULL;
 
         }
-        a_client_pvt->stage = STAGE_ENC_INIT;
-        // Trying the step again
-        a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
-        s_stage_status_after(a_client_pvt);
+        if(a_client_pvt->stage_target == STAGE_STREAM_ABORT){
+            a_client_pvt->stage = STAGE_STREAM_ABORT;
+            a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
+        }
+        else{
+            a_client_pvt->stage = STAGE_ENC_INIT;
+            // Trying the step again
+            a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+            s_stage_status_after(a_client_pvt);
+        }
     }
         break;
     case STAGE_STATUS_DONE: {
@@ -845,10 +857,12 @@ void m_es_stream_delete( dap_events_socket_t *a_es, void *arg )
         log_it(L_ERROR, "dap_client is not initialized");
         return;
     }
+    pthread_mutex_lock(&l_client->mutex);
 
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
     if( l_client_pvt == NULL ) {
         log_it(L_ERROR, "dap_client_pvt is not initialized");
+        pthread_mutex_unlock(&l_client->mutex);
         return;
     }
 
@@ -867,6 +881,8 @@ void m_es_stream_delete( dap_events_socket_t *a_es, void *arg )
 //    dap_stream_session_close(l_client_pvt->stream_session->id);
 
     l_client_pvt->stream_session = NULL;
+
+    pthread_mutex_unlock(&l_client->mutex);
 
     if ( l_client_pvt->is_reconnect ) {
         log_it(L_DEBUG, "l_client_pvt->is_reconnect = true");
