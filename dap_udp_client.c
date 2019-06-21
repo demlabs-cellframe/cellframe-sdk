@@ -91,6 +91,7 @@ dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE 
   ret->efd = efd;
 
   ret->flags = DAP_SOCK_READY_TO_READ;
+
 //  ret->signal_close = false;
 //  ret->_ready_to_read = true;
 //  ret->_ready_to_write = false;
@@ -100,7 +101,7 @@ dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE 
   pthread_mutex_init( &inh->mutex_on_client, NULL );
 
   pthread_mutex_lock( &udp_server->mutex_on_list );
-  HASH_ADD_INT( udp_server->clients, host_key, inh );
+  HASH_ADD_INT( udp_server->hclients, host_key, inh );
   pthread_mutex_unlock( &udp_server->mutex_on_list );
 
   if( dap_srv->client_new_callback )
@@ -129,15 +130,15 @@ void dap_udp_client_get_address( dap_client_remote_t *client, unsigned int* host
  * @param port Source port
  * @return Pointer to client or NULL if not found
  */
-dap_client_remote_t *dap_udp_client_find( dap_server_t * dap_srv, unsigned long host, unsigned short port )
+dap_client_remote_t *dap_udp_client_find( dap_server_t *dap_srv, unsigned long host, unsigned short port )
 {
   dap_udp_client_t *inh = NULL;
-
   dap_udp_server_t *udp_server = DAP_UDP_SERVER( dap_srv );
+
   uint64_t token = get_key( host, port );
 
   pthread_mutex_lock( &udp_server->mutex_on_list );
-  HASH_FIND_INT( udp_server->clients, &token, inh );    
+  HASH_FIND_INT( udp_server->hclients, &token, inh );    
   pthread_mutex_unlock( &udp_server->mutex_on_list );
 
   if( inh == NULL )

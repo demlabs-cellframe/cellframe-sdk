@@ -50,9 +50,10 @@ typedef void (*dap_udp_server_callback_t) (struct dap_udp_server *,void *arg); /
 
 typedef struct dap_udp_server {
 
-    dap_udp_client_t *clients;
+    dap_udp_client_t *hclients;
     dap_udp_client_t *waiting_clients; // List clients for writing data
     pthread_mutex_t mutex_on_list;
+    pthread_mutex_t mutex_on_hash;
     void *_inheritor;
     dap_server_t *dap_server;
 
