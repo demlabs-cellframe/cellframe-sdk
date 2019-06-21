@@ -1,10 +1,10 @@
 /*
  *
- *	Modified for AF_INET6 by Pedro Roque
+ *  Modified for AF_INET6 by Pedro Roque
  *
- *	<roque@di.fc.ul.pt>
+ *  <roque@di.fc.ul.pt>
  *
- *	Original copyright notice included bellow
+ *  Original copyright notice included bellow
  */
 
 /*
@@ -39,33 +39,33 @@
  * SUCH DAMAGE.
  */
 /*
- *			P I N G . C
+ *      P I N G . C
  *
  * Using the InterNet Control Message Protocol (ICMP) "ECHO" facility,
  * measure round-trip-delays and packet loss across network paths.
  *
  * Author -
- *	Mike Muuss
- *	U. S. Army Ballistic Research Laboratory
- *	December, 1983
+ *  Mike Muuss
+ *  U. S. Army Ballistic Research Laboratory
+ *  December, 1983
  *
  * Status -
- *	Public Domain.  Distribution Unlimited.
+ *  Public Domain.  Distribution Unlimited.
  * Bugs -
- *	More statistics could always be gathered.
- *	If kernel does not support non-raw ICMP sockets or
- *	if -N option is used, this program has to run SUID to ROOT or
- *	with net_cap_raw enabled.
+ *  More statistics could always be gathered.
+ *  If kernel does not support non-raw ICMP sockets or
+ *  if -N option is used, this program has to run SUID to ROOT or
+ *  with net_cap_raw enabled.
  */
 
 #include "ping.h"
 
 /* IPv6 packet information.  */
-struct in6_pktinfo
-  {
-    struct in6_addr ipi6_addr;	/* src/dst IPv6 address */
-    unsigned int ipi6_ifindex;	/* send/recv interface index */
-  };
+//struct in6_pktinfo
+//  {
+//    struct in6_addr ipi6_addr;  /* src/dst IPv6 address */
+//    unsigned int ipi6_ifindex;  /* send/recv interface index */
+//  };
 
 ping_func_set_st ping6_func_set = {
     .send_probe = ping6_send_probe,
@@ -128,14 +128,14 @@ struct niquery_option {
     int (*handler)(int index, const char *arg);
 };
 
-#define NIQUERY_OPTION(_name, _has_arg, _data, _handler)	\
-	{							\
-		.name = _name,					\
-		.namelen = sizeof(_name) - 1,			\
-		.has_arg = _has_arg,				\
-		.data = _data,					\
-		.handler = _handler				\
-	}
+#define NIQUERY_OPTION(_name, _has_arg, _data, _handler)  \
+  {             \
+    .name = _name,          \
+    .namelen = sizeof(_name) - 1,     \
+    .has_arg = _has_arg,        \
+    .data = _data,          \
+    .handler = _handler       \
+  }
 
 static int niquery_option_name_handler(int index __attribute__((__unused__)),
         const char *arg __attribute__((__unused__)));
@@ -333,8 +333,8 @@ static int niquery_set_subject_type(int type)
     return 0;
 }
 
-#define ARRAY_SIZE(array)	(sizeof(array) / sizeof(array[0]))
-#define OFFSET_OF(type,elem)	((size_t)&((type *)0)->elem)
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+#define OFFSET_OF(type,elem)  ((size_t)&((type *)0)->elem)
 
 static int niquery_option_subject_addr_handler(int index, const char *arg)
 {
@@ -763,7 +763,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 #endif
 
         /*
-         *	select icmp echo reply as icmp type to receive
+         *  select icmp echo reply as icmp type to receive
          */
 
         ICMP6_FILTER_SETBLOCKALL(&filter);
@@ -946,7 +946,7 @@ int ping6_receive_error_msg(socket_st *sock)
 
 /*
  * pinger --
- * 	Compose and transmit an ICMP ECHO REQUEST packet.  The IP packet
+ *  Compose and transmit an ICMP ECHO REQUEST packet.  The IP packet
  * will be added on by the kernel.  The ID field is our UNIX process ID,
  * and the sequence number is an ascending integer.  The first several bytes
  * of the data portion are used to hold a UNIX "timeval" struct in VAX
@@ -1178,7 +1178,7 @@ void pr_niquery_reply(uint8_t *_nih, int len)
 
 /*
  * parse_reply --
- *	Print out the packet, if it came from us.  This logic is necessary
+ *  Print out the packet, if it came from us.  This logic is necessary
  * because ALL readers of the ICMP socket get a copy of ALL ICMP packets
  * which arrive ('tis only fair).  This permits multiple copies of this
  * program to be run without having intermingled output (or statistics!).
