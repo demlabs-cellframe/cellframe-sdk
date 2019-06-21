@@ -40,17 +40,14 @@
   #include <pthread.h>
   #include <syslog.h>
 
-  // Quick and dirty, I'm not sure but afair somewhere it was in UNIX systems too
-  #define min(a,b) (((a)<(b))?(a):(b))
-  #define max(a,b) (((a)>(b))?(a):(b))
-
 #else // WIN32
 
   #include <stdlib.h>
   #include <windows.h>
   #include <process.h>
   #include <pthread.h>
-  ///typedef HANDLE pthread_mutex_t;
+
+  #include "win32/dap_console_manager.h"
 
   #define popen _popen
   #define pclose _pclose
@@ -186,9 +183,13 @@ void dap_set_log_tag_width(size_t width) {
  * @param[in] a_log_file
  * @return
  */
-int dap_common_init( const char *a_log_file )
+int dap_common_init( const char *console_title, const char *a_log_file )
 {
   srand( (unsigned int)time(NULL) );
+
+  #ifdef _WIN32
+    SetupConsole( console_title, L"Lucida Console", 12, 20 );
+  #endif
 
   // init default log tag 8 width
   strcpy( log_tag_fmt_str, "[%8s]\t");
@@ -254,6 +255,8 @@ err:
  */
 void dap_common_deinit( )
 {
+  printf("dap_common_deinit( )\n");
+
   if ( s_log_file )
     fclose( s_log_file );
 
@@ -450,7 +453,7 @@ void _log_it( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 {
   static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint8_t   *buf0 = temp_buffer;
-  uint32_t  len,
+  uint32_t  len, tmp,
             time_offset,
             tag_offset,
             msg_offset;
@@ -501,22 +504,16 @@ void _log_it( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   log_log( (char *)(buf0 + time_offset), len - time_offset, t );
 
   #ifdef _WIN32
-//    if ( !bUseANSIEscapeSequences )
+  //    if ( !bUseANSIEscapeSequences )
     SetConsoleTextAttribute( hWin32ConOut, log_level_colors[ll] );
-  //  printf( "%s", (char *)(buf0 + time_offset) );
+  //  WriteConsole( hWin32ConOut, buf0 + time_offset, len - time_offset, &tmp, NULL );
+  //  fwrite( buf0 + time_offset, len - time_offset, 1, stdout );
+    WriteFile( hWin32ConOut, buf0 + time_offset, len - time_offset, (LPDWORD)&tmp, NULL );
   #else
-
-//    memcpy( buf0, len, 
-//    printf( "%s", (char *)buf0 );
     fwrite( buf0, len, 1, stdout );
-
   #endif
 
-///stdout
-
 //    printf("\x1b[0m\n");
-//  "\x1b[0;37;40m",   // L_DEBUG     = 0 
-
 
   pthread_mutex_unlock( &mutex );
 }
@@ -601,7 +598,9 @@ int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 
 static int breaker_set[2] = { -1, -1 };
 static int initialized = 0;
+#ifndef _WIN32
 static struct timespec break_latency = { 0, BREAK_LATENCY * 1000 * 1000 };
+#endif
 
 int get_select_breaker( )
 {
