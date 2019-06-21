@@ -105,15 +105,18 @@ dap_server_t *dap_udp_server_new( )
  */
 void dap_udp_server_delete( dap_server_t *sh )
 {
-  dap_client_remote_t *client, *tmp;
-
   if ( !sh ) return;
+
+//  dap_client_remote_t *client, *tmp;
+//  dap_udp_server_t *udps = (dap_udp_server_t *)sh->_inheritor;
+
+//  if ( !udps ) return;
 
   if( sh->address )
     free( sh->address );
 
-  HASH_ITER( hh, sh->clients, client, tmp )
-    dap_client_remote_remove( client, sh );
+//  HASH_ITER( hh, udps->hclients, client, tmp )
+//    dap_client_remote_remove( client );
 
   if ( sh->server_delete_callback )
     sh->server_delete_callback( sh, NULL );
@@ -158,6 +161,7 @@ dap_server_t *dap_udp_server_listen( uint16_t port ) {
   }
 
   pthread_mutex_init( &DAP_UDP_SERVER(sh)->mutex_on_list, NULL );
+  pthread_mutex_init( &DAP_UDP_SERVER(sh)->mutex_on_hash, NULL );
 
   return sh;
 }
@@ -237,9 +241,9 @@ int check_close( dap_client_remote_t *client )
 
     if ( client_check->host_key == udp_client->host_key )
       LL_DELETE( udp_server->waiting_clients, client_check );
-    }
+  }
 
-  dap_client_remote_remove( client, sh );
+  dap_client_remote_remove( client );
 
   return 1;
 }
@@ -402,7 +406,10 @@ void dap_udp_server_loop( dap_server_t *d_server )
     int32_t n = epoll_wait( efd_read, &events[0], 16, -1 );
 
     if ( !n ) continue;
+
     if ( n < 0 ) {
+      if ( errno == EINTR )
+        continue;
       log_it( L_ERROR, "Server epoll error" );
       break;
     }
@@ -417,6 +424,7 @@ void dap_udp_server_loop( dap_server_t *d_server )
         goto error;
       }
     }
+
   }
 
 error:
