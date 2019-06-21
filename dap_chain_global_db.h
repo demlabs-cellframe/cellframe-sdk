@@ -11,10 +11,11 @@
 
 
 #define GROUP_LOCAL_HISTORY "global.history"
-#define GROUP_LOCAL_NODE_LAST_TS "local.node.last_ts"
+#define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 
 typedef struct dap_global_db_obj {
+    uint64_t id;
     char *key;
     uint8_t *value;
     size_t value_len;
@@ -104,10 +105,10 @@ void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_
 // Get timestamp from dap_db_log_pack()
 //time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, size_t a_data_size);
 
-// Get last timestamp in log
-time_t dap_db_log_get_last_timestamp(void);
+// Get last id in log
+uint64_t dap_db_log_get_last_id(void);
 // Get log diff as list
-dap_list_t* dap_db_log_get_list(time_t first_timestamp);
+dap_list_t* dap_db_log_get_list(uint64_t first_id);
 // Free list getting from dap_db_log_get_list()
 void dap_db_log_del_list(dap_list_t *a_list);
 // Get log diff as string
