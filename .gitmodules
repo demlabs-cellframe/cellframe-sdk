@@ -6,7 +6,3 @@
   path = libdap
   url = https://github.com/cellframe/libdap
   branch = master 
-[submodule "libdap-server-core"]
-    path = libdap-server-core
-    url = https://github.com/cellframe/libdap-server-core
-    branch = master 
