@@ -376,7 +376,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         dap_cdb_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
         offset += sizeof(time_t);
         l_rec.val = l_val;
-        if (cdb_set2(l_cdb, l_rec.key, strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_INSERTIFNOEXIST, 0) < 0) {
+        if (cdb_set2(l_cdb, l_rec.key, strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb)));
             ret = -1;
         }
