@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "portable_endian.h"
+
 #define DAP_NEW( a )          ( (a*) malloc(sizeof(a)) )
 #define DAP_NEW_SIZE( a, b )  ( (a*) malloc(b) )
 #define DAP_NEW_Z( a )        ( (a*) calloc(1,sizeof(a)) )
@@ -64,10 +66,34 @@
 #ifndef MAX
   #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
-
 #ifndef MIN
   #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
+
+#ifndef min
+  #define min MIN
+#endif
+#ifndef max
+  #define max MAX
+#endif
+
+#ifndef LOWORD
+  #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
+  #define HIWORD( l ) ((uint16_t) ((((uintptr_t) (l)) >> 16) & 0xFFFF))
+  #define LOBYTE( w ) ((uint8_t) (((uintptr_t) (w)) & 0xFF))
+  #define HIBYTE( w ) ((uint8_t) ((((uintptr_t) (w)) >> 8) & 0xFF))
+#endif
+
+#ifndef RGB
+  #define RGB(r,g,b) ((uint32_t)(((uint8_t)(r)|((uint16_t)((uint8_t)(g))<<8))|(((uint32_t)(uint8_t)(b))<<16)))
+  #define RGBA(r, g, b, a) ((uint32_t) ((uint32_t)RGB(r,g,b) | (uint32_t)(a) << 24))
+  #define GetRValue(rgb) (LOBYTE(rgb))
+  #define GetGValue(rgb) (LOBYTE(((uint16_t)(rgb)) >> 8))
+  #define GetBValue(rgb) (LOBYTE((rgb)>>16))
+  #define GetAValue(rgb) (LOBYTE((rgb)>>24))
+#endif
+
+#define QBYTE RGBA
 
 #define DAP_LOG_HISTORY_STR_SIZE    128
 #define DAP_LOG_HISTORY_MAX_STRINGS 1024
@@ -83,7 +109,7 @@ typedef enum dap_log_level {
   L_DEBUG     = 0,
   L_INFO      = 1,
   L_NOTICE    = 2,
-  L_MESSAGE   = 3,
+  L_MSG       = 3,
   L_DAP       = 4,
   L_WARNING   = 5,
   L_ATT       = 6,
@@ -144,7 +170,9 @@ static const uint16_t s_ascii_table_data[256] = {
 #define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0
 #define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0
 
-int dap_common_init( const char * a_log_file );
+//int dap_common_init( const char * a_log_file );
+int dap_common_init( const char *console_title, const char *a_log_file );
+
 void dap_common_deinit(void);
 
 // set max items in log list
