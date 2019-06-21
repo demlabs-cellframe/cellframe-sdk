@@ -239,13 +239,44 @@ lb_proc_state:
                 case NODE_ROLE_MASTER:
                 case NODE_ROLE_LIGHT:{
                     // If we haven't any assigned shard - connect to root-0
-                    if ( l_net->pub.cell_id.uint64 == 0 ){
-                        PVT(l_net)->links_addrs_count=1;
-                        PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                                                                 PVT(l_net)->links_addrs_count * sizeof(dap_chain_node_addr_t));
-                        dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[0] );
-                        PVT(l_net)->links_addrs[0].uint64 = l_node_addr? l_node_addr->uint64 : 0;
-                    }else {
+                if(l_net->pub.cell_id.uint64 == 0) {
+
+                    // get current node address
+                    dap_chain_node_addr_t l_address;
+                    l_address.uint64 = dap_chain_net_get_cur_addr(l_net) ?
+                                         dap_chain_net_get_cur_addr(l_net)->uint64 :
+                                         dap_db_get_cur_node_addr();
+                    // get current node info
+                    dap_chain_node_info_t *l_cur_node_info = dap_chain_node_info_read(l_net, &l_address);
+
+                    uint16_t l_links_addrs_count = l_cur_node_info->hdr.links_number + PVT(l_net)->seed_aliases_count;
+                    PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
+                            l_links_addrs_count * sizeof(dap_chain_node_addr_t));
+
+                    // add linked nodes for connect
+                    for(uint16_t i = 0; i < min(1, l_cur_node_info->hdr.links_number); i++) {
+                        dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
+                        dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
+                        // if only nodes from the same cell
+                        if(l_cur_node_info->hdr.cell_id.uint64 == l_remore_node_info->hdr.cell_id.uint64) {
+                            PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 =
+                                    l_remore_node_info->hdr.address.uint64;
+                            PVT(l_net)->links_addrs_count++;
+                        }
+                        DAP_DELETE(l_remore_node_info);
+                    }
+
+                    // add root nodes for connect
+                    if(!PVT(l_net)->links_addrs_count)
+                        for(uint16_t i = 0; i < min(1, PVT(l_net)->seed_aliases_count); i++) {
+                            dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i]);
+                            if(l_node_addr) {
+                                PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 = l_node_addr->uint64;
+                                PVT(l_net)->links_addrs_count++;
+                            }
+                        }
+                    DAP_DELETE(l_cur_node_info);
+                }else {
                         // TODO read cell's nodelist and populate array with it
                     }
                 } break;
@@ -402,11 +433,20 @@ lb_proc_state:
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {{0}};
                 // Get last timestamp in log
-                l_sync_gdb.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote(l_node_client->remote_node_addr.uint64);
+                l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_node_client->remote_node_addr.uint64);
                 // no limit
-                l_sync_gdb.ts_end = (uint64_t)0;// time(NULL);
+                l_sync_gdb.id_end = (uint64_t)0;
 
-                log_it(L_DEBUG,"Prepared request to gdb sync from %llu to %llu",l_sync_gdb.ts_start,l_sync_gdb.ts_end);
+                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
+                                                  dap_chain_net_get_cur_addr(l_net)->uint64 :
+                                                  dap_db_get_cur_node_addr();
+
+                dap_chain_id_t l_chain_id_null = { { 0 } };
+                dap_chain_cell_id_t l_chain_cell_id_null = { { 0 } };
+                l_chain_id_null.uint64 = l_net->pub.id.uint64;
+                l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
+
+                log_it(L_DEBUG,"Prepared request to gdb sync from %llu to %llu",l_sync_gdb.id_start,l_sync_gdb.id_end);
                 size_t l_res =  dap_stream_ch_chain_pkt_write( dap_client_get_stream_ch(l_node_client->client,
                                                                                    dap_stream_ch_chain_get_id() ) ,
                            DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id, (dap_chain_id_t){{0}} ,
@@ -515,7 +555,7 @@ static void * s_net_proc_thread ( void * a_net)
         s_net_states_proc(l_net);
         pthread_mutex_lock( &PVT(l_net)->state_mutex );
 
-        int l_timeout_ms = 3000;// 3 sec
+        int l_timeout_ms = 20000;// 20 sec
         // prepare for signal waiting
         struct timespec l_to;
         clock_gettime(CLOCK_MONOTONIC, &l_to);
@@ -670,7 +710,7 @@ int dap_chain_net_init()
 static int s_cli_net(int argc, char ** argv, char **a_str_reply)
 {
     int arg_index=1;
-    dap_chain_net_t * l_net;
+    dap_chain_net_t * l_net = NULL;
 
     int ret = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,NULL,&l_net);
     if ( l_net ){
@@ -952,7 +992,7 @@ int dap_chain_net_load(const char * a_net_name)
          DAP_DELETE( l_seed_nodes_ipv4);
          DAP_DELETE(l_seed_nodes_addrs);
 
-        if ( l_node_alias_str ){
+        if ( l_node_addr_str || l_node_alias_str ){
             dap_chain_node_addr_t * l_node_addr;
             if ( l_node_addr_str == NULL)
                 l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
@@ -971,6 +1011,8 @@ int dap_chain_net_load(const char * a_net_name)
             }
             if ( l_node_addr ) {
                 char *l_addr_hash_str = dap_chain_node_addr_to_hash_str(l_node_addr);
+                // save current node address
+                dap_db_set_cur_node_addr(l_node_addr->uint64);
                 if(!l_addr_hash_str){
                     log_it(L_ERROR,"Can't get hash string for node address!");
                 } else {
@@ -985,6 +1027,9 @@ int dap_chain_net_load(const char * a_net_name)
                                NODE_ADDR_FP_ARGS(l_node_addr) );
                     }
                 }
+            }
+            else{
+                log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
             }
 
 
@@ -1171,6 +1216,11 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
     return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: PVT(l_net)->node_addr;
+}
+
+dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
+{
+    return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.cell_id: 0;
 }
 
 /**

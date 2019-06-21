@@ -681,7 +681,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_node_addr={0};
     const char *l_addr_str = NULL, *alias_str = NULL;
     const char * l_net_str = NULL;
-// find addr, alias
+    // find addr, alias
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
@@ -763,7 +763,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             return -1;
         }
         // wait connected
-        int timeout_ms = 15000; //15 sec = 15000 ms
+        int timeout_ms = 5000; //5 sec = 5000 ms
         int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
         if(res ) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node: code %d",res);
@@ -775,19 +775,28 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         log_it(L_NOTICE, "Stream connection established, now lets sync all");
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
-        // fill begin time
-        l_sync_request.ts_start = (uint64_t) dap_db_log_get_last_timestamp_remote(
+        // fill begin id
+        l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
                 l_remote_node_info->hdr.address.uint64);
-        // fill end time = 0 - no time limit
-        //l_sync_request.ts_end = (time_t) time(NULL);
+        // fill end id = 0 - no time limit
+        //l_sync_request.ts_end = 0;
         // fill current node address
         l_sync_request.node_addr.uint64 =
                 dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
                                                     dap_db_get_cur_node_addr();
         dap_chain_id_t l_chain_id_null = { { 0 } };
         dap_chain_cell_id_t l_chain_cell_id_null = { { 0 } };
-        log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %llu:%llu period", l_sync_request.ts_start,
-                l_sync_request.ts_end);
+        l_chain_id_null.uint64 = l_net->pub.id.uint64;
+        l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
+
+        log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %llu:%llu period", l_sync_request.id_start,
+                l_sync_request.id_end);
+        // copy l_sync_request to current
+        //dap_stream_ch_chain_t * l_s_ch_chain = DAP_STREAM_CH_CHAIN(l_ch_chain);
+        //l_s_ch_chain->request_net_id.uint64 = l_net->pub.id.uint64;
+        //l_s_ch_chain->request_cell_id.uint64 = l_chain_cell_id_null.uint64;
+        //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
+
         if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
                 sizeof(l_sync_request))) {
@@ -799,13 +808,13 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_stream_ch_set_ready_to_write(l_ch_chain, true);
         // wait for finishing of request
-        timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+        timeout_ms = 120000; // 20 min = 1200 sec = 1 200 000 ms
         // TODO add progress info to console
         res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
         if ( res <0 ){
             dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't connect to node "NODE_ADDR_FP_STR,
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                                               NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
 
             return -2;
