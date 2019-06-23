@@ -1272,7 +1272,7 @@ int com_tx_wallet(int argc,  char ** argv, char **str_reply)
             char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
                 dap_string_append_printf(l_string_ret, "wallet: %s\n", l_wallet->name);
-            //dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
 
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
