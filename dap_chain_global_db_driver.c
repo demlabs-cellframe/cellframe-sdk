@@ -178,7 +178,7 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
     size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(size_t) + sizeof(time_t)
-            + dap_strlen(store_obj->group) +
+            + sizeof(uint64_t) + dap_strlen(store_obj->group) +
             dap_strlen(store_obj->key) + store_obj->value_len;
     return size;
 }
@@ -222,6 +222,8 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
         l_offset += sizeof(uint16_t);
         memcpy(l_pkt->data + l_offset, obj.group, group_size);
         l_offset += group_size;
+        memcpy(l_pkt->data + l_offset, &obj.id, sizeof(uint64_t));
+        l_offset += sizeof(uint64_t);
         memcpy(l_pkt->data + l_offset, &obj.timestamp, sizeof(time_t));
         l_offset += sizeof(time_t);
         memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
@@ -268,6 +270,9 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         obj->group = DAP_NEW_Z_SIZE(char, str_size + 1);
         memcpy(obj->group, pkt->data + offset, str_size);
         offset += str_size;
+
+        memcpy(&obj->id, pkt->data + offset, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
 
         memcpy(&obj->timestamp, pkt->data + offset, sizeof(time_t));
         offset += sizeof(time_t);

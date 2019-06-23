@@ -32,31 +32,31 @@ uint64_t dap_db_get_cur_node_addr(void)
 }
 
 /**
- * Set last timestamp for remote node
+ * Set last id for remote node
  */
-bool dap_db_log_set_last_timestamp_remote(uint64_t a_node_addr, time_t a_timestamp)
+bool dap_db_log_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
 {
     dap_global_db_obj_t l_objs;
     l_objs.key = dap_strdup_printf("%lld", a_node_addr);
-    l_objs.value = (uint8_t*) &a_timestamp;
-    l_objs.value_len = sizeof(time_t);
-    bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_LOCAL_NODE_LAST_TS);
+    l_objs.value = (uint8_t*) &a_id;
+    l_objs.value_len = sizeof(uint64_t);
+    bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_LOCAL_NODE_LAST_ID);
     DAP_DELETE(l_objs.key);
-    log_it( L_NOTICE, "Node 0x%016X set last synced timestamp %llu",a_timestamp);
+    log_it( L_NOTICE, "Node 0x%016X set last synced timestamp %llu",a_id);
     return l_ret;
 }
 
 /**
- * Get last timestamp for remote node
+ * Get last id for remote node
  */
-time_t dap_db_log_get_last_timestamp_remote(uint64_t a_node_addr)
+uint64_t dap_db_log_get_last_id_remote(uint64_t a_node_addr)
 {
     char *l_node_addr_str = dap_strdup_printf("%lld", a_node_addr);
     size_t l_timestamp_len = 0;
     uint8_t *l_timestamp = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_timestamp_len,
-    GROUP_LOCAL_NODE_LAST_TS);
-    time_t l_ret_timestamp = 0;
-    if(l_timestamp && l_timestamp_len == sizeof(time_t))
+    GROUP_LOCAL_NODE_LAST_ID);
+    uint64_t l_ret_timestamp = 0;
+    if(l_timestamp && l_timestamp_len == sizeof(uint64_t))
         memcpy(&l_ret_timestamp, l_timestamp, l_timestamp_len);
     DAP_DELETE(l_node_addr_str);
     DAP_DELETE(l_timestamp);
