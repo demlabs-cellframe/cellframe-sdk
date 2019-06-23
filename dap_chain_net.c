@@ -246,28 +246,33 @@ lb_proc_state:
                     l_address.uint64 = dap_chain_net_get_cur_addr(l_net) ?
                                          dap_chain_net_get_cur_addr(l_net)->uint64 :
                                          dap_db_get_cur_node_addr();
+
                     // get current node info
                     dap_chain_node_info_t *l_cur_node_info = dap_chain_node_info_read(l_net, &l_address);
 
-                    uint16_t l_links_addrs_count = l_cur_node_info->hdr.links_number + PVT(l_net)->seed_aliases_count;
-                    PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                            l_links_addrs_count * sizeof(dap_chain_node_addr_t));
+                    if ( l_cur_node_info ) {
+                        uint16_t l_links_addrs_count = l_cur_node_info->hdr.links_number + PVT(l_net)->seed_aliases_count;
+                        PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
+                                l_links_addrs_count * sizeof(dap_chain_node_addr_t));
 
-                    // add linked nodes for connect
-                    for(uint16_t i = 0; i < min(1, l_cur_node_info->hdr.links_number); i++) {
-                        dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
-                        dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
-                        // if only nodes from the same cell
-                        if(l_cur_node_info->hdr.cell_id.uint64 == l_remore_node_info->hdr.cell_id.uint64) {
-                            PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 =
-                                    l_remore_node_info->hdr.address.uint64;
-                            PVT(l_net)->links_addrs_count++;
+                        // add linked nodes for connect
+                        for(uint16_t i = 0; i < min(1, l_cur_node_info->hdr.links_number); i++) {
+                            dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
+                            dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
+                            // if only nodes from the same cell
+                            if(l_cur_node_info->hdr.cell_id.uint64 == l_remore_node_info->hdr.cell_id.uint64) {
+                                PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 =
+                                        l_remore_node_info->hdr.address.uint64;
+                                PVT(l_net)->links_addrs_count++;
+                            }
+                            DAP_DELETE(l_remore_node_info);
                         }
-                        DAP_DELETE(l_remore_node_info);
                     }
-
                     // add root nodes for connect
-                    if(!PVT(l_net)->links_addrs_count)
+                    if(!PVT(l_net)->links_addrs_count){
+                        PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
+                                min(1, PVT(l_net)->seed_aliases_count) * sizeof(dap_chain_node_addr_t));
+
                         for(uint16_t i = 0; i < min(1, PVT(l_net)->seed_aliases_count); i++) {
                             dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i]);
                             if(l_node_addr) {
@@ -275,6 +280,7 @@ lb_proc_state:
                                 PVT(l_net)->links_addrs_count++;
                             }
                         }
+                    }
                     DAP_DELETE(l_cur_node_info);
                 }else {
                         // TODO read cell's nodelist and populate array with it
