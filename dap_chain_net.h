@@ -67,7 +67,7 @@ typedef struct dap_chain_net{
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
 
-int dap_chain_net_load(const char * a_net_name);
+void dap_chain_net_load_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 

@@ -124,6 +124,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net);
 static void * s_net_proc_thread ( void * a_net);
 static void s_net_proc_thread_start( dap_chain_net_t * a_net );
 static void s_net_proc_kill( dap_chain_net_t * a_net );
+int s_net_load(const char * a_net_name);
+
 static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
@@ -702,8 +704,23 @@ int dap_chain_net_init()
     dap_chain_global_db_add_history_group_prefix("global");
 
     dap_chain_global_db_add_history_callback_notify("global", s_gbd_history_callback_notify, NULL );
+    return 0;
+}
 
-    return  0;
+void dap_chain_net_load_all()
+{
+    char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
+    DIR * l_net_dir = opendir( l_net_dir_str);
+    DAP_DELETE (l_net_dir_str);
+    if ( l_net_dir ){
+        struct dirent * l_dir_entry;
+        while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
+            if (l_dir_entry->d_name[0]=='\0')
+                continue;
+            log_it(L_DEBUG,"Network config %s try to load", l_dir_entry->d_name);
+            s_net_load(l_dir_entry->d_name);
+        }
+    }
 }
 
 /**
@@ -875,8 +892,12 @@ static int s_cli_net(int argc, char ** argv, char **a_str_reply)
     return  ret;
 }
 
-
-int dap_chain_net_load(const char * a_net_name)
+/**
+ * @brief s_net_load
+ * @param a_net_name
+ * @return
+ */
+int s_net_load(const char * a_net_name)
 {
     static dap_config_t *l_cfg=NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
@@ -1119,7 +1140,7 @@ int dap_chain_net_load(const char * a_net_name)
 
         }
 
-        if (s_seed_mode) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
+        if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
         }
         PVT(l_net)->load_mode = false;
