@@ -82,10 +82,12 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
     memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
     if(!dap_strcmp(s_used_driver, "ldb"))
         l_ret = -1;
-    if(!dap_strcmp(s_used_driver, "sqlite"))
+    else if(!dap_strcmp(s_used_driver, "sqlite"))
         l_ret = dap_db_driver_sqlite_init(a_filename_db, &s_drv_callback);
-    if(!dap_strcmp(s_used_driver, "cdb"))
+    else if(!dap_strcmp(s_used_driver, "cdb"))
         l_ret = dap_db_driver_cdb_init(a_filename_db, &s_drv_callback);
+    else
+        log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
 #ifdef USE_WRITE_BUFFER
     if(!l_ret) {
         pthread_condattr_t l_condattr;
