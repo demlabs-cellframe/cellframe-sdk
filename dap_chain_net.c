@@ -715,10 +715,13 @@ void dap_chain_net_load_all()
     if ( l_net_dir ){
         struct dirent * l_dir_entry;
         while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
-            if (l_dir_entry->d_name[0]=='\0')
+            if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
                 continue;
             log_it(L_DEBUG,"Network config %s try to load", l_dir_entry->d_name);
-            s_net_load(l_dir_entry->d_name);
+            char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
+            if ( l_dot_pos )
+                *l_dot_pos = '\0';
+            s_net_load(l_dir_entry->d_name );
         }
     }
 }
