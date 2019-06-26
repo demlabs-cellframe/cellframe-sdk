@@ -61,20 +61,20 @@ typedef struct _CONSOLE_INFO
 static uint32_t palette[ 16 ] =  {
 
   RGB(   0,   0,   0 ), // 0   black
-  RGB(   0,   0, 170 ), // 1   blue
-  RGB( 0,   170,   0 ), // 2   green
-  RGB( 170, 170,   0 ), // 3   cyan 
-  RGB( 170,   0,   0 ), // 4   red
-  RGB( 170,   0, 170 ), // 5   magenta
-  RGB(   0,  85, 170 ), // 6   yellow / brown
-  RGB( 170, 170, 170 ), // 7   white / light gray
-  RGB( 85,  85,   85 ), // 8   dark gray / bright black
-  RGB(  85,  85, 255 ), // 9   bright blue
+  RGB(   0,   0, 128 ), // 1   blue
+  RGB( 0,   128,   0 ), // 2   green
+  RGB( 128, 128,   0 ), // 3   cyan 
+  RGB( 128,   0,   0 ), // 4   red
+  RGB( 128,   0, 128 ), // 5   magenta
+  RGB(   0, 128, 128 ), // 6   yellow / brown
+  RGB( 192, 192, 192 ), // 7   white / light gray
+  RGB( 128, 128, 128 ), // 8   dark gray / bright black
+  RGB(   0,   0, 255 ), // 9   bright blue
   RGB(   0, 255,   0 ), // 10  bright green
   RGB(   0, 255, 255 ), // 11  bright cyan
   RGB( 255,  0,    0 ), // 12  bright red
-  RGB( 255,  85, 255 ), // 13  bright magenta
-  RGB( 255, 255,  85 ), // 14  bright yellow
+  RGB( 255,  0,  255 ), // 13  bright magenta
+  RGB( 255, 255,   0 ), // 14  bright yellow
   RGB( 255, 255, 255 )  // 15  bright white
 };
 
@@ -143,7 +143,7 @@ void SetupConsole( const char *title, const uint16_t *fontName, int fontx, int f
   GetWindowThreadProcessId( hwndConsole, (LPDWORD)&console_owner_proc_id );
 
   if ( console_owner_proc_id != GetCurrentProcessId() ) {
-//    return;
+    return;
   }
 
   SetConsoleTitleA( (LPCSTR)title );
