@@ -23,19 +23,34 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
-#include <time.h>
 #include <ctype.h>
 #include <dirent.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#include <pthread.h>
+#else
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif
 
 #include "iputils/iputils.h"
 
@@ -920,6 +935,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
  */
 int com_traceroute(int argc, char** argv, char **str_reply)
 {
+#ifndef _WIN32
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
     if(argc > 1)
@@ -987,6 +1003,8 @@ int com_traceroute(int argc, char** argv, char **str_reply)
         }
     }
     return res;
+#endif
+return 0;
 }
 
 /**
@@ -996,6 +1014,7 @@ int com_traceroute(int argc, char** argv, char **str_reply)
  */
 int com_tracepath(int argc, char** argv, char **str_reply)
 {
+#ifndef _WIN32
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
     if(argc > 1)
@@ -1058,6 +1077,8 @@ int com_tracepath(int argc, char** argv, char **str_reply)
         }
     }
     return res;
+#endif
+  return 0;
 }
 
 /**
@@ -1067,6 +1088,8 @@ int com_tracepath(int argc, char** argv, char **str_reply)
  */
 int com_ping(int argc, char** argv, char **str_reply)
 {
+#ifndef _WIN32
+
     int n = 4;
     if(argc < 2) {
         dap_chain_node_cli_set_reply_text(str_reply, "host not specified");
@@ -1116,6 +1139,8 @@ int com_ping(int argc, char** argv, char **str_reply)
         }
     }
     return res;
+#endif
+return 0;
 }
 
 /**
@@ -1796,7 +1821,7 @@ int com_token_decl(int argc, char ** argv, char ** str_reply)
     // Create new datum token
     dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(l_datum_token->header));
     l_datum_token->header.version = 1; // Current version
-    snprintf(l_datum_token->header.ticker, sizeof(l_datum_token->header.ticker), "%s", l_ticker);
+    dap_snprintf(l_datum_token->header.ticker, sizeof(l_datum_token->header.ticker), "%s", l_ticker);
     l_datum_token->header.total_supply = l_total_supply;
     l_datum_token->header.signs_total = l_signs_total;
     l_datum_token->header.signs_valid = l_signs_emission;
