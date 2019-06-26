@@ -167,7 +167,7 @@ enum dap_log_level dap_log_level_get( void ) {
 void dap_set_log_tag_width(size_t width) {
 
   if (width > 99) {
-      fprintf(stderr,"Can't set width %zd", width);
+      dap_fprintf(stderr,"Can't set width %zd", width);
       return;
   }
 
@@ -237,7 +237,7 @@ int dap_common_init( const char *console_title, const char *a_log_file )
 
   s_log_file = fopen( a_log_file , "a" );
   if( s_log_file == NULL ) {
-    fprintf( stderr, "Can't open log file %s to append\n", a_log_file );
+    dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_file );
     return -1;
   }
 
@@ -486,7 +486,7 @@ void _log_it( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   va_list va;
   va_start( va, fmt );
 
-  len = vsprintf( (char * __restrict )(buf0 + msg_offset), fmt, va );
+  len = dap_vsprintf( (char * __restrict )(buf0 + msg_offset), fmt, va );
   va_end( va );
 
   len += msg_offset;

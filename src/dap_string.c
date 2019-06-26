@@ -833,7 +833,7 @@ void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list
     dap_return_if_fail(string != NULL);
     dap_return_if_fail(format != NULL);
 
-    len = vasprintf(&buf, format, args);
+    len = dap_vasprintf(&buf, format, args);
 
     if(len >= 0) {
         dap_string_maybe_expand(string, len);

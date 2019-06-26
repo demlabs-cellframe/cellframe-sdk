@@ -32,6 +32,12 @@
 #undef  clamp
 #define clamp(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
+#ifdef _WIN32
+
+char *strptime( char *buff, const char *fmt, struct tm *tm );
+
+#endif
+
 size_t dap_strlen(const char *a_str);
 // compare a_str1 and a_str2
 int dap_strcmp(const char *a_str1, const char *a_str2);

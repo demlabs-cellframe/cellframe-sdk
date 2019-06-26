@@ -1,6 +1,6 @@
 /* DAP String Functions */
 #ifdef _WIN32
-#define _CRT_SECURE_NO_WARNINGS
+//#define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #endif
 #include <stddef.h>
@@ -14,13 +14,29 @@
 #include "dap_strfuncs.h"
 
 #ifdef _WIN32
-char *strndup(char *str, int len) {
-    char *buf = (char*)malloc(len + 1);
-    memcpy(buf, str, len);
-    buf[len] = 0;
-    return buf;
-}
+//char *strndup(char *str, int len) {
+//    char *buf = (char*)malloc(len + 1);
+//    memcpy(buf, str, len);
+//    buf[len] = 0;
+//    return buf;
+//}
 #endif
+
+#ifdef _WIN32
+
+char *strptime( char *buff, const char *fmt, struct tm *tm )
+{
+  uint32_t len = strlen( buff );
+
+  dap_sscanf( buff,"%u.%u.%u_%u.%u.%u",&tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec );
+
+  tm->tm_year += 2000;
+
+  return buff + len;
+}
+
+#endif
+
 
 /**
  * dap_strlen:
@@ -113,7 +129,7 @@ char* dap_strdup(const char *a_str)
 char* dap_strdup_vprintf(const char *a_format, va_list a_args)
 {
     char *l_string = NULL;
-    int len = vasprintf(&l_string, a_format, a_args);
+    int len = dap_vasprintf(&l_string, a_format, a_args);
     if(len < 0)
         l_string = NULL;
     return l_string;
