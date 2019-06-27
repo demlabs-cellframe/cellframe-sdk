@@ -19,13 +19,27 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <errno.h>
-#include <glib.h>
+#include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <errno.h>
+#include <assert.h>
+#include <string.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
 
 #include "dap_common.h"
 #include "dap_client.h"
@@ -174,7 +188,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
             pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_ERROR ;
-            snprintf(l_node_client->last_error,sizeof (l_node_client->last_error),
+            dap_snprintf(l_node_client->last_error,sizeof (l_node_client->last_error),
                      "%s", (char*) a_pkt->data );
             log_it(L_WARNING,"Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
                    l_node_client->last_error);

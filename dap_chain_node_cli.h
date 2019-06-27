@@ -28,7 +28,9 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "uthash.h"
+
 #define UNIX_SOCKET_FILE "/opt/kelvin-node/var/run/node_cli.sock"
+
 //#define UNIX_SOCKET_FILE "/var/run/node_cli.sock"
 
 typedef int cmdfunc_t(int argc, char ** argv, char **str_reply);

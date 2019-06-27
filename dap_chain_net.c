@@ -22,8 +22,25 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#endif
+
 #include <pthread.h>
 
 #include "uthash.h"
@@ -62,21 +79,30 @@
 
 #define LOG_TAG "chain_net"
 
+#define F_DAP_CHAIN_NET_SHUTDOWN  ( 1 << 9 )
+
 /**
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
   */
-typedef struct dap_chain_net_pvt{
+typedef struct dap_chain_net_pvt {
+
     pthread_t proc_tid;
+#ifndef _WIN32
     pthread_cond_t state_proc_cond;
+#else
+    HANDLE state_proc_cond;
+#endif
     pthread_mutex_t state_mutex;
+
     dap_chain_node_role_t node_role;
-    uint8_t padding2[4];
+    uint32_t  flags;
+//    uint8_t padding2[4];
 
-    dap_chain_node_addr_t * node_addr;
-    dap_chain_node_info_t * node_info; // Current node's info
+    dap_chain_node_addr_t *node_addr;
+    dap_chain_node_info_t *node_info; // Current node's info
 
-    dap_chain_node_client_t * links;
+    dap_chain_node_client_t *links;
     size_t links_count;
 
     dap_chain_node_addr_t *links_addrs;
@@ -91,6 +117,7 @@ typedef struct dap_chain_net_pvt{
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_prev;
     dap_chain_net_state_t state_target;
+
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -100,7 +127,7 @@ typedef struct dap_chain_net_item{
     UT_hash_handle hh;
 } dap_chain_net_item_t;
 
-#define PVT(a) ( (dap_chain_net_pvt_t *) (void*) a->pvt )
+#define PVT(a)   ( (dap_chain_net_pvt_t *) (void*) a->pvt )
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
 
 static dap_chain_net_item_t * s_net_items = NULL;
@@ -147,15 +174,24 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  * @param a_net
  * @param a_new_state
  */
-int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
+int dap_chain_net_state_go_to( dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state )
 {
-    pthread_mutex_lock( &PVT(a_net)->state_mutex);
-    if (PVT(a_net)->state_target == a_new_state){
-        log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+    pthread_mutex_lock( &PVT(a_net)->state_mutex );
+
+    if ( PVT(a_net)->state_target == a_new_state ) {
+        log_it( L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state) );
     }
+
     PVT(a_net)->state_target = a_new_state;
-    pthread_cond_signal(&PVT(a_net)->state_proc_cond);
-    pthread_mutex_unlock( &PVT(a_net)->state_mutex);
+
+#ifndef _WIN32
+    pthread_cond_signal( &PVT(a_net)->state_proc_cond );
+#else
+    SetEvent( PVT(a_net)->state_proc_cond );
+#endif
+
+    pthread_mutex_unlock( &PVT(a_net)->state_mutex );
+
     return 0;
 }
 
@@ -191,31 +227,42 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
  * @brief s_net_states_proc
  * @param l_net
  */
-static int s_net_states_proc(dap_chain_net_t * l_net)
+static int s_net_states_proc( dap_chain_net_t *l_net )
 {
-    dap_chain_net_pvt_t *pvt_debug = PVT(l_net);
-    int ret=0;
+//    dap_chain_net_pvt_t *pvt_debug = PVT( l_net );
+    int ret = 0;
+
 lb_proc_state:
-    pthread_mutex_lock(&PVT(l_net)->state_mutex );
-    switch ( PVT(l_net)->state ){
-        case NET_STATE_OFFLINE:{
+
+    pthread_mutex_lock( &PVT(l_net)->state_mutex );
+
+    switch ( PVT(l_net)->state ) {
+
+        case NET_STATE_OFFLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE",l_net->pub.name);
-            dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
+
+            dap_chain_node_client_t *l_node_client = NULL, *l_node_client_tmp = NULL;
+
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
                 HASH_DEL(PVT(l_net)->links, l_node_client);
                 dap_chain_node_client_close(l_node_client);
             }
+
             PVT(l_net)->links_addrs_count = 0;
+
             if ( PVT(l_net)->links_addrs )
                 DAP_DELETE(PVT(l_net)->links_addrs);
+
             PVT(l_net)->links_addrs = NULL;
 
-            if ( PVT(l_net)->state_target != NET_STATE_OFFLINE ){
+            if ( PVT(l_net)->state_target != NET_STATE_OFFLINE ) {
                 PVT(l_net)->state = NET_STATE_LINKS_PREPARE;
                 pthread_mutex_unlock(&PVT(l_net)->state_mutex );
                 goto lb_proc_state;
             }
+
         } break;
+
         case NET_STATE_LINKS_PREPARE:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE",l_net->pub.name);
             switch (PVT(l_net)->node_role.enums) {
@@ -302,6 +349,7 @@ lb_proc_state:
                 PVT(l_net)->state = NET_STATE_OFFLINE;
             }
         } pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+
         case NET_STATE_LINKS_CONNECTING:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             size_t l_links_established = 0;
@@ -338,6 +386,7 @@ lb_proc_state:
                 PVT(l_net)->state_target = NET_STATE_OFFLINE ;
             }
         } pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+
         case NET_STATE_LINKS_ESTABLISHED:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_ESTABLISHED",l_net->pub.name);
             switch (PVT(l_net)->state_target) {
@@ -555,33 +604,49 @@ lb_proc_state:
  * @param a_cfg Network1 configuration
  * @return
  */
-static void * s_net_proc_thread ( void * a_net)
+static void *s_net_proc_thread ( void *a_net )
 {
-    dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
-    bool is_looping = true ;
-    while( is_looping ) {
-        s_net_states_proc(l_net);
-        pthread_mutex_lock( &PVT(l_net)->state_mutex );
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_net;
+    dap_chain_net_pvt_t *p_net = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
 
-        int l_timeout_ms = 20000;// 20 sec
+    const uint64_t l_timeout_ms = 20000;// 20 sec
+
+    while( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
+
+        s_net_states_proc( l_net );
+    #ifndef _WIN32
+        pthread_mutex_lock( &p_net->state_mutex );
+
         // prepare for signal waiting
-        struct timespec l_to;
-        clock_gettime(CLOCK_MONOTONIC, &l_to);
-        int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
-        // if the new number of nanoseconds is more than a second
-        if(l_nsec_new > (long) 1e9) {
-            l_to.tv_sec += l_nsec_new / (long) 1e9;
-            l_to.tv_nsec = l_nsec_new % (long) 1e9;
-        }
-        else
-            l_to.tv_nsec = (long) l_nsec_new;
-        // signal waiting
-        pthread_cond_timedwait(&PVT(l_net)->state_proc_cond, &PVT(l_net)->state_mutex, &l_to);
-        //pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
-        pthread_mutex_unlock( &PVT(l_net)->state_mutex );
-        log_it( L_DEBUG, "Waked up net proHASH_COUNT( c thread");
 
+        struct timespec l_to;
+        clock_gettime( CLOCK_MONOTONIC, &l_to );
+        //int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
+
+        l_to.tv_sec += l_timeout_ms / 1000;
+
+        // if the new number of nanoseconds is more than a second
+        //if(l_nsec_new > (long) 1e9) {
+        //    l_to.tv_sec += l_nsec_new / (long) 1e9;
+        //    l_to.tv_nsec = l_nsec_new % (long) 1e9;
+        //}
+        //else
+        //    l_to.tv_nsec = (long) l_nsec_new;
+
+        // signal waiting
+        pthread_cond_timedwait( &p_net->state_proc_cond, &p_net->state_mutex, &l_to );
+
+        //pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
+        pthread_mutex_unlock( &p_net->state_mutex );
+    #else // WIN32
+
+        WaitForSingleObject( p_net->state_proc_cond, (uint32_t)l_timeout_ms );
+
+    #endif
+
+        log_it( L_DEBUG, "Waked up net proHASH_COUNT( c thread" );
     }
+
     return NULL;
 }
 
@@ -602,13 +667,25 @@ static void s_net_proc_thread_start( dap_chain_net_t * a_net )
  */
 static void s_net_proc_kill( dap_chain_net_t * a_net )
 {
-    if ( PVT(a_net)->proc_tid ) {
-        pthread_cond_signal(& PVT(a_net)->state_proc_cond);
-        log_it(L_NOTICE,"Sent KILL signal to the net process thread %d, waiting for shutdown...",PVT(a_net)->proc_tid);
-        pthread_join( PVT(a_net)->proc_tid , NULL);
-        log_it(L_NOTICE,"Net process thread %d shutted down",PVT(a_net)->proc_tid);
-        PVT(a_net)->proc_tid = 0;
-    }
+    if ( !PVT(a_net)->proc_tid )
+        return;
+
+    log_it( L_NOTICE,"Sent KILL signal to the net process thread %d, waiting for shutdown...", PVT(a_net)->proc_tid );
+
+    PVT(a_net)->flags |= F_DAP_CHAIN_NET_SHUTDOWN;
+
+#ifndef _WIN32
+    pthread_cond_signal( &PVT(a_net)->state_proc_cond );
+#else
+    SetEvent( PVT(a_net)->state_proc_cond );
+#endif
+
+    pthread_join( PVT(a_net)->proc_tid , NULL );
+    log_it( L_NOTICE,"Net process thread %d shutted down", PVT(a_net)->proc_tid );
+
+    PVT(a_net)->proc_tid = 0;
+
+    return;
 }
 
 /**
@@ -619,17 +696,25 @@ static void s_net_proc_kill( dap_chain_net_t * a_net )
  * @param a_node_name
  * @return
  */
-static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name ,
+static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
                                     const char * a_node_role)
 {
-    dap_chain_net_t * ret = DAP_NEW_Z_SIZE (dap_chain_net_t, sizeof (ret->pub)+ sizeof (dap_chain_net_pvt_t) );
+    dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-    pthread_mutex_init( &PVT(ret)->state_mutex, NULL);
+
+    pthread_mutex_init( &PVT(ret)->state_mutex, NULL );
+
+#ifndef _WIN32
     pthread_condattr_t l_attr;
-    pthread_condattr_init(&l_attr);
-    pthread_condattr_setclock(&l_attr, CLOCK_MONOTONIC);
-    pthread_cond_init( &PVT(ret)->state_proc_cond, &l_attr);
-    if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
+    pthread_condattr_init( &l_attr );
+    pthread_condattr_setclock( &l_attr, CLOCK_MONOTONIC );
+    pthread_cond_init( &PVT(ret)->state_proc_cond, &l_attr );
+#else
+    PVT(ret)->state_proc_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
+#endif
+
+    //    if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
+    if ( sscanf(a_id,"0x%016llx", &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root_master")==0){
             PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
             log_it (L_NOTICE, "Node role \"root master\" selected");
@@ -689,6 +774,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
 int dap_chain_net_init()
 {
     dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
+
         "net -net <chain net name> go < online | offline >\n"
             "\tFind and establish links and stay online\n"
         "net -net <chain net name> get status\n"
@@ -700,6 +786,7 @@ int dap_chain_net_init()
         "net -net <chain net name> link < list | add | del | info | establish >\n"
             "\tList,add,del, dump or establish links\n\n"
                                         );
+
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_global_db_add_history_group_prefix("global");
 
@@ -709,19 +796,40 @@ int dap_chain_net_init()
 
 void dap_chain_net_load_all()
 {
-    char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
-    DIR * l_net_dir = opendir( l_net_dir_str);
+    char * l_net_dir_str = dap_strdup_printf( "%s/network", dap_config_path() );
+
+//    printf("Scaning dir %s ...\n", l_net_dir_str );
+//    Sleep( 1000 );
+
+    DIR * l_net_dir = opendir( l_net_dir_str );
     DAP_DELETE (l_net_dir_str);
+
     if ( l_net_dir ){
-        struct dirent * l_dir_entry;
-        while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
-            if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
+
+        struct dirent *l_dir_entry;
+
+        log_it( L_INFO, "*********************************************************" );
+//        printf("OPA OPA OPA\n");
+//        Sleep( 1000 );
+
+        while ( (l_dir_entry = readdir(l_net_dir) ) != NULL ) {
+
+            if ( !l_dir_entry->d_name[0] || l_dir_entry->d_name[0] == '.' )
                 continue;
-            log_it(L_DEBUG,"Network config %s try to load", l_dir_entry->d_name);
-            char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
+
+            log_it( L_INFO, "Network config %s try to load", l_dir_entry->d_name );
+
+//            char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
+
+            char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
+
             if ( l_dot_pos )
-                *l_dot_pos = '\0';
-            s_net_load(l_dir_entry->d_name );
+                *l_dot_pos = 0;
+
+//            log_it( L_INFO, "*********************************************************" );
+//            Sleep( 5000 );
+
+            s_net_load( l_dir_entry->d_name );
         }
     }
 }
@@ -733,18 +841,21 @@ void dap_chain_net_load_all()
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, char ** argv, char **a_str_reply)
+static int s_cli_net( int argc, char **argv, char **a_str_reply )
 {
-    int arg_index=1;
+    int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
-    int ret = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,NULL,&l_net);
-    if ( l_net ){
-        const char * l_sync_str = NULL;
-        const char * l_links_str = NULL;
-        const char * l_go_str = NULL;
-        const char * l_get_str = NULL;
-        const char * l_stats_str = NULL;
+    int ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+
+    if ( l_net ) {
+
+        const char *l_sync_str = NULL;
+        const char *l_links_str = NULL;
+        const char *l_go_str = NULL;
+        const char *l_get_str = NULL;
+        const char *l_stats_str = NULL;
+
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "go", &l_go_str);
@@ -752,29 +863,31 @@ static int s_cli_net(int argc, char ** argv, char **a_str_reply)
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
 
         if ( l_stats_str ){
+
             if ( strcmp(l_stats_str,"tx") == 0 ) {
-                const char * l_to_str = NULL;
+
+                const char *l_to_str = NULL;
                 struct tm l_to_tm = {0};
 
-                const char * l_from_str = NULL;
+                const char *l_from_str = NULL;
                 struct tm l_from_tm = {0};
 
-                const char * l_prev_sec_str = NULL;
+                const char *l_prev_sec_str = NULL;
                 time_t l_prev_sec_ts;
 
                 const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
 
                 // Read from/to time
-                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from", &l_from_str);
-                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
-                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-prev_sec", &l_prev_sec_str);
+                dap_chain_node_cli_find_option_val( argv, arg_index, argc, "-from", &l_from_str );
+                dap_chain_node_cli_find_option_val( argv, arg_index, argc, "-to", &l_to_str );
+                dap_chain_node_cli_find_option_val( argv, arg_index, argc, "-prev_sec", &l_prev_sec_str );
 
-                if (l_from_str ){
-                    strptime(l_from_str,c_time_fmt,&l_from_tm);
+                if (l_from_str ) {
+                    strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
                 }
 
-                if (l_to_str){
-                    strptime(l_to_str,c_time_fmt,&l_to_tm);
+                if (l_to_str) {
+                    strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
                 }
 
                 if ( l_to_str == NULL ){ // If not set '-to' - we set up current time
@@ -799,8 +912,9 @@ static int s_cli_net(int argc, char ** argv, char **a_str_reply)
                 // Produce strings
                 char l_from_str_new[50];
                 char l_to_str_new[50];
-                strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
-                strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
+
+                strftime( l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
+                strftime( l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
 
 
                 dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
@@ -935,7 +1049,7 @@ int s_net_load(const char * a_net_name)
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
         dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);
-        snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
+        dap_snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
         l_net_item->net_id.uint64 = l_net->pub.id.uint64;
@@ -989,7 +1103,7 @@ int s_net_load(const char * a_net_name)
                 log_it(L_NOTICE, "Not found alias %s in database, prefill it",PVT(l_net)->seed_aliases[i]);
                 dap_chain_node_info_t * l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-                snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
+                dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
                 if (sscanf(l_seed_nodes_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
                     log_it(L_ERROR,"Wrong address format,  should be like 0123::4567::890AB::CDEF");
                     DAP_DELETE(l_seed_node_addr);
@@ -1068,7 +1182,7 @@ int s_net_load(const char * a_net_name)
         // Init chains
         size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
         char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
-        snprintf(l_chains_path,l_chains_path_size,"%s/network/%s",dap_config_path(),l_net->pub.name);
+        dap_snprintf(l_chains_path,l_chains_path_size,"%s/network/%s",dap_config_path(),l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
         DAP_DELETE (l_chains_path);
         if ( l_chains_dir ){
@@ -1084,7 +1198,7 @@ int s_net_load(const char * a_net_name)
                     if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
                         l_entry_name [strlen(l_entry_name)-4] = 0;
                         log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
-                        snprintf(l_chains_path,l_chains_path_size,"network/%s/%s",l_net->pub.name,l_entry_name);
+                        dap_snprintf(l_chains_path,l_chains_path_size,"network/%s/%s",l_net->pub.name,l_entry_name);
                         //dap_config_open(l_chains_path);
 
                         // Create chain object

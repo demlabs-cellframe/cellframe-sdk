@@ -25,9 +25,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#endif
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_global_db.h"
