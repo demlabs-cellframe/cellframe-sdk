@@ -866,7 +866,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             unlink( UNIX_SOCKET_FILE );
 
         // connecting the address with a socket
-        if( bind(sockfd, (const struct sockaddr*) &server, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
+        if( bind(sockfd, (const struct sockaddr*) &lserver_addr, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
             // errno = EACCES  13  Permission denied
             if ( errno == EACCES ) // EACCES=13
                 log_it( L_ERROR, "Server can't start(err=%d). Can't create file=%s [Permission denied]", errno,
