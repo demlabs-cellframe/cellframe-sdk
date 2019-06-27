@@ -67,6 +67,7 @@ static void *dap_http_client_thread( void *arg );
 
 size_t dap_http_client_curl_request_callback( char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata );
 size_t dap_http_client_curl_response_callback(char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata );
+size_t dap_http_client_curl_close_callback( char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata );
 
 void dap_http_client_internal_delete( dap_http_client_internal_t *a_client );
 
@@ -194,6 +195,9 @@ void dap_http_client_simple_request_custom( const char *a_url, const char *a_met
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEDATA , l_client_internal );
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEFUNCTION , dap_http_client_curl_response_callback );
 
+  curl_easy_setopt( l_curl_h , CURLOPT_CLOSESOCKETDATA , l_client_internal );
+  curl_easy_setopt( l_curl_h , CURLOPT_CLOSESOCKETFUNCTION , dap_http_client_curl_close_callback );
+
   curl_multi_add_handle( m_curl_mh, l_curl_h );
     //curl_multi_perform(m_curl_mh, &m_curl_cond);
 
@@ -253,6 +257,21 @@ size_t dap_http_client_curl_response_callback( char *a_ptr, size_t a_size, size_
     }
 
     return a_size*a_nmemb;
+}
+
+
+/**
+ * @brief dap_http_client_curl_response_callback
+ * @param a_ptr
+ * @param a_size
+ * @param a_nmemb
+ * @param a_userdata
+ * @return
+ */
+size_t dap_http_client_curl_close_callback( char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata )
+{
+    dap_http_client_internal_t * l_client_internal = (dap_http_client_internal_t *) a_userdata;
+    printf("\n*** close l_client_internal=%x\n\n", l_client_internal);
 }
 
 /**
