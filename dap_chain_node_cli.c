@@ -23,7 +23,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -47,9 +46,17 @@ typedef int SOCKET;
 #define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
 // for Windows
 #else
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
 #include <winsock2.h>
-#include <WS2tcpip.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
 #endif
+
+#include <pthread.h>
 
 #include "iputils/iputils.h"
 #include "dap_common.h"
@@ -63,7 +70,14 @@ typedef int SOCKET;
 
 #define LOG_TAG "chain_node_cli"
 
-static SOCKET server_sockfd = -1;
+#define MAX_CONSOLE_CLIENTS 16
+
+static SOCKET server_sockfd = -1; // network or local unix
+uint32_t conServPort = 0;
+
+#ifdef _WIN32
+  #define poll WSAPoll
+#endif
 
 static dap_chain_node_cmd_item_t * s_commands = NULL;
 
@@ -77,7 +91,7 @@ static dap_chain_node_cmd_item_t * s_commands = NULL;
  * return: >0 if data is present to read
  * return: -1 if error
  */
-static int s_poll(int socket, int timeout)
+static int s_poll( int socket, int timeout )
 {
     struct pollfd fds;
     int res;
@@ -163,7 +177,7 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
  * timeout - in ms
  * return: string (if waited for final characters) or NULL, if the string requires deletion
  */
-char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout)
+char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
     bool bSuccess = false;
     long nRecv = 0; // count of bytes received
@@ -174,6 +188,7 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
     size_t lpszBuffer_len = 256;
     char *lpszBuffer = DAP_NEW_Z_SIZE(char, lpszBuffer_len);
     // received string will not be larger than MAX_REPLY_LEN
+
     while(1) //nRecv < MAX_REPLY_LEN)
     {
         // read one byte
@@ -199,7 +214,9 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
             }
         }
     };
+
     // end reading
+
     if(bSuccess) {
         // delete the searched string
         if(del_stop_str) {
@@ -215,10 +232,14 @@ char* s_get_next_str(SOCKET nSocket, int *dwLen, const char *stop_str, bool del_
         lpszBuffer = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
         return lpszBuffer;
     }
+
     // in case of an error or missing string
+
     if(dwLen)
         *dwLen = 0;
+
     free(lpszBuffer);
+
     return NULL;
 }
 
@@ -274,7 +295,7 @@ static void* thread_one_client_func(void *args)
             unsigned int argc = dap_list_length(list);
             // command is found
             if(argc >= 1) {
-            	int l_verbose = 0;
+              int l_verbose = 0;
                 char *cmd_name = list->data;
                 list = dap_list_next(list);
                 // execute command
@@ -308,9 +329,9 @@ static void* thread_one_client_func(void *args)
                 }
                 char *reply_body;
                 if(l_verbose)
-                	reply_body = dap_strdup_printf("%d\r\nret_code: %d\r\n%s\r\n", res, res, (str_reply) ? str_reply : "");
+                  reply_body = dap_strdup_printf("%d\r\nret_code: %d\r\n%s\r\n", res, res, (str_reply) ? str_reply : "");
                 else
-                	reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+                  reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
                 // return the result of the command function
                 char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\n"
                                                     "Content-Length: %d\r\n\r\n"
@@ -333,6 +354,278 @@ static void* thread_one_client_func(void *args)
     return NULL;
 }
 
+#ifdef _WIN32
+
+char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
+{
+    bool bSuccess = false;
+    long nRecv = 0; // count of bytes received
+    size_t stop_str_len = (stop_str) ? strlen(stop_str) : 0;
+    // if there is nothing to look for
+
+    if(!stop_str_len)
+        return NULL;
+
+    size_t lpszBuffer_len = 256;
+    char *lpszBuffer = DAP_NEW_Z_SIZE(char, lpszBuffer_len);
+    // received string will not be larger than MAX_REPLY_LEN
+
+    while( 1 ) //nRecv < MAX_REPLY_LEN)
+    {
+      long ret = 0;
+        // read one byte
+//        long ret = s_recv( nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
+
+      bSuccess = ReadFile( hPipe, lpszBuffer + nRecv,
+         lpszBuffer_len - nRecv, (LPDWORD)&ret, NULL );
+
+        //int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
+        if ( ret <= 0 || !bSuccess )
+            break;
+
+        nRecv += ret;
+        //printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
+
+        while((nRecv + 1) >= (long) lpszBuffer_len)
+        {
+            lpszBuffer_len *= 2;
+            lpszBuffer = (char*) realloc(lpszBuffer, lpszBuffer_len);
+        }
+
+        // search for the required string
+        if(nRecv >=  (long) stop_str_len) {
+            // found the required string
+            if(!strncasecmp(lpszBuffer + nRecv - stop_str_len, stop_str, stop_str_len)) {
+                bSuccess = true;
+                break;
+            }
+        }
+    };
+
+    // end reading
+
+    if(bSuccess) {
+        // delete the searched string
+        if(del_stop_str) {
+            lpszBuffer[nRecv -  (long) stop_str_len] = '\0';
+            if(dwLen)
+                *dwLen =(int) nRecv - (int) stop_str_len;
+        }
+        else {
+            lpszBuffer[nRecv] = '\0';
+            if(dwLen)
+                *dwLen = (int) nRecv;
+        }
+        lpszBuffer = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
+        return lpszBuffer;
+    }
+
+    // in case of an error or missing string
+
+    if(dwLen)
+        *dwLen = 0;
+
+    free(lpszBuffer);
+
+    return NULL;
+}
+
+
+/**
+ * threading function for processing a request from a client
+ */
+static void *thread_pipe_client_func( void *args )
+{
+    HANDLE hPipe = (HANDLE)args;
+
+//    SOCKET newsockfd = (SOCKET) (intptr_t) args;
+    log_it(L_INFO, "new connection pipe = %X", hPipe );
+
+    int str_len, marker = 0;
+    int timeout = 5000; // 5 sec
+    int argc = 0;
+
+    dap_list_t *cmd_param_list = NULL;
+
+    while( 1 )
+    {
+        // wait data from client
+//        int is_data = s_poll( newsockfd, timeout );
+        // timeout
+//        if(!is_data)
+//            continue;
+        // error (may be socket closed)
+//        if(is_data < 0)
+//            break;
+
+//        int is_valid = is_valid_socket(newsockfd);
+//        if(!is_valid)
+//        {
+//            break;
+//        }
+
+        // receiving http header
+        char *str_header = p_get_next_str( hPipe, &str_len, "\r\n", true, timeout );
+
+        // bad format
+        if(!str_header)
+            break;
+
+        if ( str_header && strlen(str_header) == 0) {
+            marker++;
+            if(marker == 1)
+                continue;
+        }
+
+        // filling parameters of command
+        if ( marker == 1 ) {
+            cmd_param_list = dap_list_append( cmd_param_list, str_header );
+            //printf("g_list_append argc=%d command=%s ", argc, str_header);
+            argc ++;
+        }
+        else
+            free( str_header );
+
+        if ( marker == 2 ) {
+
+            dap_list_t *list = cmd_param_list;
+            // form command
+
+            unsigned int argc = dap_list_length( list );
+            // command is found
+
+            if ( argc >= 1) {
+
+                int l_verbose = 0;
+                char *cmd_name = list->data;
+                list = dap_list_next( list );
+
+                // execute command
+                char *str_cmd = dap_strdup_printf( "%s", cmd_name );
+                dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_find( cmd_name );
+                int res = -1;
+                char *str_reply = NULL;
+
+                if ( l_cmd ) {
+
+                    while( list ) {
+                        str_cmd = dap_strdup_printf( "%s;%s", str_cmd, list->data );
+                        list = dap_list_next(list);
+                    }
+
+                    log_it(L_INFO, "execute command = %s", str_cmd );
+                    // exec command
+
+                    char **l_argv = dap_strsplit( str_cmd, ";", -1 );
+                    // Call the command function
+
+                    if ( l_cmd &&  l_argv && l_cmd->func )
+                        res = (* (l_cmd->func))( argc, l_argv, &str_reply );
+
+                    else if ( l_cmd ) {
+                        log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd );
+                    }else {
+                        log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd );
+                    }
+
+                    // find '-verbose' command
+                    l_verbose = dap_chain_node_cli_find_option_val( l_argv, 1, argc, "-verbose", NULL );
+                    dap_strfreev( l_argv );
+
+                } else {
+                    str_reply = dap_strdup_printf("can't recognize command = %s", str_cmd );
+                    log_it( L_ERROR, str_reply );
+                }
+
+                char *reply_body;
+
+                if(l_verbose)
+                  reply_body = dap_strdup_printf("%d\r\nret_code: %d\r\n%s\r\n", res, res, (str_reply) ? str_reply : "");
+                else
+                  reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+
+                // return the result of the command function
+                char *reply_str = dap_strdup_printf( "HTTP/1.1 200 OK\r\n"
+                                                    "Content-Length: %d\r\n\r\n"
+                                                    "%s",
+                        strlen(reply_body), reply_body );
+
+                int ret;// = send( newsockfd, reply_str, strlen(reply_str) ,0 );
+
+                WriteFile( hPipe, reply_str, strlen(reply_str), (LPDWORD)&ret, NULL );
+
+                DAP_DELETE(str_reply);
+                DAP_DELETE(reply_str);
+                DAP_DELETE(reply_body);
+
+                DAP_DELETE(str_cmd);
+            }
+            dap_list_free_full(cmd_param_list, free);
+            break;
+        }
+    }
+
+    // close connection
+//    int cs = closesocket(newsockfd);
+
+    log_it( L_INFO, "close connection pipe = %X", hPipe );
+
+    FlushFileBuffers( hPipe ); 
+    DisconnectNamedPipe( hPipe ); 
+    CloseHandle( hPipe ); 
+
+    return NULL;
+}
+
+
+/**
+ * main threading server function pipe win32
+ */
+static void* thread_pipe_func( void *args )
+{
+   BOOL   fConnected = FALSE; 
+   pthread_t threadId;
+   HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL; 
+   static const char *cPipeName = "\\\\.\\pipe\\node_cli.pipe"; 
+
+   for (;;) 
+   { 
+///      printf( "\nPipe Server: Main thread awaiting client connection on %s\n", lpszPipename );
+
+      hPipe = CreateNamedPipe( 
+          cPipeName,                // pipe name 
+          PIPE_ACCESS_DUPLEX,       // read/write access 
+          PIPE_TYPE_MESSAGE |       // message type pipe 
+          PIPE_READMODE_MESSAGE |   // message-read mode 
+          PIPE_WAIT,                // blocking mode 
+          PIPE_UNLIMITED_INSTANCES, // max. instances  
+          4096,                     // output buffer size 
+          4096,                     // input buffer size 
+          0,                        // client time-out 
+          NULL );                   // default security attribute 
+
+      if ( hPipe == INVALID_HANDLE_VALUE ) {
+          log_it( L_ERROR, "CreateNamedPipe failed, GLE = %d.\n", GetLastError() );
+          return NULL;
+      }
+  
+      fConnected = ConnectNamedPipe( hPipe, NULL ) ? TRUE : ( GetLastError() == ERROR_PIPE_CONNECTED ); 
+ 
+      if ( fConnected )
+      { 
+        log_it( L_INFO, "Client %X connected, creating a processing thread.\n", hPipe ); 
+
+        pthread_create( &threadId, NULL, thread_pipe_client_func, hPipe );
+        pthread_detach( threadId );
+      } 
+      else 
+         CloseHandle( hPipe );
+    } 
+
+    return NULL;
+}
+#endif
+
 /**
  * main threading server function
  */
@@ -340,7 +633,7 @@ static void* thread_main_func(void *args)
 {
     SOCKET sockfd = (SOCKET) (intptr_t) args;
     SOCKET newsockfd;
-    log_it(L_INFO, "Server start socket=%s", UNIX_SOCKET_FILE);
+    log_it( L_INFO, "Server start socket = %s", UNIX_SOCKET_FILE );
     // wait of clients
     while(1)
     {
@@ -425,7 +718,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
 void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, const char *a_doc, const char *a_doc_ex)
 {
     dap_chain_node_cmd_item_t *l_cmd_item = DAP_NEW_Z(dap_chain_node_cmd_item_t);
-    snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
+    dap_snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
     l_cmd_item->doc = strdup( a_doc);
     l_cmd_item->doc_ex = strdup( a_doc_ex);
     l_cmd_item->func = a_func;
@@ -463,9 +756,20 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
-    struct sockaddr_un server = { AF_UNIX, UNIX_SOCKET_FILE };
-    //server.sun_family = AF_UNIX;
-    //strcpy(server.sun_path, SOCKET_FILE);
+#ifndef _WIN32
+    struct sockaddr_un lserver_addr = { AF_UNIX, UNIX_SOCKET_FILE };
+#endif
+    struct sockaddr_in server_addr;
+    SOCKET sockfd = -1;
+
+    bool bConServerEnabled = dap_config_get_item_bool_default( g_config, "conserver", "enabled", true );
+
+    if ( !bConServerEnabled ) { 
+
+        log_it( L_WARNING, "Console Server is dissabled." );
+        return 0;
+    }
+
     dap_chain_node_cli_cmd_item_create ("global_db", com_global_db, "Work with global database",
            "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
            "global_db cells add -cell <cell id> \n\n"
@@ -473,6 +777,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "global_db node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
                     "global_db node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
                         );
+
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
             "node alias {<node address> | -alias <node alias>}\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"
@@ -534,47 +839,98 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
-
-    // init client for handshake
-
-    SOCKET sockfd;
-
-    if(server_sockfd >= 0) {
-        dap_chain_node_cli_delete();
-        server_sockfd = 0;
-    }
-
-    // create socket
-    if((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET)
-        return -1;
-    int gdsg = sizeof(struct sockaddr_un);
-    if(access( UNIX_SOCKET_FILE, R_OK) != -1)
-            {
-        unlink(UNIX_SOCKET_FILE);
-    }
-    // connecting the address with a socket
-    if(bind(sockfd, (const struct sockaddr*) &server, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
-        // errno = EACCES  13  Permission denied
-        if(errno == EACCES) // EACCES=13
-            log_it(L_ERROR, "Server can't start(err=%d). Can't create file=%s [Permission denied]", errno,
-                    UNIX_SOCKET_FILE);
-        else
-            log_it(L_ERROR, "Server can't start(err=%d). May be problem with file=%s?", errno, UNIX_SOCKET_FILE);
-        closesocket(sockfd);
-        return -1;
-    }
-    // turn on reception of connections
-    if(listen(sockfd, 5) == SOCKET_ERROR)
-        return -1;
     // create thread for waiting of clients
     pthread_t threadId;
-    if(pthread_create(&threadId, NULL, thread_main_func, (void*) (intptr_t) sockfd) != 0) {
-        closesocket(sockfd);
+
+    conServPort = (uint16_t)dap_config_get_item_int32_default( g_config, "conserver", "listen_port_tcp", 0 );
+
+    if ( !conServPort ) { 
+
+        log_it( L_INFO, "Console Server port 0 - local mode" );
+
+      #ifndef _WIN32
+
+        if ( server_sockfd >= 0 ) {
+            dap_chain_node_cli_delete( );
+            server_sockfd = 0;
+        }
+
+        // create socket
+        sockfd = socket( AF_UNIX, SOCK_STREAM, 0 );
+        if( sockfd == INVALID_SOCKET )
+            return -1;
+
+        int gdsg = sizeof(struct sockaddr_un);
+
+        if ( access( UNIX_SOCKET_FILE, R_OK) != -1 )
+            unlink( UNIX_SOCKET_FILE );
+
+        // connecting the address with a socket
+        if( bind(sockfd, (const struct sockaddr*) &server, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
+            // errno = EACCES  13  Permission denied
+            if ( errno == EACCES ) // EACCES=13
+                log_it( L_ERROR, "Server can't start(err=%d). Can't create file=%s [Permission denied]", errno,
+                        UNIX_SOCKET_FILE );
+            else
+                log_it( L_ERROR, "Server can't start(err=%d). May be problem with file=%s?", errno, UNIX_SOCKET_FILE );
+            closesocket( sockfd );
+            return -1;
+        }
+
+      #else
+
+    Sleep( 3000 );
+
+        if( pthread_create(&threadId, NULL, thread_pipe_func, (void*) (intptr_t) sockfd) != 0 ) {
+            closesocket( sockfd );
+            return -1;
+        }
+
+        return 0;
+      #endif
+
+    }
+    else {
+
+        char *listen_addr = dap_config_get_item_str_default( g_config,
+                                                                       "conserver",
+                                                                      "listen_address",
+                                                                      "0.0.0.0" );
+
+        log_it( L_INFO, "Console Server: listen addr %s:%u ", listen_addr, conServPort );
+ 
+        server_addr.sin_family = AF_INET; 
+        inet_pton( AF_INET, listen_addr, &server_addr.sin_addr );
+        //server.sin_addr.s_addr = htonl( INADDR_ANY );
+        server_addr.sin_port = htons( (uint16_t)conServPort );
+
+        // create socket
+        if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET ) {
+            log_it( L_ERROR, "Console Server: can't create socket, err %X", errno );
+            return -1;
+        }
+
+        // connecting the address with a socket
+        if ( bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == SOCKET_ERROR ) {
+            log_it( L_ERROR, "Console Server: can't bind socket, err %X", errno );
+            closesocket( sockfd );
+            return -1;
+        }
+    }
+
+    // turn on reception of connections
+    if( listen(sockfd, MAX_CONSOLE_CLIENTS) == SOCKET_ERROR )
+        return -1;
+
+    if( pthread_create(&threadId, NULL, thread_main_func, (void*) (intptr_t) sockfd) != 0 ) {
+        closesocket( sockfd );
         return -1;
     }
+
     // in order to thread not remain in state "dead" after completion
-    pthread_detach(threadId);
+    pthread_detach( threadId );
     server_sockfd = sockfd;
+
     return 0;
 }
 
