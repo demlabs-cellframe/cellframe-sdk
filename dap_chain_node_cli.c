@@ -842,7 +842,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // create thread for waiting of clients
     pthread_t threadId;
 
-    conServPort = (uint16_t)dap_config_get_item_int32_default( g_config, "conserver", "listen_port_tcp", 9999 );
+    conServPort = (uint16_t)dap_config_get_item_int32_default( g_config, "conserver", "listen_port_tcp", 0 );
 
     if ( !conServPort ) { 
 
