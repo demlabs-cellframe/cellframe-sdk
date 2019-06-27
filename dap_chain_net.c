@@ -78,8 +78,7 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_addr_t * node_addr;
     dap_chain_node_info_t * node_info; // Current node's info
 
-    dap_chain_node_client_t * links;
-    size_t link_cur;
+    dap_chain_node_client_t *links;
     size_t links_count;
 
     dap_chain_node_addr_t *links_addrs;
