@@ -29,6 +29,7 @@
 #endif
 #include <stdint.h>
 #include <string.h>
+#include "dap_strfuncs.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_chain.h"
@@ -100,22 +101,12 @@ void dap_chain_net_links_connect(dap_chain_net_t * a_net);
  * @param l_chain
  * @return
  */
-DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool( dap_chain_t *l_chain )
+DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id( l_chain->net_id );
-
-    char *l_ret = NULL;
-    if ( !l_net )
-      return (char *)l_net;
-
-    static const char *c_mempool_group_str = "mempool";
-
-    size_t l_ret_size =  strlen( l_net->pub.gdb_groups_prefix ) + 1 +
-            strlen( l_chain->name) + 1 + strlen(c_mempool_group_str) + 1 + 16;
-
-    l_ret = DAP_NEW_Z_SIZE( char, l_ret_size );
-
-    dap_snprintf( l_ret, l_ret_size, "%s.chain-%s.%s", l_net->pub.gdb_groups_prefix, l_chain->name, c_mempool_group_str );
-
-    return l_ret;
+    dap_chain_net_t * l_net = dap_chain_net_by_id(l_chain->net_id);
+    if ( l_net ) {
+        const char c_mempool_group_str[]="mempool";
+		return dap_strdup_printf("%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+    }
+    return NULL;
 }
