@@ -38,7 +38,8 @@ typedef enum dap_client_stage {
     STAGE_STREAM_CTL=2,
     STAGE_STREAM_SESSION=3,
     STAGE_STREAM_CONNECTED=4,
-    STAGE_STREAM_STREAMING=5
+    STAGE_STREAM_STREAMING=5,
+    STAGE_STREAM_ABORT=10
 } dap_client_stage_t;
 
 typedef enum dap_client_stage_status {
@@ -69,6 +70,7 @@ typedef enum dap_client_error {
  * @brief The dap_client struct
  */
 typedef struct dap_client{
+    pthread_mutex_t mutex;
     void * _internal;
     void * _inheritor;
 } dap_client_t;

@@ -58,6 +58,8 @@ dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_s
     if (!l_client)
         goto MEM_ALLOC_ERR;
 
+    pthread_mutex_init(&l_client->mutex, NULL);
+
     l_client->_internal  = DAP_NEW_Z(dap_client_pvt_t);
     if (!l_client->_internal)
         goto MEM_ALLOC_ERR;
@@ -172,12 +174,19 @@ void dap_client_delete(dap_client_t * a_client)
     if(!a_client)
         return;
 
+    pthread_mutex_lock(&a_client->mutex);
+
     dap_client_disconnect(a_client);
 
+    dap_client_reset(a_client);
     if (DAP_CLIENT_PVT(a_client) )
          dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
 
-    DAP_DELETE(a_client);
+    pthread_mutex_t *l_mutex = &a_client->mutex;
+    memset(a_client, 0, sizeof(dap_client_t));
+    pthread_mutex_unlock(l_mutex);
+    // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
+    //DAP_DELETE(a_client);
 }
 
 /**
@@ -207,7 +216,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
                         , dap_client_stage_str(l_client_internal->stage));
             break;
             case STAGE_STATUS_IN_PROGRESS:{
-                log_it(L_WARNING, "Aborting the stage %s"
+                log_it(L_WARNING, "Status progress the stage %s"
                         , dap_client_stage_str(l_client_internal->stage));
             }break;
             case STAGE_STATUS_DONE:
@@ -314,6 +323,8 @@ int dap_client_disconnect( dap_client_t *a_client )
     }
     //l_client_internal->stream_socket = 0;
 
+    l_client_internal->is_reconnect = false;
+
     log_it(L_DEBUG, "dap_client_disconnect( ) done" );
 
     return -1;
@@ -417,7 +428,7 @@ const char * dap_client_stage_str(dap_client_stage_t a_stage)
  */
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client)
 {
-    return DAP_CLIENT_PVT(a_client)->stage_status;
+    return (a_client && DAP_CLIENT_PVT(a_client)) ? DAP_CLIENT_PVT(a_client)->stage_status : STAGE_STATUS_NONE;
 }
 
 /**
@@ -426,7 +437,7 @@ dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client)
  * @return
  */
 dap_enc_key_t * dap_client_get_key_stream(dap_client_t * a_client){
-    return DAP_CLIENT_PVT(a_client)->stream_key;
+    return (a_client && DAP_CLIENT_PVT(a_client)) ? DAP_CLIENT_PVT(a_client)->stream_key : NULL;
 }
 
 
@@ -444,7 +455,7 @@ dap_stream_t * dap_client_get_stream(dap_client_t * a_client)
 dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id)
 {
     dap_stream_ch_t * l_ch = NULL;
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    dap_client_pvt_t * l_client_internal = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
     if(l_client_internal && l_client_internal->stream)
         for(int i = 0; i < l_client_internal->stream->channel_count; i++) {
             dap_stream_ch_proc_t *l_ch_id = l_client_internal->stream->channel[i]->proc;
@@ -463,8 +474,7 @@ dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch
  */
 const char * dap_client_get_stream_id(dap_client_t * a_client)
 {
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
-    if(!l_client_internal)
+    if(!(a_client || !DAP_CLIENT_PVT(a_client)))
         return NULL;
     return DAP_CLIENT_PVT(a_client)->stream_id;
 }
