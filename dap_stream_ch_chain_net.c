@@ -182,13 +182,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
             switch (l_ch_pkt->hdr.type) {
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG: {
-                    dap_stream_ch_chain_net_pkt_write(a_ch, DAP_SREAM_CH_CHAIN_NET_PKT_TYPE_PING,
+                    dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING,
                                                       l_ch_chain_net_pkt->hdr.net_id, NULL, 0);
                     dap_stream_ch_set_ready_to_write(a_ch, true);
                 }
                     break;
                     // received ping request - > send pong request
-                case DAP_SREAM_CH_CHAIN_NET_PKT_TYPE_PING: {
+                case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING: {
                     log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG,
                                                       l_ch_chain_net_pkt->hdr.net_id,NULL, 0);
