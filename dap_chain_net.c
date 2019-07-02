@@ -331,6 +331,8 @@ lb_proc_state:
                 } else {
                     log_it(L_WARNING,"No links for connecting, return back to OFFLINE state");
                     PVT(l_net)->state = NET_STATE_OFFLINE;
+                    // remove looping
+                    PVT(l_net)->state_target = NET_STATE_OFFLINE;
                 }
             }else {
                 log_it(L_WARNING,"Target state is NET_STATE_LINKS_PREPARE? Realy?");

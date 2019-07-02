@@ -122,30 +122,20 @@ static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_a
     dap_list_t *list_aliases = NULL;
     size_t data_size = 0;
     // read all aliases
-    dap_global_db_obj_t **objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes_aliases, &data_size);
+    dap_global_db_obj_t *objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes_aliases, &data_size);
     if(!objs || !data_size)
         return NULL;
     for(size_t i = 0; i < data_size; i++) {
         //dap_chain_node_addr_t addr_i;
-        dap_global_db_obj_t *obj = objs[i];
+        dap_global_db_obj_t *obj = objs + i;
         if(!obj)
             break;
         dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t*) (void*) obj->value;
         if(l_addr && obj->value_len == sizeof(dap_chain_node_addr_t) && a_addr->uint64 == l_addr->uint64) {
             list_aliases = dap_list_prepend(list_aliases, strdup(obj->key));
         }
-        /*        char *addr_str = obj->value;
-         if(addr_str && strlen(addr_str) == sizeof(dap_chain_node_addr_t) * 2) {
-         //addr_i = DAP_NEW_Z(dap_chain_node_addr_t);
-         if(hex2bin((char*) &addr_i, (const unsigned char *) addr_str, sizeof(dap_chain_node_addr_t) * 2) == -1) {
-         continue;
-         }
-         if(a_addr->uint64 == addr_i.uint64) {
-         list_aliases = dap_list_prepend(list_aliases, strdup(obj->key));
-         }
-         }*/
     }
-    dap_chain_global_db_objs_delete(objs);
+    dap_chain_global_db_objs_delete(objs, data_size);
     return list_aliases;
 }
 
@@ -1590,20 +1580,20 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
 
         size_t l_objs_size = 0;
 
-        dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
         dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name, l_objs_size);
         for(size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i]->value;
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
             char buf[50];
             time_t l_ts_create = (time_t) l_datum->header.ts_create;
             dap_string_append_printf(l_str_tmp, "%s: type_id=%s  data_size=%u ts_create=%s",
-                    l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
+                    l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
                     l_datum->header.data_size, ctime_r(&l_ts_create, buf));
         }
 
         // Clean up
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-        dap_chain_global_db_objs_delete(l_objs);
+        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
         dap_string_free(l_str_tmp, false);
 
         return 0;
@@ -1671,33 +1661,44 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
 
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net) < 0)
         return -1;
-
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
     size_t l_objs_size = 0;
-    dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+    dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
     dap_string_t * l_str_tmp = dap_string_new(NULL);
     if(l_objs_size) {
         dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name);
 
         size_t l_datums_size = l_objs_size;
         dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*, sizeof(dap_chain_datum_t*) * l_datums_size);
+        size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
         for(size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i]->value;
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
             l_datums[i] = l_datum;
-            char buf[50];
-            time_t l_ts_create = (time_t) l_datum->header.ts_create;
-            dap_string_append_printf(l_str_tmp, "0x%s: type_id=%s ts_create=%s data_size=%u\n",
-                    l_objs[i]->key, c_datum_type_str[l_datum->header.type_id],
-                    ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+            if(i < l_objs_size_tmp) {
+                char buf[50];
+                time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                dap_string_append_printf(l_str_tmp, "0x%s: type_id=%s ts_create=%s data_size=%u\n",
+                        l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
+                        ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+            }
+        }
+        if(l_objs_size > 15) {
+            dap_string_append_printf(l_str_tmp, "...\n");
         }
         size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums, l_datums_size);
         // Delete processed objects
+        size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
         for(size_t i = 0; i < l_objs_processed; i++) {
-            dap_chain_global_db_gr_del(l_objs[i]->key, l_gdb_group_mempool);
-            dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
-                    l_objs[i]->key);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
+            if(i < l_objs_processed_tmp) {
+                dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
+                    l_objs[i].key);
+            }
         }
-        dap_chain_global_db_objs_delete(l_objs);
+        if(l_objs_processed > 15) {
+            dap_string_append_printf(l_str_tmp, "...\n");
+        }
+        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
 
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
         dap_string_free(l_str_tmp, false);
