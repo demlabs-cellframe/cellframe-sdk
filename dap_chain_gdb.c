@@ -271,10 +271,10 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
 
 
     //  Read the entire database into an array of size bytes
-    dap_global_db_obj_t **data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
+    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
-        l_datum_list = dap_list_append(l_datum_list, data[i]->value);
+        l_datum_list = dap_list_append(l_datum_list, data[i].value);
     }
     // sort list by time
     //l_datum_list = dap_list_sort(l_datum_list, (dap_callback_compare_t) compare_datum_items);
@@ -285,7 +285,7 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
         s_chain_callback_atom_add(a_gdb->chain,l_datum);
         l_list_tmp = dap_list_next(l_list_tmp);
     }
-    dap_chain_global_db_objs_delete(data);
+    dap_chain_global_db_objs_delete(data, l_data_size);
     dap_list_free(l_datum_list);
     return 0;
 }
