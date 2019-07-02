@@ -38,7 +38,7 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
 /**
  * Delete mass of struct dap_global_db_obj_t
  */
-void dap_chain_global_db_objs_delete(dap_global_db_obj_t **objs);
+void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count);
 
 int dap_chain_global_db_init(dap_config_t * a_config);
 
@@ -78,8 +78,8 @@ bool dap_chain_global_db_del(const char *a_key);
  */
 dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);
 dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_data_size_out);
-dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);
-dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out);
+dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);
+dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out);
 
 /**
  * Write to the database from an array of data_size bytes

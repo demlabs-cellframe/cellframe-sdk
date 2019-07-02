@@ -181,7 +181,7 @@ uint64_t dap_db_log_get_last_id(void)
     }
     /*    char *last_key = NULL;
      size_t l_data_size_out = 0;
-     dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
+     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
      if(l_data_size_out > 0)
      last_key = l_objs[0]->key;
      for(size_t i = 1; i < l_data_size_out; i++) {
@@ -193,7 +193,7 @@ uint64_t dap_db_log_get_last_id(void)
      //printf("l_obj_cur->key=%s\n", l_obj_cur->key);
      }
      time_t l_ret_time = last_key? strtoll(last_key, NULL, 10): 0;
-     dap_chain_global_db_objs_delete(l_objs);
+     dap_chain_global_db_objs_delete(l_objs, l_data_size_out);
      return l_ret_time;*/
 }
 
@@ -213,7 +213,7 @@ dap_list_t* dap_db_log_get_list(uint64_t first_id)
     dap_list_t *l_list = NULL;
     size_t l_data_size_out = 0;
     dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out);
-    //dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
+    //dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
     for(size_t i = 0; i < l_data_size_out; i++) {
         dap_store_obj_t *l_obj_cur = l_objs + i;
         dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
