@@ -292,7 +292,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     size_t l_datum_processed =0;
     size_t l_events_round_new_size = 0;
     // Load current events new round pool
-    dap_global_db_obj_t ** l_events_round_new = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new, &l_events_round_new_size );
+    dap_global_db_obj_t * l_events_round_new = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new, &l_events_round_new_size );
     // Prepare hashes
     size_t l_hashes_int_size = ( l_events_round_new_size + a_datums_count )> l_dag->datum_add_hashes_count ?
                                    l_dag->datum_add_hashes_count :
@@ -318,7 +318,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             do{
                 int l_index = rand() % (int) l_events_round_new_size;
                 dap_chain_hash_fast_t l_hash;
-                dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_events_round_new[l_index]->value;
+                dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_events_round_new[l_index].value;
                 size_t l_event_size = dap_chain_cs_dag_event_calc_size(l_event);
                 dap_hash_fast(l_event, l_event_size,&l_hash);
 
@@ -388,6 +388,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             }
         }
     }
+    dap_chain_global_db_objs_delete(l_events_round_new, l_events_round_new_size);
     return  l_datum_processed;
 }
 
@@ -776,21 +777,21 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             dap_string_t *l_str_ret_tmp= dap_string_new("Completing round:\n");
 
             size_t l_objs_size=0;
-            dap_global_db_obj_t ** l_objs = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new,&l_objs_size);
+            dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new,&l_objs_size);
 
             // Check if its ready or not
             for (size_t i = 0; i< l_objs_size; i++ ){
-                dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t*) l_objs[i]->value;
-                size_t l_event_size = l_objs[i]->value_len;
+                dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t*) l_objs[i].value;
+                size_t l_event_size = l_objs[i].value_len;
                 int l_ret_event_verify;
                 if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event) ) !=0 ){// if consensus accept the event
                     dap_string_append_printf( l_str_ret_tmp,
                             "Error! Event %s is not passing consensus verification, ret code %d\n",
-                                              l_objs[i]->key, l_ret_event_verify );
+                                              l_objs[i].key, l_ret_event_verify );
                     ret = -30;
                     break;
                 }else {
-                    dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i]->key);
+                    dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
                         dap_chain_atom_ptr_t l_new_atom = NULL; // produce deep copy of event;
@@ -800,7 +801,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }
             }
             // Cleaning up
-            dap_chain_global_db_objs_delete(l_objs);
+            dap_chain_global_db_objs_delete(l_objs, l_objs_size);
             dap_chain_node_cli_set_reply_text(a_str_reply,l_str_ret_tmp->str);
             dap_string_free(l_str_ret_tmp,false);
 
