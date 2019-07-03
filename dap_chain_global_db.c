@@ -1,3 +1,27 @@
+/*
+ * Authors:
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
+ * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2019
+ * All rights reserved.
+
+ This file is part of DAP (Deus Applications Prototypes) the open source project
+
+ DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ DAP is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -119,14 +143,15 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 /**
  * Delete mass of struct dap_global_db_obj_t
  */
-void dap_chain_global_db_objs_delete(dap_global_db_obj_t **objs)
+void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 {
-    int i = 0;
-    while(objs) {
-        if(!(objs[i]))
-            break;
-        dap_chain_global_db_obj_clean(objs[i]);
-        i++;
+    //int i = 0;
+    //while(objs) {
+    for(size_t i = 0; i < a_count; i++) {
+        //if(!(objs[i]))
+        //    break;
+        dap_chain_global_db_obj_clean(objs + i);
+        //i++;
     }
     DAP_DELETE(objs);
 }
@@ -249,18 +274,19 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
  */
 bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
-    pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
-    store_data->type = 'a';
-    store_data->key = dap_strdup(a_key);
-    store_data->value = DAP_NEW_Z_SIZE(uint8_t, a_value_len);
+    dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
+    memset(&store_data, 0, sizeof(dap_store_obj_t));
+    store_data.type = 'a';
+    store_data.key = a_key;//dap_strdup(a_key);
+    store_data.value = a_value;//DAP_NEW_Z_SIZE(uint8_t, a_value_len);
 
-    memcpy(store_data->value, a_value, a_value_len);
+    //memcpy(store_data.value, a_value, a_value_len);
 
-    store_data->value_len = (a_value_len == (size_t) -1) ? dap_strlen((const char*) a_value) : a_value_len;
-    store_data->group = dap_strdup(a_group);
-    store_data->timestamp = time(NULL);
+    store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen((const char*) a_value) : a_value_len;
+    store_data.group = a_group;//dap_strdup(a_group);
+    store_data.timestamp = time(NULL);
     lock();
-    int l_res = dap_chain_global_db_driver_add(store_data, 1);
+    int l_res = dap_chain_global_db_driver_add(&store_data, 1);
     unlock();
 
     // Extract prefix if added successfuly, add history log and call notify callback if present
@@ -273,7 +299,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
         if(l_history_group_item) {
             if(l_history_group_item->auto_track) {
                 lock();
-                dap_db_history_add('a', store_data, 1);
+                dap_db_history_add('a', &store_data, 1);
                 unlock();
             }
             if(l_history_group_item->callback_notify)
@@ -285,7 +311,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
     } else {
         log_it(L_ERROR, "Save error: %d", l_res);
     }
-    DAP_DELETE(store_data);
+    //DAP_DELETE(store_data);
 
     return !l_res;
 }
@@ -336,7 +362,6 @@ bool dap_chain_global_db_del(const char *a_key)
     return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
 }
 
-
 /**
  * Read last item in global_db
  *
@@ -351,9 +376,6 @@ dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
     unlock();
     return l_store_obj;
 }
-
-
-
 
 /**
  * Read the entire database with condition into an array of size bytes
@@ -376,7 +398,7 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
  * @param data_size[out] size of output array
  * @return array (note:not Null-terminated string) on NULL in case of an error
  */
-dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out)
+dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out)
 {
     size_t count = 0;
     // Read data
@@ -385,61 +407,32 @@ dap_global_db_obj_t** dap_chain_global_db_gr_load(const char *a_group, size_t *a
     unlock();
     if(!l_store_obj || !count)
         return NULL;
-    dap_global_db_obj_t **l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t*,
-            (count + 1) * sizeof(dap_global_db_obj_t*)); // last item in mass must be zero
+    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
+            (count + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
+    // clear only last item
+    //memset(&l_data[count], 0, sizeof(dap_global_db_obj_t));
     for(size_t i = 0; i < count; i++) {
         dap_store_obj_t *l_store_obj_cur = l_store_obj + i;
-        assert(l_store_obj_cur);
-        l_data[i] = DAP_NEW(dap_global_db_obj_t);
-        l_data[i]->key = dap_strdup(l_store_obj_cur->key);
-        l_data[i]->value_len = l_store_obj_cur->value_len;
-        l_data[i]->value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj_cur->value_len + 1);
-        memcpy(l_data[i]->value, l_store_obj_cur->value, l_store_obj_cur->value_len);
+        /*assert(l_store_obj_cur);
+         l_data[i] = DAP_NEW(dap_global_db_obj_t);
+         l_data[i]->key = dap_strdup(l_store_obj_cur->key);
+         l_data[i]->value_len = l_store_obj_cur->value_len;
+         l_data[i]->value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj_cur->value_len + 1);
+         memcpy(l_data[i]->value, l_store_obj_cur->value, l_store_obj_cur->value_len);*/
+        //dap_global_db_obj_t *l_data = l_data0 + i;
+        l_data[i].key = l_store_obj_cur->key;
+        l_data[i].value_len = l_store_obj_cur->value_len;
+        l_data[i].value = l_store_obj_cur->value;
+        DAP_DELETE(l_store_obj_cur->group);
     }
-    dap_store_obj_free(l_store_obj, count);
+    // inner data are use in l_data0
+    DAP_DELETE(l_store_obj); //dap_store_obj_free(l_store_obj, count);
     if(a_data_size_out)
         *a_data_size_out = count;
     return l_data;
-    /*size_t l_query_len = (size_t) snprintf(NULL, 0, "(objectClass=%s)", a_group);
-     char *l_query = DAP_NEW_Z_SIZE(char, l_query_len + 1);
-     //const char *query = "(objectClass=addr_leased)";
-     snprintf(l_query, l_query_len + 1, "(objectClass=%s)", a_group);
-     size_t count = 0;
-     // Read data
-     lock();
-     pdap_store_obj_t store_obj = dap_chain_global_db_driver_read(a_group, NULL, &count);
-     unlock();
-     DAP_DELETE(l_query);
-     // Serialization data
-     dap_store_obj_pkt_t *pkt = dap_store_packet_multiple(store_obj, 0, count);
-     dap_store_obj_free(store_obj, count);
-     if(pkt)
-     {
-     size_t count_new = 0;
-     pdap_store_obj_t store_data = dap_store_unpacket_multiple(pkt, &count_new);
-     assert(count_new == count);
-     //char **data = DAP_NEW_SIZE(char*, (count_new + 1) * sizeof(char*));
-     dap_global_db_obj_t **data = DAP_NEW_Z_SIZE(dap_global_db_obj_t*,
-     (count_new + 1) * sizeof(dap_global_db_obj_t*)); // last item in mass must be zero
-     for(size_t i = 0; i < count_new; i++) {
-     pdap_store_obj_t store_data_cur = store_data + i;
-     assert(store_data_cur);
-     data[i] = DAP_NEW(dap_global_db_obj_t);
-     data[i]->key = strdup(store_data_cur->key);
-     data[i]->value_len = store_data_cur->value_len;
-     data[i]->value = DAP_NEW_Z_SIZE(uint8_t, store_data_cur->value_len + 1);
-     memcpy(data[i]->value, store_data_cur->value, store_data_cur->value_len);
-     }
-     DAP_DELETE(store_data);
-     DAP_DELETE(pkt);
-     if(a_data_size_out)
-     *a_data_size_out = count_new;
-     return data;
-     }*/
-
 }
 
-dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out)
+dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 {
     return dap_chain_global_db_gr_load(GROUP_LOCAL_GENERAL, a_data_size_out);
 }
@@ -450,42 +443,6 @@ dap_global_db_obj_t** dap_chain_global_db_load(size_t *a_data_size_out)
  */
 bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
 {
-/*    dap_store_obj_t* l_store_data = (dap_store_obj_t*) a_store_data;
-    if(l_store_data && a_objs_count > 0) {
-        // real records
-        size_t l_objs_count = a_objs_count;
-        const char *l_group = l_store_data[0].group;
-
-        // read data
-        for(size_t i = 0; i < a_objs_count; i++) {
-            dap_store_obj_t* l_obj = l_store_data + i;
-            size_t l_count = 0;
-            char *l_query = dap_strdup_printf("(&(cn=%s)(objectClass=%s))", l_obj->key, l_obj->group);
-            lock();
-            dap_store_obj_t *l_read_store_data = dap_chain_global_db_driver_read(l_query, NULL, &l_count);
-            unlock();
-            // whether to add a record
-            if(l_obj->type == 'a' && l_read_store_data) {
-                // don't save obj if (present timestamp) > (new timestamp)
-                if(l_count == 1 && l_read_store_data->timestamp >= l_obj->timestamp) {
-                    // mark to not save
-                    l_obj->timestamp = (time_t) -1;
-                    // reduce the number of real records
-                    l_objs_count--;
-                }
-            }
-            // whether to delete a record
-            else if(l_obj->type == 'd' && !l_read_store_data) {
-
-                // mark to not apply because record already deleted
-                l_obj->timestamp = (time_t) -1;
-                // reduce the number of real records
-                l_objs_count--;
-            }
-            dap_store_obj_free(l_read_store_data, l_count);
-            DAP_DELETE(l_query);
-        }*/
-
     // save/delete data
     if(!a_objs_count)
         return true;
@@ -578,7 +535,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
 
         }
         DAP_DELETE(l_store_data); //dap_store_obj_free(store_data, a_objs_count);
-        if(!l_res){
+        if(!l_res) {
             DAP_DELETE(l_group);
             return true;
         }
@@ -638,7 +595,7 @@ char* dap_db_log_get_diff(size_t *a_data_size_out)
 {
     //DapList *l_group_list = dap_list_append(l_group_list,GROUP_HISTORY);
     size_t l_data_size_out = 0;
-    dap_global_db_obj_t **l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
+    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
     // make keys & val vector
     char **l_keys_vals0 = DAP_NEW_SIZE(char*, sizeof(char*) * (l_data_size_out * 2 + 2));
     char **l_keys_vals = l_keys_vals0 + 1;
@@ -646,7 +603,7 @@ char* dap_db_log_get_diff(size_t *a_data_size_out)
     // first element - number of records
     l_keys_vals0[0] = dap_strdup_printf("%d", l_data_size_out);
     for(i = 0; i < l_data_size_out; i++) {
-        dap_global_db_obj_t *l_obj_cur = l_objs[i];
+        dap_global_db_obj_t *l_obj_cur = l_objs + i;
         l_keys_vals[i] = l_obj_cur->key;
         l_keys_vals[i + l_data_size_out] = (char*) l_obj_cur->value;
     }
@@ -658,21 +615,6 @@ char* dap_db_log_get_diff(size_t *a_data_size_out)
     DAP_DELETE(l_keys_vals0[0]);
     DAP_DELETE(l_keys_vals0);
     //dap_strfreev(l_keys_vals0);
-    dap_chain_global_db_objs_delete(l_objs);
+    dap_chain_global_db_objs_delete(l_objs, l_data_size_out);
     return l_keys_vals_flat;
 }
-
-/*char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size)
- {
- dap_chain_hash_fast_t a_hash;
- dap_hash((char*) data, data_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_KECCAK);
- size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2;  heading 0x
- char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
- size_t hash_len = dap_chain_hash_to_str(&a_hash, a_str, a_str_max);
- if(!hash_len) {
- DAP_DELETE(a_str);
- return NULL ;
- }
- return a_str;
- }*/
-
