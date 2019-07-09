@@ -169,6 +169,8 @@ void dap_chain_delete(dap_chain_t * a_chain)
     }else
        log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
+    a_chain->datum_types_count = 0;
+    DAP_DELETE (a_chain->datum_types);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
@@ -243,6 +245,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
+            // Read chain datum types
+            char** l_datum_types = NULL;
+            uint16_t l_datum_types_count = 0;
+            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
+                log_it(L_ERROR, "Can't read chain datum types ", l_chain_id_str);
+                dap_config_close(l_cfg);
+                return NULL;
+            }
+
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
@@ -252,6 +263,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                     DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
                                 dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
                     if ( dap_chain_load_all( l_chain ) != 0 ){
+                        dap_chain_save_all( l_chain );
                         log_it (L_NOTICE, "Loaded chain files");
                     }else {
                         dap_chain_save_all( l_chain );
@@ -267,6 +279,26 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
                 l_chain = NULL;
+            }
+            // add datum types
+            if(l_chain && l_datum_types_count > 0) {
+                l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
+                uint16_t l_count_recognized = 0;
+                for(uint16_t i = 0; i < l_datum_types_count; i++) {
+                    if(!dap_strcmp(l_datum_types[i], "token")) {
+                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_TOKEN;
+                        l_count_recognized++;
+                    }
+                    else if(!dap_strcmp(l_datum_types[i], "emission")) {
+                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_EMISSION;
+                        l_count_recognized++;
+                    }
+                    else if(!dap_strcmp(l_datum_types[i], "transaction")) {
+                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_TX;
+                        l_count_recognized++;
+                    }
+                }
+                l_chain->datum_types_count = l_count_recognized;
             }
 
             dap_config_close(l_cfg);

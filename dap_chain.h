@@ -75,6 +75,14 @@ typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * ,
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
 
+typedef  enum dap_chain_type
+{
+    CHAIN_TYPE_FIRST,
+    CHAIN_TYPE_TOKEN,
+    CHAIN_TYPE_EMISSION,
+    CHAIN_TYPE_TX,
+    CHAIN_TYPE_LAST
+} dap_chain_type_t;
 
 typedef struct dap_chain{
     dap_chain_id_t id;
@@ -86,6 +94,9 @@ typedef struct dap_chain{
 
     // Nested cells (hashtab by cell_id
     dap_chain_cell_t * cells;
+
+    uint16_t datum_types_count;
+    dap_chain_type_t *datum_types;
 
     // To hold it in double-linked lists
     struct dap_chain * next;

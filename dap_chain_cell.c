@@ -53,7 +53,7 @@ typedef struct dap_chain_cell_file_header
 } DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
 
 
-static const char* s_cells_path = NULL;
+//static const char* s_cells_path = NULL;
 
 /**
  * @brief dap_chain_cell_init
@@ -61,7 +61,7 @@ static const char* s_cells_path = NULL;
  */
 int dap_chain_cell_init(void)
 {
-    s_cells_path = dap_config_get_item_str(g_config,"resources","cells_storage");
+    //s_cells_path = dap_config_get_item_str(g_config,"resources","cells_storage");
     return  0;
 }
 
@@ -112,14 +112,17 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
                 return 0;
             } else {
                 log_it (L_ERROR,"Wrong signature in file \"%s\", possible file corrupt",l_cell->file_storage_path);
+                DAP_DELETE(l_cell);
                 return -3;
             }
         } else {
             log_it (L_ERROR,"Can't read dap_chain file header \"%s\"",l_cell->file_storage_path);
+            DAP_DELETE(l_cell);
             return -2;
         }
     }else {
         log_it (L_WARNING,"Can't read dap_chain file \"%s\"",l_cell->file_storage_path);
+        DAP_DELETE(l_cell);
         return -1;
     }
 
