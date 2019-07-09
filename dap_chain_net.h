@@ -49,7 +49,6 @@ typedef  enum dap_chain_net_state{
     NET_STATE_SYNC_CHAINS,
 } dap_chain_net_state_t;
 
-
 typedef struct dap_chain_net{
     struct {
         dap_chain_net_id_t id;
@@ -110,3 +109,6 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_cha
     }
     return NULL;
 }
+
+dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
+char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);

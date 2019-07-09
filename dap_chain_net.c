@@ -1171,9 +1171,10 @@ int s_net_load(const char * a_net_name)
          }
 
         // Init chains
-        size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
-        char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
-        dap_snprintf(l_chains_path,l_chains_path_size,"%s/network/%s",dap_config_path(),l_net->pub.name);
+        //size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
+        //char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
+        //dap_snprintf(l_chains_path,l_chains_path_size,"%s/network/%s",dap_config_path(),l_net->pub.name);
+        char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
         DAP_DELETE (l_chains_path);
         if ( l_chains_dir ){
@@ -1182,26 +1183,22 @@ int s_net_load(const char * a_net_name)
                 if (l_dir_entry->d_name[0]=='\0')
                     continue;
                 char * l_entry_name = strdup(l_dir_entry->d_name);
-                l_chains_path_size = strlen(l_net->pub.name)+1+strlen("network")+1+strlen (l_entry_name)-3;
-                l_chains_path = DAP_NEW_Z_SIZE(char, l_chains_path_size);
-
                 if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
                     if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
                         l_entry_name [strlen(l_entry_name)-4] = 0;
                         log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
-                        dap_snprintf(l_chains_path,l_chains_path_size,"network/%s/%s",l_net->pub.name,l_entry_name);
-                        //dap_config_open(l_chains_path);
-
+                        l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
                         // Create chain object
-                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name, l_net->pub.id, l_chains_path);
-                        if(l_chain){
-                            DL_APPEND( l_net->pub.chains, l_chain);
+                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
+                                l_net->pub.id, l_chains_path);
+                        if(l_chain) {
+                            DL_APPEND(l_net->pub.chains, l_chain);
                             if(l_chain->callback_created)
-                                l_chain->callback_created(l_chain,l_cfg);
+                                l_chain->callback_created(l_chain, l_cfg);
                         }
+                        DAP_DELETE (l_chains_path);
                     }
                 }
-                DAP_DELETE (l_chains_path);
                 DAP_DELETE (l_entry_name);
             }
         } else {
@@ -1342,6 +1339,47 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
    }
    return NULL;
 }
+
+/**
+ * @brief dap_chain_net_get_chain_by_chain_type
+ * @param a_datum_type
+ * @return
+ */
+dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
+{
+    dap_chain_t * l_chain;
+    if(!l_net)
+        return NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain)
+    {
+        for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+            if(l_chain->datum_types[i] == a_datum_type)
+                return l_chain;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * @brief dap_chain_net_get_gdb_group_mempool_by_chain_type
+ * @param a_datum_type
+ * @return
+ */
+char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
+{
+    dap_chain_t * l_chain;
+    if(!l_net)
+        return NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain)
+    {
+        for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+            if(l_chain->datum_types[i] == a_datum_type)
+                return dap_chain_net_get_gdb_group_mempool(l_chain);
+        }
+    }
+    return NULL;
+}
+
 
 /**
  * @brief dap_chain_net_get_cur_addr
