@@ -310,7 +310,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     for (size_t d = 0; d <a_datums_count ; d++){
         dap_chain_datum_t * l_datum = a_datums[d];
 
-        if ( l_hashes_int_size ){
+        if ( l_hashes_int_size && l_events_round_new_size){
             // Linking randomly with current new round set
             size_t l_rnd_steps;
             // Linking events inside round
@@ -355,7 +355,9 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
 
         if (l_hashes_linked || s_seed_mode ) {
-            dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked);
+            dap_chain_cs_dag_event_t * l_event = NULL;
+            if(l_dag->callback_cs_event_create)
+                l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked);
             if ( l_event){ // Event is created
                 dap_chain_hash_fast_t l_event_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event,&l_event_hash);

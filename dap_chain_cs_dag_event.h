@@ -73,6 +73,8 @@ dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a
  */
 static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t * a_event)
 {
+    if(!a_event)
+        return 0;
     size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) a_event->hashes_n_datum_n_signs + l_hashes_size;
 
