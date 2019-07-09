@@ -103,13 +103,11 @@ size_t dap_chain_cert_parse_str_list(const char * a_certs_str, dap_chain_cert_t 
     size_t l_certs_pos = 0;
     size_t l_sign_total_size =0;
     while(l_cert_str) {
-
-        // trim token whitespace
-        if(isspace(l_cert_str[0]))
-            l_cert_str = l_cert_str + 1;
-        if(isspace(l_cert_str[strlen(l_cert_str) - 1]))
-            l_cert_str[strlen(l_cert_str) - 1] = 0;
+        // trim whitespace in certificate's name
+        l_cert_str = dap_strstrip(l_cert_str);// removes leading and trailing spaces
+        // get certificate by name
         l_certs[l_certs_pos] = dap_chain_cert_find_by_name(l_cert_str);
+        // if certificate is found
         if(l_certs[l_certs_pos]) {
             l_sign_total_size += dap_chain_cert_sign_output_size(l_certs[l_certs_pos],0);
             l_certs_pos++;
