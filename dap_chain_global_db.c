@@ -405,8 +405,11 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
     lock();
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, &count);
     unlock();
-    if(!l_store_obj || !count)
+    if(!l_store_obj || !count){
+        if(a_data_size_out)
+            *a_data_size_out = 0;
         return NULL;
+    }
     dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
             (count + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
     // clear only last item
