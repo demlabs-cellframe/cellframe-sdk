@@ -85,6 +85,8 @@ const char* dap_chain_wallet_get_path(dap_config_t * a_config)
     const char *l_wallets_path = NULL;
     if(a_config)
         l_wallets_path = dap_config_get_item_str(g_config, "resources", "wallets_path");
+    if(!l_wallets_path)
+        l_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
     return l_wallets_path;
 }
 
