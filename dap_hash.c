@@ -38,6 +38,8 @@ int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_f
 
 bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash)
 {
+    if(!a_hash)
+        return true;
     uint8_t *l_hast_bytes = (uint8_t*) a_hash;
     for(size_t i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
         if(l_hast_bytes[i])
@@ -48,6 +50,8 @@ bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash)
 
 bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2)
 {
+    if(!a_hash1 || !a_hash2)
+        return false;
     if(!memcmp(a_hash1, a_hash2, sizeof(dap_chain_hash_fast_t)))
         return true;
     return false;
