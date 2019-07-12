@@ -2333,23 +2333,25 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
         return -1;
     }
 
-    char *l_str_ret = NULL;
-
     // read all history
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_objs_count);
 
     size_t l_objs_count_filter = l_objs_count;
    //uint8_t*a = dap_db_log_pack(l_objs, &l_objs_count);
-    dap_global_db_obj_t *a = dap_db_history_filter("123", &l_objs_count_filter);
-    for(size_t i = 0; i < l_objs_count_filter; i++) {
+    char *l_str_out = dap_db_history_filter(l_addr, &l_objs_count_filter);
+   /* for(size_t i = 0; i < l_objs_count_filter; i++) {
         dap_global_db_obj_t *l_node_info =  (dap_chain_node_info_t *) l_objs[i].value;
         l_node_info = 0;
-    }
+    }*/
     //dap_store_obj_free(l_objs, l_objs_count);
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
 
+    char *l_addr_str = dap_chain_addr_to_str(l_addr);
+    char *l_str_ret = dap_strdup_printf("history for addr %s\n%s", l_addr_str, l_str_out ? l_str_out : "history is empty");
     dap_chain_node_cli_set_reply_text(str_reply, l_str_ret);
+    DAP_DELETE(l_addr_str);
+    DAP_DELETE(l_str_out);
     DAP_DELETE(l_str_ret);
     return 0;
 }
