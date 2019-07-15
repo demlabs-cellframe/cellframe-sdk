@@ -40,7 +40,6 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include "wrappers.h"
 #include <wepoll.h>
 #include <pthread.h>
 #endif
@@ -271,8 +270,10 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
   if ( a_es->_inheritor && !preserve_inheritor )
     free( a_es->_inheritor );
 
-  if ( a_es->socket )
-    close( a_es->socket );
+  if ( a_es->socket ) {
+//    close( a_es->socket );
+    closesocket( a_es->socket );
+  }
 
   free( a_es );
 }
@@ -307,7 +308,7 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
     size_t max_data_size = sizeof(sc->buf_out)-sc->buf_out_size;
     va_list ap;
     va_start(ap,format);
-    int ret=vsnprintf((char*) sc->buf_out+sc->buf_out_size,max_data_size,format,ap);
+    int ret=dap_vsnprintf((char*) sc->buf_out+sc->buf_out_size,max_data_size,format,ap);
     va_end(ap);
     if(ret>0){
         sc->buf_out_size+=ret;
@@ -327,7 +328,7 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
  */
 size_t dap_events_socket_read(dap_events_socket_t *sc, void *data, size_t data_size)
 {
-    log_it(L_DEBUG,"dap_events_socket_read %u sock data %X size %u", sc->socket, data, data_size );
+//    log_it(L_DEBUG,"dap_events_socket_read %u sock data %X size %u", sc->socket, data, data_size );
 
     if(data_size<sc->buf_in_size){
         memcpy(data,sc->buf_in,data_size);

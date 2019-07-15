@@ -65,9 +65,6 @@
 #include "wrappers.h"
 #include <wepoll.h>
 #include <pthread.h>
-
-//#define NO_TIMER
-
 #endif
 
 #include <utlist.h>
