@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
