@@ -31,9 +31,7 @@
 #include <time.h>
 
 #ifndef _WIN32
-//#include <ev.h> 
 #include <sys/queue.h>
-#include <utlist.h>
 #else
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0600
@@ -42,12 +40,13 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include "wrappers.h"
 #include <wepoll.h>
-#include <pthread.h>
 #endif
 
+#include <pthread.h>
 #include <json-c/json.h>
+
+#include "utlist.h"
 
 #include "dap_common.h"
 #include "dap_config.h"
@@ -173,7 +172,7 @@ static void *loop_http_simple_proc( void *arg )
 
       for ( uint32_t i = 0; i < s_requestsproc_count; ++ i ) {
         dap_http_simple_proc( s_requestsproc[i] );
-//        s_requestsproc[i]->http->client->no_close = false;
+        s_requestsproc[i]->http->client->no_close = false;
 //        free( s_requestsproc[i] ); // ???
       }
     }
@@ -518,7 +517,7 @@ size_t dap_http_simple_reply_f( dap_http_simple_t * shs, const char * data, ... 
   int vret;
 
   va_start(va,data);
-  vret = vsnprintf( buf, sizeof(buf) - 1, data, va );
+  vret = dap_vsnprintf( buf, sizeof(buf) - 1, data, va );
   va_end(va);
 
   if ( vret > 0 )
@@ -543,7 +542,7 @@ inline void queue_http_request_put( dap_http_simple_t *cl_sh )
   log_it( L_WARNING, "queue_http_request_put >>> %u", s_requests_count );
 
   s_requests[ s_requests_count ++ ] = cl_sh;
-//  cl_sh->http->client->no_close = true;
+  cl_sh->http->client->no_close = true;
 
   pthread_mutex_unlock( &mutex_on_queue_http_response );
 }

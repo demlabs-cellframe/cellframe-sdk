@@ -19,13 +19,13 @@
 */
 
 #include <stdio.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
 
 #ifndef _WIN32
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <errno.h>
 #else
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0600
@@ -34,11 +34,10 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include "wrappers.h"
 #include <wepoll.h>
-#include <pthread.h>
 #endif
 
+#include <pthread.h>
 #include <magic.h>
 
 #include "dap_common.h"
@@ -198,7 +197,7 @@ void dap_http_folder_headers_write( dap_http_client_t *cl_ht, void * arg)
   cl_ht_file->client=cl_ht;
 
   // Produce local path for file to open
-  snprintf(cl_ht_file->local_path,sizeof(cl_ht_file->local_path),"%s/%s", up_folder->local_path, cl_ht->url_path );
+  dap_snprintf(cl_ht_file->local_path,sizeof(cl_ht_file->local_path),"%s/%s", up_folder->local_path, cl_ht->url_path );
   log_it(L_DEBUG, "Check %s file", cl_ht_file->local_path);
 
 #ifndef _WIN32

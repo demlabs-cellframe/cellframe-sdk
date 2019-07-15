@@ -7,11 +7,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
-
-#ifndef _WIN32
 #include <unistd.h>
-#include <pthread.h>
-#else
+
+#ifdef _WIN32
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0600
 #include <winsock2.h>
@@ -20,10 +18,11 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <time.h>
-#include "wrappers.h"
+//#include "wrappers.h"
 #include <wepoll.h>
-#include "../../pthread-win32/pthread.h"
 #endif
+
+#include <pthread.h>
 
 #include <curl/curl.h>
 
@@ -67,7 +66,6 @@ static void *dap_http_client_thread( void *arg );
 
 size_t dap_http_client_curl_request_callback( char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata );
 size_t dap_http_client_curl_response_callback(char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata );
-size_t dap_http_client_curl_close_callback( char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata );
 
 void dap_http_client_internal_delete( dap_http_client_internal_t *a_client );
 
@@ -118,6 +116,7 @@ void dap_http_client_internal_delete( dap_http_client_internal_t * a_client_inte
     free( a_client_internal->response );
 
   free( a_client_internal );
+  log_it( L_NOTICE,"dap_http_client_internal_delete ok" );
 }
 
 /**
@@ -174,7 +173,7 @@ void dap_http_client_simple_request_custom( const char *a_url, const char *a_met
       if ( a_cookie )
         l_client_internal->request_headers = curl_slist_append( l_client_internal->request_headers,(char*) a_cookie );
 
-        snprintf(l_buf,sizeof(l_buf),"Content-Length: %lu", a_request_size );
+        dap_snprintf(l_buf,sizeof(l_buf),"Content-Length: %lu", a_request_size );
         l_client_internal->request_headers = curl_slist_append(l_client_internal->request_headers, l_buf);
 
         //curl_easy_setopt( l_curl_h , CURLOPT_READDATA , l_client_internal );
@@ -195,15 +194,14 @@ void dap_http_client_simple_request_custom( const char *a_url, const char *a_met
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEDATA , l_client_internal );
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEFUNCTION , dap_http_client_curl_response_callback );
 
-  curl_easy_setopt( l_curl_h , CURLOPT_CLOSESOCKETDATA , l_client_internal );
-  curl_easy_setopt( l_curl_h , CURLOPT_CLOSESOCKETFUNCTION , dap_http_client_curl_close_callback );
-
   curl_multi_add_handle( m_curl_mh, l_curl_h );
     //curl_multi_perform(m_curl_mh, &m_curl_cond);
 
+#ifndef _WIN32
   pthread_cond_signal( &m_curl_cond);
-
   send_select_break( );
+#endif
+
 }
 
 /**
@@ -257,21 +255,6 @@ size_t dap_http_client_curl_response_callback( char *a_ptr, size_t a_size, size_
     }
 
     return a_size*a_nmemb;
-}
-
-
-/**
- * @brief dap_http_client_curl_response_callback
- * @param a_ptr
- * @param a_size
- * @param a_nmemb
- * @param a_userdata
- * @return
- */
-size_t dap_http_client_curl_close_callback( char *a_ptr, size_t a_size, size_t a_nmemb, void *a_userdata )
-{
-    dap_http_client_internal_t * l_client_internal = (dap_http_client_internal_t *) a_userdata;
-    printf("\n*** close l_client_internal=%x\n\n", l_client_internal);
 }
 
 /**
@@ -333,7 +316,11 @@ static void* dap_http_client_thread(void * arg)
         timeout.tv_sec = 10;
         timeout.tv_usec = 0;
 
+//        log_it(L_DEBUG, "curl_multi_timeout( )\n");
         curl_multi_timeout( m_curl_mh, &curl_timeo );
+
+//        Sleep(1000);
+//        log_it(L_DEBUG, "curl_timeo = %u\n", curl_timeo);
 
         if(curl_timeo >= 0) {
           timeout.tv_sec = curl_timeo / 1000;
@@ -344,13 +331,16 @@ static void* dap_http_client_thread(void * arg)
         }
 
         /* get file descriptors from the transfers */
-        mc = curl_multi_fdset(m_curl_mh, &fdread, &fdwrite, &fdexcep, &maxfd);
+        mc = curl_multi_fdset( m_curl_mh, &fdread, &fdwrite, &fdexcep, &maxfd );
 
+//        log_it(L_DEBUG, "curl_multi_fdset() = %u maxfd = %u\n", mc, maxfd );
+
+#ifndef _WIN32
         FD_SET(get_select_breaker(),&fdread);
 
         if(get_select_breaker() > maxfd)
             maxfd = get_select_breaker();
-
+#endif
         if(mc != CURLM_OK) {
           log_it(L_ERROR, "curl_multi_fdset() failed, code %d.\n", mc);
           break;
@@ -364,22 +354,34 @@ static void* dap_http_client_thread(void * arg)
 
         rc = 0;
 
-        if(maxfd == -1) {
+        if ( maxfd == -1 ) {
 //            log_it(L_DEBUG, "Waiting for signal");
-            pthread_cond_wait(&m_curl_cond,&m_curl_mutex);
+#ifndef _WIN32
+            pthread_cond_wait( &m_curl_cond, &m_curl_mutex );
+#else
+            Sleep(100);
+#endif
+//            Sleep(1000);
         }  else {
-//            log_it(L_DEBUG, "Selecting stuff");
+//            Sleep(100);
+//            log_it(L_DEBUG, "Selecting stuff maxfd = %u select timeout %u", maxfd, timeout );
           /* Note that on some platforms 'timeout' may be modified by select().
              If you need access to the original value save a copy beforehand. */
-          rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+          rc = select( maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout );
         }
+//        log_it(L_DEBUG, "Select error rc = %u", rc );
+
 
         switch(rc) {
             case -1: {
+//              log_it(L_DEBUG, "Select error rc = %u", rc );
               /* select error */
             } break;
             case 0: /* timeout */
+//              log_it(L_DEBUG, "Select timeout rc = %u", rc );
             default: { /* action */
+//              log_it(L_DEBUG, "ACTTION ? rc = %u", rc );
+
               int l_curl_eh_count = 0;
               curl_multi_perform( m_curl_mh , &l_curl_eh_count );
                // Check if we have smth complete
@@ -390,10 +392,12 @@ static void* dap_http_client_thread(void * arg)
                   m = curl_multi_info_read(m_curl_mh, &msgq);
 
                   if(m && (m->msg == CURLMSG_DONE)) {
+//                      log_it(L_DEBUG, "CURLMSG_DONE" );
                       CURL *e = m->easy_handle;
                       char * l_private = NULL;
                       int l_err_code = 0;
                       curl_easy_getinfo( e, CURLINFO_PRIVATE, &l_private );
+//                      log_it(L_DEBUG, "l_private = %p", l_private );
                       if( l_private ){
 
                           bool l_is_ok = false;
@@ -424,7 +428,6 @@ static void* dap_http_client_thread(void * arg)
                           }
 
                           dap_http_client_internal_delete(l_client_internal);
-
                       } 
                       else {
                         log_it(L_CRITICAL, "Can't get private information from libcurl handle to perform the reply to SAP connection");

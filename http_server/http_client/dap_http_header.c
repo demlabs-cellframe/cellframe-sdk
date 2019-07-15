@@ -33,9 +33,9 @@
 #include <io.h>
 #include "wrappers.h"
 #include <wepoll.h>
-#include "../pthread-win32/pthread.h"
-
 #endif
+
+#include <pthread.h>
 
 #include "dap_common.h"
 #include "dap_client_remote.h"
@@ -171,7 +171,7 @@ dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t * ht, const char
     dap_http_header_t * ret;
     char buf[1024];
     va_start(ap,value);
-    vsnprintf(buf,sizeof(buf)-1,value,ap);
+    dap_vsnprintf(buf,sizeof(buf)-1,value,ap);
     ret=dap_http_out_header_add(ht,name,buf);
     va_end(ap);
     return ret;
