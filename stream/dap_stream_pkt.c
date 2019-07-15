@@ -18,8 +18,26 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 //#include "config.h"
 
