@@ -22,6 +22,18 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <string.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_net.h"
@@ -185,7 +197,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_chain_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_chain_cert_t));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                snprintf(l_cert_name,sizeof(l_cert_name),"%s.%lu",l_poa_pvt->auth_certs_prefix, i);
+                dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%lu",l_poa_pvt->auth_certs_prefix, i);
                 if ( (l_poa_pvt->auth_certs[i] = dap_chain_cert_find_by_name( l_cert_name)) != NULL ) {
                     log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
                 } else{
