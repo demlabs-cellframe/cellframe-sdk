@@ -40,7 +40,7 @@
  */
 int dap_chain_cert_file_save(dap_chain_cert_t * a_cert, const char * a_cert_file_path)
 {
-    FILE * l_file = fopen(a_cert_file_path,"w");
+    FILE * l_file = fopen(a_cert_file_path,"wb");
     if( l_file ){
         uint32_t l_data_size = 0;
         void * l_data = dap_chain_cert_mem_save(a_cert, &l_data_size);
@@ -150,7 +150,7 @@ lb_exit:
 dap_chain_cert_t* dap_chain_cert_file_load(const char * a_cert_file_path)
 {
     dap_chain_cert_t * l_ret = NULL;
-    FILE * l_file = fopen(a_cert_file_path,"r");
+    FILE * l_file = fopen(a_cert_file_path,"rb");
 
     if( l_file ){
         fseek(l_file, 0L, SEEK_END);
