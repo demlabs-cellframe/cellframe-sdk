@@ -58,7 +58,11 @@ typedef struct dap_chain_node_client {
     char last_error[128];
 
     dap_chain_node_client_callback_t callback_connected;
+#ifndef _WIN32
     pthread_cond_t wait_cond;
+#else
+    HANDLE wait_cond;
+#endif
     pthread_mutex_t wait_mutex;
 
     // For hash indexing
