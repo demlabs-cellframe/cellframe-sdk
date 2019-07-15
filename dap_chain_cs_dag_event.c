@@ -56,7 +56,13 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t,
                                                          l_event_size
                                                          );
+  #ifdef _WIN32
+    l_event_new->header.ts_created = (uint64_t) gmtime(NULL);
+  #else
     l_event_new->header.ts_created = (uint64_t) timegm(NULL);
+  #endif
+
+
     l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
     l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
 
