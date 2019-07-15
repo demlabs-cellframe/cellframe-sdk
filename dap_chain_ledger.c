@@ -23,11 +23,27 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dap_chain_ledger.h"
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <pthread.h>
-#include <malloc.h>
+//#include <malloc.h>
+
+#ifdef _WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+//#include "wrappers.h"
+#include <wepoll.h>
+#endif
 
 #include "uthash.h"
 #include "utlist.h"
@@ -41,6 +57,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_net.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -202,7 +219,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
 
     if ( l_token_item == NULL ){
         l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-        snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header.ticker);
+        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header.ticker);
         l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
         memcpy(l_token_item->datum_token, a_token,a_token_size);
         l_token_item->total_supply = a_token->header.total_supply;
@@ -453,6 +470,9 @@ static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger,
 {
     if(!a_tx_hash)
         return NULL;
+
+//    log_it( L_ERROR, "s_find_datum_tx_by_hash( )...");
+
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     dap_chain_datum_tx_t *l_tx_ret = NULL;
     dap_chain_ledger_tx_item_t *l_tx_item;
@@ -464,6 +484,7 @@ static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger,
             *a_item_out = l_tx_item;
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+
     return l_tx_ret;
 }
 
@@ -544,7 +565,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         char l_tx_prev_hash_str[70];
         if (l_is_blank){
            log_it(L_DEBUG, "Tx check: blank prev hash ");
-           snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
+           dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
         }else{
             dap_chain_hash_fast_to_str(&l_tx_prev_hash,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
             log_it(L_DEBUG, "Tx check:  tx prev hash %s",l_tx_prev_hash_str);
@@ -885,8 +906,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
             }
             log_it(L_INFO, "Updated balance +%.3Lf %s, now %.3Lf on addr %s",
                    dap_chain_balance_to_coins (l_out_item->header.value),
+                    l_token_ticker,
                    dap_chain_balance_to_coins (wallet_balance->balance),
-                   l_token_ticker, l_addr_str);
+                   l_addr_str);
             DAP_DELETE (l_addr_str);
         } else {
             log_it(L_WARNING, "Can't detect tx ticker or matching output, can't append balances cache");
