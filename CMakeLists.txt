@@ -38,14 +38,25 @@ set(DAP_CHAIN_HEADERS
         dap_chain_ledger.h
     )
 
+if(WIN32)
+  include_directories(../libdap/src/win32/)
+  include_directories(../3rdparty/libmemcached/)
+  include_directories(../3rdparty/libmemcached/win32/)
+  include_directories(../3rdparty/wepoll/include/)
+  include_directories(../3rdparty/uthash/src/)
+  include_directories(../3rdparty/libjson-c/)
+  include_directories(../3rdparty/libmagic/src/)
+  include_directories(../3rdparty/curl/include/)
+  include_directories(../3rdparty/libsqlite3/)
+endif()
+
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 
-find_package(PkgConfig REQUIRED)
-pkg_search_module(GLIB REQUIRED glib-2.0)
+#find_package(PkgConfig REQUIRED)
+#pkg_search_module(GLIB REQUIRED glib-2.0)
 
 target_link_libraries(dap_chain dap_core dap_chain_crypto dap_chain_mempool dap_chain_global_db ${GLIB_LDFLAGS})
 target_include_directories(dap_chain INTERFACE . ${GLIB_INCLUDE_DIRS})
-
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 set(${PROJECT_NAME}_INCLUDE_DIRS ${PROJECT_SOURCE_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
