@@ -28,6 +28,20 @@
 #include <time.h>
 #include <assert.h>
 #include <errno.h>
+
+#ifdef _WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_events.h"
@@ -39,6 +53,8 @@
 #define DAP_APP_NAME NODE_NETNAME"-node"
 #define SYSTEM_PREFIX "/opt/"DAP_APP_NAME
 #define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
+
+#define LOG_TAG "dap_client_mempool"
 
 static int listen_port_tcp = 8079;
 
@@ -74,7 +90,13 @@ static void a_response_proc(dap_client_t *a_client, void *str, size_t str_len)
         }
         pthread_mutex_lock(&mempool->wait_mutex);
         mempool->state = CLIENT_MEMPOOL_SENDED;
+
+#ifndef _WIN32
         pthread_cond_signal(&mempool->wait_cond);
+#else
+        SetEvent( mempool->wait_cond );
+#endif
+
         pthread_mutex_unlock(&mempool->wait_mutex);
     }
 }
@@ -88,7 +110,11 @@ static void a_response_error(dap_client_t *a_client, int val)
     if(mempool) {
         pthread_mutex_lock(&mempool->wait_mutex);
         mempool->state = CLIENT_MEMPOOL_ERROR;
+#ifndef _WIN32
         pthread_cond_signal(&mempool->wait_cond);
+#else
+        SetEvent( mempool->wait_cond );
+#endif
         pthread_mutex_unlock(&mempool->wait_mutex);
     }
 }
@@ -101,7 +127,11 @@ static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
     if(mempool) {
         pthread_mutex_lock(&mempool->wait_mutex);
         mempool->state = CLIENT_MEMPOOL_CONNECTED;
+#ifndef _WIN32
         pthread_cond_signal(&mempool->wait_cond);
+#else
+        SetEvent( mempool->wait_cond );
+#endif
         pthread_mutex_unlock(&mempool->wait_mutex);
     }
 }
@@ -129,16 +159,24 @@ void client_mempool_deinit()
     dap_client_deinit();
 }
 
-client_mempool_t* client_mempool_connect(const char *addr)
+client_mempool_t *client_mempool_connect(const char *addr)
 {
     if(!addr || strlen(addr) < 1)
         return NULL;
     client_mempool_t *mempool = DAP_NEW_Z(client_mempool_t);
     mempool->state = CLIENT_MEMPOOL_INIT;
+
+    log_it(L_NOTICE, "======= client_mempool_connect( )" );
+
+#ifndef _WIN32
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
     pthread_cond_init(&mempool->wait_cond, &attr);
+#else
+    mempool->wait_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
+#endif
+
     pthread_mutex_init(&mempool->wait_mutex, NULL);
     mempool->a_events = dap_events_new();
     mempool->a_client = dap_client_new(mempool->a_events, stage_status_callback, stage_status_error_callback);
@@ -166,8 +204,11 @@ client_mempool_t* client_mempool_connect(const char *addr)
 int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout_ms)
 {
     int ret = -1;
-    if(!mempool)
+    if( !mempool )
         return -1;
+
+    log_it(L_NOTICE, "======= client_mempool_wait( ) tm %u ms", timeout_ms );
+
     pthread_mutex_lock(&mempool->wait_mutex);
 // have waited
     if(mempool->state == waited_state) {
@@ -175,6 +216,7 @@ int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout
         return 1;
     }
 // prepare for signal waiting
+#ifndef _WIN32
     struct timespec to;
     clock_gettime(CLOCK_MONOTONIC, &to);
     int64_t nsec_new = to.tv_nsec + timeout_ms * 1000000ll;
@@ -191,6 +233,16 @@ int client_mempool_wait(client_mempool_t *mempool, int waited_state, int timeout
         ret = 1;
     else if(wait == ETIMEDOUT) // 110 260
         ret = 0;
+#else
+    int wait = WaitForSingleObject( mempool->wait_cond, (uint32_t)timeout_ms );
+    pthread_mutex_lock(&mempool->wait_mutex);
+
+    if ( wait == WAIT_OBJECT_0 ) return 1;
+    else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
+        ret = 0;
+    }
+#endif
+
     pthread_mutex_unlock(&mempool->wait_mutex);
     return ret;
 }

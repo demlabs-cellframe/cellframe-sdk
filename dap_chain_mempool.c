@@ -29,8 +29,19 @@
 #include <assert.h>
 #include <memory.h>
 
-//#include <dap_http_simple.h>
-//#include <http_status_code.h>
+#ifdef _WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_http_client.h"
@@ -309,7 +320,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         while(l_list_tmp) {
             list_used_item_t *item = l_list_tmp->data;
             char l_in_hash_str[70];
+
             dap_chain_hash_fast_to_str(&item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
+
             if(dap_chain_datum_tx_add_in_item(&l_tx_new, &item->tx_hash_fast, (uint32_t) item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
                 log_it(L_DEBUG,"Added input %s with %llu datoshi",l_in_hash_str, item->value);
@@ -768,11 +781,15 @@ static char* calc_datum_hash(const char *datum_str, size_t datum_size)
     dap_hash( datum_str, datum_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_SLOW_0);
     size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
     char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
-    size_t hash_len = dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
-    if(!hash_len) {
-        DAP_DELETE(a_str);
-        return NULL;
-    }
+
+//    size_t hash_len = dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
+    dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
+
+//    if(!hash_len) {
+//        DAP_DELETE(a_str);
+//        return NULL;
+//    }
+
     return a_str;
 }
 
