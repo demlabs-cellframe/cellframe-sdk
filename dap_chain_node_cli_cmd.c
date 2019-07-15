@@ -661,6 +661,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_addr_str = NULL, *alias_str = NULL, *l_cell_str = NULL, *l_link_str = NULL;
     const char *a_ipv4_str = NULL, *a_ipv6_str = NULL;
     // find addr, alias
+
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
@@ -675,7 +676,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
 
     if(l_addr_str) {
-        dap_digit_from_string(l_addr_str, l_node_info->hdr.address.raw, sizeof(l_node_info->hdr.address.raw));
+        dap_digit_from_string2(l_addr_str, l_node_info->hdr.address.raw, sizeof(l_node_info->hdr.address.raw));
     }
     if(l_cell_str) {
         dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
@@ -751,6 +752,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_node_addr={0};
     const char *l_addr_str = NULL, *alias_str = NULL;
     const char * l_net_str = NULL;
+
     // find addr, alias
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
