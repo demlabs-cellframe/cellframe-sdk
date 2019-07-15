@@ -865,11 +865,40 @@ void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
     if(!num_str)
         return;
     uint64_t val;
+
     if(!strncasecmp(num_str, "0x", 2)) {
         val = strtoull(num_str + 2, NULL, 16);
     }else {
         val = strtoull(num_str, NULL, 10);
     }
+
+    // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    val = le64toh(val);
+#endif
+    memset(raw, 0, raw_len);
+    memcpy(raw, &val, min(raw_len, sizeof(uint64_t)));
+}
+
+typedef union {
+  uint16_t   addrs[4];
+  uint64_t  addr;
+} node_addr_t;
+
+void dap_digit_from_string2(const char *num_str, uint8_t *raw, size_t raw_len)
+{
+    if(!num_str)
+        return;
+
+    uint64_t val;
+
+    if(!strncasecmp(num_str, "0x", 2)) {
+        val = strtoull(num_str + 2, NULL, 16);
+    }else {
+        node_addr_t *nodeaddr = (node_addr_t *)&val;
+        sscanf( num_str, "%hx::%hx::%hx::%hx", &nodeaddr->addrs[3], &nodeaddr->addrs[2], &nodeaddr->addrs[1], &nodeaddr->addrs[0] );
+    }
+
     // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     val = le64toh(val);
