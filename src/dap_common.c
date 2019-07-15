@@ -55,11 +55,12 @@
 
 #endif
 
-
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_list.h"
+
+#include "dap_lut.h"
 
 #define LAST_ERROR_MAX 255
 

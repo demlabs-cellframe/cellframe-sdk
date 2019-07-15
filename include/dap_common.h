@@ -42,46 +42,6 @@
 #define DAP_DELETE(a)         free( a )
 #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 
-
-#ifdef _WIN32
-  #define dap_sscanf            __mingw_sscanf
-  #define dap_vsscanf           __mingw_vsscanf
-  #define dap_scanf             __mingw_scanf
-  #define dap_vscanf            __mingw_vscanf
-  #define dap_fscanf            __mingw_fscanf
-  #define dap_vfscanf           __mingw_vfscanf
-  #define dap_sprintf           __mingw_sprintf
-  #define dap_snprintf          __mingw_snprintf
-  #define dap_printf            __mingw_printf
-  #define dap_vprintf           __mingw_vprintf
-  #define dap_fprintf           __mingw_fprintf
-  #define dap_vfprintf          __mingw_vfprintf
-  #define dap_vsprintf          __mingw_vsprintf
-  #define dap_vsnprintf         __mingw_vsnprintf
-  #define dap_asprintf          __mingw_asprintf
-  #define dap_vasprintf         __mingw_vasprintf
-#else
-  #define dap_sscanf            sscanf
-  #define dap_vsscanf           vsscanf
-  #define dap_scanf             scanf
-  #define dap_vscanf            vscanf
-  #define dap_fscanf            fscanf
-  #define dap_vfscanf           vfscanf
-
-  #define dap_sprintf           sprintf
-  #define dap_snprintf          snprintf
-  #define dap_printf            printf
-  #define dap_vprintf           vprintf
-  #define dap_fprintf           fprintf
-  #define dap_vfprintf          vfprintf
-  #define dap_vsprintf          vsprintf
-  #define dap_vsnprintf         vsnprintf
-  #define dap_asprintf          asprintf
-  #define dap_vasprintf         vasprintf
-#endif
-
-//__mingw_printf
-
 #define DAP_PROTOCOL_VERSION  22
 
 #if defined(__GNUC__) ||defined (__clang__)
@@ -93,9 +53,11 @@
 #ifdef _MSC_VER
   #define DAP_STATIC_INLINE static __forceinline
   #define DAP_INLINE __forceinline
+  #define DAP_ALIGNED(x) __declspec( align(x) )
 #else
   #define DAP_STATIC_INLINE static __attribute__((always_inline)) inline
   #define DAP_INLINE __attribute__((always_inline)) inline
+  #define DAP_ALIGNED(x) __attribute__ ((aligned (x)))
 #endif
 
 #ifndef TRUE
@@ -140,6 +102,43 @@
 #define DAP_LOG_HISTORY_BUFFER_SIZE (DAP_LOG_HISTORY_STR_SIZE * DAP_LOG_HISTORY_MAX_STRINGS)
 #define DAP_LOG_HISTORY_M           (DAP_LOG_HISTORY_MAX_STRINGS - 1)
 
+#ifdef _WIN32
+  #define dap_sscanf            __mingw_sscanf
+  #define dap_vsscanf           __mingw_vsscanf
+  #define dap_scanf             __mingw_scanf
+  #define dap_vscanf            __mingw_vscanf
+  #define dap_fscanf            __mingw_fscanf
+  #define dap_vfscanf           __mingw_vfscanf
+  #define dap_sprintf           __mingw_sprintf
+  #define dap_snprintf          __mingw_snprintf
+  #define dap_printf            __mingw_printf
+  #define dap_vprintf           __mingw_vprintf
+  #define dap_fprintf           __mingw_fprintf
+  #define dap_vfprintf          __mingw_vfprintf
+  #define dap_vsprintf          __mingw_vsprintf
+  #define dap_vsnprintf         __mingw_vsnprintf
+  #define dap_asprintf          __mingw_asprintf
+  #define dap_vasprintf         __mingw_vasprintf
+#else
+  #define dap_sscanf            sscanf
+  #define dap_vsscanf           vsscanf
+  #define dap_scanf             scanf
+  #define dap_vscanf            vscanf
+  #define dap_fscanf            fscanf
+  #define dap_vfscanf           vfscanf
+  #define dap_sprintf           sprintf
+  #define dap_snprintf          snprintf
+  #define dap_printf            printf
+  #define dap_vprintf           vprintf
+  #define dap_fprintf           fprintf
+  #define dap_vfprintf          vfprintf
+  #define dap_vsprintf          vsprintf
+  #define dap_vsnprintf         vsnprintf
+  #define dap_asprintf          asprintf
+  #define dap_vasprintf         vasprintf
+#endif
+
+
 /**
  * @brief The log_level enum
  */
@@ -170,6 +169,29 @@ typedef struct dap_log_str_s {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern uint16_t htoa_lut256[ 256 ];
+
+#define dap_htoa64( out, in, len ) \
+{\
+  uintptr_t  _len = len; \
+  uint16_t *__restrict _out = (uint16_t *__restrict)out; \
+  uint64_t *__restrict _in  = (uint64_t *__restrict)in;\
+\
+  while ( _len ) {\
+    uint64_t  _val = *_in ++;\
+    _out[0] = htoa_lut256[  _val & 0x00000000000000FF ];\
+    _out[1] = htoa_lut256[ (_val & 0x000000000000FF00) >> 8 ];\
+    _out[2] = htoa_lut256[ (_val & 0x0000000000FF0000) >> 16 ];\
+    _out[3] = htoa_lut256[ (_val & 0x00000000FF000000) >> 24 ];\
+    _out[4] = htoa_lut256[ (_val & 0x000000FF00000000) >> 32 ];\
+    _out[5] = htoa_lut256[ (_val & 0x0000FF0000000000) >> 40 ];\
+    _out[6] = htoa_lut256[ (_val & 0x00FF000000000000) >> 48 ];\
+    _out[7] = htoa_lut256[ (_val & 0xFF00000000000000) >> 56 ];\
+    _out += 8;\
+    _len -= 8;\
+  }\
+}
 
 typedef enum {
     DAP_ASCII_ALNUM = 1 << 0,
@@ -223,6 +245,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
 void _vlog_it( const char * log_tag, enum dap_log_level, const char * format, va_list ap );
+
 #define log_it(_log_level,...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
 #define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, a_log_level, a_format, a_ap )
 
