@@ -22,10 +22,28 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <stdint.h>
-#include <stdio.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#endif
+
+#include <pthread.h>
+
 #include "dap_common.h"
 #include "dap_chain_cert_file.h"
 #include "dap_chain_wallet.h"
@@ -72,7 +90,7 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     l_wallet_internal->file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
 
-    snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet",a_wallets_path,a_wallet_name);
+    dap_snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet",a_wallets_path,a_wallet_name);
 
     l_wallet_internal->certs[0] = dap_chain_cert_generate_mem(a_wallet_name,
                                                          dap_chain_sign_type_to_key_type(a_sig_type));
@@ -305,7 +323,7 @@ dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const cha
         return NULL;
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     char *l_file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
-    snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
+    dap_snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open_file(l_file_name);
     DAP_DELETE(l_file_name);
     return l_wallet;
