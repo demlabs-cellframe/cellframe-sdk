@@ -187,7 +187,13 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     if(s_cdb_path[strlen(s_cdb_path)] == '/') {
         s_cdb_path[strlen(s_cdb_path)] = '\0';
     }
+
+#ifdef _WIN32
+    mkdir(s_cdb_path);
+#else
     mkdir(s_cdb_path, 0755);
+#endif
+
     struct dirent *d;
     DIR *dir = opendir(s_cdb_path);
     if (!dir) {
@@ -229,7 +235,13 @@ int dap_cdb_add_group(const char *a_group) {
     strcat(l_cdb_path, s_cdb_path);
     strcat(l_cdb_path, "/");
     strcat(l_cdb_path, a_group);
+
+#ifdef _WIN32
+    mkdir(l_cdb_path);
+#else
     mkdir(l_cdb_path, 0755);
+#endif
+
     return 0;
 }
 
@@ -312,7 +324,7 @@ dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const cha
         if(a_count_out) {
             *a_count_out = l_count_out;
         }
-        for (ulong i = 0; i < l_count_out; ++i) {
+        for (uint64_t i = 0; i < l_count_out; ++i) {
             l_arg.o[i].group = dap_strdup(a_group);
         }
         l_obj = l_arg.o;
@@ -360,7 +372,7 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
     if(a_count_out) {
         *a_count_out = l_count_out;
     }
-    for (ulong i = 0; i < l_count_out; ++i) {
+    for (uint64_t i = 0; i < l_count_out; ++i) {
         l_arg.o[i].group = dap_strdup(a_group);
     }
     return l_arg.o;
