@@ -4,6 +4,18 @@ project (dap_chain_gdb)
 file(GLOB DAP_CHAIN_GDB_SRC *.c)
 file(GLOB DAP_CHAIN_GDB_HDR *.h)
 
+if(WIN32)
+  include_directories(../libdap/src/win32/)
+  include_directories(../3rdparty/libmemcached/)
+  include_directories(../3rdparty/libmemcached/win32/)
+  include_directories(../3rdparty/wepoll/include/)
+  include_directories(../3rdparty/uthash/src/)
+  include_directories(../3rdparty/libjson-c/)
+  include_directories(../3rdparty/libmagic/src/)
+  include_directories(../3rdparty/curl/include/)
+  include_directories(../3rdparty/libsqlite3/)
+endif()
+
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GDB_SRC} ${DAP_CHAIN_GDB_HDR})
 
 target_link_libraries(dap_chain_gdb dap_core dap_chain dap_chain_global_db dap_chain_mempool dap_chain_net)
