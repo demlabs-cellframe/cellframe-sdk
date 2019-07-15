@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
+ Copyright (c) 2017-2019 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
   All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -61,7 +61,6 @@ typedef struct dap_udp_server {
 
 #define DAP_UDP_SERVER(a) ((dap_udp_server_t *) (a)->_inheritor)
 
-extern void dap_udp_server_delete( dap_server_t *sh ); 
-extern void dap_udp_server_loop( dap_server_t *udp_server );      // Start server event loop
-extern dap_server_t *dap_udp_server_listen( uint16_t port );      // Create and bind server
-
+void dap_udp_server_delete( dap_server_t *sh );
+void dap_udp_server_loop( dap_server_t *udp_server );      // Start server event loop
+dap_server_t *dap_udp_server_listen( uint16_t port );      // Create and bind serv
