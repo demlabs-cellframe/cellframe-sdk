@@ -21,6 +21,24 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+
+#include "dap_common.h"
+
+#ifdef _WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#include <wepoll.h>
+#endif
+
+#include <pthread.h>
+
+
 #include "dap_common.h"
 
 #include "dap_http.h"
@@ -245,12 +263,13 @@ size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...)
 {
     va_list ap;
     va_start(ap, data);
-    int mem_size = vsnprintf(0, 0, data, ap);
+    int mem_size = dap_vsnprintf(0, 0, data, ap);
+
     va_end(ap);
     char *buf = (char*)malloc(sizeof(char) * mem_size + 1);
     if(buf) {
         va_start(ap, data);
-        vsprintf(buf, data, ap);
+        dap_vsprintf(buf, data, ap);
         va_end(ap);
         return enc_http_reply(dg,buf,mem_size);
     }else

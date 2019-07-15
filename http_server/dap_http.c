@@ -22,19 +22,17 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-
-#ifndef _WIN32
-#include <netinet/in.h>
-
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <dirent.h>
+
+#ifndef _WIN32
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <netdb.h>
 #else
 #undef _WIN32_WINNT
@@ -45,16 +43,14 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <time.h>
-#include "wrappers.h"
 #include <wepoll.h>
-#include <pthread.h>
 #endif
 
-#include "dap_common.h"
+#include <pthread.h>
 
+#include "dap_common.h"
 #include "dap_server.h"
 #include "dap_client_remote.h"
-
 #include "dap_http.h"
 #include "dap_http_header.h"
 #include "dap_http_client.h"

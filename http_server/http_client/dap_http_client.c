@@ -35,9 +35,10 @@
 #include <io.h>
 #include "wrappers.h"
 #include <wepoll.h>
-#include "../pthread-win32/pthread.h"
-
 #endif
+
+#include <pthread.h>
+
 #include "dap_common.h"
 #include "dap_client_remote.h"
 
@@ -102,24 +103,21 @@ void dap_http_client_delete( dap_client_remote_t * cl, void *arg )
 {
   dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
 
-  log_it( L_NOTICE,"dap_http_client_delete" );
-
   while( cl_ht->in_headers )
     dap_http_header_remove( &cl_ht->in_headers, cl_ht->in_headers );
 
   while( cl_ht->out_headers )
     dap_http_header_remove( &cl_ht->out_headers, cl_ht->out_headers );
 
-
   if( cl_ht->proc ) {
     if( cl_ht->proc->delete_callback ) {
-      log_it( L_NOTICE,"dap_http_client_delete: callback delete" );
       cl_ht->proc->delete_callback( cl_ht, NULL );
     }
   }
 
-  if( cl_ht->_inheritor )
+  if( cl_ht->_inheritor ) {
     free( cl_ht->_inheritor );
+  }
 
   (void) arg;
 }
@@ -324,7 +322,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
   char buf_line[4096];
   dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
 
-  log_it( L_DEBUG, "dap_http_client_read..." );
+//  log_it( L_DEBUG, "dap_http_client_read..." );
   log_it( L_WARNING, "HTTP client in state read %d taked bytes in input %lu", cl_ht->state_read, cl->buf_in_size );
 
   do {
@@ -459,7 +457,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
 
         if ( cl_ht->proc->access_callback ) {
 
-          log_it( L_WARNING, "access_callback" );
+//          log_it( L_WARNING, "access_callback" );
 
           bool isOk = true;
           cl_ht->proc->access_callback( cl_ht, &isOk );
@@ -497,7 +495,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
 
       size_t read_bytes = 0;
       if ( cl_ht->proc->data_read_callback ) {
-            log_it( L_WARNING, "cl_ht->proc->data_read_callback()" );
+//            log_it( L_WARNING, "cl_ht->proc->data_read_callback()" );
 
         //while(cl_ht->client->buf_in_size){
         cl_ht->proc->data_read_callback( cl_ht, &read_bytes );
@@ -520,7 +518,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
 
   } while ( cl->buf_in_size > 0 );
 
-  log_it( L_DEBUG, "dap_http_client_read...exit" );
+//  log_it( L_DEBUG, "dap_http_client_read...exit" );
 //  Sleep(100);
 }
 
@@ -531,7 +529,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
  */
 void dap_http_client_write( dap_client_remote_t * cl, void *arg )
 {
-  log_it( L_DEBUG, "dap_http_client_write..." );
+//  log_it( L_DEBUG, "dap_http_client_write..." );
 
   (void) arg;
   dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
@@ -614,7 +612,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
       log_it(L_DEBUG,"output: Content-Type = '%s'",cl_ht->out_content_type);
     }
     if ( cl_ht->out_content_length ) {
-      snprintf(buf,sizeof(buf),"%llu",(unsigned long long)cl_ht->out_content_length);
+      dap_snprintf(buf,sizeof(buf),"%llu",(unsigned long long)cl_ht->out_content_length);
       dap_http_header_add(&cl_ht->out_headers,"Content-Length",buf);
       log_it(L_DEBUG,"output: Content-Length = %llu",cl_ht->out_content_length);
     }

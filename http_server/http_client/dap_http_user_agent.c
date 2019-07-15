@@ -18,11 +18,11 @@ static char* _dap_http_user_agent_to_string(dap_http_user_agent_ptr_t a_agent)
     char * result = calloc(1, sizeof(*a_agent));
 
     if(a_agent->comment) {
-        sprintf(result, "%s/%d.%d %s", a_agent->name,
+        dap_sprintf(result, "%s/%d.%d %s", a_agent->name,
                 a_agent->major_version, a_agent->minor_version,
                 a_agent->comment);
     } else {
-        sprintf(result, "%s/%d.%d", a_agent->name,
+        dap_sprintf(result, "%s/%d.%d", a_agent->name,
                 a_agent->major_version, a_agent->minor_version);
     }
 
