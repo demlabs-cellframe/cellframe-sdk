@@ -52,8 +52,8 @@
 #include <windows.h>
 #include <mswsock.h>
 #include <ws2tcpip.h>
-#include <io.h>
 #include "wrappers.h"
+#include <io.h>
 #include <wepoll.h>
 #include <pthread.h>
 #endif
@@ -105,7 +105,7 @@ static uint32_t  get_epoll_max_user_watches( void )
 
   FILE *fp = fopen( maxepollpath, "r" );
   if ( !fp ) {
-    printf("can't open %s\n", maxepollpath );
+//    printf("can't open %s\n", maxepollpath );
     return v;
   }
 
@@ -344,6 +344,7 @@ dap_client_remote_t  *dap_server_add_socket( int32_t fd, int32_t forced_thread_n
 
   pthread_mutex_lock( &dsth->mutex_dlist_add_remove );
 
+
   DL_APPEND( dsth->dap_remote_clients, dcr );
   dsth->connections_count ++;
   if ( epoll_ctl( dsth->epoll_fd, EPOLL_CTL_ADD, fd, &dcr->pevent) != 0 ) {
@@ -381,7 +382,7 @@ void  dap_server_remove_socket( dap_client_remote_t *dcr )
 
 //  pthread_mutex_unlock( &dsth->mutex_dlist_add_remove );
 
-  log_it( L_DEBUG, "dcr = %X", dcr );
+//  log_it( L_DEBUG, "dcr = %X", dcr );
 }
 
 static void s_socket_all_check_activity( uint32_t tn, time_t cur_time )
@@ -665,7 +666,6 @@ void  *thread_loop( void *arg )
         dap_server_remove_socket( dap_cur );
         dap_client_remote_remove( dap_cur );
 
-        log_it( L_INFO, "[ Thread %u ] coneections: %u, to kill: %u", tn, dsth->connections_count, dsth->to_kill_count  );
         pthread_mutex_unlock( &dsth->mutex_dlist_add_remove );
       }
 

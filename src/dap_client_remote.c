@@ -36,7 +36,7 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include "wrappers.h"
+//#include "wrappers.h"
 #include <wepoll.h>
 #include <pthread.h>
 #endif
@@ -136,14 +136,20 @@ void dap_client_remote_remove( dap_client_remote_t *sc )
   HASH_DEL( t->hclients, sc );
   pthread_mutex_unlock( &t->mutex_on_hash );
 
-  if( sc->server->client_delete_callback )
+  if( sc->server->client_delete_callback ) {
     sc->server->client_delete_callback( sc, NULL ); // Init internal structure
+  }
 
-  if( sc->_inheritor )
+  if( sc->_inheritor ) {
     free( sc->_inheritor );
+  }
 
-  if( sc->socket )
-    close( sc->socket );
+  if( sc->socket ) {
+    log_it( L_INFO, "dap_client_remote_remove close( %d );", sc->socket );
+    Sleep( 100 );
+//    close( sc->socket );
+    closesocket( sc->socket );
+  }
 
   free( sc );
 }
@@ -259,7 +265,7 @@ size_t dap_client_remote_write_f( dap_client_remote_t *a_client, const char * a_
   va_list ap;
   va_start( ap, a_format );
 
-  int ret = vsnprintf( a_client->buf_out + a_client->buf_out_size, max_data_size, a_format, ap );
+  int ret = dap_vsnprintf( a_client->buf_out + a_client->buf_out_size, max_data_size, a_format, ap );
 
   va_end( ap );
 
