@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
+ Copyright (c) 2017-2019 (c) Project "DeM Labs Inc" https://demlabs.net
   All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -45,7 +45,7 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include "wrappers.h"
+//#include "wrappers.h"
 #include <wepoll.h>
 #include <pthread.h>
 #endif
