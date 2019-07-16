@@ -18,8 +18,13 @@ add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${CRYPTO_HEADERS} )
 target_include_directories(dap_crypto PRIVATE src/rand src/iaes src/oaes sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src include)
 target_include_directories(dap_crypto INTERFACE src/ src/sha3 include/)
 
-target_link_libraries(dap_crypto dap_core m)
+if(WIN32)
+  target_link_libraries(dap_crypto dap_core)
+endif()
 
+if(UNIX)
+  target_link_libraries(dap_crypto dap_core m)
+endif()
 
 if(BUILD_CRYPTO_TESTS)
     enable_testing()
