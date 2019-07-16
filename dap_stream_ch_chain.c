@@ -23,6 +23,25 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_list.h"
@@ -284,6 +303,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     //if ( dap_log_level_get()== L_DEBUG  )
                     //if ( l_data_obj_count && l_store_obj )
                     //   l_store_obj_reversed = DAP_NEW_Z_SIZE(dap_store_obj_t,l_data_obj_count+1);
+
+
+//                    log_it(L_INFO, "In: l_data_obj_count = %d", l_data_obj_count );
+
                     for(size_t i = 0; i < l_data_obj_count; i++) {
 
                         dap_store_obj_t* l_obj = l_store_obj + i;
@@ -450,7 +473,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         //size_t l_data_size_out = 0;
 
         dap_list_t *l_list = l_ch_chain->request_global_db_trs; //dap_list_last( l_ch_chain->request_global_db_trs );
-        /**
+
+
          log_it( L_NOTICE,"last of request_global_db_trs l_list = %X", l_list );
 
          log_it( L_WARNING,"Listing request_global_db_trs: ========" );
@@ -469,20 +493,24 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
          log_it( L_NOTICE,"request_global_db_trs EMPTY %X", l_item );
          }
          }
-         **/
-        if(l_list) {
+
+        if ( l_list ) {
+
             log_it(L_DEBUG, "l_list = %X", l_list);
-            //size_t len = dap_list_length( l_list );
-            //log_it( L_DEBUG,"len = dap_list_length(l_list ); = %u", len );
+            size_t len = dap_list_length( l_list );
+            log_it( L_DEBUG,"len = dap_list_length(l_list ); = %u", len );
+            log_it( L_DEBUG,"l_list->data = %p", l_list->data );
+
             size_t l_item_size_out = 0;
-            uint8_t *l_item = dap_db_log_pack((dap_global_db_obj_t *) l_list->data, &l_item_size_out);
+            uint8_t *l_item = dap_db_log_pack( (dap_global_db_obj_t *) l_list->data, &l_item_size_out );
+
             if(!l_item || !l_item_size_out) {
                 log_it(L_WARNING, "Log pack returned NULL???");
             }
             else {
-                dap_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
+                dap_stream_ch_chain_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
                         l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
-                        l_ch_chain->request_cell_id, l_item, l_item_size_out);
+                        l_ch_chain->request_cell_id, l_item, l_item_size_out );
 
                 DAP_DELETE(l_item);
             }
@@ -490,8 +518,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             // remove current item from list and go to next item
             if(l_list) {
 
-                dap_chain_global_db_obj_delete((dap_global_db_obj_t *) l_list->data);
-                l_ch_chain->request_global_db_trs = dap_list_delete_link(l_ch_chain->request_global_db_trs, l_list);
+                dap_chain_global_db_obj_delete( (dap_global_db_obj_t *) l_list->data );
+                l_ch_chain->request_global_db_trs = dap_list_delete_link( l_ch_chain->request_global_db_trs, l_list );
             }
 
         } else {
@@ -499,7 +527,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
             if(l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB) {
                 // last message
-//                    log_it( L_DEBUG,"dap_db_log_get_last_timestamp_remote");
+                log_it( L_DEBUG,"dap_db_log_get_last_timestamp_remote");
 
                 dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
                 l_request.node_addr.uint64 = dap_db_get_cur_node_addr();
