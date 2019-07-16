@@ -21,16 +21,38 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <sys/types.h>          /* See NOTES */
-#include <sys/socket.h>
 
+#include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
 #include <assert.h>
-#include <json-c/json.h>
-#include <unistd.h> // for close
 #include <fcntl.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#else
+#include <sys/types.h>          /* See NOTES */
+#include <sys/socket.h>
+#endif
+
+#include <pthread.h>
+
+#include <json-c/json.h>
 
 #include "dap_enc_key.h"
 #include "dap_enc_base64.h"
@@ -54,7 +76,6 @@
 #endif
 
 static void s_stage_status_after(dap_client_pvt_t * a_client_internal);
-
 
 // ENC stage callbacks
 void m_enc_init_response(dap_client_t *, void *, size_t);
@@ -203,9 +224,19 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         case STAGE_STREAM_SESSION: {
             log_it(L_INFO, "Go to stage STREAM_SESSION: process the state ops");
 
-            a_client_pvt->stream_socket = socket(PF_INET, SOCK_STREAM, 0);
-            setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (const void*) 50000, sizeof(int));
+            a_client_pvt->stream_socket = socket( PF_INET, SOCK_STREAM, 0 );
+#ifdef _WIN32 
+            {
+              int buffsize = 65536;
+              int optsize = sizeof( int );
+              setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, &optsize );
+              setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize );
+            }
+#else
+            setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (const void *) 50000, sizeof(int));
             setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (const void *) 50000, sizeof(int));
+#endif
+
             // Wrap socket and setup callbacks
             static dap_events_socket_callbacks_t l_s_callbacks = {
                 .read_callback = m_es_stream_read,
