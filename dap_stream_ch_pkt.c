@@ -18,8 +18,27 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdio.h>
+
+#include <stdlib.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#endif
+
+#include <pthread.h>
 
 #include "dap_common.h"
 #include "dap_enc.h"
@@ -105,7 +124,7 @@ size_t dap_stream_ch_pkt_write_f(struct dap_stream_ch * a_ch, uint8_t a_type, co
     char l_buf[4096];
     va_list ap;
     va_start(ap,a_str);
-    vsnprintf(l_buf,sizeof(l_buf),a_str,ap);
+    dap_vsnprintf(l_buf,sizeof(l_buf),a_str,ap);
     va_end(ap);
     size_t ret=dap_stream_ch_pkt_write(a_ch,a_type,l_buf,strlen(l_buf));
     return ret;
