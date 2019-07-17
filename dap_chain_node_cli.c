@@ -779,7 +779,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                         );
 
     dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
-            "node alias {<node address> | -alias <node alias>}\n\n"
+            "node alias -addr <node address> -alias <node alias>\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"
                     "node handshake {<node address> | -alias <node alias>}\n"
                     "node dump -net <net name> [ -addr <node address> | -alias <node alias>]\n\n"
@@ -833,11 +833,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
             "tx_cond_create todo\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
-            "tx_verify  -wallet <wallet name> [-path <wallet path>]\n" );
+            "tx_verify  -wallet <wallet name> \n" );
 
     // Transaction history
-    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history",
-            "tx_verify  -addr <addr> -w <wallet name> [-path <wallet path>]\n");
+    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history for address",
+            "tx_history  [-addr <addr> | -w <wallet name>] -net <net name> -chain <chain name>\n");
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );

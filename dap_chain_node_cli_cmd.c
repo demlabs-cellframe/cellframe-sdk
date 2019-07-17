@@ -78,6 +78,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
+#include "dap_chain_gdb.h"
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
@@ -2305,14 +2306,47 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
+    const char *l_net_str = NULL;
+    const char *l_chain_str = NULL;
+
+    dap_chain_t * l_chain = NULL;
+    dap_chain_net_t * l_net = NULL;
 
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain", &l_chain_str);
 
     if(!l_addr_base58 && !l_wallet_name) {
-        dap_chain_node_cli_set_reply_text(str_reply, "tx_history requires parameter '-addr' or '-wallet'");
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_history requires parameter '-addr' or '-w'");
         return -1;
     }
+
+    // Select chain network
+    if(!l_net_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_history requires parameter '-net'");
+        return -2;
+    } else {
+        if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
+            dap_chain_node_cli_set_reply_text(str_reply,
+                    "tx_history requires parameter '-net' to be valid chain network name");
+            return -3;
+        }
+    }
+    //Select chain emission
+    if(!l_chain_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_history requires parameter '-chain'");
+        return -4;
+    } else {
+        if((l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str)) == NULL) { // Can't find such chain
+            dap_chain_node_cli_set_reply_text(str_reply,
+                    "tx_history requires parameter '-chain' to be valid chain name in chain net %s",
+                    l_net_str);
+            return -5;
+        }
+    }
+    //char *l_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
 
     dap_chain_addr_t *l_addr = NULL;
     if(l_wallet_name) {
@@ -2325,7 +2359,7 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
             dap_chain_wallet_close(l_wallet);
         }
     }
-    if(l_addr && l_addr_base58) {
+    if(!l_addr && l_addr_base58) {
         l_addr = dap_chain_addr_from_str(l_addr_base58);
     }
     if(!l_addr) {
@@ -2334,21 +2368,12 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
     }
 
     // read all history
-    size_t l_objs_count = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_objs_count);
-
-    size_t l_objs_count_filter = l_objs_count;
-   //uint8_t*a = dap_db_log_pack(l_objs, &l_objs_count);
-    char *l_str_out = dap_db_history_filter(l_addr, &l_objs_count_filter);
-   /* for(size_t i = 0; i < l_objs_count_filter; i++) {
-        dap_global_db_obj_t *l_node_info =  (dap_chain_node_info_t *) l_objs[i].value;
-        l_node_info = 0;
-    }*/
-    //dap_store_obj_free(l_objs, l_objs_count);
-    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+    size_t l_objs_count_filter = 0;
+    char *l_str_out = dap_db_history_filter(l_addr, l_chain_group, &l_objs_count_filter);
 
     char *l_addr_str = dap_chain_addr_to_str(l_addr);
-    char *l_str_ret = dap_strdup_printf("history for addr %s\n%s", l_addr_str, l_str_out ? l_str_out : "history is empty");
+    char *l_str_ret = dap_strdup_printf("history for addr %s:\n%s", l_addr_str,
+            l_str_out ? l_str_out : "empty");
     dap_chain_node_cli_set_reply_text(str_reply, l_str_ret);
     DAP_DELETE(l_addr_str);
     DAP_DELETE(l_str_out);
