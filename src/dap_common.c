@@ -79,6 +79,7 @@ static uint8_t *log_buffer  = NULL;
 static uint8_t *temp_buffer = NULL;
 static uint8_t *end_of_log_buffer = NULL;
 static dap_log_str_t *log_history = NULL;
+static time_t g_start_time = 0;
 
 const char *log_level_tag[ 16 ] = {
 
@@ -192,6 +193,8 @@ int dap_common_init( const char *console_title, const char *a_log_file )
     SetupConsole( console_title, L"Lucida Console", 12, 20 );
   #endif
 
+  g_start_time = time( NULL );
+
   // init default log tag 8 width
   strcpy( log_tag_fmt_str, "[%8s]\t");
 
@@ -272,6 +275,8 @@ void log_log( char *str, uint32_t len, time_t t )
 {
   pthread_mutex_lock( &s_list_logs_mutex );
 
+//  printf("log_log with time = %llu\n", t );
+
   while( len ) {
 
     uint8_t   *out = log_history[ logh_outindex ].str;
@@ -310,6 +315,33 @@ void log_log( char *str, uint32_t len, time_t t )
 
 uint32_t logh_since( time_t t )
 {
+  uint32_t bi = 0;
+  uint32_t si = logh_total >> 1;
+  uint32_t li = (logh_outindex - 1) & DAP_LOG_HISTORY_M;
+
+  if ( log_history[li].t < t ) // no new logs
+    return 0xFFFFFFFF;
+
+  if (logh_total >= DAP_LOG_HISTORY_MAX_STRINGS )
+    bi = logh_outindex;
+
+  if ( log_history[bi].t >= t )  // all logs is new
+    return bi;
+
+  while( si ) {
+
+    if ( log_history[(bi + si) & DAP_LOG_HISTORY_M].t < t ) 
+      bi += si;
+
+    si >>= 1;
+  }
+
+  return (bi + si + 1) & DAP_LOG_HISTORY_M;
+}
+
+/**
+uint32_t logh_since( time_t t )
+{
   uint32_t li = (logh_outindex - 1) & DAP_LOG_HISTORY_M;
   uint32_t count = logh_total;
   uint32_t fi = 0;
@@ -337,17 +369,29 @@ uint32_t logh_since( time_t t )
 
   return (si + 1) & DAP_LOG_HISTORY_M;
 }
+**/
+
 
 /*
  * Get logs from list
  */
-char *dap_log_get_item( time_t a_start_time, int a_limit )
+char *dap_log_get_item( time_t a_time, int a_limit )
 {
   uint32_t l_count;
   uint32_t si;
   char *res, *out;
+  time_t  a_start_time;
+
+  a_start_time = time( NULL );
+
+  if ( a_time > a_start_time )
+    a_start_time = 0;
+  else
+    a_start_time -= a_time;
 
   pthread_mutex_lock( &s_list_logs_mutex );
+
+//  printf("dap_log_get_item() a_start_time = %llu, a_limit = %u\n", a_start_time, a_limit );
 
   l_count = logh_total;
 
@@ -462,7 +506,9 @@ void _log_it( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   if ( ll < dap_log_level || ll >= 16 || !log_tag )
     return;
 
+//  time_t t = time( NULL ) - g_start_time;
   time_t t = time( NULL );
+
   pthread_mutex_lock( &mutex );
 
   memcpy( buf0, ansi_seq_color[ll], ansi_seq_color_len[ll] );
