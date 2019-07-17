@@ -882,7 +882,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
       #else
 
-    Sleep( 3000 );
+//    Sleep( 3000 );
 
         if( pthread_create(&threadId, NULL, thread_pipe_func, (void*) (intptr_t) sockfd) != 0 ) {
             closesocket( sockfd );

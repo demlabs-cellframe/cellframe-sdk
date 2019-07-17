@@ -440,30 +440,95 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
  * str_reply[out] for reply
  * return 0 Ok, -1 error
  */
-static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t * a_addr, const char *a_alias, char **a_str_reply)
+static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t * a_addr, bool a_is_full, const char *a_alias, char **a_str_reply)
 {
     int l_ret = 0;
-    dap_string_t *l_string_reply = dap_string_new("Node dump:\n");
+    dap_string_t *l_string_reply = dap_string_new("Node dump:");
 
-    if( (a_addr && a_addr->uint64 ) || a_alias) {
+    if((a_addr && a_addr->uint64) || a_alias) {
         dap_chain_node_addr_t *l_addr;
-        if (a_addr && a_addr->uint64){
+        if(a_addr && a_addr->uint64) {
             l_addr = DAP_NEW(dap_chain_node_addr_t);
             l_addr->uint64 = a_addr->uint64;
-        } else if (a_alias) {
-            l_addr = dap_chain_node_alias_find(a_net,a_alias);
+        } else if(a_alias) {
+            l_addr = dap_chain_node_alias_find(a_net, a_alias);
         }
-        if ( l_addr ) {
+        if(!l_addr) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
+            dap_string_free(l_string_reply, true);
+            return -1;
         }
+        // read node
+        dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_str_reply);
+
+        // get aliases in form of string
+        dap_string_t *aliases_string = dap_string_new(NULL);
+        dap_list_t *list_aliases = get_aliases_by_name(a_net, l_addr);
+        if(list_aliases)
+        {
+            dap_list_t *list = list_aliases;
+            while(list)
+            {
+                const char *alias = (const char *) list->data;
+                dap_string_append_printf(aliases_string, "\nalias %s", alias);
+                list = dap_list_next(list);
+            }
+            dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
+        }
+        else
+            dap_string_append(aliases_string, "\nno aliases");
+
+        const int hostlen = 128;
+        char *host4 = (char*) alloca(hostlen);
+        char *host6 = (char*) alloca(hostlen);
+        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = node_info_read->hdr.ext_addr_v4 };
+        const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, hostlen);
+
+        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = node_info_read->hdr.ext_addr_v6 };
+        const char* str_ip6 = inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host6, hostlen);
+
+        // get links in form of string
+        dap_string_t *links_string = dap_string_new(NULL);
+        for(unsigned int i = 0; i < node_info_read->hdr.links_number; i++) {
+            dap_chain_node_addr_t link_addr = node_info_read->links[i];
+            dap_string_append_printf(links_string, "\nlink%02d address : " NODE_ADDR_FP_STR, i,
+                    NODE_ADDR_FP_ARGS_S(link_addr));
+        }
+
+        dap_string_append_printf(l_string_reply, "\n");
+        // set short reply with node param
+        if(!a_is_full)
+            dap_string_append_printf(l_string_reply,
+                    "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
+                    NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
+                    node_info_read->hdr.cell_id.uint64, str_ip4,
+                    node_info_read->hdr.links_number);
+        else
+            // set full reply with node param
+            dap_string_append_printf(l_string_reply,
+                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                    NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
+                    node_info_read->hdr.cell_id.uint64,
+                    str_ip4, str_ip6, aliases_string->str,
+                    node_info_read->hdr.links_number, links_string->str);
+        dap_string_free(aliases_string, true);
+        dap_string_free(links_string, true);
+
+        DAP_DELETE(l_addr);
+        DAP_DELETE(node_info_read);
+
+
     }else { // Dump list
         dap_global_db_obj_t *l_objs = NULL;
         size_t l_nodes_count = 0;
         dap_chain_node_info_t *l_node_info;
+        dap_string_append(l_string_reply, "\n");
         // read all node
         l_objs = dap_chain_global_db_gr_load( a_net->pub.gdb_nodes, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
+            dap_string_free(l_string_reply, true);
             l_ret = -1;
         }else {
             dap_string_append_printf(l_string_reply,"Got %u records:\n",l_nodes_count);
@@ -519,7 +584,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 if(i)
                     dap_string_append_printf(l_string_reply, "\n");
                 // set short reply with node param
-                if(l_objs)
+                if(!a_is_full)
                     dap_string_append_printf(l_string_reply,
                             "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
@@ -598,6 +663,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_addr_str = NULL, *alias_str = NULL, *l_cell_str = NULL, *l_link_str = NULL;
     const char *a_ipv4_str = NULL, *a_ipv6_str = NULL;
     // find addr, alias
+
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
@@ -612,7 +678,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
 
     if(l_addr_str) {
-        dap_digit_from_string(l_addr_str, l_node_info->hdr.address.raw, sizeof(l_node_info->hdr.address.raw));
+        dap_digit_from_string2(l_addr_str, l_node_info->hdr.address.raw, sizeof(l_node_info->hdr.address.raw));
     }
     if(l_cell_str) {
         dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
@@ -688,10 +754,12 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_node_addr={0};
     const char *l_addr_str = NULL, *alias_str = NULL;
     const char * l_net_str = NULL;
+
     // find addr, alias
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+    bool l_is_full = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
 
     if (l_addr_str)
         if ( dap_chain_node_addr_from_str(&l_node_addr,l_addr_str) != 0 )
@@ -714,7 +782,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DUMP:{
         // handler of command 'global_db node dump'
 
-        return node_info_dump_with_reply(l_net, &l_node_addr , alias_str, a_str_reply);
+        return node_info_dump_with_reply(l_net, &l_node_addr , l_is_full, alias_str, a_str_reply);
     }
     // add alias
     case CMD_ALIAS:
