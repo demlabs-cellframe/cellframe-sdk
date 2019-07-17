@@ -18,7 +18,23 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
+#ifdef _WIN32
+#include <time.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_stream_session.h"
 
@@ -113,9 +129,8 @@ dap_stream_session_t *dap_stream_session_id( unsigned int id )
 int dap_stream_session_close(unsigned int id)
 {
     log_it(L_INFO,"Close session id %u", id);
-//    sleep( 3 );
 
-    dap_stream_session_list();
+//    dap_stream_session_list();
 
     dap_stream_session_t *l_s = dap_stream_session_id( id );
 
@@ -129,7 +144,7 @@ int dap_stream_session_close(unsigned int id)
 
 int stream_session_close2(dap_stream_session_t * s)
 {
-    log_it(L_INFO,"Close session");
+//    log_it(L_INFO,"Close session");
     HASH_DEL(sessions,s);
     free(s);
     return 0;

@@ -20,6 +20,23 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef _WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 
 #include "dap_stream.h"
@@ -58,20 +75,41 @@ void stream_dap_new(dap_client_remote_t* sh,void * arg);
 dap_stream_t * stream_new(dap_http_client_t * a_sh); // Create new stream
 void stream_delete(dap_http_client_t * sh, void * arg);
 
-struct ev_loop *keepalive_loop;
+//struct ev_loop *keepalive_loop;
 pthread_t keepalive_thread;
 
-void start_keepalive(struct dap_stream *sid);
+static dap_stream_t  *stream_keepalive_list = NULL;
+static pthread_mutex_t mutex_keepalive_list;
+
+static void start_keepalive( dap_stream_t *sid );
+static void keepalive_cb( void );
+
+static bool bKeepaliveLoopQuitSignal = false;
 static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
+static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000 * 1000 };
+
 // Start keepalive stream
-void* stream_loop(void * arg)
+static void *stream_loop( void *arg )
 {
-    keepalive_loop = ev_loop_new(0);
-    ev_loop(keepalive_loop, 0);
-    return NULL;
+//    keepalive_loop = ev_loop_new(0);
+//    ev_loop(keepalive_loop, 0);
+  do {
+
+    #ifndef _WIN32
+      //nanosleep( &keepalive_loop_sleep, NULL );
+      sleep( STREAM_KEEPALIVE_TIMEOUT );
+    #else
+      Sleep( STREAM_KEEPALIVE_TIMEOUT * 1000 );
+    #endif
+
+    keepalive_cb( );
+
+  } while ( !bKeepaliveLoopQuitSignal );
+
+  return NULL;
 }
 
 /**
@@ -80,15 +118,21 @@ void* stream_loop(void * arg)
  */
 int dap_stream_init( bool a_dump_packet_headers)
 {
-    if( dap_stream_ch_init() != 0 ){
-        log_it(L_CRITICAL, "Can't init channel types submodule");
-        return -1;
-    }
-    s_dump_packet_headers = a_dump_packet_headers;
-    pthread_create(&keepalive_thread, NULL, stream_loop, NULL);
+  if( dap_stream_ch_init() != 0 ){
 
-    log_it(L_NOTICE,"Init streaming module");
-    return 0;
+    log_it(L_CRITICAL, "Can't init channel types submodule");
+    return -1;
+  }
+  s_dump_packet_headers = a_dump_packet_headers;
+
+  bKeepaliveLoopQuitSignal = false;
+
+  pthread_mutex_init( &mutex_keepalive_list, NULL );
+  pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
+
+  log_it(L_NOTICE,"Init streaming module");
+
+  return 0;
 }
 
 /**
@@ -96,7 +140,12 @@ int dap_stream_init( bool a_dump_packet_headers)
  */
 void dap_stream_deinit()
 {
-    dap_stream_ch_deinit();
+  bKeepaliveLoopQuitSignal = true;
+  pthread_join( keepalive_thread, NULL );
+
+  pthread_mutex_destroy( &mutex_keepalive_list );
+
+  dap_stream_ch_deinit( );
 }
 
 /**
@@ -241,36 +290,49 @@ dap_stream_t * stream_new_udp(dap_client_remote_t * sh)
  * @param id session id
  * @param cl DAP client structure
  */
-void check_session(unsigned int id, dap_client_remote_t* cl){
-    dap_stream_session_t * ss=NULL;
+void check_session( unsigned int id, dap_client_remote_t *cl )
+{
+    dap_stream_session_t *ss = NULL;
 
-    ss=dap_stream_session_id(id);
-    if(ss==NULL){
+    ss = dap_stream_session_id( id );
+
+    if ( ss == NULL ) {
         log_it(L_ERROR,"No session id %u was found",id);
-    }else{
-        log_it(L_INFO,"Session id %u was found with media_id = %d",id,ss->media_id);
-        if(dap_stream_session_open(ss)==0){ // Create new stream
-            dap_stream_t * sid;
-            if(DAP_STREAM(cl) == NULL)
-                sid = stream_new_udp(cl);
-            else
-                sid = DAP_STREAM(cl);
-            sid->session=ss;
-            if(ss->create_empty)
-                log_it(L_INFO, "Session created empty");       
-            log_it(L_INFO, "Opened stream session technical and data channels");
-            dap_stream_ch_new(sid,SERVICE_CHANNEL_ID);
-            dap_stream_ch_new(sid,DATA_CHANNEL_ID);
-            stream_states_update(sid);
-            if(DAP_STREAM(cl)->conn_udp)
-                dap_udp_client_ready_to_read(cl,true);
-            else
-                dap_client_remote_ready_to_read(cl,true);
-            start_keepalive(sid);
-        }else{
-            log_it(L_ERROR,"Can't open session id %u",id);
-        }
+        return;
     }
+
+    log_it( L_INFO, "Session id %u was found with media_id = %d", id,ss->media_id );
+
+    if ( dap_stream_session_open(ss) != 0 ) { // Create new stream
+
+        log_it( L_ERROR, "Can't open session id %u", id );
+        return;
+    }
+
+    dap_stream_t *sid;
+
+    if ( DAP_STREAM(cl) == NULL )
+        sid = stream_new_udp( cl );
+    else
+        sid = DAP_STREAM( cl );
+
+    sid->session = ss;
+
+    if ( ss->create_empty )
+        log_it( L_INFO, "Session created empty" );
+
+    log_it( L_INFO, "Opened stream session technical and data channels" );
+
+    dap_stream_ch_new( sid, SERVICE_CHANNEL_ID );
+    dap_stream_ch_new( sid, DATA_CHANNEL_ID);
+    stream_states_update( sid );
+
+    if ( DAP_STREAM(cl)->conn_udp )
+        dap_udp_client_ready_to_read( cl, true );
+    else
+        dap_client_remote_ready_to_read( cl, true );
+
+    start_keepalive( sid );
 }
 
 /**
@@ -295,7 +357,7 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
 
 void dap_stream_delete( dap_stream_t *a_stream )
 {
-    log_it(L_ERROR,"dap_stream_delete( )");
+//    log_it(L_DEBUG,"dap_stream_delete( )");
 
     if(a_stream == NULL) {
         log_it(L_ERROR,"stream delete NULL instance");
@@ -355,10 +417,10 @@ void s_headers_write(dap_http_client_t * sh, void *arg)
     }
 }
 
-// Function for keepalive loop
+/**
+ Function for keepalive loop
 static void keepalive_cb (EV_P_ ev_timer *w, int revents)
 {
-
     struct dap_stream *sid = w->data;
     if(sid->keepalive_passed < STREAM_KEEPALIVE_PASSES)
     {
@@ -371,18 +433,48 @@ static void keepalive_cb (EV_P_ ev_timer *w, int revents)
         void * arg;
         stream_dap_delete(sid->conn,arg);
     }
-
 }
+**/
+
+static void keepalive_cb( void )
+{
+  dap_stream_t  *sid, *tmp;
+
+  pthread_mutex_lock( &mutex_keepalive_list );
+  DL_FOREACH_SAFE( stream_keepalive_list, sid, tmp ) {
+
+    if ( sid->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
+      dap_stream_send_keepalive( sid );
+      sid->keepalive_passed += 1;
+    }
+    else {
+      log_it( L_INFO, "Client disconnected" );
+      DL_DELETE( stream_keepalive_list, sid );
+      stream_dap_delete( sid->conn, NULL );
+    }
+  }
+
+  pthread_mutex_unlock( &mutex_keepalive_list );
+}
+
+
+
 
 /**
  * @brief start_keepalive Start keepalive signals exchange for stream
  * @param sid Stream instance
  */
-void start_keepalive(struct dap_stream *sid){
-    keepalive_loop = EV_DEFAULT;
-    sid->keepalive_watcher.data = sid;
-    ev_timer_init (&sid->keepalive_watcher, keepalive_cb, STREAM_KEEPALIVE_TIMEOUT, STREAM_KEEPALIVE_TIMEOUT);
-    ev_timer_start (keepalive_loop, &sid->keepalive_watcher);
+void start_keepalive( dap_stream_t *sid ) {
+
+//    keepalive_loop = EV_DEFAULT;
+//    sid->keepalive_watcher.data = sid;
+//    ev_timer_init (&sid->keepalive_watcher, keepalive_cb, STREAM_KEEPALIVE_TIMEOUT, STREAM_KEEPALIVE_TIMEOUT);
+//    ev_timer_start (keepalive_loop, &sid->keepalive_watcher);
+
+  pthread_mutex_lock( &mutex_keepalive_list );
+  DL_APPEND( stream_keepalive_list, sid );
+  pthread_mutex_unlock( &mutex_keepalive_list );
+
 }
 
 /**
@@ -430,12 +522,15 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
 
     char *buf_in = (a_stream->conn) ? (char*)a_stream->conn->buf_in : (char*)a_stream->events_socket->buf_in;
     size_t buf_in_size = (a_stream->conn) ? a_stream->conn->buf_in_size : a_stream->events_socket->buf_in_size;
-    uint8_t * proc_data =  buf_in;//a_stream->conn->buf_in;
+    uint8_t *proc_data = (uint8_t *)buf_in;//a_stream->conn->buf_in;
     bool proc_data_defrag=false; // We are or not in defrag buffer
     size_t read_bytes_to=0;
     size_t bytes_left_to_read = buf_in_size;//a_stream->conn->buf_in_size;
     // Process prebuffered packets or glue defragmented data with the current input
-    if(pkt=a_stream->pkt_buf_in){ // Packet signature detected
+
+    pkt = a_stream->pkt_buf_in;
+
+    if ( pkt ) { // Packet signature detected
         if(a_stream->pkt_buf_in_data_size < sizeof(stream_pkt_hdr_t))
         {
             //At first read header
@@ -478,7 +573,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
                 stream_proc_pkt_in(a_stream);
             }
         }
-        proc_data=(buf_in + buf_in_size - bytes_left_to_read);//proc_data=(a_stream->conn->buf_in + a_stream->conn->buf_in_size - bytes_left_to_read);
+        proc_data = (uint8_t *)(buf_in + buf_in_size - bytes_left_to_read);//proc_data=(a_stream->conn->buf_in + a_stream->conn->buf_in_size - bytes_left_to_read);
 
     }else if( a_stream->buf_defrag_size>0){ // If smth is present in defrag buffer - we glue everything together in it
         if( bytes_left_to_read  > 0){ // If there is smth to process in input buffer
@@ -503,7 +598,8 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     }//else
      //   log_it(DEBUG,"No prefill or defrag buffer, process directly buf_in");
     // Now lets see how many packets we have in buffer now
-    while(pkt=dap_stream_pkt_detect( proc_data , bytes_left_to_read)){
+    while ( (pkt = dap_stream_pkt_detect( proc_data , bytes_left_to_read)) ){
+
         if(pkt->hdr.size > STREAM_PKT_SIZE_MAX ){
             //log_it(L_ERROR, "stream_pkt_detect() Too big packet size %u",
             //       pkt->hdr.size);
@@ -513,12 +609,15 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         size_t pkt_offset=( ((uint8_t*)pkt)- proc_data );
         bytes_left_to_read -= pkt_offset ;
         found_sig=true;
-        dap_stream_pkt_t* temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
+
+        dap_stream_pkt_t *temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
+
         if(bytes_left_to_read  <(pkt->hdr.size+sizeof(stream_pkt_hdr_t) )){ // Is all the packet in da buf?
             read_bytes_to=bytes_left_to_read;
         }else{
             read_bytes_to=pkt->hdr.size+sizeof(stream_pkt_hdr_t);
         }
+
         //log_it(L_DEBUG, "Detected packet signature pkt->hdr.size=%u read_bytes_to=%u bytes_left_to_read=%u pkt_offset=%u"
         //      ,pkt->hdr.size, read_bytes_to, bytes_left_to_read,pkt_offset);
         if(read_bytes_to > HEADER_WITH_SIZE_FIELD){ // If we have size field, we can allocate memory
@@ -632,7 +731,8 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
  * @param arg Not used
  */
 void stream_dap_new(dap_client_remote_t* sh, void * arg){
-    dap_stream_t * sid = stream_new_udp(sh);
+//    dap_stream_t *sid = stream_new_udp(sh);
+    stream_new_udp(sh);
 }
 
 
@@ -709,8 +809,12 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
     } else {
         log_it(L_WARNING, "Unknown header type");
     }
+
     a_stream->keepalive_passed = 0;
-    ev_timer_again (keepalive_loop, &a_stream->keepalive_watcher);
+
+//    ev_timer_again (keepalive_loop, &a_stream->keepalive_watcher);
+    start_keepalive( a_stream );
+
     free(a_stream->pkt_buf_in);
     a_stream->pkt_buf_in=NULL;
     a_stream->pkt_buf_in_data_size=0;

@@ -25,17 +25,15 @@
 #include <stddef.h>
 #include <pthread.h>
 #include <stdbool.h>
-#include <ev.h>
 
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
-//#include "dap_udp_server.h"
-//#include "dap_udp_client.h"
+
 #include "dap_events_socket.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
 
-#define CHUNK_SIZE_MAX 3*1024
+#define CHUNK_SIZE_MAX (3 * 1024)
 
 typedef struct dap_client_remote dap_client_remote_t;
 typedef struct dap_udp_server dap_udp_server_t;
@@ -68,7 +66,7 @@ typedef struct dap_stream {
     bool is_live;
     bool is_client_to_uplink ;
 
-    ev_timer keepalive_watcher;         // Watcher for keepalive loop
+//    ev_timer keepalive_watcher;         // Watcher for keepalive loop
     uint8_t keepalive_passed;           // Number of sended keepalive messages
 
     struct dap_stream_pkt * in_pkt;
@@ -82,7 +80,7 @@ typedef struct dap_stream {
     uint8_t buf[STREAM_BUF_SIZE_MAX];
     uint8_t buf_pkt_in[STREAM_BUF_SIZE_MAX];
 
-    dap_stream_ch_t * channel[255]; // TODO reduce channels to 16 to economy memory
+    dap_stream_ch_t *channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;
 
     size_t frame_sent; // Frame counter
@@ -90,6 +88,8 @@ typedef struct dap_stream {
     size_t seq_id;
     size_t stream_size;
     size_t client_last_seq_id_packet;
+
+    struct dap_stream *prev, *next;
 
 } dap_stream_t;
 

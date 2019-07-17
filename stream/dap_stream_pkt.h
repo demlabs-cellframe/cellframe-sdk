@@ -34,8 +34,8 @@ typedef struct stream_pkt_hdr{
     uint32_t size;
     uint64_t timestamp;
     uint8_t type;      // Packet type
-    uint64_t s_addr; // Source address ( vasya@domain.net )
-    uint64_t d_addr; // Destination address ( general#domain.net )
+    uint64_t src_addr; // Source address ( vasya@domain.net )
+    uint64_t dst_addr; // Destination address ( general#domain.net )
 }  __attribute__((packed)) stream_pkt_hdr_t;
 
 typedef struct dap_stream_pkt{
@@ -48,7 +48,6 @@ typedef struct stream_srv_pkt{
     uint8_t enc_type;
     uint32_t coockie;
 } __attribute__((packed)) stream_srv_pkt_t;
-
 
 extern const uint8_t c_dap_stream_sig[8];
 

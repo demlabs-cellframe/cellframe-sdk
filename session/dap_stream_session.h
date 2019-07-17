@@ -23,9 +23,12 @@
 #include <time.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <netinet/in.h>
-#include "uthash.h"
 
+#ifndef _WIN32
+#include <netinet/in.h>
+#endif
+
+#include "uthash.h"
 #include "dap_enc_key.h"
 
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYPE_VPN} stream_session_type_t;
@@ -34,15 +37,15 @@ typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESS
 struct dap_stream_session {
 
     bool create_empty;
-	unsigned int id;
-	unsigned int media_id;
+  unsigned int id;
+  unsigned int media_id;
 
-	dap_enc_key_t * key;
+  dap_enc_key_t * key;
 
-	bool open_preview;
-	pthread_mutex_t mutex;
-	int opened;
-	time_t time_created;
+  bool open_preview;
+  pthread_mutex_t mutex;
+  int opened;
+  time_t time_created;
 
     uint8_t enc_type;
 
@@ -51,7 +54,7 @@ struct dap_stream_session {
 
     stream_session_connection_type_t conn_type;
     stream_session_type_t type;
-	UT_hash_handle hh;
+  UT_hash_handle hh;
 
     struct in_addr tun_client_addr;
 };

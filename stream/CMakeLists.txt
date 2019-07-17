@@ -6,6 +6,17 @@ set(STREAM_SRCS
     dap_stream_ctl.c
     dap_stream_pkt.c )
 
+if(WIN32)
+  include_directories(../../libdap/src/win32/)
+  include_directories(../../3rdparty/libmemcached/)
+  include_directories(../../3rdparty/libmemcached/win32/)
+  include_directories(../../3rdparty/wepoll/include/)
+  include_directories(../../3rdparty/uthash/src/)
+  include_directories(../../3rdparty/libjson-c/)
+  include_directories(../../3rdparty/libmagic/src/)
+  include_directories(../../3rdparty/curl/include/)
+endif()
+
 add_library(${PROJECT_NAME} STATIC ${STREAM_SRCS})
 
 target_link_libraries(dap_stream dap_core dap_server_core dap_udp_server dap_crypto
