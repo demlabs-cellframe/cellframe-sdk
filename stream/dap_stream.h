@@ -33,7 +33,7 @@
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
 
-#define CHUNK_SIZE_MAX 3*1024
+#define CHUNK_SIZE_MAX (3 * 1024)
 
 typedef struct dap_client_remote dap_client_remote_t;
 typedef struct dap_udp_server dap_udp_server_t;
@@ -88,6 +88,8 @@ typedef struct dap_stream {
     size_t seq_id;
     size_t stream_size;
     size_t client_last_seq_id_packet;
+
+    struct dap_stream *prev, *next;
 
 } dap_stream_t;
 
