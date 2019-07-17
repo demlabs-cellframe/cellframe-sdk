@@ -38,9 +38,27 @@ endif()
 file(GLOB DAP_CLIENT_SOURCES src/*.c)
 file(GLOB DAP_CLIENT_HEADERS include/*.h)
 
+if(WIN32)
+  include_directories(../libdap/src/win32/)
+  include_directories(../3rdparty/libmemcached/)
+  include_directories(../3rdparty/libmemcached/win32/)
+  include_directories(../3rdparty/wepoll/include/)
+  include_directories(../3rdparty/uthash/src/)
+  include_directories(../3rdparty/libjson-c/)
+  include_directories(../3rdparty/libmagic/src/)
+  include_directories(../3rdparty/curl/include/)
+endif()
+
 add_library(${PROJECT_NAME} STATIC ${DAP_CLIENT_HEADERS} ${DAP_CLIENT_SOURCES})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_udp_server dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch pthread memcached ev)
+if(WIN32)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_udp_server dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch)
+endif()
+
+if(UNIX)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_udp_server dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch pthread memcached ev)
+endif()
+
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
