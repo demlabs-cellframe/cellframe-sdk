@@ -71,11 +71,7 @@ int dap_chain_init(void)
     l_ca_folders = dap_config_get_array_str(g_config,"resources","ca_folders",&l_ca_folders_size);
     for (uint16_t i=0; i < l_ca_folders_size; i++){
         dap_chain_cert_add_folder(l_ca_folders[i]);
-        DAP_DELETE( l_ca_folders[i]);
     }
-
-    DAP_DELETE( l_ca_folders);
-
     // Cell sharding init
     dap_chain_cell_init();
 
