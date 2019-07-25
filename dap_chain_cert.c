@@ -31,6 +31,7 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_cert.h"
@@ -278,8 +279,24 @@ dap_chain_cert_t * dap_chain_cert_find_by_name(const char * a_cert_name)
     HASH_FIND_STR(s_certs,a_cert_name,l_cert_item);
     if ( l_cert_item ){
         return l_cert_item->cert ;
-    }else
-        return NULL;
+    } else {
+            dap_chain_cert_t *l_cert = NULL;
+            uint16_t l_ca_folders_size = 0;
+            char **l_ca_folders;
+            char *l_cert_path = NULL;
+            l_ca_folders = dap_config_get_array_str(g_config,"resources","ca_folders",&l_ca_folders_size);
+            for (uint16_t i=0; i < l_ca_folders_size; ++i) {
+                l_cert_path = dap_strjoin("", l_ca_folders[i], "/", a_cert_name, ".dcert", (char*)NULL);
+                l_cert = dap_chain_cert_file_load(l_cert_path);
+                if (l_cert) {
+                    goto ret;
+                }
+            }
+    ret:
+            if (l_cert_path)
+                DAP_DELETE(l_cert_path);
+            return l_cert;
+        }
 }
 
 
