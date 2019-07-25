@@ -103,7 +103,9 @@ char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
 uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out);
 
 // Get data according the history log
-char* dap_db_history_filter(dap_chain_addr_t * a_addr, const char *a_group_mempool, size_t *a_data_size_out);
+char* dap_db_history_tx(dap_chain_hash_fast_t * a_tx_hash, const char *a_group_mempool);
+char* dap_db_history_addr(dap_chain_addr_t * a_addr, const char *a_group_mempool);
+char* dap_db_history_filter(dap_chain_addr_t * a_addr, const char *a_group_mempool);
 
 // Parse data from dap_db_log_pack()
 void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_obj_count);
