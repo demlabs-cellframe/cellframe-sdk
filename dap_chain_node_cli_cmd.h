@@ -116,6 +116,13 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply);
  */
 int com_tx_verify(int argc, char ** argv, char **str_reply);
 
+/**
+ * tx_history command
+ *
+ * Transaction history for an address
+ */
+int com_tx_history(int argc, char ** argv, char **str_reply);
+
 // Print log info
 int com_print_log(int argc, char ** argv, char **str_reply);
 
