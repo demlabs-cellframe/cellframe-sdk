@@ -34,7 +34,7 @@
 
 #include "hash-ops.h"
 
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
+#if !defined(_WIN32) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
  #include <alloca.h>
 #else
  #include <stdlib.h>
@@ -44,24 +44,24 @@
 * Round to power of two, for count>=3 and for count being not too large (as reasonable for tree hash calculations)
 */
 size_t tree_hash_cnt(size_t count) {
-	// This algo has some bad history but all we are doing is 1 << floor(log2(count))
-	// There are _many_ ways to do log2, for some reason the one selected was the most obscure one,
-	// and fixing it made it even more obscure.
-	//
-	// Iterative method implemented below aims for clarity over speed, if performance is needed
-	// then my advice is to use the BSR instruction on x86
-	//
-	// All the paranoid asserts have been removed since it is trivial to mathematically prove that
-	// the return will always be a power of 2.
-	// Problem space has been defined as 3 <= count <= 2^28. Of course quarter of a billion transactions
-	// is not a sane upper limit for a block, so there will be tighter limits in other parts of the code
+  // This algo has some bad history but all we are doing is 1 << floor(log2(count))
+  // There are _many_ ways to do log2, for some reason the one selected was the most obscure one,
+  // and fixing it made it even more obscure.
+  //
+  // Iterative method implemented below aims for clarity over speed, if performance is needed
+  // then my advice is to use the BSR instruction on x86
+  //
+  // All the paranoid asserts have been removed since it is trivial to mathematically prove that
+  // the return will always be a power of 2.
+  // Problem space has been defined as 3 <= count <= 2^28. Of course quarter of a billion transactions
+  // is not a sane upper limit for a block, so there will be tighter limits in other parts of the code
 
-	assert( count >= 3 ); // cases for 0,1,2 are handled elsewhere
-	assert( count <= 0x10000000 ); // sanity limit to 2^28, MSB=1 will cause an inf loop
+  assert( count >= 3 ); // cases for 0,1,2 are handled elsewhere
+  assert( count <= 0x10000000 ); // sanity limit to 2^28, MSB=1 will cause an inf loop
 
-	size_t pow = 2;
-	while(pow < count) pow <<= 1;
-	return pow >> 1;
+  size_t pow = 2;
+  while(pow < count) pow <<= 1;
+  return pow >> 1;
 }
 
 void tree_hash(const char (*hashes)[HASH_SIZE], size_t count, char *root_hash) {
@@ -90,7 +90,7 @@ void tree_hash(const char (*hashes)[HASH_SIZE], size_t count, char *root_hash) {
 
     char (*ints)[HASH_SIZE];
     size_t ints_size = cnt * HASH_SIZE;
-    ints = alloca(ints_size); 	memset( ints , 0 , ints_size);  // allocate, and zero out as extra protection for using uninitialized mem
+    ints = alloca(ints_size);   memset( ints , 0 , ints_size);  // allocate, and zero out as extra protection for using uninitialized mem
 
     memcpy(ints, hashes, (2 * cnt - count) * HASH_SIZE);
 

@@ -21,7 +21,6 @@ set(DAP_CHAIN_CRYPTO_HEADERS
         dap_chain_sign.h
         dap_chain_cert.h
         dap_chain_cert_file.h
-
     )
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
@@ -36,7 +35,6 @@ add_subdirectory(monero_crypto)
 
 include_directories("${monero_crypto_INCLUDE_DIRS}")
 add_definitions ("${monero_crypto_DEFINITIONS}")
-
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_CRYPTO_SRCS} ${DAP_CHAIN_CRYPTO_HEADERS})
 

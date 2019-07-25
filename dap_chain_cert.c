@@ -309,10 +309,10 @@ dap_chain_cert_t * dap_chain_cert_new(const char * a_name)
 {
     dap_chain_cert_t * l_ret = DAP_NEW_Z(dap_chain_cert_t);
     l_ret->_pvt = DAP_NEW_Z(dap_chain_cert_pvt_t);
-    snprintf(l_ret->name,sizeof(l_ret->name),"%s",a_name);
+    dap_snprintf(l_ret->name,sizeof(l_ret->name),"%s",a_name);
 
     dap_chain_cert_item_t * l_cert_item = DAP_NEW_Z(dap_chain_cert_item_t);
-    snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_name);
+    dap_snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_name);
     l_cert_item->cert = l_ret;
     HASH_ADD_STR(s_certs,name,l_cert_item);
 
@@ -351,7 +351,7 @@ dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *
 {
     size_t l_cert_path_length = strlen(a_cert_name)+8+strlen(a_folder_path);
     char * l_cert_path = DAP_NEW_Z_SIZE(char,l_cert_path_length);
-    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_folder_path,a_cert_name);
+    dap_snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_folder_path,a_cert_name);
     if( access( l_cert_path, F_OK ) == -1 ) {
         log_it (L_ERROR, "File %s is not exists! ", l_cert_path);
         exit(-701);
@@ -375,7 +375,7 @@ int dap_chain_cert_save_to_folder(dap_chain_cert_t * a_cert, const char *a_file_
     const char * l_cert_name = a_cert->name;
     size_t l_cert_path_length = strlen(l_cert_name)+8+strlen(a_file_dir_path);
     char * l_cert_path = DAP_NEW_Z_SIZE(char,l_cert_path_length);
-    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_file_dir_path,l_cert_name);
+    dap_snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_file_dir_path,l_cert_name);
     ret = dap_chain_cert_file_save(a_cert,l_cert_path);
     DAP_DELETE( l_cert_path);
     return ret;
