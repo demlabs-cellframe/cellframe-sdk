@@ -22,20 +22,32 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <dirent.h>
+
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <wepoll.h>
+#endif
+
+#include <pthread.h>
+
 #include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_string.h"
 #include "dap_chain_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
-
-#define LOG_TAG "dap_chain_wallet"
-
 
 #define LOG_TAG "dap_chain_wallet"
 
@@ -45,26 +57,7 @@
  */
 int dap_chain_wallet_init()
 {
-    // load certificates from existing wallets
-    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    if(c_wallets_path) {
-        DIR * l_dir = opendir(c_wallets_path);
-        struct dirent * l_dir_entry;
-        while((l_dir_entry = readdir(l_dir)) != NULL) {
-            const char *l_file_name = l_dir_entry->d_name;
-            size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
-            if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
-                char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
-                dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
-                if(l_wallet) {
-                    dap_chain_wallet_close(l_wallet);
-                }
-                DAP_DELETE(l_file_path_tmp);
-            }
-        }
-        closedir(l_dir);
-    }
-    return 0;
+   return 0;
 }
 
 /**
@@ -75,20 +68,6 @@ void dap_chain_wallet_deinit()
 
 }
 
-/**
- * @brief dap_chain_wallet_get_path
- * @param[in] a_config Configuration
- * @return wallets path or NULL if error
- */
-const char* dap_chain_wallet_get_path(dap_config_t * a_config)
-{
-    const char *l_wallets_path = NULL;
-    if(a_config)
-        l_wallets_path = dap_config_get_item_str(g_config, "resources", "wallets_path");
-    if(!l_wallets_path)
-        l_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
-    return l_wallets_path;
-}
 
 /**
  * @brief dap_chain_wallet_create
@@ -111,7 +90,7 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     l_wallet_internal->file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
 
-    snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet",a_wallets_path,a_wallet_name);
+    dap_snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet",a_wallets_path,a_wallet_name);
 
     l_wallet_internal->certs[0] = dap_chain_cert_generate_mem(a_wallet_name,
                                                          dap_chain_sign_type_to_key_type(a_sig_type));
@@ -344,7 +323,7 @@ dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const cha
         return NULL;
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     char *l_file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
-    snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
+    dap_snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open_file(l_file_name);
     DAP_DELETE(l_file_name);
     return l_wallet;
