@@ -146,9 +146,11 @@ void dap_client_remote_remove( dap_client_remote_t *sc )
 
   if( sc->socket ) {
     log_it( L_INFO, "dap_client_remote_remove close( %d );", sc->socket );
-    Sleep( 100 );
-//    close( sc->socket );
+#ifdef _WIN32
     closesocket( sc->socket );
+#else
+    close( sc->socket );
+#endif
   }
 
   free( sc );

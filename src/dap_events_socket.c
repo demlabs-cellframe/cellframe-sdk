@@ -271,8 +271,11 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
     free( a_es->_inheritor );
 
   if ( a_es->socket ) {
-//    close( a_es->socket );
+#ifdef _WIN32
     closesocket( a_es->socket );
+#else
+    close( a_es->socket );
+#endif
   }
 
   free( a_es );
