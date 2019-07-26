@@ -14,12 +14,12 @@
 #include "dap_strfuncs.h"
 
 #ifdef _WIN32
-//char *strndup(char *str, int len) {
-//    char *buf = (char*)malloc(len + 1);
-//    memcpy(buf, str, len);
-//    buf[len] = 0;
-//    return buf;
-//}
+static inline char *strndup(char *str, int len) {
+    char *buf = (char*)malloc(len + 1);
+    memcpy(buf, str, len);
+    buf[len] = 0;
+    return buf;
+}
 #endif
 
 #ifdef _WIN32
