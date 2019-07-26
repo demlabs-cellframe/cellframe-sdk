@@ -506,7 +506,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         else
             // set full reply with node param
             dap_string_append_printf(l_string_reply,
-                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s%s\nlinks %u%s",
                     NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                     node_info_read->hdr.cell_id.uint64,
                     str_ip4, str_ip6, aliases_string->str,
@@ -593,7 +593,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
-                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s%s\nlinks %u%s",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                             node_info_read->hdr.cell_id.uint64,
                             str_ip4, str_ip6, aliases_string->str,
@@ -618,6 +618,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
  *
  * return 0 OK, -1 Err
  */
+/*
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
@@ -720,7 +721,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-}
+}*/
 
 /**
  * Node command
@@ -728,12 +729,22 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT , CMD_DUMP
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     const char *cmd_str = NULL;
-// find  add parameter ('alias' or 'handshake')
+    if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
+        cmd_num = CMD_ADD;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
+        cmd_num = CMD_DEL;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "link", NULL)) {
+        cmd_num = CMD_LINK;
+    }
+    else
+    // find  add parameter ('alias' or 'handshake')
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
     }
@@ -751,38 +762,91 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-    dap_chain_node_addr_t l_node_addr={0};
     const char *l_addr_str = NULL, *alias_str = NULL;
-    const char * l_net_str = NULL;
+    const char *l_cell_str = NULL, *l_link_str = NULL, *a_ipv4_str = NULL, *a_ipv6_str = NULL;
+
+    // find net
+    dap_chain_net_t *l_net = NULL;
+
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
+        return -11;
 
     // find addr, alias
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
-    bool l_is_full = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv4", &a_ipv4_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv6", &a_ipv6_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
 
-    if (l_addr_str)
-        if ( dap_chain_node_addr_from_str(&l_node_addr,l_addr_str) != 0 )
+    // struct to write to the global db
+    dap_chain_node_addr_t l_node_addr = { 0 };
+    dap_chain_node_addr_t l_link = { 0 };
+    dap_chain_node_info_t *l_node_info = NULL;
+    size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+    if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK)
+        l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
+
+    if(l_addr_str) {
+        if(dap_chain_node_addr_from_str(&l_node_addr, l_addr_str) != 0) {
             dap_digit_from_string(l_addr_str, l_node_addr.raw, sizeof(l_node_addr.raw));
-
-    if(l_net_str == NULL) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "No -net <net name> option in command %s", a_argv[1]);
-        return -11;
+        }
+        if(l_node_info)
+            memcpy(&l_node_info->hdr.address, &l_node_addr, sizeof(dap_chain_node_addr_t));
     }
-
-    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
-
-    if(l_net == NULL) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s: Can't find such network %s", a_argv[1], l_net_str);
-        return -12;
+    if(l_cell_str && l_node_info) {
+        dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+    }
+    if(l_link_str) {
+        if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
+            dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
+        }
     }
 
     switch (cmd_num)
     {
-    case CMD_DUMP:{
-        // handler of command 'global_db node dump'
+    case CMD_ADD:
+        if(!arg_index || a_argc < 8) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
+            return -1;
+        }
+        // handler of command 'global_db node add'
+        int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str, a_str_reply);
+        DAP_DELETE(l_node_info);
+        return l_ret;
+        //break;
 
-        return node_info_dump_with_reply(l_net, &l_node_addr , l_is_full, alias_str, a_str_reply);
+    case CMD_DEL:
+        // handler of command 'global_db node del'
+    {
+        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        DAP_DELETE(l_node_info);
+        return l_ret;
+    }
+    case CMD_LINK:
+        if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
+            // handler of command 'global_db node link add -addr <node address> -link <node address>'
+            int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
+            DAP_DELETE(l_node_info);
+            return l_ret;
+        }
+        else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
+            // handler of command 'global_db node link del -addr <node address> -link <node address>'
+            int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
+            DAP_DELETE(l_node_info);
+            return l_ret;
+        }
+        else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "command not recognize, supported format:\n"
+                    "global_db node link <add|del] [-addr <node address>  | -alias <node alias>] -link <node address>");
+            DAP_DELETE(l_node_info);
+            return -1;
+        }
+
+    case CMD_DUMP: {
+        // handler of command 'node dump'
+        bool l_is_full = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
+        return node_info_dump_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
     }
     // add alias
     case CMD_ALIAS:

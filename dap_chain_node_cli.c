@@ -770,19 +770,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return 0;
     }
 
-    dap_chain_node_cli_cmd_item_create ("global_db", com_global_db, "Work with global database",
-           "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
-           "global_db cells add -cell <cell id> \n\n"
-           "global_db node add  -net <net name> -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "global_db node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "global_db node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                        );
+/*    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
+                    "global_db cells add -cell <cell id> \n\n"
+            "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
+            );*/
 
-    dap_chain_node_cli_cmd_item_create ("node", com_node, "Work with node",
-            "node alias -addr <node address> -alias <node alias>\n\n"
+    dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
+            "node add  -net <net name> -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+                    "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
+                    "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+                    "node alias -addr <node address> -alias <node alias>\n\n"
                     "node connect {<node address> | -alias <node alias>}\n\n"
                     "node handshake {<node address> | -alias <node alias>}\n"
-                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>]\n\n"
+                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
