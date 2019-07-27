@@ -61,7 +61,7 @@ endif()
 
 if(UNIX)
   target_link_libraries(dap_chain_net dap_core dap_crypto dap_client dap_stream_ch_chain dap_chain_gdb dap_stream_ch_chain_net dap_chain dap_chain_crypto dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db -lresolv)
-endif()s
+endif()
 
 target_include_directories(dap_chain_net INTERFACE . PUBLIC ${IPUTILS_INCLUDE_DIRS})
 
