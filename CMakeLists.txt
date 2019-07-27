@@ -9,6 +9,14 @@ set(CMAKE_ASM_FLAGS "-std=c11 -Wall -Wextra -fPIC -fno-pie -no-pie")
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 
+  # Check whether we're on a 32-bit or 64-bit system
+  if(CMAKE_SIZEOF_VOID_P EQUAL "8")
+    set(DEFAULT_BUILD_64 ON)
+  else()
+    set(DEFAULT_BUILD_64 OFF)
+  endif()
+  option(BUILD_64 "Build for 64-bit? 'OFF' builds for 32-bit." ${DEFAULT_BUILD_64})
+
   add_definitions ("-DDAP_SERVER")
   add_definitions ("-DNODE_NETNAME=\"kelvin\"")
 
