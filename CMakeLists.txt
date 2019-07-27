@@ -4,8 +4,8 @@ project (dap_crypto)
 # fix implicit declaration warnings
 add_definitions ("-D_GNU_SOURCE")
 
-set(CMAKE_C_FLAGS "-std=c11 -Wall -Wextra -fPIC -fno-pie -no-pie")
-set(CMAKE_ASM_FLAGS "-std=c11 -Wall -Wextra -fPIC -fno-pie -no-pie")
+set(CMAKE_C_FLAGS "-std=c11  -O2 -Wall -Wextra -fPIC -fno-pie -no-pie")
+set(CMAKE_ASM_FLAGS "-std=c11  -O2 -Wall -Wextra -fPIC -fno-pie -no-pie")
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 
@@ -20,7 +20,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
   add_definitions ("-DDAP_SERVER")
   add_definitions ("-DNODE_NETNAME=\"kelvin\"")
 
-  set(_CCOPT "-Wall -pg -fPIC -fno-pie -no-pie")
+  set(_CCOPT "-Wall -O2 -pg -fPIC -fno-pie -no-pie")
   set(_LOPT "-pg")
   SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_CCOPT}")
