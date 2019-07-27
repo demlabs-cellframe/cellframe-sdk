@@ -15,7 +15,8 @@
 #include <stdio.h>
 #include <assert.h>
 //#ifndef SUPERCOP
-#include "../sha3/KeccakHash.h"
+//#include "../sha3/KeccakHash.h"
+#include "KeccakHash.h"
 //#else
 //#include <libkeccak.a.headers/KeccakHash.h>
 //#endif
