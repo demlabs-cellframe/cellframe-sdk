@@ -1,5 +1,5 @@
 /*
- Copyright (c)  2006, 2007		Dmitry Butskoy
+ Copyright (c)  2006, 2007    Dmitry Butskoy
  <buc@citadel.stu.neva.ru>
  License:  GPL v2 or any later
 
@@ -30,7 +30,7 @@
 #include <clif.h>
 //#include "version.h"
 #include <stdbool.h>
-#include <glib.h>
+//#include <glib.h>
 #include "traceroute.h"
 
 #ifndef ICMP6_DST_UNREACH_BEYONDSCOPE
@@ -54,34 +54,34 @@
 #endif
 
 #ifndef AI_IDN
-#define AI_IDN	0
+#define AI_IDN  0
 #endif
 
 #ifndef NI_IDN
-#define NI_IDN	0
+#define NI_IDN  0
 #endif
 
-#define MAX_HOPS	255
-#define MAX_PROBES	10
-#define MAX_GATEWAYS_4	8
-#define MAX_GATEWAYS_6	127
-#define DEF_HOPS	30
-#define DEF_SIM_PROBES	16	/*  including several hops   */
-#define DEF_NUM_PROBES	3 //1
-#define DEF_WAIT_SECS	5.0
-#define DEF_HERE_FACTOR	3
-#define DEF_NEAR_FACTOR	10
+#define MAX_HOPS  255
+#define MAX_PROBES  10
+#define MAX_GATEWAYS_4  8
+#define MAX_GATEWAYS_6  127
+#define DEF_HOPS  30
+#define DEF_SIM_PROBES  16  /*  including several hops   */
+#define DEF_NUM_PROBES  3 //1
+#define DEF_WAIT_SECS 5.0
+#define DEF_HERE_FACTOR 3
+#define DEF_NEAR_FACTOR 10
 #ifndef DEF_WAIT_PREC
-#define DEF_WAIT_PREC	0.001	/*  +1 ms  to avoid precision issues   */
+#define DEF_WAIT_PREC 0.001 /*  +1 ms  to avoid precision issues   */
 #endif
-#define DEF_SEND_SECS	0
-#define DEF_DATA_LEN	40	/*  all but IP header...  */
-#define MAX_PACKET_LEN	65000
+#define DEF_SEND_SECS 0
+#define DEF_DATA_LEN  40  /*  all but IP header...  */
+#define MAX_PACKET_LEN  65000
 #ifndef DEF_AF
-#define DEF_AF		AF_INET
+#define DEF_AF    AF_INET
 #endif
 
-#define ttl2hops(X)	(((X) <= 64 ? 65 : ((X) <= 128 ? 129 : 256)) - (X))
+#define ttl2hops(X) (((X) <= 64 ? 65 : ((X) <= 128 ? 129 : 256)) - (X))
 
 static char version_string[] = "Modern traceroute for Linux, "
         "version " _TEXT(VERSION)
@@ -259,7 +259,7 @@ static const char *addr2str(const sockaddr_any *addr) {
     return addr2str_buf;
 }
 
-/*	IP  options  stuff	    */
+/*  IP  options  stuff      */
 
 static int init_ip_options(void) {
     sockaddr_any *gates;
@@ -356,7 +356,7 @@ static int init_ip_options(void) {
     return 0;
 }
 
-/*	Command line stuff	    */
+/*  Command line stuff      */
 __attribute__((unused))
 static int set_af(CLIF_option *optn, char *arg) {
     UNUSED(arg);
@@ -732,7 +732,7 @@ int traceroute_main(int argc, char *argv[]) {
     return 0;
 }
 
-/*	PRINT  STUFF	    */
+/*  PRINT  STUFF      */
 
 static void print_header(void) {
 
@@ -839,7 +839,7 @@ static void print_end(void) {
     log_printf("\n");
 }
 
-/*	Compute  timeout  stuff		*/
+/*  Compute  timeout  stuff   */
 
 static double get_timeout(probe *pb) {
     double value;
@@ -877,7 +877,7 @@ static double get_timeout(probe *pb) {
     return wait_secs;
 }
 
-/*	Check  expiration  stuff	*/
+/*  Check  expiration  stuff  */
 
 static void check_expired(probe *pb) {
     int idx = (pb - probes);
@@ -1684,7 +1684,7 @@ int do_send(int sk, const void *data, size_t len, const sockaddr_any *addr) {
  */
 static int can_connect = -1;
 
-#define VER(A,B,C,D)	(((((((A) << 8) | (B)) << 8) | (C)) << 8) | (D))
+#define VER(A,B,C,D)  (((((((A) << 8) | (B)) << 8) | (C)) << 8) | (D))
 
 int raw_can_connect(void) {
 

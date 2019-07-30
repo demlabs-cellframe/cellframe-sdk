@@ -1,12 +1,12 @@
 /*
  * tracepath.c
  *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
+ *    This program is free software; you can redistribute it and/or
+ *    modify it under the terms of the GNU General Public License
+ *    as published by the Free Software Foundation; either version
+ *    2 of the License, or (at your option) any later version.
  *
- * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
+ * Authors: Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
 #include <arpa/inet.h>
@@ -26,7 +26,7 @@
 #include <sys/time.h>
 #include <sys/uio.h>
 #include <unistd.h>
-#include <glib.h>
+//#include <glib.h>
 
 #include "iputils.h"
 
@@ -38,9 +38,9 @@
 # ifndef NI_IDN
 #  define NI_IDN 32
 # endif
-# define getnameinfo_flags	NI_IDN
+# define getnameinfo_flags  NI_IDN
 #else
-# define getnameinfo_flags	0
+# define getnameinfo_flags  0
 #endif
 
 #ifndef SOL_IPV6
@@ -48,10 +48,10 @@
 #endif
 
 #ifndef IP_PMTUDISC_DO
-# define IP_PMTUDISC_DO		3
+# define IP_PMTUDISC_DO   3
 #endif
 #ifndef IPV6_PMTUDISC_DO
-# define IPV6_PMTUDISC_DO	3
+# define IPV6_PMTUDISC_DO 3
 #endif
 
 enum {
