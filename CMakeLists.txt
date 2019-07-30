@@ -6,6 +6,7 @@ set(DAP_CHAIN_NET_SRCS
         dap_chain_node.c
         dap_chain_node_cli.c
         dap_chain_node_cli_cmd.c
+        dap_chain_node_cli_cmd_tx.c
         dap_chain_node_client.c
         dap_chain_node_remote.c
         )
@@ -15,6 +16,7 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node.h
         dap_chain_node_cli.h
         dap_chain_node_cli_cmd.h
+        dap_chain_node_cli_cmd_tx.h
         dap_chain_node_client.h
         dap_chain_node_remote.h
     )

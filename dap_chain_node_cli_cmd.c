@@ -70,6 +70,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_srv.h"
 
 #include "dap_chain_datum.h"
@@ -2416,7 +2417,7 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
         }
     }
     //char *l_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-    const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
+    //const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
 
     dap_chain_hash_fast_t l_tx_hash;
     if(l_tx_hash_str){
@@ -2451,10 +2452,9 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
         }
     }
 
-    // read all history
     char *l_str_out = l_tx_hash_str ?
-                                      dap_db_history_tx(&l_tx_hash, l_chain_group) :
-                                      dap_db_history_addr(l_addr, l_chain_group); //dap_db_history_filter(l_addr, l_chain_group);
+                                      dap_db_history_tx(&l_tx_hash, l_chain) :
+                                      dap_db_history_addr(l_addr, l_chain);
 
     char *l_str_ret = NULL;
     if(l_tx_hash_str) {
