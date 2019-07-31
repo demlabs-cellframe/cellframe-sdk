@@ -11,7 +11,7 @@ before_install:
 script:
     - mkdir build
     - cd build 
-    - cmake ../
+    - cmake -DBUILD_DAP_CHAIN_CRYPTO_TESTS=ON ../
     - make
     - ctest --verbose
 
@@ -19,3 +19,11 @@ addons:
   apt:
     sources:
     - ubuntu-toolchain-r-test
+    packages:
+    - libev-dev 
+    - libjson-c-dev
+    - libmagic-dev
+    - libmemcached-dev
+    - libldb-dev
+    - libtalloc-dev
+    - libtevent-dev

@@ -10,7 +10,7 @@ file(GLOB HEADERS *.h)
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto dap_chain)
+target_link_libraries(${PROJECT_NAME} dap_chain_crypto dap_core dap_crypto dap_chain monero_crypto dap_test)
 
 add_test(
     NAME chain_crypto_test
