@@ -39,6 +39,8 @@ typedef struct dap_chain_wallet{
 int dap_chain_wallet_init();
 void dap_chain_wallet_deinit();
 
+const char* dap_chain_wallet_get_path(dap_config_t * a_config);
+
 dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_chain_net_id_t a_net_id,
                                              dap_chain_sign_type_t a_sig_type); // Creates new one if not found
 dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name);
