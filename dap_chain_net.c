@@ -926,12 +926,14 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
 
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                const char *cur_addr_str = "-";
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" has state %s (target state %s), active links %u from %u, cur address %s",
+                // get current node address
+                dap_chain_node_addr_t l_cur_node_addr = { 0 };
+                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 : dap_db_get_cur_node_addr();
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address " NODE_ADDR_FP_STR,
                                                     l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                     c_net_states[PVT(l_net)->state_target], HASH_COUNT( PVT(l_net)->links),
                                                     PVT(l_net)->links_addrs_count,
-                                                    cur_addr_str
+                                                    NODE_ADDR_FP_ARGS_S(l_cur_node_addr)
                                                   );
                 ret = 0;
             }
