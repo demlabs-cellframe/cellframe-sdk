@@ -926,10 +926,12 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
 
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" has state %s (target state %s), active links %u from %u",
+                const char *cur_addr_str = "-";
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" has state %s (target state %s), active links %u from %u, cur address %s",
                                                     l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                     c_net_states[PVT(l_net)->state_target], HASH_COUNT( PVT(l_net)->links),
-                                                    PVT(l_net)->links_addrs_count
+                                                    PVT(l_net)->links_addrs_count,
+                                                    cur_addr_str
                                                   );
                 ret = 0;
             }
