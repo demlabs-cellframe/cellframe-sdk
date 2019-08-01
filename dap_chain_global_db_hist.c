@@ -155,6 +155,7 @@ static dap_store_obj_t* get_prev_tx(dap_global_db_obj_t *a_objs, dap_tx_data_t *
  *
  * return history string
  */
+#if 0
 char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, const char *a_group_mempool)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
@@ -368,12 +369,14 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, const char *a_group_me
     char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
     return l_ret_str;
 }
+#endif
 
 /**
  * Get data according the history log
  *
  * return history string
  */
+#if 0
 char* dap_db_history_addr(dap_chain_addr_t * a_addr, const char *a_group_mempool)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
@@ -707,6 +710,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, const char *a_group_mempool
     char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
     return l_ret_str;
 }
+#endif
 
 
 /**
