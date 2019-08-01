@@ -2255,14 +2255,14 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
     const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
-    const char *c_net_name = "kelvin-testnet";
+//    const char *c_net_name = "kelvin-testnet";
     uint64_t l_value = 50;
     //debug
     {
-        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
-        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
-        char *addr = dap_chain_addr_to_str(l_addr_tesla);
-        addr = 0;
+//        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
+//        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
+  //      char *addr = dap_chain_addr_to_str(l_addr_tesla);
+//        addr = 0;
     }
 
     dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
@@ -2277,7 +2277,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     dap_chain_net_srv_abstract_t l_cond;
 //    dap_chain_net_srv_abstract_set(&l_cond, SERV_CLASS_PERMANENT, SERV_ID_VPN, l_value, SERV_UNIT_MB,
 //            "test vpn service");
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
+//    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
 
     int res = dap_chain_mempool_tx_create_cond(NULL, l_key, l_key_cond, addr_from,
             addr_cond,
@@ -2298,8 +2298,8 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
 int com_tx_create(int argc, char ** argv, char **str_reply)
 {
     int arg_index = 1;
-    int cmd_num = 1;
-    const char *value_str = NULL;
+//    int cmd_num = 1;
+//    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
     const char *addr_base58_fee = NULL;
     const char *str_tmp = NULL;
