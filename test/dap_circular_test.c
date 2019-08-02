@@ -1,3 +1,4 @@
+#ifndef _WIN32
 #include "dap_circular_test.h"
 #include "dap_circular_buffer.h"
 
@@ -212,3 +213,4 @@ void dap_circular_test_run()
     dap_circular_load_test();
 #endif
 }
+#endif
