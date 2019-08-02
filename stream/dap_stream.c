@@ -373,6 +373,10 @@ void dap_stream_delete( dap_stream_t *a_stream )
         dap_stream_session_close(a_stream->session->id);
     }
 
+    pthread_mutex_lock(&mutex_keepalive_list);
+    DL_DELETE(stream_keepalive_list, a_stream);
+    stream_dap_delete(a_stream->conn, NULL);
+    pthread_mutex_unlock(&mutex_keepalive_list);
     free(a_stream);
 }
 
@@ -470,11 +474,9 @@ void start_keepalive( dap_stream_t *sid ) {
 //    sid->keepalive_watcher.data = sid;
 //    ev_timer_init (&sid->keepalive_watcher, keepalive_cb, STREAM_KEEPALIVE_TIMEOUT, STREAM_KEEPALIVE_TIMEOUT);
 //    ev_timer_start (keepalive_loop, &sid->keepalive_watcher);
-
   pthread_mutex_lock( &mutex_keepalive_list );
   DL_APPEND( stream_keepalive_list, sid );
   pthread_mutex_unlock( &mutex_keepalive_list );
-
 }
 
 /**
@@ -712,6 +714,8 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
  * @param arg Not used
  */
 void stream_dap_delete(dap_client_remote_t* sh, void * arg){
+    if(!sh)
+        return;
     dap_stream_t * sid = DAP_STREAM(sh);
     if(sid == NULL)
         return;
