@@ -455,12 +455,17 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             l_addr = dap_chain_node_alias_find(a_net, a_alias);
         }
         if(!l_addr) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not valid");
             dap_string_free(l_string_reply, true);
             return -1;
         }
         // read node
         dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_str_reply);
+        if(!node_info_read){
+            DAP_DELETE(l_addr);
+            dap_string_free(l_string_reply, true);
+            return -2;
+        }
 
         // get aliases in form of string
         dap_string_t *aliases_string = dap_string_new(NULL);
@@ -1502,7 +1507,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
     }
 
     if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"", argv[0], l_net_str);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s can't find network \"%s\"", argv[0], l_net_str);
         return -102;
     }
 
