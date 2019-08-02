@@ -40,7 +40,7 @@ typedef enum dap_hash_type {
     DAP_HASH_TYPE_SLOW_0 = 1,
 } dap_hash_type_t;
 
-static inline int dap_hash_fast( const void *a_data_in, size_t a_data_in_size, uint8_t *a_hash_out )
+static inline int dap_hash_fast( const void *a_data_in, size_t a_data_in_size, void *a_hash_out )
 {
   if (!a_data_in || !a_data_in_size || !a_hash_out)
     return -1;
