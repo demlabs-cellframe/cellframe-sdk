@@ -1,6 +1,8 @@
 #include "dap_config_test.h"
 #include "dap_common_test.h"
+#ifndef _WIN32
 #include "dap_network_monitor_test.h"
+#endif
 #include "dap_strfuncs_test.h"
 #include "dap_common.h"
 
