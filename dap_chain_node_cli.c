@@ -879,6 +879,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             closesocket( sockfd );
             return -1;
         }
+	chmod(UNIX_SOCKET_FILE,0770); 
 
       #else
 
