@@ -436,7 +436,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
 }
 
 /**
- * Handler of command 'global_db node dump'
+ * Handler of command 'node dump'
  *
  * str_reply[out] for reply
  * return 0 Ok, -1 error
@@ -455,12 +455,17 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             l_addr = dap_chain_node_alias_find(a_net, a_alias);
         }
         if(!l_addr) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not valid");
             dap_string_free(l_string_reply, true);
             return -1;
         }
         // read node
         dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_str_reply);
+        if(!node_info_read){
+            DAP_DELETE(l_addr);
+            dap_string_free(l_string_reply, true);
+            return -2;
+        }
 
         // get aliases in form of string
         dap_string_t *aliases_string = dap_string_new(NULL);
@@ -507,7 +512,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         else
             // set full reply with node param
             dap_string_append_printf(l_string_reply,
-                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s%s\nlinks %u%s",
                     NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                     node_info_read->hdr.cell_id.uint64,
                     str_ip4, str_ip6, aliases_string->str,
@@ -522,30 +527,37 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     }else { // Dump list
         dap_global_db_obj_t *l_objs = NULL;
         size_t l_nodes_count = 0;
-        dap_chain_node_info_t *l_node_info;
         dap_string_append(l_string_reply, "\n");
         // read all node
         l_objs = dap_chain_global_db_gr_load( a_net->pub.gdb_nodes, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
+            dap_chain_node_cli_set_reply_text(a_str_reply, l_string_reply->str);
             dap_string_free(l_string_reply, true);
-            l_ret = -1;
+            dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+            return -1;
         }else {
+            size_t l_nodes_count_real = 0;
             dap_string_append_printf(l_string_reply,"Got %u records:\n",l_nodes_count);
             for(size_t i = 0; i < l_nodes_count; i++) {
-                dap_chain_node_info_t *node_info =  (dap_chain_node_info_t *) l_objs[i].value;
+                dap_chain_node_info_t *l_node_info =  (dap_chain_node_info_t *) l_objs[i].value;
                 // find addr by alias or addr_str
-                dap_chain_node_addr_t *address = node_info_get_addr(a_net, node_info, &node_info->hdr.address, a_alias);
+                dap_chain_node_addr_t *address = node_info_get_addr(a_net, l_node_info, &l_node_info->hdr.address, a_alias);
                 if(!address) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "alias not found");
-                    break;
+                    dap_string_free(l_string_reply, true);
+                    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+                    return -1;
                 }
                 // read node
-                dap_chain_node_info_t *node_info_read = node_info_read_and_reply( a_net, address, a_str_reply);
+                dap_chain_node_info_t *node_info_read = node_info_read_and_reply( a_net, address, NULL);
                 if(!node_info_read) {
                     DAP_DELETE(address);
-                    break;
+                    continue;
+                    //dap_string_free(l_string_reply, true);
+                    //dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+                    //return -1;
                 }
 
                 const int hostlen = 128;
@@ -594,7 +606,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
-                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx%s\nipv4 %s\nipv6 %s\nlinks %u%s",
+                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s%s\nlinks %u%s",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                             node_info_read->hdr.cell_id.uint64,
                             str_ip4, str_ip6, aliases_string->str,
@@ -619,6 +631,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
  *
  * return 0 OK, -1 Err
  */
+/*
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
@@ -721,7 +734,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-}
+}*/
 
 /**
  * Node command
@@ -729,12 +742,21 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT , CMD_DUMP
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
-    const char *cmd_str = NULL;
-// find  add parameter ('alias' or 'handshake')
+    if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
+        cmd_num = CMD_ADD;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
+        cmd_num = CMD_DEL;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "link", NULL)) {
+        cmd_num = CMD_LINK;
+    }
+    else
+    // find  add parameter ('alias' or 'handshake')
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
     }
@@ -752,38 +774,91 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-    dap_chain_node_addr_t l_node_addr={0};
     const char *l_addr_str = NULL, *alias_str = NULL;
-    const char * l_net_str = NULL;
+    const char *l_cell_str = NULL, *l_link_str = NULL, *a_ipv4_str = NULL, *a_ipv6_str = NULL;
+
+    // find net
+    dap_chain_net_t *l_net = NULL;
+
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
+        return -11;
 
     // find addr, alias
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
-    bool l_is_full = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv4", &a_ipv4_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv6", &a_ipv6_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
 
-    if (l_addr_str)
-        if ( dap_chain_node_addr_from_str(&l_node_addr,l_addr_str) != 0 )
+    // struct to write to the global db
+    dap_chain_node_addr_t l_node_addr = { 0 };
+    dap_chain_node_addr_t l_link = { 0 };
+    dap_chain_node_info_t *l_node_info = NULL;
+    size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+    if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK)
+        l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
+
+    if(l_addr_str) {
+        if(dap_chain_node_addr_from_str(&l_node_addr, l_addr_str) != 0) {
             dap_digit_from_string(l_addr_str, l_node_addr.raw, sizeof(l_node_addr.raw));
-
-    if(l_net_str == NULL) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "No -net <net name> option in command %s", a_argv[1]);
-        return -11;
+        }
+        if(l_node_info)
+            memcpy(&l_node_info->hdr.address, &l_node_addr, sizeof(dap_chain_node_addr_t));
     }
-
-    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
-
-    if(l_net == NULL) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s: Can't find such network %s", a_argv[1], l_net_str);
-        return -12;
+    if(l_cell_str && l_node_info) {
+        dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+    }
+    if(l_link_str) {
+        if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
+            dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
+        }
     }
 
     switch (cmd_num)
     {
-    case CMD_DUMP:{
-        // handler of command 'global_db node dump'
+    case CMD_ADD:
+        if(!arg_index || a_argc < 8) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
+            return -1;
+        }
+        // handler of command 'global_db node add'
+        int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str, a_str_reply);
+        DAP_DELETE(l_node_info);
+        return l_ret;
+        //break;
 
-        return node_info_dump_with_reply(l_net, &l_node_addr , l_is_full, alias_str, a_str_reply);
+    case CMD_DEL:
+        // handler of command 'global_db node del'
+    {
+        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        DAP_DELETE(l_node_info);
+        return l_ret;
+    }
+    case CMD_LINK:
+        if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
+            // handler of command 'global_db node link add -addr <node address> -link <node address>'
+            int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
+            DAP_DELETE(l_node_info);
+            return l_ret;
+        }
+        else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
+            // handler of command 'global_db node link del -addr <node address> -link <node address>'
+            int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
+            DAP_DELETE(l_node_info);
+            return l_ret;
+        }
+        else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "command not recognize, supported format:\n"
+                    "global_db node link <add|del] [-addr <node address>  | -alias <node alias>] -link <node address>");
+            DAP_DELETE(l_node_info);
+            return -1;
+        }
+
+    case CMD_DUMP: {
+        // handler of command 'node dump'
+        bool l_is_full = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
+        return node_info_dump_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_str_reply);
     }
     // add alias
     case CMD_ALIAS:
@@ -1252,7 +1327,6 @@ int com_tx_wallet(int argc,  char ** argv, char **str_reply)
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
-    const char *cmd_str = NULL;
     // find  add parameter ('alias' or 'handshake')
     if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "new", NULL)) {
         cmd_num = CMD_WALLET_NEW;
@@ -1433,7 +1507,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
     }
 
     if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"", argv[0], l_net_str);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s can't find network \"%s\"", argv[0], l_net_str);
         return -102;
     }
 
@@ -1482,7 +1556,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
             return -1;
 
         // Load certs lists
-        size_t l_signs_size = dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+        dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
         if(!l_certs_size) {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "token_create command requres at least one valid certificate to sign the basic transaction of emission");
@@ -1569,7 +1643,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
 
                     // Calc datum's hash
                     dap_chain_hash_fast_t l_key_hash;
-                    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+                    dap_hash_fast(l_datum, l_datum_size, (uint8_t*)&l_key_hash);
                     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
                     // Add datum to mempool with datum_token hash as a key
@@ -1789,7 +1863,6 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
 int com_token_decl(int argc, char ** argv, char ** str_reply)
 {
     int arg_index = 1;
-    const char *str_tmp = NULL;
     char *str_reply_tmp = NULL;
     const char * l_ticker = NULL;
 
@@ -1879,7 +1952,7 @@ int com_token_decl(int argc, char ** argv, char ** str_reply)
     }
 
     // Load certs lists
-    size_t l_certs_count = dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+    dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
     if(!l_certs_size) {
         dap_chain_node_cli_set_reply_text(str_reply,
                 "token_create command requres at least one valid certificate to sign the basic transaction of emission");
@@ -1918,7 +1991,7 @@ int com_token_decl(int argc, char ** argv, char ** str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+    dap_hash_fast(l_datum, l_datum_size, (uint8_t*)&l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
     // Add datum to mempool with datum_token hash as a key
@@ -2106,7 +2179,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_datum_emission_hash;
-    dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
+    dap_hash_fast(l_datum_emission, l_datum_emission_size, (uint8_t*)&l_datum_emission_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_emission_hash);
 
     // Add to mempool emission token
@@ -2157,7 +2230,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     //dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     // calc datum hash
     dap_chain_hash_fast_t l_datum_tx_hash;
-    dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_datum_tx_hash);
+    dap_hash_fast(l_datum_tx, l_datum_tx_size, (uint8_t*)&l_datum_tx_hash);
     l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_tx_hash);
     DAP_DELETE(l_tx);
 
@@ -2191,14 +2264,14 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
     const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
-    const char *c_net_name = "kelvin-testnet";
+//    const char *c_net_name = "kelvin-testnet";
     uint64_t l_value = 50;
     //debug
     {
-        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
-        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
-        char *addr = dap_chain_addr_to_str(l_addr_tesla);
-        addr = 0;
+//        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
+//        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
+  //      char *addr = dap_chain_addr_to_str(l_addr_tesla);
+//        addr = 0;
     }
 
     dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
@@ -2213,7 +2286,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     dap_chain_net_srv_abstract_t l_cond;
 //    dap_chain_net_srv_abstract_set(&l_cond, SERV_CLASS_PERMANENT, SERV_ID_VPN, l_value, SERV_UNIT_MB,
 //            "test vpn service");
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
+//    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
 
     int res = dap_chain_mempool_tx_create_cond(NULL, l_key, l_key_cond, addr_from,
             addr_cond,
@@ -2234,8 +2307,8 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
 int com_tx_create(int argc, char ** argv, char **str_reply)
 {
     int arg_index = 1;
-    int cmd_num = 1;
-    const char *value_str = NULL;
+//    int cmd_num = 1;
+//    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
     const char *addr_base58_fee = NULL;
     const char *str_tmp = NULL;
