@@ -185,7 +185,7 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
 
     pthread_rwlock_rdlock(&s_chain_items_rwlock);
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_ret_item);
-    pthread_rwlock_rdlock(&s_chain_items_rwlock);
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
     if ( l_ret_item ){
         return l_ret_item->chain;
     }else
