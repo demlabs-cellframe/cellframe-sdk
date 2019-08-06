@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2017-2019 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
+ Copyright (c) 2017-2019 (c) Project "DeM Labs Inc" https://gitlab.demlabs.net/cellframe
   All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
