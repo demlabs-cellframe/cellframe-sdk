@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * Anatolii Kurotych <akurotych@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://github.com/demlabsinc
+ * DeM Labs Open source community https://gitlab.demlabs.net/cellframe
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
