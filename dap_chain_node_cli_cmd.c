@@ -437,7 +437,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
 }
 
 /**
- * Handler of command 'global_db node dump'
+ * Handler of command 'node dump'
  *
  * str_reply[out] for reply
  * return 0 Ok, -1 error
@@ -456,12 +456,17 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             l_addr = dap_chain_node_alias_find(a_net, a_alias);
         }
         if(!l_addr) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not valid");
             dap_string_free(l_string_reply, true);
             return -1;
         }
         // read node
         dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_str_reply);
+        if(!node_info_read){
+            DAP_DELETE(l_addr);
+            dap_string_free(l_string_reply, true);
+            return -2;
+        }
 
         // get aliases in form of string
         dap_string_t *aliases_string = dap_string_new(NULL);
@@ -523,30 +528,37 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     }else { // Dump list
         dap_global_db_obj_t *l_objs = NULL;
         size_t l_nodes_count = 0;
-        dap_chain_node_info_t *l_node_info;
         dap_string_append(l_string_reply, "\n");
         // read all node
         l_objs = dap_chain_global_db_gr_load( a_net->pub.gdb_nodes, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
+            dap_chain_node_cli_set_reply_text(a_str_reply, l_string_reply->str);
             dap_string_free(l_string_reply, true);
-            l_ret = -1;
+            dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+            return -1;
         }else {
+            size_t l_nodes_count_real = 0;
             dap_string_append_printf(l_string_reply,"Got %u records:\n",l_nodes_count);
             for(size_t i = 0; i < l_nodes_count; i++) {
-                dap_chain_node_info_t *node_info =  (dap_chain_node_info_t *) l_objs[i].value;
+                dap_chain_node_info_t *l_node_info =  (dap_chain_node_info_t *) l_objs[i].value;
                 // find addr by alias or addr_str
-                dap_chain_node_addr_t *address = node_info_get_addr(a_net, node_info, &node_info->hdr.address, a_alias);
+                dap_chain_node_addr_t *address = node_info_get_addr(a_net, l_node_info, &l_node_info->hdr.address, a_alias);
                 if(!address) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "alias not found");
-                    break;
+                    dap_string_free(l_string_reply, true);
+                    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+                    return -1;
                 }
                 // read node
-                dap_chain_node_info_t *node_info_read = node_info_read_and_reply( a_net, address, a_str_reply);
+                dap_chain_node_info_t *node_info_read = node_info_read_and_reply( a_net, address, NULL);
                 if(!node_info_read) {
                     DAP_DELETE(address);
-                    break;
+                    continue;
+                    //dap_string_free(l_string_reply, true);
+                    //dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+                    //return -1;
                 }
 
                 const int hostlen = 128;
@@ -773,7 +785,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
-    const char *cmd_str = NULL;
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
         cmd_num = CMD_ADD;
     }
@@ -1355,7 +1366,6 @@ int com_tx_wallet(int argc,  char ** argv, char **str_reply)
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
-    const char *cmd_str = NULL;
     // find  add parameter ('alias' or 'handshake')
     if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "new", NULL)) {
         cmd_num = CMD_WALLET_NEW;
@@ -1536,7 +1546,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
     }
 
     if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s cand find network \"%s\"", argv[0], l_net_str);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s can't find network \"%s\"", argv[0], l_net_str);
         return -102;
     }
 
@@ -1592,7 +1602,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
         }
 
         // Load certs lists
-        size_t l_signs_size = dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+        dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
         if(!l_certs_size) {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "token_create command requres at least one valid certificate to sign the basic transaction of emission");
@@ -1685,7 +1695,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
 
                     // Calc datum's hash
                     dap_chain_hash_fast_t l_key_hash;
-                    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+                    dap_hash_fast(l_datum, l_datum_size, (uint8_t*)&l_key_hash);
                     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
                     // Add datum to mempool with datum_token hash as a key
@@ -1951,7 +1961,6 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
 int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
-    const char *str_tmp = NULL;
     const char * l_ticker = NULL;
 
     const char * l_total_supply_str = NULL;
@@ -2047,7 +2056,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
     }
 
     // Load certs lists
-    size_t l_certs_count = dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+    dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
     if(!l_certs_size) {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "token_create command requres at least one valid certificate to sign the basic transaction of emission");
@@ -2086,7 +2095,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+    dap_hash_fast(l_datum, l_datum_size, (uint8_t*)&l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
     // Add datum to mempool with datum_token hash as a key
@@ -2294,7 +2303,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_datum_emission_hash;
-    dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
+    dap_hash_fast(l_datum_emission, l_datum_emission_size, (uint8_t*)&l_datum_emission_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_emission_hash);
 
     // Add to mempool emission token
@@ -2345,7 +2354,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     //dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     // calc datum hash
     dap_chain_hash_fast_t l_datum_tx_hash;
-    dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_datum_tx_hash);
+    dap_hash_fast(l_datum_tx, l_datum_tx_size, (uint8_t*)&l_datum_tx_hash);
     l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_tx_hash);
     DAP_DELETE(l_tx);
 
@@ -2379,14 +2388,14 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
     const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
-    const char *c_net_name = "kelvin-testnet";
+//    const char *c_net_name = "kelvin-testnet";
     uint64_t l_value = 50;
     //debug
     {
-        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
-        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
-        char *addr = dap_chain_addr_to_str(l_addr_tesla);
-        addr = 0;
+//        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
+//        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
+  //      char *addr = dap_chain_addr_to_str(l_addr_tesla);
+//        addr = 0;
     }
 
     dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
@@ -2401,7 +2410,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     dap_chain_net_srv_abstract_t l_cond;
 //    dap_chain_net_srv_abstract_set(&l_cond, SERV_CLASS_PERMANENT, SERV_ID_VPN, l_value, SERV_UNIT_MB,
 //            "test vpn service");
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
+//    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
 
     int res = dap_chain_mempool_tx_create_cond(NULL, l_key, l_key_cond, addr_from,
             addr_cond,
@@ -2422,8 +2431,8 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
 int com_tx_create(int argc, char ** argv, char **str_reply)
 {
     int arg_index = 1;
-    int cmd_num = 1;
-    const char *value_str = NULL;
+//    int cmd_num = 1;
+//    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
     const char *addr_base58_fee = NULL;
     const char *str_tmp = NULL;

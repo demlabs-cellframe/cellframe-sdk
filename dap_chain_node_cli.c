@@ -837,7 +837,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  [-addr <addr> | -w <wallet name> -tx <tx_hash>] -net <net name> -chain <chain name>\n");
+            "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
@@ -879,6 +879,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             closesocket( sockfd );
             return -1;
         }
+	chmod(UNIX_SOCKET_FILE,0770); 
 
       #else
 
