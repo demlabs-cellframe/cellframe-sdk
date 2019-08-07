@@ -38,17 +38,24 @@
  * @param a_str_max
  * @return
  */
-size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max)
+size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, size_t a_str_max )
 {
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
+
     if(a_str_max < c_hash_str_size) {
         log_it(L_ERROR, "String for hash too small, need %u but have only %u", c_hash_str_size, a_str_max);
     }
     size_t i;
-    snprintf(a_str, 3, "0x");
+    dap_snprintf(a_str, 3, "0x");
+
     for(i = 0; i < sizeof(a_hash->raw); ++i)
-        snprintf(a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i]);
+        dap_snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
+
     a_str[c_hash_str_size] = '\0';
+
+//#define dap_htoa64( out, in, len ) \
+
+
     return strlen(a_str);
 }
 
@@ -59,23 +66,34 @@ size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, 
  * @param a_str_max
  * @return
  */
-size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max)
+#if 0
+size_t dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
 {
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
-    if(a_str_max < c_hash_str_size) {
-        log_it(L_ERROR, "String for hash too small, need %u but have only %u", c_hash_str_size, a_str_max);
+
+    if ( a_str_max < c_hash_str_size ) {
+      log_it( L_ERROR, "String for hash too small, need %u but have only %u", c_hash_str_size, a_str_max );
     }
-    size_t i;
+
+//    size_t i;
     // faster conversion to string
-    snprintf(a_str, 3, "0x");
+
+    dap_snprintf( a_str, 3, "0x" );
+
     size_t l_ret = dap_bin2hex(a_str + 2, a_hash->raw, sizeof(a_hash->raw));
+
     //for(i = 0; i < sizeof(a_hash->raw); ++i)
-    //    snprintf(a_str + i * 2 + 2, 3, "%02x", (a_hash->raw[i]));
+    //    dap_snprintf(a_str + i * 2 + 2, 3, "%02x", (a_hash->raw[i]));
+
     a_str[c_hash_str_size - 1] = '\0';
+
     if(!l_ret)
         return 0;
+
     return c_hash_str_size - 1; //strlen(a_str);
 }
+#endif
+
 
 /**
  * @brief dap_chain_str_to_hash_fast_to_str
@@ -87,11 +105,12 @@ int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t *
 {
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
     size_t l_hash_str_len = strlen( a_hash_str);
-    if ( l_hash_str_len == c_hash_str_size ){
-        for (size_t l_offset = 2; l_offset < c_hash_str_size ; l_offset+=2 ){
-            if ( ( sscanf(a_hash_str+l_offset,"%02hhx",a_hash->raw+l_offset-2) != 1) ||
-                 ( sscanf(a_hash_str+l_offset,"%02hhX",a_hash->raw+l_offset-2) != 1)
+    if ( l_hash_str_len + 1 == c_hash_str_size ){
+        for (size_t l_offset = 2; l_offset < l_hash_str_len; l_offset+=2 ){
+            if ( ( sscanf(a_hash_str+l_offset,"%02hhx",a_hash->raw+l_offset/2-1) != 1) ||
+                 ( sscanf(a_hash_str+l_offset,"%02hhX",a_hash->raw+l_offset/2-1) != 1)
                  )
+                  printf("dap_chain_str_to_hash_fast Error\n ");
                 return -10* ((int) l_offset); // Wrong char
         }
         return  0;

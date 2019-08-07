@@ -32,22 +32,23 @@
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
-#define DAP_CHAIN_ID_SIZE 8
-#define DAP_CHAIN_SHARD_ID_SIZE 8
-#define DAP_CHAIN_NET_ID_SIZE 8
-#define DAP_CHAIN_NODE_ROLE_SIZE 2
-#define DAP_CHAIN_HASH_SLOW_SIZE 32
-#define DAP_CHAIN_HASH_FAST_SIZE 32
-#define DAP_CHAIN_TIMESTAMP_SIZE 8
-#define DAP_CHAIN_TICKER_SIZE_MAX 10
+#define DAP_CHAIN_ID_SIZE           8
+#define DAP_CHAIN_SHARD_ID_SIZE     8
+#define DAP_CHAIN_NET_ID_SIZE       8
+#define DAP_CHAIN_NODE_ROLE_SIZE    2
+#define DAP_CHAIN_HASH_SLOW_SIZE    32
+#define DAP_CHAIN_HASH_FAST_SIZE    32
+#define DAP_CHAIN_TIMESTAMP_SIZE    8
+#define DAP_CHAIN_TICKER_SIZE_MAX   10
+
 // Chain ID of the whole system
-typedef union dap_chain_id{
+typedef union dap_chain_id {
     uint8_t raw[DAP_CHAIN_ID_SIZE];
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_id_t;
 
 // Shard ID
-typedef union dap_chain_cell_id{
+typedef union dap_chain_cell_id {
     uint8_t raw[DAP_CHAIN_SHARD_ID_SIZE];
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_cell_id_t;
@@ -57,7 +58,7 @@ typedef union dap_chain_cell_id{
   * @struct Node address
   *
   */
-typedef union dap_chain_node_addr{
+typedef union dap_chain_node_addr {
     uint64_t uint64;
     uint16_t words[sizeof(uint64_t)/2];
     uint8_t raw[sizeof(uint64_t)];  // Access to selected octects
@@ -104,7 +105,6 @@ typedef union dap_chain_net_id{
     uint64_t uint64;
     uint8_t raw[DAP_CHAIN_NET_ID_SIZE];
 } DAP_ALIGN_PACKED dap_chain_net_id_t;
-
 
 typedef union dap_chain_hash_slow{
     uint8_t raw[DAP_CHAIN_HASH_SLOW_SIZE];
@@ -173,7 +173,7 @@ typedef struct dap_chain_addr{
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
-size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
+//size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
@@ -192,6 +192,7 @@ static inline long double dap_chain_balance_to_coins( uint64_t a_balance){
  * @param a_hash
  * @return
  */
+
 static inline char * dap_chain_hash_slow_to_str_new(dap_chain_hash_slow_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */  ;
@@ -200,11 +201,20 @@ static inline char * dap_chain_hash_slow_to_str_new(dap_chain_hash_slow_t * a_ha
     return ret;
 }
 
-static inline char * dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_hash)
+DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
+{
+  a_str[0] = '0';
+  a_str[1] = 'x';
+  a_str[ DAP_CHAIN_HASH_FAST_SIZE * 2 + 2 ] = 0;
+  dap_htoa64( (a_str + 2), a_hash->raw, DAP_CHAIN_HASH_FAST_SIZE );
+  return DAP_CHAIN_HASH_FAST_SIZE * 2 + 2;
+}
+
+static inline char *dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */+4/*just to be sure*/  ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
-    dap_chain_hash_fast_to_str(a_hash,ret,c_hash_str_size);
+    dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size );
     return ret;
 }
 

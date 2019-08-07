@@ -87,8 +87,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 
     l_cell->file_storage_path = dap_strdup( a_cell_file_path );
 
-
-    l_cell->file_storage = fopen(l_cell->file_storage_path,"a+");
+    l_cell->file_storage = fopen(l_cell->file_storage_path,"a+b");
 
     if ( l_cell->file_storage ){
         dap_chain_cell_file_header_t l_hdr = {0};
@@ -165,7 +164,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
 {
     if(a_cell->file_storage == NULL ){ // File need to be created
-        a_cell->file_storage = fopen(a_cell->file_storage_path,"w");
+        a_cell->file_storage = fopen(a_cell->file_storage_path,"wb");
         if ( a_cell->file_storage ){
             dap_chain_cell_file_header_t l_hdr = {
                 .signature = DAP_CHAIN_CELL_FILE_SIGNATURE,
