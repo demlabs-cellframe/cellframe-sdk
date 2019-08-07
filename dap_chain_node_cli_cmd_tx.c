@@ -595,7 +595,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
 
         // go to next transaction
         l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-        l_atom_size = a_chain->callback_atom_get_size(l_atom);
+        l_atom_size = l_atom ? a_chain->callback_atom_get_size(l_atom) : 0;
     }
 
     // delete hashes
