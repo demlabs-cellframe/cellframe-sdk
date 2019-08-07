@@ -601,20 +601,25 @@ lb_proc_state:
  * @param a_cfg Network1 configuration
  * @return
  */
-static void * s_net_proc_thread ( void * a_net)
+static void *s_net_proc_thread ( void *a_net )
 {
-    dap_chain_net_t * l_net = (dap_chain_net_t *) a_net;
-    bool is_looping = true ;
-    while( is_looping ) {
-        s_net_states_proc(l_net);
-        int l_timeout_ms = 20000;// 20 sec
-#ifndef _WIN32        
-        pthread_mutex_lock( &PVT(l_net)->state_mutex );
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_net;
+    dap_chain_net_pvt_t *p_net = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
+
+    const uint64_t l_timeout_ms = 20000;// 20 sec
+
+    while( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
+
+        s_net_states_proc( l_net );
+    #ifndef _WIN32
+        pthread_mutex_lock( &p_net->state_mutex );
 
         // prepare for signal waiting
+
         struct timespec l_to;
-        clock_gettime(CLOCK_MONOTONIC, &l_to);
+        clock_gettime( CLOCK_MONOTONIC, &l_to );
         int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
+
         // if the new number of nanoseconds is more than a second
         if(l_nsec_new > (long) 1e9) {
             l_to.tv_sec += l_nsec_new / (long) 1e9;
@@ -622,42 +627,20 @@ static void * s_net_proc_thread ( void * a_net)
         }
         else
             l_to.tv_nsec = (long) l_nsec_new;
+
         // signal waiting
-        int l_ret = pthread_cond_timedwait(&PVT(l_net)->state_proc_cond, &PVT(l_net)->state_mutex, &l_to);
+        pthread_cond_timedwait( &p_net->state_proc_cond, &p_net->state_mutex, &l_to );
+
         //pthread_cond_wait(&PVT(l_net)->state_proc_cond,&PVT(l_net)->state_mutex);
-        pthread_mutex_unlock( &PVT(l_net)->state_mutex );
+        pthread_mutex_unlock( &p_net->state_mutex );
     #else // WIN32
 
         WaitForSingleObject( p_net->state_proc_cond, (uint32_t)l_timeout_ms );
 
-    #endif        
-        // only check connection
-        if(l_ret==ETIMEDOUT){
-            // send ping
-/*            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING,
-                                                                  l_ch_chain_net_pkt->hdr.net_id, NULL, 0);
-
-            if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
-                    l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
-                    sizeof(l_sync_request))) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
-                // clean client struct
-                dap_chain_node_client_close(l_node_client);
-                DAP_DELETE(l_remote_node_info);
-                return -1;
-            }
-            dap_stream_ch_set_ready_to_write(l_ch_chain, true);
-            // wait pong
-            timeout_ms = 120000; // 20 min = 1200 sec = 1 200 000 ms
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_PONG, timeout_ms);
-            if(res) {
-                PVT(l_net)->state = NET_STATE_OFFLINE;
-            }*/
-
-        }
-        log_it( L_DEBUG, "Waked up net proHASH_COUNT( c thread, cond_wait=%d", l_ret);
-
+    #endif
+        log_it( L_DEBUG, "Waked up s_net_proc_thread( )" );
     }
+
     return NULL;
 }
 
@@ -943,10 +926,14 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
 
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" has state %s (target state %s), active links %u from %u",
+                // get current node address
+                dap_chain_node_addr_t l_cur_node_addr = { 0 };
+                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 : dap_db_get_cur_node_addr();
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address " NODE_ADDR_FP_STR,
                                                     l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                     c_net_states[PVT(l_net)->state_target], HASH_COUNT( PVT(l_net)->links),
-                                                    PVT(l_net)->links_addrs_count
+                                                    PVT(l_net)->links_addrs_count,
+                                                    NODE_ADDR_FP_ARGS_S(l_cur_node_addr)
                                                   );
                 ret = 0;
             }
