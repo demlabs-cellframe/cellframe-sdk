@@ -110,9 +110,11 @@ void dap_stream_ch_delete(dap_stream_ch_t*ch)
 
     pthread_mutex_destroy(&(ch->mutex));
 
+/* fixed raise, but probably may be memory leak!
     if(ch->internal){
         free(ch->internal);
     }
+*/
     //free(ch);
 }
 
