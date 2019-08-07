@@ -77,7 +77,10 @@ char * extract_group_prefix(const char * a_group)
 {
     char * l_group_prefix = NULL, *l_delimeter;
     size_t l_group_prefix_size;
-    l_delimeter = index(a_group, '.');
+
+//    l_delimeter = index(a_group, '.');
+    l_delimeter = strchr(a_group, '.');
+
     if(l_delimeter == NULL) {
         l_group_prefix = dap_strdup(a_group);
         l_group_prefix_size = dap_strlen(l_group_prefix) + 1;
