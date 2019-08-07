@@ -26,6 +26,17 @@
 #include <pthread.h>
 #include "uthash.h"
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
@@ -1002,22 +1013,23 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         (strcmp(l_from_events_str,"round.new") == 0) ){
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
-                    dap_global_db_obj_t ** l_objs;
+                    dap_global_db_obj_t * l_objs;
                     size_t l_objs_count = 0;
                     l_objs = dap_chain_global_db_gr_load(l_gdb_group_events,&l_objs_count);
                     dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
                     for (size_t i = 0; i< l_objs_count; i++){
-                        dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i]->value;
+                        dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i].value;
                         char buf[50];
                         time_t l_ts_create = (time_t) l_event->header.ts_created;
                         dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                 l_objs[i]->key, ctime_r( &l_ts_create,buf ) );
+                                                 l_objs[i].key, ctime_r( &l_ts_create,buf ) );
 
                     }
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
                     DAP_DELETE( l_gdb_group_events);
+                    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
                     ret = 0;
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"events") == 0) ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
