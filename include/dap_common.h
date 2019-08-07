@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * Anatolii Kurotych <akurotych@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://gitlab.demlabs.net/cellframe
+ * DeM Labs Open source community https://github.com/demlabsinc
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
@@ -56,7 +56,7 @@
 #endif
 
 #ifndef ROUNDUP
-  #define ROUNDUP(n,width) (((n) + (width) - 1) & ~unsigned((width) - 1))
+  #define ROUNDUP(n,width) (((n) + (width) - 1) & ~(unsigned)((width) - 1))
 #endif
 
 #if DAP_USE_RPMALLOC
@@ -92,37 +92,37 @@
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
-  uintptr_t ptr = (uintptr_t) DAP_MALLOC( size + (alignment * 2) + sizeof(void *) );
+    uintptr_t ptr = (uintptr_t) DAP_MALLOC( size + (alignment * 2) + sizeof(void *) );
 
-  if ( !ptr )
-    return (void *)ptr;
+    if ( !ptr )
+        return (void *)ptr;
 
-  uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
-  ((uintptr_t *)al_ptr)[-1] = ptr;
+    uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
+    ((uintptr_t *)al_ptr)[-1] = ptr;
 
-  return (void *)al_ptr;
+    return (void *)al_ptr;
 }
 
 DAP_STATIC_INLINE void *_dap_aligned_realloc( uintptr_t alignment, void *bptr, uintptr_t size )
 {
-  uintptr_t ptr = (uintptr_t) DAP_REALLOC( bptr, size + (alignment * 2) + sizeof(void *) );
+    uintptr_t ptr = (uintptr_t) DAP_REALLOC( bptr, size + (alignment * 2) + sizeof(void *) );
 
-  if ( !ptr )
-    return (void *)ptr;
+    if ( !ptr )
+        return (void *)ptr;
 
-  uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
-  ((uintptr_t *)al_ptr)[-1] = ptr;
+    uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
+    ((uintptr_t *)al_ptr)[-1] = ptr;
 
-  return (void *)al_ptr;
+    return (void *)al_ptr;
 }
 
 DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 {
-  if ( !ptr )
-    return;
+    if ( !ptr )
+        return;
 
-  void  *base_ptr = (void *)((uintptr_t *)ptr)[-1];
-  DAP_FREE( base_ptr );
+    void  *base_ptr = (void *)((uintptr_t *)ptr)[-1];
+    DAP_FREE( base_ptr );
 }
 
 #define DAP_PROTOCOL_VERSION  22
@@ -158,6 +158,8 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #endif
 
 #define QBYTE RGBA
+
+#define DAP_LOG_HISTORY 1
 
 #define DAP_LOG_HISTORY_STR_SIZE    128
 #define DAP_LOG_HISTORY_MAX_STRINGS 4096
@@ -200,6 +202,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
   #define dap_vasprintf         vasprintf
 #endif
 
+typedef int DAP_SpinLock;
 
 /**
  * @brief The log_level enum
@@ -220,13 +223,13 @@ typedef enum dap_log_level {
 
 } dap_log_level_t;
 
-typedef struct dap_log_str_s {
+typedef struct dap_log_history_str_s {
 
   time_t    t;
   uint8_t   *str;
   uint32_t  len;
 
-} dap_log_str_t;
+} dap_log_history_str_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -294,6 +297,25 @@ static const uint16_t s_ascii_table_data[256] = {
 #define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0
 #define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0
 
+void DAP_Sleep( uint32_t ms );
+
+DAP_STATIC_INLINE bool DAP_AtomicTryLock( DAP_SpinLock *lock )
+{
+    return (__sync_lock_test_and_set(lock, 1) == 0);
+}
+
+DAP_STATIC_INLINE void DAP_AtomicLock( DAP_SpinLock *lock )
+{
+    while ( !DAP_AtomicTryLock(lock) ) {
+        DAP_Sleep( 0 );
+    }
+}
+
+DAP_STATIC_INLINE void DAP_AtomicUnlock( DAP_SpinLock *lock )
+{
+    __sync_lock_release( lock );
+}
+
 //int dap_common_init( const char * a_log_file );
 int dap_common_init( const char *console_title, const char *a_log_file );
 
@@ -304,12 +326,11 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
+void _log_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format,... );
+void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
 
-void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
-void _vlog_it( const char * log_tag, enum dap_log_level, const char * format, va_list ap );
-
-#define log_it(_log_level,...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, a_log_level, a_format, a_ap )
+#define log_it( _log_level, ...) _log_it( LOG_TAG, sizeof(LOG_TAG)-1,_log_level, ##__VA_ARGS__)
+#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
