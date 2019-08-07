@@ -31,6 +31,7 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_cert.h"
@@ -276,8 +277,24 @@ dap_chain_cert_t * dap_chain_cert_find_by_name(const char * a_cert_name)
     HASH_FIND_STR(s_certs,a_cert_name,l_cert_item);
     if ( l_cert_item ){
         return l_cert_item->cert ;
-    }else
-        return NULL;
+    } else {
+            dap_chain_cert_t *l_cert = NULL;
+            uint16_t l_ca_folders_size = 0;
+            char **l_ca_folders;
+            char *l_cert_path = NULL;
+            l_ca_folders = dap_config_get_array_str(g_config,"resources","ca_folders",&l_ca_folders_size);
+            for (uint16_t i=0; i < l_ca_folders_size; ++i) {
+                l_cert_path = dap_strjoin("", l_ca_folders[i], "/", a_cert_name, ".dcert", (char*)NULL);
+                l_cert = dap_chain_cert_file_load(l_cert_path);
+                if (l_cert) {
+                    goto ret;
+                }
+            }
+    ret:
+            if (l_cert_path)
+                DAP_DELETE(l_cert_path);
+            return l_cert;
+        }
 }
 
 
@@ -290,10 +307,10 @@ dap_chain_cert_t * dap_chain_cert_new(const char * a_name)
 {
     dap_chain_cert_t * l_ret = DAP_NEW_Z(dap_chain_cert_t);
     l_ret->_pvt = DAP_NEW_Z(dap_chain_cert_pvt_t);
-    snprintf(l_ret->name,sizeof(l_ret->name),"%s",a_name);
+    dap_snprintf(l_ret->name,sizeof(l_ret->name),"%s",a_name);
 
     dap_chain_cert_item_t * l_cert_item = DAP_NEW_Z(dap_chain_cert_item_t);
-    snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_name);
+    dap_snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_name);
     l_cert_item->cert = l_ret;
     HASH_ADD_STR(s_certs,name,l_cert_item);
 
@@ -332,7 +349,7 @@ dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *
 {
     size_t l_cert_path_length = strlen(a_cert_name)+8+strlen(a_folder_path);
     char * l_cert_path = DAP_NEW_Z_SIZE(char,l_cert_path_length);
-    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_folder_path,a_cert_name);
+    dap_snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_folder_path,a_cert_name);
     if( access( l_cert_path, F_OK ) == -1 ) {
         log_it (L_ERROR, "File %s is not exists! ", l_cert_path);
         exit(-701);
@@ -356,7 +373,7 @@ int dap_chain_cert_save_to_folder(dap_chain_cert_t * a_cert, const char *a_file_
     const char * l_cert_name = a_cert->name;
     size_t l_cert_path_length = strlen(l_cert_name)+8+strlen(a_file_dir_path);
     char * l_cert_path = DAP_NEW_Z_SIZE(char,l_cert_path_length);
-    snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_file_dir_path,l_cert_name);
+    dap_snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_file_dir_path,l_cert_name);
     ret = dap_chain_cert_file_save(a_cert,l_cert_path);
     DAP_DELETE( l_cert_path);
     return ret;

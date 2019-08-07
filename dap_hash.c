@@ -25,30 +25,20 @@
 #include "dap_common.h"
 #include "dap_hash.h"
 
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
+
 #define LOG_TAG "dap_hash"
 
+/**
 int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out)
 {
     if(!a_data_in || !a_data_in_size || !a_hash_out)
         return -1;
-    dap_hash(a_data_in, a_data_in_size, a_hash_out->raw, sizeof(a_hash_out->raw),
-            DAP_HASH_TYPE_KECCAK);
+//    dap_hash(a_data_in, a_data_in_size, a_hash_out->raw, sizeof(a_hash_out->raw),
+//            DAP_HASH_TYPE_KECCAK);
+    SHA3_256( (unsigned char *)a_hash_out, (const unsigned char *)a_data_in, a_data_in_size );
+
     return 1;
 }
-
-bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash)
-{
-    uint8_t *l_hast_bytes = (uint8_t*) a_hash;
-    for(size_t i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
-        if(l_hast_bytes[i])
-            return false;
-    }
-    return true;
-}
-
-bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2)
-{
-    if(!memcmp(a_hash1, a_hash2, sizeof(dap_chain_hash_fast_t)))
-        return true;
-    return false;
-}
+**/
