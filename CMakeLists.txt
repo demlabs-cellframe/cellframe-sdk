@@ -42,6 +42,7 @@ file( GLOB CRYPTO_SRCS
       src/sig_bliss/*.c 
       src/sig_tesla/*.c 
       src/sig_picnic/*.c
+      src/sig_dilithium/*.c
 )
 
 file( GLOB CRYPTO_HEADERS 
@@ -55,6 +56,7 @@ file( GLOB CRYPTO_HEADERS
       src/sig_bliss/*.h 
       src/sig_tesla/*.h 
       src/sig_picnic/*.h 
+      src/sig_dilithium/*.h
       include/*.h
 )
 
@@ -84,7 +86,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} )
 
-target_include_directories(dap_crypto PRIVATE src/rand src/iaes src/oaes sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src include)
+target_include_directories(dap_crypto PRIVATE src/rand src/iaes src/oaes sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include)
 target_include_directories(dap_crypto INTERFACE src/ src/sha3 include/)
 
 target_include_directories(dap_crypto INTERFACE src/XKCP/lib/common)
