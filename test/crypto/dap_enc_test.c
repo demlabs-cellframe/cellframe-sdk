@@ -8,6 +8,7 @@
 #include "dap_enc_bliss.h"
 #include "dap_enc_picnic.h"
 #include "dap_enc_tesla.h"
+#include "dap_enc_dilithium.h"
 #include "dap_enc.h"
 
 #define TEST_SER_FILE_NAME "keystorage.txt"
@@ -283,6 +284,12 @@ static void test_serealize_deserealize_pub_priv(dap_enc_key_type_t key_type)
         if(key->enc_na(key, source_buf, source_size, sig_buf, sig_buf_size) > 0)
             is_sig = 1;
         break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        sig_buf_size = dap_enc_dilithium_calc_signature_size();
+        sig_buf = calloc(sig_buf_size, 1);
+        if(key->enc_na(key, source_buf, source_size, sig_buf, sig_buf_size) > 0)
+            is_sig = 1;
+        break;
     default:
         sig_buf_size = 0;
     }
@@ -310,6 +317,10 @@ static void test_serealize_deserealize_pub_priv(dap_enc_key_type_t key_type)
             is_vefify = 1;
         break;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        if(key2->dec_na(key2, source_buf, source_size, sig_buf, sig_buf_size) == 0)
+            is_vefify = 1;
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
         if(key2->dec_na(key2, source_buf, source_size, sig_buf, sig_buf_size) == 0)
             is_vefify = 1;
         break;
@@ -345,5 +356,7 @@ void dap_enc_tests_run() {
     test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_PICNIC);
     dap_print_module_name("dap_enc_sig serealize->deserealize TESLA");
     test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_TESLA);
+    dap_print_module_name("dap_enc_sig serealize->deserealize DILITHIUM");
+    test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
     cleanup_test_case();
 }

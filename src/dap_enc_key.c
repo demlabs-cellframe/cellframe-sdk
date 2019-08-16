@@ -30,6 +30,7 @@
 #include "dap_enc_picnic.h"
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
+#include "dap_enc_dilithium.h"
 
 
 #include "dap_enc_key.h"
@@ -182,6 +183,24 @@ struct dap_enc_key_callbacks{
         .dec_out_size = NULL,
         .sign_get = NULL,
         .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_SIG_DILITHIUM]={
+        .name = "SIG_DILITHIUM",
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = dap_enc_sig_dilithium_get_sign,
+        .dec_na = dap_enc_sig_dilithium_verify_sign,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .gen_bob_shared_key = NULL,
+        .gen_alice_shared_key = NULL,
+        .new_callback = dap_enc_sig_dilithium_key_new,
+        .delete_callback = dap_enc_sig_dilithium_key_delete,
+        .new_generate_callback = dap_enc_sig_dilithium_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
     }
 };
 
@@ -222,6 +241,9 @@ uint8_t* dap_enc_key_serealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_si
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
         data = dap_enc_tesla_write_signature((tesla_signature_t*)a_sign, a_sign_len);
         break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        data = dap_enc_dilithium_write_signature((dilithium_signature_t*)a_sign, a_sign_len);
+        break;
     default:
         data = DAP_NEW_Z_SIZE(uint8_t, *a_sign_len);
         memcpy(data, a_sign, *a_sign_len);
@@ -249,6 +271,10 @@ uint8_t* dap_enc_key_deserealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_
         data = (uint8_t*)dap_enc_tesla_read_signature(a_sign, *a_sign_len);
         *a_sign_len = sizeof(tesla_signature_t);
         break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        data = (uint8_t*)dap_enc_dilithium_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(dilithium_signature_t);
+        break;
     default:
         data = DAP_NEW_Z_SIZE(uint8_t, *a_sign_len);
         memcpy(data, a_sign, *a_sign_len);
@@ -273,6 +299,9 @@ uint8_t* dap_enc_key_serealize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_o
         break;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
         data = dap_enc_tesla_write_private_key(a_key->priv_key_data, a_buflen_out);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        data = dap_enc_dilithium_write_private_key(a_key->priv_key_data, a_buflen_out);
         break;
     default:
         data = DAP_NEW_Z_SIZE(uint8_t, a_key->priv_key_data_size);
@@ -299,6 +328,9 @@ uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
         break;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
         data = dap_enc_tesla_write_public_key(a_key->pub_key_data, a_buflen_out);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        data = dap_enc_dilithium_write_public_key(a_key->pub_key_data, a_buflen_out);
         break;
     default:
         data = DAP_NEW_Z_SIZE(uint8_t, a_key->pub_key_data_size);
@@ -351,6 +383,16 @@ int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_
         memcpy(a_key->priv_key_data, a_buf, a_key->priv_key_data_size);
         dap_enc_sig_picnic_update(a_key);
         break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        dilithium_private_key_delete((dilithium_private_key_t *) a_key->priv_key_data);
+        a_key->priv_key_data = (uint8_t*) dap_enc_dilithium_read_private_key(a_buf, a_buflen);
+        if(!a_key->priv_key_data)
+        {
+            a_key->priv_key_data_size = 0;
+            return -1;
+        }
+        a_key->priv_key_data_size = sizeof(dilithium_private_key_t);
+        break;
     default:
         DAP_DELETE(a_key->priv_key_data);
         a_key->priv_key_data_size = a_buflen;
@@ -402,6 +444,16 @@ int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key,const uint8_t *a_buf, s
         a_key->pub_key_data = DAP_NEW_Z_SIZE(uint8_t, a_key->pub_key_data_size);
         memcpy(a_key->pub_key_data, a_buf, a_key->pub_key_data_size);
         dap_enc_sig_picnic_update(a_key);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        dilithium_public_key_delete((dilithium_public_key_t *) a_key->pub_key_data);
+        a_key->pub_key_data = (uint8_t*) dap_enc_dilithium_read_public_key(a_buf, a_buflen);
+        if(!a_key->pub_key_data)
+        {
+            a_key->pub_key_data_size = 0;
+            return -1;
+        }
+        a_key->pub_key_data_size = sizeof(dilithium_public_key_t);
         break;
     default:
         DAP_DELETE(a_key->pub_key_data);
@@ -518,6 +570,8 @@ void dap_enc_key_update(dap_enc_key_t *a_key)
             break;
         case DAP_ENC_KEY_TYPE_SIG_BLISS:
             break;
+        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+            break;
         default:
             break;
         }
@@ -555,6 +609,9 @@ void dap_enc_key_signature_delete(dap_enc_key_type_t a_key_type, uint8_t *a_sig_
         break;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
         tesla_signature_delete((tesla_signature_t*)a_sig_buf);
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        dilithium_signature_delete((dilithium_signature_t*)a_sig_buf);
         break;
     default:
         break;
