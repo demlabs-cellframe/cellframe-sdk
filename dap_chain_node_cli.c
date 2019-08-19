@@ -60,6 +60,7 @@ typedef int SOCKET;
 
 #include "iputils/iputils.h"
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -73,7 +74,7 @@ typedef int SOCKET;
 #define MAX_CONSOLE_CLIENTS 16
 
 static SOCKET server_sockfd = -1; // network or local unix
-uint32_t conServPort = 0;
+uint32_t l_listen_port = 0;
 
 #ifdef _WIN32
   #define poll WSAPoll
@@ -337,7 +338,7 @@ static void* thread_one_client_func(void *args)
                                                     "Content-Length: %d\r\n\r\n"
                                                     "%s",
                         strlen(reply_body), reply_body);
-                int ret = send(newsockfd, reply_str, strlen(reply_str) ,0);
+                /*int ret = */ send(newsockfd, reply_str, strlen(reply_str) ,0);
                 DAP_DELETE(str_reply);
                 DAP_DELETE(reply_str);
                 DAP_DELETE(reply_body);
@@ -633,7 +634,8 @@ static void* thread_main_func(void *args)
 {
     SOCKET sockfd = (SOCKET) (intptr_t) args;
     SOCKET newsockfd;
-    log_it( L_INFO, "Server start socket = %s", UNIX_SOCKET_FILE );
+
+    log_it( L_INFO, "Server start socket = %s", dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path") );
     // wait of clients
     while(1)
     {
@@ -757,14 +759,16 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
 #ifndef _WIN32
-    struct sockaddr_un lserver_addr = { AF_UNIX, UNIX_SOCKET_FILE };
+    struct sockaddr_un l_server_addr={0};
+    l_server_addr.sun_family =  AF_UNIX;
+    snprintf(l_server_addr.sun_path,sizeof(l_server_addr.sun_path), dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path") );
 #endif
     struct sockaddr_in server_addr;
     SOCKET sockfd = -1;
 
-    bool bConServerEnabled = dap_config_get_item_bool_default( g_config, "conserver", "enabled", true );
+    bool l_conserver_enabled = dap_config_get_item_bool_default( g_config, "conserver", "enabled", true );
 
-    if ( !bConServerEnabled ) { 
+    if ( !l_conserver_enabled ) {
 
         log_it( L_WARNING, "Console Server is dissabled." );
         return 0;
@@ -843,13 +847,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
     // create thread for waiting of clients
-    pthread_t threadId;
+    pthread_t l_thread_id;
 
-    conServPort = (uint16_t)dap_config_get_item_int32_default( g_config, "conserver", "listen_port_tcp", 0 );
+    l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp", 0 );
 
-    if ( !conServPort ) { 
+    const char * l_listen_unix_socket_path = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path");
+    const char * l_listen_unix_socket_permissions_str = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_permissions");
+    mode_t l_listen_unix_socket_permissions = 0770;
 
-        log_it( L_INFO, "Console Server port 0 - local mode" );
+    if ( l_listen_unix_socket_path && l_listen_unix_socket_permissions ) {
+        if ( l_listen_unix_socket_permissions_str ) {
+            dap_sscanf(l_listen_unix_socket_permissions_str,"%04u", &l_listen_unix_socket_permissions );
+            dap_sscanf(l_listen_unix_socket_permissions_str,"%3u", &l_listen_unix_socket_permissions );
+        }
+        log_it( L_INFO, "Console interace on path %s (%04u) ", l_listen_unix_socket_path, l_listen_unix_socket_permissions );
 
       #ifndef _WIN32
 
@@ -863,23 +874,23 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         if( sockfd == INVALID_SOCKET )
             return -1;
 
-        int gdsg = sizeof(struct sockaddr_un);
+        //int gdsg = sizeof(struct sockaddr_un);
 
-        if ( access( UNIX_SOCKET_FILE, R_OK) != -1 )
-            unlink( UNIX_SOCKET_FILE );
+        if ( access( l_listen_unix_socket_path , R_OK) != -1 )
+            unlink( l_listen_unix_socket_path );
 
         // connecting the address with a socket
-        if( bind(sockfd, (const struct sockaddr*) &lserver_addr, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
+        if( bind(sockfd, (const struct sockaddr*) &l_server_addr, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {
             // errno = EACCES  13  Permission denied
             if ( errno == EACCES ) // EACCES=13
                 log_it( L_ERROR, "Server can't start(err=%d). Can't create file=%s [Permission denied]", errno,
-                        UNIX_SOCKET_FILE );
+                        l_listen_unix_socket_path );
             else
-                log_it( L_ERROR, "Server can't start(err=%d). May be problem with file=%s?", errno, UNIX_SOCKET_FILE );
+                log_it( L_ERROR, "Server can't start(err=%d). May be problem with file=%s?", errno, l_listen_unix_socket_path );
             closesocket( sockfd );
-            return -1;
+            return -2;
         }
-	chmod(UNIX_SOCKET_FILE,0770); 
+        chmod(l_listen_unix_socket_path,l_listen_unix_socket_permissions);
 
       #else
 
@@ -887,52 +898,55 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
         if( pthread_create(&threadId, NULL, thread_pipe_func, (void*) (intptr_t) sockfd) != 0 ) {
             closesocket( sockfd );
-            return -1;
+            return -7;
         }
 
         return 0;
       #endif
 
     }
-    else {
+    else if (l_listen_port ){
 
-        char *listen_addr = dap_config_get_item_str_default( g_config,
+        const char *l_listen_addr_str = dap_config_get_item_str_default( g_config,
                                                                        "conserver",
                                                                       "listen_address",
                                                                       "0.0.0.0" );
 
-        log_it( L_INFO, "Console Server: listen addr %s:%u ", listen_addr, conServPort );
+        log_it( L_INFO, "Console interace on addr %s port %u ", l_listen_addr_str, l_listen_port );
  
         server_addr.sin_family = AF_INET; 
-        inet_pton( AF_INET, listen_addr, &server_addr.sin_addr );
+        inet_pton( AF_INET, l_listen_addr_str, &server_addr.sin_addr );
         //server.sin_addr.s_addr = htonl( INADDR_ANY );
-        server_addr.sin_port = htons( (uint16_t)conServPort );
+        server_addr.sin_port = htons( (uint16_t)l_listen_port );
 
         // create socket
         if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET ) {
             log_it( L_ERROR, "Console Server: can't create socket, err %X", errno );
-            return -1;
+            return -3;
         }
 
         // connecting the address with a socket
         if ( bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == SOCKET_ERROR ) {
             log_it( L_ERROR, "Console Server: can't bind socket, err %X", errno );
             closesocket( sockfd );
-            return -1;
+            return -4;
         }
+    }else {
+        log_it (L_INFO, "Not defined console interface");
+        return 0;
     }
 
     // turn on reception of connections
     if( listen(sockfd, MAX_CONSOLE_CLIENTS) == SOCKET_ERROR )
-        return -1;
+        return -5;
 
-    if( pthread_create(&threadId, NULL, thread_main_func, (void*) (intptr_t) sockfd) != 0 ) {
+    if( pthread_create(&l_thread_id, NULL, thread_main_func, (void*) (intptr_t) sockfd) != 0 ) {
         closesocket( sockfd );
-        return -1;
+        return -6;
     }
 
     // in order to thread not remain in state "dead" after completion
-    pthread_detach( threadId );
+    pthread_detach( l_thread_id );
     server_sockfd = sockfd;
 
     return 0;
