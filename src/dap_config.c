@@ -486,6 +486,8 @@ char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_
                                 const char * a_item_name, uint16_t * array_length) {
     dap_config_item_t * item = dap_config_get_item(a_config, a_section_path, a_item_name);
     if (item == NULL){
+        if(array_length != NULL)
+            *array_length = 0;
         return NULL;
     }
     if (array_length != NULL)
