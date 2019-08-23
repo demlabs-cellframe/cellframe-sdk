@@ -360,9 +360,9 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         l_hashes_int_size = 0;
 
     size_t l_hashes_ext_size = 1; // Change in cfg
+    size_t l_hashes_size = l_hashes_int_size+l_hashes_ext_size;
     dap_chain_hash_fast_t * l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
-                                             sizeof(dap_chain_hash_fast_t) *
-                                             (l_hashes_int_size+l_hashes_ext_size)  );
+                                             sizeof(dap_chain_hash_fast_t) * l_hashes_size);
     size_t l_hashes_linked = 0;
 
     for (size_t d = 0; d <a_datums_count ; d++){
@@ -389,8 +389,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 }
 
                 if ( ! l_is_already_in_event ){
-                    memcpy(&l_hashes[l_hashes_linked],&l_hash,sizeof (l_hash) );
-                    l_hashes_linked++;
+                    if(l_hashes_linked < l_hashes_size) {
+                        memcpy(&l_hashes[l_hashes_linked], &l_hash, sizeof(l_hash));
+                        l_hashes_linked++;
+                    }
                 }
                 l_rnd_steps++;
                 if (l_rnd_steps > 100) // Too many attempts
