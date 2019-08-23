@@ -331,8 +331,8 @@ bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
     if(!a_key)
         return NULL;
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
-    store_data->key = dap_strdup(a_key);
-    store_data->group = dap_strdup(a_group);
+    store_data->key = a_key;
+    store_data->group = a_group;
     lock();
     int l_res = dap_chain_global_db_driver_delete(store_data, 1);
     unlock();

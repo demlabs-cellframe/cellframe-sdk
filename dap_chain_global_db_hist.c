@@ -1103,6 +1103,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
+    DAP_DELETE(l_store_data.value);
     DAP_DELETE(l_str);
     if(!l_res)
         return true;
