@@ -245,9 +245,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             char** l_datum_types = NULL;
             uint16_t l_datum_types_count = 0;
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_ERROR, "Can't read chain datum types ", l_chain_id_str);
-                dap_config_close(l_cfg);
-                return NULL;
+                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
+                //dap_config_close(l_cfg);
+                //return NULL;
             }
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
@@ -344,11 +344,13 @@ int dap_chain_save_all (dap_chain_t * l_chain)
  */
 int dap_chain_load_all (dap_chain_t * l_chain)
 {
-    int ret = -2;
+    int l_ret = -2;
+    if(!l_chain)
+        return l_ret;
     DIR * l_dir = opendir(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
     if( l_dir ) {
         struct dirent * l_dir_entry;
-        ret = -1;
+        l_ret = -1;
         while((l_dir_entry=readdir(l_dir))!=NULL){
             const char * l_filename = l_dir_entry->d_name;
             size_t l_filename_len = strlen (l_filename);
@@ -359,15 +361,13 @@ int dap_chain_load_all (dap_chain_t * l_chain)
                 size_t l_suffix_len = strlen(l_suffix);
                 if (strncmp(l_filename+ l_filename_len-l_suffix_len,l_suffix,l_suffix_len) == 0 ){
                     if ( dap_chain_cell_load(l_chain,l_filename) == 0 )
-                        ret = 0;
+                        l_ret = 0;
                 }
             }
-
         }
         closedir(l_dir);
-
     }
-    return  ret;
+    return l_ret;
 }
 
 /**

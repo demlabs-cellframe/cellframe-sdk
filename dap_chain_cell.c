@@ -29,6 +29,7 @@
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_pvt.h"
 
 #define LOG_TAG "dap_chain_cell"
 
@@ -76,6 +77,20 @@ dap_chain_cell_t * dap_chain_cell_create()
 }
 
 /**
+ * @brief dap_chain_cell_delete
+ * @return
+ */
+void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
+{
+    if(!a_cell)
+        return;
+    if(a_cell->file_storage)
+        fclose(a_cell->file_storage);
+    DAP_DELETE(a_cell->file_storage_path);
+    DAP_DELETE(a_cell);
+}
+
+/**
  * @brief dap_chain_cell_load
  * @param a_chain
  * @param a_cell_file_path
@@ -87,8 +102,11 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 
     l_cell->file_storage_path = dap_strdup( a_cell_file_path );
 
-    l_cell->file_storage = fopen(l_cell->file_storage_path,"a+b");
+    char *l_file_path = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT (a_chain)->file_storage_dir,
+            l_cell->file_storage_path);
 
+    l_cell->file_storage = fopen(l_file_path,"rb");
+    DAP_DELETE(l_file_path);
     if ( l_cell->file_storage ){
         dap_chain_cell_file_header_t l_hdr = {0};
         if ( fread( &l_hdr,1,sizeof(l_hdr),l_cell->file_storage ) == sizeof (l_hdr) ) {
@@ -100,7 +118,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
                         if ( l_element_size > 0 ){
                             dap_chain_atom_ptr_t * l_element = DAP_NEW_Z_SIZE (dap_chain_atom_ptr_t, l_element_size );
                             if ( fread( l_element,1,l_element_size,l_cell->file_storage ) == l_element_size ) {
-                                l_cell->chain->callback_atom_add (a_chain, l_element );
+                                a_chain->callback_atom_add (a_chain, l_element );
                             }
                         } else {
                             log_it (L_ERROR, "Zero element size, file is corrupted");
@@ -108,23 +126,25 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
                         }
                     }
                 }
+                dap_chain_cell_delete(l_cell);
                 return 0;
             } else {
                 log_it (L_ERROR,"Wrong signature in file \"%s\", possible file corrupt",l_cell->file_storage_path);
-                DAP_DELETE(l_cell);
+                dap_chain_cell_delete(l_cell);
                 return -3;
             }
         } else {
             log_it (L_ERROR,"Can't read dap_chain file header \"%s\"",l_cell->file_storage_path);
-            DAP_DELETE(l_cell);
+            dap_chain_cell_delete(l_cell);
             return -2;
         }
     }else {
         log_it (L_WARNING,"Can't read dap_chain file \"%s\"",l_cell->file_storage_path);
-        DAP_DELETE(l_cell);
+        dap_chain_cell_delete(l_cell);
         return -1;
     }
-
+    dap_chain_cell_delete(l_cell);
+    return -4;
 }
 
 /**
@@ -139,7 +159,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     size_t l_total_wrote_bytes = 0;
     if ( fwrite(&a_atom_size,1,sizeof(a_atom_size),a_cell->file_storage) == sizeof(a_atom_size) ){
         l_total_wrote_bytes += sizeof (a_atom_size);
-        if ( fwrite(&a_atom,1,a_atom_size,a_cell->file_storage) == a_atom_size ){
+        if ( fwrite(a_atom,1,a_atom_size,a_cell->file_storage) == a_atom_size ){
             l_total_wrote_bytes += a_atom_size;
         } else {
             log_it (L_ERROR, "Can't write data from cell 0x%016X to the file \"%s\"",
@@ -163,9 +183,17 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
  */
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
 {
+    if(!a_cell->chain){
+        log_it(L_WARNING,"chain not defined for cell for cell 0x%016X ( %s )",
+                               a_cell->id.uint64,a_cell->file_storage_path);
+        return -1;
+    }
     if(a_cell->file_storage == NULL ){ // File need to be created
-        a_cell->file_storage = fopen(a_cell->file_storage_path,"wb");
-        if ( a_cell->file_storage ){
+        char *l_file_path = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT ( a_cell->chain)->file_storage_dir,
+                a_cell->file_storage_path);
+        a_cell->file_storage = fopen(l_file_path, "wb");
+        DAP_DELETE(l_file_path);
+        if(a_cell->file_storage) {
             dap_chain_cell_file_header_t l_hdr = {
                 .signature = DAP_CHAIN_CELL_FILE_SIGNATURE,
                 .version = DAP_CHAIN_CELL_FILE_VERSION,
