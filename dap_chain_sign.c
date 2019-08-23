@@ -91,10 +91,10 @@ dap_enc_key_type_t  dap_chain_sign_type_to_key_type(dap_chain_sign_type_t  a_cha
 const char * dap_chain_sign_type_to_str(dap_chain_sign_type_t a_chain_sign_type)
 {
     switch (a_chain_sign_type.type) {
-        case DAP_ENC_KEY_TYPE_SIG_BLISS: return "sig_bliss";
-        case DAP_ENC_KEY_TYPE_SIG_TESLA: return "sig_tesla";
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC: return "sig_picnic";
-        default: return DAP_ENC_KEY_TYPE_NULL;
+        case SIG_TYPE_BLISS: return "sig_bliss";
+        case SIG_TYPE_TESLA: return "sig_tesla";
+        case SIG_TYPE_PICNIC: return "sig_picnic";
+        default: return SIG_TYPE_NULL;//DAP_ENC_KEY_TYPE_NULL;
     }
 
 }
