@@ -51,7 +51,7 @@ typedef struct dap_tx_data {
     UT_hash_handle hh;
 } dap_tx_data_t;
 
-static char* dap_db_new_history_timestamp()
+/*static char* dap_db_new_history_timestamp()
 {
     static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
     // get unique key
@@ -68,7 +68,7 @@ static char* dap_db_new_history_timestamp()
     char *l_str = dap_strdup_printf("%lld_%lld", (uint64_t) l_cur_time, s_suffix);
     pthread_mutex_unlock(&s_mutex);
     return l_str;
-}
+}*/
 
 // for dap_db_history_tx & dap_db_history_addr()
 static dap_chain_datum_t* get_prev_tx(dap_tx_data_t *a_tx_data)
@@ -134,7 +134,6 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
                 // save token name
                 if(l_list_tx_token) {
                     dap_chain_tx_token_t *tk = l_list_tx_token->data;
-                    int d = sizeof(l_tx_data->token_ticker);
                     memcpy(l_tx_data->token_ticker, tk->header.ticker, sizeof(l_tx_data->token_ticker));
                 }
                 // take token from prev out item
@@ -187,14 +186,11 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
         // found a_tx_hash now
 
         // transaction time
-        char *l_time_str = NULL;
         if(l_tx->header.ts_created > 0) {
             time_t rawtime = (time_t) l_tx->header.ts_created;
-            struct tm * timeinfo;
-            timeinfo = localtime(&rawtime);
-            if(timeinfo) {
-                dap_string_append_printf(l_str_out, " %s", asctime(timeinfo));
-            }
+            struct tm l_timeinfo = {0};
+            localtime_r(&rawtime, &l_timeinfo);
+            dap_string_append_printf(l_str_out, " %s", asctime(&l_timeinfo));
         }
 
         // find all OUT items in transaction
@@ -301,7 +297,6 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
 
-    bool l_tx_hash_found = false;
     dap_tx_data_t *l_tx_data_hash = NULL;
     // load transactions
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
@@ -309,15 +304,15 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
     size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
 
     while(l_atom && l_atom_size) {
-        dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_atom;
-        if(!l_datum && l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+        dap_chain_datum_t *l_datum = a_chain->callback_atom_get_datum ? a_chain->callback_atom_get_datum(l_atom) : (dap_chain_datum_t*)l_atom;
+        if(!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
             // go to next transaction
             l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
             l_atom_size = a_chain->callback_atom_get_size(l_atom);
             continue;
         }
-        dap_tx_data_t *l_tx_data = NULL;
 
+        dap_tx_data_t *l_tx_data = NULL;
         // transaction
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
         dap_list_t *l_records_out = NULL;
@@ -360,7 +355,6 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
                 // save token name
                 if(l_tx_data && l_list_tx_token) {
                     dap_chain_tx_token_t *tk = l_list_tx_token->data;
-                    int d = sizeof(l_tx_data->token_ticker);
                     memcpy(l_tx_data->token_ticker, tk->header.ticker, sizeof(l_tx_data->token_ticker));
                 }
                 HASH_ADD(hh, l_tx_data_hash, tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_data);

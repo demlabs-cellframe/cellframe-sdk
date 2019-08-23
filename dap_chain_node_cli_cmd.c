@@ -632,8 +632,84 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
  *
  * return 0 OK, -1 Err
  */
-/*
+
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
+{
+    enum {
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD };
+    int arg_index = 1;
+    int cmd_name =  CMD_NONE;
+    // find 'cells' as first parameter only
+    arg_index = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "cells", NULL);
+    if(arg_index)
+        cmd_name = CMD_NAME_CELL;
+    if(!arg_index || a_argc < 3) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
+        return -1;
+    }
+    dap_chain_t * l_chain = NULL;
+    dap_chain_net_t * l_net = NULL;
+
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+        return -11;
+
+    const char *l_cell_str = NULL, *l_chain_str = NULL;
+    // find cell and chain
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+
+    // Check for chain
+    if(!l_chain_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid");
+        return -12;
+    }
+
+    int arg_index_n = ++arg_index;
+    // find command (add, delete, etc) as second parameter only
+    int cmd_num = CMD_NONE;
+    switch (cmd_name) {
+    case CMD_NAME_CELL:
+        if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
+                != 0) {
+            cmd_num = CMD_ADD;
+        }
+        dap_chain_cell_id_t l_cell_id = { 0 };
+        if(l_cell_str) {
+            dap_digit_from_string(l_cell_str, (uint8_t*) &l_cell_id.raw, sizeof(l_cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+        }
+
+        switch (cmd_num)
+        {
+        // add new node to global_db
+        case CMD_ADD:
+            if(!arg_index || a_argc < 7) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
+                return -1;
+            }
+            dap_chain_cell_t *l_cell = dap_chain_cell_create();
+            l_cell->chain = l_chain;
+            l_cell->id.uint64 = l_cell_id.uint64;
+            l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell",l_cell->id.uint64);
+            int l_ret = dap_chain_cell_file_update(l_cell);
+            if(!l_ret)
+                dap_chain_node_cli_set_reply_text(a_str_reply, "cell added successfully");
+            else
+                dap_chain_node_cli_set_reply_text(a_str_reply, "can't create file for cell 0x%016X ( %s )",
+                        l_cell->id.uint64,l_cell->file_storage_path);
+            dap_chain_cell_delete(l_cell);
+            return l_ret;
+
+        //case CMD_NONE:
+        default:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
+            return -1;
+        }
+
+    }
+}
+
+/*
+int com_global_db_prev(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_NAME_NODE, CMD_NAME_CELL, CMD_ADD, CMD_DEL, CMD_LINK    };
@@ -773,7 +849,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-}*/
+}
+ */
 
 /**
  * Node command
@@ -1558,10 +1635,15 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
         if(l_chain_str) {
             if((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "%s requires parameter 'chain' to be valid chain name in chain net %s",
+                        "%s requires parameter '-chain' to be valid chain name in chain net %s",
                         argv[0], l_net_str);
                 return -103;
             }
+        }
+        else {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "%s requires parameter '-chain'", argv[0]);
+            return -104;
         }
     }
     return 0;
@@ -1788,6 +1870,8 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
         for(dap_chain_type_t i = CHAIN_TYPE_FIRST+1; i < CHAIN_TYPE_LAST; i++) {
             if(!l_gdb_group_mempool){
                 l_chain = dap_chain_net_get_chain_by_chain_type(l_net, i);
+                if(!l_chain)
+                    continue;
                 l_gdb_group_mempool_tmp = dap_chain_net_get_gdb_group_mempool(l_chain);
             }
             size_t l_objs_size = 0;
@@ -1796,7 +1880,7 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
                 dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name,
                         l_objs_size);
             else
-                dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records\n", l_net->pub.name, l_chain->name);
+                dap_string_append_printf(l_str_tmp, "%s.%s: Not found records\n", l_net->pub.name, l_chain->name);
             for(size_t i = 0; i < l_objs_size; i++) {
                 dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
                 char buf[50];
@@ -1903,8 +1987,8 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
         size_t l_objs_size = 0;
         dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool_tmp, &l_objs_size);
         if(l_objs_size) {
-            dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name);
-
+            dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name,
+                    l_objs_size);
             size_t l_datums_size = l_objs_size;
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                     sizeof(dap_chain_datum_t*) * l_datums_size);
@@ -1947,7 +2031,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
             break;
     }
     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-    dap_string_free(l_str_tmp, false);
+    dap_string_free(l_str_tmp, true);
     return 0;
 }
 
@@ -2212,11 +2296,13 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     // Select chain network
     if(!l_net_str) {
         dap_chain_node_cli_set_reply_text(str_reply, "token_create requires parameter 'net'");
+        DAP_DELETE(l_addr);
         return -42;
     } else {
         if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
             dap_chain_node_cli_set_reply_text(str_reply,
                     "token_create requires parameter '-net' to be valid chain network name");
+            DAP_DELETE(l_addr);
             return -43;
         }
     }
@@ -2234,6 +2320,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
             dap_chain_node_cli_set_reply_text(str_reply,
                     "token_create requires parameter 'chain_emission' to be valid chain name in chain net %s",
                     l_net_str);
+            DAP_DELETE(l_addr);
             return -45;
         }
     }
@@ -2248,6 +2335,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
             dap_chain_node_cli_set_reply_text(str_reply,
                     "token_create requires parameter 'chain_emission' to be valid chain name in chain net %s",
                     l_net_str);
+            DAP_DELETE(l_addr);
             return -47;
         }
     }
@@ -2316,6 +2404,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
         return -1;
     }
     DAP_DELETE(l_key_str);
+    DAP_DELETE(l_datum_emission);
 
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
@@ -2335,6 +2424,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
         if(dap_chain_datum_tx_add_sign_item(&l_tx, l_certs[i]->enc_key) < 0) {
             dap_chain_node_cli_set_reply_text(str_reply, "No private key for certificate=%s",
                     l_certs[i]->name);
+            DAP_DELETE(l_addr);
             return -3;
         }
     }
@@ -2371,7 +2461,8 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     }
     DAP_DELETE(str_reply_tmp);
     DAP_DELETE(l_key_str);
-
+    DAP_DELETE(l_datum_tx);
+    DAP_DELETE(l_addr);
     return 0;
 }
 

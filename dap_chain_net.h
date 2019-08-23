@@ -102,7 +102,7 @@ void dap_chain_net_links_connect(dap_chain_net_t * a_net);
  */
 DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
 {
-    dap_chain_net_t * l_net = dap_chain_net_by_id(l_chain->net_id);
+    dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
     if ( l_net ) {
         const char c_mempool_group_str[]="mempool";
 		return dap_strdup_printf("%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
