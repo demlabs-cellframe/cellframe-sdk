@@ -150,6 +150,9 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
     if(a_wallet->name)
         DAP_DELETE (a_wallet->name);
     // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
+    DAP_DELETE(l_wallet_internal->addr);
+    DAP_DELETE(l_wallet_internal->file_name);
+    DAP_DELETE(l_wallet_internal->certs);
     DAP_DELETE(l_wallet_internal);
     DAP_DELETE(a_wallet);
 }
