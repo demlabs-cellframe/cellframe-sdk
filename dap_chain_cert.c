@@ -104,13 +104,11 @@ size_t dap_chain_cert_parse_str_list(const char * a_certs_str, dap_chain_cert_t 
     size_t l_certs_pos = 0;
     size_t l_sign_total_size =0;
     while(l_cert_str) {
-
-        // trim token whitespace
-        if(isspace(l_cert_str[0]))
-            l_cert_str = l_cert_str + 1;
-        if(isspace(l_cert_str[strlen(l_cert_str) - 1]))
-            l_cert_str[strlen(l_cert_str) - 1] = 0;
+        // trim whitespace in certificate's name
+        l_cert_str = dap_strstrip(l_cert_str);// removes leading and trailing spaces
+        // get certificate by name
         l_certs[l_certs_pos] = dap_chain_cert_find_by_name(l_cert_str);
+        // if certificate is found
         if(l_certs[l_certs_pos]) {
             l_sign_total_size += dap_chain_cert_sign_output_size(l_certs[l_certs_pos],0);
             l_certs_pos++;
@@ -354,6 +352,7 @@ dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *
     dap_snprintf(l_cert_path,l_cert_path_length,"%s/%s.dcert",a_folder_path,a_cert_name);
     if( access( l_cert_path, F_OK ) == -1 ) {
         log_it (L_ERROR, "File %s is not exists! ", l_cert_path);
+        DAP_DELETE(l_cert_path);
         exit(-701);
     }
     dap_chain_cert_t * l_cert;
@@ -361,6 +360,7 @@ dap_chain_cert_t * dap_chain_cert_add_file(const char * a_cert_name,const char *
     if (l_cert == NULL){
         log_it (L_ERROR, "File %s is corrupted or wrong format ", l_cert_path);
     }
+    DAP_DELETE(l_cert_path);
     return l_cert;
 }
 
@@ -402,11 +402,18 @@ dap_chain_pkey_t * dap_chain_cert_to_pkey(dap_chain_cert_t * a_cert)
  */
 int dap_chain_cert_compare_with_sign (dap_chain_cert_t * a_cert,dap_chain_sign_t * a_sign)
 {
+    dap_return_val_if_fail(a_cert && a_cert->enc_key && a_sign, -1);
     if ( dap_chain_sign_type_from_key_type( a_cert->enc_key->type ).type == a_sign->header.type.type ){
-        if ( a_cert->enc_key->pub_key_data_size == (size_t) a_sign->header.sign_pkey_size ){
-            return memcmp ( a_cert->enc_key->pub_key_data, a_sign->pkey_n_sign,  a_sign->header.sign_pkey_size );
+        int l_ret;
+        size_t l_pub_key_size = 0;
+        // serialize public key
+        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_cert->enc_key, &l_pub_key_size);
+        if ( l_pub_key_size == a_sign->header.sign_pkey_size){
+            l_ret = memcmp ( l_pub_key, a_sign->pkey_n_sign, a_sign->header.sign_pkey_size );
         }else
-            return -2; // Wrong pkey size
+            l_ret = -2; // Wrong pkey size
+        DAP_DELETE(l_pub_key);
+        return l_ret;
     }else
         return -1; // Wrong sign type
 }
@@ -465,6 +472,7 @@ void dap_chain_cert_add_folder(const char *a_folder_path)
                     // Load the cert file
                     //log_it(L_DEBUG,"Trying to load %s",l_filename);
                     dap_chain_cert_add_file(l_cert_name,a_folder_path);
+                    DAP_DELETE(l_cert_name);
                 }
             }
 
