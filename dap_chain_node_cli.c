@@ -306,8 +306,10 @@ static void* thread_one_client_func(void *args)
                 char *str_reply = NULL;
                 if(l_cmd){
                     while(list) {
+                        char *str_cmd_prev = str_cmd;
                         str_cmd = dap_strdup_printf("%s;%s", str_cmd, list->data);
                         list = dap_list_next(list);
+                        DAP_DELETE(str_cmd_prev);
                     }
                     log_it(L_INFO, "execute command=%s", str_cmd);
                     // exec command
@@ -774,10 +776,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return 0;
     }
 
-/*    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
-                    "global_db cells add -cell <cell id> \n\n"
-            "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
-            );*/
+    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
+            "global_db cells add -cell <cell id> \n\n"
+//                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
+            );
 
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
             "node add  -net <net name> -addr {<node address> | -alias <node alias>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
