@@ -439,6 +439,22 @@ int dap_db_driver_sqlite_end_transaction(void)
         return -1;
 }
 
+char *dap_db_driver_sqlite_make_table_name(const char *a_group_name)
+{
+    char *l_group_name = dap_strdup(a_group_name);
+    ssize_t l_group_name_len = dap_strlen(l_group_name);
+    const char *l_needle = ".";
+    // replace '.' to '_'
+    while(1){
+    char *l_str = dap_strstr_len(l_group_name, l_group_name_len, l_needle);
+    if(l_str)
+        *l_str = '_';
+    else
+        break;
+    }
+    return l_group_name;
+}
+
 /**
  * Apply data (write or delete)
  *
@@ -455,11 +471,13 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         //dap_chain_hash_fast_t l_hash;
         //dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);
 
-        char *l_blob_hash = ""; //dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
+        char *l_blob_hash = "";//dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
         char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, a_store_obj->value_len);
         //add one record
+        char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
         l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'%s', '%lld', x'%s')",
-                a_store_obj->group, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
+                table_name, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
+        DAP_DELETE(table_name);
         //dap_db_driver_sqlite_free(l_blob_hash);
         dap_db_driver_sqlite_free(l_blob_value);
     }
@@ -482,7 +500,9 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         dap_db_driver_sqlite_free(l_error_message);
         l_error_message = NULL;
         // create table
-        dap_db_driver_sqlite_create_group_table(a_store_obj->group);
+        char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
+        dap_db_driver_sqlite_create_group_table(table_name);
+        DAP_DELETE(table_name);
         // repeat request
         l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
 
@@ -491,9 +511,11 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     if(l_ret == SQLITE_CONSTRAINT) {
         dap_db_driver_sqlite_free(l_error_message);
         l_error_message = NULL;
+        char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
         //delete exist record
-        char *l_query_del = sqlite3_mprintf("delete from '%s' where key = '%s'", a_store_obj->group, a_store_obj->key);
+        char *l_query_del = sqlite3_mprintf("delete from '%s' where key = '%s'", table_name, a_store_obj->key);
         l_ret = dap_db_driver_sqlite_exec(s_db, l_query_del, &l_error_message);
+        DAP_DELETE(table_name);
         dap_db_driver_sqlite_free(l_query_del);
         if(l_ret != SQLITE_OK) {
             log_it(L_INFO, "Entry with the same key is already present and can't delete, %s", l_error_message);
