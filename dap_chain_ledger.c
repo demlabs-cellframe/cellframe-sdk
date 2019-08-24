@@ -591,7 +591,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 
             // go to next previous transaction
             l_list_tmp = dap_list_next(l_list_tmp);
-
             continue;
         } else {
             log_it(L_INFO,"Previous transaction was found for hash %s",l_tx_prev_hash_str);

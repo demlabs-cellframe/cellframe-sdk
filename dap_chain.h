@@ -64,6 +64,7 @@ typedef size_t (*dap_chain_callback_atom_hdr_get_size_t)(dap_chain_atom_ptr_t );
 typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t * );
 typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_from_t)(dap_chain_t * ,dap_chain_atom_ptr_t);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_first_t)(dap_chain_atom_iter_t * );
+typedef dap_chain_datum_t* (*dap_chain_callback_atom_get_datum)(dap_chain_atom_ptr_t );
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t * ,dap_chain_hash_fast_t *);
 
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t * );
@@ -75,6 +76,14 @@ typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * ,
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
 
+typedef  enum dap_chain_type
+{
+    CHAIN_TYPE_FIRST,
+    CHAIN_TYPE_TOKEN,
+    CHAIN_TYPE_EMISSION,
+    CHAIN_TYPE_TX,
+    CHAIN_TYPE_LAST
+} dap_chain_type_t;
 
 typedef struct dap_chain{
     dap_chain_id_t id;
@@ -86,6 +95,9 @@ typedef struct dap_chain{
 
     // Nested cells (hashtab by cell_id
     dap_chain_cell_t * cells;
+
+    uint16_t datum_types_count;
+    dap_chain_type_t *datum_types;
 
     // To hold it in double-linked lists
     struct dap_chain * next;
@@ -107,6 +119,8 @@ typedef struct dap_chain{
     dap_chain_callback_atom_iter_create_t callback_atom_iter_create;
     dap_chain_callback_atom_iter_create_from_t callback_atom_iter_create_from;
     dap_chain_callback_atom_iter_get_first_t callback_atom_iter_get_first;
+    dap_chain_callback_atom_get_datum callback_atom_get_datum;
+
     dap_chain_callback_atom_iter_find_by_hash_t callback_atom_find_by_hash;
     dap_chain_callback_atom_iter_get_next_t callback_atom_iter_get_next;
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;

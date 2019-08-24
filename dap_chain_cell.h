@@ -72,6 +72,8 @@ typedef struct dap_chain_cell_decl{
 
 
 int dap_chain_cell_init(void);
+dap_chain_cell_t * dap_chain_cell_create();
+void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
 int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path);
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell);
 int dap_chain_cell_file_append( dap_chain_cell_t * a_cell,const void* a_atom, size_t a_atom_size);
