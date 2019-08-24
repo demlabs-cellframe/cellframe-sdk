@@ -114,7 +114,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net);
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(l_chain);
-    dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag ) ;
+    //dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag ) ;
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( l_dag ) );
 
     const char * l_event_cmd_str = NULL;
@@ -127,7 +127,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "event", &l_event_cmd_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
 
-    if ( l_event_cmd_str == NULL ){
+    if ( l_event_cmd_str != NULL ){
         if (l_poa_pvt->events_sign_cert )
         ret = -1;
         if ( strcmp(l_event_cmd_str,"sign") == 0) { // Sign event command
@@ -144,7 +144,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                 dap_chain_cs_dag_event_t *l_event_new = dap_chain_cs_dag_event_copy_with_sign_add(l_event,l_poa_pvt->events_sign_cert->enc_key );
                 dap_chain_hash_fast_t l_event_new_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event_new,&l_event_new_hash);
-                size_t l_event_new_size = dap_chain_cs_dag_event_calc_size(l_event_new);
+                //size_t l_event_new_size = dap_chain_cs_dag_event_calc_size(l_event_new);
                 char * l_event_new_hash_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
                 if (dap_chain_global_db_gr_set(l_event_new_hash_str,(uint8_t*) l_event,l_event_size,l_gdb_group_events) ){
                     if ( dap_chain_global_db_gr_del(l_event_hash_str,l_gdb_group_events) ) { // Delete old event
@@ -230,14 +230,15 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
     const char * l_events_sign_cert = NULL;
-    if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign--cert") ) != NULL ) {
+    if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert") ) != NULL ) {
 
         if ( ( PVT(l_poa)->events_sign_cert = dap_chain_cert_find_by_name(l_events_sign_cert)) == NULL ){
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_cert);
         }else
-            log_it(L_NOTICE,"Loaded \"%s\" certificate to sign event");
+            log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
 
     }
+    return 0;
 }
 
 /**
@@ -276,15 +277,16 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
 {
+    dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POA(a_dag), NULL);
     dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
-    if ( PVT(a_dag)->events_sign_cert == NULL){
+    dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
+    if ( PVT(l_poa)->events_sign_cert == NULL){
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
         return  NULL;
     }
-
-    if ( s_seed_mode || (a_hashes&& a_hashes_count) ){
+    if ( s_seed_mode || (a_hashes && a_hashes_count) ){
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, l_net->pub.cell_id, a_datum,
-                                                         PVT(a_dag)->events_sign_cert->enc_key, a_hashes, a_hashes_count);
+                                                         PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count);
         return l_event;
     }else
         return NULL;
