@@ -1083,8 +1083,11 @@ int s_net_load(const char * a_net_name)
         uint16_t l_seed_nodes_ipv4_len =0;
         char ** l_seed_nodes_ipv4 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv4"
                                                              ,&l_seed_nodes_ipv4_len);
+        uint16_t l_seed_nodes_port_len =0;
+        char ** l_seed_nodes_port = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_port"
+                                                                     ,&l_seed_nodes_port_len);
 
-        const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
+        //const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
         const char * l_node_addr_str = dap_config_get_item_str(l_cfg , "general" ,"node-addr");
         const char * l_node_alias_str = dap_config_get_item_str(l_cfg , "general" , "node-alias");
         log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
@@ -1110,6 +1113,8 @@ int s_net_load(const char * a_net_name)
                 if( l_seed_node_addr ){
                     inet_pton( AF_INET, l_seed_nodes_ipv4[i],&l_node_info->hdr.ext_addr_v4);
                     l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
+                    if(l_seed_nodes_port_len >= i)
+                        l_node_info->hdr.ext_port = strtoul(l_seed_nodes_port[i], NULL, 10);
                     int l_ret;
                     if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
                         if (dap_chain_node_alias_register(l_net,PVT(l_net)->seed_aliases[i],l_seed_node_addr))
