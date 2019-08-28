@@ -61,7 +61,7 @@
 #define SYSTEM_PREFIX "/opt/"DAP_APP_NAME
 #define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
 
-static int listen_port_tcp = 8079;
+//static int listen_port_tcp = 8079;
 
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
@@ -83,10 +83,10 @@ int dap_chain_node_client_init(void)
     if((g_config = dap_config_open(DAP_APP_NAME)) == NULL) {
         return -1;
     }
-    else {
+    /*else {
         const char *port_str = dap_config_get_item_str(g_config, "server", "listen_port_tcp");
         listen_port_tcp = (port_str) ? atoi(port_str) : 8079;
-    }
+    }*/
     if(g_config)
         dap_config_close(g_config);
     return 0;
@@ -362,7 +362,7 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_
         dap_chain_node_client_close(l_node_client);
         return NULL;
     }
-    dap_client_set_uplink(l_node_client->client, strdup(host), listen_port_tcp);
+    dap_client_set_uplink(l_node_client->client, strdup(host), a_node_info->hdr.ext_port);
 //    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
     dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
 
