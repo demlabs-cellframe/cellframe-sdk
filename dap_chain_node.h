@@ -28,7 +28,17 @@
 #ifndef _WIN32
 #include <sys/socket.h>
 #include <netinet/in.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+
+#include "win32/ip.h"
+#include "win32/iphdr.h"
 #endif
+
+
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_global_db.h"

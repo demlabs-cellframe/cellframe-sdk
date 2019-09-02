@@ -23,10 +23,21 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
 #ifndef _WIN32
 #include <sys/socket.h>
 #include <netinet/in.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+
+#include "win32/ip.h"
+#include "win32/iphdr.h"
 #endif
+
+
 #include <stdint.h>
 #include <string.h>
 #include "dap_strfuncs.h"
