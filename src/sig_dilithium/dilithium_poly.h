@@ -6,7 +6,7 @@
 #include "dilithium_rounding_reduce.h"
 
 typedef struct {
-  uint32_t coeffs[N];
+  uint32_t coeffs[NN];
 } poly __attribute__((aligned(32)));
 
 void poly_reduce(poly *a);
@@ -46,7 +46,7 @@ void polyz_unpack(poly *r, const unsigned char *a);
 
 void polyw1_pack(unsigned char *r, const poly *a);
 
-void dilithium_ntt(uint32_t pp[N]);
-void invntt_frominvmont(uint32_t pp[N]);
+void dilithium_ntt(uint32_t pp[NN]);
+void invntt_frominvmont(uint32_t pp[NN]);
 
 #endif

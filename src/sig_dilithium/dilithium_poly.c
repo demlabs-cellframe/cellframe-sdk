@@ -5,7 +5,7 @@
 void poly_reduce(poly *a) {
   unsigned int i;  
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a->coeffs[i] = reduce32(a->coeffs[i]);  
 }
 
@@ -13,7 +13,7 @@ void poly_reduce(poly *a) {
 void poly_csubq(poly *a) {
   unsigned int i; 
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a->coeffs[i] = csubq(a->coeffs[i]); 
 }
 
@@ -21,7 +21,7 @@ void poly_csubq(poly *a) {
 void poly_freeze(poly *a) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a->coeffs[i] = freeze(a->coeffs[i]);
 }
 
@@ -29,7 +29,7 @@ void poly_freeze(poly *a) {
 void dilithium_poly_add(poly *c, const poly *a, const poly *b)  {
   unsigned int i;  
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     c->coeffs[i] = a->coeffs[i] + b->coeffs[i];
 }
 
@@ -37,7 +37,7 @@ void dilithium_poly_add(poly *c, const poly *a, const poly *b)  {
 void dilithium_poly_sub(poly *c, const poly *a, const poly *b) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     c->coeffs[i] = a->coeffs[i] + 2*Q - b->coeffs[i];
 }
 
@@ -45,7 +45,7 @@ void dilithium_poly_sub(poly *c, const poly *a, const poly *b) {
 void poly_neg(poly *a) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a->coeffs[i] = Q - a->coeffs[i];
 }
 
@@ -53,7 +53,7 @@ void poly_neg(poly *a) {
 void poly_shiftl(poly *a, unsigned int k) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a->coeffs[i] <<= k;
 }
 
@@ -73,7 +73,7 @@ void poly_invntt_montgomery(poly *a) {
 void poly_pointwise_invmontgomery(poly *c, const poly *a, const poly *b) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     c->coeffs[i] = montgomery_reduce((uint64_t)a->coeffs[i] * b->coeffs[i]);
 }
 
@@ -81,7 +81,7 @@ void poly_pointwise_invmontgomery(poly *c, const poly *a, const poly *b) {
 void poly_power2round(poly *a1, poly *a0, const poly *a) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a1->coeffs[i] = power2round(a->coeffs[i], a0->coeffs+i);
 }
 
@@ -89,7 +89,7 @@ void poly_power2round(poly *a1, poly *a0, const poly *a) {
 void poly_decompose(poly *a1, poly *a0, const poly *a) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a1->coeffs[i] = decompose(a->coeffs[i], a0->coeffs+i);
 }
 
@@ -97,7 +97,7 @@ void poly_decompose(poly *a1, poly *a0, const poly *a) {
 unsigned int poly_make_hint(poly *h, const poly *a, const poly *b) {
   unsigned int i, s = 0;
 
-  for(i = 0; i < N; ++i) {
+  for(i = 0; i < NN; ++i) {
     h->coeffs[i] = make_hint(a->coeffs[i], b->coeffs[i]);
     s += h->coeffs[i];
   }
@@ -108,7 +108,7 @@ unsigned int poly_make_hint(poly *h, const poly *a, const poly *b) {
 void poly_use_hint(poly *a, const poly *b, const poly *h) {
   unsigned int i;
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < NN; ++i)
     a->coeffs[i] = use_hint(b->coeffs[i], h->coeffs[i]);
 }
 
@@ -117,7 +117,7 @@ int poly_chknorm(const poly *a, uint32_t B) {
   unsigned int i;
   int32_t t;
 
-  for(i = 0; i < N; ++i) {    
+  for(i = 0; i < NN; ++i) {    
     t = (Q-1)/2 - a->coeffs[i];
     t ^= (t >> 31);
     t = (Q-1)/2 - t;
@@ -135,7 +135,7 @@ void dilithium_poly_uniform(poly *a, const unsigned char *buf) {
   uint32_t t;
 
   ctr = pos = 0;
-  while(ctr < N) {
+  while(ctr < NN) {
     t  = buf[pos++];
     t |= (uint32_t)buf[pos++] << 8;
     t |= (uint32_t)buf[pos++] << 16;
@@ -190,10 +190,10 @@ void poly_uniform_eta(poly *a, const unsigned char seed[SEEDBYTES], unsigned cha
   shake256_absorb(state, inbuf, SEEDBYTES + 1);
   shake256_squeezeblocks(outbuf, 2, state);  
 
-  ctr = rej_eta(a->coeffs, N, outbuf, 2*SHAKE256_RATE, p);
-  if(ctr < N) {
+  ctr = rej_eta(a->coeffs, NN, outbuf, 2*SHAKE256_RATE, p);
+  if(ctr < NN) {
     shake256_squeezeblocks(outbuf, 1, state);
-    rej_eta(a->coeffs + ctr, N - ctr, outbuf, SHAKE256_RATE, p);
+    rej_eta(a->coeffs + ctr, NN - ctr, outbuf, SHAKE256_RATE, p);
   }
 }
 
@@ -244,11 +244,11 @@ void poly_uniform_gamma1m1(poly *a, const unsigned char seed[SEEDBYTES + CRHBYTE
   shake256_absorb(state, inbuf, SEEDBYTES + CRHBYTES + 2);
   shake256_squeezeblocks(outbuf, 5, state);
 
-  ctr = rej_gamma1m1(a->coeffs, N, outbuf, 5*SHAKE256_RATE);
-  if(ctr < N) {
+  ctr = rej_gamma1m1(a->coeffs, NN, outbuf, 5*SHAKE256_RATE);
+  if(ctr < NN) {
 
     shake256_squeezeblocks(outbuf, 1, state);
-    rej_gamma1m1(a->coeffs + ctr, N - ctr, outbuf, SHAKE256_RATE);
+    rej_gamma1m1(a->coeffs + ctr, NN - ctr, outbuf, SHAKE256_RATE);
   }
 }
 
@@ -266,7 +266,7 @@ void polyeta_pack(unsigned char *r, const poly *a, dilithium_param_t *p)
 
     if (p->PARAM_ETA <= 3)
     {
-        for(i = 0; i < N/8; ++i)
+        for(i = 0; i < NN/8; ++i)
         {
             t[0] = Q + p->PARAM_ETA - a->coeffs[8*i+0];
             t[1] = Q + p->PARAM_ETA - a->coeffs[8*i+1];
@@ -291,7 +291,7 @@ void polyeta_pack(unsigned char *r, const poly *a, dilithium_param_t *p)
     }
     else
     {
-        for(i = 0; i < N/2; ++i)
+        for(i = 0; i < NN/2; ++i)
         {
             t[0] = Q + p->PARAM_ETA - a->coeffs[2*i+0];
             t[1] = Q + p->PARAM_ETA - a->coeffs[2*i+1];
@@ -307,7 +307,7 @@ void polyeta_unpack(poly *r, const unsigned char *a, dilithium_param_t *p)
 
     if (p->PARAM_ETA <= 3)
     {
-        for(i = 0; i < N/8; ++i)
+        for(i = 0; i < NN/8; ++i)
         {
             r->coeffs[8*i+0] = a[3*i+0] & 0x07;
             r->coeffs[8*i+1] = (a[3*i+0] >> 3) & 0x07;
@@ -330,7 +330,7 @@ void polyeta_unpack(poly *r, const unsigned char *a, dilithium_param_t *p)
     }
     else
     {
-        for(i = 0; i < N/2; ++i)
+        for(i = 0; i < NN/2; ++i)
         {
             r->coeffs[2*i+0] = a[i] & 0x0F;
             r->coeffs[2*i+1] = a[i] >> 4;
@@ -347,7 +347,7 @@ void polyt1_pack(unsigned char *r, const poly *a) {
 #endif
   unsigned int i;
 
-  for(i = 0; i < N/8; ++i) {
+  for(i = 0; i < NN/8; ++i) {
     r[9*i+0]  =  a->coeffs[8*i+0] & 0xFF;
     r[9*i+1]  = (a->coeffs[8*i+0] >> 8) | ((a->coeffs[8*i+1] & 0x7F) << 1);
     r[9*i+2]  = (a->coeffs[8*i+1] >> 7) | ((a->coeffs[8*i+2] & 0x3F) << 2);
@@ -364,7 +364,7 @@ void polyt1_pack(unsigned char *r, const poly *a) {
 void polyt1_unpack(poly *r, const unsigned char *a) {
   unsigned int i;
 
-  for(i = 0; i < N/8; ++i) {
+  for(i = 0; i < NN/8; ++i) {
     r->coeffs[8*i+0] =  a[9*i+0]       | ((uint32_t)(a[9*i+1] & 0x01) << 8);
     r->coeffs[8*i+1] = (a[9*i+1] >> 1) | ((uint32_t)(a[9*i+2] & 0x03) << 7);
     r->coeffs[8*i+2] = (a[9*i+2] >> 2) | ((uint32_t)(a[9*i+3] & 0x07) << 6);
@@ -381,7 +381,7 @@ void polyt0_pack(unsigned char *r, const poly *a) {
   unsigned int i;
   uint32_t t[4];
 
-  for(i = 0; i < N/4; ++i) {
+  for(i = 0; i < NN/4; ++i) {
     t[0] = Q + (1 << (D-1)) - a->coeffs[4*i+0];
     t[1] = Q + (1 << (D-1)) - a->coeffs[4*i+1];
     t[2] = Q + (1 << (D-1)) - a->coeffs[4*i+2];
@@ -404,7 +404,7 @@ void polyt0_pack(unsigned char *r, const poly *a) {
 void polyt0_unpack(poly *r, const unsigned char *a) {
   unsigned int i;
 
-  for(i = 0; i < N/4; ++i) {
+  for(i = 0; i < NN/4; ++i) {
     r->coeffs[4*i+0]  = a[7*i+0];
     r->coeffs[4*i+0] |= (uint32_t)(a[7*i+1] & 0x3F) << 8;
 
@@ -434,7 +434,7 @@ void polyz_pack(unsigned char *r, const poly *a) {
   unsigned int i;
   uint32_t t[2];
 
-  for(i = 0; i < N/2; ++i) {    
+  for(i = 0; i < NN/2; ++i) {    
     t[0] = GAMMA1 - 1 - a->coeffs[2*i+0];
     t[0] += ((int32_t)t[0] >> 31) & Q;
     t[1] = GAMMA1 - 1 - a->coeffs[2*i+1];
@@ -453,7 +453,7 @@ void polyz_pack(unsigned char *r, const poly *a) {
 void polyz_unpack(poly *r, const unsigned char *a) {
   unsigned int i;
 
-  for(i = 0; i < N/2; ++i) {
+  for(i = 0; i < NN/2; ++i) {
     r->coeffs[2*i+0]  = a[5*i+0];
     r->coeffs[2*i+0] |= (uint32_t)a[5*i+1] << 8;
     r->coeffs[2*i+0] |= (uint32_t)(a[5*i+2] & 0x0F) << 16;
@@ -473,12 +473,12 @@ void polyz_unpack(poly *r, const unsigned char *a) {
 void polyw1_pack(unsigned char *r, const poly *a) {
   unsigned int i;
 
-  for(i = 0; i < N/2; ++i)
+  for(i = 0; i < NN/2; ++i)
     r[i] = a->coeffs[2*i+0] | (a->coeffs[2*i+1] << 4);
 }
 
 /**************************************************/
-static const uint32_t zetas[N] = {0, 25847, 5771523, 7861508, 237124, 7602457, 7504169, 466468,
+static const uint32_t zetas[NN] = {0, 25847, 5771523, 7861508, 237124, 7602457, 7504169, 466468,
                         1826347, 2353451, 8021166, 6288512, 3119733, 5495562, 3111497, 2680103,
                         2725464, 1024112, 7300517, 3585928, 7830929, 7260833, 2619752, 6271868,
                         6262231, 4520680, 6980856, 5102745, 1757237, 8360995, 4010497,  280005,
@@ -511,7 +511,7 @@ static const uint32_t zetas[N] = {0, 25847, 5771523, 7861508, 237124, 7602457, 7
                         5441381, 6144432, 7959518, 6094090,  183443, 7403526, 1612842, 4834730,
                         7826001, 3919660, 8332111, 7018208, 3937738, 1400424, 7534263, 1976782};
 
-static const uint32_t zetas_inv[N] =
+static const uint32_t zetas_inv[NN] =
                        {6403635,  846154, 6979993, 4442679, 1362209,   48306, 4460757,  554416,
                         3545687, 6767575,  976891, 8196974, 2286327,  420899, 2235985, 2939036,
                         3833893,  260646, 1104333, 1667432, 6470041, 1803090, 6656817,  426683,
@@ -546,7 +546,7 @@ static const uint32_t zetas_inv[N] =
                         7913949,  876248,  777960, 8143293,  518909, 2608894, 8354570};
 
 /*************************************************/
-void dilithium_ntt(uint32_t pp[N])
+void dilithium_ntt(uint32_t pp[NN])
 {
     unsigned int len, start, j, k;
     uint32_t zeta, t;
@@ -554,7 +554,7 @@ void dilithium_ntt(uint32_t pp[N])
     k = 1;
     for(len = 128; len > 0; len >>= 1)
     {
-        for(start = 0; start < N; start = j + len)
+        for(start = 0; start < NN; start = j + len)
         {
             zeta = zetas[k++];
             for(j = start; j < start + len; ++j)
@@ -568,16 +568,16 @@ void dilithium_ntt(uint32_t pp[N])
 }
 
 /*************************************************/
-void invntt_frominvmont(uint32_t pp[N])
+void invntt_frominvmont(uint32_t pp[NN])
 {
     unsigned int start, len, j, k;
     uint32_t t, zeta;
     const uint32_t f = (((uint64_t)MONT*MONT % Q) * (Q-1) % Q) * ((Q-1) >> 8) % Q;
 
     k = 0;
-    for(len = 1; len < N; len <<= 1)
+    for(len = 1; len < NN; len <<= 1)
     {
-        for(start = 0; start < N; start = j + len)
+        for(start = 0; start < NN; start = j + len)
         {
             zeta = zetas_inv[k++];
             for(j = start; j < start + len; ++j)
@@ -590,7 +590,7 @@ void invntt_frominvmont(uint32_t pp[N])
         }
     }
 
-    for(j = 0; j < N; ++j)
+    for(j = 0; j < NN; ++j)
     {
         pp[j] = montgomery_reduce((uint64_t)f * pp[j]);
     }

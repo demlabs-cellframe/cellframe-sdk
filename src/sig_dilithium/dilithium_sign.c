@@ -44,7 +44,7 @@ void challenge(poly *c, const unsigned char mu[CRHBYTES], const polyveck *w1, di
     pos = 8;
     mask = 1;
 
-    for(i = 0; i < N; ++i)
+    for(i = 0; i < NN; ++i)
         c->coeffs[i] = 0;
 
     for(i = 196; i < 256; ++i) {
@@ -256,10 +256,10 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
 
                 unsigned int S = 0;
                 for(i = 0; i < p->PARAM_K; ++i)
-                    for(j = 0; j < N; ++j)
+                    for(j = 0; j < NN; ++j)
                         if(tmp.vec[i].coeffs[j] == w1.vec[i].coeffs[j])
                             S++;
-                if(S == p->PARAM_K * N){
+                if(S == p->PARAM_K * NN){
 
                     for(i = 0; i < p->PARAM_K; ++i) {
                         poly_pointwise_invmontgomery(ct0.vec + i, &chat, t0.vec + i);
@@ -360,7 +360,7 @@ int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilit
     polyveck_use_hint(&w1, &tmp1, &h, p);
 
     challenge(&cp, mu, &w1, p);
-    for(i = 0; i < N; ++i)
+    for(i = 0; i < NN; ++i)
         if(c.coeffs[i] != cp.coeffs[i]) {
             free(p);
             return -1;

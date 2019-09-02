@@ -7,16 +7,23 @@
 #include <stdio.h>
 #include "dap_crypto_common.h"
 
-#define SEEDBYTES 32U
-#define CRHBYTES 48U
-#define N 256U
-#define Q 8380417U
-#define QBITS 23U
-#define ROOT_OF_UNITY 1753U
-#define D 14U
+#define SEEDBYTES		32U
+#define CRHBYTES		48U
+
+//#ifdef N
+//#error N defined
+//#endif
+
+#define NN 				256U
+
+#define Q 				8380417U
+#define QBITS 			23U
+#define ROOT_OF_UNITY	1753U
+#define D 				14U
 #define GAMMA1 ((Q - 1U)/16U)
 #define GAMMA2 (GAMMA1/2U)
 #define ALPHA (2U*GAMMA2)
+
 
 ///========================================================================
 /* Names for the four varieties of Dilithium */

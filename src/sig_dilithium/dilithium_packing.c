@@ -107,7 +107,7 @@ void dilithium_pack_sig(unsigned char sig[], const polyvecl *z, const polyveck *
     k = 0;
     for(i = 0; i < p->PARAM_K; ++i)
     {
-        for(j = 0; j < N; ++j)
+        for(j = 0; j < NN; ++j)
             if(h->vec[i].coeffs[j] != 0)
                 sig[k++] = j;
 
@@ -119,7 +119,7 @@ void dilithium_pack_sig(unsigned char sig[], const polyvecl *z, const polyveck *
   /* Encode c */
     signs = 0;
     mask = 1;
-    for(i = 0; i < N/8; ++i)
+    for(i = 0; i < NN/8; ++i)
     {
         sig[i] = 0;
         for(j = 0; j < 8; ++j)
@@ -132,7 +132,7 @@ void dilithium_pack_sig(unsigned char sig[], const polyvecl *z, const polyveck *
             }
         }
     }
-    sig += N/8;
+    sig += NN/8;
     for(i = 0; i < 8; ++i)
         sig[i] = signs >> 8*i;
 }
@@ -152,7 +152,7 @@ int dilithium_unpack_sig(polyvecl *z, polyveck *h, poly *c,
     k = 0;
     for(i = 0; i < p->PARAM_K; ++i)
     {
-        for(j = 0; j < N; ++j)
+        for(j = 0; j < NN; ++j)
             h->vec[i].coeffs[j] = 0;
 
         if(sig[p->PARAM_OMEGA + i] < k || sig[p->PARAM_OMEGA + i] > p->PARAM_OMEGA)
@@ -174,18 +174,18 @@ int dilithium_unpack_sig(polyvecl *z, polyveck *h, poly *c,
 
     sig += p->PARAM_OMEGA + p->PARAM_K;
 
-    for(i = 0; i < N; ++i)
+    for(i = 0; i < NN; ++i)
         c->coeffs[i] = 0;
 
     signs = 0;
     for(i = 0; i < 8; ++i)
-        signs |= (uint64_t)sig[N/8+i] << 8*i;
+        signs |= (uint64_t)sig[NN/8+i] << 8*i;
 
     if(signs >> 60)
         return 1;
 
     mask = 1;
-    for(i = 0; i < N/8; ++i) {
+    for(i = 0; i < NN/8; ++i) {
         for(j = 0; j < 8; ++j) {
             if((sig[i] >> j) & 0x01) {
                 c->coeffs[8*i+j] = (signs & mask) ? Q - 1 : 1;
