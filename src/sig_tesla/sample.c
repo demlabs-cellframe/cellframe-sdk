@@ -13,54 +13,62 @@ void sample_y(int64_t *y, const unsigned char *seed, int nonce, tesla_param_t *p
     unsigned int i = 0, pos = 0, nblocks = p->PARAM_N;
     unsigned int nbytes = ((p->PARAM_B_BITS + 1) + 7) / 8;
     unsigned char *buf = malloc(p->PARAM_N * nbytes * sizeof(char) + 1);
-	int16_t dmsp = (int16_t)(nonce << 8);
+    int16_t dmsp = (int16_t)(nonce << 8);
 
     uint32_t NBLOCKS_SHAKE = 0;
     if(p->kind == 0 || p->kind == 3) {
-        cshake128_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//      cshake128_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
+        cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, p->PARAM_N * nbytes * 8, NULL, 0, &dmsp, 16 );
+        ++dmsp;
         NBLOCKS_SHAKE = SHAKE128_RATE / (((p->PARAM_B_BITS + 1) + 7) / 8);
     }
     else {
-        cshake256_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//      cshake256_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
+        cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, p->PARAM_N * nbytes * 8, NULL, 0, &dmsp, 16 );
+        ++dmsp;
         NBLOCKS_SHAKE = SHAKE256_RATE / (((p->PARAM_B_BITS + 1) + 7) / 8);
     }
 
     while (i < p->PARAM_N) {
-		if (pos >= nblocks * nbytes) {
+        if (pos >= nblocks * nbytes) {
             if(p->kind == 0 || p->kind == 3) {
                 nblocks = NBLOCKS_SHAKE;
-                cshake128_simple((uint8_t *) buf, SHAKE128_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//              cshake128_simple((uint8_t *) buf, SHAKE128_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
+                cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, SHAKE128_RATE * 8, NULL, 0, &dmsp, 16 );
+                ++dmsp;
             }
             else {
                 nblocks = NBLOCKS_SHAKE;
-                cshake256_simple((uint8_t *) buf, SHAKE256_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//                cshake256_simple((uint8_t *) buf, SHAKE256_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
+                cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, SHAKE256_RATE * 8, NULL, 0, &dmsp, 16 );
+                ++dmsp;
             }
-			pos = 0;
-		}
+            pos = 0;
+        }
         y[i] = (*(uint32_t *) (buf + pos)) & ((1 << (p->PARAM_B_BITS + 1)) - 1);
         y[i] -= (int64_t)(p->PARAM_B);
         if (y[i] != (1 << p->PARAM_B_BITS))
-			i++;
-		pos += nbytes;
-	}
+            i++;
+        pos += nbytes;
+    }
     free(buf);
     buf = NULL;
 }
 
 static int64_t mod7(int64_t k) { // Compute k modulo 7
 
-	int64_t i = k;
+    int64_t i = k;
 
     int j;
     for ( j = 0; j < 2; j++) {
-		i = (i & 7) + (i >> 3);
-	}
-	// i <= 7 at this point. If (i == 7) return 0, else return i
-	return ((i - 7) >> 3) & i;
+        i = (i & 7) + (i >> 3);
+    }
+    // i <= 7 at this point. If (i == 7) return 0, else return i
+    return ((i - 7) >> 3) & i;
 }
 
 static uint32_t Bernoulli(int64_t r, int64_t t, tesla_param_t *p) { // Sample a bit from Bernoulli
-	                                              // Restriction: 20-bit exponent
+                                                  // Restriction: 20-bit exponent
     if(p->kind == 0) {
         static const double exp[3][32] = {
             {
@@ -669,11 +677,15 @@ void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_p
             {0x0321020100200100LL, 0x0200010000200001LL},
         };
 
-        cshake128_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//        cshake128_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+        cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, seed_ex, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+        ++dmsp;
 
         for (x_ind = 0; x_ind < (int64_t)(p->PARAM_N); x_ind++) {
             if ((j + 46) > (int64_t)(p->PARAM_N)) {
-                cshake128_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//              cshake128_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+                cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+                ++dmsp;
                 j = 0;
             }
             do {
@@ -760,11 +772,15 @@ void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_p
             {0x0000032102010020LL, 0x0100020001000020LL, 0x0001000002000001LL},
         };        
 
-        cshake256_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//      cshake256_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+        cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, seed_ex, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+        ++dmsp;
 
         for (x_ind = 0; x_ind < (int64_t)(p->PARAM_N); x_ind++) {
             if ((j + 46) > (int64_t)(p->PARAM_N)) {
-                cshake256_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//              cshake256_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+                cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+                ++dmsp;
 
                 j = 0;
             }
@@ -846,38 +862,42 @@ void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_p
 void encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesla_param_t *p) { // Encoding of c' by mapping the output of the hash function H to an N-element vector with entries {-1,0,1}
 
     uint32_t i;
-	int pos, cnt = 0;
+    int pos, cnt = 0;
     int16_t *c = malloc(p->PARAM_N * sizeof(int16_t));
-	const int RLENGTH = SHAKE128_RATE;
+    const int RLENGTH = SHAKE128_RATE;
     unsigned char *r = malloc(RLENGTH * sizeof(char));
-	uint16_t dmsp = 0;
+    uint16_t dmsp = 0;
 
-	// Use the hash value as key to generate some randomness
-	cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
+    // Use the hash value as key to generate some randomness
+//  cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
+    cSHAKE128( c_bin, CRYPTO_RANDOMBYTES * 8, r, RLENGTH * 8, NULL, 0, &dmsp, 16 );
+    ++dmsp;
 
-	// Use rejection sampling to determine positions to be set in the new vector
+    // Use rejection sampling to determine positions to be set in the new vector
     for (i = 0; i < p->PARAM_N; i++)
-		c[i] = 0;
+        c[i] = 0;
 
     for (i = 0; i < p->PARAM_W;) { // Sample a unique position k times. Use two bytes
-		if (cnt > (RLENGTH - 3)) {
-			cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
-			cnt = 0;
-		}
-		pos = (r[cnt] << 8) | (r[cnt + 1]);
+        if (cnt > (RLENGTH - 3)) {
+//          cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
+            cSHAKE128( c_bin, CRYPTO_RANDOMBYTES * 8, r, RLENGTH * 8, NULL, 0, &dmsp, 16 );
+            ++dmsp;
+            cnt = 0;
+        }
+        pos = (r[cnt] << 8) | (r[cnt + 1]);
         pos = pos & ((p->PARAM_N) - 1); // Position is in the range [0,N-1]
 
-		if (c[pos] == 0) { // Position has not been set yet. Determine sign
-			if ((r[cnt + 2] & 1) == 1)
-				c[pos] = -1;
-			else
-				c[pos] = 1;
-			pos_list[i] = pos;
-			sign_list[i] = c[pos];
-			i++;
-		}
-		cnt += 3;
-	}
+        if (c[pos] == 0) { // Position has not been set yet. Determine sign
+            if ((r[cnt + 2] & 1) == 1)
+                c[pos] = -1;
+            else
+                c[pos] = 1;
+            pos_list[i] = pos;
+            sign_list[i] = c[pos];
+            i++;
+        }
+        cnt += 3;
+    }
     free(c);
     free(r);
     c = NULL;
