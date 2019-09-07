@@ -16,6 +16,25 @@ int SHAKE128(unsigned char *output, size_t outputByteLen, const unsigned char *i
     return KeccakWidth1600_Sponge(1344, 256, input, inputByteLen, 0x1F, output, outputByteLen);
 }
 
+void SHAKE128_InitAbsorb(Keccak_HashInstance *ks, const unsigned char *input, size_t inputByteLen)
+{
+    Keccak_HashInitialize_SHAKE128( ks );
+    Keccak_HashUpdate( &ks, input, inputByteLen * 8 );
+    Keccak_HashFinal( &ks, input );
+}
+
+void SHAKE256_InitAbsorb(Keccak_HashInstance *ks, const unsigned char *input, size_t inputByteLen)
+{
+    Keccak_HashInitialize_SHAKE256( ks );
+    Keccak_HashUpdate( &ks, input, inputByteLen * 8 );
+    Keccak_HashFinal( &ks, input );
+}
+
+void KECCAK_HashSqueeze(Keccak_HashInstance *ks, const unsigned char *out, size_t outByteLen)
+{
+    Keccak_HashSqueeze( &ks, (unsigned char *)out, outByteLen * 8 );
+}
+
 int SHAKE256(unsigned char *output, size_t outputByteLen, const unsigned char *input, size_t inputByteLen)
 {
     return KeccakWidth1600_Sponge(1088, 512, input, inputByteLen, 0x1F, output, outputByteLen);

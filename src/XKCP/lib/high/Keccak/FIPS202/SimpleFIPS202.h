@@ -12,6 +12,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #ifndef _SimpleFIPS202_h_
 #define _SimpleFIPS202_h_
 
+#include "KeccakHash.h"
 #include "KeccakSpongeWidth1600.h"
 #include <string.h>
 
@@ -60,15 +61,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
   */
 
 int SHAKE128(unsigned char *output, size_t outputByteLen, const unsigned char *input, size_t inputByteLen);
-
 int SHAKE256(unsigned char *output, size_t outputByteLen, const unsigned char *input, size_t inputByteLen);
-
 int SHA3_224(unsigned char *output, const unsigned char *input, size_t inputByteLen);
-
 int SHA3_256(unsigned char *output, const unsigned char *input, size_t inputByteLen);
-
 int SHA3_384(unsigned char *output, const unsigned char *input, size_t inputByteLen);
-
 int SHA3_512(unsigned char *output, const unsigned char *input, size_t inputByteLen);
+
+void SHAKE128_InitAbsorb( Keccak_HashInstance *ks, const unsigned char *input, size_t inputByteLen );
+void SHAKE256_InitAbsorb( Keccak_HashInstance *ks, const unsigned char *input, size_t inputByteLen );
+void KECCAK_HashSqueeze(Keccak_HashInstance *ks, const unsigned char *out, size_t outByteLen);
+
 
 #endif

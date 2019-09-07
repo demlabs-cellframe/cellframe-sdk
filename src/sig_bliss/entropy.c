@@ -23,7 +23,7 @@ static void refresh(entropy_t *entropy, uint8_t *hash, uint32_t n) {
   assert(n > 0);
 
   while (n > 0) {
-    sha3_512(hash, entropy->seed, SHA3_512_DIGEST_LENGTH);
+    SHA3_512(hash, entropy->seed, SHA3_512_DIGEST_LENGTH);
     increment_seed(entropy);
     hash += SHA3_512_DIGEST_LENGTH;
     n --;

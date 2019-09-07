@@ -5,7 +5,10 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "../sha3/fips202.h"
+//#include "../sha3/fips202.h"
+
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
 
 #define BLISS_B_CRYPTO_SECRETKEYBYTES 256
 #define BLISS_B_CRYPTO_PUBLICKEYBYTES 85

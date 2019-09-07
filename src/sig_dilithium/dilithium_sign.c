@@ -1,6 +1,9 @@
 #include <stdint.h>
 #include "dilithium_sign.h"
 
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
+
 /********************************************************************************************/
 void expand_mat(polyvecl mat[], const unsigned char rho[SEEDBYTES], dilithium_param_t *p)
 {
@@ -15,7 +18,7 @@ void expand_mat(polyvecl mat[], const unsigned char rho[SEEDBYTES], dilithium_pa
   for(i = 0; i < p->PARAM_K; ++i) {
     for(j = 0; j < p->PARAM_L; ++j) {
       inbuf[SEEDBYTES] = i + (j << 4);
-      shake128(outbuf, sizeof(outbuf), inbuf, SEEDBYTES + 1);
+      SHAKE128(outbuf, sizeof(outbuf), inbuf, SEEDBYTES + 1);
       dilithium_poly_uniform(mat[i].vec + j, outbuf);
     }
   }
@@ -27,15 +30,27 @@ void challenge(poly *c, const unsigned char mu[CRHBYTES], const polyveck *w1, di
     unsigned int i, b, pos;
     unsigned char inbuf[CRHBYTES + p->PARAM_K * p->PARAM_POLW1_SIZE_PACKED];
     unsigned char outbuf[SHAKE256_RATE];
-    uint64_t state[25] = {0}, signs, mask;
+//    uint64_t state[25] = {0}, signs, mask;
+    uint64_t signs, mask;
+    Keccak_HashInstance ks;
 
     for(i = 0; i < CRHBYTES; ++i)
         inbuf[i] = mu[i];
     for(i = 0; i < p->PARAM_K; ++i)
         polyw1_pack(inbuf + CRHBYTES + i * p->PARAM_POLW1_SIZE_PACKED, w1->vec + i);
 
-    shake256_absorb(state, inbuf, sizeof(inbuf));
-    shake256_squeezeblocks(outbuf, 1, state);
+//    shake256_absorb(state, inbuf, sizeof(inbuf));
+//    shake256_squeezeblocks(outbuf, 1, state);
+
+    #ifdef _WIN32
+        SHAKE256_InitAbsorb( &ks, inbuf, sizeof(inbuf) );
+        KECCAK_HashSqueeze( &ks, outbuf, 1 * 8 );
+    #else
+        Keccak_HashInitialize_SHAKE256( &ks );
+        Keccak_HashUpdate( &ks, inbuf, sizeof(inbuf) * 8 );
+        Keccak_HashFinal( &ks, inbuf );
+        Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
+    #endif
 
     signs = 0;
     for(i = 0; i < 8; ++i)
@@ -50,7 +65,13 @@ void challenge(poly *c, const unsigned char mu[CRHBYTES], const polyveck *w1, di
     for(i = 196; i < 256; ++i) {
         do {
         if(pos >= SHAKE256_RATE) {
-            shake256_squeezeblocks(outbuf, 1, state);
+//            shake256_squeezeblocks(outbuf, 1, state);
+            #ifdef _WIN32
+                KECCAK_HashSqueeze( &ks, outbuf, 1 * 8 );
+            #else
+                Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
+            #endif
+
             pos = 0;
         }
 
@@ -143,7 +164,7 @@ int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_
 
     randombytes(seedbuf, SEEDBYTES);
 
-    shake256(seedbuf, 3*SEEDBYTES, seedbuf, SEEDBYTES);
+    SHAKE256(seedbuf, 3*SEEDBYTES, seedbuf, SEEDBYTES);
     rho = seedbuf;
     rhoprime = rho + SEEDBYTES;
     key = rho + 2*SEEDBYTES;
@@ -169,7 +190,7 @@ int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_
     polyveck_power2round(&t1, &t0, &t, p);
     dilithium_pack_pk(public_key->data, rho, &t1, p);
 
-    shake256(tr, CRHBYTES, public_key->data, p->CRYPTO_PUBLICKEYBYTES);
+    SHAKE256(tr, CRHBYTES, public_key->data, p->CRYPTO_PUBLICKEYBYTES);
     dilithium_pack_sk(private_key->data, rho, key, tr, &s1, &s2, &t0, p);
 
     free(p);
@@ -211,7 +232,7 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
     for(i = 0; i < CRHBYTES; ++i)
         sig->sig_data[p->CRYPTO_BYTES - CRHBYTES + i] = tr[i];
 
-    shake256(mu, CRHBYTES, sig->sig_data + p->CRYPTO_BYTES - CRHBYTES, CRHBYTES + mlen);
+    SHAKE256(mu, CRHBYTES, sig->sig_data + p->CRYPTO_BYTES - CRHBYTES, CRHBYTES + mlen);
 
     expand_mat(mat, rho, p);
     polyvecl_ntt(&s1, p);
@@ -336,8 +357,8 @@ int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilit
         for(i = 0; i < mlen; ++i)
             tmp_m[CRHBYTES + i] = m[i];
 
-    shake256(tmp_m, CRHBYTES, public_key->data, p->CRYPTO_PUBLICKEYBYTES);
-    shake256(mu, CRHBYTES, tmp_m, CRHBYTES + mlen);
+    SHAKE256(tmp_m, CRHBYTES, public_key->data, p->CRYPTO_PUBLICKEYBYTES);
+    SHAKE256(mu, CRHBYTES, tmp_m, CRHBYTES + mlen);
     free(tmp_m);
 
     expand_mat(mat, rho, p);

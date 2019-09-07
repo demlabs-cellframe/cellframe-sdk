@@ -18,7 +18,6 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef _WIN32
 #include <arpa/inet.h>
 #endif

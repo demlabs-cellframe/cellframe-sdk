@@ -7,12 +7,20 @@
 extern "C" {
 #endif
 
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "rand/dap_rand.h"
+
+#include "dap_common.h"
+
 #include "sha3/fips202.h"
+
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
+#include "SP800-185.h"
+
+#include "rand/dap_rand.h"
+
 
 // Definition of operating system
 
