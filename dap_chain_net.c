@@ -828,6 +828,30 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
+    // command 'net list'
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", NULL) == arg_index) {
+
+        dap_string_t *l_string_ret = dap_string_new("list of nets: ");
+        // show list of nets
+        dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
+        int l_net_i = 0;
+        HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp)
+        {
+            if(l_net_i > 0)
+                dap_string_append(l_string_ret, ", ");
+            dap_string_append_printf(l_string_ret, "%s", l_net_item->name);
+            l_net_i++;
+        }
+        if(!l_net_i)
+            dap_string_append(l_string_ret, "-\n");
+        else
+            dap_string_append(l_string_ret, "\n");
+
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);
+        dap_string_free(l_string_ret, true);
+        return 0;
+    }
+
     int ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
     
     if ( l_net ) {
