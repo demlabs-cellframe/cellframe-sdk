@@ -1176,6 +1176,7 @@ void dap_digit_from_string2(const char *num_str, uint8_t *raw, size_t raw_len)
  */
 int exec_silent(const char * a_cmd) {
 
+#ifdef _WIN32
     PROCESS_INFORMATION p_info;
     STARTUPINFOA s_info;
 
@@ -1196,4 +1197,7 @@ int exec_silent(const char * a_cmd) {
     else {
         return -1;
     }
+#else
+    return execl(".",a_cmd);
+#endif
 }
