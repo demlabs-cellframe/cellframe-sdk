@@ -1,6 +1,6 @@
 #include "msrln_priv.h"
 
-//#include "KeccakHash.h"
+#include "KeccakHash.h"
 //#include "SimpleFIPS202.h"
 
 #define LOG_TAG "RANDOM"
@@ -18,15 +18,15 @@ CRYPTO_MSRLN_STATUS MSRLN_generate_a(const unsigned char* seed, unsigned int see
 //    shake128_absorb(state, seed, seed_nbytes);
 //    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
 
-    #ifdef _WIN32
+   /* #ifdef _WIN32
         SHAKE128_InitAbsorb( &ks, seed, seed_nbytes );
         KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
-    #else
+    #else */
         Keccak_HashInitialize_SHAKE128(&ks);
         Keccak_HashUpdate( &ks, seed, seed_nbytes * 8 );
         Keccak_HashFinal( &ks, seed );
         Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
-    #endif
+    //#endif
 
     while (ctr < array_ndigits) {
         val = (buf[pos] | ((uint16_t) buf[pos + 1] << 8)) & 0x3fff;

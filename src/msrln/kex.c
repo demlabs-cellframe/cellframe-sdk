@@ -473,15 +473,15 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
 //    shake128_absorb(state, seed, SEED_BYTES);
 //    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
 
-    #ifdef _WIN32
+    /*#ifdef _WIN32
         SHAKE128_InitAbsorb( &ks, seed, SEED_BYTES );
         KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
-    #else
+    #else */
         Keccak_HashInitialize_SHAKE128(&ks);
         Keccak_HashUpdate( &ks, seed, SEED_BYTES * 8 );
         Keccak_HashFinal( &ks, seed );
         Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
-    #endif
+    //#endif
 
     while (ctr < PARAMETER_N) {
         val = (buf[pos] | ((uint16_t) buf[pos + 1] << 8)) & 0x3fff;
