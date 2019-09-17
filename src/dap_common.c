@@ -1169,7 +1169,6 @@ void dap_digit_from_string2(const char *num_str, uint8_t *raw, size_t raw_len)
 }
 
 
-#if 0
 /*!
  * \brief Execute shell command silently
  * \param a_cmd command line
@@ -1180,8 +1179,8 @@ int exec_silent(const char * a_cmd) {
     PROCESS_INFORMATION p_info;
     STARTUPINFOA s_info;
 
-    memzero(&s_info, sizeof(s_info));
-    memzero(&p_info, sizeof(p_info));
+    memset(&s_info, 0, sizeof(s_info));
+    memset(&p_info, 0, sizeof(p_info));
 
     s_info.cb = sizeof(s_info);
     char cmdline[512] = {'\0'};
@@ -1198,4 +1197,3 @@ int exec_silent(const char * a_cmd) {
         return -1;
     }
 }
-#endif

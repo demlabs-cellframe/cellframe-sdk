@@ -19,7 +19,7 @@
 */
 
 #include <windows.h>
-#include <winnt.h>
+//#include <winnt.h>
 #include <winternl.h>
 
 #include <stdio.h>

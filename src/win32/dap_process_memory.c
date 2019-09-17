@@ -18,8 +18,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <windows.h>
-#include <winnt.h>
+//#include <windows.h>
+//#include <winnt.h>
 #include <winternl.h>
 #include <stdint.h>
 #include <pdh.h>

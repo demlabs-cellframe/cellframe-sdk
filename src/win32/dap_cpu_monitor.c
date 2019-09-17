@@ -19,7 +19,7 @@
 */
 
 #include <windows.h>
-#include <winnt.h>
+//#include <winnt.h>
 #include <winternl.h>
 
 #include <stdio.h>
@@ -106,8 +106,9 @@ dap_cpu_stats_t dap_cpu_get_stats()
   ULONG outsize;
   uint32_t ntstatus_error;
 
-  ntstatus_error = NtQuerySystemInformation( SystemProcessorPerformanceInformation, &pinfo, 
-                              sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION) * 64, &outsize );
+  /*ntstatus_error = NtQuerySystemInformation( SystemProcessorPerformanceInformation, &pinfo,
+                              sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION) * 64, &outsize );*/ // ! ! ! Legacy method, must be replaced
+  ntstatus_error = 0;
 
   if ( ntstatus_error ) {
     log_it(L_ERROR, "NtQuerySystemInformation returned an error %u", ntstatus_error );
