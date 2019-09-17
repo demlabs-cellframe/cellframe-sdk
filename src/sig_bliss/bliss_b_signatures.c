@@ -134,7 +134,7 @@ static void generateC(uint32_t *indices, uint32_t kappa, const int32_t *n_vector
      * (so that n_vector[n-1] is taken into account).
      */
     hash[hash_sz - 1]++;
-    sha3_512(whash, hash, hash_sz);
+    SHA3_512(whash, hash, hash_sz);
 
     memset(array, 0, n);
 
@@ -234,7 +234,7 @@ static void submul_c(int32_t *z, uint32_t n, const int32_t *s, const uint32_t *c
  *  (2 * zeta * a * z1 + zeta * q * c + z2) == v mod 2q
  */
 static void check_before_drop(const bliss_private_key_t *key, uint8_t *hash, uint32_t hash_sz,
-			      const int32_t *v, const int32_t *y1, const int32_t *y2, bliss_param_t *p, ntt_state_t state) {
+                  const int32_t *v, const int32_t *y1, const int32_t *y2, bliss_param_t *p, ntt_state_t state) {
   int32_t z1[512], z2[512], aux[512];
   uint32_t c[40];
   int32_t q;
@@ -473,7 +473,8 @@ int32_t bliss_b_sign(bliss_signature_t *signature,  const bliss_private_key_t *p
       }
 
   /* 0: compute the hash of the msg */
-    sha3_512(hash, msg, msg_sz);
+
+    SHA3_512(hash, msg, msg_sz);
 
   // for debugging
   if (false) {
@@ -828,7 +829,8 @@ int32_t bliss_b_verify(const bliss_signature_t *signature,  const bliss_public_k
     }
 
   /* hash the message into the first SHA3_512_DIGEST_LENGTH bytes of the hash */
-    sha3_512(hash, msg, msg_sz);
+
+    SHA3_512(hash, msg, msg_sz);
 
   if (false) {
     printf("verify hash\n");

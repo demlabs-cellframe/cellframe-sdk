@@ -5,6 +5,9 @@
     #include <malloc.h>
 #endif
 
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
+
 
 // N^-1 * prime_scale^-8
 const int32_t MSRLN_Ninv8_ntt1024_12289 = 8350;
@@ -383,12 +386,12 @@ static __inline uint32_t LDDecode(int32_t* t)
     uint32_t mask1, mask2, value;
     int32_t cneg = -8*PARAMETER_Q;
     
-	for (i = 0; i < 4; i++) { 
+    for (i = 0; i < 4; i++) { 
         mask1 = t[i] >> 31;                                    // If t[i] < 0 then mask2 = 0xff...ff, else mask2 = 0
         mask2 = (4*PARAMETER_Q - (int32_t)Abs(t[i])) >> 31;    // If 4*PARAMETER_Q > Abs(t[i]) then mask2 = 0, else mask2 = 0xff...ff
 
         value = ((mask1 & (8*PARAMETER_Q ^ cneg)) ^ cneg);
-		norm += Abs(t[i] + (mask2 & value));
+        norm += Abs(t[i] + (mask2 & value));
     }
 
     return ((8*PARAMETER_Q - norm) >> 31) ^ 1;                 // If norm < PARAMETER_Q then return 1, else return 0
@@ -464,9 +467,21 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
     uint16_t val;
     unsigned int nblocks = 16;
     uint8_t buf[SHAKE128_RATE * 16]; // was * nblocks, but VS doesn't like this buf init
-    uint64_t state[SHA3_STATESIZE] = {0};
-    shake128_absorb(state, seed, SEED_BYTES);
-    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+    Keccak_HashInstance ks;
+
+//    uint64_t state[SHA3_STATESIZE] = {0};
+//    shake128_absorb(state, seed, SEED_BYTES);
+//    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+
+    /*#ifdef _WIN32
+        SHAKE128_InitAbsorb( &ks, seed, SEED_BYTES );
+        KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
+    #else */
+        Keccak_HashInitialize_SHAKE128(&ks);
+        Keccak_HashUpdate( &ks, seed, SEED_BYTES * 8 );
+        Keccak_HashFinal( &ks, seed );
+        Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
+    //#endif
 
     while (ctr < PARAMETER_N) {
         val = (buf[pos] | ((uint16_t) buf[pos + 1] << 8)) & 0x3fff;
@@ -476,7 +491,12 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
         pos += 2;
         if (pos > SHAKE128_RATE * nblocks - 2) {
             nblocks = 1;
-            shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+//            shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+            #ifdef _WIN32
+                KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
+            #else
+                Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
+            #endif
             pos = 0;
         }
     }

@@ -58,7 +58,7 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     size_t l_outi_size = (l_out_size_max + 3) / 4;
 
     uint32_t l_outi[l_outi_size];
-    memzero(l_outi,l_outi_size*sizeof(uint32_t));
+    memset(l_outi, 0, l_outi_size*sizeof(uint32_t));
     uint64_t t;
     uint32_t c;
     size_t i, j;
@@ -163,7 +163,7 @@ size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out)
 
     size = (a_in_size - zcount) * 138 / 100 + 1;
     uint8_t buf[size];
-    memzero(buf, size);
+    memset(buf, 0, size);
 
     for (i = zcount, high = size - 1; i < (ssize_t)a_in_size; ++i, high = j)
     {

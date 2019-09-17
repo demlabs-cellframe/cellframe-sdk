@@ -389,9 +389,9 @@ void hash_vm(unsigned char *c_bin, poly_k *v, const unsigned char *m, unsigned l
     memcpy(&t[p->PARAM_K * p->PARAM_N], m, mlen);
 
     if(p->kind == 0 || p->kind == 3)
-        shake128(c_bin, CRYPTO_C_BYTES, t, p->PARAM_K * p->PARAM_N + mlen);
+        SHAKE128(c_bin, CRYPTO_C_BYTES, t, p->PARAM_K * p->PARAM_N + mlen);
     else
-        shake256(c_bin, CRYPTO_C_BYTES, t, p->PARAM_K * p->PARAM_N + mlen);
+        SHAKE256(c_bin, CRYPTO_C_BYTES, t, p->PARAM_K * p->PARAM_N + mlen);
 
     free(t);
     t = NULL;
@@ -604,11 +604,14 @@ void tesla_public_key_delete(tesla_public_key_t *public_key)
 }
 
 void tesla_private_and_public_keys_delete(tesla_private_key_t *private_key, tesla_public_key_t *public_key){
-
-    free(private_key->data);
-    private_key->data = NULL;
-    free(public_key->data);
-    public_key->data = NULL;
+    if(private_key) {
+        free(private_key->data);
+        private_key->data = NULL;
+    }
+    if(public_key) {
+        free(public_key->data);
+        public_key->data = NULL;
+    }
 }
 
 /********************************************************************************************/
@@ -664,9 +667,9 @@ int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_
     randombytes(randomness, CRYPTO_RANDOMBYTES);
 
     if(p->kind == 0 || p->kind == 3)
-        shake128(randomness_extended, ((p->PARAM_K) + 3) * CRYPTO_SEEDBYTES, randomness, CRYPTO_RANDOMBYTES);
+        SHAKE128(randomness_extended, ((p->PARAM_K) + 3) * CRYPTO_SEEDBYTES, randomness, CRYPTO_RANDOMBYTES);
     else
-        shake256(randomness_extended, ((p->PARAM_K) + 3) * CRYPTO_SEEDBYTES, randomness, CRYPTO_RANDOMBYTES);
+        SHAKE256(randomness_extended, ((p->PARAM_K) + 3) * CRYPTO_SEEDBYTES, randomness, CRYPTO_RANDOMBYTES);
 
     poly *s = malloc(p->PARAM_N * sizeof(int64_t));
     poly *s_ntt = malloc(p->PARAM_N * sizeof(int64_t));
@@ -766,9 +769,9 @@ int tesla_crypto_sign( tesla_signature_t *sig, const unsigned char *m, unsigned 
     memcpy(randomness_input + CRYPTO_RANDOMBYTES + CRYPTO_SEEDBYTES, m, mlen);
 
     if(p->kind == 0 || p->kind == 3)
-        shake128(randomness, CRYPTO_SEEDBYTES, randomness_input, CRYPTO_RANDOMBYTES + CRYPTO_SEEDBYTES + mlen);
+        SHAKE128(randomness, CRYPTO_SEEDBYTES, randomness_input, CRYPTO_RANDOMBYTES + CRYPTO_SEEDBYTES + mlen);
     else
-        shake256(randomness, CRYPTO_SEEDBYTES, randomness_input, CRYPTO_RANDOMBYTES + CRYPTO_SEEDBYTES + mlen);
+        SHAKE256(randomness, CRYPTO_SEEDBYTES, randomness_input, CRYPTO_RANDOMBYTES + CRYPTO_SEEDBYTES + mlen);
 
     uint32_t *pos_list = malloc(p->PARAM_W * sizeof(uint32_t));
     int16_t *sign_list = malloc(p->PARAM_W * sizeof(uint16_t));

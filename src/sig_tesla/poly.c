@@ -12,14 +12,14 @@ int64_t reduce(int64_t a, tesla_param_t *p) { // Montgomery reduction
 
     u = (a * (int64_t)(p->PARAM_QINV)) & 0xFFFFFFFF;
     u *= (int64_t)(p->PARAM_Q);
-	a += u;
-	return a >> 32;
+    a += u;
+    return a >> 32;
 }
 
 int64_t barr_reduce(int64_t a, tesla_param_t *p) { // Barrett reduction
 
     int64_t u = ((a * (int64_t)(p->PARAM_BARR_MULT)) >> (int64_t)(p->PARAM_BARR_DIV)) * (int64_t)(p->PARAM_Q);
-	return a - u;
+    return a - u;
 }
 
 void ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
@@ -27,11 +27,11 @@ void ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
     int  Par_Q = (int)(p->PARAM_Q);
     int NumoProblems = p->PARAM_N >> 1, jTwiddle = 0;
 
-	for (; NumoProblems > 0; NumoProblems >>= 1) {
-	    uint32_t jFirst, j = 0;
+    for (; NumoProblems > 0; NumoProblems >>= 1) {
+        uint32_t jFirst, j = 0;
         for (jFirst = 0; jFirst < p->PARAM_N; jFirst = j + NumoProblems) {
-			int W = w[jTwiddle++];
-			for (j = jFirst; j < jFirst + NumoProblems; j++) {
+            int W = w[jTwiddle++];
+            for (j = jFirst; j < jFirst + NumoProblems; j++) {
                 if(p->kind <= 3) {
                     int temp = reduce(W * a[j + NumoProblems], p);
                     a[j + NumoProblems] = a[j] + (Par_Q - temp);
@@ -42,8 +42,8 @@ void ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
                     a[j + NumoProblems] = barr_reduce(a[j] + (2LL * Par_Q - temp), p);
                     a[j] = barr_reduce(temp + a[j], p);
                 }
-			}
-		}
+            }
+        }
     }
 }
 
@@ -93,7 +93,7 @@ void nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
                 }
             }
         }
-	}
+    }
 }
 
 void poly_pointwise(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Pointwise polynomial multiplication result = x.y
@@ -113,7 +113,7 @@ void poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p) { // Call to NTT fun
     init_mass_poly( zeta, zetainv, p);
 
     for (i = 0; i < p->PARAM_N; i++)
-		x_ntt[i] = x[i];
+        x_ntt[i] = x[i];
     ntt(x_ntt, zeta, p);
 
     free(zeta);
@@ -123,7 +123,7 @@ void poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p) { // Call to NTT fun
 }
 
 void poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial multiplication result = x*y, with in place reduction for (X^N+1)
-	// The inputs x and y are assumed to be in NTT form
+    // The inputs x and y are assumed to be in NTT form
 
     poly *zeta = malloc(p->PARAM_N * sizeof(int64_t));
     poly *zetainv = malloc(p->PARAM_N * sizeof(int64_t));
@@ -158,7 +158,7 @@ void poly_add(poly *result, const poly *x, const poly *y, tesla_param_t *p) { //
     unsigned int i;
 
     for (i = 0; i < p->PARAM_N; i++)
-		result[i] = x[i] + y[i];
+        result[i] = x[i] + y[i];
 }
 
 void poly_sub(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial subtraction result = x-y
@@ -180,24 +180,27 @@ void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
     unsigned int nblocks = p->PARAM_GEN_A;
     uint32_t val1, val2, val3, val4, mask = (uint32_t)(1 << p->PARAM_Q_LOG) - 1;
     unsigned char *buf = malloc(SHAKE128_RATE * nblocks * sizeof(char));
-	uint16_t dmsp = 0;
+    uint16_t dmsp = 0;
 
-    cshake128_simple( buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
-
+//    cshake128_simple( buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
+  cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, buf, SHAKE128_RATE * nblocks * 8, NULL, 0, &dmsp, 16 );
+  ++ dmsp;
     while (i < p->PARAM_K * p->PARAM_N) {
-		if (pos > SHAKE128_RATE * nblocks - 4 * nbytes) {
-			nblocks = 1;
-			cshake128_simple(buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
-			pos = 0;
-		}
-		val1 = (*(uint32_t *) (buf + pos)) & mask;
-		pos += nbytes;
-		val2 = (*(uint32_t *) (buf + pos)) & mask;
-		pos += nbytes;
-		val3 = (*(uint32_t *) (buf + pos)) & mask;
-		pos += nbytes;
-		val4 = (*(uint32_t *) (buf + pos)) & mask;
-		pos += nbytes;
+        if (pos > SHAKE128_RATE * nblocks - 4 * nbytes) {
+            nblocks = 1;
+//            cshake128_simple(buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
+          cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, buf, SHAKE128_RATE * nblocks * 8, NULL, 0, &dmsp, 16 );
+          ++ dmsp;
+            pos = 0;
+        }
+        val1 = (*(uint32_t *) (buf + pos)) & mask;
+        pos += nbytes;
+        val2 = (*(uint32_t *) (buf + pos)) & mask;
+        pos += nbytes;
+        val3 = (*(uint32_t *) (buf + pos)) & mask;
+        pos += nbytes;
+        val4 = (*(uint32_t *) (buf + pos)) & mask;
+        pos += nbytes;
         if (val1 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
             a[i++] = reduce((int64_t) val1 * p->PARAM_R2_INVN, p);
         if (val2 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
@@ -206,7 +209,7 @@ void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
             a[i++] = reduce((int64_t) val3 * p->PARAM_R2_INVN, p);
         if (val4 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
             a[i++] = reduce((int64_t) val4 * p->PARAM_R2_INVN, p);
-	}
+    }
     free(buf);
     buf = NULL;
 }
