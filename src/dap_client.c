@@ -239,7 +239,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
             case STAGE_STATUS_DONE:
             case STAGE_STATUS_ERROR:
             default: {
-                log_it(L_DEBUG, "Start transitions chain to %"
+                log_it(L_DEBUG, "Start transitions chain to %s"
                        ,dap_client_stage_str(l_client_internal->stage_target) );
                 int step = (a_stage_target > l_client_internal->stage)?1:-1;
                 dap_client_pvt_stage_transaction_begin(l_client_internal,
