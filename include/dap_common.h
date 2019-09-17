@@ -127,18 +127,20 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #define DAP_PROTOCOL_VERSION  22
 
+#ifndef _WIN32
 #ifndef MAX
-  #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 #ifndef MIN
-  #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
 #ifndef min
-  #define min MIN
+#define min MIN
 #endif
 #ifndef max
-  #define max MAX
+#define max MAX
+#endif
 #endif
 
 #ifndef LOWORD

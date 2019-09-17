@@ -7,6 +7,11 @@ darwin {
     include(src/darwin/darwin.pri)
 }
 
+win32 {
+    include(src/win32/win32.pri)
+    LIBS += -lpsapi
+}
+
 HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_config.h \
     $$PWD/include/dap_math_ops.h \
