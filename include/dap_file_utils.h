@@ -62,7 +62,7 @@ bool dap_valid_ascii_symbols(const char *a_dir_path);
  * @a_file_path filename pathname
  * @return true, if file exists
  */
-bool dap_file_test(const char * a_file_path)
+bool dap_file_test(const char * a_file_path);
 
 /**
  * Check the directory for exists
