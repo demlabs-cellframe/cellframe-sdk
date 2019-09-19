@@ -142,6 +142,7 @@ uint32_t ansi_seq_color_len[ 16 ];
 static char s_last_error[LAST_ERROR_MAX] = {0};
 static enum dap_log_level dap_log_level = L_DEBUG;
 static FILE *s_log_file = NULL;
+static char *s_log_file_path = NULL;
 static char log_tag_fmt_str[10];
 
 #ifdef DAP_LOG_HISTORY
@@ -307,6 +308,9 @@ int dap_common_init( const char *console_title, const char *a_log_file )
         dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_file );
         return -1;
     }
+    if(s_log_file_path)
+        DAP_DELETE(s_log_file_path);
+    s_log_file_path = dap_strdup(a_log_file);
 
     log_page = 0;
     log_outindex = 0;
@@ -335,6 +339,11 @@ void dap_common_deinit( )
 
     if ( s_log_file )
         fclose( s_log_file );
+
+    if(s_log_file_path){
+        DAP_DELETE(s_log_file_path);
+        s_log_file_path = NULL;
+    }
 
     if ( temp_buffer ) 
         DAP_FREE( temp_buffer );
@@ -581,8 +590,16 @@ static void  *log_thread_proc( void *arg )
                 fwrite( logstr->str, logstr->len, 1, stdout );
             #endif
             #endif
-            if ( s_log_file )
-                fwrite( logstr->str, logstr->len, 1, s_log_file );
+            if(s_log_file) {
+                if(!dap_file_test(s_log_file_path)) {
+                    fclose(s_log_file);
+                    s_log_file = fopen(s_log_file_path, "a");
+                }
+                if(s_log_file) {
+                    fwrite(logstr->str, logstr->len, 1, s_log_file);
+                    fflush(s_log_file);
+                }
+            }
 
 //            fwrite( "1234567890", 5, 1, stdout );
 
