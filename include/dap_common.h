@@ -90,6 +90,10 @@
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
 #endif
 
+#ifndef MAX_PATH
+#define MAX_PATH 120
+#endif
+
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
     uintptr_t ptr = (uintptr_t) DAP_MALLOC( size + (alignment * 2) + sizeof(void *) );
