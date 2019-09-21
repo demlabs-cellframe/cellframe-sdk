@@ -21,16 +21,6 @@ Please refer to LowLevel.build for the exact list of other files it must be comb
 #include <stdlib.h>
 #include <string.h>
 #include <x86intrin.h>
-//    #include <x86intrin.h>
-
-//#include <smmintrin.h>
-//#include <wmmintrin.h>
-//#include <immintrin.h>
-//#include <emmintrin.h>
-
-//    #include <mmintrin.h>
-//    #include <emmintrin.h>
-
 #include "align.h"
 #include "KeccakP-1600-times2-SnP.h"
 #include "SIMD128-config.h"

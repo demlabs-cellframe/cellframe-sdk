@@ -1,9 +1,8 @@
     .file   "KeccakP-1600-opt64.c"
     .text
-   	.section	.text$KeccakP1600_StaticInitialize,"x"
     .p2align 4,,15
     .globl  KeccakP1600_StaticInitialize
-    #.type   KeccakP1600_StaticInitialize, @function
+    .type   KeccakP1600_StaticInitialize, @function
 KeccakP1600_StaticInitialize:
 .LFB22:
     .cfi_startproc
@@ -11,11 +10,10 @@ KeccakP1600_StaticInitialize:
     ret
     .cfi_endproc
 .LFE22:
-    #.size   KeccakP1600_StaticInitialize, .-KeccakP1600_StaticInitialize
-   	.section	.text$KeccakP1600_Initialize,"x"
+    .size   KeccakP1600_StaticInitialize, .-KeccakP1600_StaticInitialize
     .p2align 4,,15
     .globl  KeccakP1600_Initialize
-    #.type   KeccakP1600_Initialize, @function
+    .type   KeccakP1600_Initialize, @function
 KeccakP1600_Initialize:
 .LFB23:
     .cfi_startproc
@@ -79,10 +77,10 @@ KeccakP1600_Initialize:
     jmp .L5
     .cfi_endproc
 .LFE23:
-    #.size   KeccakP1600_Initialize, .-KeccakP1600_Initialize
+    .size   KeccakP1600_Initialize, .-KeccakP1600_Initialize
     .p2align 4,,15
     .globl  KeccakP1600_AddBytesInLane
-    #.type   KeccakP1600_AddBytesInLane, @function
+    .type   KeccakP1600_AddBytesInLane, @function
 KeccakP1600_AddBytesInLane:
 .LFB24:
     .cfi_startproc
@@ -131,10 +129,10 @@ KeccakP1600_AddBytesInLane:
     jmp .L34
     .cfi_endproc
 .LFE24:
-    #.size   KeccakP1600_AddBytesInLane, .-KeccakP1600_AddBytesInLane
+    .size   KeccakP1600_AddBytesInLane, .-KeccakP1600_AddBytesInLane
     .p2align 4,,15
     .globl  KeccakP1600_AddLanes
-    #.type   KeccakP1600_AddLanes, @function
+    .type   KeccakP1600_AddLanes, @function
 KeccakP1600_AddLanes:
 .LFB25:
     .cfi_startproc
@@ -244,10 +242,10 @@ KeccakP1600_AddLanes:
     jmp .L45
     .cfi_endproc
 .LFE25:
-    #.size   KeccakP1600_AddLanes, .-KeccakP1600_AddLanes
+    .size   KeccakP1600_AddLanes, .-KeccakP1600_AddLanes
     .p2align 4,,15
     .globl  KeccakP1600_AddByte
-    #.type   KeccakP1600_AddByte, @function
+    .type   KeccakP1600_AddByte, @function
 KeccakP1600_AddByte:
 .LFB26:
     .cfi_startproc
@@ -261,10 +259,10 @@ KeccakP1600_AddByte:
     ret
     .cfi_endproc
 .LFE26:
-    #.size   KeccakP1600_AddByte, .-KeccakP1600_AddByte
+    .size   KeccakP1600_AddByte, .-KeccakP1600_AddByte
     .p2align 4,,15
     .globl  KeccakP1600_AddBytes
-    #.type   KeccakP1600_AddBytes, @function
+    .type   KeccakP1600_AddBytes, @function
 KeccakP1600_AddBytes:
 .LFB27:
     .cfi_startproc
@@ -377,10 +375,10 @@ KeccakP1600_AddBytes:
     jmp .L66
     .cfi_endproc
 .LFE27:
-    #.size   KeccakP1600_AddBytes, .-KeccakP1600_AddBytes
+    .size   KeccakP1600_AddBytes, .-KeccakP1600_AddBytes
     .p2align 4,,15
     .globl  KeccakP1600_OverwriteBytesInLane
-    #.type   KeccakP1600_OverwriteBytesInLane, @function
+    .type   KeccakP1600_OverwriteBytesInLane, @function
 KeccakP1600_OverwriteBytesInLane:
 .LFB28:
     .cfi_startproc
@@ -430,10 +428,10 @@ KeccakP1600_OverwriteBytesInLane:
     jmp memcpy
     .cfi_endproc
 .LFE28:
-    #.size   KeccakP1600_OverwriteBytesInLane, .-KeccakP1600_OverwriteBytesInLane
+    .size   KeccakP1600_OverwriteBytesInLane, .-KeccakP1600_OverwriteBytesInLane
     .p2align 4,,15
     .globl  KeccakP1600_OverwriteLanes
-    #.type   KeccakP1600_OverwriteLanes, @function
+    .type   KeccakP1600_OverwriteLanes, @function
 KeccakP1600_OverwriteLanes:
 .LFB29:
     .cfi_startproc
@@ -478,10 +476,10 @@ KeccakP1600_OverwriteLanes:
     ret
     .cfi_endproc
 .LFE29:
-    #.size   KeccakP1600_OverwriteLanes, .-KeccakP1600_OverwriteLanes
+    .size   KeccakP1600_OverwriteLanes, .-KeccakP1600_OverwriteLanes
     .p2align 4,,15
     .globl  KeccakP1600_OverwriteBytes
-    #.type   KeccakP1600_OverwriteBytes, @function
+    .type   KeccakP1600_OverwriteBytes, @function
 KeccakP1600_OverwriteBytes:
 .LFB30:
     .cfi_startproc
@@ -695,10 +693,10 @@ KeccakP1600_OverwriteBytes:
     jmp .L110
     .cfi_endproc
 .LFE30:
-    #.size   KeccakP1600_OverwriteBytes, .-KeccakP1600_OverwriteBytes
+    .size   KeccakP1600_OverwriteBytes, .-KeccakP1600_OverwriteBytes
     .p2align 4,,15
     .globl  KeccakP1600_OverwriteWithZeroes
-    #.type   KeccakP1600_OverwriteWithZeroes, @function
+    .type   KeccakP1600_OverwriteWithZeroes, @function
 KeccakP1600_OverwriteWithZeroes:
 .LFB31:
     .cfi_startproc
@@ -774,10 +772,10 @@ KeccakP1600_OverwriteWithZeroes:
     ret
     .cfi_endproc
 .LFE31:
-    #.size   KeccakP1600_OverwriteWithZeroes, .-KeccakP1600_OverwriteWithZeroes
+    .size   KeccakP1600_OverwriteWithZeroes, .-KeccakP1600_OverwriteWithZeroes
     .p2align 4,,15
     .globl  KeccakP1600_Permute_24rounds
-    #.type   KeccakP1600_Permute_24rounds, @function
+    .type   KeccakP1600_Permute_24rounds, @function
 KeccakP1600_Permute_24rounds:
 .LFB32:
     .cfi_startproc
@@ -8217,10 +8215,10 @@ KeccakP1600_Permute_24rounds:
     ret
     .cfi_endproc
 .LFE32:
-    #.size   KeccakP1600_Permute_24rounds, .-KeccakP1600_Permute_24rounds
+    .size   KeccakP1600_Permute_24rounds, .-KeccakP1600_Permute_24rounds
     .p2align 4,,15
     .globl  KeccakP1600_Permute_12rounds
-    #.type   KeccakP1600_Permute_12rounds, @function
+    .type   KeccakP1600_Permute_12rounds, @function
 KeccakP1600_Permute_12rounds:
 .LFB33:
     .cfi_startproc
@@ -11945,10 +11943,10 @@ KeccakP1600_Permute_12rounds:
     ret
     .cfi_endproc
 .LFE33:
-    #.size   KeccakP1600_Permute_12rounds, .-KeccakP1600_Permute_12rounds
+    .size   KeccakP1600_Permute_12rounds, .-KeccakP1600_Permute_12rounds
     .p2align 4,,15
     .globl  KeccakP1600_ExtractBytesInLane
-    #.type   KeccakP1600_ExtractBytesInLane, @function
+    .type   KeccakP1600_ExtractBytesInLane, @function
 KeccakP1600_ExtractBytesInLane:
 .LFB34:
     .cfi_startproc
@@ -11991,10 +11989,10 @@ KeccakP1600_ExtractBytesInLane:
     jmp .L162
     .cfi_endproc
 .LFE34:
-    #.size   KeccakP1600_ExtractBytesInLane, .-KeccakP1600_ExtractBytesInLane
+    .size   KeccakP1600_ExtractBytesInLane, .-KeccakP1600_ExtractBytesInLane
     .p2align 4,,15
     .globl  KeccakP1600_ExtractLanes
-    #.type   KeccakP1600_ExtractLanes, @function
+    .type   KeccakP1600_ExtractLanes, @function
 KeccakP1600_ExtractLanes:
 .LFB35:
     .cfi_startproc
@@ -12038,10 +12036,10 @@ KeccakP1600_ExtractLanes:
     ret
     .cfi_endproc
 .LFE35:
-    #.size   KeccakP1600_ExtractLanes, .-KeccakP1600_ExtractLanes
+    .size   KeccakP1600_ExtractLanes, .-KeccakP1600_ExtractLanes
     .p2align 4,,15
     .globl  KeccakP1600_ExtractBytes
-    #.type   KeccakP1600_ExtractBytes, @function
+    .type   KeccakP1600_ExtractBytes, @function
 KeccakP1600_ExtractBytes:
 .LFB36:
     .cfi_startproc
@@ -12204,10 +12202,10 @@ KeccakP1600_ExtractBytes:
     jmp .L180
     .cfi_endproc
 .LFE36:
-    #.size   KeccakP1600_ExtractBytes, .-KeccakP1600_ExtractBytes
+    .size   KeccakP1600_ExtractBytes, .-KeccakP1600_ExtractBytes
     .p2align 4,,15
     .globl  KeccakP1600_ExtractAndAddBytesInLane
-    #.type   KeccakP1600_ExtractAndAddBytesInLane, @function
+    .type   KeccakP1600_ExtractAndAddBytesInLane, @function
 KeccakP1600_ExtractAndAddBytesInLane:
 .LFB37:
     .cfi_startproc
@@ -12263,10 +12261,10 @@ KeccakP1600_ExtractAndAddBytesInLane:
     jmp .L193
     .cfi_endproc
 .LFE37:
-    #.size   KeccakP1600_ExtractAndAddBytesInLane, .-KeccakP1600_ExtractAndAddBytesInLane
+    .size   KeccakP1600_ExtractAndAddBytesInLane, .-KeccakP1600_ExtractAndAddBytesInLane
     .p2align 4,,15
     .globl  KeccakP1600_ExtractAndAddLanes
-    #.type   KeccakP1600_ExtractAndAddLanes, @function
+    .type   KeccakP1600_ExtractAndAddLanes, @function
 KeccakP1600_ExtractAndAddLanes:
 .LFB38:
     .cfi_startproc
@@ -12352,10 +12350,10 @@ KeccakP1600_ExtractAndAddLanes:
     jmp .L213
     .cfi_endproc
 .LFE38:
-    #.size   KeccakP1600_ExtractAndAddLanes, .-KeccakP1600_ExtractAndAddLanes
+    .size   KeccakP1600_ExtractAndAddLanes, .-KeccakP1600_ExtractAndAddLanes
     .p2align 4,,15
     .globl  KeccakP1600_ExtractAndAddBytes
-    #.type   KeccakP1600_ExtractAndAddBytes, @function
+    .type   KeccakP1600_ExtractAndAddBytes, @function
 KeccakP1600_ExtractAndAddBytes:
 .LFB39:
     .cfi_startproc
@@ -12562,10 +12560,10 @@ KeccakP1600_ExtractAndAddBytes:
     jmp .L243
     .cfi_endproc
 .LFE39:
-    #.size   KeccakP1600_ExtractAndAddBytes, .-KeccakP1600_ExtractAndAddBytes
+    .size   KeccakP1600_ExtractAndAddBytes, .-KeccakP1600_ExtractAndAddBytes
     .p2align 4,,15
     .globl  KeccakF1600_FastLoop_Absorb
-    #.type   KeccakF1600_FastLoop_Absorb, @function
+    .type   KeccakF1600_FastLoop_Absorb, @function
 KeccakF1600_FastLoop_Absorb:
 .LFB40:
     .cfi_startproc
@@ -20324,6 +20322,6 @@ KeccakF1600_FastLoop_Absorb:
     jmp .L255
     .cfi_endproc
 .LFE40:
-    #.size   KeccakF1600_FastLoop_Absorb, .-KeccakF1600_FastLoop_Absorb
-#    .ident  "GCC: (SUSE Linux) 4.7.4"
-#    .section    .note.GNU-stack,"",@progbits
+    .size   KeccakF1600_FastLoop_Absorb, .-KeccakF1600_FastLoop_Absorb
+    .ident  "GCC: (SUSE Linux) 4.7.4"
+    .section    .note.GNU-stack,"",@progbits
