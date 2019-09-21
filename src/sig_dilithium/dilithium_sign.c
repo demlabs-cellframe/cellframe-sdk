@@ -42,15 +42,10 @@ void challenge(poly *c, const unsigned char mu[CRHBYTES], const polyveck *w1, di
 //    shake256_absorb(state, inbuf, sizeof(inbuf));
 //    shake256_squeezeblocks(outbuf, 1, state);
 
-    #ifdef _WIN32
-        SHAKE256_InitAbsorb( &ks, inbuf, sizeof(inbuf) );
-        KECCAK_HashSqueeze( &ks, outbuf, 1 * 8 );
-    #else
-        Keccak_HashInitialize_SHAKE256( &ks );
-        Keccak_HashUpdate( &ks, inbuf, sizeof(inbuf) * 8 );
-        Keccak_HashFinal( &ks, inbuf );
-        Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
-    #endif
+    Keccak_HashInitialize_SHAKE256( &ks );
+    Keccak_HashUpdate( &ks, inbuf, sizeof(inbuf) * 8 );
+    Keccak_HashFinal( &ks, inbuf );
+    Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
 
     signs = 0;
     for(i = 0; i < 8; ++i)
@@ -64,18 +59,13 @@ void challenge(poly *c, const unsigned char mu[CRHBYTES], const polyveck *w1, di
 
     for(i = 196; i < 256; ++i) {
         do {
-        if(pos >= SHAKE256_RATE) {
-//            shake256_squeezeblocks(outbuf, 1, state);
-            #ifdef _WIN32
-                KECCAK_HashSqueeze( &ks, outbuf, 1 * 8 );
-            #else
+            if(pos >= SHAKE256_RATE) {
+//              shake256_squeezeblocks(outbuf, 1, state);
                 Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
-            #endif
+                pos = 0;
+            }
 
-            pos = 0;
-        }
-
-        b = outbuf[pos++];
+            b = outbuf[pos++];
         } while(b > i);
 
         c->coeffs[i] = c->coeffs[b];

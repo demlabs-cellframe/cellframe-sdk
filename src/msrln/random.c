@@ -18,15 +18,10 @@ CRYPTO_MSRLN_STATUS MSRLN_generate_a(const unsigned char* seed, unsigned int see
 //    shake128_absorb(state, seed, seed_nbytes);
 //    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
 
-   /* #ifdef _WIN32
-        SHAKE128_InitAbsorb( &ks, seed, seed_nbytes );
-        KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
-    #else */
-        Keccak_HashInitialize_SHAKE128(&ks);
-        Keccak_HashUpdate( &ks, seed, seed_nbytes * 8 );
-        Keccak_HashFinal( &ks, seed );
-        Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
-    //#endif
+    Keccak_HashInitialize_SHAKE128(&ks);
+    Keccak_HashUpdate( &ks, seed, seed_nbytes * 8 );
+    Keccak_HashFinal( &ks, seed );
+    Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
 
     while (ctr < array_ndigits) {
         val = (buf[pos] | ((uint16_t) buf[pos + 1] << 8)) & 0x3fff;
@@ -36,12 +31,8 @@ CRYPTO_MSRLN_STATUS MSRLN_generate_a(const unsigned char* seed, unsigned int see
         pos += 2;
         if (pos > SHAKE128_RATE * nblocks - 2) {
             nblocks = 1;
-//            shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
-            #ifdef _WIN32
-                KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
-            #else
-                Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
-            #endif
+//          shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+            Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
             pos = 0;
         }
     }

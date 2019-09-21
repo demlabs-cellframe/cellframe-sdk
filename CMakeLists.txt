@@ -75,7 +75,7 @@ file( GLOB XKCP_SRCS
 
 if(WIN32)
   if(BUILD_64)
-    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/win32/KeccakP-1600-x86-64-gas.s )
+    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/KeccakP-1600-x86-64-gas.s )
   else()
     file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Inplace32BI/KeccakP-1600-inplace32BI.c )
   endif()
@@ -117,8 +117,8 @@ target_include_directories(dap_crypto PRIVATE
 if(WIN32)
   if(BUILD_64)
 
-    target_include_directories(dap_crypto INTERFACE src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/win32)
-    target_include_directories(dap_crypto PRIVATE src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/win32)
+    #target_include_directories(dap_crypto INTERFACE src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64)
+    target_include_directories(dap_crypto PUBLIC src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64)
 
     if(__AVX2__)
         target_include_directories(dap_crypto INTERFACE src/XKCP/lib/low/KeccakP-1600-times2/SIMD512)
