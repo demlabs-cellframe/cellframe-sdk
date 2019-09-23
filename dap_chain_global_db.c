@@ -37,7 +37,13 @@
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
 
+#ifdef WIN32
+#include "registry.h"
+#endif
+
 #define LOG_TAG "dap_global_db"
+
+#define DAP_APP_NAME NODE_NETNAME "-node"
 
 // for access from several streams
 //static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
@@ -166,7 +172,13 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
-    const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    char l_storage_path[MAX_PATH];
+#ifdef WIN32
+    dap_sprintf(l_storage_path, "%s/%s/%s", regGetUsrPath(), DAP_APP_NAME,
+                dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
+#else
+    dap_stpcpy(l_storage_path, dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
+#endif
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
     lock();
