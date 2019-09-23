@@ -18,7 +18,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #include "align.h"
 
 #define KCP_DeclareSpongeStructure(prefix, size, alignment) \
-    ALIGN(64) typedef struct prefix##_SpongeInstanceStruct { \
+    ALIGN(alignment) typedef struct prefix##_SpongeInstanceStruct { \
         unsigned char state[size]; \
         unsigned int rate; \
         unsigned int byteIOIndex; \

@@ -13762,4 +13762,4 @@ KeccakF1600_FastLoop_Absorb:
     .size   KeccakF1600_FastLoop_Absorb, .-KeccakF1600_FastLoop_Absorb
     .p2align 4,,15
     .ident  "GCC: (SUSE Linux) 4.7.4"
-#    .section    .note.GNU-stack,"",@progbits
+    .section    .note.GNU-stack,"",@progbits

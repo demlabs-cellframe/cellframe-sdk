@@ -491,12 +491,8 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
         pos += 2;
         if (pos > SHAKE128_RATE * nblocks - 2) {
             nblocks = 1;
-//            shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
-            #ifdef _WIN32
-                KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
-            #else
-                Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
-            #endif
+//          shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+            Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
             pos = 0;
         }
     }

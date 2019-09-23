@@ -62,11 +62,9 @@ The fragments below allow to select the desired implementation of the permutatio
 * optimized1600lcu6: same as optimized1600u6 but using the lane complementing technique, which is useful for platforms that do not have a "and not" instruction
 * optimized1600lcufull: same as optimized1600lcu6 but with all rounds unrolled
 * optimized1600lcufullshld: same as optimized1600lcufull but with the rotation implementation with the 'shld' instruction, as it is faster on some platforms (e.g., SandyBridge)
-
 * optimized1600AsmX86-64: an assembly-optimized implementation for x86_64
 * optimized1600AsmX86-64shld: same as optimized1600AsmX86-64, but with the 'shld' instruction
 * optimized1600AsmX86-64Apple: same as optimized1600AsmX86-64, but with a syntax that works better on some Apple platforms
-
 * optimized1600AVX2: an optimized implementation taking advantage of the AVX2 instruction set
 * optimized1600AVX512a: an optimized implementation taking advantage of the AVX512 instruction set (in assembler)
 * optimized1600AVX512c: an optimized implementation taking advantage of the AVX512 instruction set (in C)

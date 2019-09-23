@@ -22,16 +22,16 @@ Please refer to SnP-documentation.h for more details.
 
 /* void KeccakP1600_StaticInitialize( void ); */
 #define KeccakP1600_StaticInitialize()
-void KeccakP1600_Initialize(void *state);
+__attribute__((ms_abi)) void KeccakP1600_Initialize(void *state);
 /* void KeccakP1600_AddByte(void *state, unsigned char data, unsigned int offset); */
 #define KeccakP1600_AddByte(argS, argData, argOffset)   ((unsigned char*)argS)[argOffset] ^= (argData)
-void KeccakP1600_AddBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length);
-void KeccakP1600_OverwriteBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length);
-void KeccakP1600_OverwriteWithZeroes(void *state, unsigned int byteCount);
-void KeccakP1600_Permute_Nrounds(void *state, unsigned int nrounds);
-void KeccakP1600_Permute_12rounds(void *state);
-void KeccakP1600_Permute_24rounds(void *state);
-void KeccakP1600_ExtractBytes(const void *state, unsigned char *data, unsigned int offset, unsigned int length);
-void KeccakP1600_ExtractAndAddBytes(const void *state, const unsigned char *input, unsigned char *output, unsigned int offset, unsigned int length);
+__attribute__((ms_abi)) void KeccakP1600_AddBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length);
+__attribute__((ms_abi)) void KeccakP1600_OverwriteBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length);
+__attribute__((ms_abi)) void KeccakP1600_OverwriteWithZeroes(void *state, unsigned int byteCount);
+__attribute__((ms_abi)) void KeccakP1600_Permute_Nrounds(void *state, unsigned int nrounds);
+__attribute__((ms_abi)) void KeccakP1600_Permute_12rounds(void *state);
+__attribute__((ms_abi)) void KeccakP1600_Permute_24rounds(void *state);
+__attribute__((ms_abi)) void KeccakP1600_ExtractBytes(const void *state, unsigned char *data, unsigned int offset, unsigned int length);
+__attribute__((ms_abi)) void KeccakP1600_ExtractAndAddBytes(const void *state, const unsigned char *input, unsigned char *output, unsigned int offset, unsigned int length);
 
 #endif

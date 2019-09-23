@@ -474,7 +474,7 @@
     .if     InlinePerm == 1
     mKeccakPermutation24
     .else
-    callq   KeccakP1600_Permute_24rounds
+    callq   KeccakP1600_Permute_24rounds@PLT
     .endif
     .endm
 
@@ -560,10 +560,10 @@
 #
 # void KeccakP1600_StaticInitialize( void )
 #
-    .size   KeccakP1600_StaticInitialize, .-KeccakP1600_StaticInitialize
+    #.size   KeccakP1600_StaticInitialize, .-KeccakP1600_StaticInitialize
     .align  8
     .global KeccakP1600_StaticInitialize
-    .type   KeccakP1600_StaticInitialize, %function
+    .def  KeccakP1600_StaticInitialize; .scl 2; .type 32; .endef
 KeccakP1600_StaticInitialize:
     retq
 
@@ -571,10 +571,10 @@ KeccakP1600_StaticInitialize:
 #
 # void KeccakP1600_Initialize(void *state)
 #
-    .size   KeccakP1600_Initialize, .-KeccakP1600_Initialize
+    #.size   KeccakP1600_Initialize, .-KeccakP1600_Initialize
     .align  8
     .global KeccakP1600_Initialize
-    .type   KeccakP1600_Initialize, %function
+    .def   KeccakP1600_Initialize; .scl 2; .type 32; .endef
 KeccakP1600_Initialize:
     xorq    %rax, %rax
     xorq    %rcx, %rcx
@@ -633,10 +633,10 @@ KeccakP1600_Initialize:
 #
 # void KeccakP1600_AddByte(void *state, unsigned char data, unsigned int offset)
 #
-    .size   KeccakP1600_AddByte, .-KeccakP1600_AddByte
+    #.size   KeccakP1600_AddByte, .-KeccakP1600_AddByte
     .align  8
     .global KeccakP1600_AddByte
-    .type   KeccakP1600_AddByte, %function
+    .def KeccakP1600_AddByte; .scl 2; .type 32; .endef
 KeccakP1600_AddByte:
     addq    arg3, arg1
     mov     arg2, %rax
@@ -647,10 +647,10 @@ KeccakP1600_AddByte:
 #
 # void KeccakP1600_AddBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length)
 #
-    .size   KeccakP1600_AddBytes, .-KeccakP1600_AddBytes
+    #.size   KeccakP1600_AddBytes, .-KeccakP1600_AddBytes
     .align  8
     .global KeccakP1600_AddBytes
-    .type   KeccakP1600_AddBytes, %function
+    .def KeccakP1600_AddBytes; .scl 2; .type 32; .endef
 KeccakP1600_AddBytes:
     pushq   rT1e
     pushq   rT1i
@@ -743,13 +743,13 @@ KeccakLaneComplementTable:
 #
 # void KeccakP1600_OverwriteBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length)
 #
-    .size   KeccakP1600_OverwriteBytes, .-KeccakP1600_OverwriteBytes
+    #.size   KeccakP1600_OverwriteBytes, .-KeccakP1600_OverwriteBytes
     .align  8
     .global KeccakP1600_OverwriteBytes
-    .type   KeccakP1600_OverwriteBytes, %function
+    .def KeccakP1600_OverwriteBytes; .scl 2; .type 32; .endef
 KeccakP1600_OverwriteBytes:
     addq    arg3, arg1
-    leaq    KeccakLaneComplementTable, arg5
+    leaq    KeccakLaneComplementTable(%rip), arg5
     addq    arg3, arg5
     subq    $8, arg4
     jc      KeccakP1600_OverwriteBytes_Bytes
@@ -781,12 +781,12 @@ KeccakP1600_OverwriteBytes_Exit:
 #
 # void KeccakP1600_OverwriteWithZeroes(void *state, unsigned int byteCount)
 #
-    .size   KeccakP1600_OverwriteWithZeroes, .-KeccakP1600_OverwriteWithZeroes
+    #.size   KeccakP1600_OverwriteWithZeroes, .-KeccakP1600_OverwriteWithZeroes
     .align  8
     .global KeccakP1600_OverwriteWithZeroes
-    .type   KeccakP1600_OverwriteWithZeroes, %function
+    .def   KeccakP1600_OverwriteWithZeroes; .scl 2; .type 32; .endef
 KeccakP1600_OverwriteWithZeroes:
-    leaq    KeccakLaneComplementTable, arg5
+    leaq    KeccakLaneComplementTable(%rip), arg5
     subq    $8, arg2
     jc      KeccakP1600_OverwriteWithZeroes_Bytes
 KeccakP1600_OverwriteWithZeroes_LanesLoop:
@@ -815,13 +815,13 @@ KeccakP1600_OverwriteWithZeroes_Exit:
 #
 # void KeccakP1600_ExtractBytes(void *state, const unsigned char *data, unsigned int offset, unsigned int length)
 #
-    .size   KeccakP1600_ExtractBytes, .-KeccakP1600_ExtractBytes
+    #.size   KeccakP1600_ExtractBytes, .-KeccakP1600_ExtractBytes
     .align  8
     .global KeccakP1600_ExtractBytes
-    .type   KeccakP1600_ExtractBytes, %function
+    .def KeccakP1600_ExtractBytes; .scl 2; .type 32; .endef
 KeccakP1600_ExtractBytes:
     addq    arg3, arg1
-    leaq    KeccakLaneComplementTable, arg5
+    leaq    KeccakLaneComplementTable(%rip), arg5
     addq    arg3, arg5
     subq    $8, arg4
     jc      KeccakP1600_ExtractBytes_Bytes
@@ -853,13 +853,13 @@ KeccakP1600_ExtractBytes_Exit:
 #
 # void KeccakP1600_ExtractAndAddBytes(void *state, const unsigned char *input, unsigned char *output, unsigned int offset, unsigned int length)
 #
-    .size   KeccakP1600_ExtractAndAddBytes, .-KeccakP1600_ExtractAndAddBytes
+    #.size   KeccakP1600_ExtractAndAddBytes, .-KeccakP1600_ExtractAndAddBytes
     .align  8
     .global KeccakP1600_ExtractAndAddBytes
-    .type   KeccakP1600_ExtractAndAddBytes, %function
+    .def   KeccakP1600_ExtractAndAddBytes; .scl 2; .type 32; .endef
 KeccakP1600_ExtractAndAddBytes:
     addq    arg4, arg1
-    leaq    KeccakLaneComplementTable, arg6
+    leaq    KeccakLaneComplementTable(%rip), arg6
     addq    arg4, arg6
     subq    $8, arg5
     jc      KeccakP1600_ExtractAndAddBytes_Bytes
@@ -895,10 +895,10 @@ KeccakP1600_ExtractAndAddBytes_Exit:
 #
 # void KeccakP1600_Permute_Nrounds( void *state, unsigned int nrounds )
 #
-    .size   KeccakP1600_Permute_Nrounds, .-KeccakP1600_Permute_Nrounds
+    #.size   KeccakP1600_Permute_Nrounds, .-KeccakP1600_Permute_Nrounds
     .align  8
     .global KeccakP1600_Permute_Nrounds
-    .type   KeccakP1600_Permute_Nrounds, %function
+    .def   KeccakP1600_Permute_Nrounds; .scl 2; .type 32; .endef
 KeccakP1600_Permute_Nrounds:
     mPushRegs
     subq    $8*25, %rsp
@@ -980,7 +980,8 @@ KeccakP1600_Permute_Nrounds:
     movq    rT2a, _su(rpStack)
 KeccakP1600_Permute_Nrounds_Dispatch:
     shlq    $3, rT1
-    jmp     *KeccakP1600_Permute_NroundsTable-8(rT1)
+    leaq    KeccakP1600_Permute_NroundsTable-8(%rip), rT2a
+    jmp     *(rT1, rT2a)
 
 KeccakP1600_Permute_Nrounds24:
     mKeccakRound    rpState, rpStack, 0x0000000000000001, 0
@@ -1064,10 +1065,10 @@ KeccakP1600_Permute_NroundsTable:
 #
 # void KeccakP1600_Permute_12rounds( void *state )
 #
-    .size   KeccakP1600_Permute_12rounds, .-KeccakP1600_Permute_12rounds
+    #.size   KeccakP1600_Permute_12rounds, .-KeccakP1600_Permute_12rounds
     .align  8
     .global KeccakP1600_Permute_12rounds
-    .type   KeccakP1600_Permute_12rounds, %function
+    .def   KeccakP1600_Permute_12rounds; .scl 2; .type 32; .endef
 KeccakP1600_Permute_12rounds:
     mPushRegs
     mKeccakPermutation12
@@ -1078,10 +1079,10 @@ KeccakP1600_Permute_12rounds:
 #
 # void KeccakP1600_Permute_24rounds( void *state )
 #
-    .size   KeccakP1600_Permute_24rounds, .-KeccakP1600_Permute_24rounds
+    #.size   KeccakP1600_Permute_24rounds, .-KeccakP1600_Permute_24rounds
     .align  8
     .global KeccakP1600_Permute_24rounds
-    .type   KeccakP1600_Permute_24rounds, %function
+    .def  KeccakP1600_Permute_24rounds; .scl 2; .type 32; .endef
 KeccakP1600_Permute_24rounds:
     mPushRegs
     mKeccakPermutation24
@@ -1093,10 +1094,10 @@ KeccakP1600_Permute_24rounds:
 # size_t KeccakF1600_FastLoop_Absorb( void *state, unsigned int laneCount, unsigned char *data,
 #                                     size_t dataByteLen, unsigned char trailingBits )
 #
-    .size   KeccakF1600_FastLoop_Absorb, .-KeccakF1600_FastLoop_Absorb
+    #.size   KeccakF1600_FastLoop_Absorb, .-KeccakF1600_FastLoop_Absorb
     .align  8
     .global KeccakF1600_FastLoop_Absorb
-    .type   KeccakF1600_FastLoop_Absorb, %function
+    .def   KeccakF1600_FastLoop_Absorb; .scl 2; .type 32; .endef
 KeccakF1600_FastLoop_Absorb:
     mPushRegs
     pushq   arg3                        # save initial data pointer
@@ -1174,13 +1175,13 @@ KeccakF1600_FastLoop_Absorb_VariableLaneCountLoop:
     shlq    $3, arg4
     movq    arg3, arg2                  # data pointer
     xorq    arg3, arg3                  # offset = 0
-    callq   KeccakP1600_AddBytes   #  (void *state, const unsigned char *data, unsigned int offset, unsigned int length)
+    callq   KeccakP1600_AddBytes@PLT    #  (void *state, const unsigned char *data, unsigned int offset, unsigned int length)
     movq    arg2, arg3                  # updated data pointer
     movq    24(%rsp), rT1a              # xor trailingBits
     xorq    rT1a, (arg1)
     popq    arg1
     pushq   arg3
-    callq   KeccakP1600_Permute_24rounds
+    callq   KeccakP1600_Permute_24rounds@PLT
     popq    arg3
     popq    arg2
     popq    arg4

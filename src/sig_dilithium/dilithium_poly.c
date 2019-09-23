@@ -180,40 +180,31 @@ static unsigned int rej_eta(uint32_t *a, unsigned int len, const unsigned char *
 /*************************************************/
 void poly_uniform_eta(poly *a, const unsigned char seed[SEEDBYTES], unsigned char nonce, dilithium_param_t *p)
 {
-  unsigned int i, ctr;
-  unsigned char inbuf[SEEDBYTES + 1];
+    unsigned int i, ctr;
+    unsigned char inbuf[SEEDBYTES + 1];
 
-  unsigned char outbuf[2*SHAKE256_RATE];
+    unsigned char outbuf[2*SHAKE256_RATE];
 //  uint64_t state[25] = {0};
-  Keccak_HashInstance   ks;
+    Keccak_HashInstance   ks;
 
-  for(i= 0; i < SEEDBYTES; ++i)
-    inbuf[i] = seed[i];
-  inbuf[SEEDBYTES] = nonce;
+    for(i= 0; i < SEEDBYTES; ++i)
+        inbuf[i] = seed[i];
+    inbuf[SEEDBYTES] = nonce;
 
 //  shake256_absorb(state, inbuf, SEEDBYTES + 1);
 //  shake256_squeezeblocks(outbuf, 2, state);  
 
-    #ifdef _WIN32
-        SHAKE256_InitAbsorb( &ks, inbuf, SEEDBYTES + 1 );
-        KECCAK_HashSqueeze( &ks, outbuf, 2 * 8 );
-    #else
-        Keccak_HashInitialize_SHAKE256( &ks );
-        Keccak_HashUpdate( &ks, inbuf, (SEEDBYTES + 1) * 8 );
-        Keccak_HashFinal( &ks, inbuf );
-        Keccak_HashSqueeze( &ks, outbuf, 2 * 8 * 8 );
-    #endif
+    Keccak_HashInitialize_SHAKE256( &ks );
+    Keccak_HashUpdate( &ks, inbuf, (SEEDBYTES + 1) * 8 );
+    Keccak_HashFinal( &ks, inbuf );
+    Keccak_HashSqueeze( &ks, outbuf, 2 * 8 * 8 );
 
-  ctr = rej_eta(a->coeffs, NN, outbuf, 2*SHAKE256_RATE, p);
-  if(ctr < NN) {
-//    shake256_squeezeblocks(outbuf, 1, state);
-    #ifdef _WIN32
-        KECCAK_HashSqueeze( &ks, outbuf, 1 * 8 );
-    #else
+    ctr = rej_eta(a->coeffs, NN, outbuf, 2*SHAKE256_RATE, p);
+    if(ctr < NN) {
+//      shake256_squeezeblocks(outbuf, 1, state);
         Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
-    #endif
-    rej_eta(a->coeffs + ctr, NN - ctr, outbuf, SHAKE256_RATE, p);
-  }
+        rej_eta(a->coeffs + ctr, NN - ctr, outbuf, SHAKE256_RATE, p);
+    }
 }
 
 /*************************************************/
@@ -249,42 +240,33 @@ static unsigned int rej_gamma1m1(uint32_t *a, unsigned int len, const unsigned c
 /*************************************************/
 void poly_uniform_gamma1m1(poly *a, const unsigned char seed[SEEDBYTES + CRHBYTES], uint16_t nonce)
 {
-  unsigned int i, ctr;
-  unsigned char inbuf[SEEDBYTES + CRHBYTES + 2];
+    unsigned int i, ctr;
+    unsigned char inbuf[SEEDBYTES + CRHBYTES + 2];
 
-  unsigned char outbuf[5*SHAKE256_RATE];
+    unsigned char outbuf[5*SHAKE256_RATE];
 //  uint64_t state[25] = {0};
     Keccak_HashInstance ks;
 
-  for(i = 0; i < SEEDBYTES + CRHBYTES; ++i)
-    inbuf[i] = seed[i];
-  inbuf[SEEDBYTES + CRHBYTES] = nonce & 0xFF;
-  inbuf[SEEDBYTES + CRHBYTES + 1] = nonce >> 8;
+    for(i = 0; i < SEEDBYTES + CRHBYTES; ++i)
+        inbuf[i] = seed[i];
+    inbuf[SEEDBYTES + CRHBYTES] = nonce & 0xFF;
+    inbuf[SEEDBYTES + CRHBYTES + 1] = nonce >> 8;
 
 //  shake256_absorb(state, inbuf, SEEDBYTES + CRHBYTES + 2);
 //  shake256_squeezeblocks(outbuf, 5, state);
 
-    #ifdef _WIN32
-        SHAKE256_InitAbsorb( &ks, inbuf, SEEDBYTES + CRHBYTES + 2 );
-        KECCAK_HashSqueeze( &ks, outbuf, 5 * 8 );
-    #else
-        Keccak_HashInitialize_SHAKE128( &ks );
-        Keccak_HashUpdate( &ks, inbuf, (SEEDBYTES + CRHBYTES + 2) * 8 );
-        Keccak_HashFinal( &ks, inbuf );
-        Keccak_HashSqueeze( &ks, outbuf, 5 * 8 * 8 );
-    #endif
+    Keccak_HashInitialize_SHAKE128( &ks );
+    Keccak_HashUpdate( &ks, inbuf, (SEEDBYTES + CRHBYTES + 2) * 8 );
+    Keccak_HashFinal( &ks, inbuf );
+    Keccak_HashSqueeze( &ks, outbuf, 5 * 8 * 8 );
 
-  ctr = rej_gamma1m1(a->coeffs, NN, outbuf, 5*SHAKE256_RATE);
-  if(ctr < NN) {
+    ctr = rej_gamma1m1(a->coeffs, NN, outbuf, 5*SHAKE256_RATE);
+    if(ctr < NN) {
 
 //    shake256_squeezeblocks(outbuf, 1, state);
-    #ifdef _WIN32
-        KECCAK_HashSqueeze( &ks, outbuf, 1 * 8 );
-    #else
         Keccak_HashSqueeze( &ks, outbuf, 1 * 8 * 8 );
-    #endif
-    rej_gamma1m1(a->coeffs + ctr, NN - ctr, outbuf, SHAKE256_RATE);
-  }
+        rej_gamma1m1(a->coeffs + ctr, NN - ctr, outbuf, SHAKE256_RATE);
+    }
 }
 
 /*************************************************/
