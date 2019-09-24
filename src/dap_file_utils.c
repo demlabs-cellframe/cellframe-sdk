@@ -70,7 +70,7 @@ bool dap_file_test(const char * a_file_path)
     if(!a_file_path)
         return false;
 #ifdef _WIN32
-    int attr = GetFileAttributesA(a_dir_path);
+    int attr = GetFileAttributesA(a_file_path);
     if(attr != -1 && (attr & FILE_ATTRIBUTE_NORMAL))
         return true;
 #else
