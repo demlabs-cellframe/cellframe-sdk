@@ -1,32 +1,32 @@
 [submodule "libdap"]
 	path = libdap
-	url = https://github.com/kelvinblockchain/libdap
+	url = https://gitlab.demlabs.net/cellframe/libdap
 	branch = master
 [submodule "libdap-server-core"]
 	path = libdap-server-core
-	url = https://github.com/kelvinblockchain/libdap-server-core
+	url = https://gitlab.demlabs.net/cellframe/libdap-server-core
 	branch = master
 [submodule "libdap-server"]
 	path = libdap-server
-	url = https://github.com/kelvinblockchain/libdap-server
+	url = https://gitlab.demlabs.net/cellframe/libdap-server
 	branch = master
 [submodule "libdap-server-udp"]
 	path = libdap-server-udp
-	url = https://github.com/kelvinblockchain/libdap-server-udp
+	url = https://gitlab.demlabs.net/cellframe/libdap-server-udp
 	branch = master
 [submodule "test/libdap-test"]
 	path = test/libdap-test
-	url = https://github.com/kelvinblockchain/libdap-test
+	url = https://gitlab.demlabs.net/cellframe/libdap-test
 	branch = master
 [submodule "test/libdap-stream-ch"]
 	path = libdap-stream-ch
-	url = https://github.com/kelvinblockchain/libdap-stream-ch
+	url = https://gitlab.demlabs.net/cellframe/libdap-stream-ch
 	branch = master
 [submodule "libdap-stream-ch"]
 	path = libdap-stream-ch
-	url = https://github.com/kelvinblockchain/libdap-stream-ch
+	url = https://gitlab.demlabs.net/cellframe/libdap-stream-ch
 	branch = master
 [submodule "libdap-crypto"]
 	path = libdap-crypto
-	url = https://github.com/cellframe/libdap-crypto
+	url = https://gitlab.demlabs.net/cellframe/libdap-crypto
 	branch = master
