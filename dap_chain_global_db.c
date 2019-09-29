@@ -41,6 +41,10 @@
 #include "registry.h"
 #endif
 
+#ifndef MAX_PATH
+#define MAX_PATH 120
+#endif
+
 #define LOG_TAG "dap_global_db"
 
 #define DAP_APP_NAME NODE_NETNAME "-node"
