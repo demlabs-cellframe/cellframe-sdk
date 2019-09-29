@@ -3,7 +3,7 @@ project (dap_udp_server C)
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 
-#    if ( NOT ( TARGET dap_core_server ) )
+#    if ( NOT ( TARGET dap_server_core ) )
 #        add_subdirectory(libdap-server-core)
 #    endif()
 
