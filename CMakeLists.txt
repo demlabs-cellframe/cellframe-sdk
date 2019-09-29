@@ -14,7 +14,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
         add_subdirectory(libdap-server)
     endif()
 
-    if ( NOT ( TARGET dap_core_server ) )
+    if ( NOT ( TARGET dap_server_core ) )
 	add_subdirectory(libdap-server-core)
     endif()
 
