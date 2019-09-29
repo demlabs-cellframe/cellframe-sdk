@@ -55,7 +55,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 	  add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
 
 #	  if(DAP_RELEASE)
-	    set(_CCOPT "-mconsole -static -Wall -O3 -fno-ident -ffast-math -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections -Wl,--strip-all")
+	    set(_CCOPT "-mwindows -static -Wall -O3 -fno-ident -ffast-math -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections -Wl,--strip-all")
 #	  else()
 #	    set(_CCOPT "-mconsole -static -Wall -pg")
 #	    set(_LOPT "-mconsole -static -pg")
