@@ -268,7 +268,7 @@ int dap_common_init( const char *console_title, const char *a_log_file )
         goto err;
 
     log_strs = (dap_log_str_t *)DAP_MALLOC( DAP_LOG_MAX_STRINGS * sizeof(dap_log_str_t) * 2 );
-    if ( !log_history )
+    if ( !log_strs )
         goto err;
 
     for ( uint32_t i = 0; i < DAP_LOG_MAX_STRINGS * 2; ++ i ) {
