@@ -138,18 +138,18 @@ static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
 
 int client_mempool_init(void)
 {
-    dap_config_t *g_config;
+    /*dap_config_t *g_config;
     // read listen_port_tcp from settings
     dap_config_init(SYSTEM_CONFIGS_DIR);
     if((g_config = dap_config_open(DAP_APP_NAME)) == NULL) {
         return -1;
     }
-    else {
-        const char *port_str = dap_config_get_item_str(g_config, "server", "listen_port_tcp");
-        listen_port_tcp = (port_str) ? atoi(port_str) : 8079;
-    }
+    else { */
+    const char *port_str = dap_config_get_item_str(g_config, "server", "listen_port_tcp");
+    listen_port_tcp = (port_str) ? atoi(port_str) : 8079;
+    /*}
     if(g_config)
-        dap_config_close(g_config);
+        dap_config_close(g_config); */
     return 0;
 }
 
