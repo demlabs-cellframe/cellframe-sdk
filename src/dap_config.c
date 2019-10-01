@@ -112,12 +112,14 @@ dap_config_t * dap_config_open(const char * a_name)
         snprintf(l_config_path,l_config_path_size_max, "%s/%s.cfg",s_configs_path,a_name);
         FILE * f = fopen(l_config_path,"r");
         if ( f ){
+            fseek(f, 0, SEEK_END);
+            long buf_len = ftell(f);
+            char buf[buf_len];
+            fseek(f, 0L, SEEK_SET);
             log_it(L_DEBUG,"Opened config %s",a_name);
             ret = DAP_NEW_Z(dap_config_t);
             dap_config_internal_t * l_config_internal = DAP_NEW_Z(dap_config_internal_t);
             ret->_internal = l_config_internal;
-
-            char buf[100024];
             size_t l_global_offset=0;
             size_t l_buf_size=0;
             size_t l_buf_pos_line_start=0;
@@ -126,7 +128,7 @@ dap_config_t * dap_config_open(const char * a_name)
             bool l_is_space_now = false;
             while ( feof(f)==0){ // Break on lines
                 size_t i;
-                l_global_offset +=  (l_buf_size = fread(buf,1,sizeof(buf),f) );
+                l_global_offset +=  (l_buf_size = fread(buf, 1, buf_len, f) );
                 for (i=0; i< l_buf_size; i++){
                     if( (buf[i] == '\r') || (buf[i] == '\n' ) ){
                         if( ! l_is_space_now){

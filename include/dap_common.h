@@ -322,6 +322,9 @@ DAP_STATIC_INLINE void DAP_AtomicUnlock( DAP_SpinLock *lock )
     __sync_lock_release( lock );
 }
 
+char l_sys_dir_path[MAX_PATH];
+extern unsigned int l_sys_dir_path_len;
+
 //int dap_common_init( const char * a_log_file );
 int dap_common_init( const char *console_title, const char *a_log_file );
 
