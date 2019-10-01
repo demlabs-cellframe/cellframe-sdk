@@ -97,11 +97,20 @@ void dap_chain_wallet_deinit()
  */
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
-    const char *l_wallets_path = NULL;
-    if(a_config)
-        l_wallets_path = dap_config_get_item_str(g_config, "resources", "wallets_path");
-    if(!l_wallets_path)
-        l_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
+    static char l_wallets_path[MAX_PATH];
+    if (strlen(l_wallets_path) > 3)
+        goto RET;
+
+#ifdef _WIN32
+    memcpy(l_wallets_path, l_sys_dir_path, l_sys_dir_path_len);
+#endif
+    /*if(a_config)
+        dap_sprintf(l_wallets_path + l_sys_dir_path_len, "%s", dap_config_get_item_str(g_config, "resources", "wallets_path"));
+    if(strlen(l_wallets_path) <= l_sys_dir_path_len + 1) */
+        dap_sprintf(l_wallets_path + l_sys_dir_path_len, "%s", dap_config_get_item_str(g_config, "general", "wallets_path"));
+RET:
+    log_it( L_ATT, "+++++ %s", l_sys_dir_path );
+    log_it( L_ATT, "+++++ %s", l_wallets_path );
     return l_wallets_path;
 }
 
