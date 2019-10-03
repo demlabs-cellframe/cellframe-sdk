@@ -5,8 +5,8 @@
     #include <malloc.h>
 #endif
 
-//#include "KeccakHash.h"
-//#include "SimpleFIPS202.h"
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
 
 
 // N^-1 * prime_scale^-8
