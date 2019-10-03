@@ -182,15 +182,15 @@ void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
     unsigned char *buf = malloc(SHAKE128_RATE * nblocks * sizeof(char));
     uint16_t dmsp = 0;
 
-//    cshake128_simple( buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
-  cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, buf, SHAKE128_RATE * nblocks * 8, NULL, 0, &dmsp, 16 );
-  ++ dmsp;
+    cshake128_simple( buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//  cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, buf, SHAKE128_RATE * nblocks * 8, NULL, 0, &dmsp, 16 );
+//  ++ dmsp;
     while (i < p->PARAM_K * p->PARAM_N) {
         if (pos > SHAKE128_RATE * nblocks - 4 * nbytes) {
             nblocks = 1;
-//            cshake128_simple(buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
-          cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, buf, SHAKE128_RATE * nblocks * 8, NULL, 0, &dmsp, 16 );
-          ++ dmsp;
+            cshake128_simple(buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//          cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, buf, SHAKE128_RATE * nblocks * 8, NULL, 0, &dmsp, 16 );
+//          ++ dmsp;
             pos = 0;
         }
         val1 = (*(uint32_t *) (buf + pos)) & mask;

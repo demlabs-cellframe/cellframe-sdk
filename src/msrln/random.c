@@ -1,6 +1,6 @@
 #include "msrln_priv.h"
 
-#include "KeccakHash.h"
+//#include "KeccakHash.h"
 //#include "SimpleFIPS202.h"
 
 #define LOG_TAG "RANDOM"
@@ -12,16 +12,16 @@ CRYPTO_MSRLN_STATUS MSRLN_generate_a(const unsigned char* seed, unsigned int see
     uint16_t val;
     unsigned int nblocks = 16;
     uint8_t buf[SHAKE128_RATE * 16]; // was * nblocks, but VS doesn't like this buf init
-    Keccak_HashInstance ks;
+    //Keccak_HashInstance ks;
 
-//    uint64_t state[SHA3_STATESIZE];
-//    shake128_absorb(state, seed, seed_nbytes);
-//    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+    uint64_t state[SHA3_STATESIZE];
+    shake128_absorb(state, seed, seed_nbytes);
+    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
 
-    Keccak_HashInitialize_SHAKE128(&ks);
+    /*Keccak_HashInitialize_SHAKE128(&ks);
     Keccak_HashUpdate( &ks, seed, seed_nbytes * 8 );
     Keccak_HashFinal( &ks, seed );
-    Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
+    Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );*/
 
     while (ctr < array_ndigits) {
         val = (buf[pos] | ((uint16_t) buf[pos + 1] << 8)) & 0x3fff;
@@ -31,12 +31,11 @@ CRYPTO_MSRLN_STATUS MSRLN_generate_a(const unsigned char* seed, unsigned int see
         pos += 2;
         if (pos > SHAKE128_RATE * nblocks - 2) {
             nblocks = 1;
-//          shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
-            Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
+          shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+//            Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
             pos = 0;
         }
     }
-
     return CRYPTO_MSRLN_SUCCESS;
 }
 

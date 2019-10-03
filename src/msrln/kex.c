@@ -5,8 +5,8 @@
     #include <malloc.h>
 #endif
 
-#include "KeccakHash.h"
-#include "SimpleFIPS202.h"
+//#include "KeccakHash.h"
+//#include "SimpleFIPS202.h"
 
 
 // N^-1 * prime_scale^-8
@@ -467,22 +467,22 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
     uint16_t val;
     unsigned int nblocks = 16;
     uint8_t buf[SHAKE128_RATE * 16]; // was * nblocks, but VS doesn't like this buf init
-    Keccak_HashInstance ks;
+    //Keccak_HashInstance ks;
 
-//    uint64_t state[SHA3_STATESIZE] = {0};
-//    shake128_absorb(state, seed, SEED_BYTES);
-//    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+    uint64_t state[SHA3_STATESIZE] = {0};
+    shake128_absorb(state, seed, SEED_BYTES);
+    shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
 
     /*#ifdef _WIN32
         SHAKE128_InitAbsorb( &ks, seed, SEED_BYTES );
         KECCAK_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 );
-    #else */
+    #else 
         Keccak_HashInitialize_SHAKE128(&ks);
         Keccak_HashUpdate( &ks, seed, SEED_BYTES * 8 );
         Keccak_HashFinal( &ks, seed );
         Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
     //#endif
-
+    */
     while (ctr < PARAMETER_N) {
         val = (buf[pos] | ((uint16_t) buf[pos + 1] << 8)) & 0x3fff;
         if (val < PARAMETER_Q) {
@@ -491,8 +491,8 @@ CRYPTO_MSRLN_STATUS generate_a(uint32_t* a, const unsigned char* seed, Extendabl
         pos += 2;
         if (pos > SHAKE128_RATE * nblocks - 2) {
             nblocks = 1;
-//          shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
-            Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
+          shake128_squeezeblocks((unsigned char *) buf, nblocks, state);
+//            Keccak_HashSqueeze( &ks, (unsigned char *) buf, nblocks * 8 * 8 );
             pos = 0;
         }
     }

@@ -17,15 +17,15 @@ void sample_y(int64_t *y, const unsigned char *seed, int nonce, tesla_param_t *p
 
     uint32_t NBLOCKS_SHAKE = 0;
     if(p->kind == 0 || p->kind == 3) {
-//      cshake128_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
-        cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, p->PARAM_N * nbytes * 8, NULL, 0, &dmsp, 16 );
-        ++dmsp;
+      cshake128_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//        cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, p->PARAM_N * nbytes * 8, NULL, 0, &dmsp, 16 );
+//        ++dmsp;
         NBLOCKS_SHAKE = SHAKE128_RATE / (((p->PARAM_B_BITS + 1) + 7) / 8);
     }
     else {
-//      cshake256_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
-        cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, p->PARAM_N * nbytes * 8, NULL, 0, &dmsp, 16 );
-        ++dmsp;
+      cshake256_simple((uint8_t *) buf, p->PARAM_N * nbytes, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//        cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, p->PARAM_N * nbytes * 8, NULL, 0, &dmsp, 16 );
+//        ++dmsp;
         NBLOCKS_SHAKE = SHAKE256_RATE / (((p->PARAM_B_BITS + 1) + 7) / 8);
     }
 
@@ -33,15 +33,15 @@ void sample_y(int64_t *y, const unsigned char *seed, int nonce, tesla_param_t *p
         if (pos >= nblocks * nbytes) {
             if(p->kind == 0 || p->kind == 3) {
                 nblocks = NBLOCKS_SHAKE;
-//              cshake128_simple((uint8_t *) buf, SHAKE128_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
-                cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, SHAKE128_RATE * 8, NULL, 0, &dmsp, 16 );
-                ++dmsp;
+              cshake128_simple((uint8_t *) buf, SHAKE128_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//                cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, SHAKE128_RATE * 8, NULL, 0, &dmsp, 16 );
+//                ++dmsp;
             }
             else {
                 nblocks = NBLOCKS_SHAKE;
-//                cshake256_simple((uint8_t *) buf, SHAKE256_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
-                cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, SHAKE256_RATE * 8, NULL, 0, &dmsp, 16 );
-                ++dmsp;
+                cshake256_simple((uint8_t *) buf, SHAKE256_RATE, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//                cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, SHAKE256_RATE * 8, NULL, 0, &dmsp, 16 );
+//                ++dmsp;
             }
             pos = 0;
         }
@@ -677,15 +677,15 @@ void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_p
             {0x0321020100200100LL, 0x0200010000200001LL},
         };
 
-//        cshake128_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
-        cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, seed_ex, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
-        ++dmsp;
+        cshake128_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//        cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, seed_ex, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+//        ++dmsp;
 
         for (x_ind = 0; x_ind < (int64_t)(p->PARAM_N); x_ind++) {
             if ((j + 46) > (int64_t)(p->PARAM_N)) {
-//              cshake128_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
-                cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
-                ++dmsp;
+              cshake128_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//                cSHAKE128( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+//                ++dmsp;
                 j = 0;
             }
             do {
@@ -772,15 +772,15 @@ void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_p
             {0x0000032102010020LL, 0x0100020001000020LL, 0x0001000002000001LL},
         };        
 
-//      cshake256_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
-        cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, seed_ex, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
-        ++dmsp;
+      cshake256_simple(seed_ex, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//        cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, seed_ex, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+//        ++dmsp;
 
         for (x_ind = 0; x_ind < (int64_t)(p->PARAM_N); x_ind++) {
             if ((j + 46) > (int64_t)(p->PARAM_N)) {
-//              cshake256_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
-                cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
-                ++dmsp;
+              cshake256_simple((uint8_t *) buf, (p->PARAM_N) * 8, dmsp++, seed, CRYPTO_RANDOMBYTES);
+//                cSHAKE256( seed, CRYPTO_RANDOMBYTES * 8, (uint8_t *) buf, (p->PARAM_N) * 8 * 8, NULL, 0, &dmsp, 16 );
+//                ++dmsp;
 
                 j = 0;
             }
@@ -869,9 +869,9 @@ void encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesl
     uint16_t dmsp = 0;
 
     // Use the hash value as key to generate some randomness
-//  cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
-    cSHAKE128( c_bin, CRYPTO_RANDOMBYTES * 8, r, RLENGTH * 8, NULL, 0, &dmsp, 16 );
-    ++dmsp;
+  cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
+//    cSHAKE128( c_bin, CRYPTO_RANDOMBYTES * 8, r, RLENGTH * 8, NULL, 0, &dmsp, 16 );
+//    ++dmsp;
 
     // Use rejection sampling to determine positions to be set in the new vector
     for (i = 0; i < p->PARAM_N; i++)
@@ -879,9 +879,9 @@ void encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesl
 
     for (i = 0; i < p->PARAM_W;) { // Sample a unique position k times. Use two bytes
         if (cnt > (RLENGTH - 3)) {
-//          cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
-            cSHAKE128( c_bin, CRYPTO_RANDOMBYTES * 8, r, RLENGTH * 8, NULL, 0, &dmsp, 16 );
-            ++dmsp;
+          cshake128_simple(r, RLENGTH, dmsp++, c_bin, CRYPTO_RANDOMBYTES);
+//            cSHAKE128( c_bin, CRYPTO_RANDOMBYTES * 8, r, RLENGTH * 8, NULL, 0, &dmsp, 16 );
+//            ++dmsp;
             cnt = 0;
         }
         pos = (r[cnt] << 8) | (r[cnt + 1]);
