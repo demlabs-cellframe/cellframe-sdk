@@ -131,22 +131,6 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #define DAP_PROTOCOL_VERSION  22
 
-#ifndef _WIN32
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
-#ifndef MIN
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
-
-#ifndef min
-#define min MIN
-#endif
-#ifndef max
-#define max MAX
-#endif
-#endif
-
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
   #define HIWORD( l ) ((uint16_t) ((((uintptr_t) (l)) >> 16) & 0xFFFF))
@@ -239,6 +223,16 @@ typedef struct dap_log_history_str_s {
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifndef _WIN32
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 #endif
 
 extern uint16_t htoa_lut256[ 256 ];
