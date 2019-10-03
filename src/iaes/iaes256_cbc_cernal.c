@@ -490,7 +490,6 @@ size_t IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, 
 
     size_t i, padding = 0;
     size_t end = length > 16 ? length - 16 : 0;
-    if(length>0)
         for(i = length-1; i >= end; i--)
         {
             if(data[i] == 0)
