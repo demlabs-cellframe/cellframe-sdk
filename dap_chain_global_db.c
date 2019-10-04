@@ -178,7 +178,7 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 {
     char l_storage_path[MAX_PATH];
 #ifdef WIN32
-    memcpy(l_storage_path, l_sys_dir_path, l_sys_dir_path_len);
+    memcpy(l_storage_path, s_sys_dir_path, l_sys_dir_path_len);
 #endif
     dap_sprintf(l_storage_path + l_sys_dir_path_len, "%s",
                 dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
