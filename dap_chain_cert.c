@@ -282,10 +282,10 @@ dap_chain_cert_t * dap_chain_cert_find_by_name(const char * a_cert_name)
             uint16_t l_ca_folders_size = 0;
             char **l_ca_folders;
             char *l_cert_path = NULL;
-            l_ca_folders = dap_config_get_array_str(g_config,"resources","ca_folders",&l_ca_folders_size);
-            for (uint16_t i=0; i < l_ca_folders_size; ++i) {
+            l_ca_folders = dap_config_get_array_str(g_config, "resources", "ca_folders", &l_ca_folders_size);
+            for (uint16_t i = 0; i < l_ca_folders_size; ++i) {
 #ifdef _WIN32
-                l_cert_path = dap_strjoin("", l_sys_dir_path, "/", l_ca_folders[i], "/", a_cert_name, ".dcert", (char*)NULL);
+                l_cert_path = dap_strjoin("", s_sys_dir_path, l_ca_folders[i], "/", a_cert_name, ".dcert", (char*)NULL);
 #else
                 l_cert_path = dap_strjoin("", l_ca_folders[i], "/", a_cert_name, ".dcert", (char*)NULL);
 #endif
