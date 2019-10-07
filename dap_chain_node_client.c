@@ -79,7 +79,10 @@ int dap_chain_node_client_init(void)
 {
     dap_config_t *g_config;
     // read listen_port_tcp from settings
-    dap_config_init(SYSTEM_CONFIGS_DIR);
+    memcpy( s_sys_dir_path + l_sys_dir_path_len, SYSTEM_CONFIGS_DIR, sizeof(SYSTEM_CONFIGS_DIR) );
+    dap_config_init(s_sys_dir_path);
+    memset(s_sys_dir_path + l_sys_dir_path_len, '\0', MAX_PATH - l_sys_dir_path_len);
+
     if((g_config = dap_config_open(DAP_APP_NAME)) == NULL) {
         return -1;
     }
