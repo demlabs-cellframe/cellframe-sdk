@@ -64,20 +64,28 @@ int dap_chain_wallet_init()
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     if(c_wallets_path) {
         DIR * l_dir = opendir(c_wallets_path);
-        struct dirent * l_dir_entry;
-        while((l_dir_entry = readdir(l_dir)) != NULL) {
-            const char *l_file_name = l_dir_entry->d_name;
-            size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
-            if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
-                char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
-                dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
-                if(l_wallet) {
-                    dap_chain_wallet_close(l_wallet);
+        if (l_dir) {
+            struct dirent * l_dir_entry;
+            while((l_dir_entry = readdir(l_dir)) != NULL) {
+                const char *l_file_name = l_dir_entry->d_name;
+                size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
+                if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
+                    char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
+                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
+                    if(l_wallet) {
+                        dap_chain_wallet_close(l_wallet);
+                    }
+                    DAP_DELETE(l_file_path_tmp);
                 }
-                DAP_DELETE(l_file_path_tmp);
             }
+            closedir(l_dir);
+        } else {
+#ifdef _WIN32
+            mkdir(c_wallets_path);
+#else
+            mkdir(c_wallets_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+#endif
         }
-        closedir(l_dir);
     }
     return 0;
 }
@@ -97,11 +105,15 @@ void dap_chain_wallet_deinit()
  */
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
-    const char *l_wallets_path = NULL;
-    if(a_config)
-        l_wallets_path = dap_config_get_item_str(g_config, "resources", "wallets_path");
-    if(!l_wallets_path)
-        l_wallets_path = dap_config_get_item_str(g_config, "general", "wallets_path");
+    static char l_wallets_path[MAX_PATH];
+    if (strlen(l_wallets_path) > 3)
+        goto RET;
+
+#ifdef _WIN32
+    memcpy(l_wallets_path, s_sys_dir_path, l_sys_dir_path_len);
+#endif
+    dap_sprintf(l_wallets_path + l_sys_dir_path_len, "%s", dap_config_get_item_str(g_config, "resources", "wallets_path"));
+RET:
     return l_wallets_path;
 }
 
