@@ -178,16 +178,14 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 {
     char l_storage_path[MAX_PATH];
 #ifdef WIN32
-    dap_sprintf(l_storage_path, "%s/%s/%s", regGetUsrPath(), DAP_APP_NAME,
-                dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
-#else
-    dap_stpcpy(l_storage_path, dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
+    memcpy(l_storage_path, s_sys_dir_path, l_sys_dir_path_len);
 #endif
+    dap_sprintf(l_storage_path + l_sys_dir_path_len, "%s",
+                dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
     lock();
     int res = dap_db_driver_init(l_driver_name, l_storage_path);
-    //int res = dap_db_init(a_storage_path);
     unlock();
     return res;
 }

@@ -32,6 +32,7 @@
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_global_db_driver_cdb.h"
+#include "dap_file_utils.h"
 
 #define LOG_TAG "db_cdb"
 
@@ -187,13 +188,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     if(s_cdb_path[strlen(s_cdb_path)] == '/') {
         s_cdb_path[strlen(s_cdb_path)] = '\0';
     }
-
-#ifdef _WIN32
-    mkdir(s_cdb_path);
-#else
-    mkdir(s_cdb_path, 0755);
-#endif
-
+    dap_mkdir_with_parents(s_cdb_path);
     struct dirent *d;
     DIR *dir = opendir(s_cdb_path);
     if (!dir) {
