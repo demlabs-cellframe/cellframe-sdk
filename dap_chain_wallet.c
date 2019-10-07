@@ -32,6 +32,11 @@
 #include <dirent.h>
 #include <errno.h>
 
+#ifdef DAP_OS_UNIX
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
 #ifdef WIN32
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0600
