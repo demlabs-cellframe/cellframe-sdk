@@ -97,6 +97,7 @@ const char * dap_chain_sign_type_to_str(dap_chain_sign_type_t a_chain_sign_type)
         case SIG_TYPE_BLISS: return "sig_bliss";
         case SIG_TYPE_TESLA: return "sig_tesla";
         case SIG_TYPE_PICNIC: return "sig_picnic";
+        case SIG_TYPE_DILITHIUM: return "sig_dil";
         default: return SIG_TYPE_NULL;//DAP_ENC_KEY_TYPE_NULL;
     }
 
@@ -116,6 +117,8 @@ dap_chain_sign_type_t dap_chain_sign_type_from_str(const char * a_type_str)
         l_sign_type.type = SIG_TYPE_TESLA;
     } else if ( strcmp (a_type_str,"sig_picnic") == 0){
         l_sign_type.type = SIG_TYPE_PICNIC;
+    }else if ( strcmp (a_type_str,"sig_dil") == 0){
+        l_sign_type.type = SIG_TYPE_DILITHIUM;
     }else{
        log_it (L_WARNING, "Wrong sign type string \"%s\"",a_type_str);
     }
