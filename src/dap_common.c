@@ -139,6 +139,7 @@ const char *ansi_seq_color[ 16 ] = {
 
 uint32_t ansi_seq_color_len[ 16 ];
 unsigned int l_sys_dir_path_len = 0;
+char s_sys_dir_path[MAX_PATH] = {'\0'};
 static char s_last_error[LAST_ERROR_MAX] = {0};
 static enum dap_log_level dap_log_level = L_DEBUG;
 static FILE *s_log_file = NULL;
