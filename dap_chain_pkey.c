@@ -69,6 +69,10 @@ int dap_chain_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output)
             case DAP_ENC_KEY_TYPE_SIG_PICNIC:
                 l_output->header.type.type = PKEY_TYPE_SIGN_PICNIC ;
             break;
+            case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+                l_output->header.type.type = PKEY_TYPE_SIGN_DILITHIUM;
+            break;
+
             default:
                 log_it(L_WARNING,"No serialization preset");
                 return -1;

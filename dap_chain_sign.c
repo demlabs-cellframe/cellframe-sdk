@@ -43,6 +43,7 @@ size_t dap_chain_sign_create_output_cals_size(dap_enc_key_t * a_key, size_t a_ou
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_size = sizeof(s_sign_bliss_null); break;
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
+        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_size(); break;
         default : return 0;
 
     }
@@ -62,6 +63,7 @@ dap_chain_sign_type_t dap_chain_sign_type_from_key_type( dap_enc_key_type_t a_ke
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
+        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_type.type = SIG_TYPE_DILITHIUM; break;
     }
     return l_sign_type;
 }
@@ -77,6 +79,7 @@ dap_enc_key_type_t  dap_chain_sign_type_to_key_type(dap_chain_sign_type_t  a_cha
         case SIG_TYPE_BLISS: return DAP_ENC_KEY_TYPE_SIG_BLISS;
         case SIG_TYPE_TESLA: return DAP_ENC_KEY_TYPE_SIG_TESLA;
         case SIG_TYPE_PICNIC: return DAP_ENC_KEY_TYPE_SIG_PICNIC;
+        case SIG_TYPE_DILITHIUM: return DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
         default: return DAP_ENC_KEY_TYPE_NULL;
     }
 }
@@ -136,7 +139,8 @@ static int dap_chain_sign_create_output(dap_enc_key_t *a_key, const void * a_dat
     }
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
             // For PICNIC a_output_size should decrease
         *a_output_size = a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
         return (*a_output_size > 0) ? 0 : -1;
@@ -257,6 +261,7 @@ int dap_chain_sign_verify(dap_chain_sign_t * a_chain_sign, const void * a_data, 
     switch (l_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
     case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
         if(l_key->dec_na(l_key, a_data, a_data_size, l_sign, l_sign_size) > 0)
             l_ret = 0;
         else

@@ -60,6 +60,7 @@ void dap_chain_cert_save_tests_run(void)
     test_cert_memory_file(DAP_ENC_KEY_TYPE_SIG_BLISS);
     test_cert_memory_file(DAP_ENC_KEY_TYPE_SIG_TESLA);
     test_cert_memory_file(DAP_ENC_KEY_TYPE_SIG_PICNIC);
+    test_cert_memory_file(DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
 
     cleanup_test_case();
 }
