@@ -123,6 +123,7 @@ typedef union dap_chain_pkey_type{
         PKEY_TYPE_NULL = 0x0000,
         PKEY_TYPE_SIGN_BLISS = 0x0901,
         PKEY_TYPE_SIGN_TESLA = 0x0902,
+        PKEY_TYPE_SIGN_DILITHIUM =  0x0903,
         PKEY_TYPE_SIGN_PICNIC = 0x0102,
         PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
 
@@ -149,11 +150,11 @@ typedef union dap_chain_sign_type{
         SIG_TYPE_DEFO = 0x0002, /// @brief key image for anonymous transaction
         SIG_TYPE_TESLA = 0x0003, /// @brief
         SIG_TYPE_PICNIC = 0x0101, /// @brief
+        SIG_TYPE_DILITHIUM = 0x0102, /// @brief
         SIG_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different signatures and sign composed with all of them
     } type: 16;
     uint16_t raw;
 } dap_chain_sign_type_t;
-
 
 typedef struct dap_chain_addr{
     uint8_t addr_ver; // 0 for default
