@@ -1,6 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -29,25 +30,25 @@
 #include "dap_chain_node.h"
 
 // connection states
-typedef enum dap_chain_node_client_state{
+typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_ERROR = -1,
-    NODE_CLIENT_STATE_DISCONNECTED=0,
-    NODE_CLIENT_STATE_GET_NODE_ADDR=1,
-    NODE_CLIENT_STATE_NODE_ADDR_LEASED=2,
-    NODE_CLIENT_STATE_PING=3,
-    NODE_CLIENT_STATE_PONG=4,
-    NODE_CLIENT_STATE_CONNECT=5,
-    NODE_CLIENT_STATE_CONNECTED=100,
+    NODE_CLIENT_STATE_DISCONNECTED = 0,
+    NODE_CLIENT_STATE_GET_NODE_ADDR = 1,
+    NODE_CLIENT_STATE_NODE_ADDR_LEASED = 2,
+    NODE_CLIENT_STATE_PING = 3,
+    NODE_CLIENT_STATE_PONG = 4,
+    NODE_CLIENT_STATE_CONNECT = 5,
+    NODE_CLIENT_STATE_CONNECTED = 100,
     //NODE_CLIENT_STATE_SEND,
     //NODE_CLIENT_STATE_SENDED,
-    NODE_CLIENT_STATE_SYNC_GDB=101,
-    NODE_CLIENT_STATE_SYNC_CHAINS=102,
-    NODE_CLIENT_STATE_SYNCED=103
+    NODE_CLIENT_STATE_SYNC_GDB = 101,
+    NODE_CLIENT_STATE_SYNC_CHAINS = 102,
+    NODE_CLIENT_STATE_SYNCED = 103
 } dap_chain_node_client_state_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 
-typedef void (*dap_chain_node_client_callback_t) (dap_chain_node_client_t *, void*);
+typedef void (*dap_chain_node_client_callback_t)(dap_chain_node_client_t *, void*);
 
 // state for a client connection
 typedef struct dap_chain_node_client {
@@ -58,9 +59,9 @@ typedef struct dap_chain_node_client {
     char last_error[128];
 
     dap_chain_node_client_callback_t callback_connected;
-#ifndef _WIN32
+    #ifndef _WIN32
     pthread_cond_t wait_cond;
-#else
+    #else
     HANDLE wait_cond;
 #endif
     pthread_mutex_t wait_mutex;
@@ -75,19 +76,18 @@ typedef struct dap_chain_node_client {
 } dap_chain_node_client_t;
 #define DAP_CHAIN_NODE_CLIENT(a) ( (dap_chain_node_client_t *) (a)->_inheritor )
 
-
 int dap_chain_node_client_init(void);
 
 void dap_chain_node_client_deinit(void);
 
+dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_info, dap_client_stage_t a_stage_target,
+        const char *a_active_channels);
 /**
  * Create handshake to server
  *
  * return a connection handle, or NULL, if an error
  */
 dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *node_info);
-
-
 
 /**
  * Close connection to server, delete chain_node_client_t *client
