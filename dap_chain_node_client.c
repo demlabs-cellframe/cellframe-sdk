@@ -373,7 +373,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     }
     dap_client_set_uplink(l_node_client->client, strdup(host), a_node_info->hdr.ext_port);
 //    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
-    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
+//    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
 
     l_node_client->state = NODE_CLIENT_STATE_CONNECT;
     // Handshake & connect

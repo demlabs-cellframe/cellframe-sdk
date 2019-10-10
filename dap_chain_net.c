@@ -63,6 +63,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_ledger.h"
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"

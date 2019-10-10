@@ -75,6 +75,7 @@
 #include "dap_chain_cell.h"
 
 #include "dap_chain_datum.h"
+#include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
@@ -2856,7 +2857,7 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
     switch (cmd_num)
     {
     case CMD_START: {
-        int l_res = 0;//dap_chain_net_vpn_client_start(l_net, "192.168.100.93", NULL, 8079);
+        int l_res = dap_chain_net_vpn_client_start(l_net, "192.168.100.93", NULL, 8079);
         switch (l_res) {
         case 0:
             dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client started successfully");
@@ -2876,7 +2877,7 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
     }
         break;
     case CMD_STOP: {
-        int res = 0;//dap_chain_net_vpn_client_stop();
+        int res = dap_chain_net_vpn_client_stop();
         if(!res)
             dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client stopped successfully");
         else
@@ -2885,8 +2886,8 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
     }
         //break;
     case CMD_STATUS:
-        //switch (dap_chain_net_vpn_client_status()) {
-        switch (0){
+        switch (dap_chain_net_vpn_client_status()) {
+//        switch (0){
         case 0:
             dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client stopped");
             return 0;
