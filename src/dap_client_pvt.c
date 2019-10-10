@@ -58,6 +58,7 @@
 #include "dap_enc_base64.h"
 #include "dap_enc.h"
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 
 #include "dap_http_client_simple.h"
 #include "dap_client.h"
@@ -205,14 +206,19 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         case STAGE_STREAM_CTL: {
             log_it(L_INFO, "Go to stage STREAM_CTL: prepare the request");
 
-            size_t l_request_size = (size_t) snprintf(NULL, 0, "%d", DAP_CLIENT_PROTOCOL_VERSION);
-            char *l_request = DAP_NEW_Z_SIZE(char, l_request_size);
-            snprintf(l_request, l_request_size, "%d", DAP_CLIENT_PROTOCOL_VERSION);
+            char *l_request = dap_strdup_printf("%d", DAP_CLIENT_PROTOCOL_VERSION);
+            size_t l_request_size = dap_strlen(l_request);
             log_it(L_DEBUG, "STREAM_CTL request size %u", strlen(l_request));
 
-            size_t l_suburl_size =1+ (size_t) snprintf(NULL,0,"stream_ctl,channels=%s", a_client_pvt->active_channels);
-            char * l_suburl = DAP_NEW_Z_SIZE(char,l_suburl_size);
-            snprintf( l_suburl, l_suburl_size, "stream_ctl,channels=%s", a_client_pvt->active_channels );
+            char *l_suburl;
+            // connect to vpn server
+            const char l_active_vpn_channels[] = { SERVICE_CHANNEL_ID, 0 };
+            if(!dap_strcmp(a_client_pvt->active_channels,l_active_vpn_channels))
+                l_suburl = dap_strdup_printf("socket_forward");
+            // connect for node sync
+            else
+                l_suburl = dap_strdup_printf("stream_ctl,channels=%s", a_client_pvt->active_channels );
+            //
             dap_client_pvt_request_enc(a_client_pvt,
             DAP_UPLINK_PATH_STREAM_CTL,
                     l_suburl, "type=tcp,maxconn=4" , l_request, l_request_size,
@@ -574,7 +580,8 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 void m_request_error(int a_err_code, void * a_obj)
 {
     dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
-    a_client_internal->request_error_callback(a_client_internal->client, a_err_code);
+    if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client)
+        a_client_internal->request_error_callback(a_client_internal->client, a_err_code);
 }
 
 /**
@@ -613,7 +620,7 @@ void m_request_response(void * a_response, size_t a_response_size, void * a_obj)
  */
 void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
-    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
+    dap_client_pvt_t * l_client_pvt = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
     if(!l_client_pvt) {
         log_it(L_ERROR, "m_enc_init_response: l_client_pvt is NULL!");
         return;
