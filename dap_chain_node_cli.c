@@ -854,7 +854,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // create thread for waiting of clients
     pthread_t l_thread_id;
 
-    l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp", 0 );
+    l_listen_port = dap_config_get_item_uint16( g_config, "conserver", "listen_port_tcp");
 
     const char * l_listen_unix_socket_path = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path");
     const char * l_listen_unix_socket_permissions_str = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_permissions");
@@ -912,10 +912,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
     else if (l_listen_port ){
 
-        const char *l_listen_addr_str = dap_config_get_item_str_default( g_config,
-                                                                       "conserver",
-                                                                      "listen_address",
-                                                                      "0.0.0.0" );
+        const char *l_listen_addr_str = dap_config_get_item_str(g_config, "conserver", "listen_address");
 
         log_it( L_INFO, "Console interace on addr %s port %u ", l_listen_addr_str, l_listen_port );
  
