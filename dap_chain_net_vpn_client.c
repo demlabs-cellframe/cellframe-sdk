@@ -93,7 +93,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
         s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     s_node_info->hdr.ext_port = a_port;
 
-    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
+    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;//DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
     const char l_active_channels[] = { SERVICE_CHANNEL_ID, 0 };
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
@@ -125,7 +125,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
      VPN_PACKET_OP_CODE_CONNECT, a_net->pub.id, (dap_chain_id_t ) { { 0 } },
      a_net->pub.cell_id, NULL, 0);*/
 
-    return l_ret;
+    //return l_ret;
 
     l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
 
@@ -183,9 +183,9 @@ static void ch_sf_new(dap_stream_ch_t* a_ch, void* arg)
 {
     log_it(L_INFO, "SF channel created");
 
-    a_ch->internal = DAP_NEW_Z(dap_stream_ch_vpn_t);
-    dap_stream_ch_vpn_t * l_sf = CH_SF(a_ch);
-    //l_sf->ch=a_ch;
+    a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
+    dap_chain_net_srv_vpn_t * l_sf = CH_VPN(a_ch);
+    l_sf->ch=a_ch;
     pthread_mutex_init(&l_sf->mutex, NULL);
     l_sf->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
     a_ch->stream->events_socket->is_pingable = true; //set up connection to be pingable by main loop
@@ -209,9 +209,9 @@ static void ch_sf_delete(dap_stream_ch_t* a_ch, void* arg)
      if (cur)
      free(cur);
      }*/
-    pthread_mutex_unlock(&( CH_SF(a_ch)->mutex));
-    if(CH_SF(a_ch)->raw_l3_sock)
-        close(CH_SF(a_ch)->raw_l3_sock);
+    pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
+    if(CH_VPN(a_ch)->raw_l3_sock)
+        close(CH_VPN(a_ch)->raw_l3_sock);
 }
 
 /**
@@ -239,12 +239,12 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     if(l_sf_pkt->header.op_code >= 0xb0) { // Raw packets
         switch (l_sf_pkt->header.op_code) {
         case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
-            ch_sf_tun_addr_leased(CH_SF(a_ch), l_sf_pkt, l_sf_pkt_data_size);
+            ch_sf_tun_addr_leased(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size);
         }
             break;
         case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
 //                log_it(L_DEBUG,"Got SF packet with id %d op_code 0x%02x",remote_sock_id, l_sf_pkt->header.op_code );
-            ch_sf_tun_addr_request(CH_SF(a_ch), l_sf_pkt, l_sf_pkt_data_size);
+            ch_sf_tun_addr_request(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size);
 //here!!
 
         }
@@ -255,12 +255,12 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case VPN_PACKET_OP_CODE_VPN_RECV:
             //                log_it(L_DEBUG,"feature-2498: Got L3_RECV packet with id %d ",remote_sock_id, l_sf_pkt->header.op_code );
             a_ch->stream->events_socket->last_ping_request = time(NULL); // not ping, but better  ;-)
-            ch_sf_tun_send(CH_SF(a_ch), l_sf_pkt->data, l_sf_pkt->header.op_data.data_size);
+            ch_sf_tun_send(CH_VPN(a_ch), l_sf_pkt->data, l_sf_pkt->header.op_data.data_size);
             break;
             //case STREAM_SF_PACKET_OP_CODE_L3_SEND:
             //    log_it(L_WARNING,"Got L3_SEND packet with id %d, it's very strange' ",remote_sock_id, l_sf_pkt->header.op_code );
             //    a_ch->stream->events_socket->last_ping_request = time(NULL);                  // not ping, but better  ;-)
-            //    ch_sf_tun_send(CH_SF(a_ch),l_sf_pkt->data,l_sf_pkt->header.op_data.data_size );
+            //    ch_sf_tun_send(CH_VPN(a_ch),l_sf_pkt->data,l_sf_pkt->header.op_data.data_size );
             //break;
         case VPN_PACKET_OP_CODE_PING:
             a_ch->stream->events_socket->last_ping_request = time(NULL);
@@ -276,10 +276,10 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         ch_vpn_socket_proxy_t * sf_sock = NULL;
         if((l_sf_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECT) // tcp
         && (l_sf_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECTED)) { //udp
-            pthread_mutex_lock(&( CH_SF(a_ch)->mutex));
+            pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
             log_it(L_DEBUG, "Looking in hash table with %d", remote_sock_id);
-            HASH_FIND_INT((CH_SF(a_ch)->socks), &remote_sock_id, sf_sock);
-            pthread_mutex_unlock(&( CH_SF(a_ch)->mutex));
+            HASH_FIND_INT((CH_VPN(a_ch)->socks), &remote_sock_id, sf_sock);
+            pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
             if(sf_sock != NULL) {
                 pthread_mutex_lock(&sf_sock->mutex); // Unlock it in your case as soon as possible to reduce lock time
                 sf_sock->time_lastused = time(NULL);
@@ -289,9 +289,9 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     if((ret = send(sf_sock->sock, l_sf_pkt->data, l_sf_pkt->header.op_data.data_size, 0)) < 0) {
                         log_it(L_INFO, "Disconnected from the remote host");
                         pthread_mutex_unlock(&sf_sock->mutex);
-                        pthread_mutex_lock(&( CH_SF(a_ch)->mutex));
-                        HASH_DEL(CH_SF(a_ch)->socks, sf_sock);
-                        pthread_mutex_unlock(&( CH_SF(a_ch)->mutex));
+                        pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
+                        HASH_DEL(CH_VPN(a_ch)->socks, sf_sock);
+                        pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
 
                         pthread_mutex_lock(&sf_socks_mutex);
                         HASH_DELETE(hh2, sf_socks, sf_sock);
@@ -321,9 +321,9 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 case VPN_PACKET_OP_CODE_DISCONNECT: {
                     log_it(L_INFO, "Disconnect action from %d sock_id", sf_sock->id);
 
-                    pthread_mutex_lock(&( CH_SF(a_ch)->mutex));
-                    HASH_DEL(CH_SF(a_ch)->socks, sf_sock);
-                    pthread_mutex_unlock(&( CH_SF(a_ch)->mutex));
+                    pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
+                    HASH_DEL(CH_VPN(a_ch)->socks, sf_sock);
+                    pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
 
                     pthread_mutex_lock(&sf_socks_mutex);
 
@@ -355,7 +355,7 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 log_it(L_WARNING, "Packet input: packet with sock_id %d thats not present in current stream channel",
                         remote_sock_id);
         } else {
-            HASH_FIND_INT(CH_SF(a_ch)->socks, &remote_sock_id, sf_sock);
+            HASH_FIND_INT(CH_VPN(a_ch)->socks, &remote_sock_id, sf_sock);
             if(sf_sock) {
                 log_it(L_WARNING, "Socket id %d is already used, take another number for socket id", remote_sock_id);
             } else { // Connect action
@@ -405,8 +405,8 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             pthread_mutex_init(&sf_sock->mutex, NULL);
 
                             pthread_mutex_lock(&sf_socks_mutex);
-                            pthread_mutex_lock(&( CH_SF(a_ch)->mutex));
-                            HASH_ADD_INT(CH_SF(a_ch)->socks, id, sf_sock);
+                            pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
+                            HASH_ADD_INT(CH_VPN(a_ch)->socks, id, sf_sock);
                             log_it(L_DEBUG, "Added %d sock_id with sock %d to the hash table", sf_sock->id,
                                     sf_sock->sock);
                             HASH_ADD(hh2, sf_socks, id, sizeof(sf_sock->id), sf_sock);
@@ -415,7 +415,7 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             HASH_ADD(hh_sock, sf_socks_client, sock, sizeof(int), sf_sock);
                             // log_it(L_DEBUG,"Added %d sock_id with sock %d to the socks hash table",sf->id,sf->sock);
                             pthread_mutex_unlock(&sf_socks_mutex);
-                            pthread_mutex_unlock(&( CH_SF(a_ch)->mutex));
+                            pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
 
                             struct epoll_event ev;
                             ev.data.fd = s;
@@ -472,8 +472,8 @@ static void ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
 {
     ch_vpn_socket_proxy_t * cur = NULL, *tmp;
     bool isSmthOut = false;
-//    log_it(L_DEBUG,"Socket forwarding packet out callback: %u sockets in hashtable", HASH_COUNT(CH_SF(ch)->socks) );
-    HASH_ITER(hh, CH_SF(ch)->socks , cur, tmp)
+//    log_it(L_DEBUG,"Socket forwarding packet out callback: %u sockets in hashtable", HASH_COUNT(CH_VPN(ch)->socks) );
+    HASH_ITER(hh, CH_VPN(ch)->socks , cur, tmp)
     {
         bool signalToBreak = false;
         pthread_mutex_lock(&(cur->mutex));
@@ -506,9 +506,9 @@ static void ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
         cur->pkt_out_size = 0;
         if(cur->signal_to_delete) {
             log_it(L_NOTICE, "Socket id %d got signal to be deleted", cur->id);
-            pthread_mutex_lock(&( CH_SF(ch)->mutex));
-            HASH_DEL(CH_SF(ch)->socks, cur);
-            pthread_mutex_unlock(&( CH_SF(ch)->mutex));
+            pthread_mutex_lock(&( CH_VPN(ch)->mutex));
+            HASH_DEL(CH_VPN(ch)->socks, cur);
+            pthread_mutex_unlock(&( CH_VPN(ch)->mutex));
 
             pthread_mutex_lock(&(sf_socks_mutex));
             HASH_DELETE(hh2, sf_socks, cur);

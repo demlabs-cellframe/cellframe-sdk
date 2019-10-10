@@ -85,17 +85,6 @@
 
 #define SF_MAX_EVENTS 256
 
-typedef struct dap_stream_ch_vpn_remote_single { //
-    in_addr_t addr;
-//    pthread_mutex_t mutex;
-    dap_stream_ch_t * ch;
-
-    uint64_t bytes_sent;
-    uint64_t bytes_recieved;
-
-    UT_hash_handle hh;
-} dap_stream_ch_vpn_remote_single_t;
-
 typedef struct vpn_local_network {
     struct in_addr client_addr_last;
     struct in_addr client_addr_mask;
@@ -363,13 +352,18 @@ void srv_ch_sf_delete(dap_stream_ch_t* ch, void* arg)
 
 static void stream_sf_socket_delete(ch_vpn_socket_proxy_t * sf)
 {
-    close(sf->sock);
+    dap_return_if_fail(sf);
+    if(sf->sock > 0)
+        close(sf->sock);
+    // wait while mutex will be released if it be locked
+    pthread_mutex_lock(&sf->mutex);
+    pthread_mutex_unlock(&sf->mutex);
+
     pthread_mutex_destroy(&(sf->mutex));
-    if(sf)
-        free(sf);
+    free(sf);
 }
 
-static void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
+void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
     ch->ready_to_write = is_ready;

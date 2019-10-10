@@ -46,6 +46,17 @@
 #define VPN_PACKET_OP_CODE_PING             0xc0
 #define VPN_PACKET_OP_CODE_PONG             0xc1
 
+typedef struct dap_stream_ch_vpn_remote_single { //
+    in_addr_t addr;
+//    pthread_mutex_t mutex;
+    dap_stream_ch_t * ch;
+
+    uint64_t bytes_sent;
+    uint64_t bytes_recieved;
+
+    UT_hash_handle hh;
+} dap_stream_ch_vpn_remote_single_t;
+
 typedef struct ch_vpn_pkt {
     struct {
         int sock_id; // Client's socket id
@@ -116,6 +127,7 @@ typedef struct dap_chain_net_srv_vpn
     ch_vpn_socket_proxy_t * socks;
     int raw_l3_sock;
 
+    dap_stream_ch_t * ch;
     dap_ledger_t *ledger;
 } dap_chain_net_srv_vpn_t;
 
@@ -123,3 +135,6 @@ typedef struct dap_chain_net_srv_vpn
 
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit();
+
+void stream_sf_socket_ready_to_write( dap_stream_ch_t *ch, bool is_ready );
+
