@@ -31,6 +31,12 @@
 #include <string.h>
 #include <errno.h>
 
+#ifdef DAP_OS_UNIX
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#endif
+
 #ifdef WIN32
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0600
@@ -97,7 +103,6 @@ typedef struct dap_chain_net_pvt{
     pthread_mutex_t state_mutex;
     dap_chain_node_role_t node_role;
     uint32_t  flags;    
-//    uint8_t padding2[4];
 
     dap_chain_node_addr_t * node_addr;
     dap_chain_node_info_t * node_info; // Current node's info
@@ -111,9 +116,11 @@ typedef struct dap_chain_net_pvt{
 
     size_t addr_request_attempts;
     bool load_mode;
+    uint8_t padding2[7];
     char ** seed_aliases;
-    uint16_t seed_aliases_count;
+
     uint8_t padding3[6];
+    uint16_t seed_aliases_count;
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_prev;
@@ -1107,6 +1114,15 @@ int s_net_load(const char * a_net_name)
         uint16_t l_seed_nodes_ipv4_len =0;
         char ** l_seed_nodes_ipv4 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv4"
                                                              ,&l_seed_nodes_ipv4_len);
+
+        uint16_t l_seed_nodes_ipv6_len =0;
+        char ** l_seed_nodes_ipv6 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv6"
+                                                             ,&l_seed_nodes_ipv6_len);
+
+        uint16_t l_seed_nodes_hostnames_len =0;
+        char ** l_seed_nodes_hostnames = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_hostnames"
+                                                             ,&l_seed_nodes_hostnames_len);
+
         uint16_t l_seed_nodes_port_len =0;
         char ** l_seed_nodes_port = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_port"
                                                                      ,&l_seed_nodes_port_len);
@@ -1118,7 +1134,11 @@ int s_net_load(const char * a_net_name)
                 PVT(l_net)->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
         for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
                             i < l_seed_nodes_addrs_len &&
-                            i < l_seed_nodes_ipv4_len
+                            (
+                                ( l_seed_nodes_ipv4_len  && i < l_seed_nodes_ipv4_len  ) ||
+                                ( l_seed_nodes_ipv6_len  && i < l_seed_nodes_ipv6_len  ) ||
+                                ( l_seed_nodes_hostnames_len  && i < l_seed_nodes_hostnames_len  )
+                              )
                                                                     ; i++ ){
             dap_chain_node_addr_t * l_seed_node_addr;
             l_seed_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i] );
@@ -1135,20 +1155,47 @@ int s_net_load(const char * a_net_name)
                     continue;
                 }
                 if( l_seed_node_addr ){
-                    inet_pton( AF_INET, l_seed_nodes_ipv4[i],&l_node_info->hdr.ext_addr_v4);
-                    l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
+                    if ( l_seed_nodes_ipv4_len )
+                        inet_pton( AF_INET, l_seed_nodes_ipv4[i],&l_node_info->hdr.ext_addr_v4);
+                    if ( l_seed_nodes_ipv6_len )
+                        inet_pton( AF_INET6, l_seed_nodes_ipv6[i],&l_node_info->hdr.ext_addr_v6);
                     if(l_seed_nodes_port_len >= i)
-                        l_node_info->hdr.ext_port = strtoul(l_seed_nodes_port[i], NULL, 10);
-                    int l_ret;
-                    if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
-                        if (dap_chain_node_alias_register(l_net,PVT(l_net)->seed_aliases[i],l_seed_node_addr))
-                            log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list",NODE_ADDR_FP_ARGS(l_seed_node_addr) );
-                        else {
-                            log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS(l_seed_node_addr));
+                        l_node_info->hdr.ext_port = (uint16_t) strtoul(l_seed_nodes_port[i], NULL, 10);
+
+                    if ( l_seed_nodes_hostnames_len ){
+                        struct addrinfo l_hints={0}, *l_servinfo, *p;
+                        int rv;
+                        l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
+                        //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+
+                        log_it( L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
+                        struct hostent *l_he;
+                        if ( l_he = gethostbyname (l_seed_nodes_hostnames[i])   ){
+                            struct in_addr **l_addr_list = (struct in_addr **) l_he->h_addr_list;
+                            for(int i = 0; l_addr_list[i] != NULL; i++ ) {
+                                log_it( L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i] ,
+                                        inet_ntoa( *l_addr_list[i]  ) );
+                                l_node_info->hdr.ext_addr_v4.s_addr = l_addr_list[i]->s_addr;
+                            }
+                        } else {
+                            herror("gethostname");
                         }
-                    }else{
-                        log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d",
-                               NODE_ADDR_FP_ARGS(l_seed_node_addr), l_ret);
+                    }
+
+                    l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
+                    if ( l_node_info->hdr.ext_addr_v4.s_addr ||
+                            l_node_info->hdr.ext_addr_v6.__in6_u.__u6_addr32[0] ){
+                        int l_ret;
+                        if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
+                            if (dap_chain_node_alias_register(l_net,PVT(l_net)->seed_aliases[i],l_seed_node_addr))
+                                log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list",NODE_ADDR_FP_ARGS(l_seed_node_addr) );
+                            else {
+                                log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS(l_seed_node_addr));
+                            }
+                        }else{
+                            log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d",
+                                   NODE_ADDR_FP_ARGS(l_seed_node_addr), l_ret);
+                        }
                     }
                     DAP_DELETE( l_seed_node_addr);
                 }else
