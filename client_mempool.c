@@ -145,8 +145,7 @@ int client_mempool_init(void)
         return -1;
     }
     else { */
-    const char *port_str = dap_config_get_item_str(g_config, "server", "listen_port_tcp");
-    listen_port_tcp = (port_str) ? atoi(port_str) : 8079;
+    listen_port_tcp = dap_config_get_item_int32_default(g_config, "server", "listen_port_tcp", 8079);
     /*}
     if(g_config)
         dap_config_close(g_config); */
