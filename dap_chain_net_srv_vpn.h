@@ -108,16 +108,18 @@ typedef struct ch_vpn_socket_proxy {
  *
  *
  **/
-typedef struct dap_stream_ch_vpn
+typedef struct dap_chain_net_srv_vpn
 {
     dap_chain_net_srv_t net_srv;
     //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
     pthread_mutex_t mutex;
     ch_vpn_socket_proxy_t * socks;
     int raw_l3_sock;
-} dap_stream_ch_vpn_t;
 
-#define CH_SF(a) ((dap_stream_ch_vpn_t *) ((a)->internal) )
+    dap_ledger_t *ledger;
+} dap_chain_net_srv_vpn_t;
+
+#define CH_VPN(a) ((dap_chain_net_srv_vpn_t *) ((a)->internal) )
 
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit();
