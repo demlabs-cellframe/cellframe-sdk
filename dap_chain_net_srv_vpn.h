@@ -136,5 +136,4 @@ typedef struct dap_chain_net_srv_vpn
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit();
 
-void stream_sf_socket_ready_to_write( dap_stream_ch_t *ch, bool is_ready );
 

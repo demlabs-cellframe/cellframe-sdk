@@ -55,6 +55,7 @@
 #include <netinet/ip.h>
 
 #include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_net_vpn_client.h"
 #include "dap_chain_net_vpn_client_tun.h"
 
 #define LOG_TAG "vpn_client_tun"
@@ -303,20 +304,25 @@ static void* thread_read_tun(void *arg)
                     // sent packet to vpn-server
                     // TODO
 
-                    dap_stream_ch_vpn_remote_single_t * raw_client = NULL;
+                    dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
+                    //dap_client_t *l_client = l_vpn_client ? l_vpn_client->client : NULL;
+                    //DAP_CLIENT_PVT(l_client);
+                    //dap_stream_ch_vpn_remote_single_t * raw_client = l_client->;
+
+
                     pthread_mutex_lock(&s_clients_mutex);
 //                    HASH_FIND_INT(raw_server->clients, &in_daddr.s_addr, raw_client);
                     //                  HASH_ADD_INT(CH_SF(ch)->socks, id, sf_sock );
                     //                  HASH_DEL(CH_SF(ch)->socks,sf_sock);
-                    if(raw_client) { // Is present in hash table such destination address
+                    if(l_stream) { // Is present in hash table such destination address
                         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + read_ret);
                         pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
                         pkt_out->header.sock_id = s_fd_tun;
                         pkt_out->header.op_data.data_size = read_ret;
                         memcpy(pkt_out->data, tmp_buf, read_ret);
-                        dap_stream_ch_pkt_write(raw_client->ch, DATA_CHANNEL_ID, pkt_out,
+                        dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
                                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                        stream_sf_socket_ready_to_write(raw_client->ch, true);
+                        dap_stream_ch_set_ready_to_write(l_stream, true);
                     } else {
                         log_it(L_DEBUG, "No remote client for income IP packet with addr %s", inet_ntoa(in_daddr));
                     }
@@ -456,7 +462,7 @@ int dap_chain_net_vpn_client_tun_init(const char *a_ipv4_str)
         DAP_DELETE(l_str_cmd);
     }
 
-    pthread_mutex_init(& s_clients_mutex,NULL);
+    pthread_mutex_init(&s_clients_mutex, NULL);
     pthread_create(&s_thread_read_tun_id, NULL, thread_read_tun, NULL);
     //m_tunDeviceName = dev;
     //m_tunSocket = fd;
@@ -922,7 +928,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
     dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out, l_pkt_out_size);
-    stream_sf_socket_ready_to_write(a_ch, true);
+    dap_stream_ch_set_ready_to_write(a_ch, true);
 }
 
 void ch_sf_tun_send(dap_chain_net_srv_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size) {
@@ -968,7 +974,7 @@ void ch_sf_tun_send(dap_chain_net_srv_vpn_t * ch_sf, void * pkt_data, size_t pkt
                 pkt_out->header.sock_id = s_fd_tun;
                 dap_stream_ch_pkt_write(ch_sf->ch, 'd', pkt_out,
                         pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                stream_sf_socket_ready_to_write(ch_sf->ch, true);
+                dap_stream_ch_set_ready_to_write(ch_sf->ch, true);
             } else {
                 //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
                 //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);

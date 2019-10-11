@@ -43,10 +43,8 @@
 
 #include "dap_stream_ch_proc.h"
 
-#include "dap_chain_net.h"
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_vpn_client.h"
-#include "dap_client.h"
 
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_net_vpn_client_tun.h"
@@ -69,6 +67,15 @@ static pthread_mutex_t sf_socks_mutex;
 
 dap_chain_node_info_t *s_node_info = NULL;
 dap_chain_node_client_t *s_vpn_client = NULL;
+
+dap_stream_ch_t* dap_chain_net_vpn_client_get_stream(void)
+{
+    if(!s_vpn_client)
+        return NULL;
+    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, SERVICE_CHANNEL_ID);
+    return l_stream;
+}
+
 /**
  * Start VPN client
  *
@@ -188,7 +195,7 @@ static void ch_sf_new(dap_stream_ch_t* a_ch, void* arg)
     l_sf->ch=a_ch;
     pthread_mutex_init(&l_sf->mutex, NULL);
     l_sf->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
-    a_ch->stream->events_socket->is_pingable = true; //set up connection to be pingable by main loop
+    //a_ch->stream->events_socket->is_pingable = true; //set up connection to be pingable by main loop
 
 }
 

@@ -363,7 +363,7 @@ static void stream_sf_socket_delete(ch_vpn_socket_proxy_t * sf)
     free(sf);
 }
 
-void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
+static void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
     ch->ready_to_write = is_ready;

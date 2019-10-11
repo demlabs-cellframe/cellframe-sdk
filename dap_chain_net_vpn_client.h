@@ -24,6 +24,11 @@
  */
 #pragma once
 
+#include "dap_stream_ch.h"
+#include "dap_chain_net.h"
+
+dap_stream_ch_t* dap_chain_net_vpn_client_get_stream(void);
+
 int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port);
 int dap_chain_net_vpn_client_stop(void);
 int dap_chain_net_vpn_client_status(void);
