@@ -161,8 +161,12 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr));
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
-
-        dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client, dap_stream_ch_chain_get_id());
+        // find current channel code
+        dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+        dap_stream_ch_t * l_ch = NULL;
+        if(l_client_internal && l_client_internal->active_channels)
+            l_ch = dap_client_get_stream_ch(a_client, l_client_internal->active_channels[0]);
+        //dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client, dap_stream_ch_chain_get_id());
         if(l_ch) {
             dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
             l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
