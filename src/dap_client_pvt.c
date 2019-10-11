@@ -314,14 +314,17 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     dap_client_get_stream_id(a_client_pvt->client));
 
             //dap_client_request(a_client_pvt->client, l_full_path, "12345", 0, m_stream_response, m_stream_error);
+
+            const char *l_add_str = "";
+            // if connect to vpn server
+            const char l_active_vpn_channels[] = { SERVICE_CHANNEL_ID, 0 };
+            if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
+                l_add_str = "\r\nService-Key: test";
+
             {
-                size_t l_message_size = snprintf(NULL, 0,
-                        "GET /%s HTTP/1.1\r\nHost: %s:%d\r\n\r\n",
-                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
-                char *l_message = DAP_NEW_Z_SIZE(char, l_message_size + 1);
-                l_message_size = snprintf(l_message, l_message_size + 1,
-                        "GET /%s HTTP/1.1\r\nHost: %s:%d\r\n\r\n",
-                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
+                char *l_message = dap_strdup_printf("GET /%s HTTP/1.1\r\nHost: %s:%d%s\r\n\r\n",
+                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
+                size_t l_message_size = dap_strlen(l_message);
                 int count = send(a_client_pvt->stream_socket, l_message, l_message_size, 0);
                 DAP_DELETE(l_message);
             }
