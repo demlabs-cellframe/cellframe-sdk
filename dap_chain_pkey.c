@@ -99,6 +99,9 @@ dap_chain_sign_type_t dap_chain_pkey_type_from_sign( dap_chain_pkey_type_t a_pke
         case PKEY_TYPE_SIGN_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
         case PKEY_TYPE_SIGN_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
         case PKEY_TYPE_SIGN_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
+        case PKEY_TYPE_SIGN_DILITHIUM : l_sign_type.type = SIG_TYPE_DILITHIUM; break;
+        case PKEY_TYPE_MULTI: l_sign_type.type = SIG_TYPE_MULTI; break;
+        case PKEY_TYPE_NULL: l_sign_type.type = SIG_TYPE_NULL; break;
     }
     return l_sign_type;
 }

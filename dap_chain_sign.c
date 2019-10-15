@@ -29,6 +29,7 @@
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_picnic.h"
+#include "dap_enc_dilithium.h"
 
 #define LOG_TAG "dap_chain_sign"
 
@@ -58,12 +59,13 @@ size_t dap_chain_sign_create_output_cals_size(dap_enc_key_t * a_key, size_t a_ou
  */
 dap_chain_sign_type_t dap_chain_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
 {
-    dap_chain_sign_type_t l_sign_type={0};
+    dap_chain_sign_type_t l_sign_type;
     switch (a_key_type){
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_type.type = SIG_TYPE_DILITHIUM; break;
+        default: l_sign_type.raw = 0;
     }
     return l_sign_type;
 }
@@ -98,7 +100,7 @@ const char * dap_chain_sign_type_to_str(dap_chain_sign_type_t a_chain_sign_type)
         case SIG_TYPE_TESLA: return "sig_tesla";
         case SIG_TYPE_PICNIC: return "sig_picnic";
         case SIG_TYPE_DILITHIUM: return "sig_dil";
-        default: return SIG_TYPE_NULL;//DAP_ENC_KEY_TYPE_NULL;
+        default: return "UNDEFINED";//DAP_ENC_KEY_TYPE_NULL;
     }
 
 }
