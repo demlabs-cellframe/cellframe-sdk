@@ -45,7 +45,7 @@
 
 #define LOG_TAG "dap_stream_ch_proc"
 
-stream_ch_proc_t proc[256]={0};
+static stream_ch_proc_t s_proc[256]={{0}};
 
 /**
  * @brief stream_ch_type_init Initialize stream channels type module
@@ -75,11 +75,11 @@ void dap_stream_ch_proc_add(uint8_t id,dap_stream_ch_callback_t new_callback,dap
                           dap_stream_ch_callback_t packet_out_callback
                           )
 {
-   proc[id].id=id;
-   proc[id].new_callback=new_callback;
-   proc[id].delete_callback=delete_callback;
-   proc[id].packet_in_callback=packet_in_callback;
-   proc[id].packet_out_callback=packet_out_callback;
+   s_proc[id].id=id;
+   s_proc[id].new_callback=new_callback;
+   s_proc[id].delete_callback=delete_callback;
+   s_proc[id].packet_in_callback=packet_in_callback;
+   s_proc[id].packet_out_callback=packet_out_callback;
 }
 
 /**
@@ -89,5 +89,5 @@ void dap_stream_ch_proc_add(uint8_t id,dap_stream_ch_callback_t new_callback,dap
  */
 stream_ch_proc_t* stream_ch_proc_find(uint8_t id)
 {
-    return proc+id;
+    return s_proc+id;
 }
