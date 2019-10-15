@@ -39,7 +39,7 @@ typedef struct dap_chain_wallet_cert_hdr{
 
 typedef struct dap_chain_wallet_cert{
     dap_chain_wallet_cert_hdr_t header;
-    dap_chain_cert_file_t cert_raw[]; /// Raw certs data
+    dap_chain_cert_file_t cert_raw; /// Raw certs data
 } DAP_ALIGN_PACKED dap_chain_wallet_cert_t;
 
 typedef struct dap_chain_wallet_file_hdr{
