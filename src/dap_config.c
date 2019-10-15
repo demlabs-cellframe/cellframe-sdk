@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+
 #include <errno.h>
 #include <ctype.h>
 #include "dap_file_utils.h"
@@ -60,7 +61,7 @@ int dap_config_init(const char * a_configs_path)
         }
 #endif
         if(dap_dir_test(a_configs_path) || !dap_mkdir_with_parents(a_configs_path)) {
-            strncpy(s_configs_path, a_configs_path,sizeof(s_configs_path));
+            strncpy(s_configs_path, a_configs_path,sizeof(s_configs_path)-1);
             return 0;
         }
     }

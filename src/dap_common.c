@@ -61,7 +61,7 @@
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_list.h"
-
+#include "dap_file_utils.h"
 #include "dap_lut.h"
 
 #define DAP_LOG_USE_SPINLOCK    1
@@ -190,7 +190,7 @@ static DAP_ALIGNED(32) uint8_t cdatatime[ 64 ];
 
 static void  *log_thread_proc( void *arg );
 
-DAP_STATIC_INLINE DAP_UpdateLogTime( uint32_t lp )
+DAP_STATIC_INLINE void s_update_log_time( uint32_t lp )
 {
     time_t t = time( NULL );
     struct tm *tmptime = localtime( &t );
@@ -315,7 +315,7 @@ int dap_common_init( const char *console_title, const char *a_log_file )
 
     log_page = 0;
     log_outindex = 0;
-    DAP_UpdateLogTime( 0 );
+    s_update_log_time( 0 );
 
     log_term_signal = false;
     pthread_create( &log_thread, NULL, log_thread_proc, NULL );
@@ -540,7 +540,7 @@ static void  *log_thread_proc( void *arg )
 
     while ( !log_term_signal ) {
 
-        DAP_UpdateLogTime( log_page^1 );
+        s_update_log_time( log_page^1 );
 
         #if DAP_LOG_USE_SPINLOCK
             DAP_AtomicLock( &log_spinlock );
