@@ -324,7 +324,7 @@ static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain
 {
     if(dap_strcmp(dap_chain_gdb_get_group(a_chain), a_group))
         return 0;
-    s_chain_callback_datums_pool_proc(a_chain, a_datums, a_datums_count);
+    return s_chain_callback_datums_pool_proc(a_chain, a_datums, a_datums_count);
 }
 
 /**
