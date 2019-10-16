@@ -34,7 +34,7 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto ${CMAKE_CURRENT_SOURCE_DIR}/../lib/[x86_64CLANG]/wepoll[x86_64CLANG].a)
 endif()
 
 if(UNIX)
