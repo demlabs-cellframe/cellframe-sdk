@@ -170,7 +170,7 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
     // add 'in' items
     {
         dap_list_t *l_list_tmp = l_list_used_out;
-        uint64_t l_value_to_items = 0; // how many coins to transfer
+        uint64_t l_value_to_items = 0; // how many datoshi to transfer
         while(l_list_tmp) {
             list_used_item_t *item = l_list_tmp->data;
             if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast,(uint32_t) item->num_idx_out) == 1) {
@@ -183,7 +183,7 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
     }
     // add 'out' items
     {
-        uint64_t l_value_pack = 0; // how much coin add to 'out' items
+        uint64_t l_value_pack = 0; // how much datoshi add to 'out' items
         if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
             l_value_pack += a_value;
             // transaction fee
