@@ -115,7 +115,7 @@ typedef struct dap_ledger_wallet_balance {
     //dap_ledger_wallet_balance_key_t key;
     char *key;
     char token_ticker[10];
-    uint64_t balance;
+    uint128_t balance;
     UT_hash_handle hh;
 } dap_ledger_wallet_balance_t;
 

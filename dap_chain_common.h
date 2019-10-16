@@ -41,6 +41,8 @@
 #define DAP_CHAIN_TIMESTAMP_SIZE    8
 #define DAP_CHAIN_TICKER_SIZE_MAX   10
 
+#define DATOSHI_LD 1000000000.0L
+
 // Chain ID of the whole system
 typedef union dap_chain_id {
     uint8_t raw[DAP_CHAIN_ID_SIZE];
