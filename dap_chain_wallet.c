@@ -75,12 +75,12 @@ int dap_chain_wallet_init()
                 const char *l_file_name = l_dir_entry->d_name;
                 size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
                 if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
-                    char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
+                    char l_file_path_tmp[MAX_PATH] = {'\0'};
+                    dap_sprintf(l_file_path_tmp, "%s/%s", c_wallets_path, l_file_name);
                     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
                     if(l_wallet) {
                         dap_chain_wallet_close(l_wallet);
                     }
-                    DAP_DELETE(l_file_path_tmp);
                 }
             }
             closedir(l_dir);
