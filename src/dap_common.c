@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdatomic.h>
 
 #include <errno.h>
 
@@ -64,14 +65,14 @@
 #include "dap_file_utils.h"
 #include "dap_lut.h"
 
-#define DAP_LOG_USE_SPINLOCK    1
+#define DAP_LOG_USE_SPINLOCK    0
 #define DAP_LOG_HISTORY         1
 
 #define LAST_ERROR_MAX  255
 
 #define LOG_TAG "dap_common"
 
-const char *log_level_tag[ 16 ] = {
+static const char *log_level_tag[ 16 ] = {
 
     " [DBG] [       ", // L_DEBUG     = 0 
     " [INF] [       ", // L_INFO      = 1,
@@ -91,7 +92,7 @@ const char *log_level_tag[ 16 ] = {
     " [---] [       ", //             = 15
 };
 
-const char *ansi_seq_color[ 16 ] = {
+const char *s_ansi_seq_color[ 16 ] = {
 
     "\x1b[0;37;40m",   // L_DEBUG     = 0 
     "\x1b[1;32;40m",   // L_INFO      = 2,
@@ -137,30 +138,38 @@ const char *ansi_seq_color[ 16 ] = {
       };
 #endif
 
-uint32_t ansi_seq_color_len[ 16 ];
 unsigned int l_sys_dir_path_len = 0;
 char s_sys_dir_path[MAX_PATH] = {'\0'};
+
+
 static char s_last_error[LAST_ERROR_MAX] = {0};
 static enum dap_log_level dap_log_level = L_DEBUG;
 static FILE *s_log_file = NULL;
 static char *s_log_file_path = NULL;
-static char log_tag_fmt_str[10];
+static char s_log_tag_fmt_str[10]={0};
+
+static size_t s_ansi_seq_color_len[ 16 ];
 
 #ifdef DAP_LOG_HISTORY
 static pthread_mutex_t s_list_logs_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t logh_total    = 0; // log history size
 static uint32_t logh_outindex = 0;
-static uint8_t *logh_buffer  = NULL;
-static uint8_t *temp_buffer = NULL;
-static uint8_t *end_of_logh_buffer = NULL;
-static dap_log_history_str_t *log_history = NULL;
+static uint8_t *s_logh_buffer  = NULL;
+static size_t s_logh_buffer_size = 0;
+static uint8_t *s_temp_buffer = NULL;
+static size_t s_temp_buffer_size = 0;
+static uint8_t *s_end_of_logh_buffer = NULL;
+static dap_log_history_str_t *s_log_history = NULL;
+static size_t s_log_history_size = 0;
 #endif
 
 #if DAP_LOG_USE_SPINLOCK
-    DAP_SpinLock log_spinlock;
+    static dap_spinlock_t log_spinlock;
 #else
-    static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+    static pthread_mutex_t s_log_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
+pthread_cond_t s_log_cond = PTHREAD_COND_INITIALIZER;
+
 
 typedef struct dap_log_str_s {
 
@@ -175,26 +184,28 @@ typedef struct dap_log_str_s {
 #define DAP_LOG_MAX_STRINGS 32768
 #define DAP_LOG_BUFFER_SIZE (DAP_LOG_STR_SIZE * DAP_LOG_MAX_STRINGS)
 
-static uint32_t log_outindex = 0;
-static uint8_t *log_buffer = NULL;
-static dap_log_str_t *log_strs = NULL;
+static volatile uint32_t s_log_outindex = 0;
+static uint8_t *s_log_buffer = NULL;
+static size_t s_log_buffer_size =0;
 
-static pthread_t log_thread;
-static bool log_term_signal = false;
-static uint32_t log_page = 0;
+static dap_log_str_t *s_log_strs = NULL;
+static size_t s_log_strs_size = 0;
+static pthread_t s_log_thread = 0;
+static bool s_log_term_signal = false;
+static uint32_t s_log_page = 0;
 
-static time_t g_start_time = 0;
-static volatile time_t g_time;
-static bool bOverflow = false;
-static DAP_ALIGNED(32) uint8_t cdatatime[ 64 ];
+static time_t s_start_time = 0;
+static volatile time_t s_time = 0;
+static bool s_overflow = false;
+static char s_cur_datatime_str[ 200];
 
 static void  *log_thread_proc( void *arg );
 
-DAP_STATIC_INLINE void s_update_log_time( uint32_t lp )
+DAP_STATIC_INLINE void s_update_log_time()
 {
     time_t t = time( NULL );
     struct tm *tmptime = localtime( &t );
-    strftime( (char *)&cdatatime[lp*32], 32, "[%x-%X]", tmptime );
+    strftime( s_cur_datatime_str, sizeof(s_cur_datatime_str), "[%x-%X]", tmptime );
 
 //		printf("Time updated %s page %u\n", (char *)&cdatatime[lp*32], log_page );
 }
@@ -203,8 +214,8 @@ DAP_STATIC_INLINE void s_update_log_time( uint32_t lp )
  * @brief set_log_level Sets the logging level
  * @param[in] ll logging level
  */
-void dap_log_level_set( enum dap_log_level ll ) {
-    dap_log_level = ll;
+void dap_log_level_set( enum dap_log_level a_ll ) {
+    dap_log_level = a_ll;
 }
 
 enum dap_log_level dap_log_level_get( void ) {
@@ -215,18 +226,15 @@ enum dap_log_level dap_log_level_get( void ) {
  * @brief dap_set_log_tag_width Sets the length of the label
  * @param[in] width Length not more than 99
  */
-void dap_set_log_tag_width(size_t width) {
+void dap_set_log_tag_width(size_t a_width) {
 
-    if (width > 99) {
-        dap_fprintf(stderr,"Can't set width %zd", width);
+    if (a_width > 99) {
+        dap_fprintf(stderr,"Can't set width %zd", a_width);
         return;
     }
 
   // construct new log_tag_fmt_str
-    strcpy( log_tag_fmt_str, "[%" );
-    strcat( log_tag_fmt_str, dap_itoa((int)width) );
-//  strcat( log_tag_fmt_str, itoa((int)width) );
-    strcat( log_tag_fmt_str, "s]\t" );
+    dap_snprintf(s_log_tag_fmt_str,sizeof (s_log_tag_fmt_str), "[%%%zds]\t",a_width);
 }
 
 /**
@@ -234,7 +242,7 @@ void dap_set_log_tag_width(size_t width) {
  * @param[in] a_log_file
  * @return
  */
-int dap_common_init( const char *console_title, const char *a_log_file )
+int dap_common_init( const char *a_console_title, const char *a_log_file )
 {
     srand( (unsigned int)time(NULL) );
 
@@ -242,46 +250,52 @@ int dap_common_init( const char *console_title, const char *a_log_file )
         SetupConsole( console_title, L"Lucida Console", 12, 20 );
     #endif
 
-    g_start_time = time( NULL );
+    s_start_time = time( NULL );
 
     // init default log tag 8 width
-    strcpy( log_tag_fmt_str, "[%8s]\t");
+    strncpy( s_log_tag_fmt_str, "[%8s]\t",sizeof (s_log_tag_fmt_str));
 
     #if DAP_LOG_HISTORY
-        logh_buffer = (uint8_t *)DAP_MALLOC( DAP_LOG_HISTORY_BUFFER_SIZE );
-        if ( !logh_buffer )
+        s_logh_buffer_size = DAP_LOG_HISTORY_BUFFER_SIZE;
+        s_logh_buffer = DAP_NEW_Z_SIZE(uint8_t, s_logh_buffer_size);
+        if ( !s_logh_buffer )
             goto err;
 
-        end_of_logh_buffer = logh_buffer + DAP_LOG_HISTORY_BUFFER_SIZE;
+        s_end_of_logh_buffer = s_logh_buffer + s_logh_buffer_size;
 
-        log_history = (dap_log_history_str_t *)DAP_MALLOC( DAP_LOG_HISTORY_MAX_STRINGS * sizeof(dap_log_history_str_t) );
-        if ( !log_history )
+        s_log_history_size =  DAP_LOG_HISTORY_MAX_STRINGS * sizeof(dap_log_history_str_t);
+        s_log_history =  DAP_NEW_Z_SIZE(dap_log_history_str_t,s_log_history_size);
+
+        if ( !s_log_history )
             goto err;
 
         for ( uint32_t i = 0; i < DAP_LOG_HISTORY_MAX_STRINGS; ++ i ) {
-            log_history[ i ].t   = 0;
-            log_history[ i ].str = logh_buffer + DAP_LOG_HISTORY_STR_SIZE * i;
+            s_log_history[ i ].t   = 0;
+            s_log_history[ i ].str = s_logh_buffer + DAP_LOG_HISTORY_STR_SIZE * i;
         }
     #endif
 
-    log_buffer = (uint8_t *)DAP_MALLOC( DAP_LOG_BUFFER_SIZE * 2 );
-    if ( !log_buffer )
+    s_log_buffer_size= DAP_LOG_BUFFER_SIZE * 2 ;
+    s_log_buffer = DAP_NEW_Z_SIZE(uint8_t, s_log_buffer_size);
+    if ( !s_log_buffer )
         goto err;
 
-    log_strs = (dap_log_str_t *)DAP_MALLOC( DAP_LOG_MAX_STRINGS * sizeof(dap_log_str_t) * 2 );
-    if ( !log_strs )
+    s_log_strs_size = DAP_LOG_MAX_STRINGS * 2 * sizeof(dap_log_str_t);
+    s_log_strs = DAP_NEW_Z_SIZE(dap_log_str_t, s_log_strs_size);
+    if ( !s_log_strs )
         goto err;
 
     for ( uint32_t i = 0; i < DAP_LOG_MAX_STRINGS * 2; ++ i ) {
-        log_strs[ i ].str = log_buffer + DAP_LOG_STR_SIZE * i;
+        s_log_strs[ i ].str = s_log_buffer + DAP_LOG_STR_SIZE * i;
     }
 
-    temp_buffer = (uint8_t *)DAP_MALLOC( 65536 );
-    if ( !logh_buffer )
+    s_temp_buffer_size = 65536;
+    s_temp_buffer = DAP_NEW_Z_SIZE(uint8_t,s_temp_buffer_size);
+    if ( !s_logh_buffer )
         goto err;
 
     for ( uint32_t i = 0; i < 16; ++ i )
-        ansi_seq_color_len[ i ] = strlen( ansi_seq_color[i] );
+        s_ansi_seq_color_len[ i ] = strlen( s_ansi_seq_color[i] );
 
     #ifdef _WIN32
         memset( &win32_osvi, 0, sizeof(OSVERSIONINFO) );
@@ -313,12 +327,12 @@ int dap_common_init( const char *console_title, const char *a_log_file )
         DAP_DELETE(s_log_file_path);
     s_log_file_path = dap_strdup(a_log_file);
 
-    log_page = 0;
-    log_outindex = 0;
-    s_update_log_time( 0 );
+    s_log_page = 0;
+    s_log_outindex = 0;
+    s_update_log_time();
 
-    log_term_signal = false;
-    pthread_create( &log_thread, NULL, log_thread_proc, NULL );
+    s_log_term_signal = false;
+    pthread_create( &s_log_thread, NULL, log_thread_proc, NULL );
 
     return 0;
 err:
@@ -335,8 +349,8 @@ void dap_common_deinit( )
 {
     printf("dap_common_deinit( )\n");
 
-    log_term_signal = true;
-    pthread_join( log_thread, NULL );
+    s_log_term_signal = true;
+    pthread_join( s_log_thread, NULL );
 
     if ( s_log_file )
         fclose( s_log_file );
@@ -346,21 +360,21 @@ void dap_common_deinit( )
         s_log_file_path = NULL;
     }
 
-    if ( temp_buffer ) 
-        DAP_FREE( temp_buffer );
+    if ( s_temp_buffer )
+        DAP_FREE( s_temp_buffer );
 
-    if ( log_strs ) 
-        DAP_FREE( log_strs );
+    if ( s_log_strs )
+        DAP_FREE( s_log_strs );
 
-    if ( log_buffer ) 
-        DAP_FREE( log_buffer );
+    if ( s_log_buffer )
+        DAP_FREE( s_log_buffer );
 
 #if DAP_LOG_HISTORY
-    if ( log_history ) 
-        DAP_FREE( log_history );
+    if ( s_log_history )
+        DAP_FREE( s_log_history );
 
-    if ( logh_buffer ) 
-        DAP_FREE( logh_buffer );
+    if ( s_logh_buffer )
+        DAP_FREE( s_logh_buffer );
 #endif
 }
 
@@ -371,25 +385,25 @@ void log_log( char *str, uint32_t len, time_t t )
 
     while( len ) {
 
-        uint8_t   *out = log_history[ logh_outindex ].str;
+        uint8_t   *out = s_log_history[ logh_outindex ].str;
         uint32_t  ilen = len;
 
-        if ( out + len >= end_of_logh_buffer )
-            ilen = end_of_logh_buffer - out;
+        if ( out + len >= s_end_of_logh_buffer )
+            ilen = s_end_of_logh_buffer - out;
 
         memcpy( out, str, ilen );
         len -= ilen;
 
         do {
 
-            log_history[ logh_outindex ].t = t;
+            s_log_history[ logh_outindex ].t = t;
 
             if ( ilen >= DAP_LOG_HISTORY_STR_SIZE ) {
-                log_history[ logh_outindex ].len = DAP_LOG_HISTORY_STR_SIZE;
+                s_log_history[ logh_outindex ].len = DAP_LOG_HISTORY_STR_SIZE;
                 ilen -= DAP_LOG_HISTORY_STR_SIZE;
             }
             else {
-                log_history[ logh_outindex ].len = ilen;
+                s_log_history[ logh_outindex ].len = ilen;
                 ilen = 0;
             }
 
@@ -411,18 +425,18 @@ uint32_t logh_since( time_t t )
     uint32_t si = logh_total >> 1;
     uint32_t li = (logh_outindex - 1) & DAP_LOG_HISTORY_M;
 
-    if ( log_history[li].t < t ) // no new logs
+    if ( s_log_history[li].t < t ) // no new logs
         return 0xFFFFFFFF;
 
     if (logh_total >= DAP_LOG_HISTORY_MAX_STRINGS )
         bi = logh_outindex;
 
-    if ( log_history[bi].t >= t )  // all logs is new
+    if ( s_log_history[bi].t >= t )  // all logs is new
         return bi;
 
     while( si ) {
 
-        if ( log_history[(bi + si) & DAP_LOG_HISTORY_M].t < t ) 
+        if ( s_log_history[(bi + si) & DAP_LOG_HISTORY_M].t < t )
             bi += si;
 
         si >>= 1;
@@ -504,7 +518,7 @@ char *dap_log_get_item( time_t a_time, int a_limit )
     }
 
     si = logh_since( a_start_time );
-    if ( si == 0xFFFFFFFF || log_history[ si ].t < a_start_time ) {// no new logs
+    if ( si == 0xFFFFFFFF || s_log_history[ si ].t < a_start_time ) {// no new logs
         pthread_mutex_unlock( &s_list_logs_mutex );
         return NULL;
     }
@@ -517,11 +531,11 @@ char *dap_log_get_item( time_t a_time, int a_limit )
 
     do {
 
-        memcpy( out, log_history[ si ].str, log_history[ si ].len );
-        out += log_history[ si ].len;
+        memcpy( out, s_log_history[ si ].str, s_log_history[ si ].len );
+        out += s_log_history[ si ].len;
 
         si = (si + 1) & DAP_LOG_HISTORY_M;
-        if ( si == logh_outindex || log_history[ si ].t < a_start_time )
+        if ( si == logh_outindex || s_log_history[ si ].t < a_start_time )
             break;
 
     } while ( --l_count );
@@ -535,39 +549,39 @@ char *dap_log_get_item( time_t a_time, int a_limit )
 
 static void  *log_thread_proc( void *arg )
 {
-    int32_t outlogstrs = 0, tmp, n;
-    dap_log_str_t *logstr;
+    int32_t l_outlogstrs = 0, tmp, n;
+    dap_log_str_t *l_logstr;
 
-    while ( !log_term_signal ) {
+    while ( !s_log_term_signal ) {
 
-        s_update_log_time( log_page^1 );
+        s_update_log_time( );
 
         #if DAP_LOG_USE_SPINLOCK
             DAP_AtomicLock( &log_spinlock );
         #else
-            pthread_mutex_lock( &log_mutex );
+            pthread_mutex_lock( &s_log_mutex );
         #endif
-        if ( !log_outindex ) {
-		        log_page ^= 1;
+        if ( !s_log_outindex ) {
+                s_log_page ^= 1;
             #if DAP_LOG_USE_SPINLOCK
                 DAP_AtomicUnlock( &log_spinlock );
             #else
-                pthread_mutex_unlock( &log_mutex );
+                pthread_mutex_unlock( &s_log_mutex );
             #endif
 //            printf("log_thread_proc: nothing to log. Sleeping...\n" );
-            DAP_Sleep( 10 );
+            dap_sleep( 10 );
             continue;
         }
 
-        n = outlogstrs = log_outindex;
-        log_outindex = 0;
-        logstr = &log_strs[ log_page * DAP_LOG_MAX_STRINGS ];
-        log_page ^= 1;
+        n = l_outlogstrs =(int32_t) s_log_outindex;
+        s_log_outindex = 0;
+        l_logstr = &s_log_strs[ s_log_page * DAP_LOG_MAX_STRINGS ];
+        s_log_page ^= 1;
 
         #if DAP_LOG_USE_SPINLOCK
             DAP_AtomicUnlock( &log_spinlock );
         #else
-            pthread_mutex_unlock( &log_mutex );
+            pthread_mutex_unlock( &s_log_mutex );
         #endif
 
 //        printf("log_thread_proc: outlogstrs: %u\n", outlogstrs );
@@ -587,8 +601,8 @@ static void  *log_thread_proc( void *arg )
           //  fwrite( buf0 + time_offset, len - time_offset, 1, stdout );
                 WriteFile( hWin32ConOut, logstr->str, logstr->len, (LPDWORD)&tmp, NULL );
             #else
-                fwrite( ansi_seq_color[logstr->tag], 10, 1, stdout );
-                fwrite( logstr->str, logstr->len, 1, stdout );
+                fwrite( s_ansi_seq_color[l_logstr->tag], 10, 1, stdout );
+                fwrite( l_logstr->str, l_logstr->len, 1, stdout );
             #endif
             #endif
             if(s_log_file) {
@@ -597,22 +611,22 @@ static void  *log_thread_proc( void *arg )
                     s_log_file = fopen(s_log_file_path, "a");
                 }
                 if(s_log_file) {
-                    fwrite(logstr->str, logstr->len, 1, s_log_file);
+                    fwrite(l_logstr->str, l_logstr->len, 1, s_log_file);
                     fflush(s_log_file);
                 }
             }
 
 //            fwrite( "1234567890", 5, 1, stdout );
 
-            uint32_t al = ROUNDUP(logstr->len, 128 ) >> 7;
+            uint32_t al = ROUNDUP(l_logstr->len, 128 ) >> 7;
 
-            logstr += al;
+            l_logstr += al;
             n -= al;
 
         } while ( n > 0 );
 
-        if ( outlogstrs < 1024 ) {
-            DAP_Sleep( 10 );
+        if ( l_outlogstrs < 1024 ) {
+            dap_sleep( 10 );
         }
     }
 
@@ -634,26 +648,26 @@ DAP_STATIC_INLINE void _log_enqueue( const char *log_tag, uint32_t taglen, uint8
     #if DAP_LOG_USE_SPINLOCK
         DAP_AtomicLock( &log_spinlock );
     #else
-        pthread_mutex_lock( &log_mutex );
+        pthread_mutex_lock( &s_log_mutex );
     #endif
 
-    if ( log_outindex + (al-1) >= DAP_LOG_MAX_STRINGS ) {
-        if ( !bOverflow ) {
-            bOverflow = true;
+    if ( s_log_outindex + (al-1) >= DAP_LOG_MAX_STRINGS ) {
+        if ( !s_overflow ) {
+            s_overflow = true;
             printf("Overflow!!!\n");
         }
         #if DAP_LOG_USE_SPINLOCK
             DAP_AtomicUnlock( &log_spinlock );
         #else
-            pthread_mutex_unlock( &log_mutex );
+            pthread_mutex_unlock( &s_log_mutex );
         #endif
         return;
     }
 
-    dap_log_str_t *logstr = &log_strs[ log_page * DAP_LOG_MAX_STRINGS + log_outindex ];
+    dap_log_str_t *logstr = &s_log_strs[ s_log_page * DAP_LOG_MAX_STRINGS + s_log_outindex ];
     uint8_t *out = logstr->str;
 
-    memcpy( out, &cdatatime[log_page*32], 19 );
+    memcpy( out, &s_cur_datatime_str[s_log_page*32], 19 );
     out += 19;
     memcpy( out, log_level_tag[ll], 8 );
     out += 8;
@@ -665,16 +679,16 @@ DAP_STATIC_INLINE void _log_enqueue( const char *log_tag, uint32_t taglen, uint8
     out += len;
     *out = 10;
 
-    logstr->t = g_time;
+    logstr->t = s_time;
     logstr->len = total_len;
     logstr->tag = ll;
 
-    log_outindex += al;
+    s_log_outindex += al;
 
     #if DAP_LOG_USE_SPINLOCK
         DAP_AtomicUnlock( &log_spinlock );
     #else
-        pthread_mutex_unlock( &log_mutex );
+        pthread_mutex_unlock( &s_log_mutex );
     #endif
 }
 
@@ -708,7 +722,7 @@ void _log_it( const char *log_tag, uint32_t taglen, enum dap_log_level ll, const
 void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 {
   static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-  uint8_t   *buf0 = temp_buffer;
+  uint8_t   *buf0 = s_temp_buffer;
   uint32_t  len, tmp,
             time_offset,
             tag_offset,
@@ -722,8 +736,8 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 
   pthread_mutex_lock( &mutex );
 
-  memcpy( buf0, ansi_seq_color[ll], ansi_seq_color_len[ll] );
-  time_offset = ansi_seq_color_len[ll];
+  memcpy( buf0, s_ansi_seq_color[ll], s_ansi_seq_color_len[ll] );
+  time_offset = s_ansi_seq_color_len[ll];
 
   struct tm *tmptime = localtime( &t );
   len = strftime( (char *)(buf0 + time_offset), 65536, "[%x-%X]", tmptime );
@@ -758,6 +772,17 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   if ( s_log_file )
     fwrite( buf0 + time_offset, len - time_offset, 1, s_log_file );
 
+#ifdef _WIN32
+//                if ( !bUseANSIEscapeSequences )
+    SetConsoleTextAttribute( hWin32ConOut, log_level_colors[logstr->tag] );
+//  WriteConsole( hWin32ConOut, buf0 + time_offset, len - time_offset, &tmp, NULL );
+//  fwrite( buf0 + time_offset, len - time_offset, 1, stdout );
+    WriteFile( hWin32ConOut, logstr->str, logstr->len, (LPDWORD)&tmp, NULL );
+#else
+    fwrite( s_ansi_seq_color[ll], 10, 1, stdout );
+    fwrite( buf0+time_offset, len-time_offset, 1, stdout );
+#endif
+
   //  buf0[ len++ ] = 0;
   log_log( (char *)(buf0 + time_offset), len - time_offset, t );
 
@@ -778,7 +803,7 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   pthread_mutex_unlock( &mutex );
 }
 
-void DAP_Sleep( uint32_t ms )
+void dap_sleep( uint32_t ms )
 {
 #ifdef _WIN32
     Sleep( ms );

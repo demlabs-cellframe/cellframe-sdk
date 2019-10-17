@@ -188,7 +188,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
   #define dap_vasprintf         vasprintf
 #endif
 
-typedef int DAP_SpinLock;
+typedef int dap_spinlock_t;
 
 /**
  * @brief The log_level enum
@@ -297,21 +297,21 @@ static const uint16_t s_ascii_table_data[256] = {
 #define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0
 #define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0
 
-void DAP_Sleep( uint32_t ms );
+void dap_sleep( uint32_t ms );
 
-DAP_STATIC_INLINE bool DAP_AtomicTryLock( DAP_SpinLock *lock )
+DAP_STATIC_INLINE bool DAP_AtomicTryLock( dap_spinlock_t *lock )
 {
     return (__sync_lock_test_and_set(lock, 1) == 0);
 }
 
-DAP_STATIC_INLINE void DAP_AtomicLock( DAP_SpinLock *lock )
+DAP_STATIC_INLINE void DAP_AtomicLock( dap_spinlock_t *lock )
 {
     while ( !DAP_AtomicTryLock(lock) ) {
-        DAP_Sleep( 0 );
+        dap_sleep( 0 );
     }
 }
 
-DAP_STATIC_INLINE void DAP_AtomicUnlock( DAP_SpinLock *lock )
+DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
 {
     __sync_lock_release( lock );
 }
@@ -329,11 +329,16 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
+#ifdef DAP_LOG_MT
 void _log_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format,... );
-void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
-
 #define log_it( _log_level, ...) _log_it( LOG_TAG, sizeof(LOG_TAG)-1,_log_level, ##__VA_ARGS__)
-#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
+#else
+void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... );
+#define log_it( _log_level, ...) _log_it2( LOG_TAG, _log_level, ##__VA_ARGS__)
+#endif
+//void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
+
+//#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
