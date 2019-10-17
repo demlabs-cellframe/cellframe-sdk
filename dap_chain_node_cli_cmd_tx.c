@@ -301,6 +301,9 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
     // load transactions
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
     dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
+    if (!l_atom) {
+        return NULL;
+    }
     size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
 
     while(l_atom && l_atom_size) {
