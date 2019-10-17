@@ -52,7 +52,7 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_CLIENT_HEADERS} ${DAP_CLIENT_SOURCES})
 
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_udp_server dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_udp_server dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch ${CMAKE_CURRENT_SOURCE_DIR}/../lib/[x86_64CLANG]/libjson-c[x86_64CLANG].a)
 endif()
 
 if(UNIX)
