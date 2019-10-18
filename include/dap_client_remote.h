@@ -38,6 +38,7 @@
     #define EPOLL_HANDLE  int
   #else
     #define EPOLL_HANDLE  HANDLE
+    #include "wepoll.h"
   #endif
 #endif
 
