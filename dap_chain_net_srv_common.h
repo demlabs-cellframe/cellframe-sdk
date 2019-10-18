@@ -42,11 +42,22 @@ typedef union {
 #endif
 } dap_chain_net_srv_uid_t;
 
+typedef union {
+    uint8_t raw[4];
+    uint32_t raw_ui32[1];
+} dap_chain_net_srv_price_unit_uid_t;
+
+typedef union {
+    uint8_t raw[8];
+    uint32_t raw_ui32[2];
+    uint128_t raw_ui128[1];
+} dap_chain_net_srv_proposal_uid_t;
+
 //Classes of services
-enum {
-    SERV_CLASS_ONCE = 1, // one-time service
-    SERV_CLASS_PERMANENT = 2
-};
+typedef enum {
+    SERV_CLASS_ONCE = 1, // one-time service (Token exchange )
+    SERV_CLASS_PERMANENT = 2 // Permanent working service (VPN, CDN, Streaming)
+} dap_chain_net_srv_class_t;
 
 //Types of services
 enum {

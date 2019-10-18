@@ -47,7 +47,7 @@
 #include "utlist.h"
 #include "dap_list.h"
 #include "dap_chain_net_srv.h"
-
+#include "dap_chain_net_srv_order.h"
 #define LOG_TAG "chain_net_srv"
 
 static size_t m_uid_count;
@@ -72,7 +72,8 @@ int dap_chain_net_srv_init(void)
 {
     m_uid = NULL;
     m_uid_count = 0;
-
+    if( dap_chain_net_srv_order_init() != 0 )
+        return -1;
     return 0;
 }
 

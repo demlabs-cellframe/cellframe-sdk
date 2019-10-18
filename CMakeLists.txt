@@ -2,12 +2,14 @@ cmake_minimum_required(VERSION 2.8)
 project (dap_chain_net_srv)
   
 set(DAP_CHAIN_NET_SRV_SRCS 
-  dap_chain_net_srv.c 
-  dap_chain_net_srv_common.c 
-        )
+      dap_chain_net_srv.c
+      dap_chain_net_srv_order.c
+      dap_chain_net_srv_common.c
+   )
 
 set(DAP_CHAIN_NET_SRV_HEADERS
         dap_chain_net_srv.h
+        dap_chain_net_srv_order.h
         dap_chain_net_srv_common.h
     )
 
