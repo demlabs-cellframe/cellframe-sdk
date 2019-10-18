@@ -72,7 +72,7 @@ dap_stream_ch_t* dap_chain_net_vpn_client_get_stream(void)
 {
     if(!s_vpn_client)
         return NULL;
-    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, SERVICE_CHANNEL_ID);
+    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, VPN_CLIENT_ID);
     return l_stream;
 }
 
@@ -90,7 +90,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
      dap_client_t *l_client = DAP_NEW_Z(dap_client_t);
      dap_events_t *l_events = NULL; //dap_events_new();
      l_client = dap_client_new(l_events, s_stage_status_callback, s_stage_status_error_callback);
-     char l_channels[2] = { SERVICE_CHANNEL_ID, 0 };
+     char l_channels[2] = { VPN_CLIENT_ID, 0 };
      dap_client_set_active_channels(l_client, l_channels);
      dap_client_set_uplink(l_client, strdup(a_ip_v4), a_port);
      dap_client_go_stage(l_client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
@@ -100,8 +100,8 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
         s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     s_node_info->hdr.ext_port = a_port;
 
-    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;//DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
-    const char l_active_channels[] = { SERVICE_CHANNEL_ID, 0 };
+    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
+    const char l_active_channels[] = { VPN_CLIENT_ID, 0 };
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
@@ -127,14 +127,72 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
         return -3;
     }
 
-    /*    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, SERVICE_CHANNEL_ID);//dap_stream_ch_chain_get_id());
+    l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
+
+    // send first packet to server
+//    if(0)
+    {
+        dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
+        if(l_stream) { // Is present in hash table such destination address
+            size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
+            ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
+
+            pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST;
+            //pkt_out->header.sock_id = l_stream->stream->events_socket->socket;
+            //pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
+            //pkt_out->header.op_connect.port = a_port;
+            //memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
+            dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
+                    pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+            dap_stream_ch_set_ready_to_write(l_stream, true);
+            DAP_DELETE(pkt_out);
+        }
+    }
+
+    /*    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, VPN_CLIENT_ID);//dap_stream_ch_chain_get_id());
      size_t l_res = dap_stream_ch_chain_pkt_write(l_stream,
      VPN_PACKET_OP_CODE_CONNECT, a_net->pub.id, (dap_chain_id_t ) { { 0 } },
      a_net->pub.cell_id, NULL, 0);*/
 
     //return l_ret;
+    // send connect packet to server
+    /*    {
+     dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
+     if(l_stream) { // Is present in hash table such destination address
+     size_t l_ipv4_str_len = dap_strlen(a_ipv4_str);
+     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
 
-    l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
+     pkt_out->header.op_code = VPN_PACKET_OP_CODE_CONNECT;
+     pkt_out->header.sock_id = l_stream->stream->events_socket->socket;
+     pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
+     pkt_out->header.op_connect.port = a_port;
+     memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
+
+     //            pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
+     //            pkt_out->header.sock_id = 123;
+     //            pkt_out->header.op_data.data_size = 0;
+     //memcpy(pkt_out->data, 0, 0);
+     dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
+     pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+     dap_stream_ch_set_ready_to_write(l_stream, true);
+     DAP_DELETE(pkt_out);
+     }
+     }*/
+
+    //l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
+    /*    {
+     dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
+     if(l_stream) { // Is present in hash table such destination address
+     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + 0);
+     pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
+     pkt_out->header.sock_id = 123;
+     pkt_out->header.op_data.data_size = 0;
+     //memcpy(pkt_out->data, 0, 0);
+     dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
+     pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+     dap_stream_ch_set_ready_to_write(l_stream, true);
+     }
+     }*/
 
     return l_ret;
 }
@@ -192,8 +250,12 @@ static void ch_sf_new(dap_stream_ch_t* a_ch, void* arg)
 
     a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
     dap_chain_net_srv_vpn_t * l_sf = CH_VPN(a_ch);
-    l_sf->ch=a_ch;
+    l_sf->ch = a_ch;
     pthread_mutex_init(&l_sf->mutex, NULL);
+
+    pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
+    pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
+
     l_sf->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
     //a_ch->stream->events_socket->is_pingable = true; //set up connection to be pingable by main loop
 
@@ -230,45 +292,40 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
 
-//    log_it(L_DEBUG,"******************************************************************************************************");
-//    log_it(L_DEBUG,"stream_sf_packet_in:  channel packet hdr size %lu ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", pkt->hdr.size,
-//         *((uint8_t *)pkt->data + pkt->hdr.size-4),*((uint8_t *)pkt->data + pkt->hdr.size-3)
-//         ,*((uint8_t *)pkt->data + pkt->hdr.size-2),*((uint8_t *)pkt->data + pkt->hdr.size-1)
-//         );
-    /**/
     ch_vpn_pkt_t * l_sf_pkt = (ch_vpn_pkt_t *) l_pkt->data;
     size_t l_sf_pkt_data_size = l_pkt->hdr.size - sizeof(l_sf_pkt->header);
 
-    int remote_sock_id = l_sf_pkt->header.sock_id;
+    if(!l_pkt->hdr.size) {
+        log_it(L_WARNING, "Bad input packet");
+        return;
+    }
 
+    int remote_sock_id = l_sf_pkt->header.sock_id;
+    if(l_sf_pkt->header.op_code == 0) { // Raw packets
+        log_it(L_WARNING, "Bad op_code=0");
+        return;
+    }
 //    log_it(L_DEBUG,"Got SF packet: remote_sock_id:%d op_code:0x%02x data_size:%lu"
 //           ,remote_sock_id, l_sf_pkt->header.op_code, l_sf_pkt_data_size );
     if(l_sf_pkt->header.op_code >= 0xb0) { // Raw packets
         switch (l_sf_pkt->header.op_code) {
         case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
-            ch_sf_tun_addr_leased(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size);
+            if(ch_sf_tun_addr_leased(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size) < 0) {
+                log_it(L_WARNING, "Can't create tun");
+            }
         }
             break;
-        case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
-//                log_it(L_DEBUG,"Got SF packet with id %d op_code 0x%02x",remote_sock_id, l_sf_pkt->header.op_code );
-            ch_sf_tun_addr_request(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size);
-//here!!
-
-        }
+        case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: // Client request after L3 connection the new IP address
+            log_it(L_WARNING, "Got VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST packet with id %d, it's very strange' ",
+                    remote_sock_id);
             break;
         case VPN_PACKET_OP_CODE_VPN_SEND:
-            log_it(L_WARNING, "Got L3_SEND packet with id %d, it's very strange' ", remote_sock_id,
-                    l_sf_pkt->header.op_code);
+            log_it(L_WARNING, "Got VPN_PACKET_OP_CODE_VPN_SEND packet with id %d, it's very strange' ", remote_sock_id);
+
         case VPN_PACKET_OP_CODE_VPN_RECV:
-            //                log_it(L_DEBUG,"feature-2498: Got L3_RECV packet with id %d ",remote_sock_id, l_sf_pkt->header.op_code );
             a_ch->stream->events_socket->last_ping_request = time(NULL); // not ping, but better  ;-)
             ch_sf_tun_send(CH_VPN(a_ch), l_sf_pkt->data, l_sf_pkt->header.op_data.data_size);
             break;
-            //case STREAM_SF_PACKET_OP_CODE_L3_SEND:
-            //    log_it(L_WARNING,"Got L3_SEND packet with id %d, it's very strange' ",remote_sock_id, l_sf_pkt->header.op_code );
-            //    a_ch->stream->events_socket->last_ping_request = time(NULL);                  // not ping, but better  ;-)
-            //    ch_sf_tun_send(CH_VPN(a_ch),l_sf_pkt->data,l_sf_pkt->header.op_data.data_size );
-            //break;
         case VPN_PACKET_OP_CODE_PING:
             a_ch->stream->events_socket->last_ping_request = time(NULL);
             send_pong_pkt(a_ch);
@@ -283,10 +340,12 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         ch_vpn_socket_proxy_t * sf_sock = NULL;
         if((l_sf_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECT) // tcp
         && (l_sf_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECTED)) { //udp
+
             pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
             log_it(L_DEBUG, "Looking in hash table with %d", remote_sock_id);
             HASH_FIND_INT((CH_VPN(a_ch)->socks), &remote_sock_id, sf_sock);
             pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
+
             if(sf_sock != NULL) {
                 pthread_mutex_lock(&sf_sock->mutex); // Unlock it in your case as soon as possible to reduce lock time
                 sf_sock->time_lastused = time(NULL);
@@ -421,8 +480,8 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                     sf_sock->sock);
                             HASH_ADD(hh_sock, sf_socks_client, sock, sizeof(int), sf_sock);
                             // log_it(L_DEBUG,"Added %d sock_id with sock %d to the socks hash table",sf->id,sf->sock);
-                            pthread_mutex_unlock(&sf_socks_mutex);
                             pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
+                            pthread_mutex_unlock(&sf_socks_mutex);
 
                             struct epoll_event ev;
                             ev.data.fd = s;
@@ -538,7 +597,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 {
     pthread_mutex_init(&sf_socks_mutex, NULL);
 
-    dap_stream_ch_proc_add(SERVICE_CHANNEL_ID, ch_sf_new, ch_sf_delete, ch_sf_packet_in,
+    dap_stream_ch_proc_add(VPN_CLIENT_ID, ch_sf_new, ch_sf_delete, ch_sf_packet_in,
             ch_sf_packet_out);
     return 0;
 }

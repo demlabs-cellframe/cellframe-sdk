@@ -369,6 +369,8 @@ static void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
     ch->ready_to_write = is_ready;
     if(is_ready)
         ch->stream->conn_http->state_write = DAP_HTTP_CLIENT_STATE_DATA;
+    //!!!
+    //dap_stream_ch_set_ready_to_write(ch, is_ready);
     dap_client_remote_ready_to_write(ch->stream->conn, is_ready);
     pthread_mutex_unlock(&ch->mutex);
 
@@ -399,10 +401,6 @@ static ch_vpn_pkt_t* srv_ch_sf_raw_read()
 void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
 {
     dap_stream_ch_pkt_t * pkt = (dap_stream_ch_pkt_t *) arg;
-    // log_it(L_DEBUG,"stream_sf_packet_in:  channel packet hdr size %lu ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", pkt->hdr.size,
-    //        *((uint8_t *)pkt->data + pkt->hdr.size-4),*((uint8_t *)pkt->data + pkt->hdr.size-3)
-    //        ,*((uint8_t *)pkt->data + pkt->hdr.size-2),*((uint8_t *)pkt->data + pkt->hdr.size-1)
-    //        );
 
     static bool client_connected = false;
     ch_vpn_pkt_t * sf_pkt = (ch_vpn_pkt_t *) pkt->data;
@@ -443,6 +441,7 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                 raw_server->client_addr_last.s_addr = n_addr.s_addr;
                 ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
                 HASH_ADD_INT(raw_server->clients, addr, n_client);
+
                 pthread_mutex_unlock(&raw_server->clients_mutex);
 
                 log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(n_addr));
@@ -516,10 +515,12 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
     } else { // All except CONNECT
         ch_vpn_socket_proxy_t * sf_sock = NULL;
         if(sf_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECT) {
+
             pthread_mutex_lock(&( CH_VPN(ch)->mutex));
             //      log_it(L_DEBUG,"Looking in hash table with %d",remote_sock_id);
             HASH_FIND_INT((CH_VPN(ch)->socks), &remote_sock_id, sf_sock);
             pthread_mutex_unlock(&( CH_VPN(ch)->mutex));
+
             if(sf_sock != NULL) {
                 pthread_mutex_lock(&sf_sock->mutex); // Unlock it in your case as soon as possible to reduce lock time
                 sf_sock->time_lastused = time(NULL);
@@ -724,10 +725,6 @@ void * srv_ch_sf_thread(void * arg)
     sigaddset(&sf_sigmask, SIGUSR2);
 
     while(1) {
-        /*pthread_mutex_lock(&sf_socks_mutex);
-         if(sf_socks==NULL)
-         pthread_cond_wait(&sf_socks_cond,&sf_socks_mutex);
-         pthread_mutex_unlock(&sf_socks_mutex);*/
         int nfds = epoll_pwait(sf_socks_epoll_fd, events, SF_MAX_EVENTS, 10000, &sf_sigmask);
         if(nfds < 0) {
             //log_it(L_CRITICAL,"Can't run epoll_wait: %s",strerror(errno));
@@ -970,6 +967,7 @@ void srv_ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
         ch->stream->conn_http->state_write = DAP_HTTP_CLIENT_STATE_DATA;
     }
     dap_client_remote_ready_to_write(ch->stream->conn, isSmthOut);
+    //dap_stream_ch_set_ready_to_write(ch, isSmthOut);
 
 }
 
