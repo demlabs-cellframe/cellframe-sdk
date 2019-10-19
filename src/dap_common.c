@@ -246,9 +246,11 @@ int dap_common_init( const char *a_console_title, const char *a_log_file )
 {
     srand( (unsigned int)time(NULL) );
 
+    /*
     #ifdef _WIN32
-        SetupConsole( console_title, L"Lucida Console", 12, 20 );
+        SetupConsole( a_console_title, L"Lucida Console", 12, 20 );
     #endif
+    */
 
     s_start_time = time( NULL );
 
@@ -596,10 +598,10 @@ static void  *log_thread_proc( void *arg )
             #if 1
             #ifdef _WIN32
 //                if ( !bUseANSIEscapeSequences )
-                SetConsoleTextAttribute( hWin32ConOut, log_level_colors[logstr->tag] );
+                SetConsoleTextAttribute( hWin32ConOut, log_level_colors[l_logstr->tag] );
           //  WriteConsole( hWin32ConOut, buf0 + time_offset, len - time_offset, &tmp, NULL );
           //  fwrite( buf0 + time_offset, len - time_offset, 1, stdout );
-                WriteFile( hWin32ConOut, logstr->str, logstr->len, (LPDWORD)&tmp, NULL );
+                WriteFile( hWin32ConOut, l_logstr->str, l_logstr->len, (LPDWORD)&tmp, NULL );
             #else
                 fwrite( s_ansi_seq_color[l_logstr->tag], 10, 1, stdout );
                 fwrite( l_logstr->str, l_logstr->len, 1, stdout );
@@ -774,10 +776,10 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 
 #ifdef _WIN32
 //                if ( !bUseANSIEscapeSequences )
-    SetConsoleTextAttribute( hWin32ConOut, log_level_colors[logstr->tag] );
+    SetConsoleTextAttribute( hWin32ConOut, log_level_colors[ll] );
 //  WriteConsole( hWin32ConOut, buf0 + time_offset, len - time_offset, &tmp, NULL );
 //  fwrite( buf0 + time_offset, len - time_offset, 1, stdout );
-    WriteFile( hWin32ConOut, logstr->str, logstr->len, (LPDWORD)&tmp, NULL );
+    WriteFile( hWin32ConOut, buf0 + time_offset, len - time_offset, (LPDWORD)&tmp, NULL );
 #else
     fwrite( s_ansi_seq_color[ll], 10, 1, stdout );
     fwrite( buf0+time_offset, len-time_offset, 1, stdout );
@@ -785,18 +787,6 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 
   //  buf0[ len++ ] = 0;
   log_log( (char *)(buf0 + time_offset), len - time_offset, t );
-
-#if 0
-  #ifdef _WIN32
-  //    if ( !bUseANSIEscapeSequences )
-    SetConsoleTextAttribute( hWin32ConOut, log_level_colors[ll] );
-  //  WriteConsole( hWin32ConOut, buf0 + time_offset, len - time_offset, &tmp, NULL );
-  //  fwrite( buf0 + time_offset, len - time_offset, 1, stdout );
-    WriteFile( hWin32ConOut, buf0 + time_offset, len - time_offset, (LPDWORD)&tmp, NULL );
-  #else
-    fwrite( buf0, len, 1, stdout );
-  #endif
-#endif
 
 //    printf("\x1b[0m\n");
 
