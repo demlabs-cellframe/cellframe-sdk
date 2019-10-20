@@ -175,7 +175,7 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
     // serialized key -> key hash
 
-    if(dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key)==1)
+    if(dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key))
         memcpy(a_addr->data.hash, l_hash_public_key.raw, sizeof(l_hash_public_key.raw));
     DAP_DELETE(l_pub_key_data);
     // calc checksum
