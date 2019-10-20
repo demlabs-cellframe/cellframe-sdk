@@ -61,11 +61,11 @@ static inline void dap_cdb_uint_to_hex(char *arr, uint64_t val, short size) {
     }
 }
 
-static inline uint64_t dap_cdb_hex_to_uint(char *arr, short size) {
+static inline uint64_t dap_cdb_hex_to_uint(const char *arr, short size) {
     uint64_t val = 0;
     short i = 0;
     for (i = 0; i < size; ++i){
-        uint8_t byte = *arr++;
+        uint8_t byte = (uint8_t) *arr++;
         if (byte >= 'a' && byte <='f'){
             byte = byte - 'a' + 10;
         } else if (byte >= 'A' && byte <='F') {
@@ -76,26 +76,26 @@ static inline uint64_t dap_cdb_hex_to_uint(char *arr, short size) {
     return val;
 }
 
-static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, char *key, char *val) {
+static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const char *key, const char *val) {
     if (!key || !val) {
         a_obj = NULL;
         return;
     }
     int offset = 0;
     a_obj->key = dap_strdup(key);
-    a_obj->id = dap_cdb_hex_to_uint((unsigned char*)val, sizeof(uint64_t));
+    a_obj->id = dap_cdb_hex_to_uint(val, sizeof(uint64_t));
     offset += sizeof(uint64_t);
-    a_obj->value_len = dap_cdb_hex_to_uint((unsigned char*)val + offset, sizeof(unsigned long));
+    a_obj->value_len = dap_cdb_hex_to_uint(val + offset, sizeof(unsigned long));
     offset += sizeof(unsigned long);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
     memcpy(a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
-    a_obj->timestamp = dap_cdb_hex_to_uint((unsigned char*)val + offset, sizeof(time_t));
+    a_obj->timestamp = dap_cdb_hex_to_uint(val + offset, sizeof(time_t));
 }
 
 bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     if (--((pobj_arg)arg)->q == 0) {
-        cdb_serialize_val_to_dap_store_obj((pdap_store_obj_t)(((pobj_arg)arg)->o), (char*)key, (char*)val);
+        cdb_serialize_val_to_dap_store_obj((pdap_store_obj_t)(((pobj_arg)arg)->o), key, val);
         return false;
     }
     return true;
@@ -103,7 +103,7 @@ bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, c
 
 bool dap_cdb_get_some_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     pdap_store_obj_t l_obj = (pdap_store_obj_t)((pobj_arg)arg)->o;
-    cdb_serialize_val_to_dap_store_obj(&l_obj[((pobj_arg)arg)->n - ((pobj_arg)arg)->q], (char*)key, (char*)val);
+    cdb_serialize_val_to_dap_store_obj(&l_obj[((pobj_arg)arg)->n - ((pobj_arg)arg)->q], key, val);
     if (--((pobj_arg)arg)->q == 0) {
         return false;
     }
@@ -111,11 +111,11 @@ bool dap_cdb_get_some_obj_iter_callback(void *arg, const char *key, int ksize, c
 }
 
 bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
-    if (dap_cdb_hex_to_uint((unsigned char*)val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
+    if (dap_cdb_hex_to_uint(val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
         return true;
     }
     pdap_store_obj_t l_obj = (pdap_store_obj_t)((pobj_arg)arg)->o;
-    cdb_serialize_val_to_dap_store_obj(&l_obj[((pobj_arg)arg)->n - ((pobj_arg)arg)->q], (char*)key, (char*)val);
+    cdb_serialize_val_to_dap_store_obj(&l_obj[((pobj_arg)arg)->n - ((pobj_arg)arg)->q], key, val);
     if (--((pobj_arg)arg)->q == 0) {
         return false;
     }
@@ -293,7 +293,7 @@ dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const cha
             return NULL;
         }
         l_obj = DAP_NEW_Z(dap_store_obj_t);
-        cdb_serialize_val_to_dap_store_obj(l_obj, (char*)a_key, l_value);
+        cdb_serialize_val_to_dap_store_obj(l_obj, a_key, l_value);
         l_obj->group = dap_strdup(a_group);
         cdb_free_val((void**)&l_value);
         if(a_count_out) {

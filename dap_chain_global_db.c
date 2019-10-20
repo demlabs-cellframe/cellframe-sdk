@@ -289,7 +289,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len,  char *a_group)
 {
     dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     memset(&store_data, 0, sizeof(dap_store_obj_t));
@@ -300,7 +300,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
     //memcpy(store_data.value, a_value, a_value_len);
 
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen((const char*) a_value) : a_value_len;
-    store_data.group = a_group;//dap_strdup(a_group);
+    store_data.group = dap_strdup(a_group);
     store_data.timestamp = time(NULL);
     lock();
     int l_res = dap_chain_global_db_driver_add(&store_data, 1);
@@ -333,7 +333,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
     return !l_res;
 }
 
-bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len)
+bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
 {
     return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
 }
@@ -346,7 +346,9 @@ bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
         return NULL;
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     store_data->key = a_key;
+    store_data->c_key = a_key;
     store_data->group = a_group;
+    store_data->c_group = a_group;
     lock();
     int l_res = dap_chain_global_db_driver_delete(store_data, 1);
     unlock();

@@ -33,9 +33,11 @@ typedef struct dap_store_obj {
 	uint64_t id;
     time_t timestamp;
 	uint8_t type;
-	char *group;
+    char *group;
 	char *key;
-	uint8_t *value;
+    const char *c_group;
+    const char *c_key;
+    uint8_t *value;
 	size_t value_len;
 }DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
 

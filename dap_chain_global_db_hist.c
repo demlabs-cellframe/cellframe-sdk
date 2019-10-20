@@ -1128,7 +1128,8 @@ uint64_t dap_db_log_get_last_id(void)
     dap_store_obj_t *l_last_obj = dap_chain_global_db_get_last(GROUP_LOCAL_HISTORY);
     if(l_last_obj) {
         return l_last_obj->id;
-    }
+    }else
+        return 0;
     /*    char *last_key = NULL;
      size_t l_data_size_out = 0;
      dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, &l_data_size_out);
