@@ -1732,7 +1732,8 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                         return -666;
                     }
                 }
-                log_it(L_DEBUG, "Datum % with token declaration: %u signatures are verified well (sign_size = %u)", l_signs_count, l_signs_size);
+                log_it(L_DEBUG, "Datum %s with token declaration: %u signatures are verified well (sign_size = %u)",l_datum_hash_str,
+                                l_signs_count, l_signs_size);
 
                 // Check if all signs are present
                 if(l_signs_count == l_datum_token->header.signs_total) {
@@ -1886,9 +1887,16 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
                 dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
                 char buf[50];
                 time_t l_ts_create = (time_t) l_datum->header.ts_create;
-                dap_string_append_printf(l_str_tmp, "%s: type_id=%s  data_size=%u ts_create=%s",
+                dap_string_append_printf(l_str_tmp, "%s: type_id=%s  data_size=%u ts_create=%s", // \n included in timestamp
                         l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
                         l_datum->header.data_size, ctime_r(&l_ts_create, buf));
+                if ( l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL ){
+                    dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
+                    dap_string_append_printf(l_str_tmp,
+                         "\tDAP_CHAIN_DATUM_TOKEN_DECL: version=%u ticker=\"%s\" signs_total=%u signs_valid=%u\n",
+                                             l_datum_token->header.version, l_datum_token->header.ticker,
+                                             l_datum_token->header.signs_total, l_datum_token->header.signs_valid );
+                }
             }
             // Clean up
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
