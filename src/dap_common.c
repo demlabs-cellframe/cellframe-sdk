@@ -551,7 +551,10 @@ char *dap_log_get_item( time_t a_time, int a_limit )
 
 static void  *log_thread_proc( void *arg )
 {
-    int32_t l_outlogstrs = 0, tmp, n;
+    int32_t l_outlogstrs = 0, n;
+    #ifdef _WIN32
+    int32_t tmp;
+    #endif
     dap_log_str_t *l_logstr;
 
     while ( !s_log_term_signal ) {
@@ -741,8 +744,9 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   memcpy( buf0, s_ansi_seq_color[ll], s_ansi_seq_color_len[ll] );
   time_offset = s_ansi_seq_color_len[ll];
 
-  struct tm *tmptime = localtime( &t );
-  len = strftime( (char *)(buf0 + time_offset), 65536, "[%x-%X]", tmptime );
+  struct tm l_tmptime={0};
+  localtime_r( &t, &l_tmptime );
+  len = strftime( (char *)(buf0 + time_offset), 65536, "[%x-%X]", &l_tmptime );
   tag_offset = time_offset + len;
 
   memcpy( buf0 + tag_offset, log_level_tag[ll], 8 );
