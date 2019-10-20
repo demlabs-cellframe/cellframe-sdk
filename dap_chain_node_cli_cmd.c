@@ -1721,13 +1721,13 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                 for(size_t l_offset = 0; l_offset < l_signs_size; l_signs_count++) {
                     dap_chain_sign_t * l_sign = (dap_chain_sign_t *) l_datum_token->signs + l_offset;
                     l_offset += dap_chain_sign_get_size(l_sign);
-                    if(dap_chain_sign_verify(l_sign, &l_datum_token->header, sizeof(l_datum_token->header)) != 1) {
+                    if( dap_chain_sign_verify(l_sign, &l_datum_token->header, sizeof(l_datum_token->header)) != 1) {
                         log_it(L_WARNING, "Wrong signature for datum_token with key %s in mempool!", l_datum_hash_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %u, break process and exit",
                                 l_datum_hash_str, l_signs_count + 1);
                         DAP_DELETE(l_datum);
-                        DAP_DELETE(l_datum_token);
+                        //DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
                         return -666;
                     }
@@ -1739,7 +1739,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Datum %s with datum token has all signs on board. Can't add anything in it");
                     DAP_DELETE(l_datum);
-                    DAP_DELETE(l_datum_token);
+                    //DAP_DELETE(l_datum_token);
                     DAP_DELETE(l_gdb_group_mempool);
                     return -7;
                 } // Check if more signs that could be (corrupted datum)
@@ -1748,12 +1748,12 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                             "Warning! Datum %s with datum token has more signs on board (%u) than its possible to have (%u)!",
                             l_signs_count, l_datum_token->header.signs_total);
                     DAP_DELETE(l_datum);
-                    DAP_DELETE(l_datum_token);
+                    //DAP_DELETE(l_datum_token);
                     DAP_DELETE(l_gdb_group_mempool);
                     return -8;
                 } // Check if we have enough place to sign the datum token declaration
                 else if(l_datum_token->header.signs_total > l_signs_count + l_certs_count) {
-                    l_datum = DAP_REALLOC(l_datum, l_datum_size + l_signs_size+1000); // add place for new signatures
+                    l_datum = DAP_REALLOC(l_datum, l_datum_size + l_signs_size); // add place for new signatures
                     size_t l_offset = 0;
                     for(size_t i = 0; i < l_certs_count; i++) {
                         dap_chain_sign_t * l_sign = dap_chain_sign_create(l_certs[i]->enc_key,
@@ -1790,7 +1790,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                                     l_key_str, l_datum_hash_str, l_datum_hash_str);
 
                             DAP_DELETE(l_datum);
-                            DAP_DELETE(l_datum_token);
+                            //DAP_DELETE(l_datum_token);
                             DAP_DELETE(l_gdb_group_mempool);
                             return 0;
                         } else {
@@ -1798,7 +1798,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                                     "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
                                     l_datum_hash_str, l_key_str);
                             DAP_DELETE(l_datum);
-                            DAP_DELETE(l_datum_token);
+                            //DAP_DELETE(l_datum_token);
                             DAP_DELETE(l_gdb_group_mempool);
                             return 1;
                         }
@@ -1809,7 +1809,7 @@ int com_token_decl_sign(int argc,  char ** argv, char ** a_str_reply)
                                 "Error! datum %s produced from %s can't be placed in mempool",
                                 l_key_str, l_datum_hash_str);
                         DAP_DELETE(l_datum);
-                        DAP_DELETE(l_datum_token);
+                        //DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
                         return -2;
                     }
