@@ -658,7 +658,7 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_re
                     l_bob_message, DAP_ENC_DATA_TYPE_B64);
             l_client_pvt->session_key_open->gen_alice_shared_key(
                     l_client_pvt->session_key_open, l_client_pvt->session_key_open->priv_key_data,
-                    l_bob_message_size, l_bob_message);
+                    l_bob_message_size, (unsigned char*) l_bob_message);
 
             l_client_pvt->session_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES,
                     l_client_pvt->session_key_open->priv_key_data, // shared key
@@ -938,35 +938,35 @@ void m_es_stream_read(dap_events_socket_t * a_es, void * arg)
         return;
     }
     switch (l_client_pvt->stage) {
-    case STAGE_STREAM_SESSION:
-        dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
-        break;
-    case STAGE_STREAM_CONNECTED: { // Collect HTTP headers before streaming
-        if(a_es->buf_in_size > 1) {
-            char * l_pos_endl;
-            l_pos_endl = (char*) memchr(a_es->buf_in, '\r', a_es->buf_in_size - 1);
-            if(l_pos_endl) {
-                if(*(l_pos_endl + 1) == '\n') {
-                    dap_events_socket_shrink_buf_in(a_es, l_pos_endl - a_es->buf_in_str);
-                    log_it(L_DEBUG, "Header passed, go to streaming (%lu bytes already are in input buffer",
-                            a_es->buf_in_size);
-                    l_client_pvt->stage = STAGE_STREAM_STREAMING;
-                    l_client_pvt->stage_status = STAGE_STATUS_DONE;
-                    s_stage_status_after(l_client_pvt);
+        case STAGE_STREAM_SESSION:
+            dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
+            break;
+        case STAGE_STREAM_CONNECTED: { // Collect HTTP headers before streaming
+            if(a_es->buf_in_size > 1) {
+                char * l_pos_endl;
+                l_pos_endl = (char*) memchr(a_es->buf_in, '\r', a_es->buf_in_size - 1);
+                if(l_pos_endl) {
+                    if(*(l_pos_endl + 1) == '\n') {
+                        dap_events_socket_shrink_buf_in(a_es, l_pos_endl - a_es->buf_in_str);
+                        log_it(L_DEBUG, "Header passed, go to streaming (%lu bytes already are in input buffer",
+                                a_es->buf_in_size);
+                        l_client_pvt->stage = STAGE_STREAM_STREAMING;
+                        l_client_pvt->stage_status = STAGE_STATUS_DONE;
+                        s_stage_status_after(l_client_pvt);
 
-                    dap_stream_data_proc_read(l_client_pvt->stream);
-                    dap_events_socket_shrink_buf_in(a_es, a_es->buf_in_size);
+                        dap_stream_data_proc_read(l_client_pvt->stream);
+                        dap_events_socket_shrink_buf_in(a_es, a_es->buf_in_size);
+                    }
                 }
             }
         }
-    }
+            break;
+        case STAGE_STREAM_STREAMING: { // if streaming - process data with stream processor
+            dap_stream_data_proc_read(l_client_pvt->stream);
+            dap_events_socket_shrink_buf_in(a_es, a_es->buf_in_size);
+        }
         break;
-    case STAGE_STREAM_STREAMING: { // if streaming - process data with stream processor
-        dap_stream_data_proc_read(l_client_pvt->stream);
-        dap_events_socket_shrink_buf_in(a_es, a_es->buf_in_size);
-    }
-        break;
-
+        default: {}
     }
 }
 
@@ -984,24 +984,25 @@ void m_es_stream_write(dap_events_socket_t * a_es, void * arg)
         return;
     }
     switch (l_client_pvt->stage) {
-    case STAGE_STREAM_STREAMING: {
-        size_t i;
-        bool ready_to_write = false;
-        //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
+        case STAGE_STREAM_STREAMING: {
+            size_t i;
+            bool ready_to_write = false;
+            //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
 
-        for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
-            dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
-            if(ch->ready_to_write) {
-                ch->proc->packet_out_callback(ch, NULL);
-                ready_to_write |= ch->ready_to_write;
+            for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
+                dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
+                if(ch->ready_to_write) {
+                    ch->proc->packet_out_callback(ch, NULL);
+                    ready_to_write |= ch->ready_to_write;
+                }
             }
-        }
-        //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
+            //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
 
-        dap_events_socket_set_writable(l_client_pvt->stream_es, ready_to_write);
-        //log_it(ERROR,"No stream_data_write_callback is defined");
-    }
+            dap_events_socket_set_writable(l_client_pvt->stream_es, ready_to_write);
+            //log_it(ERROR,"No stream_data_write_callback is defined");
+        }
         break;
+        default: {}
     }
 }
 
