@@ -25,7 +25,12 @@ size_t dap_enc_sig_dilithium_verify_sign(struct dap_enc_key * key,const void * m
 
 void dap_enc_sig_dilithium_key_delete(struct dap_enc_key * key);
 
-size_t dap_enc_dilithium_calc_signature_size(void);
+size_t dap_enc_dilithium_calc_signature_unserialized_size(void);
+
+static inline size_t dap_enc_dilithium_calc_signagture_size(dilithium_signature_t* a_sign)
+{
+    return sizeof(size_t) + sizeof(dilithium_kind_t) + a_sign->sig_len + sizeof(unsigned long long);
+}
 
 uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t *a_sign_out);
 dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a_buflen);

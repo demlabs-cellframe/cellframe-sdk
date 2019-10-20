@@ -98,19 +98,22 @@ void dap_enc_sig_dilithium_key_delete(struct dap_enc_key * key)
 
 }
 
-size_t dap_enc_dilithium_calc_signature_size(void)
+size_t dap_enc_dilithium_calc_signature_unserialized_size(void)
 {
     return sizeof(dilithium_signature_t);
 }
 
+
+
+
 /* Serialize a signature */
 uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t *a_sign_out)
 {
-    if(!a_sign || *a_sign_out!=sizeof(dilithium_signature_t)) {
+    if(!a_sign ) {
         return NULL ;
     }
     size_t l_shift_mem = 0;
-    size_t l_buflen = sizeof(size_t) + sizeof(dilithium_kind_t) + a_sign->sig_len + sizeof(unsigned long long);
+    size_t l_buflen = dap_enc_dilithium_calc_signagture_size(a_sign);
 
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(size_t));

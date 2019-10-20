@@ -195,7 +195,7 @@ int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_
 /*************************************************/
 int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, unsigned long long mlen, const dilithium_private_key_t *private_key)
 {
-    dilithium_param_t *p = malloc(sizeof(dilithium_param_t));
+    dilithium_param_t *p = DAP_NEW_Z(dilithium_param_t);
     if (! dilithium_params_init( p, private_key->kind)) {
         free(p);
         return 1;
@@ -218,7 +218,7 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
     dilithium_unpack_sk(rho, key, tr, &s1, &s2, &t0, private_key->data, p);
 
     sig->sig_len = mlen + p->CRYPTO_BYTES;
-    sig->sig_data = malloc( sig->sig_len);
+    sig->sig_data = DAP_NEW_Z_SIZE(unsigned char, sig->sig_len);
 
     for(i = 1; i <= mlen; ++i)
         sig->sig_data[p->CRYPTO_BYTES + mlen - i] = m[mlen - i];

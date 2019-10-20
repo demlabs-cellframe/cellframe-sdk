@@ -103,6 +103,11 @@ size_t dap_enc_tesla_calc_signature_size(void)
     return sizeof(tesla_signature_t);
 }
 
+size_t dap_enc_tesla_calc_signature_serialized_size(tesla_signature_t* a_sign)
+{
+    return sizeof(size_t) + sizeof(tesla_kind_t) + a_sign->sig_len + sizeof(unsigned long long);
+}
+
 /* Serialize a signature */
 uint8_t* dap_enc_tesla_write_signature(tesla_signature_t* a_sign, size_t *a_sign_out)
 {
@@ -110,7 +115,7 @@ uint8_t* dap_enc_tesla_write_signature(tesla_signature_t* a_sign, size_t *a_sign
         return NULL ;
     }
     size_t l_shift_mem = 0;
-    size_t l_buflen = sizeof(size_t) + sizeof(tesla_kind_t) + a_sign->sig_len + sizeof(unsigned long long);
+    size_t l_buflen = dap_enc_tesla_calc_signature_serialized_size(a_sign);
 
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(size_t));
