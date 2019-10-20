@@ -276,7 +276,7 @@ lb_proc_state:
                             PVT(l_net)->links_addrs[i].uint64 = PVT(l_net)->node_info->links[i].uint64;
                         }
                     }else {
-                        log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting");
+                        log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, find nearest 3 links and fill global_db");
                     }
                 } break;
                 case NODE_ROLE_FULL:
