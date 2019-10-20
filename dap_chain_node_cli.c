@@ -812,14 +812,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
-            "token_decl -net <net name> -chain <chain name> token <token ticker> total_supply <total supply> signs_total <sign total> signs_emission <signs for emission> certs <certs list>\n"
+            "token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
-            "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
