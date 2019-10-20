@@ -46,20 +46,20 @@ void dap_chain_net_srv_order_deinit()
 
 dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_pid(uint128_t a_proposal_id)
 {
-
+    return NULL;
 }
 
 int dap_chain_net_srv_order_find_all_by_(uint128_t proposal_id, dap_chain_net_srv_order_t *** a_output_orders, size_t * a_output_size)
 {
-
+    return 0;
 }
 
 void dap_chain_net_srv_order_destroy( dap_chain_net_srv_order_t * a_order)
 {
-
+    return 0;
 }
 
 void dap_chain_net_srv_order_destroy_all( dap_chain_net_srv_order_t *** a_orders, size_t * a_output_size)
 {
-
+    return 0;
 }
