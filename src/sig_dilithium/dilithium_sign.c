@@ -91,7 +91,7 @@ void dilithium_public_key_delete(dilithium_public_key_t *public_key)
     if(public_key) {
         free(public_key->data);
         public_key->data = NULL;
-        free(public_key);
+        //free(public_key);
     }
 }
 

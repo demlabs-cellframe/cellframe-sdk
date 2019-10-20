@@ -88,8 +88,14 @@ size_t dap_enc_sig_dilithium_verify_sign(struct dap_enc_key * key, const void * 
 
 void dap_enc_sig_dilithium_key_delete(struct dap_enc_key * key)
 {
-    dilithium_private_and_public_keys_delete((dilithium_private_key_t *) key->priv_key_data,
+    if( key->priv_key_data && key->pub_key_data)
+        dilithium_private_and_public_keys_delete((dilithium_private_key_t *) key->priv_key_data,
             (dilithium_public_key_t *) key->pub_key_data);
+    else if ( key->pub_key_data )
+        dilithium_public_key_delete((dilithium_public_key_t *) key->pub_key_data);
+    else if ( key->priv_key_data )
+        dilithium_public_key_delete((dilithium_public_key_t *) key->priv_key_data);
+
 }
 
 size_t dap_enc_dilithium_calc_signature_size(void)
@@ -217,10 +223,10 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
         return NULL;
-    dilithium_public_key_t* l_public_key = DAP_NEW(dilithium_public_key_t);
+    dilithium_public_key_t* l_public_key = DAP_NEW_Z(dilithium_public_key_t);
     l_public_key->kind = kind;
 
-    l_public_key->data = DAP_NEW_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
+    l_public_key->data = DAP_NEW_Z_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
     memcpy(l_public_key->data, a_buf + sizeof(size_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
     return l_public_key;
 }

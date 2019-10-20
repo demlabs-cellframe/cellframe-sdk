@@ -410,7 +410,7 @@ int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key,const uint8_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;
@@ -446,7 +446,8 @@ int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key,const uint8_t *a_buf, s
         dap_enc_sig_picnic_update(a_key);
         break;
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        dilithium_public_key_delete((dilithium_public_key_t *) a_key->pub_key_data);
+        if ( a_key->pub_key_data )
+            dilithium_public_key_delete((dilithium_public_key_t *) a_key->pub_key_data);
         a_key->pub_key_data = (uint8_t*) dap_enc_dilithium_read_public_key(a_buf, a_buflen);
         if(!a_key->pub_key_data)
         {
@@ -631,8 +632,10 @@ void dap_enc_key_delete(dap_enc_key_t * a_key)
         log_it(L_ERROR, "delete callback is null. Can be leak memory!");
     }
     /* a_key->_inheritor must be cleaned in delete_callback func */
-    DAP_DELETE(a_key->pub_key_data);
-    DAP_DELETE(a_key->priv_key_data);
+    if ( a_key->pub_key_data)
+        DAP_DELETE(a_key->pub_key_data);
+    if (a_key->priv_key_data )
+        DAP_DELETE(a_key->priv_key_data);
     DAP_DELETE(a_key);
 }
 
