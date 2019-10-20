@@ -37,20 +37,21 @@ static dap_chain_sign_t * s_sign_null = NULL;
 static bliss_signature_t s_sign_bliss_null = {0};
 
 // calc signature size
-size_t dap_chain_sign_create_output_cals_size(dap_enc_key_t * a_key, size_t a_output_wish_size )
+size_t dap_chain_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size_t a_output_wish_size )
 {
     size_t l_sign_size = 0;
     switch (a_key->type){
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_size = sizeof(s_sign_bliss_null); break;
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
-        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_size(); break;
+        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_unserialized_size(); break;
         default : return 0;
 
     }
     return l_sign_size;
     //return sizeof(s_sign_null->header)+ a_key->pub_key_data_size + l_sign_size;
 }
+
 
 /**
  * @brief dap_chain_sign_type_from_key_type
@@ -143,17 +144,20 @@ static int dap_chain_sign_create_output(dap_enc_key_t *a_key, const void * a_dat
         return -1;
     }
     switch (a_key->type) {
-    case DAP_ENC_KEY_TYPE_SIG_TESLA:
-    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-            // For PICNIC a_output_size should decrease
-        *a_output_size = a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
-        return (*a_output_size > 0) ? 0 : -1;
-    case DAP_ENC_KEY_TYPE_SIG_BLISS:
-        return (dap_enc_sig_bliss_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == BLISS_B_NO_ERROR)
-               ? 0 : -1;
-    default:
-        return -1;
+        case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+                // For PICNIC a_output_size should decrease
+            *a_output_size = dap_enc_sig_dilithium_get_sign(a_key,a_data,a_data_size,a_output,sizeof(dilithium_signature_t));
+             //       a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
+            return (*a_output_size > 0) ? 0 : -1;
+
+
+        case DAP_ENC_KEY_TYPE_SIG_BLISS:
+            return (dap_enc_sig_bliss_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == BLISS_B_NO_ERROR)
+                   ? 0 : -1;
+        default:
+            return -1;
     }
 }
 
@@ -169,33 +173,40 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
         const size_t a_data_size, size_t a_output_wish_size)
 {
     // calculate max signature size
-    size_t l_sign_size = dap_chain_sign_create_output_cals_size(a_key, a_output_wish_size);
-    if(l_sign_size > 0) {
+    size_t l_sign_unserialized_size = dap_chain_sign_create_output_unserialized_calc_size(a_key, a_output_wish_size);
+    if(l_sign_unserialized_size > 0) {
         size_t l_pub_key_size = 0;
         uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
         if(!l_pub_key)
             return NULL;
-        uint8_t* l_sign = DAP_NEW_Z_SIZE(uint8_t, l_sign_size);
+        uint8_t* l_sign_unserialized = DAP_NEW_Z_SIZE(uint8_t, l_sign_unserialized_size);
         // calc signature [sign_size may decrease slightly]
-        if(dap_chain_sign_create_output(a_key, a_data, a_data_size, l_sign, &l_sign_size) != 0) {
-            dap_enc_key_signature_delete(a_key->type, l_sign);
+        if( dap_chain_sign_create_output(a_key, a_data, a_data_size,
+                                         l_sign_unserialized, &l_sign_unserialized_size) != 0) {
+            dap_enc_key_signature_delete(a_key->type, l_sign_unserialized);
             DAP_DELETE(l_pub_key);
             return NULL;
         } else {
-            uint8_t *l_sign_ser = dap_enc_key_serealize_sign(a_key->type, l_sign, &l_sign_size);
-            dap_chain_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_sign_t,
-                    sizeof(dap_chain_sign_t) + l_sign_size + l_pub_key_size);
-            // write serialized public key to dap_chain_sign_t
-            memcpy(l_ret->pkey_n_sign, l_pub_key, l_pub_key_size);
-            l_ret->header.type = dap_chain_sign_type_from_key_type(a_key->type);
-            // write serialized signature to dap_chain_sign_t
-            memcpy(l_ret->pkey_n_sign + l_pub_key_size, l_sign_ser, l_sign_size);
-            l_ret->header.sign_pkey_size = l_pub_key_size;
-            l_ret->header.sign_size = l_sign_size;
-            DAP_DELETE(l_sign_ser);
-            dap_enc_key_signature_delete(a_key->type, l_sign);
-            DAP_DELETE(l_pub_key);
-            return l_ret;
+            size_t l_sign_ser_size =0;
+            uint8_t *l_sign_ser = dap_enc_key_serealize_sign(a_key->type, l_sign_unserialized, &l_sign_ser_size);
+            if ( l_sign_ser ){
+                dap_chain_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_sign_t,
+                        sizeof(dap_chain_sign_hdr_t) + l_sign_ser_size + l_pub_key_size);
+                // write serialized public key to dap_chain_sign_t
+                memcpy(l_ret->pkey_n_sign, l_pub_key, l_pub_key_size);
+                l_ret->header.type = dap_chain_sign_type_from_key_type(a_key->type);
+                // write serialized signature to dap_chain_sign_t
+                memcpy(l_ret->pkey_n_sign + l_pub_key_size, l_sign_ser, l_sign_ser_size);
+                l_ret->header.sign_pkey_size =(uint32_t) l_pub_key_size;
+                l_ret->header.sign_size = (uint32_t) l_sign_ser_size;
+                DAP_DELETE(l_sign_ser);
+                dap_enc_key_signature_delete(a_key->type, l_sign_unserialized);
+                DAP_DELETE(l_pub_key);
+                return l_ret;
+            }else {
+                log_it(L_WARNING,"Can't serialize signature: NULL returned");
+                return NULL;
+            }
         }
     }
     return NULL;
@@ -258,7 +269,8 @@ int dap_chain_sign_verify(dap_chain_sign_t * a_chain_sign, const void * a_data, 
     int l_ret;
     dap_enc_key_t * l_key = dap_chain_sign_to_enc_key(a_chain_sign);
     size_t l_sign_size = a_chain_sign->header.sign_size;
-    uint8_t *l_sign_ser = dap_chain_sign_get_sign(a_chain_sign, &l_sign_size);
+    size_t l_sign_ser_size;
+    uint8_t *l_sign_ser = dap_chain_sign_get_sign(a_chain_sign, &l_sign_ser_size);
     // deserialize signature
     uint8_t * l_sign = dap_enc_key_deserealize_sign(l_key->type, l_sign_ser, &l_sign_size);
 

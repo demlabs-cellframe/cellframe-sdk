@@ -60,12 +60,10 @@ typedef struct dap_chain_cert_pvt
 } dap_chain_cert_pvt_t;
 
 
-#define PVT(a) ( ( dap_chain_cert_pvt_t *)(a->_pvt) )
+#define PVT(a) ( ( dap_chain_cert_pvt_t *)((a)->_pvt) )
 
 static dap_chain_cert_item_t * s_certs = NULL;
 
-dap_chain_cert_t * dap_chain_cert_new(const char * a_name);
-void dap_chain_cert_delete(dap_chain_cert_t * a_cert);
 /**
  * @brief dap_chain_cert_init
  * @return
@@ -135,7 +133,7 @@ size_t dap_chain_cert_parse_str_list(const char * a_certs_str, dap_chain_cert_t 
  */
 size_t dap_chain_cert_sign_output_size(dap_chain_cert_t * a_cert, size_t a_size_wished)
 {
-    return dap_chain_sign_create_output_cals_size( a_cert->enc_key,a_size_wished);
+    return dap_chain_sign_create_output_unserialized_calc_size( a_cert->enc_key,a_size_wished);
 }
 
 /**
