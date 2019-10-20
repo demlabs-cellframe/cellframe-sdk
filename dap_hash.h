@@ -40,18 +40,6 @@ typedef enum dap_hash_type {
     DAP_HASH_TYPE_SLOW_0 = 1,
 } dap_hash_type_t;
 
-static inline int dap_hash_fast( const void *a_data_in, size_t a_data_in_size, void *a_hash_out )
-{
-  if (!a_data_in || !a_data_in_size || !a_hash_out)
-    return -1;
-
-//    dap_hash(a_data_in, a_data_in_size, a_hash_out->raw, sizeof(a_hash_out->raw),
-//            DAP_HASH_TYPE_KECCAK);
-
-  SHA3_256( (unsigned char *)a_hash_out, (const unsigned char *)a_data_in, a_data_in_size );
-
-  return 1;
-}
 
 static inline void dap_hash(const void * a_data_in, size_t a_data_in_size,
                      void * a_data_out, size_t a_data_out_size,
@@ -69,27 +57,44 @@ static inline void dap_hash(const void * a_data_in, size_t a_data_in_size,
     }
 }
 
-static uint64_t blank_hash[4] = { 0, 0, 0, 0 };
-
-static inline bool dap_hash_fast_compare( void *a_hash1, void *a_hash2 )
+static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out )
 {
-  if( !memcmp(a_hash1, a_hash2, DAP_HASH_FAST_SIZE) )
-    return true;
+    if ( (a_data_in == NULL) || (a_data_in_size == 0) || (a_hash_out == NULL) )
+        return false;
 
-  return false;
+    dap_hash(a_data_in, a_data_in_size, a_hash_out->raw, sizeof(a_hash_out->raw ),
+            DAP_HASH_TYPE_KECCAK);
+
+  //SHA3_256( (unsigned char *)a_hash_out, (const unsigned char *)a_data_in, a_data_in_size );
+
+  return true;
 }
 
-static inline bool dap_hash_fast_is_blank( void *a_hash )
+
+/**
+ * @brief dap_hash_fast_compare
+ * @param a_hash1
+ * @param a_hash2
+ * @return
+ */
+static inline bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2)
 {
+    if(!a_hash1 || !a_hash2)
+        return false;
+    if(!memcmp(a_hash1, a_hash2, sizeof(dap_chain_hash_fast_t)))
+        return true;
+    return false;
+}
+
+static inline bool dap_hash_fast_is_blank( dap_chain_hash_fast_t *a_hash )
+{
+    static dap_chain_hash_fast_t l_blank_hash = { 0};
 //    uint8_t *l_hast_bytes = (uint8_t*) a_hash;
 //    for(size_t i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
 //        if(l_hast_bytes[i])
 //            return false;
 //    }
-    return dap_hash_fast_compare( a_hash, &blank_hash[0] );
+    return dap_hash_fast_compare( a_hash, &l_blank_hash);
 }
 
 
-//int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out);
-//bool dap_hash_fast_is_blank(dap_chain_hash_fast_t *a_hash);
-//bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2);

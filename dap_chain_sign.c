@@ -240,7 +240,7 @@ dap_enc_key_t *dap_chain_sign_to_enc_key(dap_chain_sign_t * a_chain_sign)
 {
     dap_enc_key_t * l_ret =  dap_enc_key_new( dap_chain_sign_type_to_key_type( a_chain_sign->header.type  ) );
     size_t l_pkey_size = 0;
-    const uint8_t *l_pkey = dap_chain_sign_get_pkey(a_chain_sign, &l_pkey_size);
+    uint8_t *l_pkey = dap_chain_sign_get_pkey(a_chain_sign, &l_pkey_size);
     // deserialize public key
     dap_enc_key_deserealize_pub_key(l_ret, l_pkey, l_pkey_size);
     return l_ret;

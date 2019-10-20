@@ -29,16 +29,3 @@
 #include "SimpleFIPS202.h"
 
 #define LOG_TAG "dap_hash"
-
-/**
-int dap_hash_fast(const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out)
-{
-    if(!a_data_in || !a_data_in_size || !a_hash_out)
-        return -1;
-//    dap_hash(a_data_in, a_data_in_size, a_hash_out->raw, sizeof(a_hash_out->raw),
-//            DAP_HASH_TYPE_KECCAK);
-    SHA3_256( (unsigned char *)a_hash_out, (const unsigned char *)a_data_in, a_data_in_size );
-
-    return 1;
-}
-**/
