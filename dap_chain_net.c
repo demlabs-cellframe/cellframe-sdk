@@ -63,6 +63,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_ledger.h"
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
@@ -285,6 +286,7 @@ lb_proc_state:
                     // If we haven't any assigned shard - connect to root-0
                 if(l_net->pub.cell_id.uint64 == 0) {
 
+                    dap_chain_net_pvt_t *pvt_debug = PVT(l_net);
                     // get current node address
                     dap_chain_node_addr_t l_address;
                     l_address.uint64 = dap_chain_net_get_cur_addr(l_net) ?
@@ -314,9 +316,12 @@ lb_proc_state:
                     }
                     // add root nodes for connect
                     if(!PVT(l_net)->links_addrs_count){
+                        // use no more then 4 root node
+                        int l_use_root_nodes = min(4, PVT(l_net)->seed_aliases_count);
                         PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                                min(1, PVT(l_net)->seed_aliases_count) * sizeof(dap_chain_node_addr_t));
-                        for(uint16_t i = 0; i < min(1, PVT(l_net)->seed_aliases_count); i++) {
+                                l_use_root_nodes * sizeof(dap_chain_node_addr_t));
+
+                        for(uint16_t i = 0; i < l_use_root_nodes; i++) {
                             dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i]);
                             if(l_node_addr) {
                                 PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 = l_node_addr->uint64;
@@ -636,7 +641,7 @@ static void *s_net_proc_thread ( void *a_net )
 
         struct timespec l_to;
         clock_gettime( CLOCK_MONOTONIC, &l_to );
-        int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
+        int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 10000000ll;
 
         // if the new number of nanoseconds is more than a second
         if(l_nsec_new > (long) 1e9) {
@@ -1144,6 +1149,7 @@ int s_net_load(const char * a_net_name)
         const char * l_node_alias_str = dap_config_get_item_str(l_cfg , "general" , "node-alias");
         log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
                 PVT(l_net)->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
+        // save new nodes from cfg file to db
         for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
                             i < l_seed_nodes_addrs_len &&
                             (
@@ -1171,8 +1177,10 @@ int s_net_load(const char * a_net_name)
                         inet_pton( AF_INET, l_seed_nodes_ipv4[i],&l_node_info->hdr.ext_addr_v4);
                     if ( l_seed_nodes_ipv6_len )
                         inet_pton( AF_INET6, l_seed_nodes_ipv6[i],&l_node_info->hdr.ext_addr_v6);
-                    if(l_seed_nodes_port_len >= i)
-                        l_node_info->hdr.ext_port = (uint16_t) strtoul(l_seed_nodes_port[i], NULL, 10);
+                    if(l_seed_nodes_port_len && l_seed_nodes_port_len >= i)
+                        l_node_info->hdr.ext_port = strtoul(l_seed_nodes_port[i], NULL, 10);
+                    else
+                        l_node_info->hdr.ext_port = 8079;
 
                     if ( l_seed_nodes_hostnames_len ){
                         struct addrinfo l_hints={0}, *l_servinfo, *p;
@@ -1264,6 +1272,13 @@ int s_net_load(const char * a_net_name)
 
 
          }
+/*        // if present 'l_node_ipv4_str' and no 'l_node_addr_str' and 'l_node_alias_str'
+        if(!PVT(l_net)->node_info && l_node_ipv4_str) {
+            dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+            inet_pton( AF_INET, l_node_ipv4_str, &l_node_info->hdr.ext_addr_v4);
+            PVT(l_net)->node_info = l_node_info;
+        }*/
+
         // Init chains
         //size_t l_chains_path_size =strlen(dap_config_path())+1+strlen(l_net->pub.name)+1+strlen("network")+1;
         //char * l_chains_path = DAP_NEW_Z_SIZE (char,l_chains_path_size);
