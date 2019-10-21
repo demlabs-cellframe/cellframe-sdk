@@ -83,109 +83,7 @@
 
 #define LOG_TAG "srv_vpn"
 
-#define VPN_PACKET_OP_CODE_CONNECTED 0x000000a9
-#define VPN_PACKET_OP_CODE_CONNECT 0x000000aa
-#define VPN_PACKET_OP_CODE_DISCONNECT 0x000000ab
-#define VPN_PACKET_OP_CODE_SEND 0x000000ac
-#define VPN_PACKET_OP_CODE_RECV 0x000000ad
-#define VPN_PACKET_OP_CODE_PROBLEM  0x000000ae
-
-#define VPN_PROBLEM_CODE_NO_FREE_ADDR 0x00000001
-#define VPN_PROBLEM_CODE_TUNNEL_DOWN  0x00000002
-#define VPN_PROBLEM_CODE_PACKET_LOST  0x00000003
-
-#define VPN_PACKET_OP_CODE_VPN_METADATA 0x000000b0
-#define VPN_PACKET_OP_CODE_VPN_RESERVED 0x000000b1
-#define VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST 0x000000b2
-#define VPN_PACKET_OP_CODE_VPN_ADDR_REPLY 0x000000b3
-
-#define VPN_PACKET_OP_CODE_VPN_SEND 0x000000bc
-#define VPN_PACKET_OP_CODE_VPN_RECV 0x000000bd
-
 #define SF_MAX_EVENTS 256
-
-typedef struct ch_vpn_pkt {
-    struct {
-        int sock_id; // Client's socket id
-        uint32_t op_code; // Operation code
-        union {
-            struct { // L4 connect operation
-                uint32_t addr_size;
-                uint16_t port;
-                uint16_t padding;
-            } op_connect;
-            struct { // For data transmission, usualy for I/O functions
-                uint32_t data_size;
-                uint32_t padding;
-            } op_data;
-            struct { // We have a problem and we know that!
-                uint32_t code; // I hope we'll have no more than 4B+ problems, not I??
-                uint32_t padding_padding_padding_damned_padding_nobody_nowhere_uses_this_fild_but_if_wil_change_me_pls_with_an_auto_rename;
-            } op_problem;
-            struct {
-                uint32_t padding1;
-                uint32_t padding2;
-            } raw; // Raw access to OP bytes
-        };
-    }__attribute__((packed)) header;
-    uint8_t data[]; // Binary data nested by packet
-}__attribute__((packed)) ch_vpn_pkt_t;
-
-/**
- * @struct ch_vpn_socket_proxy
- * @brief Internal data storage for single socket proxy functions. Usualy helpfull for\
-  *        port forwarding or for protecting single application's connection
- *
- **/
-typedef struct ch_vpn_socket_proxy {
-    int id;
-    int sock;
-    struct in_addr client_addr; // Used in raw L3 connections
-    pthread_mutex_t mutex;
-    dap_stream_ch_t * ch;
-
-    bool signal_to_delete;
-    ch_vpn_pkt_t * pkt_out[100];
-    size_t pkt_out_size;
-
-    uint64_t bytes_sent;
-    uint64_t bytes_recieved;
-
-    time_t time_created;
-    time_t time_lastused;
-
-    UT_hash_handle hh;
-    UT_hash_handle hh2;
-    UT_hash_handle hh_sock;
-} ch_vpn_socket_proxy_t;
-
-/**
- * @struct dap_stream_ch_vpn
- * @brief Object that creates for every remote channel client
- *
- *
- **/
-typedef struct dap_chain_net_srv_vpn
-{
-    dap_chain_net_srv_t net_srv;
-    //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
-    pthread_mutex_t mutex;
-    ch_vpn_socket_proxy_t * socks;
-    int raw_l3_sock;
-
-    dap_ledger_t *ledger;
-} dap_chain_net_srv_vpn_t;
-
-typedef struct dap_stream_ch_vpn_remote_single { //
-    in_addr_t addr;
-//    pthread_mutex_t mutex;
-    dap_stream_ch_t * ch;
-
-    uint64_t bytes_sent;
-    uint64_t bytes_recieved;
-
-    UT_hash_handle hh;
-} dap_stream_ch_vpn_remote_single_t;
 
 typedef struct vpn_local_network {
     struct in_addr client_addr_last;
@@ -222,8 +120,6 @@ static pthread_t srv_sf_socks_pid;
 static pthread_t srv_sf_socks_raw_pid;
 
 vpn_local_network_t *raw_server;
-
-#define CH_VPN(a) ((dap_chain_net_srv_vpn_t *) ((a)->internal) )
 
 void *srv_ch_sf_thread(void * arg);
 void *srv_ch_sf_thread_raw(void *arg);
@@ -350,6 +246,19 @@ static void callback_trafic(dap_client_remote_t *a_client, dap_stream_ch_t* a_ch
 }
 
 /**
+ * @brief ch_sf_socket_delete
+ * @param sf
+ */
+static void ch_sf_socket_delete(ch_vpn_socket_proxy_t * sf)
+{
+    close(sf->sock);
+    pthread_mutex_destroy(& (sf->mutex) );
+    if (sf)
+        free(sf);
+}
+
+
+/**
  * @brief stream_sf_new Callback to constructor of object of Ch
  * @param ch
  * @param arg
@@ -443,10 +352,15 @@ void srv_ch_sf_delete(dap_stream_ch_t* ch, void* arg)
 
 static void stream_sf_socket_delete(ch_vpn_socket_proxy_t * sf)
 {
-    close(sf->sock);
+    dap_return_if_fail(sf);
+    if(sf->sock > 0)
+        close(sf->sock);
+    // wait while mutex will be released if it be locked
+    pthread_mutex_lock(&sf->mutex);
+    pthread_mutex_unlock(&sf->mutex);
+
     pthread_mutex_destroy(&(sf->mutex));
-    if(sf)
-        free(sf);
+    free(sf);
 }
 
 static void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
@@ -455,6 +369,8 @@ static void stream_sf_socket_ready_to_write(dap_stream_ch_t * ch, bool is_ready)
     ch->ready_to_write = is_ready;
     if(is_ready)
         ch->stream->conn_http->state_write = DAP_HTTP_CLIENT_STATE_DATA;
+    //!!!
+    //dap_stream_ch_set_ready_to_write(ch, is_ready);
     dap_client_remote_ready_to_write(ch->stream->conn, is_ready);
     pthread_mutex_unlock(&ch->mutex);
 
@@ -485,10 +401,6 @@ static ch_vpn_pkt_t* srv_ch_sf_raw_read()
 void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
 {
     dap_stream_ch_pkt_t * pkt = (dap_stream_ch_pkt_t *) arg;
-    // log_it(L_DEBUG,"stream_sf_packet_in:  channel packet hdr size %lu ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", pkt->hdr.size,
-    //        *((uint8_t *)pkt->data + pkt->hdr.size-4),*((uint8_t *)pkt->data + pkt->hdr.size-3)
-    //        ,*((uint8_t *)pkt->data + pkt->hdr.size-2),*((uint8_t *)pkt->data + pkt->hdr.size-1)
-    //        );
 
     static bool client_connected = false;
     ch_vpn_pkt_t * sf_pkt = (ch_vpn_pkt_t *) pkt->data;
@@ -529,6 +441,7 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                 raw_server->client_addr_last.s_addr = n_addr.s_addr;
                 ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
                 HASH_ADD_INT(raw_server->clients, addr, n_client);
+
                 pthread_mutex_unlock(&raw_server->clients_mutex);
 
                 log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(n_addr));
@@ -602,10 +515,12 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
     } else { // All except CONNECT
         ch_vpn_socket_proxy_t * sf_sock = NULL;
         if(sf_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECT) {
+
             pthread_mutex_lock(&( CH_VPN(ch)->mutex));
             //      log_it(L_DEBUG,"Looking in hash table with %d",remote_sock_id);
             HASH_FIND_INT((CH_VPN(ch)->socks), &remote_sock_id, sf_sock);
             pthread_mutex_unlock(&( CH_VPN(ch)->mutex));
+
             if(sf_sock != NULL) {
                 pthread_mutex_lock(&sf_sock->mutex); // Unlock it in your case as soon as possible to reduce lock time
                 sf_sock->time_lastused = time(NULL);
@@ -810,10 +725,6 @@ void * srv_ch_sf_thread(void * arg)
     sigaddset(&sf_sigmask, SIGUSR2);
 
     while(1) {
-        /*pthread_mutex_lock(&sf_socks_mutex);
-         if(sf_socks==NULL)
-         pthread_cond_wait(&sf_socks_cond,&sf_socks_mutex);
-         pthread_mutex_unlock(&sf_socks_mutex);*/
         int nfds = epoll_pwait(sf_socks_epoll_fd, events, SF_MAX_EVENTS, 10000, &sf_sigmask);
         if(nfds < 0) {
             //log_it(L_CRITICAL,"Can't run epoll_wait: %s",strerror(errno));
@@ -1056,6 +967,7 @@ void srv_ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
         ch->stream->conn_http->state_write = DAP_HTTP_CLIENT_STATE_DATA;
     }
     dap_client_remote_ready_to_write(ch->stream->conn, isSmthOut);
+    //dap_stream_ch_set_ready_to_write(ch, isSmthOut);
 
 }
 
