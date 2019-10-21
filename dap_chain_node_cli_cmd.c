@@ -72,6 +72,7 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_vpn_client.h"
 #include "dap_chain_cell.h"
 
 #include "dap_chain_datum.h"
@@ -2857,7 +2858,22 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
     switch (cmd_num)
     {
     case CMD_START: {
-        int l_res = dap_chain_net_vpn_client_start(l_net, "192.168.100.93", NULL, 8079);
+        const char * l_str_addr = NULL; // for example, "192.168.100.93"
+        const char * l_str_port = NULL; // for example, "8079"
+        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_str_addr);
+        if(!l_str_addr) {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "VPN server address not defined, use -addr <vpn server ipv4 address> parameter");
+            break;
+        }
+        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_str_port);
+        int l_srv_port = (l_str_port) ? (int) strtoll(l_str_port, 0, 10) : 0;
+        if(!l_srv_port) {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "VPN server port not defined, use -port <vpn server port>  parameter");
+            break;
+        }
+        int l_res = dap_chain_net_vpn_client_start(l_net, l_str_addr, NULL, l_srv_port);
         switch (l_res) {
         case 0:
             dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client started successfully");
