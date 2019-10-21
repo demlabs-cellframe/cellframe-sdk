@@ -36,6 +36,8 @@
 
 #include "win32/ip.h"
 #include "win32/iphdr.h"
+#define __in6_u _S6_un
+#define __u6_addr32 _S6_u8
 #endif
 
 

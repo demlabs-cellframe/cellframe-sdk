@@ -277,7 +277,7 @@ lb_proc_state:
                             PVT(l_net)->links_addrs[i].uint64 = PVT(l_net)->node_info->links[i].uint64;
                         }
                     }else {
-                        log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting");
+                        log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, find nearest 3 links and fill global_db");
                     }
                 } break;
                 case NODE_ROLE_FULL:
@@ -492,7 +492,7 @@ lb_proc_state:
             // send request
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
-                dap_stream_ch_chain_sync_request_t l_sync_gdb = {{0}};
+            dap_stream_ch_chain_sync_request_t l_sync_gdb = { { 0 } };
                 // Get last timestamp in log
                 l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_node_client->remote_node_addr.uint64);
                 // no limit
@@ -508,10 +508,13 @@ lb_proc_state:
                 l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
 
                 log_it(L_DEBUG,"Prepared request to gdb sync from %llu to %llu",l_sync_gdb.id_start,l_sync_gdb.id_end);
-                size_t l_res =  dap_stream_ch_chain_pkt_write( dap_client_get_stream_ch(l_node_client->client,
-                                                                                   dap_stream_ch_chain_get_id() ) ,
-                           DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id, (dap_chain_id_t){{0}} ,
-                                                          l_net->pub.cell_id, &l_sync_gdb, sizeof (l_sync_gdb) );
+                // find dap_chain_id_t
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+                dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) { { 0 } };
+
+                size_t l_res = dap_stream_ch_chain_pkt_write(dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id()),
+                                                            DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id, l_chain_id,
+                                                            l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 if(l_res == 0) {
                     log_it(L_WARNING,"Can't send GDB sync request");
                     HASH_DEL(PVT(l_net)->links,l_node_client);
@@ -525,52 +528,59 @@ lb_proc_state:
                 // TODO add progress info to console
                 int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (res) {
-                    case -1:
-                        log_it(L_WARNING,"Timeout with link sync");
+                case -1:
+                    log_it(L_WARNING,"Timeout with link sync");
                     break;
-                    case 0:
-                        log_it(L_INFO, "Node sync completed");
+                case 0:
+                    log_it(L_INFO, "Node sync completed");
                     break;
-                    default:
-                        log_it(L_INFO, "Node sync error %d",res);
+                default:
+                    log_it(L_INFO, "Node sync error %d",res);
                 }
             }
-            if ( PVT(l_net)->state_target >= NET_STATE_ONLINE ){
+            if(PVT(l_net)->state_target >= NET_STATE_ONLINE){
                 PVT(l_net)->state = NET_STATE_SYNC_CHAINS;
             }else {
                 PVT(l_net)->state = NET_STATE_ONLINE;
             }
-        }    pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+        }
+            pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+            goto lb_proc_state;
 
         case NET_STATE_SYNC_CHAINS:{
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
             uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db sync
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
-                        dap_chain_t * l_chain = NULL;
+                dap_chain_t * l_chain = NULL;
                 DL_FOREACH(l_net->pub.chains, l_chain ){
                     size_t l_lasts_size = 0;
                     dap_chain_atom_ptr_t * l_lasts;
                     dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
-                    l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter,&l_lasts_size);
-                    if ( l_lasts ) {
-                        dap_stream_ch_chain_sync_request_t l_request = {{0}};
-                        dap_hash_fast(l_lasts[0],l_chain->callback_atom_get_size(l_lasts[0]),&l_request.hash_from );
-                        dap_chain_node_client_send_ch_pkt(l_node_client,l_ch_id,
-                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
-                                                      &l_request,sizeof (l_request) );
+                    l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_size);
+                    if( l_lasts ) {
+                        dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
+                        dap_hash_fast(l_lasts[0], l_chain->callback_atom_get_size(l_lasts[0]), &l_request.hash_from);
+                        dap_stream_ch_chain_pkt_write(dap_client_get_stream_ch(l_node_client->client, l_ch_id),
+                        DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id, l_chain->id,
+                                l_net->pub.cell_id, &l_request, sizeof(l_request));
+                        //
+                        //                        dap_chain_node_client_send_ch_pkt(l_node_client,l_ch_id,
+                        //                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+                        //                                                      &l_request,sizeof (l_request) );
+
                         // wait for finishing of request
                         int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
                         // TODO add progress info to console
                         int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                         switch (l_res) {
-                            case -1:
-                                log_it(L_WARNING,"Timeout with link sync");
+                        case -1:
+                            log_it(L_WARNING,"Timeout with link sync");
                             break;
-                            case 0:
-                                log_it(L_INFO, "Node sync completed");
+                        case 0:
+                            log_it(L_INFO, "Node sync completed");
                             break;
-                            default:
-                                log_it(L_INFO, "Node sync error %d",l_res);
+                        default:
+                            log_it(L_INFO, "Node sync error %d",l_res);
                         }
 
                         DAP_DELETE( l_lasts );
@@ -583,7 +593,9 @@ lb_proc_state:
             // end sync, return to online state
             if(PVT(l_net)->state_target > NET_STATE_ONLINE)
                 PVT(l_net)->state_target = NET_STATE_ONLINE;
-        }pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+        }
+        pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+        goto lb_proc_state;
 
         case NET_STATE_ONLINE: {
             log_it(L_NOTICE, "State online");
@@ -1178,6 +1190,7 @@ int s_net_load(const char * a_net_name)
 
                         log_it( L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
                         struct hostent *l_he;
+
                         if ( l_he = gethostbyname (l_seed_nodes_hostnames[i])   ){
                             struct in_addr **l_addr_list = (struct in_addr **) l_he->h_addr_list;
                             for(int i = 0; l_addr_list[i] != NULL; i++ ) {

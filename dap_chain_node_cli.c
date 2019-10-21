@@ -812,14 +812,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
-            "token_decl -net <net name> -chain <chain name> token <token ticker> total_supply <total supply> signs_total <sign total> signs_emission <signs for emission> certs <certs list>\n"
+            "token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
-            "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign -net <net name> -chain <chain name> datum <datum_hash>  certs <certs list>\n"
+            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
@@ -860,7 +860,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // create thread for waiting of clients
     pthread_t l_thread_id;
 
-    l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp", 0 );
+    l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp",0);
 
     const char * l_listen_unix_socket_path = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path");
     const char * l_listen_unix_socket_permissions_str = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_permissions");
@@ -918,10 +918,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
     else if (l_listen_port ){
 
-        const char *l_listen_addr_str = dap_config_get_item_str_default( g_config,
-                                                                       "conserver",
-                                                                      "listen_address",
-                                                                      "0.0.0.0" );
+        const char *l_listen_addr_str = dap_config_get_item_str(g_config, "conserver", "listen_address");
 
         log_it( L_INFO, "Console interace on addr %s port %u ", l_listen_addr_str, l_listen_port );
  

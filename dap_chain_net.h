@@ -35,6 +35,7 @@
 
 #include "win32/ip.h"
 #include "win32/iphdr.h"
+#define herror perror
 #endif
 
 
