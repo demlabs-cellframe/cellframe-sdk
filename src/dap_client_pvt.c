@@ -212,7 +212,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             char *l_suburl;
             // connect to vpn server
-            const char l_active_vpn_channels[] = { SERVICE_CHANNEL_ID, 0 };
+            const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
             if(!dap_strcmp(a_client_pvt->active_channels,l_active_vpn_channels))
                 l_suburl = dap_strdup_printf("socket_forward");
             // connect for node sync
@@ -317,7 +317,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             const char *l_add_str = "";
             // if connect to vpn server
-            const char l_active_vpn_channels[] = { SERVICE_CHANNEL_ID, 0 };
+            const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
             if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
                 l_add_str = "\r\nService-Key: test";
 
