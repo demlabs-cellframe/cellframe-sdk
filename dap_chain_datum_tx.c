@@ -176,6 +176,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
             if(dap_chain_sign_verify(a_chain_sign, tx->tx_items, tx_items_pos) != 1) {
                 // invalid signature
                 ret = 0;
+                tx_items_pos += item_size;
                 break;
             }
             // signature verify successfully

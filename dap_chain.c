@@ -29,6 +29,7 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_file_utils.h"
 #include "dap_config.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain.h"
@@ -355,6 +356,10 @@ int dap_chain_load_all (dap_chain_t * l_chain)
     int l_ret = -2;
     if(!l_chain)
         return l_ret;
+    // create directory if not exist
+    if(!dap_dir_test(DAP_CHAIN_PVT (l_chain)->file_storage_dir)) {
+        dap_mkdir_with_parents(DAP_CHAIN_PVT (l_chain)->file_storage_dir);
+    }
     DIR * l_dir = opendir(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
     if( l_dir ) {
         struct dirent * l_dir_entry;
