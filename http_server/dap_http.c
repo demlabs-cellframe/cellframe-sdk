@@ -153,7 +153,7 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
 {
   dap_http_url_proc_t *up = (dap_http_url_proc_t *) calloc( 1, sizeof(dap_http_url_proc_t) );
 
-  strncpy( up->url, url_path, sizeof(up->url) );
+  strncpy( up->url, url_path, sizeof(up->url)-1 );
 
   up->new_callback    = new_callback;
   up->delete_callback = delete_callback;
