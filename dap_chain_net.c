@@ -291,7 +291,7 @@ lb_proc_state:
                     dap_chain_node_addr_t l_address;
                     l_address.uint64 = dap_chain_net_get_cur_addr(l_net) ?
                                          dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                         dap_db_get_cur_node_addr();
+                                         dap_db_get_cur_node_addr(l_net->pub.name);
 
                     // get current node info
                     dap_chain_node_info_t *l_cur_node_info = dap_chain_node_info_read(l_net, &l_address);
@@ -500,7 +500,7 @@ lb_proc_state:
 
                 l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
                                                   dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                                  dap_db_get_cur_node_addr();
+                                                  dap_db_get_cur_node_addr(l_net->pub.name);
 
                 dap_chain_id_t l_chain_id_null = { { 0 } };
                 dap_chain_cell_id_t l_chain_cell_id_null = { { 0 } };
@@ -979,7 +979,7 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
             if ( strcmp(l_get_str,"status") == 0 ) {
                 // get current node address
                 dap_chain_node_addr_t l_cur_node_addr = { 0 };
-                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 : dap_db_get_cur_node_addr();
+                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 : dap_db_get_cur_node_addr(l_net->pub.name);
                 if(!l_cur_node_addr.uint64) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address not defined",
@@ -1258,7 +1258,7 @@ int s_net_load(const char * a_net_name)
             if ( l_node_addr ) {
                 char *l_addr_hash_str = dap_chain_node_addr_to_hash_str(l_node_addr);
                 // save current node address
-                dap_db_set_cur_node_addr(l_node_addr->uint64);
+                dap_db_set_cur_node_addr(l_node_addr->uint64, l_net->pub.name);
                 if(!l_addr_hash_str){
                     log_it(L_ERROR,"Can't get hash string for node address!");
                 } else {
