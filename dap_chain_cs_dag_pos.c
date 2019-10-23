@@ -37,7 +37,7 @@
 
 typedef struct dap_chain_cs_dag_pos_pvt
 {
-    dap_chain_cert_t * events_sign_cert;
+    dap_chain_cert_t * events_sign_wallet;
     char ** tokens_hold;
     uint64_t * tokens_hold_value;
     size_t tokens_hold_size;
@@ -147,7 +147,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     const char * l_events_sign_wallet = NULL;
     if ( ( l_events_sign_wallet = dap_config_get_item_str(a_chain_net_cfg,"dag-pos","events-sign-wallet") ) != NULL ) {
 
-        if ( ( PVT(l_pos)->events_sign_cert = dap_chain_cert_find_by_name(l_events_sign_wallet)) == NULL ){
+        if ( ( PVT(l_pos)->events_sign_wallet = dap_chain_cert_find_by_name(l_events_sign_wallet)) == NULL ){
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_wallet);
         }else
             log_it(L_NOTICE,"Loaded \"%s\" certificate to sign pos event", l_events_sign_wallet);
@@ -190,13 +190,13 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
     dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_pos_t * l_pos = DAP_CHAIN_CS_DAG_POS(a_dag);
 
-    if( PVT(l_pos)->events_sign_cert == NULL) {
-        log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
+    if( PVT(l_pos)->events_sign_wallet == NULL) {
+        log_it(L_ERROR, "Can't sign event with events-sign-wallet in [dag-pos] section");
         return NULL;
     }
     if(a_datum || (a_hashes && a_hashes_count)) {
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, l_net->pub.cell_id, a_datum,
-        PVT(l_pos)->events_sign_cert->enc_key, a_hashes, a_hashes_count);
+        PVT(l_pos)->events_sign_wallet->enc_key, a_hashes, a_hashes_count);
         return l_event;
     } else
         return NULL;
@@ -244,6 +244,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
                 return 0;
         }
+        char *l_addr_str = dap_chain_addr_to_str(&l_addr);
+        log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
+        DAP_DELETE(l_addr_str);
         return -1;
     }else
        return -2; // Wrong signatures number
