@@ -2346,7 +2346,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     if(l_chain_emission_str) {
         if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
             dap_chain_node_cli_set_reply_text(str_reply,
-                    "token_create requires parameter 'chain_emission' to be valid chain name in chain net %s",
+                    "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s",
                     l_net_str);
             DAP_DELETE(l_addr);
             return -45;
@@ -2361,7 +2361,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     if(l_chain_base_tx_str) {
         if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
             dap_chain_node_cli_set_reply_text(str_reply,
-                    "token_create requires parameter 'chain_emission' to be valid chain name in chain net %s",
+                    "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s",
                     l_net_str);
             DAP_DELETE(l_addr);
             return -47;
