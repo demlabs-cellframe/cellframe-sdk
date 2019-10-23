@@ -22,6 +22,7 @@ typedef struct dap_tx_data{
         size_t obj_num;
         size_t pos_num;
         dap_chain_addr_t addr;
+        char reserv[3];
         UT_hash_handle hh;
 } dap_tx_data_t;
 
@@ -109,12 +110,12 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
             return NULL;
         }
         // save record type: 'a' or 'd'
-        l_obj->type = l_rec.type;
+        l_obj->type = (uint8_t)l_rec.type;
 
         memcpy(l_store_obj + i, l_obj, sizeof(dap_store_obj_t));
         DAP_DELETE(l_obj);
         i++;
-    };
+    }
     // serialize data
     dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
 
@@ -787,7 +788,7 @@ char* dap_db_history_filter(dap_chain_addr_t * a_addr, const char *a_group_mempo
                     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, &l_count);
                     dap_list_t *l_list_tmp = l_list_out_items;
                     while(l_list_tmp) {
-                        const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
+                        dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*) l_list_tmp->data;
                         // save OUT item l_tx_out
                         {
                             // save tx hash
@@ -801,7 +802,7 @@ char* dap_db_history_filter(dap_chain_addr_t * a_addr, const char *a_group_mempo
                             // save token name
                             if(l_tx_data && l_list_tx_token) {
                                 dap_chain_tx_token_t *tk = l_list_tx_token->data;
-                                int d = sizeof(l_tx_data->token_ticker);
+//                                int d = sizeof(l_tx_data->token_ticker);
                                 memcpy(l_tx_data->token_ticker, tk->header.ticker, sizeof(l_tx_data->token_ticker));
                             }
                             HASH_ADD(hh, l_tx_data_hash, tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_data);

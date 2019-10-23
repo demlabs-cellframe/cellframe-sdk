@@ -22,12 +22,12 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
 #include <time.h>
 #include <assert.h>
+#include <string.h>
 
 #include "uthash.h"
 
@@ -83,7 +83,7 @@ char * extract_group_prefix(const char * a_group);
  * @param a_group
  * @return
  */
-char * extract_group_prefix(const char * a_group)
+char * extract_group_prefix(const char* a_group)
 {
     char * l_group_prefix = NULL, *l_delimeter;
     size_t l_group_prefix_size;
@@ -340,7 +340,7 @@ bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
 /**
  * Delete entry from base
  */
-bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
+bool dap_chain_global_db_gr_del(char *a_key, char *a_group)
 {
     if(!a_key)
         return NULL;
@@ -376,7 +376,7 @@ bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
         return true;
     return false;
 }
-bool dap_chain_global_db_del(const char *a_key)
+bool dap_chain_global_db_del(char *a_key)
 {
     return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
 }
@@ -477,7 +477,7 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
     if(!l_res) {
         for(size_t i = 0; i < a_objs_count; i++) {
             history_group_item_t * l_history_group_item = NULL;
-            dap_store_obj_t* l_obj = a_store_data + i;
+            dap_store_obj_t* l_obj = (dap_store_obj_t*)a_store_data + i;
             char * l_group_prefix = extract_group_prefix(l_obj->group);
             if(l_group_prefix)
                 HASH_FIND_STR(s_history_group_items, l_group_prefix, l_history_group_item);
@@ -485,13 +485,13 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
             if(l_history_group_item) {
                 if(l_history_group_item->auto_track) {
                     lock();
-                    dap_db_history_add(l_obj->type, l_obj, 1);
+                    dap_db_history_add((char)l_obj->type, l_obj, 1);
                     unlock();
                 }
                 if(l_history_group_item->callback_notify) {
                     if(l_obj) {
                         l_history_group_item->callback_notify(l_history_group_item->callback_arg,
-                                l_obj->type,
+                                (const char)l_obj->type,
                                 l_group_prefix, l_obj->group, l_obj->key,
                                 l_obj->value, l_obj->value_len);
                     } else {

@@ -45,13 +45,14 @@ typedef struct _SQLITE_VALUE_
      #define SQLITE_BLOB     4
      #define SQLITE_NULL     5
      */
+    uint8_t reserv[3];
     union
     {
         int val_int;
         long long val_int64;
         double val_float;
-        char *val_str;
-        unsigned char *val_blob;
+        const char *val_str;
+        const unsigned char *val_blob;
     } val;
 } SQLITE_VALUE;
 
@@ -59,6 +60,7 @@ typedef struct _SQLITE_VALUE_
 typedef struct _SQLITE_ROW_VALUE_
 {
     int count; // number of columns in a row
+    int reserv;
     SQLITE_VALUE *val; // array of field values
 } SQLITE_ROW_VALUE;
 
@@ -116,10 +118,10 @@ int dap_db_driver_sqlite_deinit(void)
 // additional function for sqlite to convert byte to number
 static void byte_to_bin(sqlite3_context *l_context, int a_argc, sqlite3_value **a_argv)
 {
-    unsigned char *l_text;
+    const unsigned char *l_text;
     if(a_argc != 1)
         sqlite3_result_null(l_context);
-    l_text = (unsigned char *) sqlite3_value_blob(a_argv[0]);
+    l_text = (const unsigned char *) sqlite3_value_blob(a_argv[0]);
     if(l_text && l_text[0])
             {
         int l_result = (int) l_text[0];
@@ -331,7 +333,7 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
         l_row = (SQLITE_ROW_VALUE*) sqlite3_malloc(sizeof(SQLITE_ROW_VALUE));
         int l_count = sqlite3_column_count(l_res); // get the number of columns
         // allocate memory for all columns
-        l_row->val = (SQLITE_VALUE*) sqlite3_malloc(l_count * sizeof(SQLITE_VALUE));
+        l_row->val = (SQLITE_VALUE*) sqlite3_malloc(l_count * (int)sizeof(SQLITE_VALUE));
         if(l_row->val)
         {
             l_row->count = l_count; // number of columns
@@ -339,7 +341,7 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
                     {
                 SQLITE_VALUE *cur_val = l_row->val + l_iCol;
                 cur_val->len = sqlite3_column_bytes(l_res, l_iCol); // how many bytes will be needed
-                cur_val->type = sqlite3_column_type(l_res, l_iCol); // field type
+                cur_val->type = (signed char)sqlite3_column_type(l_res, l_iCol); // field type
                 if(cur_val->type == SQLITE_INTEGER)
                 {
                     cur_val->val.val_int64 = sqlite3_column_int64(l_res, l_iCol);
@@ -348,9 +350,9 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
                 else if(cur_val->type == SQLITE_FLOAT)
                     cur_val->val.val_float = sqlite3_column_double(l_res, l_iCol);
                 else if(cur_val->type == SQLITE_BLOB)
-                    cur_val->val.val_blob = (unsigned char*) sqlite3_column_blob(l_res, l_iCol);
+                    cur_val->val.val_blob = (const unsigned char*) sqlite3_column_blob(l_res, l_iCol);
                 else if(cur_val->type == SQLITE_TEXT)
-                    cur_val->val.val_str = (char*) sqlite3_column_text(l_res, l_iCol); //sqlite3_mprintf("%s",sqlite3_column_text(l_res,iCol));
+                    cur_val->val.val_str = (const char*) sqlite3_column_text(l_res, l_iCol); //sqlite3_mprintf("%s",sqlite3_column_text(l_res,iCol));
                 else
                     cur_val->val.val_str = NULL;
             }
@@ -388,7 +390,7 @@ static char* dap_db_driver_get_string_from_blob(uint8_t *blob, int len)
     if(!blob)
         return NULL;
     str_out = (char*) sqlite3_malloc(len * 2 + 1);
-    ret = dap_bin2hex((char*) str_out, blob, len);
+    ret = (int)dap_bin2hex(str_out, (const void*)blob, (size_t)len);
     str_out[len * 2] = 0;
     return str_out;
 
@@ -442,7 +444,7 @@ int dap_db_driver_sqlite_end_transaction(void)
 char *dap_db_driver_sqlite_make_table_name(const char *a_group_name)
 {
     char *l_group_name = dap_strdup(a_group_name);
-    ssize_t l_group_name_len = dap_strlen(l_group_name);
+    ssize_t l_group_name_len = (ssize_t)dap_strlen(l_group_name);
     const char *l_needle = ".";
     // replace '.' to '_'
     while(1){
@@ -472,7 +474,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         //dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);
 
         char *l_blob_hash = "";//dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
-        char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, a_store_obj->value_len);
+        char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, (int)a_store_obj->value_len);
         //add one record
         char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
         l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'%s', '%lld', x'%s')",
@@ -544,7 +546,7 @@ static void fill_one_item(const char *a_group, dap_store_obj_t *a_obj, SQLITE_RO
         switch (l_iCol) {
         case 0:
             if(l_cur_val->type == SQLITE_INTEGER)
-                a_obj->id = l_cur_val->val.val_int64;
+                a_obj->id = (uint64_t)l_cur_val->val.val_int64;
             break; // id
         case 1:
             if(l_cur_val->type == SQLITE_INTEGER)
@@ -622,7 +624,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     // no limit
     int l_count_out = 0;
     if(a_count_out)
-        l_count_out = *a_count_out;
+        l_count_out = (int)*a_count_out;
     char *l_str_query;
     if(l_count_out)
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC LIMIT %d",
@@ -652,8 +654,8 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
             // realloc memory
             if(l_count_out >= l_count_sized) {
                 l_count_sized += 10;
-                l_obj = DAP_REALLOC(l_obj, sizeof(dap_store_obj_t) * l_count_sized);
-                memset(l_obj + l_count_out, 0, sizeof(dap_store_obj_t) * (l_count_sized - l_count_out));
+                l_obj = DAP_REALLOC(l_obj, sizeof(dap_store_obj_t) * (uint64_t)l_count_sized);
+                memset(l_obj + l_count_out, 0, sizeof(dap_store_obj_t) * (uint64_t)(l_count_sized - l_count_out));
             }
             // fill current item
             dap_store_obj_t *l_obj_cur = l_obj + l_count_out;
@@ -666,7 +668,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     dap_db_driver_sqlite_query_free(l_res);
 
     if(a_count_out)
-        *a_count_out = l_count_out;
+        *a_count_out = (size_t)l_count_out;
     return l_obj;
 }
 
@@ -686,7 +688,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     if(!a_group)
         return NULL;
     // no limit
-    int l_count_out = 0;
+    uint64_t l_count_out = 0;
     if(a_count_out)
         l_count_out = *a_count_out;
     char *l_str_query;
@@ -716,7 +718,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     //int b = qlite3_column_count(s_db);
     SQLITE_ROW_VALUE *l_row = NULL;
     l_count_out = 0;
-    int l_count_sized = 0;
+    uint64_t l_count_sized = 0;
     do {
         l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
         if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)

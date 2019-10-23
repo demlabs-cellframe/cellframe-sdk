@@ -24,6 +24,7 @@
 
 #include "cuttdb.h"
 #include "dap_chain_global_db_driver.h"
+#define UNUSED(x) (void)(x)
 
 typedef struct _cdb_options {
     int hsize;      // Main hash table size, 1%-10% of total records, immutable
