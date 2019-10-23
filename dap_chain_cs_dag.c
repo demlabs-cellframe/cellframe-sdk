@@ -481,7 +481,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell", l_cell->id.uint64);
             l_res = dap_chain_cell_file_update(l_cell);
         }
-        if(!l_cell || l_res) {
+        if(!l_cell || l_res < 0) {
             log_it(L_ERROR, "Can't add new %d events to the file '%s'", l_datum_processed,
                     l_cell ? l_cell->file_storage_path : "");
             l_datum_processed = 0;
@@ -1012,7 +1012,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     }
                 }else {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                      "Warning! Can't convert datum %s from mempool toevent in the new forming round ",
+                                                      "Warning! Can't convert datum %s from mempool to event in the new forming round ",
                                                       l_datum_hash_str);
                     ret = -12;
 
