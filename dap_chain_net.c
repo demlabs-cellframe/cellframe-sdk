@@ -1236,14 +1236,22 @@ int s_net_load(const char * a_net_name)
                 l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
             else{
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-                if ( sscanf(l_node_addr_str, "0x%016llx",&l_node_addr->uint64 ) != 1 ){
-                    sscanf(l_node_addr_str,"0x%016llX",&l_node_addr->uint64);
+                bool parse_succesfully = false;
+                if ( sscanf(l_node_addr_str, "0x%016llx",&l_node_addr->uint64 ) == 1 ){
+                    log_it(L_DEBUG, "Parse node address with format 0x%016llx");
+                    parse_succesfully = true;
                 }
-                if( l_node_addr->uint64 == 0 ){
+                if ( !parse_succesfully && dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0) {
+                    log_it(L_DEBUG, "Parse node address with format " NODE_ADDR_FP_STR);
+                    parse_succesfully = true;
+                }
+
+                if (!parse_succesfully){
                     log_it(L_ERROR,"Can't parse node address");
                     DAP_DELETE(l_node_addr);
                     l_node_addr = NULL;
                 }
+                log_it(L_NOTICE, "Parse node addr %s successfully", l_node_addr_str);
                 PVT(l_net)->node_addr = l_node_addr;
                 //}
             }
