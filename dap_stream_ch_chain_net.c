@@ -245,7 +245,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_stream_ch_set_ready_to_write(a_ch, true);
                             log_it(L_WARNING,"Invalid net id in packet");
                         } else {
-                            if (dap_db_set_cur_node_addr( l_addr->uint64 ))
+                            if (dap_db_set_cur_node_addr( l_addr->uint64, l_net->pub.name ))
                                 log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
                             else
                                 log_it(L_ERROR,"Can't set up cur node address 0x%016llX",l_addr->uint64);
@@ -261,7 +261,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST: {
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST");
                     // get cur node addr
-                    uint64_t l_addr = dap_db_get_cur_node_addr();
+                    dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id);
+                    uint64_t l_addr = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
                     size_t l_send_data_len = sizeof(uint64_t);
                     // send cur node addr
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR,
