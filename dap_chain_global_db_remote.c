@@ -12,21 +12,30 @@
 /**
  * Set addr for current node
  */
-bool dap_db_set_cur_node_addr(uint64_t a_address)
+bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name)
 {
-    return dap_chain_global_db_gr_set("cur_node_addr",(uint8_t*) &a_address, sizeof (a_address),GROUP_LOCAL_GENERAL);
+    if(!a_net_name)
+        return false;
+    char *l_key = dap_strdup_printf("cur_node_addr_%s", a_net_name);
+    bool l_ret = dap_chain_global_db_gr_set(l_key, (uint8_t*) &a_address, sizeof(a_address), GROUP_LOCAL_GENERAL);
+    DAP_DELETE(l_key);
+    return l_ret;
 }
 
 /**
  * Get addr for current node
  */
-uint64_t dap_db_get_cur_node_addr(void)
+uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 {
     size_t l_node_addr_len = 0;
-    uint8_t *l_node_addr = dap_chain_global_db_gr_get("cur_node_addr", &l_node_addr_len, GROUP_LOCAL_GENERAL);
+    if(!a_net_name)
+        return 0;
+    char *l_key = dap_strdup_printf("cur_node_addr_%s", a_net_name);
+    uint8_t *l_node_addr = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, GROUP_LOCAL_GENERAL);
     uint64_t l_node_addr_ret = 0;
     if(l_node_addr && l_node_addr_len == sizeof(uint64_t))
         memcpy(&l_node_addr_ret, l_node_addr, l_node_addr_len);
+    DAP_DELETE(l_key);
     DAP_DELETE(l_node_addr);
     return l_node_addr_ret;
 }
