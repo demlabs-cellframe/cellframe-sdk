@@ -39,7 +39,7 @@
 #include "dap_chain_datum_tx_sig.h"
 #include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_tx_token.h"
-#include "dap_chain_datum_tx_service_receipt.h"
+#include "dap_chain_datum_tx_receipt.h"
 
 /**
  * Get item type

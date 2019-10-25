@@ -8,6 +8,7 @@ set(DAP_CHAIN_SRCS
         dap_chain_datum_tx_items.c
         dap_chain_datum_tx.c
         dap_chain_datum_tx_token.c
+        dap_chain_datum_tx_receipt.c
         dap_chain_datum_token.c
         dap_chain_ledger.c
         dap_chain_datum_tx_out_cond.c
@@ -33,6 +34,7 @@ set(DAP_CHAIN_HEADERS
         dap_chain_datum_tx_pkey.h
         dap_chain_datum_tx_sig.h
         dap_chain_datum_tx_token.h
+        dap_chain_datum_tx_receipt.h
         dap_chain_cs.h
         dap_chain_cell.h
         dap_chain_ledger.h
