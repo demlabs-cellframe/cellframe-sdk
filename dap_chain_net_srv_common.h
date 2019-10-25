@@ -31,17 +31,22 @@
 #include "dap_stream_ch.h"
 #include "dap_chain_ledger.h"
 
-#define DAP_CHAIN_NET_SRV_UID_SIZE 16
+#define DAP_CHAIN_NET_SRV_UID_SIZE 8
+
 typedef union {
     uint8_t raw[DAP_CHAIN_NET_SRV_UID_SIZE];
-    #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     uint64_t raw_ui64[1];
+    uint64_t uint64;
 #elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-    uint64_t raw_ui64[2];
-    dap_uint128_t raw_ui128[1];
+    uint64_t raw_ui64[1];
     uint128_t uint128;
 #endif
 } dap_chain_net_srv_uid_t;
+
+#define DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE                             0x00000001
+#define DAP_CHAIN_NET_SRV_PRICE_UNIT_SECOND                           0x00000010
+#define DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE_PER_SECOND                  0x00000100
 
 typedef union {
     uint8_t raw[4];
@@ -101,6 +106,16 @@ typedef struct dap_chain_net_srv
     void * _internal;
     //void * _inhertor;
 } dap_chain_net_srv_t;
+
+DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
+{
+    switch ( a_uid.uint32 ) {
+        case DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE: return "BYTE";
+        case DAP_CHAIN_NET_SRV_PRICE_UNIT_SECOND: return "SECOND";
+        case DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE_PER_SECOND: return  "BYTE_PER_SECOND";
+        default: return "UNKNOWN";
+    }
+}
 
 // Initialize dap_chain_net_srv_abstract_t structure
 void dap_chain_net_srv_abstract_set(dap_chain_net_srv_abstract_t *a_cond, uint8_t a_class, uint128_t a_type_id,

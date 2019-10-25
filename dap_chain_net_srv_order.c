@@ -56,6 +56,7 @@ char* dap_chain_net_srv_order_create(
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+        dap_chain_time_t a_expires, // TS when the service expires
         const char * a_comments
         )
 {
@@ -64,6 +65,7 @@ char* dap_chain_net_srv_order_create(
         dap_chain_hash_fast_t* l_order_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
         l_order->version = 1;
         l_order->srv_uid = a_srv_uid;
+        l_order->ts_created = (dap_chain_time_t) time(NULL);
         l_order->srv_class = a_srv_class;
         l_order->node_addr.uint64 = a_node_addr.uint64;
         memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
@@ -92,27 +94,24 @@ char* dap_chain_net_srv_order_create(
 }
 
 /**
- * @brief dap_chain_net_srv_order_find_by_hash
+ * @brief dap_chain_net_srv_order_find_by_hash_str
  * @param a_net
- * @param a_hash
+ * @param a_hash_str
  * @return
  */
-dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash)
+dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_net_t * a_net, const char * a_hash_str)
 {
     dap_chain_net_srv_order_t * l_order = NULL;
-    if ( a_net && a_hash ){
-        char * l_order_hash_str = dap_chain_hash_fast_to_str_new(a_hash );
+    if ( a_net && a_hash_str ){
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
         size_t l_order_size =0;
-        l_order = (dap_chain_net_srv_order_t *) dap_chain_global_db_gr_get(l_order_hash_str, &l_order_size, l_gdb_group_str );
+        l_order = (dap_chain_net_srv_order_t *) dap_chain_global_db_gr_get(a_hash_str, &l_order_size, l_gdb_group_str );
         if (l_order_size != sizeof (dap_chain_net_srv_order_t) ){
             log_it( L_ERROR, "Found wrong size order");
             DAP_DELETE( l_order );
-            DAP_DELETE( l_order_hash_str );
             DAP_DELETE( l_gdb_group_str );
             return NULL;
         }
-        DAP_DELETE( l_order_hash_str );
         DAP_DELETE( l_gdb_group_str );
     }
     return l_order;
@@ -131,11 +130,11 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net, dap_chain_net_s
         size_t l_order_passed_index;
 lb_order_pass:
         l_order_passed_index =0;
-        for (int i; i< l_orders_count; i++){
+        for (size_t i; i< l_orders_count; i++){
             dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *) l_orders[i].value;
             // Check srv uid
-            if ( a_srv_uid.uint128)
-                if ( l_order->srv_uid.uint128 != a_srv_uid.uint128 )
+            if ( a_srv_uid.uint64)
+                if ( l_order->srv_uid.uint64 != a_srv_uid.uint64 )
                     continue;
             // Check srv class
             if ( a_srv_class != SERV_CLASS_UNDEFINED )
@@ -191,3 +190,38 @@ int dap_chain_net_srv_order_delete_by_hash_str(dap_chain_net_t * a_net, const ch
     return ret;
 }
 
+/**
+ * @brief dap_chain_net_srv_order_dump_to_string
+ * @param a_orders
+ * @param a_str_out
+ */
+void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out)
+{
+    if (a_order && a_str_out ){
+        dap_chain_hash_fast_t l_hash;
+        char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
+        dap_hash_fast(a_order,sizeof (*a_order),&l_hash );
+        dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
+        dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
+        dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
+
+        switch ( a_order->srv_class) {
+            case SERV_CLASS_ONCE: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_ONCE\n" ); break;;
+            case SERV_CLASS_PERMANENT: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_PERMANENT\n" ); break;
+            case SERV_CLASS_UNDEFINED: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_UNDEFINED\n" ); break;
+            //default: dap_string_append_printf(a_str_out, "  srv_class:        UNKNOWN\n" );
+        }
+        dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
+        dap_string_append_printf(a_str_out, "  price:            \u00a0%.3Lf (%llu)\n", dap_chain_balance_to_coins(a_order->price) , a_order->price);
+        if( a_order->price_unit.uint32 )
+            dap_string_append_printf(a_str_out, "  price_unit:       0x%016llX\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
+        if ( a_order->node_addr.uint64)
+            dap_string_append_printf(a_str_out, "  node_addr:        "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr) );
+
+        dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str,sizeof(l_hash_str)-1);
+        dap_string_append_printf(a_str_out, "  tx_cond_hash:          %s\n", l_hash_str );
+
+        if( a_order->comments[0])
+            dap_string_append_printf(a_str_out, "  comments:          \"%s\"\n", a_order->comments );
+    }
+}
