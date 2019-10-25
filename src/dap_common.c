@@ -745,7 +745,12 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   time_offset = s_ansi_seq_color_len[ll];
 
   struct tm l_tmptime={0};
+#ifdef __linux__
   localtime_r( &t, &l_tmptime );
+#endif
+#ifdef _WIN32
+  localtime_s( &t, &l_tmptime );
+#endif
   len = strftime( (char *)(buf0 + time_offset), 65536, "[%x-%X]", &l_tmptime );
   tag_offset = time_offset + len;
 
