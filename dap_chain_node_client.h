@@ -109,3 +109,5 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
  */
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms);
 
+int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
+

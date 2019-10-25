@@ -1031,41 +1031,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(!l_remote_node_info) {
             return -1;
         }
-        //feature-2630
-        {
-            dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
-            uint64_t id = dap_db_get_cur_node_addr(l_net->pub.name);
-            // start connect
-            dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_remote_node_info);
-            if(!l_node_client) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "can't connect");
-                DAP_DELETE(l_remote_node_info);
-                return -1;
-            }
-            // wait connected
-            int timeout_ms = 5000; //5 sec = 5000 ms
-            int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-            if(res) {
-                dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_net_get_id());
-
-                if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
-                        l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
-                        sizeof(l_sync_request))) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
-                    // clean client struct
-                    dap_chain_node_client_close(l_node_client);
-                    DAP_DELETE(l_remote_node_info);
-                    return -1;
-                }
-                dap_stream_ch_set_ready_to_write(l_ch_chain, true);
-                // wait for finishing of request
-                timeout_ms = 120000; // 20 min = 1200 sec = 1 200 000 ms
-                // TODO add progress info to console
-                res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
-
-            }
-        }
-
         // start connect
         dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_remote_node_info);
         if(!l_node_client) {
@@ -1083,18 +1048,71 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
-        log_it(L_NOTICE, "Stream connection established, now lets sync all");
+
+        log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-        dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
-        // fill begin id
-        l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
-                l_remote_node_info->hdr.address.uint64);
-        // fill end id = 0 - no time limit
-        //l_sync_request.ts_end = 0;
-        // fill current node address
-        l_sync_request.node_addr.uint64 =
-                dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                                    dap_db_get_cur_node_addr(l_net->pub.name);
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+         // fill begin id
+         l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
+                 l_remote_node_info->hdr.address.uint64);
+         // fill end id = 0 - no time limit
+         //l_sync_request.ts_end = 0;
+         // fill current node address
+         l_sync_request.node_addr.uint64 =
+                 dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
+                                                     dap_db_get_cur_node_addr(l_net->pub.name);
+        //feature-2630
+        //if(!l_sync_request.node_addr.uint64 )
+        {
+            log_it(L_NOTICE, "Now get node addr");
+            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+
+            int l_res = dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
+
+            size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
+            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST, l_net->pub.id,
+            NULL, 0);
+            if(res == 0) {
+                log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
+                dap_chain_node_client_close(l_node_client);
+                DAP_DELETE(l_remote_node_info);
+                return -1;
+            }
+            int timeout_ms = 15000; // 15 sec = 15 000 ms
+            l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
+            switch (l_res) {
+            case 0:
+                log_it(L_INFO, "Node address leased");
+                break;
+            case -1:
+                log_it(L_WARNING, "Timeout with addr leasing");
+            default:
+                if(l_res != -1)
+                    log_it(L_WARNING, "Node address request error %d", l_res);
+                /*dap_chain_node_client_close(l_node_client);
+                DAP_DELETE(l_remote_node_info);
+                return -1;*/
+            }
+            /*                if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
+             l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
+             sizeof(l_sync_request))) {
+             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
+             // clean client struct
+             dap_chain_node_client_close(l_node_client);
+             DAP_DELETE(l_remote_node_info);
+             return -1;
+             }
+            dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+            // wait for finishing of request
+            timeout_ms = 120000; // 20 min = 1200 sec = 1 200 000 ms
+            // TODO add progress info to console
+            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+            */
+
+        }
+        log_it(L_NOTICE, "Now lets sync all");
+
         dap_chain_id_t l_chain_id_null = { { 0 } };
         dap_chain_cell_id_t l_chain_cell_id_null = { { 0 } };
         l_chain_id_null.uint64 = l_net->pub.id.uint64;
