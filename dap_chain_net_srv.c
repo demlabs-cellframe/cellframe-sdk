@@ -46,8 +46,15 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_list.h"
+#include "dap_string.h"
+
+#include "dap_chain.h"
+#include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
+
+#include "dap_chain_node_cli_cmd.h"
+
 #define LOG_TAG "chain_net_srv"
 
 static size_t m_uid_count;
@@ -63,7 +70,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+static int s_cli_net_srv( int argc, char **argv, char **a_str_reply);
 /**
  * @brief dap_chain_net_srv_init
  * @return
@@ -74,6 +81,17 @@ int dap_chain_net_srv_init(void)
     m_uid_count = 0;
     if( dap_chain_net_srv_order_init() != 0 )
         return -1;
+
+    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
+        "net_srv -net <chain net name> order list [-srv_uid <Service UID>] [-srv_class <Service Class>]\n"
+        "\tOrders list, all or by UID and/or class\n"
+        "net_srv -net <chain net name> order delete -id <Proposal ID>\n"
+        "\tOrder delete\n"
+        "net_srv -net <chain net name> order create -srv_uid <Service UID> -srv_class <Service Class> -price <Price>\\\n"
+        "        -price_unit <Price Unit> -node_addr <Node Address> -tx_cond <TX Cond Hash> \\\n"
+        "        [-expires <Unix time when expires>]\\\n"
+        "\tOrder create\n" );
+
     return 0;
 }
 
@@ -85,6 +103,96 @@ void dap_chain_net_srv_deinit(void)
     // TODO Stop all services
 
     dap_chain_net_srv_del_all();
+}
+
+
+/**
+ * @brief s_cli_net_srv
+ * @param argc
+ * @param argv
+ * @param a_str_reply
+ * @return
+ */
+static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+{
+    int arg_index = 1;
+    dap_chain_net_t * l_net = NULL;
+
+    int ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+    if ( l_net ) {
+        char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
+
+        dap_string_t *l_string_ret = dap_string_new("");
+        const char *l_order_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        if ( strcmp( l_order_str, "list" ) == 0 ){
+            dap_string_append(l_string_ret,"Orders:\n");
+
+            // Select with specified service uid
+            const char *l_srv_uid_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
+
+            // Select with specified service class
+            const char *l_srv_class_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_class", &l_srv_class_str);
+        } else if( strcmp( l_order_str, "create" ) == 0 ){
+            const char* l_srv_uid_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
+
+            const char* l_srv_class_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_class", &l_srv_class_str);
+
+            const char* l_node_addr_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-node_addr", &l_node_addr_str);
+
+            const char*  l_tx_cond_hash_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-tx_cond", &l_tx_cond_hash_str);
+
+            const char*  l_price_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price", &l_price_str);
+
+            const char*  l_price_unit_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_unit", &l_price_unit_str);
+
+            const char*  l_comments = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-comments", &l_comments);
+
+            if ( l_srv_uid_str && l_srv_class_str && l_node_addr_str && l_tx_cond_hash_str && l_price_str ) {
+                dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
+                dap_chain_node_addr_t l_node_addr={0};
+                dap_chain_hash_fast_t l_tx_cond_hash={{0}};
+                uint128_t l_price=0;
+                dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
+
+                l_srv_uid.uint128 = (uint128_t) atoll( l_srv_uid_str);
+                l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
+                dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
+                dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
+                l_price = (uint128_t) atoll ( l_price_str );
+                l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+
+                char * l_order_new_hash_str = dap_chain_net_srv_order_create (
+                            l_net, l_srv_uid, l_srv_class, l_node_addr,l_tx_cond_hash, l_price, l_price_unit, l_comments);
+                if (l_order_new_hash_str)
+                    dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
+                else{
+                    dap_string_append_printf( l_string_ret, "Error! Can't created order\n");
+                    ret = -4;
+                }
+            } else {
+                dap_string_append_printf( l_string_ret, "Missed some required params\n");
+                ret=-5;
+            }
+        } else {
+            dap_string_append_printf( l_string_ret, "Unknown subcommand \n");
+            ret=-3;
+        }
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);
+        dap_string_free(l_string_ret, true);
+    }
+
+    return ret;
 }
 
 /**

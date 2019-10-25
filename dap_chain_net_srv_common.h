@@ -39,24 +39,21 @@ typedef union {
 #elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
     uint64_t raw_ui64[2];
     dap_uint128_t raw_ui128[1];
+    uint128_t uint128;
 #endif
 } dap_chain_net_srv_uid_t;
 
 typedef union {
     uint8_t raw[4];
     uint32_t raw_ui32[1];
+    uint32_t uint32;
 } dap_chain_net_srv_price_unit_uid_t;
-
-typedef union {
-    uint8_t raw[8];
-    uint32_t raw_ui32[2];
-    uint128_t raw_ui128[1];
-} dap_chain_net_srv_proposal_uid_t;
 
 //Classes of services
 typedef enum {
     SERV_CLASS_ONCE = 1, // one-time service (Token exchange )
-    SERV_CLASS_PERMANENT = 2 // Permanent working service (VPN, CDN, Streaming)
+    SERV_CLASS_PERMANENT = 2 ,// Permanent working service (VPN, CDN, Streaming)
+    SERV_CLASS_UNDEFINED = 0
 } dap_chain_net_srv_class_t;
 
 //Types of services
@@ -72,8 +69,6 @@ enum {
 
 typedef struct dap_chain_net_srv_abstract
 {
-    uint128_t proposal_id; // id trade proposal. Must be unique to the network
-
     uint8_t class; //Class of service (once or permanent)
     dap_chain_net_srv_uid_t type_id; //Type of service
     union {

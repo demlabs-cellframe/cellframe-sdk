@@ -78,7 +78,7 @@ void dap_chain_net_srv_abstract_set(dap_chain_net_srv_abstract_t *a_cond, uint8_
 {
     memset(a_cond, 0, sizeof(dap_chain_net_srv_abstract_t));
     // generate unique proposal_id
-    dap_chain_net_srv_gen_uid((uint8_t*) &a_cond->proposal_id, sizeof(a_cond->proposal_id));
+    //dap_chain_net_srv_gen_uid((uint8_t*) &a_cond->proposal_id, sizeof(a_cond->proposal_id));
     // fill structure
     a_cond->class = a_class;
     dap_chain_net_srv_uid_set(&a_cond->type_id, a_type_id);
