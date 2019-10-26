@@ -175,6 +175,8 @@ typedef struct dap_chain_addr{
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
+typedef uint64_t dap_chain_time_t;
+
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 //size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
@@ -186,8 +188,8 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 
-static inline long double dap_chain_balance_to_coins( uint64_t a_balance){
-    return (long double) a_balance / 1000000000000.0L;
+static inline long double dap_chain_balance_to_coins( uint128_t a_balance){
+    return (long double) a_balance / DATOSHI_LD;
 }
 
 /**
