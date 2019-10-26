@@ -13,4 +13,3 @@ uint64_t dap_db_get_cur_node_addr(void);
 bool dap_db_log_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id);
 // Get last id for remote node
 uint64_t dap_db_log_get_last_id_remote(uint64_t a_node_addr);
-

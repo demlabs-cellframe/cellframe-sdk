@@ -68,8 +68,8 @@ bool dap_chain_global_db_set( char *a_key, void *a_value, size_t a_value_len);
 /**
  * Delete entry from base
  */
-bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group);
-bool dap_chain_global_db_del(const char *a_key);
+bool dap_chain_global_db_gr_del(char *a_key, char *a_group);
+bool dap_chain_global_db_del(char *a_key);
 
 /**
  * Read the entire database into an array of size bytes

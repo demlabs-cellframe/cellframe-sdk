@@ -34,7 +34,7 @@ typedef struct dap_store_obj {
     time_t timestamp;
 	uint8_t type;
     char *group;
-	char *key;
+    char *key;
     const char *c_group;
     const char *c_key;
     uint8_t *value;

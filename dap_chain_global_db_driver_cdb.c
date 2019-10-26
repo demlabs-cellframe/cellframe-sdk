@@ -90,10 +90,16 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
     memcpy(a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
-    a_obj->timestamp = dap_cdb_hex_to_uint(val + offset, sizeof(time_t));
+    a_obj->timestamp = (time_t)dap_cdb_hex_to_uint(val + offset, sizeof(time_t));
 }
 
 bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
+    UNUSED(ksize);
+    UNUSED(val);
+    UNUSED(vsize);
+    UNUSED(expire);
+    UNUSED(oid);
+
     if (--((pobj_arg)arg)->q == 0) {
         cdb_serialize_val_to_dap_store_obj((pdap_store_obj_t)(((pobj_arg)arg)->o), key, val);
         return false;
@@ -102,6 +108,12 @@ bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, c
 }
 
 bool dap_cdb_get_some_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
+    UNUSED(ksize);
+    UNUSED(val);
+    UNUSED(vsize);
+    UNUSED(expire);
+    UNUSED(oid);
+
     pdap_store_obj_t l_obj = (pdap_store_obj_t)((pobj_arg)arg)->o;
     cdb_serialize_val_to_dap_store_obj(&l_obj[((pobj_arg)arg)->n - ((pobj_arg)arg)->q], key, val);
     if (--((pobj_arg)arg)->q == 0) {
@@ -111,6 +123,12 @@ bool dap_cdb_get_some_obj_iter_callback(void *arg, const char *key, int ksize, c
 }
 
 bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
+    UNUSED(ksize);
+    UNUSED(val);
+    UNUSED(vsize);
+    UNUSED(expire);
+    UNUSED(oid);
+
     if (dap_cdb_hex_to_uint(val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
         return true;
     }
@@ -172,6 +190,7 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
         log_it(L_INFO, "Group \"%s\" truncated"             , l_cdb_i->local_group);
         l_cdb_i->id = 0;
     }
+
 FIN:
     pthread_mutex_unlock(&cdb_mutex);
     return l_cdb_i;
@@ -225,7 +244,7 @@ pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
 }
 
 int dap_cdb_add_group(const char *a_group) {
-    char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
+    char* l_cdb_path = malloc(strlen(s_cdb_path) + strlen(a_group) + 2);
     memset(l_cdb_path, '\0', strlen(s_cdb_path) + strlen(a_group) + 2);
     strcat(l_cdb_path, s_cdb_path);
     strcat(l_cdb_path, "/");
@@ -237,6 +256,7 @@ int dap_cdb_add_group(const char *a_group) {
     mkdir(l_cdb_path, 0755);
 #endif
 
+    free(l_cdb_path);
     return 0;
 }
 
@@ -288,7 +308,7 @@ dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const cha
     if (a_key) {
         char *l_value;
         int l_vsize;
-        cdb_get(l_cdb, a_key, strlen(a_key), (void**)&l_value, &l_vsize);
+        cdb_get(l_cdb, a_key, (int)strlen(a_key), (void**)&l_value, &l_vsize);
         if (!l_value) {
             return NULL;
         }
@@ -404,7 +424,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         dap_cdb_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
         offset += sizeof(time_t);
         l_rec.val = l_val;
-        if (cdb_set2(l_cdb_i->cdb, l_rec.key, strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
+        if (cdb_set2(l_cdb_i->cdb, l_rec.key, (int)strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
             ret = -1;
         }
@@ -412,7 +432,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         DAP_DELETE(l_rec.val);
     } else if(a_store_obj->type == 'd') {
         if(a_store_obj->key) {
-            cdb_del(l_cdb_i->cdb, a_store_obj->key, strlen(a_store_obj->key));
+            cdb_del(l_cdb_i->cdb, a_store_obj->key, (int)strlen(a_store_obj->key));
         } else {
             cdb_destroy(l_cdb_i->cdb);
             if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP)) {
