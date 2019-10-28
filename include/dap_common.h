@@ -33,7 +33,7 @@
 #include <time.h>
 
 #include "portable_endian.h"
-
+#define DAP_LOG_MT
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #else
@@ -147,10 +147,10 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #define DAP_LOG_HISTORY 1
 
-#define DAP_LOG_HISTORY_STR_SIZE    128
-#define DAP_LOG_HISTORY_MAX_STRINGS 4096
-#define DAP_LOG_HISTORY_BUFFER_SIZE (DAP_LOG_HISTORY_STR_SIZE * DAP_LOG_HISTORY_MAX_STRINGS)
-#define DAP_LOG_HISTORY_M           (DAP_LOG_HISTORY_MAX_STRINGS - 1)
+//#define DAP_LOG_HISTORY_STR_SIZE    128
+//#define DAP_LOG_HISTORY_MAX_STRINGS 4096
+//#define DAP_LOG_HISTORY_BUFFER_SIZE (DAP_LOG_HISTORY_STR_SIZE * DAP_LOG_HISTORY_MAX_STRINGS)
+//#define DAP_LOG_HISTORY_M           (DAP_LOG_HISTORY_MAX_STRINGS - 1)
 
 #ifdef _WIN32
   #define dap_sscanf            __mingw_sscanf
@@ -330,8 +330,8 @@ void dap_log_set_max_item(unsigned int a_max);
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 #ifdef DAP_LOG_MT
-void _log_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format,... );
-#define log_it( _log_level, ...) _log_it( LOG_TAG, sizeof(LOG_TAG)-1,_log_level, ##__VA_ARGS__)
+void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
+#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
 #else
 void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... );
 #define log_it( _log_level, ...) _log_it2( LOG_TAG, _log_level, ##__VA_ARGS__)
