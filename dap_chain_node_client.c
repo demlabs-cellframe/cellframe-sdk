@@ -54,6 +54,8 @@
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_pkt.h"
+
+//#include "dap_chain_common.h"
 #include "dap_chain_node_client.h"
 
 #define LOG_TAG "dap_chain_node_client"
@@ -191,17 +193,44 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     }
 }
 
-
-static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_ch_chain, uint8_t a_pkt_type,
-        dap_stream_ch_chain_net_pkt_t *a_pkt, size_t a_pkt_data_size, void * a_arg)
+/**
+ * @brief s_ch_chain_callback_notify_packet_in2 - for dap_stream_ch_chain_net
+ * @param a_ch_chain_net
+ * @param a_pkt_type
+ * @param a_pkt_net
+ * @param a_pkt_data_size
+ * @param a_arg
+ */
+static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_ch_chain_net, uint8_t a_pkt_type,
+        dap_stream_ch_chain_net_pkt_t *a_pkt_net, size_t a_pkt_net_data_size, void * a_arg)
 {
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
-    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR:// DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE:
-        //dap_chain_node_addr_t addr_remote;
-        //dap_chain_net_session_data_t *l_session_data = session_data_find(a_ch_chain->ch->stream->session->id);
+    // get new generated current node address
+    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE: {
+        if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
+            dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *) a_pkt_net->data;
+            memcpy(&l_node_client->cur_node_addr, l_addr, sizeof(dap_chain_node_addr_t));
+        }
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+#ifndef _WIN32
+        pthread_cond_signal(&l_node_client->wait_cond);
+#else
+                    SetEvent( l_node_client->wait_cond );
+        #endif
+        break;
+    }
+    // get remote node address
+    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR: {
+
+        if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
+            dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *) a_pkt_net->data;
+            memcpy(&l_node_client->remote_node_addr, l_addr, sizeof(dap_chain_node_addr_t));
+        }
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
         pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
@@ -210,10 +239,12 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
 #endif
         break;
     }
+    }
 }
 
 /**
- * @brief s_ch_chain_callback_notify_packet
+ * @brief s_ch_chain_callback_notify_packet_in - for dap_stream_ch_chain
+ * @param a_ch_chain
  * @param a_pkt_type
  * @param a_pkt
  * @param a_pkt_data_size
@@ -264,7 +295,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     a_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
 
                     dap_chain_node_addr_t l_node_addr = { 0 };
-                    l_node_addr.uint64 = dap_db_get_cur_node_addr();
+                    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);
+                    l_node_addr.uint64 = dap_db_get_cur_node_addr(l_net->pub.name);
                     dap_stream_ch_chain_pkt_write(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
                             a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
                             a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));

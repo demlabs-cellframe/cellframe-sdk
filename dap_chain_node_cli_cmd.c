@@ -1071,7 +1071,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             int l_res = dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
 
             size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
-            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST, l_net->pub.id,
+            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,
+            //DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
+            l_net->pub.id,
             NULL, 0);
             if(res == 0) {
                 log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
@@ -1083,7 +1085,17 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
             switch (l_res) {
             case 0:
-                log_it(L_INFO, "Node address leased");
+                if(l_node_client->cur_node_addr.uint64 != 0) {
+
+                    l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
+                    log_it(L_INFO, "Node address leased");
+                    l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
+                    // save cur address
+                    // already saved
+                    // dap_db_set_cur_node_addr_exp(l_sync_request.node_addr.uint64, l_net->pub.name);
+                }
+                else
+                    log_it(L_WARNING, "Node address leased wrong!");
                 break;
             case -1:
                 log_it(L_WARNING, "Timeout with addr leasing");

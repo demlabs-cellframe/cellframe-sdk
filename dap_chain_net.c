@@ -447,13 +447,15 @@ lb_proc_state:
                 default:{}
             }
         }break;
+        // get addr for remote node
         case NET_STATE_ADDR_REQUEST:{
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
                 uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for chain net request
-                size_t res = dap_stream_ch_chain_net_pkt_write(dap_client_get_stream_ch(l_node_client->client,
-                      l_ch_id), DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST, l_net->pub.id,
-                                                            NULL, 0 );
+                size_t res = dap_stream_ch_chain_net_pkt_write(dap_client_get_stream_ch(l_node_client->client, l_ch_id),
+                        DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,
+                        //DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
+                        l_net->pub.id, NULL, 0);
                 if(res == 0) {
                     log_it(L_WARNING,"Can't send NODE_ADDR_REQUEST packet");
                     HASH_DEL(PVT(l_net)->links,l_node_client);
@@ -1348,7 +1350,7 @@ int s_net_load(const char * a_net_name)
                 // Set to process only plasma chain (id 0x0000000000000001 )
                 dap_chain_id_t l_chain_id = { .raw = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x01} };
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
-                l_chain->is_datum_pool_proc = true;
+                if(l_chain) l_chain->is_datum_pool_proc = true;
                 PVT(l_net)->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
             } break;
