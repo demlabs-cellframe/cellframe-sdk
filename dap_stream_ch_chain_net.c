@@ -245,7 +245,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_stream_ch_set_ready_to_write(a_ch, true);
                             log_it(L_WARNING,"Invalid net id in packet");
                         } else {
-                            if (dap_db_set_cur_node_addr( l_addr->uint64, l_net->pub.name ))
+                            if (dap_db_set_cur_node_addr_exp( l_addr->uint64, l_net->pub.name ))
                                 log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
                             else
                                 log_it(L_ERROR,"Can't set up cur node address 0x%016llX",l_addr->uint64);
