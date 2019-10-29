@@ -34,7 +34,7 @@ typedef struct dap_store_obj {
     time_t timestamp;
 	uint8_t type;
     char *group;
-    char *key;
+	char *key;
     const char *c_group;
     const char *c_key;
     uint8_t *value;
@@ -61,6 +61,7 @@ typedef struct dap_db_driver_callbacks {
     dap_db_driver_callback_t transaction_start;
     dap_db_driver_callback_t transaction_end;
     dap_db_driver_callback_t deinit;
+    dap_db_driver_callback_t flush;
 } dap_db_driver_callbacks_t;
 
 
@@ -69,6 +70,7 @@ void dap_db_driver_deinit(void);
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count);
+int dap_db_driver_flush(void);
 
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);
 
