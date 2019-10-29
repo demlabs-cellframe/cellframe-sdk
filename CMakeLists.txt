@@ -15,31 +15,11 @@ set(DAP_CHAIN_NET_SRV_HEADERS
         dap_chain_net_srv_common.h
     )
 
-if(WIN32)
-  include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/libmemcached/)
-  include_directories(../3rdparty/libmemcached/win32/)
-  include_directories(../3rdparty/wepoll/include/)
-  include_directories(../3rdparty/uthash/src/)
-  include_directories(../3rdparty/libjson-c/)
-  include_directories(../3rdparty/libmagic/src/)
-  include_directories(../3rdparty/curl/include/)
-  include_directories(../3rdparty/libsqlite3/)
-endif()
 
-if(WIN32)
-  include_directories(../libdap-server-http-db-auth/)
-endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV_HEADERS})
 
-if(WIN32)
-  target_link_libraries(dap_chain_net_srv dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net)
-endif()
-
-if(UNIX)
-  target_link_libraries(dap_chain_net_srv dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_server_http_db_auth)
-endif()
+target_link_libraries(dap_chain_net_srv dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_wallet)
 
 target_include_directories(dap_chain_net_srv INTERFACE .)
 
