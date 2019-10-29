@@ -12,6 +12,7 @@ win32 {
     LIBS += -lpsapi
 }
 
+DEFINES += DAP_LOG_MT
 HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_config.h \
     $$PWD/include/dap_math_ops.h \
