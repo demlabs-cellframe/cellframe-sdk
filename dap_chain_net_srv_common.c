@@ -96,10 +96,10 @@ uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
 {
     char *l_addr_base58;
     char *l_sign_hash_str;
-    if(dap_server_http_db_auth_parse_service_key(a_service_key, &l_addr_base58, &l_sign_hash_str)) {
+    if(dap_chain_net_srv_key_parse(a_service_key, &l_addr_base58, &l_sign_hash_str)) {
         return 0;
     }
-    if(!dap_server_http_db_auth_check_key(l_addr_base58, l_sign_hash_str)) {
+    if(!dap_chain_net_srv_key_check(l_addr_base58, l_sign_hash_str)) {
         // invalid signature
         return 0;
     }
