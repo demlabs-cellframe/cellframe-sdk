@@ -72,7 +72,7 @@
 
 #define LOG_TAG "dap_common"
 
-static const char *log_level_tag[ 16 ] = {
+static const char *s_log_level_tag[ 16 ] = {
     " [DBG] ", // L_DEBUG     = 0
     " [INF] ", // L_INFO      = 1,
     " [ * ] ", // L_NOTICE    = 2,
@@ -156,13 +156,13 @@ static volatile int count = 0;
 static pthread_t s_log_thread = 0;
 static void  *s_log_thread_proc(void *arg);
 
-typedef struct log_str {
+typedef struct log_str_t {
     char str[400];
     unsigned int offset;
-    struct log_str *prev, *next;
-} log_str;
+    struct log_str_t *prev, *next;
+} log_str_t;
 
-static log_str *log_buffer = NULL;
+static log_str_t *log_buffer = NULL;
 
 DAP_STATIC_INLINE void s_update_log_time(char *a_datetime_str) {
     time_t t = time(NULL);
@@ -201,18 +201,20 @@ void dap_set_log_tag_width(size_t a_width) {
  * @return
  */
 int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
+
+    // init randomer
     srand( (unsigned int)time(NULL) );
 
-    /*
-    #ifdef _WIN32
+#ifdef _WIN32
+    if (a_console_title)
         SetupConsole( a_console_title, L"Lucida Console", 12, 20 );
-    #endif
-    */
+#else
+    (void) a_console_title;
+#endif
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
+    for (int i = 0; i < 16; ++i)
+            s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
     if ( a_log_filename ) {
-        return 0;
-        for (int i = 0; i < 16; ++i)
-                s_ansi_seq_color_len[i] = strlen(s_ansi_seq_color[i]);
         s_log_file = fopen( a_log_filename , "a" );
         if ( s_log_file == NULL ) {
             dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
@@ -246,24 +248,28 @@ static void *s_log_thread_proc(void *arg) {
         for ( ; count == 0; ) {
             pthread_cond_wait(&s_log_cond, &s_log_mutex);
         }
-        log_str *elem, *tmp;
+        log_str_t *elem, *tmp;
         if(s_log_file) {
             if(!dap_file_test(s_log_file_path)) {
                 fclose(s_log_file);
                 s_log_file = fopen(s_log_file_path, "a");
             }
-            if(s_log_file) {
-                DL_FOREACH_SAFE(log_buffer, elem, tmp) {
-                    fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, s_log_file);
-                    fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, stdout);
-                    DL_DELETE(log_buffer, elem);
-                    DAP_FREE(elem);
-                    --count;
-                    fflush(s_log_file);
-                    fflush(stdout);
-                }
-            }
         }
+        DL_FOREACH_SAFE(log_buffer, elem, tmp) {
+            if(s_log_file)
+                fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, s_log_file);
+            fwrite(elem->str, strlen(elem->str), 1, stdout);
+
+            DL_DELETE(log_buffer, elem);
+            DAP_FREE(elem);
+            --count;
+
+            if(s_log_file)
+                fflush(s_log_file);
+            fflush(stdout);
+        }
+
+
         pthread_mutex_unlock(&s_log_mutex);
     }
     pthread_exit(NULL);
@@ -272,15 +278,15 @@ static void *s_log_thread_proc(void *arg) {
 void _log_it(const char *log_tag, enum dap_log_level ll, const char *fmt, ...) {
     if ( ll < dap_log_level || ll >= 16 || !log_tag )
         return;
-    log_str *log_string = DAP_NEW_Z(log_str);
-    strcpy(log_string->str, s_ansi_seq_color[ll]);
+    log_str_t *log_string = DAP_NEW_Z(log_str_t);
+    strncpy(log_string->str, s_ansi_seq_color[ll],sizeof (log_string->str)-1);
     log_string->offset = s_ansi_seq_color_len[ll];
     s_update_log_time(log_string->str + log_string->offset);
-    int offset = strlen(log_string->str);
-    offset += dap_sprintf(log_string->str + offset, "%s[%s%s", log_level_tag[ll], log_tag, "] ");
+    size_t offset = strlen(log_string->str);
+    offset += dap_snprintf(log_string->str + offset, sizeof (log_string->str) -offset, "%s[%s%s", s_log_level_tag[ll], log_tag, "] ");
     va_list va;
     va_start( va, fmt );
-    offset += dap_vsprintf(log_string->str + offset, fmt, va);
+    offset += dap_vsnprintf(log_string->str + offset,sizeof (log_string->str) -offset, fmt, va);
     va_end( va );
     memcpy(&log_string->str[offset], "\n", 1);
     pthread_mutex_lock(&s_log_mutex);
