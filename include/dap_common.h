@@ -33,7 +33,7 @@
 #include <time.h>
 
 #include "portable_endian.h"
-#define DAP_LOG_MT
+
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #else
