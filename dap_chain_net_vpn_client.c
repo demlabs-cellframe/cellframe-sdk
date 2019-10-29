@@ -58,15 +58,15 @@ typedef enum dap_http_client_state {
 
 #define LOG_TAG "vpn_client"
 
-EPOLL_HANDLE sf_socks_epoll_fd;
+static EPOLL_HANDLE sf_socks_epoll_fd;
 
-ch_vpn_socket_proxy_t *sf_socks = NULL;
-ch_vpn_socket_proxy_t *sf_socks_client = NULL;
+static ch_vpn_socket_proxy_t *sf_socks = NULL;
+static ch_vpn_socket_proxy_t *sf_socks_client = NULL;
 
 static pthread_mutex_t sf_socks_mutex;
 
-dap_chain_node_info_t *s_node_info = NULL;
-dap_chain_node_client_t *s_vpn_client = NULL;
+static dap_chain_node_info_t *s_node_info = NULL;
+static dap_chain_node_client_t *s_vpn_client = NULL;
 
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream(void)
 {
