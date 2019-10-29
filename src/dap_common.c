@@ -154,7 +154,7 @@ static pthread_cond_t s_log_cond = PTHREAD_COND_INITIALIZER;
 static volatile int count = 0;
 
 static pthread_t s_log_thread = 0;
-static void  *log_thread_proc(void *arg);
+static void  *s_log_thread_proc(void *arg);
 
 typedef struct log_str {
     char str[400];
@@ -208,18 +208,19 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
         SetupConsole( a_console_title, L"Lucida Console", 12, 20 );
     #endif
     */
-    if ( !a_log_filename )
-        return 0;
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
-    for (int i = 0; i < 16; ++i)
-            s_ansi_seq_color_len[i] = strlen(s_ansi_seq_color[i]);
-    s_log_file = fopen( a_log_filename , "a" );
-    if ( s_log_file == NULL ) {
-        dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
-        return -1;
+    if ( a_log_filename ) {
+        return 0;
+        for (int i = 0; i < 16; ++i)
+                s_ansi_seq_color_len[i] = strlen(s_ansi_seq_color[i]);
+        s_log_file = fopen( a_log_filename , "a" );
+        if ( s_log_file == NULL ) {
+            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
+            return -1;
+        }
+        dap_stpcpy(s_log_file_path, a_log_filename);
     }
-    dap_stpcpy(s_log_file_path, a_log_filename);
-    pthread_create( &s_log_thread, NULL, log_thread_proc, NULL );
+    pthread_create( &s_log_thread, NULL, s_log_thread_proc, NULL );
     return 0;
 }
 
@@ -233,7 +234,13 @@ void dap_common_deinit( ) {
         fclose(s_log_file);
 }
 
-static void *log_thread_proc(void *arg) {
+
+/**
+ * @brief s_log_thread_proc
+ * @param arg
+ * @return
+ */
+static void *s_log_thread_proc(void *arg) {
     for ( ; !s_log_term_signal; ) {
         pthread_mutex_lock(&s_log_mutex);
         for ( ; count == 0; ) {
@@ -248,19 +255,15 @@ static void *log_thread_proc(void *arg) {
             if(s_log_file) {
                 DL_FOREACH_SAFE(log_buffer, elem, tmp) {
                     fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, s_log_file);
-#if defined DAP_OS_ANDROID
-                    __android_log_write( ANDROID_LOG_INFO, DAP_BRAND, elem->str);
-#else
-                    fwrite(elem->str, strlen(elem->str), 1, stdout);
-#endif
+                    fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, stdout);
                     DL_DELETE(log_buffer, elem);
                     DAP_FREE(elem);
                     --count;
                     fflush(s_log_file);
+                    fflush(stdout);
                 }
             }
         }
-        fflush(stdout);
         pthread_mutex_unlock(&s_log_mutex);
     }
     pthread_exit(NULL);
