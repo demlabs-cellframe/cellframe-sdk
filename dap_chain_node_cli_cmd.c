@@ -1058,11 +1058,10 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
          // fill end id = 0 - no time limit
          //l_sync_request.ts_end = 0;
          // fill current node address
-         l_sync_request.node_addr.uint64 =
-                 dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                                     dap_db_get_cur_node_addr(l_net->pub.name);
-        //feature-2630
-        //if(!l_sync_request.node_addr.uint64 )
+         l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+
+        // if need to get current node address (feature-2630)
+        if(!l_sync_request.node_addr.uint64 )
         {
             log_it(L_NOTICE, "Now get node addr");
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
@@ -1215,7 +1214,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
         if(!node_info)
             return -6;
-        int timeout_ms = 10000; //10 sec = 10000 ms
+        int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
         dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
         if(!client) {

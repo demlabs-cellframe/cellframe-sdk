@@ -413,7 +413,13 @@ lb_proc_state:
                         case NODE_ROLE_MASTER:{
                             PVT(l_net)->state = NET_STATE_ADDR_REQUEST;
                         } break;
-                       default: PVT( l_net)->state = NET_STATE_SYNC_GDB;
+                       default:{
+                        // get addr for current node if it absent
+                        if(dap_chain_net_get_cur_addr_int(l_net))
+                            PVT(l_net)->state = NET_STATE_ADDR_REQUEST;
+                        else
+                            PVT( l_net)->state = NET_STATE_SYNC_GDB;
+                       }
                     }
                 }pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
                 case NET_STATE_SYNC_GDB: // we need only to sync gdb
@@ -452,7 +458,11 @@ lb_proc_state:
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
                 uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for chain net request
-                size_t res = dap_stream_ch_chain_net_pkt_write(dap_client_get_stream_ch(l_node_client->client, l_ch_id),
+                dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+                // set callback for l_ch_id
+                dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
+                // send request for new address
+                size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
                         DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,
                         //DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
                         l_net->pub.id, NULL, 0);
@@ -464,13 +474,18 @@ lb_proc_state:
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 5000; // 2 min = 120 sec = 120 000 ms
+                int timeout_ms = 5000; // 5 sec = 5 000 ms
                 // TODO add progress info to console
                 PVT(l_net)->addr_request_attempts++;
                 int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
                 switch (l_res) {
                     case -1:
                         log_it(L_WARNING,"Timeout with addr leasing");
+                        // try again 3 times
+                        if(PVT(l_net)->addr_request_attempts < 3) {
+                            pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+                            goto lb_proc_state;
+                        }
                     continue; // try with another link
                     case 0:
                         log_it(L_INFO, "Node address leased");
@@ -1509,6 +1524,12 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
     return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: PVT(l_net)->node_addr;
+}
+
+uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
+{
+    return dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
+                                               dap_db_get_cur_node_addr(l_net->pub.name);
 }
 
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
