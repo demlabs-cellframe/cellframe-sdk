@@ -1255,7 +1255,7 @@ int s_net_load(const char * a_net_name)
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 bool parse_succesfully = false;
                 if ( sscanf(l_node_addr_str, "0x%016llx",&l_node_addr->uint64 ) == 1 ){
-                    log_it(L_DEBUG, "Parse node address with format 0x%016llx");
+                    log_it(L_DEBUG, "Parse node address with format 0x016llx");
                     parse_succesfully = true;
                 }
                 if ( !parse_succesfully && dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0) {
@@ -1362,10 +1362,25 @@ int s_net_load(const char * a_net_name)
             } break;
             case NODE_ROLE_CELL_MASTER:
             case NODE_ROLE_MASTER:{
-                // Set to process only plasma chain (id 0x0000000000000001 )
-                dap_chain_id_t l_chain_id = { .raw = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x01} };
-                dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
-                if(l_chain) l_chain->is_datum_pool_proc = true;
+                uint16_t l_proc_chains_count=0;
+                char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
+                for ( size_t i = 0; i< l_proc_chains_count ; i++){
+                    dap_chain_id_t l_chain_id = {{0}};
+                    if(dap_sscanf( l_proc_chains[i], "0x%16lX",  &l_chain_id.uint64) ==1 || dap_scanf("0x%16lx",  &l_chain_id.uint64) == 1){
+                        dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
+                        if ( l_chain ){
+                            l_chain->is_datum_pool_proc = true;
+                        }else{
+                            log_it( L_WARNING, "Can't find chain id " );
+                        }
+                    }
+                    DAP_DELETE( l_proc_chains[i]);
+                    l_proc_chains[i] = NULL;
+                }
+                if ( l_proc_chains )
+                    DAP_DELETE (l_proc_chains);
+                l_proc_chains = NULL;
+
                 PVT(l_net)->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
             } break;
