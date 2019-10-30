@@ -127,17 +127,30 @@ static void s_stage_status_callback(dap_client_t *a_client, void *a_arg)
  */
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
-    (void) a_arg;
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    // check for last attempt
+    bool l_is_last_attempt = a_arg ? true : false;
+    if(l_is_last_attempt){
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+#ifndef _WIN32
+        pthread_cond_signal(&l_node_client->wait_cond);
+#else
+        SetEvent( l_node_client->wait_cond );
+#endif
+    }
+
     if(l_node_client && l_node_client->keep_connection &&
             ((dap_client_get_stage(a_client) != STAGE_STREAM_STREAMING) ||
                     (dap_client_get_stage_status(a_client) == STAGE_STATUS_ERROR))) {
         log_it(L_NOTICE,"Some errors happends, current state is %s but we need to return back to STAGE_STREAM_STREAMING",
                 dap_client_get_stage_str(a_client) );
 
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
         log_it(L_DEBUG, "Wakeup all who waits");
+        pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ERROR;
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
 
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
@@ -505,6 +518,10 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         pthread_mutex_unlock(&a_client->wait_mutex);
         return 0;
     }
+    if(a_client->state == NODE_CLIENT_STATE_DISCONNECTED) {
+        pthread_mutex_unlock(&a_client->wait_mutex);
+        return -2;
+    }
 
 #ifndef _WIN32
     // prepare for signal waiting
@@ -530,7 +547,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         int wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &to);
         if(wait == 0 && (
                 a_client->state == a_waited_state ||
-                        a_client->state == NODE_CLIENT_STATE_ERROR)
+                        (a_client->state == NODE_CLIENT_STATE_ERROR || a_client->state == NODE_CLIENT_STATE_DISCONNECTED))
                 ) {
             ret = a_client->state == a_waited_state ? 0 : -2;
             break;
