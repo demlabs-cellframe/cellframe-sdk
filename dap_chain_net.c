@@ -1362,6 +1362,7 @@ int s_net_load(const char * a_net_name)
             } break;
             case NODE_ROLE_CELL_MASTER:
             case NODE_ROLE_MASTER:{
+
                 uint16_t l_proc_chains_count=0;
                 char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
                 for ( size_t i = 0; i< l_proc_chains_count ; i++){
