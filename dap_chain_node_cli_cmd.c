@@ -719,7 +719,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 }
         }
     }
-    case CMD_FLUSH:
+    /*case CMD_FLUSH:
     {
         int res_flush = dap_chain_global_db_flush();
         switch (res_flush) {
@@ -744,7 +744,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             break;
         }
         return 0;
-    }
+    }*/
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
         return -1;
