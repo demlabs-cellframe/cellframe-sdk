@@ -24,7 +24,9 @@
 
 #include "cuttdb.h"
 #include "dap_chain_global_db_driver.h"
-#define UNUSED(x) (void)(x)
+#ifndef _WIN32
+#include "unistd.h"
+#endif
 
 typedef struct _cdb_options {
     int hsize;      // Main hash table size, 1%-10% of total records, immutable
@@ -39,6 +41,7 @@ typedef struct _cdb_record {
 
 int dap_db_driver_cdb_init(const char*, dap_db_driver_callbacks_t*);
 int dap_db_driver_cdb_deinit();
+int dap_db_driver_cdb_flush(void);
 
 int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t);
 
