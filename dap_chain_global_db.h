@@ -25,10 +25,8 @@ typedef struct dap_global_db_obj {
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
-/**
- * Flush DB
- */
-int dap_chain_global_db_flush(void);
+
+
 /**
  * Clean struct dap_global_db_obj_t
  */
@@ -70,8 +68,8 @@ bool dap_chain_global_db_set( char *a_key, void *a_value, size_t a_value_len);
 /**
  * Delete entry from base
  */
-bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group);
-bool dap_chain_global_db_del(const char *a_key);
+bool dap_chain_global_db_gr_del(char *a_key, char *a_group);
+bool dap_chain_global_db_del(char *a_key);
 
 /**
  * Read the entire database into an array of size bytes
