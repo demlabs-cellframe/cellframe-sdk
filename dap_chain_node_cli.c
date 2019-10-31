@@ -780,7 +780,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
 
     dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
-            "global_db cells add -cell <cell id> \n\n"
+            "global_db cells add -cell <cell id> \n"
+            "global_db flush \n\n"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
 
