@@ -43,6 +43,8 @@ typedef struct dap_chain_cs_dag
     bool is_single_line;
     bool is_celled;
     bool is_add_directy;
+    bool is_static_genesis_event;
+    dap_chain_hash_fast_t static_genesis_event_hash;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;

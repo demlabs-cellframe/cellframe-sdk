@@ -64,6 +64,7 @@ typedef struct dap_chain_cs_dag_pvt {
 
 
     pthread_rwlock_t events_rwlock;
+
     dap_chain_cs_dag_event_item_t * events;
     dap_chain_cs_dag_event_item_t * events_treshold;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
@@ -194,6 +195,10 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // Others
     a_chain->_inheritor = l_dag;
 
+    const char * l_static_genesis_event_hash_str = dap_config_get_item_str_default(a_chain_cfg,"dag","static_genesis_event",NULL);
+    dap_chain_str_to_hash_fast(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash);
+
+    l_dag->is_static_genesis_event = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
     l_dag->is_single_line = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_single_line",false);
     l_dag->is_celled = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_celled",false);
     l_dag->is_add_directy = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
@@ -521,18 +526,28 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
+
+    if (l_event->header.hash_count == 0 && l_dag->is_static_genesis_event ){
+        dap_chain_hash_fast_t l_event_hash;
+        dap_chain_cs_dag_event_calc_hash(l_event,&l_event_hash);
+        if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 )
+            return -22;
+    }
+
     int ret = l_dag->callback_cs_verify ( l_dag, l_event );
     if (ret == 0 ){
-        for (size_t i = 0; i< l_event->header.hash_count; i++) {
-            dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
-            dap_chain_cs_dag_event_item_t * l_event_search = NULL;
-            HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
-            if ( l_event_search == NULL ){
-                log_it(L_DEBUG, "Hash %s wasn't in hashtable of previously parsed", l_hash);
-                return 1;
+        if ( PVT(l_dag)->events )
+            for (size_t i = 0; i< l_event->header.hash_count; i++) {
+                dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
+                dap_chain_cs_dag_event_item_t * l_event_search = NULL;
+                HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
+                if ( l_event_search == NULL ){
+                    log_it(L_DEBUG, "Hash %s wasn't in hashtable of previously parsed", l_hash);
+                    return 1;
+                }
+
             }
 
-        }
         return 0;
     }else {
         return  ret;
