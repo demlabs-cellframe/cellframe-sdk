@@ -644,7 +644,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -652,67 +652,103 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     arg_index = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "cells", NULL);
     if(arg_index)
         cmd_name = CMD_NAME_CELL;
-    if(!arg_index || a_argc < 3) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
-        return -1;
-    }
-    dap_chain_t * l_chain = NULL;
-    dap_chain_net_t * l_net = NULL;
-
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
-        return -11;
-
-    const char *l_cell_str = NULL, *l_chain_str = NULL;
-    // find cell and chain
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
-
-    // Check for chain
-    if(!l_chain_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid");
-        return -12;
-    }
-
-    int arg_index_n = ++arg_index;
-    // find command (add, delete, etc) as second parameter only
-    int cmd_num = CMD_NONE;
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "flush", NULL))
+        cmd_name = CMD_FLUSH;
     switch (cmd_name) {
-        case CMD_NAME_CELL:
-            if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
-                    != 0) {
-                cmd_num = CMD_ADD;
-            }
-            dap_chain_cell_id_t l_cell_id = { {0} };
-            if(l_cell_str) {
-                dap_digit_from_string(l_cell_str, (uint8_t*) &l_cell_id.raw, sizeof(l_cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
-            }
+    case CMD_NAME_CELL:
+    {
+        if(!arg_index || a_argc < 3) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
+            return -1;
+        }
+        dap_chain_t * l_chain = NULL;
+        dap_chain_net_t * l_net = NULL;
 
-            switch (cmd_num)
-            {
-            // add new node to global_db
-            case CMD_ADD:
-                if(!arg_index || a_argc < 7) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
+        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+            return -11;
+
+        const char *l_cell_str = NULL, *l_chain_str = NULL;
+        // find cell and chain
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+
+        // Check for chain
+        if(!l_chain_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid");
+            return -12;
+        }
+
+        int arg_index_n = ++arg_index;
+        // find command (add, delete, etc) as second parameter only
+        int cmd_num = CMD_NONE;
+        switch (cmd_name) {
+            case CMD_NAME_CELL:
+                if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
+                        != 0) {
+                    cmd_num = CMD_ADD;
+                }
+                dap_chain_cell_id_t l_cell_id = { {0} };
+                if(l_cell_str) {
+                    dap_digit_from_string(l_cell_str, (uint8_t*) &l_cell_id.raw, sizeof(l_cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+                }
+
+                switch (cmd_num)
+                {
+                // add new node to global_db
+                case CMD_ADD:
+                    if(!arg_index || a_argc < 7) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
+                        return -1;
+                    }
+                    dap_chain_cell_t *l_cell = dap_chain_cell_create();
+                    l_cell->chain = l_chain;
+                    l_cell->id.uint64 = l_cell_id.uint64;
+                    l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell",l_cell->id.uint64);
+                    int l_ret = dap_chain_cell_file_update(l_cell);
+                    if(!l_ret)
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "cell added successfully");
+                    else
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "can't create file for cell 0x%016X ( %s )",
+                                l_cell->id.uint64,l_cell->file_storage_path);
+                    dap_chain_cell_delete(l_cell);
+                    return l_ret;
+
+                //case CMD_NONE:
+                default:
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
                     return -1;
                 }
-                dap_chain_cell_t *l_cell = dap_chain_cell_create();
-                l_cell->chain = l_chain;
-                l_cell->id.uint64 = l_cell_id.uint64;
-                l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell",l_cell->id.uint64);
-                int l_ret = dap_chain_cell_file_update(l_cell);
-                if(!l_ret)
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "cell added successfully");
-                else
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "can't create file for cell 0x%016X ( %s )",
-                            l_cell->id.uint64,l_cell->file_storage_path);
-                dap_chain_cell_delete(l_cell);
-                return l_ret;
-
-            //case CMD_NONE:
-            default:
-                dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
-                return -1;
-            }
+        }
+    }
+    case CMD_FLUSH:
+    {
+        int res_flush = dap_chain_global_db_flush();
+        switch (res_flush) {
+        case 0:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Commit data base and filesystem caches to disk completed.");
+            break;
+        case -1:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Couldn't open db directory. Can't init cdb");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            break;
+        case -2:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't init cdb");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            break;
+        case -3:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't init sqlite");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            break;
+        default:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't commit data base caches to disk completed.");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            break;
+        }
+        return 0;
+    }
+    default:
+        dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
+        return -1;
     }
     return  -555;
 }
