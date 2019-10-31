@@ -196,7 +196,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->_inheritor = l_dag;
 
     const char * l_static_genesis_event_hash_str = dap_config_get_item_str_default(a_chain_cfg,"dag","static_genesis_event",NULL);
-    dap_chain_str_to_hash_fast(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash);
+    if ( l_static_genesis_event_hash_str )
+        dap_chain_str_to_hash_fast(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash);
 
     l_dag->is_static_genesis_event = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
     l_dag->is_single_line = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_single_line",false);
@@ -846,8 +847,17 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
         SUBCMD_EVENT_CANCEL,
         SUBCMD_EVENT_LIST,
         SUBCMD_EVENT_DUMP,
-        SUBCMD_UNDEFINED=-1
+        SUBCMD_UNDEFINED
     } l_event_subcmd={0};
+
+    const char* l_event_subcmd_str[]={
+        [SUBCMD_EVENT_CREATE]="create",
+        [SUBCMD_EVENT_CANCEL]="cancel",
+        [SUBCMD_EVENT_LIST]="list",
+        [SUBCMD_EVENT_DUMP]="dump",
+        [SUBCMD_UNDEFINED]="UNDEFINED"
+    };
+
 
     int arg_index = 1;
 
@@ -1166,25 +1176,32 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 if( (l_from_events_str == NULL) ||
                         (strcmp(l_from_events_str,"round.new") == 0) ){
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
-                    dap_string_t * l_str_tmp = dap_string_new(NULL);
-                    dap_global_db_obj_t * l_objs;
-                    size_t l_objs_count = 0;
-                    l_objs = dap_chain_global_db_gr_load(l_gdb_group_events,&l_objs_count);
-                    dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_count);
+                    dap_string_t * l_str_tmp = dap_string_new("");
+                    if ( l_gdb_group_events ){
+                        dap_global_db_obj_t * l_objs;
+                        size_t l_objs_count = 0;
+                        l_objs = dap_chain_global_db_gr_load(l_gdb_group_events,&l_objs_count);
+                        dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
-                    for (size_t i = 0; i< l_objs_count; i++){
-                        dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i].value;
-                        char buf[50];
-                        time_t l_ts_create = (time_t) l_event->header.ts_created;
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                 l_objs[i].key, ctime_r( &l_ts_create,buf ) );
+                        for (size_t i = 0; i< l_objs_count; i++){
+                            dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i].value;
+                            char buf[50];
+                            time_t l_ts_create = (time_t) l_event->header.ts_created;
+                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
+                                                     l_objs[i].key, ctime_r( &l_ts_create,buf ) );
+
+                        }
+                        DAP_DELETE( l_gdb_group_events);
+                        if (l_objs && l_objs_count )
+                            dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+                        ret = 0;
+                    } else {
+                        dap_string_append_printf(l_str_tmp,"%s.%s: Error! No GlobalDB group!\n",l_net->pub.name,l_chain->name);
+                        ret = -2;
 
                     }
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
-                    DAP_DELETE( l_gdb_group_events);
-                    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
-                    ret = 0;
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"events") == 0) ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
@@ -1212,8 +1229,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
             case SUBCMD_UNDEFINED: {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Undefined event subcommand %s ",
-                                                  l_event_subcmd);
+                                                  "Undefined event subcommand \"%s\" ",
+                                                  l_event_cmd_str);
                 ret=-11;
             }
         }
