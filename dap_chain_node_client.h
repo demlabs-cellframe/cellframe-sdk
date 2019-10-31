@@ -68,6 +68,7 @@ typedef struct dap_chain_node_client {
 
     // For hash indexing
     UT_hash_handle hh;
+    dap_chain_node_addr_t cur_node_addr;
     dap_chain_node_addr_t remote_node_addr;
     struct in_addr remote_ipv4;
     struct in6_addr remote_ipv6;
@@ -108,4 +109,6 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
  * return -1 false, 0 timeout, 1 end of connection or sending data
  */
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms);
+
+int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
 
