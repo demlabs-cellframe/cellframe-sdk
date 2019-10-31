@@ -221,7 +221,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         l_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
 
                         dap_chain_node_addr_t l_node_addr = { 0 };
-                        l_node_addr.uint64 = dap_db_get_cur_node_addr();
+                        dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_net_id);
+                        l_node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
                         dap_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
                                 l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
                                 l_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
@@ -530,7 +531,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 log_it( L_DEBUG,"dap_db_log_get_last_timestamp_remote");
 
                 dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
-                l_request.node_addr.uint64 = dap_db_get_cur_node_addr();
+                dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_net_id);
+                l_request.node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
                 l_request.id_start = dap_db_log_get_last_id_remote(l_ch_chain->request.node_addr.uint64);
                 l_request.id_end = 0;
 
