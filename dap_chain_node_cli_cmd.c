@@ -649,8 +649,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     int arg_index = 1;
     int cmd_name = CMD_NONE;
     // find 'cells' as first parameter only
-    arg_index = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "cells", NULL);
-    if(arg_index)
+    if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "cells", NULL))
         cmd_name = CMD_NAME_CELL;
     else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "flush", NULL))
         cmd_name = CMD_FLUSH;
