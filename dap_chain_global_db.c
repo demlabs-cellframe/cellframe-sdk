@@ -209,6 +209,17 @@ void dap_chain_global_db_deinit(void)
 }
 
 /**
+ * @brief dap_chain_global_db_flush
+ * @return
+ */
+int dap_chain_global_db_flush(void){
+    lock();
+    int res = dap_db_driver_flush();
+    unlock();
+    return res;
+}
+
+/**
  * Get entry from base
  *
  * return dap_store_obj_t*

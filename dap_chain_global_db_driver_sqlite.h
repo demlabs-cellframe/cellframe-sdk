@@ -32,6 +32,7 @@ sqlite3* dap_db_driver_sqlite_open(const char *a_filename_utf8, int a_flags, cha
 void dap_db_driver_sqlite_close(sqlite3 *l_db);
 void dap_db_driver_sqlite_free(char *memory);
 bool dap_db_driver_sqlite_set_pragma(sqlite3 *a_db, char *a_param, char *a_mode);
+int dap_db_driver_sqlite_flush(void);
 
 
 // ** SQLite callbacks **

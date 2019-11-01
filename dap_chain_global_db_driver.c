@@ -145,6 +145,11 @@ void dap_db_driver_deinit(void)
     }
 }
 
+int dap_db_driver_flush(void)
+{
+    return s_drv_callback.flush();
+}
+
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
     if(!a_store_obj || !a_store_count)

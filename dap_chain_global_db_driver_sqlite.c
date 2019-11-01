@@ -32,6 +32,7 @@
 #define LOG_TAG "db_sqlite"
 
 static sqlite3 *s_db = NULL;
+static char *s_filename_db = NULL;
 
 // Value of one field in the table
 typedef struct _SQLITE_VALUE_
@@ -104,6 +105,8 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
         a_drv_callback->transaction_start = dap_db_driver_sqlite_start_transaction;
         a_drv_callback->transaction_end = dap_db_driver_sqlite_end_transaction;
         a_drv_callback->deinit = dap_db_driver_sqlite_deinit;
+        a_drv_callback->flush = dap_db_driver_sqlite_flush;
+        s_filename_db = strdup(a_filename_db);
     }
     return l_ret;
 }
@@ -203,6 +206,30 @@ bool dap_db_driver_sqlite_set_pragma(sqlite3 *a_db, char *a_param, char *a_mode)
     if(l_rc == SQLITE_OK)
         return true;
     return false;
+}
+
+int dap_db_driver_sqlite_flush()
+{
+    log_it(L_DEBUG, "Start flush sqlite data base.");
+    dap_db_driver_sqlite_close(s_db);
+    char *l_error_message;
+    s_db = dap_db_driver_sqlite_open(s_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
+    if(!s_db) {
+        log_it(L_ERROR, "Can't init sqlite err=%d", l_error_message);
+        dap_db_driver_sqlite_free(l_error_message);
+        return -3;
+    }
+#ifndef _WIN32
+    sync();
+#endif
+    if(!dap_db_driver_sqlite_set_pragma(s_db, "synchronous", "NORMAL")) // 0 | OFF | 1 | NORMAL | 2 | FULL
+        log_it(L_WARNING, "Can't set new synchronous mode\n");
+    if(!dap_db_driver_sqlite_set_pragma(s_db, "journal_mode", "OFF")) // DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
+        log_it(L_WARNING, "Can't set new journal mode\n");
+
+    if(!dap_db_driver_sqlite_set_pragma(s_db, "page_size", "1024")) // DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
+        log_it(L_WARNING, "Can't set page_size\n");
+    return 0;
 }
 
 /**
