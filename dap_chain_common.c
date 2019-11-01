@@ -110,7 +110,7 @@ int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t *
             if ( ( sscanf(a_hash_str+l_offset,"%02hhx",a_hash->raw+l_offset/2-1) != 1) ||
                  ( sscanf(a_hash_str+l_offset,"%02hhX",a_hash->raw+l_offset/2-1) != 1)
                  )
-                  printf("dap_chain_str_to_hash_fast Error\n ");
+                log_it(L_ERROR,"dap_chain_str_to_hash_fast parse error: offset=%u, hash_str_len=%u, str=\"%2s\"",l_offset, l_hash_str_len, a_hash_str+l_offset);
                 return -10* ((int) l_offset); // Wrong char
         }
         return  0;
