@@ -22,8 +22,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GLOBAL_DB_DRIVER_H_
-#define _GLOBAL_DB_DRIVER_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -70,7 +69,7 @@ void dap_db_driver_deinit(void);
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count);
-int dap_db_driver_flush(void)
+int dap_db_driver_flush(void);
 
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);
 
@@ -85,6 +84,3 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,
 		time_t a_timestamp, size_t a_store_obj_count);
 dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt,
 		size_t *a_store_obj_count);
-
-
-#endif //_GLOBAL_DB_DRIVER_H_

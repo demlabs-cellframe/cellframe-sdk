@@ -6,7 +6,7 @@
 #define GLOBAL_DB_HIST_REC_SEPARATOR "\r;"
 #define GLOBAL_DB_HIST_KEY_SEPARATOR "\a;"
 
-typedef struct dap_global_db_hist_t {
+typedef struct dap_global_db_hist {
     char type;// 'a' add or 'd' delete
     const char *group;
     size_t keys_count;
