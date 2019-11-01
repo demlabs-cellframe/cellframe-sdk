@@ -2514,13 +2514,18 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
             l_token_emission_size);
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
+    // Calc token's hash
+    dap_chain_hash_fast_t l_token_emission_hash;
+    dap_hash_fast(l_token_emission, l_token_emission_size, (uint8_t*) &l_token_emission_hash);
+    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_token_emission_hash);
+
     // Delete token emission
     DAP_DELETE(l_token_emission);
 
-    // Calc datum's hash
-    dap_chain_hash_fast_t l_datum_emission_hash;
-    dap_hash_fast(l_datum_emission, l_datum_emission_size, (uint8_t*) &l_datum_emission_hash);
-    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_emission_hash);
+//    // Calc datum's hash
+//    dap_chain_hash_fast_t l_datum_emission_hash;
+//    dap_hash_fast(l_datum_emission, l_datum_emission_size, (uint8_t*) &l_datum_emission_hash);
+//    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_emission_hash);
 
     // Add to mempool emission token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_emission, l_datum_emission_size
@@ -2538,7 +2543,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     // create items
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_datum_emission_hash, l_ticker);
+    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_token_emission_hash, l_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
 
