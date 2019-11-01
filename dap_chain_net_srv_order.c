@@ -72,7 +72,7 @@ char* dap_chain_net_srv_order_create(
         l_order->price = a_price;
         l_order->price_unit = a_price_unit;
         if ( a_comments)
-            strncpy(l_order->comments, a_comments, sizeof ( l_order->comments)-1 );
+            strncpy(l_order->ext, a_comments, sizeof ( l_order->ext)-1 );
 
         dap_hash_fast( l_order, sizeof ( *l_order), l_order_hash );
         char * l_order_hash_str = dap_chain_hash_fast_to_str_new( l_order_hash );
@@ -220,8 +220,6 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
 
         dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str,sizeof(l_hash_str)-1);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:          %s\n", l_hash_str );
-
-        if( a_order->comments[0])
-            dap_string_append_printf(a_str_out, "  comments:          \"%s\"\n", a_order->comments );
+        dap_string_append_printf(a_str_out, "  ext:          \"%s\"\n", a_order->ext );
     }
 }

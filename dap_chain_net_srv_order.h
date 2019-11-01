@@ -39,7 +39,7 @@ typedef struct dap_chain_net_srv_order
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
     dap_chain_time_t ts_created;
     dap_chain_time_t ts_expires;
-    char comments[128];
+    char ext[128];
 } dap_chain_net_srv_order_t;
 
 // Init/deinit should be call only if private
