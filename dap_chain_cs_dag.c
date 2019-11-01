@@ -196,8 +196,12 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->_inheritor = l_dag;
 
     const char * l_static_genesis_event_hash_str = dap_config_get_item_str_default(a_chain_cfg,"dag","static_genesis_event",NULL);
-    if ( l_static_genesis_event_hash_str )
-        dap_chain_str_to_hash_fast(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash);
+    if ( l_static_genesis_event_hash_str ){
+        int lhr;
+        if ( (lhr= dap_chain_str_to_hash_fast(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash) )!= 0 ){
+            log_it( L_ERROR, "Can't read hash from static_genesis_event \"%s\", ret code %d ", l_static_genesis_event_hash_str, lhr);
+        }
+    }
 
     l_dag->is_static_genesis_event = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
     l_dag->is_single_line = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_single_line",false);
@@ -531,8 +535,13 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
     if (l_event->header.hash_count == 0 && l_dag->is_static_genesis_event ){
         dap_chain_hash_fast_t l_event_hash;
         dap_chain_cs_dag_event_calc_hash(l_event,&l_event_hash);
-        if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 )
+        if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
+            char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
+            char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
+
+            log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
             return -22;
+        }
     }
 
     int ret = l_dag->callback_cs_verify ( l_dag, l_event );
