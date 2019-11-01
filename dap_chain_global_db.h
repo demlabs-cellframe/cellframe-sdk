@@ -26,6 +26,10 @@ typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
 
+/**
+ * Flush DB
+ */
+int dap_chain_global_db_flush(void);
 
 /**
  * Clean struct dap_global_db_obj_t

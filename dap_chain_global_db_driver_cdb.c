@@ -230,6 +230,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     a_drv_callback->read_store_obj      = dap_db_driver_cdb_read_store_obj;
     a_drv_callback->read_cond_store_obj = dap_db_driver_cdb_read_cond_store_obj;
     a_drv_callback->deinit              = dap_db_driver_cdb_deinit;
+    a_drv_callback->flush               = dap_db_driver_cdb_flush;
 
     closedir(dir);
     return CDB_SUCCESS;
@@ -272,6 +273,42 @@ int dap_db_driver_cdb_deinit() {
         DAP_DELETE(s_cdb_path);
     }
     return CDB_SUCCESS;
+}
+
+int dap_db_driver_cdb_flush(void){
+    log_it(L_DEBUG, "Start flush cuttdb.");
+    //CLOSE
+    cdb_instance *cur_cdb, *tmp;
+    HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
+        DAP_DELETE(cur_cdb->local_group);
+        cdb_destroy(cur_cdb->cdb);
+        HASH_DEL(s_cdb, cur_cdb);
+        DAP_DELETE(cur_cdb);
+    }
+    //SYNC
+#ifndef _WIN32
+    sync();
+#endif
+    //OPEN
+    struct dirent *d;
+    DIR *dir = opendir(s_cdb_path);
+    if (!dir) {
+        log_it(L_ERROR, "Couldn't open db directory");
+        return -1;
+    }
+    for (d = readdir(dir); d; d = readdir(dir)) {
+        if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
+            continue;
+        }
+        pcdb_instance l_cdb_i = dap_cdb_init_group(d->d_name, CDB_CREAT | CDB_PAGEWARMUP);
+        if (!l_cdb_i) {
+            dap_db_driver_cdb_deinit();
+            closedir(dir);
+            return -2;
+        }
+    }
+    closedir(dir);
+    return 0;
 }
 
 dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {

@@ -39,6 +39,7 @@ typedef struct _cdb_record {
 
 int dap_db_driver_cdb_init(const char*, dap_db_driver_callbacks_t*);
 int dap_db_driver_cdb_deinit();
+int dap_db_driver_cdb_flush(void);
 
 int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t);
 
