@@ -57,7 +57,7 @@ char* dap_chain_net_srv_order_create(
         uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         dap_chain_time_t a_expires, // TS when the service expires
-        const char * a_comments
+        const char * a_ext
         )
 {
     if (a_net) {
@@ -71,8 +71,8 @@ char* dap_chain_net_srv_order_create(
         memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
         l_order->price = a_price;
         l_order->price_unit = a_price_unit;
-        if ( a_comments)
-            strncpy(l_order->ext, a_comments, sizeof ( l_order->ext)-1 );
+        if ( a_ext)
+            strncpy(l_order->ext, a_ext, sizeof ( l_order->ext)-1 );
 
         dap_hash_fast( l_order, sizeof ( *l_order), l_order_hash );
         char * l_order_hash_str = dap_chain_hash_fast_to_str_new( l_order_hash );
@@ -117,6 +117,18 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_n
     return l_order;
 }
 
+/**
+ * @brief dap_chain_net_srv_order_find_all_by
+ * @param a_net
+ * @param a_srv_uid
+ * @param a_srv_class
+ * @param a_price_unit
+ * @param a_price_min
+ * @param a_price_max
+ * @param a_output_orders
+ * @param a_output_orders_count
+ * @return
+ */
 int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net, dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_srv_class_t a_srv_class,
                                         dap_chain_net_srv_price_unit_uid_t a_price_unit, uint64_t a_price_min, uint64_t a_price_max,
                                         dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
