@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Alexander Lysikov <alexander.lysikov@demlabs.net>
+ *
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://gitlab.demlabs.net/cellframe
  * Copyright  (c) 2019

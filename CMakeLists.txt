@@ -3,14 +3,17 @@ project (dap_chain_net_srv_vpn)
   
 set(DAP_CHAIN_NET_SRV_VPN_SRCS 
 	dap_chain_net_srv_vpn.c
+        dap_chain_net_srv_vpn_cdb_server_list.c
 	dap_chain_net_vpn_client.c
 	dap_chain_net_vpn_client_tun.c
         )
 
 set(DAP_CHAIN_NET_SRV_VPN_HEADERS
 	dap_chain_net_srv_vpn.h
+	dap_chain_net_srv_vpn_cdb_server_list.h
 	dap_chain_net_vpn_client.h
 	dap_chain_net_vpn_client_tun.h
+
     )
 
 if(WIN32)
