@@ -1,4 +1,4 @@
-﻿/*
+﻿﻿/*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -64,8 +64,9 @@
 #define MAX_OUT_ITEMS   10
 typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_hash_fast_t datum_token_emission_hash;
-    dap_chain_hash_fast_t datum_tx_token_hash;
-    dap_chain_tx_token_t * tx_token;
+    // while these are not needed
+    //dap_chain_hash_fast_t datum_tx_token_hash;
+    //dap_chain_tx_token_t * tx_token;
 
     dap_chain_datum_token_emission_t *datum_token_emission;
     UT_hash_handle hh;
@@ -319,6 +320,11 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
             HASH_ADD(hh, l_token_emissions ,
                      datum_token_emission_hash, sizeof(l_token_emission_hash),
                     l_token_emission_item);
+            // save pointer to structure
+            if(l_token_item)
+                l_token_item->token_emissions = l_token_emissions;
+            else
+                l_ledger_priv->treshold_emissions = l_token_emissions;
             char * l_token_emission_address_str = dap_chain_addr_to_str( &(a_token_emission->hdr.address) );
             log_it(L_NOTICE,
              "Added token emission datum to %s: type=%s value=%.1llf token=%s to_addr=%s ",
