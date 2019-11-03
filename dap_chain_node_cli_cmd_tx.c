@@ -43,7 +43,7 @@
 typedef struct dap_tx_data {
     dap_chain_hash_fast_t tx_hash;
     char tx_hash_str[70];
-    char token_ticker[10];
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     //size_t obj_num;
     size_t pos_num;
     dap_chain_datum_t *datum;
