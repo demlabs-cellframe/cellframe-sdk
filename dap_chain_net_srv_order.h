@@ -25,6 +25,7 @@ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 #include "dap_common.h"
 #include "dap_string.h"
+#include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_common.h"
 
@@ -37,6 +38,7 @@ typedef struct dap_chain_net_srv_order
     dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
     uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     dap_chain_time_t ts_created;
     dap_chain_time_t ts_expires;
     char ext[128];
