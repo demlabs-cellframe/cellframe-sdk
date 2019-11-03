@@ -31,7 +31,7 @@
 
 struct dap_http;
 
-int dap_chain_net_srv_vpn_cdb_server_list_init(const char * servers_list_path);
+int dap_chain_net_srv_vpn_cdb_server_list_init(void);
 void dap_chain_net_srv_vpn_cdb_server_list_deinit(void);
 void dap_chain_net_srv_vpn_cdb_server_list_add_proc(struct dap_http * sh, const char * url);
 

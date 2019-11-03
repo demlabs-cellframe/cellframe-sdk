@@ -29,297 +29,121 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+
 #include "dap_common.h"
+#include "dap_config.h"
+
+#include "dap_chain.h"
+#include "dap_chain_net.h"
+#include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_net_srv_order.h"
 
 #include "dap_http.h"
-#include "dap_enc_http.h"
 #include "dap_http_simple.h"
+#include "http_status_code.h"
+
 #include "dap_chain_net_srv_vpn_cdb_server_list.h"
-#include "dap_enc.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn_cdb_server_list"
 
-#define HTML_HEAD "<html><head><meta content=\"en-us\" http-equiv=\"Content-Language\"><meta content=\"text/html; charset=utf-8\" http-equiv=\"Content-Type\" /><title>DiveVPN Accessibility Report</title></head><body>"
-#define HTML_END "</body></html>"
-#define STR_SIZE 2048
 
-#define REPORT_FILE_HEAD "/opt/dapserver/log/accessibility_report.html" // todo move filenae to external config
+static size_t s_cdb_net_count = 0;
+static dap_chain_net_t ** s_cdb_net = NULL;
+static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg);
 
-
-static char typical_adress[] = "255.255.255.255";
-
-typedef struct server_info
+int dap_chain_net_srv_vpn_cdb_server_list_init()
 {
-    char name[50];
-    char address[sizeof(typical_adress)];
-    char  port[50];
-    ///int  mods; // todo create mods enum? or make this char[] type
-    char user_name[50];
-} server_info_t;
-
-
-static struct
-{
-    const char *ServerName;
-    const char *Address;
-    const char *Port;
-    const char *UserName;
-    const char *Date;
-    const char *p_open;
-    const char *p_end;
-} report_strings;
-
-static const char *_servers_list_path;
-static char *buff, *buff2;
-
-int dap_chain_net_srv_vpn_cdb_server_list_init(const char * servers_list_path)
-{
-    _servers_list_path = strdup(servers_list_path);
+    char **l_cdb_networks;
+    size_t l_cdb_networks_size = 0;
     log_it(L_NOTICE,"Initialized Server List Module");
+    l_cdb_networks = dap_config_get_array_str( g_config, "cdb", "networks", &l_cdb_networks_size );
+
+    if ( l_cdb_networks_size ){
+        s_cdb_net = DAP_NEW_Z_SIZE(dap_chain_net_t*, sizeof (dap_chain_net_t*)* l_cdb_networks_size );
+        for ( size_t i = 0; i < l_cdb_networks_size ; i++) {
+            s_cdb_net[i] = dap_chain_net_by_name( l_cdb_networks[i] );
+            if ( s_cdb_net[i] )
+                log_it( L_INFO, "Added \"%s\" network for server list fetchs", l_cdb_networks[i]);
+            else
+                log_it( L_WARNING, "Can't find \"%s\" network to add to server list fetchs", l_cdb_networks[i]);
+        }
+    } else
+        log_it( L_WARNING, "No chain networks listed in config");
+
     return 0;
 }
 
 void dap_chain_net_srv_vpn_cdb_server_list_deinit(void)
 {
-    //config_destroy(&cfg);
-
-    // free(buff); free(buff2);
 }
 
-//static inline int read_templates()
-//{
-//    int ret = 0;
 
-//    config_init(&cfg);
-
-//    if (!config_read_file(&cfg, my_config.report_template_file)) {
-//        log_it(L_ERROR, "report_template_file not readed or not correct");
-//        config_destroy(&cfg);
-//        return ret;
-//    }
-
-//    if (!(config_lookup_string(&cfg, "report_paragraph_open", &report_strings.p_open) &&
-//    config_lookup_string(&cfg, "report_paragraph_close", &report_strings.p_end) &&
-//    config_lookup_string(&cfg, "report_server_address", &report_strings.Address)) ) {
-//        log_it(L_ERROR, "Required template paramaters not avaible in templatefile");
-//    } else {
-//        config_lookup_string(&cfg, "report_server_name", &report_strings.ServerName);
-//        config_lookup_string(&cfg, "report_port", &report_strings.Port);
-//        config_lookup_string(&cfg, "report_user_name", &report_strings.UserName);
-//        config_lookup_string(&cfg, "report_time", &report_strings.Date);
-//        ret = 1;
-//    }
-//    return ret;
-//}
-
-///**
-// * @brief time_string - make tine string
-// * @return
-// */
-//static inline char *time_string()
-//{
-//    char *_time = (char*)malloc(strlen("9999-12-31 23:59:59")*sizeof(char)); //yep, be in pedantic =)
-//    time_t t = time(0);
-//    struct tm tm = *localtime(&t);
-//    sprintf(_time, "%d-%d-%d %d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1,
-//            tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-//    return _time;
-//}
-
-///**
-// * @brief make_report - создает репорт файл для админа\
-// * о недоступности сервера о какого-то пользователя
-// * @param si
-// */
-//void make_report(const server_info_t *si)
-//{
-//    static bool config_ready;
-
-//    if (!config_ready){
-//        if(!my_config.report_template_file) {
-//            log_it(L_ERROR, "report_template_file not readed");
-//            return;
-//        }
-//        if ((config_ready = read_templates())) {
-//            // if no call make_repor - we no allocate mem
-//            // to internal data
-//            buff  =  (char*)malloc(STR_SIZE*sizeof(char));
-//            buff2 =  (char*)malloc(STR_SIZE*sizeof(char));
-//            if (!buff && !buff2) {
-//                log_it(L_ERROR, "can not allocate memmory");
-//                free(buff);
-//                free(buff2);
-//                config_ready = 0;
-//                config_destroy(&cfg);
-//                return;
-//            }
-//        }
-//    }
-
-//    FILE *fp = fopen(REPORT_FILE_HEAD, "a+");
-//    if (!fp) {
-//        log_it(L_ERROR, "can not open file [%s]", REPORT_FILE_HEAD);
-//        //free(buff); //free is not need here
-//        //free(buff2);
-//        return;
-//    }
-
-//    fseek(fp, 0L, SEEK_END);
-//    if (ftell(fp))
-//        ftruncate(fileno(fp), strlen(HTML_END));
-//    else
-//        fprintf(fp, HTML_HEAD);
-//    fseek(fp, 0L, SEEK_SET);
-
-//    sprintf(buff,"%s%s%s%s%s%s%s",report_strings.p_open,
-//            report_strings.ServerName,
-//            report_strings.Address,
-//            report_strings.Port,
-//            report_strings.UserName,
-//            report_strings.Date,
-//            report_strings.p_end);
-//    strcpy(buff2, buff);
-
-//    char *time = time_string();
-//    sprintf(buff, buff2, si->name, si->address, si->port, si->user_name,
-//            time);
-
-//    fprintf(fp, buff);
-//    fprintf(fp, HTML_END);
-
-//    free(time);
-//    fclose(fp);
-
-//    return;
-//}
-
-
-void get_servers_list_http_proc(enc_http_delegate_t *dg, void *arg)
+static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
 {
-    arg = arg;
-    FILE *fp;
-    if (_servers_list_path) {
-        fp = fopen(_servers_list_path, "r");
-        if(!fp) {
-            log_it(L_ERROR, "Can't open [%s] (serverlistfile)", _servers_list_path);
-         }
-    } else
-        log_it(L_ERROR, "Can't open serverlist file", _servers_list_path);
+    http_status_code_t * l_ret_code = (http_status_code_t*)a_arg;
+    dap_http_simple_reply_f( a_http_simple, "[\n");
 
+    for ( size_t i = 0; i < s_cdb_net_count ; i++ ) {
+        dap_chain_net_t * l_net = s_cdb_net[i];
+        if ( l_net ) {
+            dap_chain_net_srv_order_t * l_orders = NULL;
+            size_t l_orders_count = 0;
+            dap_chain_net_srv_price_unit_uid_t l_unit_uid = {{0}};
+            dap_chain_net_srv_uid_t l_srv_uid = { .uint64 =DAP_CHAIN_NET_SRV_VPN_ID };
+            dap_chain_net_srv_order_find_all_by( l_net,  l_srv_uid, SERV_CLASS_PERMANENT ,l_unit_uid ,0,0, &l_orders, &l_orders_count );
+            log_it(L_DEBUG, "Found %sd orders in \"%s\" network", l_orders_count, l_net->pub.name );
 
-    fseek(fp, 0L, SEEK_END);
-    size_t fsize = ftell(fp);
-    rewind(fp);
+            for ( size_t j = 0; j < l_orders_count ; j++ ) {
+                dap_chain_node_info_t * l_node_info = dap_chain_node_info_read( l_net, &l_orders[j].node_addr );
+                if ( l_node_info ){
+                    char l_node_ext_ipv4_str[INET_ADDRSTRLEN]={0};
+                    char l_node_ext_ipv6_str[INET6_ADDRSTRLEN]={0};
+                    inet_ntop(AF_INET,&l_node_info->hdr.ext_addr_v4,l_node_ext_ipv4_str,sizeof(l_node_ext_ipv4_str));
+                    inet_ntop(AF_INET6,&l_node_info->hdr.ext_addr_v6,l_node_ext_ipv6_str,sizeof(l_node_ext_ipv6_str));
 
-    char *buff = (char*)malloc(sizeof(char)*fsize);
+                    dap_http_simple_reply_f( a_http_simple,
+                                             "    {\n"
+                                             "        \"Location\":\"NETHERLANDS\",\n"
+                                             "        \"Name\":\"%s.Cell-%s.%sd\",\n"
+                                             "        \"Address\":\"%s\",\n"
+                                             "        \"Address6\":\"%s\",\n"
+                                             "        \"Port\"%hu\"port\",\n"
+                                             "        \"Description\":\"%s\",\n"
+                                             "        \"Price\":%lu,\n"
+                                             "        \"PriceUnits\":%u,\n"
+                                             "        \"PriceToken\":\"%s\"\n"
+                                             "    },\n",
+                                             l_net->pub.name, l_node_info->hdr.cell_id.uint64, j,
+                                             l_node_ext_ipv4_str,
+                                             l_node_ext_ipv6_str,
+                                             l_node_info->hdr.ext_port,
+                                             l_orders[j].ext,
+                                             l_orders[j].price,
+                                             l_orders[j].price_unit.uint32,
+                                             l_orders[j].ticker
+                                            );
 
-    if (!buff) {
-        log_it(L_ERROR, "can not allocate memmory");
-        return;
-    }
-    fread(buff, fsize, 1, fp);
-
-    if((dg->request)&&(strcmp(dg->action,"POST")==0)){
-        if(dg->in_query==NULL){
-            log_it(L_WARNING,"Empt action");
-            dg->isOk=false;
-        }else{
-            if(strcmp(dg->in_query,"getall")==0 ){
-                enc_http_reply_f(dg, buff);
+                }else
+                    log_it( L_WARNING, "Order %sd in \"%s\" network issued by node without ext_ipv4 field");
             }
         }
-    } else {
-        log_it(L_ERROR, "Wrong auth request action '%s'",dg->action);
     }
+    dap_http_simple_reply_f( a_http_simple, "]\n");
+    *l_ret_code = Http_Status_OK;
 
-    free(buff);
-    fclose(fp);
 }
 
-
-//static void make_admin_report(enc_http_delegate_t *dg, void *arg)
-//{
-//    arg = arg;
-//    //log_it (INFO, "izvlechennoe >%s<", dg->request_str);
-//    if((dg->request)&&(strcmp(dg->action,"POST")==0)){
-//        if(dg->in_query==NULL){
-//            log_it(L_WARNING,"Empt action");
-//            dg->isOk=false;
-//        }else{
-//            if(strcmp(dg->in_query,"badreport")==0 ){
-//                enc_http_reply_f(dg, "OK" );
-//                //parsing
-//                {
-//                    int end_str = strlen(dg->request_str);
-//                    char buff[255];
-//                    memset(buff,0,255);
-//                    for(int i=0; i < end_str; ++i) {
-//                        if (dg->request_str[i]== '&') {
-//                            if (i+1 < end_str) {
-//                                if (dg->request_str[i+1] == 'N') {
-//                                    server_info_t si;
-//                                    i+=2;
-//                                    int field = 0;
-//                                    int j = 0;
-//                                    for (; i < end_str; ++i) {
-//                                        if (dg->request_str[i] == '&') {
-//                                            i++;
-//                                            buff[j] = '\0';
-//                                            switch (field) {
-//                                               case 0: strcpy (si.address, buff); break;
-//                                               case 1: strcpy (si.port, buff); break;
-//                                               case 2: strcpy (si.user_name, buff); break;
-//                                            }
-//                                            memset(buff,0,255);
-//                                            j = 0;
-//                                            if (field == 2) {
-//                                                make_report(&si);
-//                                                i-=2;
-//                                                break;
-//                                            }
-//                                            field++;
-//                                        }
-//                                        buff[j++] = dg->request_str[i];
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//                }//parsing
-//            }
-//        }
-//    } else {
-//        log_it(L_ERROR, "Wrong auth request action '%s'",dg->action);
-//    }
-
-//}
-
-void servers_list_http_proc(dap_http_simple_t *cl_st, void *arg)
+/**
+ * @brief dap_chain_net_srv_vpn_cdb_server_list_add_proc
+ * @param sh
+ * @param url
+ */
+void dap_chain_net_srv_vpn_cdb_server_list_add_proc(dap_http_t *a_http, const char *a_url)
 {
-    bool *isOk= (bool*)arg;
-    enc_http_delegate_t *dg =enc_http_request_decode(cl_st);
-    if ( dg != NULL) {
-        dg->isOk = true;
-
-        if (!strcmp(dg->url_path,"report")) {
-            log_it(L_WARNING, "Report not supported at the moment");
-          //  make_admin_report(dg, NULL);
-        }
-
-        if (!strcmp(dg->url_path,"update")) {
-            get_servers_list_http_proc(dg, NULL);
-        }
-
-        *isOk = dg->isOk;
-
-        enc_http_reply_encode(cl_st,dg);
-
-        enc_http_delegate_delete(dg);
-    }
-}
-
-
-void dap_chain_net_srv_vpn_cdb_server_list_add_proc(dap_http_t *sh, const char *url)
-{
-    dap_http_simple_proc_add(sh,url,1000000,servers_list_http_proc);
+    dap_http_simple_proc_add(a_http,a_url,1000000,s_http_simple_proc);
 }

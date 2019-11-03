@@ -28,6 +28,8 @@
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
 
+#define DAP_CHAIN_NET_SRV_VPN_ID            0x0000000000000001
+
 #define VPN_PACKET_OP_CODE_CONNECTED        0x000000a9
 #define VPN_PACKET_OP_CODE_CONNECT          0x000000aa
 #define VPN_PACKET_OP_CODE_DISCONNECT       0x000000ab
