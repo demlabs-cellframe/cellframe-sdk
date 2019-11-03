@@ -73,7 +73,7 @@ typedef struct dap_chain_ledger_token_emission_item {
 } dap_chain_ledger_token_emission_item_t;
 
 typedef struct dap_chain_ledger_token_item {
-    char ticker[10];
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_hash_fast_t datum_token_hash;
     uint8_t padding[6];
     dap_chain_datum_token_t * datum_token;
@@ -108,14 +108,14 @@ typedef struct dap_chain_ledger_tx_bound {
 // Gotta use a regular null-terminated string instead, for uthash usability
 /*typedef struct dap_ledger_wallet_balance_key{
     dap_chain_addr_t addr;
-    char ticker[10];
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 } DAP_ALIGN_PACKED dap_ledger_wallet_balance_key_t; */
 
 // in-memory wallet balance
 typedef struct dap_ledger_wallet_balance {
     //dap_ledger_wallet_balance_key_t key;
     char *key;
-    char token_ticker[10];
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint128_t balance;
     UT_hash_handle hh;
 } dap_ledger_wallet_balance_t;
@@ -330,7 +330,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
              "Added token emission datum to %s: type=%s value=%.1llf token=%s to_addr=%s ",
                    l_token_item?"emissions cache":"emissions treshold",
                      c_dap_chain_datum_token_emission_type_str[ a_token_emission->hdr.type ] ,
-                   ((long double)a_token_emission->hdr.value) / 1000000000000.0L, c_token_ticker,
+                   ((long double)a_token_emission->hdr.value) / DATOSHI_LD, c_token_ticker,
                    l_token_emission_address_str);
             DAP_DELETE(l_token_emission_address_str);
         }else{

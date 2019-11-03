@@ -35,7 +35,7 @@
 typedef struct dap_chain_tx_token{
     struct {
         dap_chain_tx_item_type_t type:8;
-        char ticker[10];
+        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         uint8_t padding; // Padding
         dap_chain_id_t token_emission_chain_id;
         dap_chain_hash_fast_t token_emission_hash;

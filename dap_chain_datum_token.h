@@ -29,7 +29,7 @@
 typedef struct dap_chain_datum_token{
     struct {
         uint16_t version;
-        char ticker[10];
+        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         uint64_t total_supply;
         uint16_t signs_valid; // Emission auth signs
         uint16_t signs_total; // Emission auth signs
@@ -51,7 +51,7 @@ typedef struct dap_chain_datum_token_emission{
     struct  {
         uint8_t version;
         uint8_t type; // Emission Type
-        char ticker[10];
+        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_addr_t address; // Emission holder's address
         uint64_t value;
     } DAP_ALIGN_PACKED hdr;
