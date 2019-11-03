@@ -112,7 +112,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                                              "        \"Name\":\"%s.Cell-%s.%sd\",\n"
                                              "        \"Address\":\"%s\",\n"
                                              "        \"Address6\":\"%s\",\n"
-                                             "        \"Port\"%hu\"port\",\n"
+                                             "        \"Port\":%hu,\n"
                                              "        \"Description\":\"%s\",\n"
                                              "        \"Price\":%lu,\n"
                                              "        \"PriceUnits\":%u,\n"
