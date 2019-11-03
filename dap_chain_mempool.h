@@ -45,19 +45,19 @@ void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
 int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
-        const char a_token_ticker[10],
+        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint64_t a_value, uint64_t a_value_fee);
 
 // Make transfer transaction & insert to cache
 int dap_chain_mempool_tx_create_cond(dap_chain_t * a_chain,
         dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_cond,
-        const dap_chain_addr_t* a_addr_fee, const char a_token_ticker[10],
+        const dap_chain_addr_t* a_addr_fee, const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size);
 
 int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum);
 int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
-        const char a_token_ticker[10],
+        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint64_t a_value, uint64_t a_value_fee,size_t a_tx_num);
