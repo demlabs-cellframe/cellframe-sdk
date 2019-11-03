@@ -1073,7 +1073,7 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
  */
 int s_net_load(const char * a_net_name)
 {
-    static dap_config_t *l_cfg=NULL;
+    dap_config_t *l_cfg=NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net_name);
 
@@ -1378,9 +1378,9 @@ int s_net_load(const char * a_net_name)
                     DAP_DELETE( l_proc_chains[i]);
                     l_proc_chains[i] = NULL;
                 }
-                if ( l_proc_chains )
-                    DAP_DELETE (l_proc_chains);
-                l_proc_chains = NULL;
+                //if ( l_proc_chains )
+                //    DAP_DELETE (l_proc_chains);
+                //l_proc_chains = NULL;
 
                 PVT(l_net)->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
