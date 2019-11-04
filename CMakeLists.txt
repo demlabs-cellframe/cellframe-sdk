@@ -4,6 +4,8 @@ project (dap_chain_global_db)
 file(GLOB DAP_CHAIN_GLOBAL_DB_SRC *.c)
 file(GLOB DAP_CHAIN_GLOBAL_DB_HDR *.h)
 
+add_subdirectory(libdap-cuttdb)
+
 if(WIN32)
   include_directories(../libdap/src/win32/)
   include_directories(../3rdparty/libmemcached/)
@@ -19,10 +21,10 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GLOBAL_DB_SRC} ${DAP_CHAIN_GLOBAL_DB_HDR})
 
 if(WIN32)
-  target_link_libraries(dap_chain_global_db dap_core dap_crypto dap_chain dap_chain_crypto)
+  target_link_libraries(dap_chain_global_db dap_core dap_crypto dap_chain dap_chain_crypto dap_cuttdb)
 endif()
 if(UNIX)
-  target_link_libraries(dap_chain_global_db dap_core dap_crypto dap_chain dap_chain_crypto ldb talloc tevent sqlite3 ${CMAKE_CURRENT_SOURCE_DIR}/libcuttdb.a)
+  target_link_libraries(dap_chain_global_db dap_core dap_crypto dap_chain dap_chain_crypto ldb talloc tevent sqlite3 dap_cuttdb)
 endif()
 
 target_include_directories(dap_chain_global_db INTERFACE .)
