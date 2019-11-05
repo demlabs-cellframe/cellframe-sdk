@@ -190,7 +190,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_size =0;
-            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_srv_class,l_price_unit,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
+            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_srv_class,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
                 dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_size);
                 for (size_t i = 0; i< l_orders_size; i++){
                     dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
