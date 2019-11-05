@@ -71,7 +71,7 @@ char* dap_chain_net_srv_order_create(
         l_order->ts_created = (dap_chain_time_t) time(NULL);
         l_order->srv_class = a_srv_class;
 
-        if ( l_order->node_addr.uint64)
+        if ( a_node_addr.uint64)
             l_order->node_addr.uint64 = a_node_addr.uint64;
 
         memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);

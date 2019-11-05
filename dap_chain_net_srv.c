@@ -49,6 +49,7 @@
 #include "dap_string.h"
 
 #include "dap_chain.h"
+#include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
@@ -207,7 +208,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char *l_order_hash_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
             if ( l_order_hash_str ){
-                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash( l_net, l_order_hash_str );
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_str );
                 if (l_order){
                     dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret);
                     ret = 0;
@@ -311,8 +312,13 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_expires = (dap_chain_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
                 l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
-                if (l_node_addr_str)
-                    dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
+                if (l_node_addr_str){
+
+                    if (dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str ) == 0 )
+                        log_it( L_DEBUG, "node addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_addr) );
+                    else
+                        log_it( L_ERROR, "Can't parse \"%s\" as node addr");
+                }
                 if (l_tx_cond_hash_str)
                     dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = (uint64_t) atoll ( l_price_str );
