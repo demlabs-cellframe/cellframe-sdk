@@ -61,7 +61,7 @@ static void *_cdb_bgtask_func(void *arg)
     CDBBGTASK *bt = (CDBBGTASK *)arg;
 #ifndef _WIN32
     /* block all signals coming into current thread */
-    _sigset_t smask;
+    sigset_t smask;
     sigfillset(&smask);
     pthread_sigmask(SIG_BLOCK, &smask, NULL);
 #endif
