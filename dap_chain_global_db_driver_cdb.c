@@ -151,10 +151,8 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
     l_cdb_i = DAP_NEW(cdb_instance);
     l_cdb_i->local_group = dap_strdup(a_group);
     l_cdb_i->cdb = cdb_new();
-    memset(l_cdb_path, '\0', strlen(s_cdb_path) + strlen(a_group) + 2);
-    strcat(l_cdb_path, s_cdb_path);
-    strcat(l_cdb_path, "/");
-    strcat(l_cdb_path, a_group);
+    memset(l_cdb_path, '\0', sizeof(l_cdb_path));
+    dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
     cdb_options l_opts = { 1000000, 128, 1024 };
     if (cdb_option(l_cdb_i->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
         log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
@@ -245,70 +243,60 @@ pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
 }
 
 int dap_cdb_add_group(const char *a_group) {
-    char* l_cdb_path = malloc(strlen(s_cdb_path) + strlen(a_group) + 2);
-    memset(l_cdb_path, '\0', strlen(s_cdb_path) + strlen(a_group) + 2);
-    strcat(l_cdb_path, s_cdb_path);
-    strcat(l_cdb_path, "/");
-    strcat(l_cdb_path, a_group);
-
+    char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
+    memset(l_cdb_path, '\0', sizeof(l_cdb_path));
+    dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
 #ifdef _WIN32
     mkdir(l_cdb_path);
 #else
     mkdir(l_cdb_path, 0755);
 #endif
-
-    free(l_cdb_path);
     return 0;
 }
 
 int dap_db_driver_cdb_deinit() {
-    cdb_instance *cur_cdb, *tmp;
+    pcdb_instance cur_cdb, tmp;
+    pthread_mutex_lock(&cdb_mutex);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
         DAP_DELETE(cur_cdb->local_group);
         cdb_destroy(cur_cdb->cdb);
         HASH_DEL(s_cdb, cur_cdb);
         DAP_DELETE(cur_cdb);
     }
+    pthread_mutex_unlock(&cdb_mutex);
     if (s_cdb_path) {
         DAP_DELETE(s_cdb_path);
     }
     return CDB_SUCCESS;
 }
 
-int dap_db_driver_cdb_flush(void){
-    log_it(L_DEBUG, "Start flush cuttdb.");
-    //CLOSE
+int dap_db_driver_cdb_flush(void) {
+    int ret = 0;
+    log_it(L_INFO, "Flushing CDB to disk");
     cdb_instance *cur_cdb, *tmp;
+    pthread_mutex_lock(&cdb_mutex);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
-        DAP_DELETE(cur_cdb->local_group);
-        cdb_destroy(cur_cdb->cdb);
-        HASH_DEL(s_cdb, cur_cdb);
-        DAP_DELETE(cur_cdb);
-    }
-    //SYNC
-#ifndef _WIN32
-    sync();
-#endif
-    //OPEN
-    struct dirent *d;
-    DIR *dir = opendir(s_cdb_path);
-    if (!dir) {
-        log_it(L_ERROR, "Couldn't open db directory");
-        return -1;
-    }
-    for (d = readdir(dir); d; d = readdir(dir)) {
-        if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
-            continue;
+        cdb_close(cur_cdb->cdb);
+        char l_cdb_path[strlen(s_cdb_path) + strlen(cur_cdb->local_group) + 2];
+        memset(l_cdb_path, '\0', sizeof(l_cdb_path));
+        dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, cur_cdb->local_group);
+// Re-application of options might be required
+        cdb_options l_opts = { 1000000, 128, 1024 };
+        if (cdb_option(cur_cdb->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
+            log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(cur_cdb->cdb)));
+            ret = -1;
+            goto RET;
         }
-        pcdb_instance l_cdb_i = dap_cdb_init_group(d->d_name, CDB_CREAT | CDB_PAGEWARMUP);
-        if (!l_cdb_i) {
-            dap_db_driver_cdb_deinit();
-            closedir(dir);
-            return -2;
+        if(cdb_open(cur_cdb->cdb, l_cdb_path, CDB_CREAT | CDB_PAGEWARMUP) != CDB_SUCCESS) {
+            log_it(L_ERROR, "An error occured while opening CDB: \"%s\"", cdb_errmsg(cdb_errno(cur_cdb->cdb)));
+            ret = -2;
+            goto RET;
         }
     }
-    closedir(dir);
-    return 0;
+    log_it(L_INFO, "All data dumped");
+RET:
+    pthread_mutex_unlock(&cdb_mutex);
+    return ret;
 }
 
 dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
