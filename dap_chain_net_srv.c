@@ -91,7 +91,7 @@ int dap_chain_net_srv_init(void)
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
         "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -srv_class <Service Class> -price <Price>\\\n"
-        "        -price_unit <Price Unit> -price_ticker <Token ticker> -node_addr <Node Address> -tx_cond <TX Cond Hash> \\\n"
+        "        -price_unit <Price Unit> -price_token <Token ticker> -node_addr <Node Address> -tx_cond <TX Cond Hash> \\\n"
         "        [-expires <Unix time when expires>]\\\n"
         "\tOrder create\n" );
 
@@ -224,11 +224,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 uint64_t l_price_min=0, l_price_max =0 ;
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
-                char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
 
-
-                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_srv_class,l_price_unit, l_price_token, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
-                    dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_size);
+                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_srv_class,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
+                    dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_size);
                     for (size_t i = 0; i< l_orders_size; i++){
                         dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
                         dap_string_append(l_string_ret,"\n");
@@ -287,7 +285,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char*  l_comments = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-comments", &l_comments);
 
-            if ( l_srv_uid_str && l_srv_class_str && l_node_addr_str && l_tx_cond_hash_str && l_price_str ) {
+            if ( l_srv_uid_str && l_srv_class_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
                 dap_chain_node_addr_t l_node_addr={0};
@@ -309,8 +307,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_expires = (dap_chain_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
                 l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
-                dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
-                dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
+                if (l_node_addr_str)
+                    dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
+                if (l_tx_cond_hash_str)
+                    dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = (uint64_t) atoll ( l_price_str );
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
 

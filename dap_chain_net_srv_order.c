@@ -88,7 +88,6 @@ char* dap_chain_net_srv_order_create(
             return NULL;
         }
         DAP_DELETE( l_order_hash );
-        DAP_DELETE( l_order_hash_str );
         DAP_DELETE( l_order );
         DAP_DELETE( l_gdb_group_str );
         return  l_order_hash_str;
@@ -142,7 +141,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
         size_t l_orders_count = 0;
         dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str,&l_orders_count);
-
+        log_it( L_DEBUG ,"Loaded %zd orders", l_orders_count);
         bool l_order_pass_first=true;
         size_t l_order_passed_index;
 lb_order_pass:
@@ -151,10 +150,11 @@ lb_order_pass:
             dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *) l_orders[i].value;
             // Check direction
             if (a_direction != SERV_DIR_UNDEFINED )
-                if ( l_order->direction == a_direction )
+                if ( l_order->direction != a_direction )
                     continue;
+
             // Check srv uid
-            if ( a_srv_uid.uint64)
+            if ( a_srv_uid.uint64 )
                 if ( l_order->srv_uid.uint64 != a_srv_uid.uint64 )
                     continue;
             // Check srv class
@@ -175,12 +175,12 @@ lb_order_pass:
                     continue;
             // Check ticker
             if ( a_price_ticker )
-                if ( strcmp( l_order->price_ticker, a_price_ticker) == 0 )
+                if ( strcmp( l_order->price_ticker, a_price_ticker) != 0 )
                     continue;
             if( !l_order_pass_first ){
                 memcpy(a_output_orders[l_order_passed_index], l_order, sizeof (dap_chain_net_srv_order_t));
-            }
-            l_order_passed_index++;
+            }else
+                l_order_passed_index++;
         }
         // Dirty goto usage ho ho ho
         if (l_order_pass_first) {

@@ -44,6 +44,7 @@ typedef union {
 #endif
 } dap_chain_net_srv_uid_t;
 
+#define DAP_CHAIN_NET_SRV_PRICE_UNIT_UNDEFINED                        0x00000000
 #define DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE                             0x00000001
 #define DAP_CHAIN_NET_SRV_PRICE_UNIT_SECOND                           0x00000010
 #define DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE_PER_SECOND                  0x00000100
@@ -70,7 +71,8 @@ typedef enum dap_chain_net_srv_order_direction{
 
 //Types of services
 enum {
-    SERV_ID_VPN = 1,
+    SERV_ID_UNDEFINED = 0x00000000,
+    SERV_ID_VPN = 0x00000001,
 };
 
 //Units of service
