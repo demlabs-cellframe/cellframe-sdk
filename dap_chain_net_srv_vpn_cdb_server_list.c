@@ -95,7 +95,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
             size_t l_orders_count = 0;
             dap_chain_net_srv_price_unit_uid_t l_unit_uid = {{0}};
             dap_chain_net_srv_uid_t l_srv_uid = { .uint64 =DAP_CHAIN_NET_SRV_VPN_ID };
-            dap_chain_net_srv_order_find_all_by( l_net,  l_srv_uid, SERV_CLASS_PERMANENT ,l_unit_uid ,0,0, &l_orders, &l_orders_count );
+            dap_chain_net_srv_order_find_all_by( l_net, SERV_DIR_SELL,  l_srv_uid, SERV_CLASS_PERMANENT ,l_unit_uid ,NULL,0,0, &l_orders, &l_orders_count );
             log_it(L_DEBUG, "Found %sd orders in \"%s\" network", l_orders_count, l_net->pub.name );
 
             for ( size_t j = 0; j < l_orders_count ; j++ ) {
@@ -125,7 +125,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                                              l_orders[j].ext,
                                              l_orders[j].price,
                                              l_orders[j].price_unit.uint32,
-                                             l_orders[j].ticker
+                                             l_orders[j].price_ticker
                                             );
 
                 }else
