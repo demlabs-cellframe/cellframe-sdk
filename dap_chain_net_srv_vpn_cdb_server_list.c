@@ -59,13 +59,14 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg);
 int dap_chain_net_srv_vpn_cdb_server_list_init()
 {
     char **l_cdb_networks;
-    size_t l_cdb_networks_size = 0;
+    size_t l_cdb_networks_count = 0;
     log_it(L_NOTICE,"Initialized Server List Module");
-    l_cdb_networks = dap_config_get_array_str( g_config, "cdb", "networks", &l_cdb_networks_size );
+    l_cdb_networks = dap_config_get_array_str( g_config, "cdb", "networks", &l_cdb_networks_count );
 
-    if ( l_cdb_networks_size ){
-        s_cdb_net = DAP_NEW_Z_SIZE(dap_chain_net_t*, sizeof (dap_chain_net_t*)* l_cdb_networks_size );
-        for ( size_t i = 0; i < l_cdb_networks_size ; i++) {
+    if ( l_cdb_networks_count ){
+        s_cdb_net = DAP_NEW_Z_SIZE(dap_chain_net_t*, sizeof (dap_chain_net_t*)* l_cdb_networks_count );
+        s_cdb_net_count = l_cdb_networks_count;
+        for ( size_t i = 0; i < l_cdb_networks_count ; i++) {
             s_cdb_net[i] = dap_chain_net_by_name( l_cdb_networks[i] );
             if ( s_cdb_net[i] )
                 log_it( L_INFO, "Added \"%s\" network for server list fetchs", l_cdb_networks[i]);
@@ -97,41 +98,37 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
             size_t l_orders_count = 0;
             dap_chain_net_srv_price_unit_uid_t l_unit_uid = {{0}};
             dap_chain_net_srv_uid_t l_srv_uid = { .uint64 =DAP_CHAIN_NET_SRV_VPN_ID };
-            dap_chain_net_srv_order_find_all_by( l_net, SERV_DIR_SELL,  l_srv_uid, SERV_CLASS_PERMANENT ,l_unit_uid ,NULL,0,0, &l_orders, &l_orders_count );
-            log_it(L_DEBUG, "Found %sd orders in \"%s\" network", l_orders_count, l_net->pub.name );
+            dap_chain_net_srv_order_find_all_by( l_net, SERV_DIR_SELL,  l_srv_uid, SERV_CLASS_PERMANENT ,l_unit_uid ,
+                                                 NULL,0,0, &l_orders, &l_orders_count );
+            log_it(L_DEBUG, "Found %zd orders in \"%s\" network", l_orders_count, l_net->pub.name );
 
             for ( size_t j = 0; j < l_orders_count ; j++ ) {
                 dap_chain_node_info_t * l_node_info = dap_chain_node_info_read( l_net, &l_orders[j].node_addr );
                 if ( l_node_info ){
                     char l_node_ext_ipv4_str[INET_ADDRSTRLEN]={0};
                     char l_node_ext_ipv6_str[INET6_ADDRSTRLEN]={0};
-                    inet_ntop(AF_INET,&l_node_info->hdr.ext_addr_v4,l_node_ext_ipv4_str,sizeof(l_node_ext_ipv4_str));
-                    inet_ntop(AF_INET6,&l_node_info->hdr.ext_addr_v6,l_node_ext_ipv6_str,sizeof(l_node_ext_ipv6_str));
+                    if (l_node_info->hdr.ext_addr_v4.s_addr)
+                        inet_ntop(AF_INET,&l_node_info->hdr.ext_addr_v4,l_node_ext_ipv4_str,sizeof(l_node_ext_ipv4_str));
+                    if (  *((uint128_t *) l_node_info->hdr.ext_addr_v6.__in6_u.__u6_addr8 ) )
+                        inet_ntop(AF_INET6,&l_node_info->hdr.ext_addr_v6,l_node_ext_ipv6_str,sizeof(l_node_ext_ipv6_str));
 
-                    dap_http_simple_reply_f( a_http_simple,
-                                             "    {\n"
-                                             "        \"Location\":\"NETHERLANDS\",\n"
-                                             "        \"Name\":\"%s.Cell-%s.%sd\",\n"
-                                             "        \"Address\":\"%s\",\n"
-                                             "        \"Address6\":\"%s\",\n"
-                                             "        \"Port\":%hu,\n"
-                                             "        \"Description\":\"%s\",\n"
-                                             "        \"Price\":%lu,\n"
-                                             "        \"PriceUnits\":%u,\n"
-                                             "        \"PriceToken\":\"%s\"\n"
-                                             "    },\n",
-                                             l_net->pub.name, l_node_info->hdr.cell_id.uint64, j,
-                                             l_node_ext_ipv4_str,
-                                             l_node_ext_ipv6_str,
-                                             l_node_info->hdr.ext_port,
-                                             l_orders[j].ext,
-                                             l_orders[j].price,
-                                             l_orders[j].price_unit.uint32,
-                                             l_orders[j].price_ticker
-                                            );
+                    dap_http_simple_reply_f( a_http_simple, "    {\n");
+
+                    dap_http_simple_reply_f( a_http_simple, "        \"Location\":\"NETHERLANDS\",\n");
+                    dap_http_simple_reply_f( a_http_simple, "        \"Name\":\"%s.Cell-%lu.%zd\",\n",l_net->pub.name, l_node_info->hdr.cell_id.uint64, j);
+                    if ( l_node_ext_ipv4_str[0] )
+                        dap_http_simple_reply_f( a_http_simple, "        \"Address\":\"%s\",\n",l_node_ext_ipv4_str);
+                    if ( l_node_ext_ipv6_str[0] )
+                        dap_http_simple_reply_f( a_http_simple, "        \"Address6\":\"%s\",\n",l_node_ext_ipv6_str);
+                    dap_http_simple_reply_f( a_http_simple, "        \"Port\":%hu,\n",l_node_info->hdr.ext_port);
+                    dap_http_simple_reply_f( a_http_simple, "        \"Ext\":\"%s\",\n",l_orders[j].ext);
+                    dap_http_simple_reply_f( a_http_simple, "        \"Price\":%lu,\n",l_orders[j].price);
+                    dap_http_simple_reply_f( a_http_simple, "        \"PriceUnits\":%u,\n",l_orders[j].price_unit.uint32);
+                    dap_http_simple_reply_f( a_http_simple, "        \"PriceToken\":\"%s\"\n",l_orders[j].price_ticker);
+                    dap_http_simple_reply_f( a_http_simple, "    },\n");
 
                 }else
-                    log_it( L_WARNING, "Order %sd in \"%s\" network issued by node without ext_ipv4 field");
+                    log_it( L_WARNING, "Order %zd in \"%s\" network issued by node without ext_ipv4 field",j,l_net->pub.name);
             }
         }
     }
