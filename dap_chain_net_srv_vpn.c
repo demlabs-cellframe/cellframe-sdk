@@ -371,8 +371,8 @@ static ch_vpn_pkt_t* srv_ch_sf_raw_read()
         ret = raw_server->pkt_out[raw_server->pkt_out_rindex];
         raw_server->pkt_out_rindex++;
         raw_server->pkt_out_size--;
-    } else
-        log_it(L_WARNING, "Packet drop on raw_read() operation, ring buffer is full");
+    } //else
+      //  log_it(L_WARNING, "Packet drop on raw_read() operation, ring buffer is full");
     pthread_mutex_unlock(&raw_server->pkt_out_mutex);
     return ret;
 }
@@ -486,8 +486,8 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                         pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
                 stream_sf_socket_ready_to_write(ch, true);
             } else {
-                log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
-                        str_saddr, str_daddr, sf_pkt->header.op_data.data_size, ret);
+                //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
+                //        str_saddr, str_daddr, sf_pkt->header.op_data.data_size, ret);
                 //log_it(L_DEBUG, "Raw IP sent %u bytes ", ret);
             }
             //}
@@ -545,8 +545,8 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                         sf_sock->bytes_sent += ret;
                         pthread_mutex_unlock(&sf_sock->mutex);
                     }
-                    log_it(L_INFO, "Send action from %d sock_id (sf_packet size %lu,  ch packet size %lu, have sent %d)"
-                            , sf_sock->id, sf_pkt->header.op_data.data_size, pkt->hdr.size, ret);
+                    //log_it(L_INFO, "Send action from %d sock_id (sf_packet size %lu,  ch packet size %lu, have sent %d)"
+                    //        , sf_sock->id, sf_pkt->header.op_data.data_size, pkt->hdr.size, ret);
                 }
                     break;
                 case VPN_PACKET_OP_CODE_DISCONNECT: {
@@ -580,9 +580,9 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                     pthread_mutex_unlock(&sf_sock->mutex);
                 }
                 }
-            } else
-                log_it(L_WARNING, "Packet input: packet with sock_id %d thats not present in current stream channel",
-                        remote_sock_id);
+            } //else
+              //  log_it(L_WARNING, "Packet input: packet with sock_id %d thats not present in current stream channel",
+              //          remote_sock_id);
         } else {
             HASH_FIND_INT(CH_VPN(ch)->socks, &remote_sock_id, sf_sock);
             if(sf_sock) {
@@ -823,7 +823,7 @@ void* srv_ch_sf_thread_raw(void *arg)
                 if(pkt) {
                     int write_ret = write(raw_server->tun_fd, pkt->data, pkt->header.op_data.data_size);
                     if(write_ret > 0) {
-                        log_it(L_DEBUG, "Wrote out %d bytes to the tun/tap interface", write_ret);
+                        //log_it(L_DEBUG, "Wrote out %d bytes to the tun/tap interface", write_ret);
                     } else {
                         log_it(L_ERROR, "Tun/tap write %u bytes returned '%s' error, code (%d)",
                                 pkt->header.op_data.data_size, strerror(errno), write_ret);
@@ -844,17 +844,8 @@ void* srv_ch_sf_thread_raw(void *arg)
                     dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
                     dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
 
-                    if(iph->tot_len > (uint16_t) read_ret) {
-                        log_it(L_INFO, "Tun/Tap interface returned only the fragment (tot_len =%u  read_ret=%d) ",
-                                iph->tot_len, read_ret);
-                    }
-                    if(iph->tot_len < (uint16_t) read_ret) {
-                        log_it(L_WARNING, "Tun/Tap interface returned more then one packet (tot_len =%u  read_ret=%d) ",
-                                iph->tot_len, read_ret);
-                    }
-
-                    log_it(L_DEBUG, "Read IP packet from tun/tap interface daddr=%s saddr=%s total_size = %d "
-                            , str_daddr, str_saddr, read_ret);
+                    //log_it(L_DEBUG, "Read IP packet from tun/tap interface daddr=%s saddr=%s total_size = %d "
+                    //        , str_daddr, str_saddr, read_ret);
                     dap_stream_ch_vpn_remote_single_t * raw_client = NULL;
                     pthread_mutex_lock(&raw_server->clients_mutex);
                     HASH_FIND_INT(raw_server->clients, &in_daddr.s_addr, raw_client);
@@ -869,8 +860,6 @@ void* srv_ch_sf_thread_raw(void *arg)
                         dap_stream_ch_pkt_write(raw_client->ch, DATA_CHANNEL_ID, pkt_out,
                                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
                         stream_sf_socket_ready_to_write(raw_client->ch, true);
-                    } else {
-                        log_it(L_DEBUG, "No remote client for income IP packet with addr %s", inet_ntoa(in_daddr));
                     }
                     pthread_mutex_unlock(&raw_server->clients_mutex);
                 }
@@ -904,7 +893,7 @@ void srv_ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
         bool signalToBreak = false;
         pthread_mutex_lock(&(cur->mutex));
         int i;
-        log_it(L_DEBUG, "Socket with id %d has %u packets in output buffer", cur->id, cur->pkt_out_size);
+        //log_it(L_DEBUG, "Socket with id %d has %u packets in output buffer", cur->id, cur->pkt_out_size);
         if(cur->pkt_out_size) {
             for(i = 0; i < cur->pkt_out_size; i++) {
                 ch_vpn_pkt_t * pout = cur->pkt_out[i];
@@ -915,8 +904,8 @@ void srv_ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
                         free(pout);
                         cur->pkt_out[i] = NULL;
                     } else {
-                        log_it(L_WARNING,
-                                "Buffer is overflowed, breaking cycle to let the upper level cycle drop data to the output socket");
+                        //log_it(L_WARNING,
+                        //        "Buffer is overflowed, breaking cycle to let the upper level cycle drop data to the output socket");
                         isSmthOut = true;
                         signalToBreak = true;
                         break;
