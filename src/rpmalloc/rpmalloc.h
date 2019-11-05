@@ -53,6 +53,11 @@ extern "C" {
 //! Flag to rpaligned_realloc to not preserve content in reallocation
 #define RPMALLOC_NO_PRESERVE    1
 
+//redefinition from mman-linux.h For POSIX
+#ifndef POSIX_MADV_DONTNEED
+#define POSIX_MADV_DONTNEED 4/* Don't need these pages.  */
+#endif
+
 typedef struct rpmalloc_global_statistics_t {
 	//! Current amount of virtual memory mapped, all of which might not have been committed (only if ENABLE_STATISTICS=1)
 	size_t mapped;
