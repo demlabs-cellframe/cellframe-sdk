@@ -88,6 +88,8 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
     http_status_code_t * l_ret_code = (http_status_code_t*)a_arg;
     dap_http_simple_reply_f( a_http_simple, "[\n");
 
+    log_it(L_DEBUG, "Have %zd chain networks for cdb lists", s_cdb_net_count );
+
     for ( size_t i = 0; i < s_cdb_net_count ; i++ ) {
         dap_chain_net_t * l_net = s_cdb_net[i];
         if ( l_net ) {
