@@ -187,7 +187,7 @@ dap_chain_sign_t * dap_chain_sign_create(dap_enc_key_t *a_key, const void * a_da
             DAP_DELETE(l_pub_key);
             return NULL;
         } else {
-            size_t l_sign_ser_size =0;
+            size_t l_sign_ser_size = l_sign_unserialized_size;
             uint8_t *l_sign_ser = dap_enc_key_serealize_sign(a_key->type, l_sign_unserialized, &l_sign_ser_size);
             if ( l_sign_ser ){
                 dap_chain_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_sign_t,
