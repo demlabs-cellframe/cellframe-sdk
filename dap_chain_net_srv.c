@@ -91,8 +91,8 @@ int dap_chain_net_srv_init(void)
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
         "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -srv_class <Service Class> -price <Price>\\\n"
-        "        -price_unit <Price Unit> -price_token <Token ticker> -node_addr <Node Address> -tx_cond <TX Cond Hash> \\\n"
-        "        [-expires <Unix time when expires>]\\\n"
+        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>] \\\n"
+        "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
         "\tOrder create\n" );
 
     return 0;
@@ -217,7 +217,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 }
             } else{
 
-                dap_chain_net_srv_order_t * l_orders;
+                dap_chain_net_srv_order_t * l_orders = NULL;
                 size_t l_orders_size =0;
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
@@ -228,7 +228,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_srv_class,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
                     dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_size);
                     for (size_t i = 0; i< l_orders_size; i++){
-                        dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
+                        dap_chain_net_srv_order_dump_to_string(&l_orders[i],l_string_ret);
                         dap_string_append(l_string_ret,"\n");
                     }
                     ret = 0;
@@ -282,8 +282,8 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char*  l_price_token_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_token", &l_price_token_str);
 
-            const char*  l_comments = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-comments", &l_comments);
+            const char*  l_ext = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-ext", &l_ext);
 
             if ( l_srv_uid_str && l_srv_class_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
@@ -296,10 +296,14 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
                 if ( l_direction_str ){
-                    if ( strcmp(l_direction_str, "sell")==0)
+                    if ( strcmp(l_direction_str, "sell") == 0 ){
                         l_direction = SERV_DIR_SELL;
-                    else if ( strcmp(l_direction_str, "buy")==0)
+                        log_it(L_DEBUG, "Created order to sell");
+                    }else if ( strcmp(l_direction_str, "buy")==0){
                         l_direction = SERV_DIR_BUY;
+                        log_it(L_DEBUG, "Created order to buy");
+                    }else
+                        log_it(L_WARNING, "Undefined order direction");
                 }
 
 
@@ -316,7 +320,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_srv_class, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
-                            l_price_token, l_expires,l_comments);
+                            l_price_token, l_expires,l_ext);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{

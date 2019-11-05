@@ -44,10 +44,6 @@ typedef union {
 #endif
 } dap_chain_net_srv_uid_t;
 
-#define DAP_CHAIN_NET_SRV_PRICE_UNIT_UNDEFINED                        0x00000000
-#define DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE                             0x00000001
-#define DAP_CHAIN_NET_SRV_PRICE_UNIT_SECOND                           0x00000010
-#define DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE_PER_SECOND                  0x00000100
 
 typedef union {
     uint8_t raw[4];
@@ -64,19 +60,20 @@ typedef enum {
 
 //Service direction
 typedef enum dap_chain_net_srv_order_direction{
-    SERV_DIR_BUY = 0x01,
-    SERV_DIR_SELL = 0x02,
-    SERV_DIR_UNDEFINED = 0x00
+    SERV_DIR_BUY = 1,
+    SERV_DIR_SELL = 2,
+    SERV_DIR_UNDEFINED = 0
 } dap_chain_net_srv_order_direction_t;
 
 //Types of services
 enum {
-    SERV_ID_UNDEFINED = 0x00000000,
-    SERV_ID_VPN = 0x00000001,
+    SERV_ID_UNDEFINED = 0,
+    SERV_ID_VPN = 1,
 };
 
 //Units of service
 enum {
+    SERV_UNIT_UNDEFINED = 0 ,
     SERV_UNIT_MB = 1, // megabytes
     SERV_UNIT_SEC = 2, // seconds
     SERV_UNIT_DAY = 3 // days
@@ -120,9 +117,10 @@ typedef struct dap_chain_net_srv
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
     switch ( a_uid.uint32 ) {
-        case DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE: return "BYTE";
-        case DAP_CHAIN_NET_SRV_PRICE_UNIT_SECOND: return "SECOND";
-        case DAP_CHAIN_NET_SRV_PRICE_UNIT_BYTE_PER_SECOND: return  "BYTE_PER_SECOND";
+        case SERV_UNIT_UNDEFINED: return "BYTE";
+        case SERV_UNIT_MB: return "MEGABYTE";
+        case SERV_UNIT_SEC: return "SECOND";
+        case SERV_UNIT_DAY: return  "DAY";
         default: return "UNKNOWN";
     }
 }

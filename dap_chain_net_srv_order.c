@@ -67,13 +67,20 @@ char* dap_chain_net_srv_order_create(
         dap_chain_hash_fast_t* l_order_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
         l_order->version = 1;
         l_order->srv_uid = a_srv_uid;
+        l_order->direction = a_direction;
         l_order->ts_created = (dap_chain_time_t) time(NULL);
         l_order->srv_class = a_srv_class;
-        l_order->node_addr.uint64 = a_node_addr.uint64;
+
+        if ( l_order->node_addr.uint64)
+            l_order->node_addr.uint64 = a_node_addr.uint64;
+
         memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
         l_order->price = a_price;
-        l_order->price_unit = a_price_unit;
-        strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
+        l_order->price_unit.uint32 = a_price_unit.uint32;
+
+        if ( a_price_ticker)
+            strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
+
         if ( a_ext)
             strncpy(l_order->ext, a_ext, sizeof ( l_order->ext)-1 );
 
@@ -177,10 +184,11 @@ lb_order_pass:
             if ( a_price_ticker )
                 if ( strcmp( l_order->price_ticker, a_price_ticker) != 0 )
                     continue;
-            if( !l_order_pass_first ){
-                memcpy(a_output_orders[l_order_passed_index], l_order, sizeof (dap_chain_net_srv_order_t));
-            }else
-                l_order_passed_index++;
+
+            if( !l_order_pass_first )
+                memcpy( *a_output_orders+l_order_passed_index, l_order, sizeof (dap_chain_net_srv_order_t));
+            l_order_passed_index++;
+
         }
         // Dirty goto usage ho ho ho
         if (l_order_pass_first) {
@@ -243,7 +251,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             //default: dap_string_append_printf(a_str_out, "  srv_class:        UNKNOWN\n" );
         }
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:            \u00a0%.3Lf (%llu)\n", dap_chain_balance_to_coins(a_order->price) , a_order->price);
+        dap_string_append_printf(a_str_out, "  price:            \u00a0%.7Lf (%llu)\n", dap_chain_balance_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       0x%016llX\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)
