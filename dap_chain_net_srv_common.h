@@ -78,7 +78,8 @@ enum {
 //Units of service
 enum {
     SERV_UNIT_MB = 1, // megabytes
-    SERV_UNIT_SEC = 2 // seconds
+    SERV_UNIT_SEC = 2, // seconds
+    SERV_UNIT_DAY = 3 // days
 };
 
 typedef struct dap_chain_net_srv_abstract

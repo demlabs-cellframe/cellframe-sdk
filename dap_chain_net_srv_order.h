@@ -102,8 +102,8 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
 DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t * a_net)
 {
    if ( a_net ) {
-       const char c_srv_order_group_str[]="srv_order";
-       return dap_strdup_printf("%s-%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
+       const char c_srv_order_group_str[]="service.orders";
+       return dap_strdup_printf("%s.%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
    }
    return NULL;
 }
