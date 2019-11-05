@@ -29,7 +29,8 @@ add_library(${PROJECT_NAME} STATIC ${cuttdb_src} ${cuttdb_h})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILER_LANGUAGE C)
 
+set_target_properties(dap_cuttdb PROPERTIES LINKER_LANGUAGE C)
+
 target_link_libraries(${PROJECT_NAME} -lpthread)
 
 target_include_directories(${PROJECT_NAME} INTERFACE src)
-
