@@ -50,12 +50,14 @@ void dap_chain_net_srv_order_deinit()
 
 char* dap_chain_net_srv_order_create(
         dap_chain_net_t * a_net,
+        dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_net_srv_class_t a_srv_class, //Class of service (once or permanent)
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+        char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
         const char * a_ext
         )
@@ -71,6 +73,7 @@ char* dap_chain_net_srv_order_create(
         memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
         l_order->price = a_price;
         l_order->price_unit = a_price_unit;
+        strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
         if ( a_ext)
             strncpy(l_order->ext, a_ext, sizeof ( l_order->ext)-1 );
 
@@ -129,8 +132,10 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_n
  * @param a_output_orders_count
  * @return
  */
-int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net, dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_srv_class_t a_srv_class,
-                                        dap_chain_net_srv_price_unit_uid_t a_price_unit, uint64_t a_price_min, uint64_t a_price_max,
+int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_net_srv_order_direction_t a_direction,
+                                        const dap_chain_net_srv_uid_t a_srv_uid,const dap_chain_net_srv_class_t a_srv_class,
+                                        const dap_chain_net_srv_price_unit_uid_t a_price_unit,const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+                                        const uint64_t a_price_min, const uint64_t a_price_max,
                                         dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
 {
     if ( a_net && a_output_orders && a_output_orders_count ){
@@ -142,8 +147,12 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net, dap_chain_net_s
         size_t l_order_passed_index;
 lb_order_pass:
         l_order_passed_index =0;
-        for (size_t i; i< l_orders_count; i++){
+        for (size_t i=0; i< l_orders_count; i++){
             dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *) l_orders[i].value;
+            // Check direction
+            if (a_direction != SERV_DIR_UNDEFINED )
+                if ( l_order->direction == a_direction )
+                    continue;
             // Check srv uid
             if ( a_srv_uid.uint64)
                 if ( l_order->srv_uid.uint64 != a_srv_uid.uint64 )
@@ -163,6 +172,10 @@ lb_order_pass:
             // Check price maximum
             if ( a_price_max )
                 if ( l_order->price > a_price_max )
+                    continue;
+            // Check ticker
+            if ( a_price_ticker )
+                if ( strcmp( l_order->price_ticker, a_price_ticker) == 0 )
                     continue;
             if( !l_order_pass_first ){
                 memcpy(a_output_orders[l_order_passed_index], l_order, sizeof (dap_chain_net_srv_order_t));
@@ -216,6 +229,12 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
+
+        switch ( a_order->direction) {
+            case SERV_DIR_UNDEFINED: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_UNDEFINED\n" ); break;
+            case SERV_DIR_SELL: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" ); break;
+            case SERV_DIR_BUY: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" ); break;
+        }
 
         switch ( a_order->srv_class) {
             case SERV_CLASS_ONCE: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_ONCE\n" ); break;;

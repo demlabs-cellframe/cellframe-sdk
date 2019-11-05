@@ -34,15 +34,16 @@ typedef struct dap_chain_net_srv_order
     uint16_t version;
     dap_chain_net_srv_uid_t srv_uid; // Service UID
     dap_chain_net_srv_class_t srv_class:8; //Class of service (once or permanent)
+    dap_chain_net_srv_order_direction_t direction:8; // Order direction - SELL or PURCHASE
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
     dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
-    uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    char ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     dap_chain_time_t ts_created;
     dap_chain_time_t ts_expires;
+    uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+    char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     char ext[128];
-} dap_chain_net_srv_order_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
 // Init/deinit should be call only if private
 int dap_chain_net_srv_order_init(void);
@@ -59,8 +60,8 @@ DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_ha
     }
 }
 
-int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_srv_class_t a_srv_class,
-                                        dap_chain_net_srv_price_unit_uid_t a_price_unit, uint64_t a_price_min, uint64_t a_price_max,
+int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_net_srv_order_direction_t a_direction, const dap_chain_net_srv_uid_t a_srv_uid, const dap_chain_net_srv_class_t a_srv_class,
+                                        const dap_chain_net_srv_price_unit_uid_t a_price_unit, const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],const uint64_t a_price_min, const uint64_t a_price_max,
                                         dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count);
 int dap_chain_net_srv_order_delete_by_hash_str( dap_chain_net_t * a_net,const char * a_hash_str );
 
@@ -79,12 +80,14 @@ DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a
 
 char* dap_chain_net_srv_order_create(
         dap_chain_net_t * a_net,
+        dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_net_srv_class_t a_srv_class, //Class of service (once or permanent)
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+        char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
         const char * a_comments
         );

@@ -61,6 +61,13 @@ typedef enum {
     SERV_CLASS_UNDEFINED = 0
 } dap_chain_net_srv_class_t;
 
+//Service direction
+typedef enum dap_chain_net_srv_order_direction{
+    SERV_DIR_BUY = 0x01,
+    SERV_DIR_SELL = 0x02,
+    SERV_DIR_UNDEFINED = 0x00
+} dap_chain_net_srv_order_direction_t;
+
 //Types of services
 enum {
     SERV_ID_VPN = 1,

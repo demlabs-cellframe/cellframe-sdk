@@ -83,15 +83,15 @@ int dap_chain_net_srv_init(void)
         return -1;
 
     dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <chain net name> order find [-srv_uid <Service UID>] [-srv_class <Service Class>] [-price_unit <price unit>]\\\n"
-        "                                         [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
+        "net_srv -net <chain net name> order find [-direction <sell|buy>][-srv_uid <Service UID>] [-srv_class <Service Class>] [-price_unit <price unit>]\\\n"
+        "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <chain net name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -srv_uid <Service UID> -srv_class <Service Class> -price <Price>\\\n"
-        "        -price_unit <Price Unit> -node_addr <Node Address> -tx_cond <TX Cond Hash> \\\n"
+        "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -srv_class <Service Class> -price <Price>\\\n"
+        "        -price_unit <Price Unit> -price_ticker <Token ticker> -node_addr <Node Address> -tx_cond <TX Cond Hash> \\\n"
         "        [-expires <Unix time when expires>]\\\n"
         "\tOrder create\n" );
 
@@ -128,7 +128,14 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
-        if ( strcmp( l_order_str, "find" ) == 0 ){
+        if ( l_order_str == NULL){
+            dap_string_append_printf( l_string_ret, "Expected subcommand. Variants: find, dump, create, delete\n");
+            ret=-3;
+        } else if ( strcmp( l_order_str, "find" ) == 0 ){
+
+            // Order direction
+            const char *l_direction_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-direction", &l_direction_str);
 
             // Select with specified service uid
             const char *l_srv_uid_str = NULL;
@@ -142,6 +149,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char*  l_price_unit_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_unit", &l_price_unit_str);
 
+            // Token ticker
+            const char*  l_price_token_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_token", &l_price_token_str);
+
             // Select with price not more than price_min
             const char*  l_price_min_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_min", &l_price_min_str);
@@ -150,19 +161,36 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char*  l_price_max_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_max", &l_price_max_str);
 
+            dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
             dap_chain_net_srv_uid_t l_srv_uid={{0}};
             dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
             uint64_t l_price_min=0, l_price_max =0 ;
             dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
 
-            l_srv_uid.uint64 = (uint128_t) atoll( l_srv_uid_str);
-            l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
-            l_price_min = (uint64_t) atoll ( l_price_min_str );
-            l_price_max = (uint64_t) atoll ( l_price_max_str );
-            l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+            if ( l_direction_str ){
+                if ( strcmp(l_direction_str, "sell")==0)
+                    l_direction = SERV_DIR_SELL;
+                else if ( strcmp(l_direction_str, "buy")==0)
+                    l_direction = SERV_DIR_BUY;
+            }
+
+            if ( l_srv_uid_str)
+                l_srv_uid.uint64 = (uint128_t) atoll( l_srv_uid_str);
+
+            if ( l_srv_class_str )
+                l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
+
+            if ( l_price_min_str )
+                l_price_min = (uint64_t) atoll ( l_price_min_str );
+
+            if ( l_price_max_str )
+                l_price_max = (uint64_t) atoll ( l_price_max_str );
+            if ( l_price_unit_str)
+                l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_size =0;
-            if( dap_chain_net_srv_order_find_all_by( l_net,l_srv_uid,l_srv_class,l_price_unit,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
+            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_srv_class,l_price_unit,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
                 dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_size);
                 for (size_t i = 0; i< l_orders_size; i++){
                     dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
@@ -188,8 +216,28 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_str );
                 }
             } else{
-                ret = -6 ;
-                dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
+
+                dap_chain_net_srv_order_t * l_orders;
+                size_t l_orders_size =0;
+                dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
+                uint64_t l_price_min=0, l_price_max =0 ;
+                dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
+                dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
+                char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
+
+
+                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_srv_class,l_price_unit, l_price_token, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
+                    dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_size);
+                    for (size_t i = 0; i< l_orders_size; i++){
+                        dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
+                        dap_string_append(l_string_ret,"\n");
+                    }
+                    ret = 0;
+                }else{
+                    ret = -5 ;
+                    dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
+                }
             }
         }else if( strcmp( l_order_str, "delete" ) == 0 ){
             // Select with specified service uid
@@ -208,6 +256,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
             }
         }else if( strcmp( l_order_str, "create" ) == 0 ){
+            // Order direction
+            const char *l_direction_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-direction", &l_direction_str);
+
             const char* l_srv_uid_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
 
@@ -229,6 +281,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char*  l_price_unit_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_unit", &l_price_unit_str);
 
+            const char*  l_price_token_str = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_token", &l_price_token_str);
+
             const char*  l_comments = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-comments", &l_comments);
 
@@ -239,7 +294,17 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
                 dap_chain_time_t l_expires=0; // TS when the service expires
                 uint64_t l_price=0;
+                char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
+                dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
+                if ( l_direction_str ){
+                    if ( strcmp(l_direction_str, "sell")==0)
+                        l_direction = SERV_DIR_SELL;
+                    else if ( strcmp(l_direction_str, "buy")==0)
+                        l_direction = SERV_DIR_BUY;
+                }
+
+
                 if (l_expires_str)
                     l_expires = (dap_chain_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
@@ -249,8 +314,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 l_price = (uint64_t) atoll ( l_price_str );
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
 
-                char * l_order_new_hash_str = dap_chain_net_srv_order_create (
-                            l_net, l_srv_uid, l_srv_class, l_node_addr,l_tx_cond_hash, l_price, l_price_unit, l_expires,l_comments);
+                char * l_order_new_hash_str = dap_chain_net_srv_order_create(
+                            l_net,l_direction, l_srv_uid, l_srv_class, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
+                            l_price_token, l_expires,l_comments);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{
