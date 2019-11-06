@@ -87,7 +87,8 @@ void dap_chain_net_srv_vpn_cdb_server_list_deinit(void)
 static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
 {
     http_status_code_t * l_ret_code = (http_status_code_t*)a_arg;
-    dap_http_simple_reply_f( a_http_simple, "[\n");
+    dap_string_t *l_reply_str = dap_string_new("[\n");
+
 
     log_it(L_DEBUG, "Have %zd chain networks for cdb lists", s_cdb_net_count );
 
@@ -111,28 +112,33 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                         inet_ntop(AF_INET,&l_node_info->hdr.ext_addr_v4,l_node_ext_ipv4_str,sizeof(l_node_ext_ipv4_str));
                     if (  *((uint128_t *) l_node_info->hdr.ext_addr_v6.__in6_u.__u6_addr8 ) )
                         inet_ntop(AF_INET6,&l_node_info->hdr.ext_addr_v6,l_node_ext_ipv6_str,sizeof(l_node_ext_ipv6_str));
+                    dap_string_append_printf( l_reply_str, "    {\n");
 
-                    dap_http_simple_reply_f( a_http_simple, "    {\n");
-
-                    dap_http_simple_reply_f( a_http_simple, "        \"Location\":\"NETHERLANDS\",\n");
-                    dap_http_simple_reply_f( a_http_simple, "        \"Name\":\"%s.Cell-%lu.%zd\",\n",l_net->pub.name, l_node_info->hdr.cell_id.uint64, j);
+                    dap_string_append_printf( l_reply_str, "        \"Location\":\"NETHERLANDS\",\n");
+                    dap_string_append_printf( l_reply_str, "        \"Name\":\"%s.Cell-%lu.%zd\",\n",l_net->pub.name, l_node_info->hdr.cell_id.uint64, j);
                     if ( l_node_ext_ipv4_str[0] )
-                        dap_http_simple_reply_f( a_http_simple, "        \"Address\":\"%s\",\n",l_node_ext_ipv4_str);
+                        dap_string_append_printf( l_reply_str,"        \"Address\":\"%s\",\n",l_node_ext_ipv4_str);
                     if ( l_node_ext_ipv6_str[0] )
-                        dap_http_simple_reply_f( a_http_simple, "        \"Address6\":\"%s\",\n",l_node_ext_ipv6_str);
-                    dap_http_simple_reply_f( a_http_simple, "        \"Port\":%hu,\n",l_node_info->hdr.ext_port);
-                    dap_http_simple_reply_f( a_http_simple, "        \"Ext\":\"%s\",\n",l_orders[j].ext);
-                    dap_http_simple_reply_f( a_http_simple, "        \"Price\":%lu,\n",l_orders[j].price);
-                    dap_http_simple_reply_f( a_http_simple, "        \"PriceUnits\":%u,\n",l_orders[j].price_unit.uint32);
-                    dap_http_simple_reply_f( a_http_simple, "        \"PriceToken\":\"%s\"\n",l_orders[j].price_ticker);
-                    dap_http_simple_reply_f( a_http_simple, "    },\n");
+                        dap_string_append_printf( l_reply_str, "        \"Address6\":\"%s\",\n",l_node_ext_ipv6_str);
+                    dap_string_append_printf( l_reply_str, "        \"Port\":%hu,\n",l_node_info->hdr.ext_port?l_node_info->hdr.ext_port:80);
+                    dap_string_append_printf( l_reply_str, "        \"Ext\":\"%s\",\n",l_orders[j].ext);
+                    dap_string_append_printf( l_reply_str, "        \"Price\":%lu,\n",l_orders[j].price);
+                    dap_string_append_printf( l_reply_str, "        \"PriceUnits\":%u,\n",l_orders[j].price_unit.uint32);
+                    dap_string_append_printf( l_reply_str, "        \"PriceToken\":\"%s\"\n",l_orders[j].price_ticker);
+                    if ( j != l_orders_count-1)
+                        dap_string_append_printf( l_reply_str, "    },\n");
+                    else
+                        dap_string_append_printf( l_reply_str, "    }\n");
 
                 }else
                     log_it( L_WARNING, "Order %zd in \"%s\" network issued by node without ext_ipv4 field",j,l_net->pub.name);
             }
         }
     }
-    dap_http_simple_reply_f( a_http_simple, "]\n");
+    dap_string_append_printf( l_reply_str, "]\n\n");
+    dap_http_simple_reply( a_http_simple, l_reply_str->str, l_reply_str->len );
+
+    log_it(L_DEBUG,"Reply in buffer: %s", a_http_simple->reply_str );
     *l_ret_code = Http_Status_OK;
 
 }
@@ -144,5 +150,5 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
  */
 void dap_chain_net_srv_vpn_cdb_server_list_add_proc(dap_http_t *a_http, const char *a_url)
 {
-    dap_http_simple_proc_add(a_http,a_url,1000000,s_http_simple_proc);
+    dap_http_simple_proc_add(a_http,a_url,100000,s_http_simple_proc);
 }
