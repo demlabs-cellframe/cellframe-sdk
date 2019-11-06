@@ -1,28 +1,25 @@
 /*
- * Authors:
- * Dmitriy A. Gearasimov <kahovski@gmail.com>
- * Anatolii Kurotych <akurotych@gmail.com>
- * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2019
- * All rights reserved.
+* Authors:
+* Dmitrii Gerasimov <naeper@demlabs.net>
+* DeM Labs Inc.   https://demlabs.net
+* Cellframe https://cellframe.net
+* Copyright  (c) 2017-2019
+* All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+This file is part of DAP the open source project.
 
-   DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-   it under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
+DAP is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-   DAP is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU Lesser General Public License for more details.
+DAP is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-   You should have received a copy of the GNU Lesser General Public License
-   along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+See more details here <http://www.gnu.org/licenses/>.
 */
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -63,9 +60,9 @@
 
 #define LOG_TAG "dap_http_simple"
 
-void dap_http_simple_headers_read( dap_http_client_t *cl_ht, void *arg );
-void dap_http_simple_data_write( dap_http_client_t *a_http_client, void *a_arg );
-void dap_http_simple_data_read( dap_http_client_t * cl_ht, void *arg );
+static void s_headers_read( dap_http_client_t *cl_ht, void *arg );
+static void s_data_write( dap_http_client_t *a_http_client, void *a_arg );
+static void s_data_read( dap_http_client_t * cl_ht, void *arg );
 void *dap_http_simple_proc( dap_http_simple_t * cl_sh );
 
 static void *loop_http_simple_proc( void *arg );
@@ -192,23 +189,24 @@ static void *loop_http_simple_proc( void *arg )
 
 /**
  * @brief dap_http_simple_proc_add Add simple HTTP processor
- * @param sh HTTP server instance
- * @param url_path URL path
- * @param cb Callback for data processing
+ * @param a_http HTTP server instance
+ * @param a_url_path URL path
+ * @param a_reply_size_max Maximum reply size
+ * @param a_callback Callback for data processing
  */
-void dap_http_simple_proc_add( dap_http_t *sh, const char *url_path, size_t reply_size_max, dap_http_simple_callback_t cb )
+void dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_t a_reply_size_max, dap_http_simple_callback_t a_callback )
 {
-  dap_http_simple_url_proc_t *shs_up = DAP_NEW_Z( dap_http_simple_url_proc_t );
+    dap_http_simple_url_proc_t *l_url_proc = DAP_NEW_Z( dap_http_simple_url_proc_t );
 
-  shs_up->proc_callback = cb;
-  shs_up->reply_size_max = reply_size_max;
+    l_url_proc->proc_callback = a_callback;
+    l_url_proc->reply_size_max = a_reply_size_max;
 
-  dap_http_add_proc( sh, url_path,
-                     shs_up, // Internal structure
+    dap_http_add_proc( a_http, a_url_path,
+                     l_url_proc, // Internal structure
                      NULL, // Contrustor
                      NULL, //  Destructor
-                     dap_http_simple_headers_read, NULL, // Headers read, write
-                     dap_http_simple_data_read, dap_http_simple_data_write, // Data read, write
+                     s_headers_read, NULL, // Headers read, write
+                     s_data_read, s_data_write, // Data read, write
                      NULL); // errror
 }
 
@@ -399,58 +397,56 @@ void* dap_http_simple_proc( dap_http_simple_t *cl_sh )
     return NULL;
 }
 
-/**
- * @brief dap_http_simple_headers_read Prepare reply on request
- * @param cl_ht
- * @param arg
- */
-void dap_http_simple_headers_read( dap_http_client_t *cl_ht, void *arg )
+
+static void s_headers_read( dap_http_client_t *a_http_client, void *a_arg )
 {
-  cl_ht->_inheritor = DAP_NEW_Z( dap_http_simple_t );
+    (void) a_arg;
 
-//  log_it(L_DEBUG,"dap_http_simple_headers_read");
-//  Sleep(300);
+    a_http_client->_inheritor = DAP_NEW_Z( dap_http_simple_t );
 
-  DAP_HTTP_SIMPLE(cl_ht)->http = cl_ht;
-  DAP_HTTP_SIMPLE(cl_ht)->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( cl_ht->proc )->reply_size_max;
-  DAP_HTTP_SIMPLE(cl_ht)->reply = calloc( 1, DAP_HTTP_SIMPLE(cl_ht)->reply_size_max );
+    //  log_it(L_DEBUG,"dap_http_simple_headers_read");
+    //  Sleep(300);
 
-  if( cl_ht->in_content_length ) {
-    if( cl_ht->in_content_length < DAP_HTTP_SIMPLE_REQUEST_MAX )
-      DAP_HTTP_SIMPLE(cl_ht)->request = calloc( 1, cl_ht->in_content_length + 1 );
-    else
-      log_it( L_ERROR, "Too big content-length %u in request", cl_ht->in_content_length );
-  }
-  else {
-    log_it( L_DEBUG, "No data section, execution proc callback" );
-    queue_http_request_put( DAP_HTTP_SIMPLE(cl_ht) );
-  }
+    DAP_HTTP_SIMPLE(a_http_client)->http = a_http_client;
+    DAP_HTTP_SIMPLE(a_http_client)->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
+    DAP_HTTP_SIMPLE(a_http_client)->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
+
+    if( a_http_client->in_content_length ) {
+        if( a_http_client->in_content_length < DAP_HTTP_SIMPLE_REQUEST_MAX )
+            DAP_HTTP_SIMPLE(a_http_client)->request = calloc( 1, a_http_client->in_content_length + 1 );
+        else
+            log_it( L_ERROR, "Too big content-length %u in request", a_http_client->in_content_length );
+    } else {
+        log_it( L_DEBUG, "No data section, execution proc callback" );
+        queue_http_request_put( DAP_HTTP_SIMPLE(a_http_client) );
+    }
 }
 
-void dap_http_simple_data_read( dap_http_client_t *cl_ht, void * arg )
+void s_data_read( dap_http_client_t *a_http_client, void * a_arg )
 {
-  int *ret = (int *)arg;
+    int *ret = (int *)a_arg;
 
-//  log_it(L_DEBUG,"dap_http_simple_data_read");
-//  Sleep(300);
+    //  log_it(L_DEBUG,"dap_http_simple_data_read");
+    //  Sleep(300);
 
-  dap_http_simple_t *shs = DAP_HTTP_SIMPLE(cl_ht);
+    dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
 
-  size_t bytes_to_read = (cl_ht->client->buf_in_size + shs->request_size) < cl_ht->in_content_length ?
-                            cl_ht->client->buf_in_size : ( cl_ht->in_content_length - shs->request_size );
-  if( bytes_to_read ) {
-    memcpy( shs->request + shs->request_size, cl_ht->client->buf_in, bytes_to_read );
-    shs->request_size += bytes_to_read;
-  }
+    size_t bytes_to_read = (a_http_client->client->buf_in_size + l_http_simple->request_size) < a_http_client->in_content_length ?
+                            a_http_client->client->buf_in_size : ( a_http_client->in_content_length - l_http_simple->request_size );
 
-  if( shs->request_size >= cl_ht->in_content_length ) {
+    if( bytes_to_read ) {
+        memcpy( l_http_simple->request_byte + l_http_simple->request_size, a_http_client->client->buf_in, bytes_to_read );
+        l_http_simple->request_size += bytes_to_read;
+    }
 
-    // bool isOK=true;
-    log_it( L_DEBUG,"Data collected" );
-    queue_http_request_put( shs );
-  }
+    if( l_http_simple->request_size >= a_http_client->in_content_length ) {
 
-  *ret = cl_ht->client->buf_in_size;
+        // bool isOK=true;
+        log_it( L_DEBUG,"Data collected" );
+        queue_http_request_put( l_http_simple );
+    }
+
+    *ret = (int) a_http_client->client->buf_in_size;
 }
 
 
@@ -459,7 +455,7 @@ void dap_http_simple_data_read( dap_http_client_t *cl_ht, void * arg )
  * @param a_http_client
  * @param a_arg
  */
-void dap_http_simple_data_write( dap_http_client_t *a_http_client, void *a_arg )
+static void s_data_write( dap_http_client_t *a_http_client, void *a_arg )
 {
   (void) a_arg;
   dap_http_simple_t *cl_st = DAP_HTTP_SIMPLE( a_http_client );
@@ -476,7 +472,7 @@ void dap_http_simple_data_write( dap_http_client_t *a_http_client, void *a_arg )
   }
 
   cl_st->reply_sent += dap_client_remote_write( a_http_client->client,
-                                              cl_st->reply + cl_st->reply_sent,
+                                              cl_st->reply_byte + cl_st->reply_sent,
                                               a_http_client->out_content_length - cl_st->reply_sent );
 
   if ( cl_st->reply_sent >= a_http_client->out_content_length ) {
@@ -495,14 +491,14 @@ void dap_http_simple_data_write( dap_http_client_t *a_http_client, void *a_arg )
  * @param data
  * @param data_size
  */
-size_t dap_http_simple_reply( dap_http_simple_t *shs, void *data, size_t data_size )
+size_t dap_http_simple_reply( dap_http_simple_t *a_http_simple, void *a_data, size_t a_data_size )
 {
-  size_t wb = (data_size > (shs->reply_size_max - shs->reply_size) ) ? (shs->reply_size_max - shs->reply_size) : data_size;
+    size_t l_data_copy_size = (a_data_size > (a_http_simple->reply_size_max - a_http_simple->reply_size) ) ? (a_http_simple->reply_size_max - a_http_simple->reply_size) : a_data_size;
 
-  memcpy( shs->reply + shs->reply_size, data, wb );
-  shs->reply_size += wb;
+    memcpy( a_http_simple->reply_byte + a_http_simple->reply_size, a_data, l_data_copy_size );
+    a_http_simple->reply_size += l_data_copy_size;
 
-  return wb;
+    return l_data_copy_size;
 }
 
 /**

@@ -1,27 +1,30 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+* Authors:
+* Dmitrii Gerasimov <naeper@demlabs.net>
+* DeM Labs Inc.   https://demlabs.net
+* Cellframe https://cellframe.net
+* Copyright  (c) 2017-2019
+* All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+This file is part of DAP the open source project.
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+DAP is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Lesser General Public License for more details.
+DAP is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU Lesser General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+See more details here <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _DAP_HTTP_SIMPLE_H_
-#define _DAP_HTTP_SIMPLE_H_
+#pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 #include "dap_http.h"
 
 //#define DAP_HTTP_SIMPLE_REQUEST_MAX 100000
@@ -38,10 +41,12 @@ typedef struct dap_http_simple {
   union {
     void *request;
     char *request_str;
+    uint8_t * request_byte;
   };
 
   union {
     void *reply;
+    uint8_t *reply_byte;
     char *reply_str;
   };
 
@@ -77,4 +82,3 @@ void dap_http_simple_set_pass_unknown_user_agents( bool pass );
 size_t dap_http_simple_reply( dap_http_simple_t *shs, void *data, size_t data_size );
 size_t dap_http_simple_reply_f( dap_http_simple_t *shs, const char *data, ... );
 
-#endif
