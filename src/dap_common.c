@@ -157,7 +157,7 @@ static pthread_t s_log_thread = 0;
 static void  *s_log_thread_proc(void *arg);
 
 typedef struct log_str_t {
-    char str[400];
+    char str[1000];
     unsigned int offset;
     struct log_str_t *prev, *next;
 } log_str_t;
