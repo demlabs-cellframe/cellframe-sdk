@@ -204,13 +204,7 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
 
     // init randomer
     srand( (unsigned int)time(NULL) );
-
-#ifdef _WIN32
-    if (a_console_title)
-        SetupConsole( a_console_title, L"Lucida Console", 12, 20 );
-#else
-    (void) a_console_title;
-#endif
+    //SetupConsole( a_console_title, L"Lucida Console", 12, 20 ); // TODO: remove this useless crap completely
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
     for (int i = 0; i < 16; ++i)
             s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
