@@ -74,15 +74,7 @@ char* dap_strdown(const char *a_str, ssize_t a_len);
 char* dap_strreverse(char *a_string);
 
 #ifdef _WIN32
-inline char *strndup(char *str, unsigned long len) {
-    char *buf = memchr(str, '\0', len);
-    if (buf)
-        len = buf - str;
-    buf = malloc(len + 1);
-    memcpy(buf, str, len);
-    buf[len] = '\0';
-    return buf;
-}
+char *strndup(char *str, unsigned long len);
 #endif
 
 #define DAP_USEC_PER_SEC 1000000
