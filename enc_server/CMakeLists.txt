@@ -21,7 +21,6 @@ if(WIN32)
   include_directories(../../3rdparty/wepoll/include/)
   include_directories(../../3rdparty/uthash/src/)
   include_directories(../../3rdparty/libjson-c/)
-  include_directories(../../3rdparty/libmagic/src/)
   include_directories(../../3rdparty/curl/include/)
 endif()
 
@@ -31,7 +30,7 @@ if(WIN32)
   target_link_libraries(dap_enc_server dap_core dap_crypto dap_server_core dap_http_server
 
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libmemcached[x86_64CLANG].a
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libmagic[x86_64CLANG].a
+  #${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libmagic[x86_64CLANG].a
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/curl[x86_64CLANG].a
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libjson-c[x86_64CLANG].a
   KERNEL32
