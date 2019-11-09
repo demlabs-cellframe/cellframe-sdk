@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
 #define dap_return_if_fail(expr)            {if(!(expr)) {return;}}
 #define dap_return_val_if_fail(expr,val)    {if(!(expr)) {return (val);}}
@@ -33,9 +34,7 @@
 #define clamp(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 #ifdef _WIN32
-
 char *strptime( char *buff, const char *fmt, struct tm *tm );
-
 #endif
 
 size_t dap_strlen(const char *a_str);
@@ -73,6 +72,18 @@ char* dap_strup(const char *a_str, ssize_t a_len);
 // Converts a string to lower case.
 char* dap_strdown(const char *a_str, ssize_t a_len);
 char* dap_strreverse(char *a_string);
+
+#ifdef _WIN32
+inline char *strndup(char *str, unsigned long len) {
+    char *buf = memchr(str, '\0', len);
+    if (buf)
+        len = buf - str;
+    buf = malloc(len + 1);
+    memcpy(buf, str, len);
+    buf[len] = '\0';
+    return buf;
+}
+#endif
 
 #define DAP_USEC_PER_SEC 1000000
 void dap_usleep(time_t a_microseconds);

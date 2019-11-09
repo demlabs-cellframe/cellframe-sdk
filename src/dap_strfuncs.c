@@ -6,37 +6,11 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <ctype.h>
 #include <errno.h>
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-
-#ifdef _WIN32
-static inline char *strndup(char *str, int len) {
-    char *buf = (char*)malloc(len + 1);
-    memcpy(buf, str, len);
-    buf[len] = 0;
-    return buf;
-}
-#endif
-
-#ifdef _WIN32
-
-char *strptime( char *buff, const char *fmt, struct tm *tm )
-{
-  uint32_t len = strlen( buff );
-
-  dap_sscanf( buff,"%u.%u.%u_%u.%u.%u",&tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec );
-
-  tm->tm_year += 2000;
-
-  return buff + len;
-}
-
-#endif
-
 
 /**
  * dap_strlen:
@@ -706,6 +680,13 @@ char* dap_strreverse(char *a_string)
     }
 
     return a_string;
+}
+
+char *strptime( char *buff, const char *fmt, struct tm *tm ) {
+  uint32_t len = strlen( buff );
+  dap_sscanf( buff,"%u.%u.%u_%u.%u.%u",&tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec );
+  tm->tm_year += 2000;
+  return buff + len;
 }
 
 /**
