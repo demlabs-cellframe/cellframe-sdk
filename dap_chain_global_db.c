@@ -27,7 +27,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <assert.h>
-#include <string.h>
+//#include <string.h>
 
 #include "uthash.h"
 
@@ -39,6 +39,7 @@
 
 #ifdef WIN32
 #include "registry.h"
+#include <string.h>
 #endif
 
 #ifndef MAX_PATH
