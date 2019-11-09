@@ -2149,7 +2149,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
         }
         else {
-            dap_string_append_printf(l_str_tmp, "%s.%s: No records in mempool\n", l_net->pub.name, l_chain->name);
+            dap_string_append_printf(l_str_tmp, "%s.%s: No records in mempool\n", l_net->pub.name, l_chain ? l_chain->name : "[no chain]");
         }
         DAP_DELETE(l_gdb_group_mempool);
         // only one time if group defined
@@ -2949,6 +2949,7 @@ int com_print_log(int argc, char ** argv, char **str_reply)
  */
 int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
 {
+#ifndef _WIN32
     enum {
         CMD_NONE, CMD_START, CMD_STOP, CMD_STATUS
     };
@@ -3037,5 +3038,6 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
         }
         break;
     }
+#endif
     return 0;
 }
