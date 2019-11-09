@@ -2146,6 +2146,9 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
             if(l_objs_processed > 15) {
                 dap_string_append_printf(l_str_tmp, "...\n");
             }
+            if(l_objs_processed < l_datums_size)
+                dap_string_append_printf(l_str_tmp, "%s.%s: %d records not processed\n", l_net->pub.name, l_chain->name,
+                        l_datums_size - l_objs_processed);
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
         }
         else {
