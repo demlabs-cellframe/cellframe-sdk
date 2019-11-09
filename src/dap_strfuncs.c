@@ -682,12 +682,14 @@ char* dap_strreverse(char *a_string)
     return a_string;
 }
 
+#ifndef DAP_OS_UNIX
 char *strptime( char *buff, const char *fmt, struct tm *tm ) {
   uint32_t len = strlen( buff );
   dap_sscanf( buff,"%u.%u.%u_%u.%u.%u",&tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec );
   tm->tm_year += 2000;
   return buff + len;
 }
+#endif
 
 /**
  * dap_usleep:
