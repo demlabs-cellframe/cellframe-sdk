@@ -233,12 +233,12 @@ static void callback_trafic(dap_client_remote_t *a_client, dap_stream_ch_t* a_ch
  * @brief ch_sf_socket_delete
  * @param sf
  */
-static void ch_sf_socket_delete(ch_vpn_socket_proxy_t * sf)
+static void ch_sf_socket_delete(ch_vpn_socket_proxy_t * a_vpn_socket_proxy)
 {
-    close(sf->sock);
-    pthread_mutex_destroy(& (sf->mutex) );
-    if (sf)
-        free(sf);
+    close(a_vpn_socket_proxy->sock);
+    pthread_mutex_destroy(& (a_vpn_socket_proxy->mutex) );
+    if (a_vpn_socket_proxy)
+        DAP_DELETE(a_vpn_socket_proxy);
 }
 
 
@@ -247,18 +247,20 @@ static void ch_sf_socket_delete(ch_vpn_socket_proxy_t * sf)
  * @param ch
  * @param arg
  */
-void srv_ch_sf_new(dap_stream_ch_t* ch, void* arg)
+void srv_ch_sf_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
 {
-    ch->internal = calloc(1, sizeof(dap_chain_net_srv_vpn_t));
-    dap_chain_net_srv_vpn_t * sf = CH_VPN(ch);
+    (void) a_arg;
+
+    a_stream_ch->internal = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
+    dap_chain_net_srv_vpn_t * sf = CH_VPN(a_stream_ch);
     pthread_mutex_init(&sf->mutex, NULL);
     sf->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
     //
-    if(ch->stream->session->service_key) {
+    if(a_stream_ch->stream->session->service_key) {
 
         char *l_addr_base58;
         char *l_sign_hash_str;
-        ch->stream->session->service_key =
+        a_stream_ch->stream->session->service_key =
                 "RpiDC8c1SxrT7TUExyGWNErgV6HtwkKhSd1yLEkTA9qHcSiYA4GXjE67KJQay2TzHdG2ouk42d8GgLyABu6rP55JeFYzBkqZ7CqijDEw;12345";
 
         const dap_chain_net_srv_abstract_t *l_cond = NULL;
@@ -266,7 +268,7 @@ void srv_ch_sf_new(dap_stream_ch_t* ch, void* arg)
         const char *l_net_name = "kelvin-testnet";
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_name);
         // get value for service and fill l_cond struct
-        uint64_t l_value = dap_chain_net_srv_client_auth(l_ledger, ch->stream->session->service_key, &l_cond);
+        uint64_t l_value = dap_chain_net_srv_client_auth(l_ledger, a_stream_ch->stream->session->service_key, &l_cond);
 
         // add service
         if(l_cond && l_value > 0)

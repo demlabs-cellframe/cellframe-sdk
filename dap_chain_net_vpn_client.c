@@ -269,7 +269,7 @@ static void ch_sf_new(dap_stream_ch_t* a_ch, void* arg)
 static void ch_sf_delete(dap_stream_ch_t* a_ch, void* arg)
 {
 
-    log_it(L_DEBUG, "ch_sf_delete() for %s", a_ch->stream->events_socket->hostaddr);
+    log_it(L_DEBUG, "ch_sf_delete()");
     /*    ch_vpn_socket_proxy_t * cur, *tmp;
      ch_sf_tun_delete(CH_SF(a_ch));
      HASH_ITER(hh, CH_SF(a_ch)->socks , cur, tmp) {
