@@ -140,6 +140,6 @@ typedef struct dap_chain_net_srv_vpn
 #define CH_VPN(a) ((dap_chain_net_srv_vpn_t *) ((a)->internal) )
 
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
-void dap_chain_net_srv_vpn_deinit();
+void dap_chain_net_srv_vpn_deinit(void);
 
 
