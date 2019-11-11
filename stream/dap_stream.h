@@ -112,5 +112,6 @@ void dap_stream_delete(dap_stream_t * a_stream);
 void dap_stream_proc_pkt_in(dap_stream_t * sid);
 
 void dap_stream_es_rw_states_update(struct dap_stream *a_stream);
+void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready);
 
 

@@ -95,7 +95,7 @@ dap_stream_session_t * dap_stream_session_pure_new()
         HASH_FIND_INT(sessions,&session_id_new,ret);
     }while(ret);
     log_it(L_INFO,"Creating new session id %u",session_id);
-    ret=(dap_stream_session_t*) calloc(1,sizeof(dap_stream_session_t));
+    ret=DAP_NEW_Z(dap_stream_session_t);
     pthread_mutex_init(&ret->mutex, NULL);
     ret->id=session_id;
     ret->time_created=time(NULL);

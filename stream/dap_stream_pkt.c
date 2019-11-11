@@ -164,21 +164,19 @@ size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t
     return ret;
 }
 
+
+
 /**
  * @brief dap_stream_send_keepalive
  * @param a_stream
  */
 void dap_stream_send_keepalive(dap_stream_t * a_stream)
 {
+    dap_stream_ch_pkt_hdr_t l_pkt={0};
+    l_pkt.id = TECHICAL_CHANNEL_ID;
+    l_pkt.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
 
-    for(size_t i=0;i<a_stream->channel_count;i++)
-        if(a_stream->channel[i]->proc){
-            if(a_stream->channel[i]->proc->id == SERVICE_CHANNEL_ID){
-                dap_stream_ch_send_keepalive(a_stream->channel[i]);
-                dap_stream_ch_set_ready_to_write(a_stream->channel[i],true);
-            }
-        }
-
+    if( dap_stream_pkt_write( a_stream, &l_pkt, sizeof(l_pkt) ) )
+        dap_stream_set_ready_to_write( a_stream, true );
 }
-
 

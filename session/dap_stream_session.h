@@ -35,17 +35,16 @@ typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYP
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;
 
 struct dap_stream_session {
-
     bool create_empty;
-  unsigned int id;
-  unsigned int media_id;
+    unsigned int id;
+    unsigned int media_id;
 
-  dap_enc_key_t * key;
+    dap_enc_key_t * key;
 
-  bool open_preview;
-  pthread_mutex_t mutex;
-  int opened;
-  time_t time_created;
+    bool open_preview;
+    pthread_mutex_t mutex;
+    int opened;
+    time_t time_created;
 
     uint8_t enc_type;
 
@@ -54,9 +53,10 @@ struct dap_stream_session {
 
     stream_session_connection_type_t conn_type;
     stream_session_type_t type;
-  UT_hash_handle hh;
-
+    UT_hash_handle hh;
     struct in_addr tun_client_addr;
+
+    void * _inheritor;
 };
 typedef struct dap_stream_session dap_stream_session_t;
 
