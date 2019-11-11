@@ -130,27 +130,3 @@ size_t dap_stream_ch_pkt_write_f(struct dap_stream_ch * a_ch, uint8_t a_type, co
     return ret;
 }
 
-/**
- * @brief stream_ch_send_keepalive
- * @param ch
- * @return
- */
-size_t dap_stream_ch_send_keepalive(struct dap_stream_ch * a_ch)
-{
-    pthread_mutex_lock( &a_ch->mutex);
-
-    dap_stream_ch_pkt_hdr_t l_hdr;
-
-    memset(&l_hdr,0,sizeof(l_hdr));
-    l_hdr.id = a_ch->proc->id;
-    l_hdr.size=0;
-    l_hdr.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
-    l_hdr.enc_type = a_ch->proc->enc_type;
-    l_hdr.seq_id=0;
-
-    memcpy(a_ch->buf,&l_hdr,sizeof(l_hdr) );
-
-    size_t l_ret=dap_stream_pkt_write(a_ch->stream,a_ch->buf,sizeof(l_hdr));
-    pthread_mutex_unlock( &a_ch->mutex);
-    return l_ret;
-}
