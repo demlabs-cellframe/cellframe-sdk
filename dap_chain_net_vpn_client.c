@@ -68,13 +68,48 @@ static pthread_mutex_t sf_socks_mutex;
 static dap_chain_node_info_t *s_node_info = NULL;
 static dap_chain_node_client_t *s_vpn_client = NULL;
 
-dap_stream_ch_t* dap_chain_net_vpn_client_get_stream(void)
+dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
     if(!s_vpn_client)
         return NULL;
-    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, VPN_CLIENT_ID);
+    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN );
     return l_stream;
 }
+
+
+
+/// TODO convert below callback to processor of stage
+/*
+void s_stage_callback()
+{
+    char* l_full_path = NULL;
+    const char * l_path = "stream";
+    const char *l_suburl = "globaldb";
+    int l_full_path_size = snprintf(l_full_path, 0, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
+            dap_client_get_stream_id(a_client_pvt->client));
+    l_full_path = DAP_NEW_Z_SIZE(char, l_full_path_size + 1);
+    snprintf(l_full_path, l_full_path_size + 1, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
+            dap_client_get_stream_id(a_client_pvt->client));
+
+    //dap_client_request(a_client_pvt->client, l_full_path, "12345", 0, m_stream_response, m_stream_error);
+
+    const char *l_add_str = "";
+    // if connect to vpn server
+    const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
+    if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
+        l_add_str = "\r\nService-Key: test";
+
+    {
+        char *l_message = dap_strdup_printf("GET /%s HTTP/1.1\r\nHost: %s:%d%s\r\n\r\n",
+                l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
+        size_t l_message_size = dap_strlen(l_message);
+        int count = send(a_client_pvt->stream_socket, l_message, l_message_size, 0);
+        DAP_DELETE(l_message);
+    }
+    DAP_DELETE(l_full_path);
+
+}*/
+
 
 /**
  * Start VPN client
@@ -101,11 +136,14 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     s_node_info->hdr.ext_port = a_port;
 
     dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
-    const char l_active_channels[] = { VPN_CLIENT_ID, 0 };
+    const char l_active_channels[] = { DAP_STREAM_CH_ID_NET_SRV_VPN , 0 };
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
+
+
+
     s_vpn_client = dap_chain_client_connect(s_node_info, l_stage_target, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
@@ -132,8 +170,8 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     // send first packet to server
 //    if(0)
     {
-        dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
-        if(l_stream) { // Is present in hash table such destination address
+        dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
+        if(l_ch) { // Is present in hash table such destination address
             size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
             ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
 
@@ -142,9 +180,9 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
             //pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
             //pkt_out->header.op_connect.port = a_port;
             //memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
-            dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
+            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                     pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-            dap_stream_ch_set_ready_to_write(l_stream, true);
+            dap_stream_ch_set_ready_to_write(l_ch, true);
             DAP_DELETE(pkt_out);
         }
     }
@@ -240,62 +278,16 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
 }
 
 /**
- * @brief ch_sf_new Callback to constructor of object of Ch
- * @param ch
- * @param arg
+ * @brief dap_chain_net_vpn_client_pkt_in
+ * @param a_ch
+ * @param a_arg
  */
-static void ch_sf_new(dap_stream_ch_t* a_ch, void* arg)
+void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t* a_pkt)
 {
-    log_it(L_INFO, "SF channel created");
+    ch_vpn_pkt_t * l_sf_pkt = (ch_vpn_pkt_t *) a_pkt->data;
+    size_t l_sf_pkt_data_size = a_pkt->hdr.size - sizeof(l_sf_pkt->header);
 
-    a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
-    dap_chain_net_srv_vpn_t * l_sf = CH_VPN(a_ch);
-    l_sf->ch = a_ch;
-    pthread_mutex_init(&l_sf->mutex, NULL);
-
-    pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
-    pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-
-    l_sf->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
-    //a_ch->stream->events_socket->is_pingable = true; //set up connection to be pingable by main loop
-
-}
-
-/**
- * @brief ch_sf_delete
- * @param ch
- * @param arg
- */
-static void ch_sf_delete(dap_stream_ch_t* a_ch, void* arg)
-{
-
-    log_it(L_DEBUG, "ch_sf_delete()");
-    /*    ch_vpn_socket_proxy_t * cur, *tmp;
-     ch_sf_tun_delete(CH_SF(a_ch));
-     HASH_ITER(hh, CH_SF(a_ch)->socks , cur, tmp) {
-     log_it(L_DEBUG,"delete socket: %i", cur->sock);
-     HASH_DEL(CH_SF(a_ch)->socks,cur);
-     if (cur)
-     free(cur);
-     }*/
-    pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-    if(CH_VPN(a_ch)->raw_l3_sock)
-        close(CH_VPN(a_ch)->raw_l3_sock);
-}
-
-/**
- * @brief ch_sf_packet_in
- * @param ch
- * @param arg
- */
-static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
-{
-    dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
-
-    ch_vpn_pkt_t * l_sf_pkt = (ch_vpn_pkt_t *) l_pkt->data;
-    size_t l_sf_pkt_data_size = l_pkt->hdr.size - sizeof(l_sf_pkt->header);
-
-    if(!l_pkt->hdr.size) {
+    if(!a_pkt->hdr.size) {
         log_it(L_WARNING, "Bad input packet");
         return;
     }
@@ -381,7 +373,7 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         pthread_mutex_unlock(&sf_sock->mutex);
                     }
                     log_it(L_INFO, "Send action from %d sock_id (sf_packet size %lu,  ch packet size %lu, have sent %d)"
-                            , sf_sock->id, l_sf_pkt->header.op_data.data_size, l_pkt->hdr.size, ret);
+                            , sf_sock->id, l_sf_pkt->header.op_data.data_size, a_pkt->hdr.size, ret);
                 }
                     break;
                 case VPN_PACKET_OP_CODE_DISCONNECT: {
@@ -530,61 +522,60 @@ static void ch_sf_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 }
 
 /**
- * @brief stream_sf_packet_out Packet Out Ch callback
- * @param ch
- * @param arg
+ * @brief dap_chain_net_vpn_client_pkt_out
+ * @param a_ch
  */
-static void ch_sf_packet_out(dap_stream_ch_t* ch, void* arg)
+void dap_chain_net_vpn_client_pkt_out(dap_stream_ch_t* a_ch)
 {
-    ch_vpn_socket_proxy_t * cur = NULL, *tmp;
-    bool isSmthOut = false;
+    ch_vpn_socket_proxy_t * l_cur = NULL, *l_tmp;
+    bool l_is_smth_out = false;
 //    log_it(L_DEBUG,"Socket forwarding packet out callback: %u sockets in hashtable", HASH_COUNT(CH_VPN(ch)->socks) );
-    HASH_ITER(hh, CH_VPN(ch)->socks , cur, tmp)
+    HASH_ITER(hh, CH_VPN(a_ch)->socks , l_cur, l_tmp)
     {
-        bool signalToBreak = false;
-        pthread_mutex_lock(&(cur->mutex));
+        bool l_signal_to_break = false;
+        pthread_mutex_lock(&(l_cur->mutex));
         int i;
 //        log_it(L_DEBUG,"Socket with id %d has %u packets in output buffer", cur->id, cur->pkt_out_size );
-        if(cur->pkt_out_size) {
-            for(i = 0; i < cur->pkt_out_size; i++) {
-                ch_vpn_pkt_t * pout = cur->pkt_out[i];
+        if(l_cur->pkt_out_size) {
+            for(i = 0; i < l_cur->pkt_out_size; i++) {
+                ch_vpn_pkt_t * pout = l_cur->pkt_out[i];
                 if(pout) {
-                    if(dap_stream_ch_pkt_write(ch, 'd', pout, pout->header.op_data.data_size + sizeof(pout->header))) {
-                        isSmthOut = true;
+                    if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout, pout->header.op_data.data_size + sizeof(pout->header))) {
+                        l_is_smth_out = true;
                         if(pout)
                             free(pout);
-                        cur->pkt_out[i] = NULL;
+                        l_cur->pkt_out[i] = NULL;
                     } else {
                         log_it(L_WARNING,
                                 "Buffer is overflowed, breaking cycle to let the upper level cycle drop data to the output socket");
-                        isSmthOut = true;
-                        signalToBreak = true;
+                        l_is_smth_out = true;
+                        l_signal_to_break = true;
                         break;
                     }
                 }
             }
         }
 
-        if(signalToBreak) {
-            pthread_mutex_unlock(&(cur->mutex));
+        if(l_signal_to_break) {
+            pthread_mutex_unlock(&(l_cur->mutex));
             break;
         }
-        cur->pkt_out_size = 0;
-        if(cur->signal_to_delete) {
-            log_it(L_NOTICE, "Socket id %d got signal to be deleted", cur->id);
-            pthread_mutex_lock(&( CH_VPN(ch)->mutex));
-            HASH_DEL(CH_VPN(ch)->socks, cur);
-            pthread_mutex_unlock(&( CH_VPN(ch)->mutex));
+        l_cur->pkt_out_size = 0;
+        if(l_cur->signal_to_delete) {
+            log_it(L_NOTICE, "Socket id %d got signal to be deleted", l_cur->id);
+            pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
+            HASH_DEL(CH_VPN(a_ch)->socks, l_cur);
+            pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
 
             pthread_mutex_lock(&(sf_socks_mutex));
-            HASH_DELETE(hh2, sf_socks, cur);
-            HASH_DELETE(hh_sock, sf_socks_client, cur);
+            HASH_DELETE(hh2, sf_socks, l_cur);
+            HASH_DELETE(hh_sock, sf_socks_client, l_cur);
             pthread_mutex_unlock(&(sf_socks_mutex));
 
-            pthread_mutex_unlock(&(cur->mutex));
-            vpn_socket_delete(cur);
+            pthread_mutex_unlock(&(l_cur->mutex));
+            vpn_socket_delete(l_cur);
         } else
-            pthread_mutex_unlock(&(cur->mutex));
+            pthread_mutex_unlock(&(l_cur->mutex));
     }
     /*    ch->writable = isSmthOut;
      if(isSmthOut) {
@@ -597,8 +588,6 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 {
     pthread_mutex_init(&sf_socks_mutex, NULL);
 
-    dap_stream_ch_proc_add(VPN_CLIENT_ID, ch_sf_new, ch_sf_delete, ch_sf_packet_in,
-            ch_sf_packet_out);
     return 0;
 }
 

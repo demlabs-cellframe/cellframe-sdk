@@ -310,7 +310,7 @@ static void* thread_read_tun(void *arg)
                     //                  HASH_ADD_INT(CH_SF(ch)->socks, id, sf_sock );
                     //                  HASH_DEL(CH_SF(ch)->socks,sf_sock);
 //                    if(l_stream) { // Is present in hash table such destination address
-                    dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
+                    dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream_ch();
                     if(l_stream) {
                         // form packet to vpn-server
                         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + read_ret);
@@ -321,7 +321,7 @@ static void* thread_read_tun(void *arg)
 
                         pthread_mutex_lock(&s_clients_mutex);
                         // sent packet to vpn server
-                        dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
+                        dap_stream_ch_pkt_write(l_stream, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
                         dap_stream_ch_set_ready_to_write(l_stream, true);
                         pthread_mutex_unlock(&s_clients_mutex);

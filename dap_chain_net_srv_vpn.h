@@ -28,6 +28,12 @@
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
 
+
+#define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT    0x01
+#define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA      0x02
+
+#define DAP_STREAM_CH_ID_NET_SRV_VPN        'S'
+
 #define DAP_CHAIN_NET_SRV_VPN_ID            0x0000000000000001
 
 #define VPN_PACKET_OP_CODE_CONNECTED        0x000000a9
