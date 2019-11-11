@@ -52,7 +52,7 @@ static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 int dap_stream_ch_chain_net_srv_init(void)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
-    dap_stream_ch_proc_add('S',s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_stream_ch_proc_add('R',s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
 
     return 0;
 }
