@@ -34,6 +34,8 @@
 
 #include "portable_endian.h"
 
+typedef uint8_t byte_t;
+
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #else
