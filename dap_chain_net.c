@@ -1540,7 +1540,7 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 {
    dap_chain_t * l_chain;
    DL_FOREACH(l_net->pub.chains, l_chain){
-        if(strcmp(l_chain->name,a_name) == 0)
+        if(dap_strcmp(l_chain->name,a_name) == 0)
             return  l_chain;
    }
    return NULL;
