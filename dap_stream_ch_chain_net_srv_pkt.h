@@ -34,18 +34,28 @@
 #include "dap_chain_net_srv_common.h"
 
 
+// Ch pkt types
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST                       0x01
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE                      0x02
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DBG                           0x99
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_ERROR                         0xff
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST                  0x10
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE                 0x11
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RECEIPE                       0x20
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS              0xf0
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR                0xff
 
+// TYPE_REQUEST
+typedef struct dap_stream_ch_chain_net_srv_pkt_request_hdr{
+    dap_chain_net_id_t net_id;// Network id wheither to request
+    dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
+    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_net_srv_class_t srv_class;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_request{
-    struct{
-        dap_chain_net_id_t net_id;// Network id wheither to request
-        dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
-        dap_chain_net_srv_uid_t srv_uid;
-        dap_chain_net_srv_class_t srv_class;
-    } hdr;
+    dap_stream_ch_chain_net_srv_pkt_request_hdr_t hdr;
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request;
+
+// TYPE_RESPONSE_ERROR
+typedef struct dap_stream_ch_chain_net_srv_pkt_error{
+    uint32_t code; // error code
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_error_t;

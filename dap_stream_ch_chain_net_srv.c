@@ -101,12 +101,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg; // chain packet
     if(l_ch_pkt) {
         switch (l_ch_pkt->hdr.type) {
-            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_ERROR: {
-
-            }break;
-            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DBG: {
-
-            }break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
+            } break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST:{
+            } break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:{
+            } break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RECEIPE:{
+            } break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS:{
+            } break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR:{
+            } break;
             default: log_it( L_WARNING, "Unknown packet type 0x%02X", l_ch_pkt->hdr.type);
         }
     }
