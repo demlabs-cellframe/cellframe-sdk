@@ -131,8 +131,7 @@ RET:
  * @details Creates new wallet
  * @return Wallet, new wallet or NULL if errors
  */
-dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_chain_net_id_t a_net_id,
-                                             dap_chain_sign_type_t a_sig_type)
+dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_chain_sign_type_t a_sig_type)
 {
     dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
@@ -147,7 +146,7 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
 
     l_wallet_internal->certs[0] = dap_chain_cert_generate_mem(a_wallet_name,
                                                          dap_chain_sign_type_to_key_type(a_sig_type));
-    l_wallet_internal->addr = dap_chain_cert_to_addr (l_wallet_internal->certs[0],a_net_id);
+
 
     if ( dap_chain_wallet_save(l_wallet) == 0 )
         return l_wallet;
@@ -177,14 +176,15 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
 /**
  * @brief dap_chain_wallet_get_addr
  * @param a_wallet
+ * @param a_net_id
  * @return
  */
-dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet)
+dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id)
 {
     if(!a_wallet)
         return NULL;
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
-    return l_wallet_internal->addr;
+    return a_net_id.uint64? dap_chain_cert_to_addr (l_wallet_internal->certs[0], a_net_id) : NULL;
 }
 
 /**
@@ -252,7 +252,6 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
             l_file_hdr.signature = DAP_CHAIN_WALLETS_FILE_SIGNATURE;
             l_file_hdr.type = 0;
             l_file_hdr.version = 1;
-            l_file_hdr.net_id = l_wallet_internal->addr->net_id;
             size_t i;
             // write header
             fwrite(&l_file_hdr,1,sizeof(l_file_hdr),l_file);
@@ -349,9 +348,6 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
                     DAP_DELETE (l_data);
                 }
                 fclose(l_file);
-                // make addr
-                if(l_wallet_internal->certs_count>0)
-                    l_wallet_internal->addr = dap_chain_cert_to_addr (l_wallet_internal->certs[0], l_file_hdr.net_id);
                 return l_wallet;
             } else {
                 log_it(L_ERROR,"Wrong wallet file signature: corrupted file or wrong format");

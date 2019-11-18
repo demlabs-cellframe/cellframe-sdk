@@ -46,7 +46,7 @@ typedef struct dap_chain_wallet_file_hdr{
     uint64_t signature;
     uint32_t version;
     uint8_t type; /// Wallets storage type 0x00 - uncompressed and unencrypted
-    dap_chain_net_id_t net_id; // Network where the wallet certificate is used
+    uint64_t padding;
     uint8_t certs[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
 
