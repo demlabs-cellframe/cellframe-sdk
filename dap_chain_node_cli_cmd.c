@@ -1575,6 +1575,8 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name); // for
 
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
+
     dap_string_t *l_string_ret = dap_string_new(NULL);
     switch (cmd_num) {
     // new wallet
@@ -1585,17 +1587,17 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
             return -1;
         }
         dap_chain_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
-        dap_chain_net_id_t l_net_id = { 0x1 };
         // Creates new wallet
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(wallet_name, c_wallets_path, l_net_id, l_sign_type);
-        dap_chain_addr_t *l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
-        if(!l_wallet || !l_addr) {
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(wallet_name, c_wallets_path,  l_sign_type);
+        dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
+        if(!l_wallet ) {
             dap_chain_node_cli_set_reply_text(str_reply, "wallet is not created");
             return -1;
         }
-        char *l_addr_str = dap_chain_addr_to_str(l_addr);
+        char *l_addr_str = l_addr? dap_chain_addr_to_str(l_addr) : NULL;
         dap_string_append_printf(l_string_ret, "wallet '%s' successfully created\n", l_wallet->name);
-        dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
+        if ( l_addr_str )
+            dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
         DAP_DELETE(l_addr_str);
         dap_chain_wallet_close(l_wallet);
     }
@@ -1612,11 +1614,13 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                     char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
                     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
                     if(l_wallet) {
-                        dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet);
+                        dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                         char *l_addr_str = dap_chain_addr_to_str(l_addr);
                         dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
-                        dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
-                        DAP_DELETE(l_addr_str);
+                        if ( l_addr_str){
+                            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+                            DAP_DELETE(l_addr_str);
+                        }
                         dap_chain_wallet_close(l_wallet);
                     }
                     DAP_DELETE(l_file_path_tmp);
@@ -1634,7 +1638,8 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 
         if(wallet_name) {
             l_wallet = dap_chain_wallet_open(wallet_name, c_wallets_path);
-            l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+            if ( l_net )
+                l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
         }
         if(!l_addr && addr_str)
             l_addr = dap_chain_addr_from_str(addr_str);
@@ -2611,19 +2616,12 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
 {
     (void) argc;
     // test
+    /*
     const char * l_token_ticker = NULL;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
     const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
-//    const char *c_net_name = "kelvin-testnet";
     uint64_t l_value = 50;
-    //debug
-    {
-//        dap_chain_wallet_t * l_wallet_tesla = dap_chain_wallet_open("w_picnic", c_wallets_path);
-//        const dap_chain_addr_t *l_addr_tesla = dap_chain_wallet_get_addr(l_wallet_tesla);
-        //      char *addr = dap_chain_addr_to_str(l_addr_tesla);
-//        addr = 0;
-    }
 
     dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
     dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet_from, 0);
@@ -2648,6 +2646,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_set_reply_text(str_reply, "cond create=%s\n",
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for service fee" : "False");
     return res;
+    */
 }
 
 /**
@@ -2740,7 +2739,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -1;
     }
-    const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+    const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
     dap_chain_addr_t *addr_to = dap_chain_addr_from_str(addr_base58_to);
     dap_chain_addr_t *addr_fee = dap_chain_addr_from_str(addr_base58_fee);
 
@@ -2870,7 +2869,7 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
             const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
             dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
             if(l_wallet) {
-                dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet);
+                dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
                 l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
                 memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
                 dap_chain_wallet_close(l_wallet);
