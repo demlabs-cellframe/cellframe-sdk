@@ -27,6 +27,25 @@
 
 #define LOG_TAG "dap_stream_ch_chain_pkt"
 
+
+/**
+ * @brief dap_stream_ch_chain_pkt_to_dap_stream_ch_chain_state
+ * @param a_state
+ * @return
+ */
+uint dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(uint a_state)
+{
+    switch (a_state) {
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
+        return CHAIN_STATE_SYNC_ALL;
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
+        return CHAIN_STATE_SYNC_GLOBAL_DB;
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS:
+        return CHAIN_STATE_SYNC_CHAINS;
+    }
+    return CHAIN_STATE_IDLE;
+}
+
 /**
  * @brief dap_stream_ch_net_pkt_write
  * @param sid
