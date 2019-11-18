@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "dap_common.h"
+#include "dap_hash.h"
 #include "dap_chain_sign.h"
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
@@ -241,6 +242,26 @@ uint8_t* dap_chain_sign_get_pkey(dap_chain_sign_t *a_sign, size_t *a_pub_key_out
         *a_pub_key_out = a_sign->header.sign_pkey_size;
     return a_sign->pkey_n_sign;
 }
+
+/**
+ * @brief dap_chain_sign_get_pkey_hash
+ * @param a_sign
+ * @param a_sign_hash
+ * @return
+ */
+bool dap_chain_sign_get_pkey_hash(dap_chain_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash)
+{
+    if(!a_sign){
+        log_it( L_WARNING, "Sign is NULL on enter");
+        return false;
+    }
+    if( ! a_sign->header.sign_pkey_size ){
+        log_it( L_WARNING, "Sign public key's size is 0");
+        return false;
+    }
+    return dap_hash_fast( a_sign->pkey_n_sign,a_sign->header.sign_pkey_size,a_sign_hash );
+}
+
 
 /**
  * @brief dap_chain_sign_to_enc_key

@@ -66,6 +66,7 @@ dap_enc_key_type_t  dap_chain_sign_type_to_key_type(dap_chain_sign_type_t  a_cha
 
 uint8_t* dap_chain_sign_get_sign(dap_chain_sign_t *a_sign, size_t *a_sign_out);
 uint8_t* dap_chain_sign_get_pkey(dap_chain_sign_t *a_sign, size_t *a_pub_key_out);
+bool dap_chain_sign_get_pkey_hash(dap_chain_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash);
 
 dap_enc_key_t *dap_chain_sign_to_enc_key(dap_chain_sign_t * a_chain_sign);
 const char * dap_chain_sign_type_to_str(dap_chain_sign_type_t a_chain_sign_type);
