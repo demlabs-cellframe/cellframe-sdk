@@ -137,7 +137,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
     }
     dap_string_append_printf( l_reply_str, "]\n\n");
     dap_http_simple_reply( a_http_simple, l_reply_str->str, l_reply_str->len );
-
+    dap_string_free(l_reply_str, true);
     //log_it(L_DEBUG,"Reply in buffer: %s", a_http_simple->reply_str );
     *l_ret_code = Http_Status_OK;
 
