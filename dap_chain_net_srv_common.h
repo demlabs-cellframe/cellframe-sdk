@@ -65,11 +65,6 @@ typedef enum dap_chain_net_srv_order_direction{
     SERV_DIR_UNDEFINED = 0
 } dap_chain_net_srv_order_direction_t;
 
-//Types of services
-enum {
-    SERV_ID_UNDEFINED = 0,
-    SERV_ID_VPN = 1,
-};
 
 //Units of service
 enum {

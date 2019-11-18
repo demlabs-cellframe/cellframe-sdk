@@ -90,7 +90,7 @@ char* dap_chain_net_srv_key_create_hash(const char *a_wallet_name, char **a_addr
     if(!l_wallet)
         return NULL;
     dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, 0);
-    const dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet);
+    const dap_chain_addr_t *l_addr = NULL;// TODO: make work with chain network //  dap_chain_wallet_get_addr(l_wallet);
     char *l_addr_base58 = dap_chain_addr_to_str(l_addr);
     if(!l_addr_base58)
         return NULL;
