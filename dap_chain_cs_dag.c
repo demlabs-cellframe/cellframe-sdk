@@ -1153,18 +1153,18 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tsigns:\tcount: %us\n",l_event->header.signs_count);
                     l_offset += l_datum_size;
                     while (l_offset + sizeof (l_event->header) < l_event_size ){
-                        dap_chain_sign_t * l_sign =(dap_chain_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
-                        size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+                        dap_sign_t * l_sign =(dap_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
+                        size_t l_sign_size = dap_sign_get_size(l_sign);
                         if (l_sign_size == 0 ){
                             dap_string_append_printf(l_str_tmp,"\t\t\t\tERROR: wrong sign size 0, stop parsing headers\n");
                             break;
                         }
-                        dap_enc_key_t * l_sign_key = dap_chain_sign_to_enc_key(l_sign);
+                        dap_enc_key_t * l_sign_key = dap_sign_to_enc_key(l_sign);
                         dap_chain_addr_t l_addr = {0};
                         dap_chain_addr_fill(&l_addr,l_sign_key,&l_net->pub.id);
                         char * l_addr_str = dap_chain_addr_to_str(&l_addr);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\taddr: %s"
-                                                           "n", dap_chain_sign_type_to_str( l_sign->header.type ),
+                                                           "n", dap_sign_type_to_str( l_sign->header.type ),
                                                  l_addr_str );
                         l_offset += l_sign_size;
                         DAP_DELETE( l_addr_str);
