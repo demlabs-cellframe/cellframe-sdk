@@ -630,6 +630,7 @@ lb_proc_state:
             }
         }
             break;
+        default: log_it (L_DEBUG, "Unprocessed state");
     }
     pthread_mutex_unlock(&PVT(l_net)->state_mutex );
     return ret;

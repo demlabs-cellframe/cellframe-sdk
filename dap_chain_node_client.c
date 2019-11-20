@@ -309,7 +309,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
 
                     dap_chain_node_addr_t l_node_addr = { 0 };
                     dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);
-                    l_node_addr.uint64 = dap_db_get_cur_node_addr(l_net->pub.name);
+                    l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                     dap_stream_ch_chain_pkt_write(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
                             a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
                             a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));

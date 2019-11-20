@@ -63,7 +63,7 @@
 #include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_string.h"
-#include "dap_chain_cert.h"
+#include "dap_cert.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
@@ -1586,7 +1586,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                     "wallet name option <-w>  not defined");
             return -1;
         }
-        dap_chain_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
+        dap_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
         // Creates new wallet
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(wallet_name, c_wallets_path,  l_sign_type);
         dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
@@ -1779,7 +1779,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
     if(l_datum_hash_str) {
         const char * l_certs_str = NULL;
-        dap_chain_cert_t ** l_certs = NULL;
+        dap_cert_t ** l_certs = NULL;
         size_t l_certs_count = 0;
         dap_chain_t * l_chain;
 
@@ -1800,7 +1800,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
         // Load certs lists
         if (l_certs_str)
-            dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+            dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
 
         if(!l_certs_count) {
             dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -1831,9 +1831,9 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 size_t l_signs_count = 0;
 
                 for(size_t l_offset = 0; l_offset < l_signs_size; l_signs_count++) {
-                    dap_chain_sign_t * l_sign = (dap_chain_sign_t *) l_datum_token->signs + l_offset;
-                    l_offset += dap_chain_sign_get_size(l_sign);
-                    if( dap_chain_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header)) != 1) {
+                    dap_sign_t * l_sign = (dap_sign_t *) l_datum_token->signs + l_offset;
+                    l_offset += dap_sign_get_size(l_sign);
+                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header)) != 1) {
                         log_it(L_WARNING, "Wrong signature %u for datum_token with key %s in mempool!", l_signs_count, l_datum_hash_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %u, break process and exit",
@@ -1870,10 +1870,10 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 else if(l_datum_token->header.signs_total >= l_signs_count + l_certs_count) {
                     size_t l_offset = 0;
                     for(size_t i = 0; i < l_certs_count; i++) {
-                        dap_chain_sign_t * l_sign = dap_chain_sign_create(l_certs[i]->enc_key,
+                        dap_sign_t * l_sign = dap_sign_create(l_certs[i]->enc_key,
                                 l_datum_token,
                                 sizeof(l_datum_token->header), 0);
-                        size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+                        size_t l_sign_size = dap_sign_get_size(l_sign);
 
 
                         l_signs_size+= l_sign_size;
@@ -1899,14 +1899,15 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     // Recalc hash, string and place new datum
 
                     // Calc datum's hash
-                    dap_chain_hash_fast_t l_key_hash;
-                    dap_hash_fast(l_datum, l_datum_size, (uint8_t*) &l_key_hash);
+                    dap_chain_hash_fast_t l_key_hash={0};
+                    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
                     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
                     // Add datum to mempool with datum_token hash as a key
                     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+                        char* l_hash_str = strdup(l_datum_hash_str);
                         // Remove old datum from pool
-                        if(dap_chain_global_db_gr_del(l_datum_hash_str, l_gdb_group_mempool)) {
+                        if(dap_chain_global_db_gr_del( l_hash_str, l_gdb_group_mempool)) {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                     "datum %s produced from %s is replacing the %s in datum pool",
                                     l_key_str, l_datum_hash_str, l_datum_hash_str);
@@ -1924,6 +1925,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                             DAP_DELETE(l_gdb_group_mempool);
                             return 1;
                         }
+                        DAP_DELETE(l_hash_str);
 
                     }
                     else {
@@ -2061,12 +2063,15 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
         const char * l_datum_hash_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
         if(l_datum_hash_str) {
+            char * l_datum_hash_str2 = strdup(l_datum_hash_str);
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-            if(dap_chain_global_db_gr_del(l_datum_hash_str, l_gdb_group_mempool)) {
+            if(dap_chain_global_db_gr_del(l_datum_hash_str2, l_gdb_group_mempool)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
+                DAP_DELETE( l_datum_hash_str2);
                 return 0;
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+                DAP_DELETE( l_datum_hash_str2);
                 return -4;
             }
         } else {
@@ -2192,7 +2197,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 
     const char * l_certs_str = NULL;
 
-    dap_chain_cert_t ** l_certs = NULL;
+    dap_cert_t ** l_certs = NULL;
     size_t l_certs_size = 0;
 
     dap_chain_t * l_chain = NULL;
@@ -2274,7 +2279,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
     }
 
     // Load certs lists
-    dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+    dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
     if(!l_certs_size) {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "token_create command requres at least one valid certificate to sign the basic transaction of emission");
@@ -2297,11 +2302,11 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
     // Sign header with all certificates in the list and add signs to the end of ticker declaration
     // Important:
     for(size_t i = 0; i < l_certs_size; i++) {
-        dap_chain_sign_t * l_sign = dap_chain_cert_sign(l_certs[i],
+        dap_sign_t * l_sign = dap_cert_sign(l_certs[i],
                 l_datum_token,
                 sizeof(l_datum_token->header),
                 0);
-        size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+        size_t l_sign_size = dap_sign_get_size(l_sign);
         l_datum_token = DAP_REALLOC(l_datum_token, sizeof(l_datum_token->header) + l_signs_offset + l_sign_size);
         memcpy(l_datum_token->signs + l_signs_offset, l_sign, l_sign_size);
         l_signs_offset += l_sign_size;
@@ -2313,7 +2318,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_size, (uint8_t*) &l_key_hash);
+    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
     // Add datum to mempool with datum_token hash as a key
@@ -2363,7 +2368,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
 
     const char * l_certs_str = NULL;
 
-    dap_chain_cert_t ** l_certs = NULL;
+    dap_cert_t ** l_certs = NULL;
     size_t l_certs_size = 0;
 
     const char * l_chain_emission_str = NULL;
@@ -2410,7 +2415,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     }
 
     // Load certs
-    dap_chain_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
+    dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
 
     if(!l_certs_size) {
         dap_chain_node_cli_set_reply_text(str_reply,
@@ -2506,9 +2511,9 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     // Then add signs
     size_t l_offset = 0;
     for(size_t i = 0; i < l_certs_size; i++) {
-        dap_chain_sign_t * l_sign = dap_chain_cert_sign(l_certs[i], &l_token_emission->hdr,
+        dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_token_emission->hdr,
                 sizeof(l_token_emission->hdr), 0);
-        size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+        size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token_emission_size += l_sign_size;
         l_token_emission = DAP_REALLOC(l_token_emission, l_token_emission_size);
         memcpy(l_token_emission->data.type_auth.signs + l_offset, l_sign, l_sign_size);
@@ -2524,7 +2529,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
 
     // Calc token's hash
     dap_chain_hash_fast_t l_token_emission_hash;
-    dap_hash_fast(l_token_emission, l_token_emission_size, (uint8_t*) &l_token_emission_hash);
+    dap_hash_fast(l_token_emission, l_token_emission_size, &l_token_emission_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_token_emission_hash);
 
     // Delete token emission
@@ -2585,12 +2590,12 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     //dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     // calc datum hash
     dap_chain_hash_fast_t l_datum_tx_hash;
-    dap_hash_fast(l_datum_tx, l_datum_tx_size, (uint8_t*) &l_datum_tx_hash);
+    dap_hash_fast(l_datum_tx, l_datum_tx_size,  &l_datum_tx_hash);
     l_key_str = dap_chain_hash_fast_to_str_new(&l_datum_tx_hash);
     DAP_DELETE(l_tx);
 
     // Add to mempool tx token
-    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_tx, l_datum_tx_size
+    if(dap_chain_global_db_gr_set(l_key_str, l_datum_tx, l_datum_tx_size
             , l_gdb_group_mempool_base_tx)) {
         dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp,
                 l_key_str);
@@ -2647,6 +2652,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for service fee" : "False");
     return res;
     */
+    return  -1;
 }
 
 /**
