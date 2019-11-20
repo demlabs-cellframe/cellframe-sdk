@@ -22,7 +22,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
   option(BUILD_64 "Build for 64-bit? 'OFF' builds for 32-bit." ${DEFAULT_BUILD_64})
 
   add_definitions ("-DDAP_SERVER")
-  add_definitions ("-DNODE_NETNAME=\"kelvin\"")
+  add_definitions ("-DNODE_NETNAME=\"cellframe\"")
 
   set(_CCOPT "-Wall -O2 -pg -fPIC -fno-pie -no-pie")
   set(_LOPT "-pg")

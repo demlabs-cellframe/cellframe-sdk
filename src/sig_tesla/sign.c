@@ -7,6 +7,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "KeccakHash.h"
+#include "SimpleFIPS202.h"
 #include "tesla_params.h"
 
 static void pack_sk(unsigned char *sk, poly *s, poly_k *e, unsigned char *seeds, tesla_param_t *p)

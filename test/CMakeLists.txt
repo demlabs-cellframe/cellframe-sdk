@@ -5,3 +5,4 @@ set(CMAKE_C_STANDARD 11)
 
 add_subdirectory(libdap-test)
 add_subdirectory(crypto)
+add_subdirectory(cert)
