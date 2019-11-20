@@ -62,6 +62,8 @@ typedef struct enc_http_delegate{
     struct dap_http_client *http;
 } enc_http_delegate_t;
 
+typedef void (*dap_enc_http_callback_t) (enc_http_delegate_t *,void *); // Callback for specific client operations
+
 int enc_http_init(void);
 void enc_http_deinit(void);
 
