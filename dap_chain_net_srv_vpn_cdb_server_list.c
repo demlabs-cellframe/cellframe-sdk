@@ -59,7 +59,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg);
 int dap_chain_net_srv_vpn_cdb_server_list_init()
 {
     char **l_cdb_networks;
-    size_t l_cdb_networks_count = 0;
+    uint16_t l_cdb_networks_count = 0;
     log_it(L_NOTICE,"Initialized Server List Module");
     l_cdb_networks = dap_config_get_array_str( g_config, "cdb", "networks", &l_cdb_networks_count );
 
