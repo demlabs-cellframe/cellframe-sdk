@@ -24,8 +24,8 @@
 
 #pragma once
 
-#include "dap_chain_cert.h"
-#include "dap_chain_cert_file.h"
+#include "dap_cert.h"
+#include "dap_cert_file.h"
 #include "dap_chain_common.h"
 
 #include "dap_chain_wallet.h"
@@ -39,7 +39,7 @@ typedef struct dap_chain_wallet_cert_hdr{
 
 typedef struct dap_chain_wallet_cert{
     dap_chain_wallet_cert_hdr_t header;
-    dap_chain_cert_file_t cert_raw; /// Raw certs data
+    dap_cert_file_t cert_raw; /// Raw certs data
 } DAP_ALIGN_PACKED dap_chain_wallet_cert_t;
 
 typedef struct dap_chain_wallet_file_hdr{
@@ -61,7 +61,7 @@ typedef struct dap_chain_wallet_internal
     dap_chain_addr_t *addr;
     char * file_name;
     size_t certs_count;
-    dap_chain_cert_t ** certs;
+    dap_cert_t ** certs;
 } dap_chain_wallet_internal_t;
 
 #define DAP_CHAIN_WALLET_INTERNAL(a) ((dap_chain_wallet_internal_t *) a->_internal  )
