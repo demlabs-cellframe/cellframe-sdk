@@ -24,7 +24,7 @@
 
 #include <string.h>
 #include "dap_common.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_common.h"
 #include "dap_enc_base58.h"
 #include "dap_hash.h"
@@ -95,28 +95,6 @@ size_t dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash, char *a_str, s
 #endif
 
 
-/**
- * @brief dap_chain_str_to_hash_fast_to_str
- * @param a_hash_str
- * @param a_hash
- * @return
- */
-int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash)
-{
-    const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
-    size_t l_hash_str_len = strlen( a_hash_str);
-    if ( l_hash_str_len + 1 == c_hash_str_size ){
-        for (size_t l_offset = 2; l_offset < l_hash_str_len; l_offset+=2 ){
-            if ( ( sscanf(a_hash_str+l_offset,"%02hhx",a_hash->raw+l_offset/2-1) != 1) ||
-                 ( sscanf(a_hash_str+l_offset,"%02hhX",a_hash->raw+l_offset/2-1) != 1)
-                 )
-                log_it(L_ERROR,"dap_chain_str_to_hash_fast parse error: offset=%u, hash_str_len=%u, str=\"%2s\"",l_offset, l_hash_str_len, a_hash_str+l_offset);
-                return -10* ((int) l_offset); // Wrong char
-        }
-        return  0;
-    }else  // Wromg string len
-        return -1;
-}
 
 /**
  * @brief dap_chain_addr_to_str
@@ -171,7 +149,7 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
         return;
     a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
     a_addr->net_id.uint64 = a_net_id->uint64;
-    a_addr->sig_type.raw = dap_chain_sign_type_from_key_type(a_key->type).raw;
+    a_addr->sig_type.raw = dap_sign_type_from_key_type(a_key->type).raw;
     // key -> serialized key
     dap_chain_hash_fast_t l_hash_public_key;
     size_t l_pub_key_data_size;

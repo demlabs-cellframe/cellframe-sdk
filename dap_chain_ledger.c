@@ -637,10 +637,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL,
                         TX_ITEM_TYPE_SIG, NULL);
                 // Get sign from sign item
-                dap_chain_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
                 // Get public key from sign
                 size_t l_pkey_ser_size = 0;
-                const uint8_t *l_pkey_ser = dap_chain_sign_get_pkey(l_sign, &l_pkey_ser_size);
+                const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
                 // calculate hash from public key
                 dap_hash_fast(l_pkey_ser, l_pkey_ser_size, &l_hash_pkey);
             }
@@ -1318,8 +1318,8 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
         // Get sign item from transaction
         dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
                 TX_ITEM_TYPE_SIG, NULL);
-        // Get dap_chain_sign_t from item
-        dap_chain_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        // Get dap_sign_t from item
+        dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
         if(l_sig) {
             // compare public key in transaction with a_public_key
             if(a_public_key_size == l_sig->header.sign_pkey_size &&

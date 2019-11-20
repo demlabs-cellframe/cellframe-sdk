@@ -33,7 +33,7 @@
 #include "dap_config.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain.h"
-#include "dap_chain_cert.h"
+#include "dap_cert.h"
 #include "dap_chain_cs.h"
 #include <uthash.h>
 #include <pthread.h>
@@ -62,7 +62,7 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
-    /*if (dap_chain_cert_init() != 0) {
+    /*if (dap_cert_init() != 0) {
         log_it(L_CRITICAL,"Can't chain certificate storage module");
         return -4;
     }*/
@@ -76,9 +76,9 @@ int dap_chain_init(void)
         memcpy(l_temp, s_sys_dir_path, l_sys_dir_path_len);
         memcpy(l_temp + l_sys_dir_path_len, l_ca_folders[i], strlen(l_ca_folders[i]));
         //dap_sprintf(l_temp, "%s/%s", l_sys_dir_path, l_ca_folders[i]);
-        dap_chain_cert_add_folder(l_temp);
+        dap_cert_add_folder(l_temp);
 #else
-        dap_chain_cert_add_folder(l_ca_folders[i]);
+        dap_cert_add_folder(l_ca_folders[i]);
 #endif
     }
     // Cell sharding init

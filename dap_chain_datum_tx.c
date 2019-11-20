@@ -25,7 +25,7 @@
 #include <memory.h>
 #include <assert.h>
 #include "dap_common.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx.h"
 
@@ -172,8 +172,8 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
             return -1;
         if(dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG) {
             dap_chain_tx_sig_t *item_tx_sig = (dap_chain_tx_sig_t*) item;
-            dap_chain_sign_t *a_chain_sign = (dap_chain_sign_t*) item_tx_sig->sig;
-            if(dap_chain_sign_verify(a_chain_sign, tx->tx_items, tx_items_pos) != 1) {
+            dap_sign_t *a_chain_sign = (dap_sign_t*) item_tx_sig->sig;
+            if(dap_sign_verify(a_chain_sign, tx->tx_items, tx_items_pos) != 1) {
                 // invalid signature
                 ret = 0;
                 tx_items_pos += item_size;

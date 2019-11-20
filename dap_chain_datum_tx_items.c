@@ -28,7 +28,7 @@
 #include "dap_common.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
@@ -217,8 +217,8 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
 {
     if(!a_key || !a_data || !a_data_size)
         return NULL;
-    dap_chain_sign_t *l_chain_sign = dap_chain_sign_create(a_key, a_data, a_data_size, 0);
-    size_t l_chain_sign_size = dap_chain_sign_get_size(l_chain_sign); // sign data
+    dap_sign_t *l_chain_sign = dap_sign_create(a_key, a_data, a_data_size, 0);
+    size_t l_chain_sign_size = dap_sign_get_size(l_chain_sign); // sign data
     if(!l_chain_sign) {
         return NULL;
     }
@@ -236,11 +236,11 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  *
  * return sign, NULL Error
  */
-dap_chain_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
+dap_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
 {
     if(!a_tx_sig || !a_tx_sig->header.sig_size)
         return NULL;
-    return (dap_chain_sign_t*) a_tx_sig->sig;
+    return (dap_sign_t*) a_tx_sig->sig;
 }
 
 /**
