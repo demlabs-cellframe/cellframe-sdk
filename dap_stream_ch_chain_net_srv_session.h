@@ -27,7 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_session.h"
 #include "dap_hash.h"
 #include "dap_chain.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_net_srv.h"
@@ -44,7 +44,7 @@ typedef struct dap_stream_ch_chain_net_srv_usage{
 typedef struct dap_stream_ch_chain_net_srv_session {
     dap_stream_session_t * parent;
     dap_stream_ch_chain_net_srv_usage_t * usages;
-    dap_chain_sign_t* user_sign; // User's signature for auth if reconnect
+    dap_sign_t* user_sign; // User's signature for auth if reconnect
 } dap_stream_ch_chain_net_srv_session_t;
 
 dap_stream_ch_chain_net_srv_session_t * dap_stream_ch_chain_net_srv_session_create( dap_stream_session_t * a_session);
