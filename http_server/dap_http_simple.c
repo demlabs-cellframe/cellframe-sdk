@@ -117,7 +117,7 @@ static void _free_user_agents_list( void );
 
 int dap_http_simple_module_init( )
 {
-  s_requests = (dap_http_simple_t *)malloc( sizeof(dap_http_simple_t *) * DAP_HTTP_SIMPLE_REQUEST_MAX * 2 );
+  s_requests = DAP_NEW_Z_SIZE(dap_http_simple_t*, sizeof(dap_http_simple_t *) * DAP_HTTP_SIMPLE_REQUEST_MAX * 2 );
   if ( !s_requests ) {
 
     log_it( L_ERROR, "Out of memory" );

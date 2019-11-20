@@ -102,19 +102,19 @@ typedef enum http_status_code
     Http_Status_NotExtended = 510, /*!< The policy for accessing the resource has not been met in the request. [RFC 2774] */
 } http_status_code_t;
 
-static char http_status_is_informational(int code) { return (code >= 100 && code < 200); } /*!< \returns \c true if the given \p code is an informational code. */
-static char http_status_is_successful(int code)    { return (code >= 200 && code < 300); } /*!< \returns \c true if the given \p code is a successful code. */
-static char http_status_is_redirection(int code)   { return (code >= 300 && code < 400); } /*!< \returns \c true if the given \p code is a redirectional code. */
-static char http_status_is_client_error(int code)   { return (code >= 400 && code < 500); } /*!< \returns \c true if the given \p code is a client error code. */
-static char http_status_is_serverError(int code)   { return (code >= 500 && code < 600); } /*!< \returns \c true if the given \p code is a server error code. */
-static char http_status_is_error(int code)         { return (code >= 400); }               /*!< \returns \c true if the given \p code is any type of error code. */
+static inline char http_status_is_informational(int code) { return (code >= 100 && code < 200); } /*!< \returns \c true if the given \p code is an informational code. */
+static inline char http_status_is_successful(int code)    { return (code >= 200 && code < 300); } /*!< \returns \c true if the given \p code is a successful code. */
+static inline char http_status_is_redirection(int code)   { return (code >= 300 && code < 400); } /*!< \returns \c true if the given \p code is a redirectional code. */
+static inline char http_status_is_client_error(int code)   { return (code >= 400 && code < 500); } /*!< \returns \c true if the given \p code is a client error code. */
+static inline char http_status_is_serverError(int code)   { return (code >= 500 && code < 600); } /*!< \returns \c true if the given \p code is a server error code. */
+static inline char http_status_is_error(int code)         { return (code >= 400); }               /*!< \returns \c true if the given \p code is any type of error code. */
 
 /*! Returns the standard HTTP reason phrase for a HTTP status code.
  * \param code An HTTP status code.
  * \return The standard HTTP reason phrase for the given \p code or \c NULL if no standard
  * phrase for the given \p code is known.
  */
-static const char* http_status_reason_phrase(unsigned short code)
+static inline const char* http_status_reason_phrase(unsigned short code)
 {
     switch (code)
     {
