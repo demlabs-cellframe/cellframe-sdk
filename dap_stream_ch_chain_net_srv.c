@@ -1,38 +1,36 @@
 /*
- * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * CellFrame       https://cellframe.net
- * Sources         https://gitlab.demlabs.net/cellframe
- * Copyright  (c) 2017-2019
- * All rights reserved.
+* Authors:
+* Dmitriy Gerasimov <naeper@demlabs.net>
+* Cellframe       https://cellframe.net
+* DeM Labs Inc.   https://demlabs.net
+* Copyright  (c) 2017-2019
+* All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+This file is part of CellFrame SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+CellFrame SDK is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+CellFrame SDK is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include "dap_common.h"
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_ch_chain_net_srv_pkt.h"
+#include "dap_stream_ch_chain_net_srv_session.h"
 #include "dap_stream_ch_proc.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
-
 
 typedef struct dap_stream_ch_chain_net_srv {
     pthread_mutex_t mutex;
@@ -75,8 +73,12 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
     a_ch->internal=DAP_NEW_Z(dap_stream_ch_chain_net_srv_t);
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     pthread_mutex_init( &l_ch_chain_net_srv->mutex,NULL);
-
-    //a_ch->stream->session->_inheritor = DAP_NEW_Z()
+    if (a_ch->stream->session->_inheritor == NULL && a_ch->stream->session != NULL)
+        dap_stream_ch_chain_net_srv_session_create( a_ch->stream->session );
+    else if ( a_ch->stream->session == NULL)
+        log_it( L_ERROR, "No session at all!");
+    else
+        log_it(L_ERROR, "Session inheritor is already present!");
 }
 
 
