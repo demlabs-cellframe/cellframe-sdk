@@ -294,7 +294,11 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;
 
         if(l_request) {
-            if(l_request->id_start < (uint64_t) dap_db_log_get_last_id()) {
+            uint64_t l_id_last_here = 1;
+            // for sync chain not used time
+            if(a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS)
+                l_id_last_here =(uint64_t) dap_db_log_get_last_id();
+            if(l_request->id_start < l_id_last_here) {
                 log_it(L_INFO, "Remote is synced but we have updates for it");
                 // Get log diff
                 a_ch_chain->request_last_ts = dap_db_log_get_last_id();
@@ -317,9 +321,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     if(l_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN)
                     {
                         dap_chain_t * l_chain = dap_chain_find_by_id(a_pkt->hdr.net_id, a_pkt->hdr.chain_id);
-                        // dbg
                         dap_chain_atom_iter_t* l_iter = l_chain ? l_chain->callback_atom_iter_create(l_chain) : NULL;
-                        a_ch_chain->request_atom_iter = l_iter;
+                        //a_ch_chain->request_atom_iter = l_iter;
 
                         dap_chain_atom_ptr_t * l_lasts = NULL;
                         size_t l_lasts_size = 0;
@@ -340,7 +343,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                                 DAP_DELETE(l_lasts[i]);
                         }
                         DAP_DELETE(l_lasts);
-                        //DAP_DELETE(l_iter);
+                        DAP_DELETE(l_iter);
                     }
                     dap_chain_node_addr_t l_node_addr = { 0 };
                     dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);

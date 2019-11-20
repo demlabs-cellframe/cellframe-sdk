@@ -1074,7 +1074,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             return -1;
         }
         // wait connected
-        int timeout_ms = 50000; //5 sec = 5000 ms
+        int timeout_ms = 5000; //5 sec = 5000 ms
         int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
         if(res) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node: code %d", res);
@@ -1216,7 +1216,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_stream_ch_set_ready_to_write(l_ch_chain, true);
 
             // wait for finishing of request
-            timeout_ms = 1200000; // 2 min = 120 sec = 120 000 ms
+            timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
             // TODO add progress info to console
             res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
             if(res < 0) {
