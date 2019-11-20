@@ -106,9 +106,9 @@ uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
 
     dap_chain_addr_t *l_addr = (l_addr_base58) ? dap_chain_addr_from_str(l_addr_base58) : NULL;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
-    dap_chain_sign_type_t l_sig_type;
+    dap_sign_type_t l_sig_type;
     if(l_addr)
-        memcpy(&l_sig_type, &l_addr->sig_type, sizeof(dap_chain_sign_type_t));
+        memcpy(&l_sig_type, &l_addr->sig_type, sizeof(dap_sign_type_t));
 
     // Search all value in transactions with l_addr in 'out_cond' item
     uint64_t l_value = dap_chain_ledger_tx_cache_get_out_cond_value(a_ledger, l_addr, &l_tx_out_cond);

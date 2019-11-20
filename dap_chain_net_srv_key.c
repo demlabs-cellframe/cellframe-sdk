@@ -33,7 +33,7 @@
 #include "dap_hash.h"
 
 #include "dap_chain_common.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_wallet.h"
 
 #include "dap_chain_net_srv_key.h"
@@ -98,8 +98,8 @@ char* dap_chain_net_srv_key_create_hash(const char *a_wallet_name, char **a_addr
     // make signature
     const void *l_data = l_addr_base58;
     const size_t l_data_size = strlen(l_data);
-    dap_chain_sign_t *l_chain_sign = dap_chain_sign_create(l_key, l_data, l_data_size, 0);
-    size_t l_chain_sign_size = dap_chain_sign_get_size(l_chain_sign);
+    dap_sign_t *l_chain_sign = dap_sign_create(l_key, l_data, l_data_size, 0);
+    size_t l_chain_sign_size = dap_sign_get_size(l_chain_sign);
 
     dap_chain_wallet_close(l_wallet);
     if(a_addr_base58)
@@ -107,7 +107,7 @@ char* dap_chain_net_srv_key_create_hash(const char *a_wallet_name, char **a_addr
     else
         DAP_DELETE(l_addr_base58);
 
-    // make dap_chain_sign_t hash
+    // make dap_sign_t hash
     dap_chain_hash_fast_t l_sign_hash;
     if(!dap_hash_fast(l_chain_sign, l_chain_sign_size, &l_sign_hash) ) {
         return NULL;
@@ -130,18 +130,18 @@ bool dap_chain_net_srv_key_check(char *a_addr_base58, const char *a_sign_hash_st
         return false;
 
     /*    // create l_chain_sign for check a_sign
-     dap_chain_sign_t *l_chain_sign = DAP_NEW_Z_SIZE(dap_chain_sign_t,
-     sizeof(dap_chain_sign_t) + a_sign_size + l_pkey_size);
+     dap_sign_t *l_chain_sign = DAP_NEW_Z_SIZE(dap_sign_t,
+     sizeof(dap_sign_t) + a_sign_size + l_pkey_size);
      l_chain_sign->header.type = l_sig_type;
      l_chain_sign->header.sign_size = l_pkey_size;
      l_chain_sign->header.sign_pkey_size = l_pkey_size;
-     // write serialized public key to dap_chain_sign_t
+     // write serialized public key to dap_sign_t
      memcpy(l_chain_sign->pkey_n_sign, l_pkey, l_pkey_size);
-     // write serialized signature to dap_chain_sign_t
+     // write serialized signature to dap_sign_t
      memcpy(l_chain_sign->pkey_n_sign + l_pkey_size, a_sign, a_sign_size);
 
      // check signature
-     if(dap_chain_sign_verify(l_chain_sign, a_sign, a_sign_size) != 1) {
+     if(dap_sign_verify(l_chain_sign, a_sign, a_sign_size) != 1) {
      // invalid signature
      return 0;
      }*/

@@ -217,8 +217,10 @@ int dap_chain_net_srv_order_delete_by_hash_str(dap_chain_net_t * a_net, const ch
     int ret = -2;
     if ( a_net && a_hash_str  ){
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-        ret = dap_chain_global_db_gr_del( a_hash_str, l_gdb_group_str ) ? 0 : -1;
+        char * l_hash_str = strdup( a_hash_str );
+        ret = dap_chain_global_db_gr_del( l_hash_str, l_gdb_group_str ) ? 0 : -1;
         DAP_DELETE( l_gdb_group_str );
+        DAP_DELETE( l_hash_str );
     }
     return ret;
 }
