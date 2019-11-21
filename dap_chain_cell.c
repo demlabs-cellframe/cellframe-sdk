@@ -70,10 +70,26 @@ int dap_chain_cell_init(void)
  * @brief dap_chain_cell_create
  * @return
  */
-dap_chain_cell_t * dap_chain_cell_create()
+dap_chain_cell_t * dap_chain_cell_create(void)
 {
     dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
     return  l_cell;
+}
+
+/**
+ * @brief dap_chain_cell_create_fill
+ * a_cell_id if <0 then not used
+ * @return
+ */
+dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
+{
+    dap_chain_cell_t * l_cell = dap_chain_cell_create();
+    l_cell->chain = a_chain;
+    l_cell->id.uint64 = a_cell_id.uint64;
+    //dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    //l_cell->id.uint64 = l_net ? l_net->pub.cell_id.uint64 : 0;
+    l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell", l_cell->id.uint64);
+    return l_cell;
 }
 
 /**
@@ -157,6 +173,40 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, size_t a_atom_size)
 {
     size_t l_total_wrote_bytes = 0;
+    // file need to be opened or created
+    if(a_cell->file_storage == NULL) {
+        char *l_file_path = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT ( a_cell->chain)->file_storage_dir,
+                a_cell->file_storage_path);
+        a_cell->file_storage = fopen(l_file_path, "ab");
+        if(a_cell->file_storage == NULL)
+            a_cell->file_storage = fopen(l_file_path, "wb");
+        DAP_DELETE(l_file_path);
+    }
+    if(!a_cell->file_storage) {
+        log_it(L_ERROR, "File \"%s\" not opened  for write cell 0x%016X",
+                a_cell->file_storage_path,
+                a_cell->id.uint64);
+        return -3;
+    }
+    // write header if file empty or not created
+    if(!ftell(a_cell->file_storage)) {
+        dap_chain_cell_file_header_t l_hdr = {
+            .signature = DAP_CHAIN_CELL_FILE_SIGNATURE,
+            .version = DAP_CHAIN_CELL_FILE_VERSION,
+            .type = DAP_CHAIN_CELL_FILE_TYPE_RAW,
+            .chain_id = { .uint64 = a_cell->id.uint64 },
+            .chain_net_id = a_cell->chain->net_id
+        };
+        if(fwrite(&l_hdr, 1, sizeof(l_hdr), a_cell->file_storage) == sizeof(l_hdr)) {
+            log_it(L_NOTICE, "Initialized file storage for cell 0x%016X ( %s )",
+                    a_cell->id.uint64, a_cell->file_storage_path);
+        } else {
+            log_it(L_ERROR, "Can't init file storage for cell 0x%016X ( %s )",
+                    a_cell->id.uint64, a_cell->file_storage_path);
+            fclose(a_cell->file_storage);
+            a_cell->file_storage = NULL;
+        }
+    }
     if ( fwrite(&a_atom_size,1,sizeof(a_atom_size),a_cell->file_storage) == sizeof(a_atom_size) ){
         l_total_wrote_bytes += sizeof (a_atom_size);
         if ( fwrite(a_atom,1,a_atom_size,a_cell->file_storage) == a_atom_size ){
@@ -183,6 +233,8 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
  */
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
 {
+    if(!a_cell)
+        return -1;
     if(!a_cell->chain){
         log_it(L_WARNING,"chain not defined for cell for cell 0x%016X ( %s )",
                                a_cell->id.uint64,a_cell->file_storage_path);
