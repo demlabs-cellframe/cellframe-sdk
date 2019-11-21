@@ -342,25 +342,11 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
 void dap_stream_delete( dap_stream_t *a_stream )
 {
 //    log_it(L_DEBUG,"dap_stream_delete( )");
-
     if(a_stream == NULL) {
         log_it(L_ERROR,"stream delete NULL instance");
         return;
     }
-    size_t i;
-
-    for(i = 0; i < a_stream->channel_count; i++) {
-        dap_stream_ch_delete(a_stream->channel[i]);
-    }
-
-    if ( a_stream->session ) {
-        dap_stream_session_close(a_stream->session->id);
-    }
-
-    pthread_mutex_lock(&s_mutex_keepalive_list);
-    DL_DELETE(s_stream_keepalive_list, a_stream);
     stream_dap_delete(a_stream->conn, NULL);
-    pthread_mutex_unlock(&s_mutex_keepalive_list);
     free(a_stream);
 }
 
@@ -703,11 +689,18 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
     if(sid == NULL)
         return;
     (void) arg;
+
+    pthread_mutex_lock(&s_mutex_keepalive_list);
+    DL_DELETE(s_stream_keepalive_list, sid);
+    pthread_mutex_unlock(&s_mutex_keepalive_list);
+
     size_t i;
     for(i=0;i<sid->channel_count; i++)
         dap_stream_ch_delete(sid->channel[i]);
+    sid->channel_count = 0;
     if(sid->session)
         dap_stream_session_close(sid->session->id);
+    sid->session = NULL;
     //free(sid);
     log_it(L_NOTICE,"[core] Stream connection is finished");
 }
