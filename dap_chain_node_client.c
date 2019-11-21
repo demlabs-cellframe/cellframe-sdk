@@ -46,8 +46,10 @@
 #include "dap_client.h"
 #include "dap_config.h"
 #include "dap_events.h"
+#include "dap_hash.h"
 #include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
+#include "dap_chain_global_db_remote.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
@@ -292,7 +294,11 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;
 
         if(l_request) {
-            if(l_request->id_start < (uint64_t) dap_db_log_get_last_id()) {
+            uint64_t l_id_last_here = 1;
+            // for sync chain not used time
+            if(a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS)
+                l_id_last_here =(uint64_t) dap_db_log_get_last_id();
+            if(l_request->id_start < l_id_last_here) {
                 log_it(L_INFO, "Remote is synced but we have updates for it");
                 // Get log diff
                 a_ch_chain->request_last_ts = dap_db_log_get_last_id();
@@ -305,12 +311,44 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     a_ch_chain->request_net_id.uint64 = a_pkt->hdr.net_id.uint64;
                     a_ch_chain->request_cell_id.uint64 = a_pkt->hdr.cell_id.uint64;
                     a_ch_chain->request_chain_id.uint64 = a_pkt->hdr.chain_id.uint64;
-                    a_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
+                    a_ch_chain->state = dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(a_pkt_type);//CHAIN_STATE_SYNC_CHAINS;//GLOBAL_DB;
 
+                    // type of first packet
+                    uint8_t l_type =
+                            (a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS) ?
+                                    DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB :
+                                    DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN;
+                    if(l_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN)
+                    {
+                        dap_chain_t * l_chain = dap_chain_find_by_id(a_pkt->hdr.net_id, a_pkt->hdr.chain_id);
+                        dap_chain_atom_iter_t* l_iter = l_chain ? l_chain->callback_atom_iter_create(l_chain) : NULL;
+                        //a_ch_chain->request_atom_iter = l_iter;
+
+                        dap_chain_atom_ptr_t * l_lasts = NULL;
+                        size_t l_lasts_size = 0;
+                        l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size);
+                        for(size_t i = 0; i < l_lasts_size; i++) {
+                            dap_chain_atom_item_t * l_item = NULL;
+                            dap_chain_hash_fast_t l_atom_hash;
+                            dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]),
+                                    &l_atom_hash);
+                            HASH_FIND(hh, a_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash), l_item);
+                            if(l_item == NULL) { // Not found, add new lasts
+                                l_item = DAP_NEW_Z(dap_chain_atom_item_t);
+                                l_item->atom = l_lasts[i];
+                                memcpy(&l_item->atom_hash, &l_atom_hash, sizeof(l_atom_hash));
+                                HASH_ADD(hh, a_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash), l_item);
+                            }
+                            else
+                                DAP_DELETE(l_lasts[i]);
+                        }
+                        DAP_DELETE(l_lasts);
+                        DAP_DELETE(l_iter);
+                    }
                     dap_chain_node_addr_t l_node_addr = { 0 };
                     dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);
-                    l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-                    dap_stream_ch_chain_pkt_write(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
+                    l_node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
+                    dap_stream_ch_chain_pkt_write(a_ch_chain->ch, l_type,
                             a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
                             a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
 
