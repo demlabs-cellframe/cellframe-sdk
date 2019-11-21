@@ -208,7 +208,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->is_celled = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_celled",false);
     l_dag->is_add_directy = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
-    l_dag->gdb_group_events_round_new = strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new",
+    l_dag->gdb_group_events_round_new = dap_strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new",
                                                                         "events.round.new"));
     if ( l_dag->is_single_line ) {
         log_it (L_NOTICE, "DAG chain initialized (single line)");
@@ -766,8 +766,12 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
 static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter ,
                                                                   size_t * a_links_size_ptr )
 {
-    if ( a_atom_iter->cur ){
+    if ( a_atom_iter->cur && a_atom_iter->chain){
         dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG( a_atom_iter->chain );
+        if(!l_dag){
+            log_it(L_ERROR,"Chain %s have DAP_CHAIN_CS_DAG() = NULL", a_atom_iter->chain->name);
+            return NULL;
+        }
         dap_chain_cs_dag_event_t * l_event =(dap_chain_cs_dag_event_t *) a_atom_iter->cur;
         dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t *) a_atom_iter->cur_item;
         if ( l_event->header.hash_count > 0){
@@ -784,11 +788,16 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
                     l_ret[i] = l_link_item->event;
                 }else {
                     char * l_link_hash_str = dap_chain_hash_fast_to_str_new(l_link_hash);
-                    char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-                    log_it(L_ERROR,"Can't find %s->%s links", l_event_hash_str, l_link_hash_str);
+                    char * l_event_hash_str = l_event_item ? dap_chain_hash_fast_to_str_new(&l_event_item->hash) : NULL;
+                    log_it(L_ERROR,"Can't find %s->%s links", l_event_hash_str ? l_event_hash_str : "[null]", l_link_hash_str);
                     DAP_DELETE(l_event_hash_str);
                     DAP_DELETE(l_link_hash_str);
+                    (*a_links_size_ptr)--;
                 }
+            }
+            if(!(*a_links_size_ptr)){
+                DAP_DELETE(l_ret);
+                l_ret = NULL;
             }
             return l_ret;
         }
