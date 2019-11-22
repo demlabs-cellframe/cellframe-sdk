@@ -39,6 +39,10 @@ typedef struct dap_cert {
     char * metadata;
 } dap_cert_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_cert_init();
 
 
@@ -62,7 +66,7 @@ dap_cert_t * dap_cert_find_by_name(const char * a_cert_name);
 
 dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data, size_t a_data_size, size_t a_output_size_wished );
 
-int dap_cert_compare_with_sign (dap_cert_t * a_cert,dap_sign_t * a_sign);
+int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign);
 
 
 size_t dap_cert_sign_output_size(dap_cert_t * a_cert, size_t a_size_wished);
@@ -80,3 +84,7 @@ void dap_cert_deinit();
 
 void dap_cert_delete(dap_cert_t * a_cert);
 void dap_cert_delete_by_name(const char * a_cert_name);
+
+#ifdef __cplusplus
+}
+#endif

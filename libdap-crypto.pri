@@ -21,9 +21,16 @@ HEADERS += $$PWD/include/dap_enc.h \
     $$PWD/include/dap_enc_picnic.h \
     $$PWD/include/dap_enc_bliss.h \
     $$PWD/include/dap_enc_tesla.h \
-    $$PWD/include/dap_crypto_common.h \
     $$PWD/include/dap_enc_base58.h \
     $$PWD/include/dap_enc_dilithium.h \
+    $$PWD/include/dap_crypto_common.h \
+    $$PWD/include/dap_cert.h \
+    $$PWD/include/dap_cert_file.h \
+    $$PWD/include/dap_pkey.h \
+    $$PWD/include/dap_sign.h \
+    $$PWD/include/dap_hash.h \
+    $$PWD/include/dap_hash_fusion.h \
+    $$PWD/include/dap_hash_keccak.h \
     $$PWD/src/XKCP/lib/high/Keccak/FIPS202/SimpleFIPS202.h \
     $$PWD/src/XKCP/lib/high/Keccak/SP800-185/SP800-185.h \
     $$PWD/src/XKCP/lib/high/common/Phases.h
@@ -41,6 +48,13 @@ SOURCES += $$PWD/src/dap_enc.c \
     $$PWD/src/dap_enc_base58.c \
     $$PWD/src/dap_enc_dilithium.c \
     $$PWD/src/dap_enc_ca.c \
+    $$PWD/src/dap_cert.c \
+    $$PWD/src/dap_cert_file.c \
+    $$PWD/src/dap_pkey.c \
+    $$PWD/src/dap_sign.c \
+    $$PWD/src/dap_hash.c \
+    $$PWD/src/dap_hash_fusion.c \
+    $$PWD/src/dap_hash_keccak.c \
     $$PWD/src/XKCP/lib/high/Keccak/FIPS202/SimpleFIPS202.c \
     $$PWD/src/XKCP/lib/high/Keccak/SP800-185/SP800-185.c \
     $$PWD/src/XKCP/lib/high/Keccak/SP800-185/SP800-185.inc

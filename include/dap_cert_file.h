@@ -53,8 +53,16 @@ typedef struct dap_cert_file{
     uint8_t data[];
 }DAP_ALIGN_PACKED dap_cert_file_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path);
 uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out);
 
 dap_cert_t* dap_cert_file_load(const char * a_cert_file_path);
-dap_cert_t* dap_cert_mem_load(void * a_data, size_t a_data_size);
+dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size);
+
+#ifdef __cplusplus
+}
+#endif

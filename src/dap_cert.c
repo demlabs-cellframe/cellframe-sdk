@@ -389,7 +389,7 @@ dap_pkey_t * dap_cert_to_pkey(dap_cert_t * a_cert)
  * @param a_sign
  * @return
  */
-int dap_cert_compare_with_sign (dap_cert_t * a_cert,dap_sign_t * a_sign)
+int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
 {
     dap_return_val_if_fail(a_cert && a_cert->enc_key && a_sign, -1);
     if ( dap_sign_type_from_key_type( a_cert->enc_key->type ).type == a_sign->header.type.type ){

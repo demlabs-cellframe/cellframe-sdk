@@ -30,9 +30,7 @@
 #include <time.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+
 
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
@@ -216,6 +214,10 @@ typedef struct dap_enc_key_serealize {
     unsigned char inheritor[MAX_INHERITOR_SIZE];
 } dap_enc_key_serealize_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
@@ -228,10 +230,10 @@ uint8_t* dap_enc_key_deserealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_
 uint8_t* dap_enc_key_serealize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_out);
 uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_out);
 int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen);
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen);
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen);
 
 dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key);
-dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size);
+dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size);
 
 // allocate memory for key struct
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);

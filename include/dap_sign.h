@@ -61,6 +61,10 @@ typedef struct dap_sign
     uint8_t pkey_n_sign[]; /// @param sig @brief raw signature data
 } DAP_ALIGN_PACKED dap_sign_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 size_t dap_sign_get_size(dap_sign_t * a_chain_sign);
 
 int dap_sign_verify (dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size);
@@ -85,3 +89,6 @@ dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type);
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str);
 
+#ifdef __cplusplus
+}
+#endif

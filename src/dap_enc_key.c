@@ -410,7 +410,7 @@ int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;
@@ -490,13 +490,13 @@ dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
  * @param buf_size
  * @return allocates dap_enc_key_t*. Use dap_enc_key_delete for free memory
  */
-dap_enc_key_t* dap_enc_key_deserealize(void *buf, size_t buf_size)
+dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size)
 {
     if(buf_size != sizeof (dap_enc_key_serealize_t)) {
         log_it(L_ERROR, "Key can't be deserealize. buf_size != sizeof (dap_enc_key_serealize_t)");
         return NULL;
     }
-    dap_enc_key_serealize_t *in_key = (dap_enc_key_serealize_t *)buf;
+    const dap_enc_key_serealize_t *in_key = (const dap_enc_key_serealize_t *)buf;
     dap_enc_key_t *result = dap_enc_key_new(in_key->type);
     result->last_used_timestamp = in_key->last_used_timestamp;
     result->priv_key_data_size = in_key->priv_key_data_size;
