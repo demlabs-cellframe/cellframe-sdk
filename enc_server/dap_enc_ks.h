@@ -37,9 +37,6 @@ typedef struct dap_enc_ks_key{
     UT_hash_handle hh; // makes this structure hashable with UTHASH library
 } dap_enc_ks_key_t;
 
-int dap_enc_ks_init(bool memcache_backup_enable,
-                    time_t memcache_expiration_key);
-
 void dap_enc_ks_deinit();
 
 dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id);

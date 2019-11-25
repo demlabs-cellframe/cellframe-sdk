@@ -12,12 +12,8 @@ if(WIN32)
     add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
     add_definitions ("-DCURL_STATICLIB")
 #    add_definitions ("-DDAP_SERVER NODE_NETNAME=\"kelvin\"")
-endif()
 
-if(WIN32)
   include_directories(../../libdap/src/win32/)
-  include_directories(../../3rdparty/libmemcached/)
-  include_directories(../../3rdparty/libmemcached/win32/)
   include_directories(../../3rdparty/wepoll/include/)
   include_directories(../../3rdparty/uthash/src/)
   include_directories(../../3rdparty/libjson-c/)
@@ -28,9 +24,8 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_ENC_SERVER_SRCS})
 
 if(WIN32)
-  target_link_libraries(dap_enc_server dap_core dap_crypto dap_server_core dap_http_server
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libmemcached[x86_64CLANG].a
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libmagic[x86_64CLANG].a
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/curl[x86_64CLANG].a
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/[x86_64CLANG]/libjson-c[x86_64CLANG].a
@@ -55,7 +50,7 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_enc_server dap_core dap_crypto dap_server_core dap_http_server json-c)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server json-c )
 endif()
 
-target_include_directories(dap_enc_server INTERFACE .)
+target_include_directories(${PROJECT_NAME} INTERFACE .)

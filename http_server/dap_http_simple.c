@@ -44,7 +44,6 @@
 #endif
 
 #include <pthread.h>
-#include <json-c/json.h>
 
 #include "utlist.h"
 
