@@ -763,7 +763,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 #ifndef _WIN32
     struct sockaddr_un l_server_addr={0};
     l_server_addr.sun_family =  AF_UNIX;
-    snprintf(l_server_addr.sun_path,sizeof(l_server_addr.sun_path), dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path") );
+    snprintf(l_server_addr.sun_path,sizeof(l_server_addr.sun_path), "%s", dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path") );
 #else
    pthread_t threadId;
 #endif
