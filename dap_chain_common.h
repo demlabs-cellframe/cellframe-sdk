@@ -153,6 +153,10 @@ static inline long double dap_chain_balance_to_coins( uint128_t a_balance){
     return (long double) a_balance / DATOSHI_LD;
 }
 
+static inline uint128_t dap_chain_coins_to_balance( long double a_balance){
+    return (uint128_t)( a_balance * DATOSHI_LD) ;
+}
+
 /**
  * @brief dap_chain_hash_to_str
  * @param a_hash
