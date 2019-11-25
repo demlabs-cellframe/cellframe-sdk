@@ -123,10 +123,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
 /**
  * @brief s_stream_ch_packet_out
- * @param ch
- * @param arg
+ * @param a_ch
+ * @param a_arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg)
+void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
-
+    (void) a_arg;
+    log_it(L_WARNING,"We don't need anything special to write but for some reasons write flag was on and now we're in output callback. Why?");
+    dap_stream_ch_set_ready_to_write(a_ch, false);
 }
