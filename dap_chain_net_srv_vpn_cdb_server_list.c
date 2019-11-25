@@ -61,7 +61,7 @@ int dap_chain_net_srv_vpn_cdb_server_list_init()
     char **l_cdb_networks;
     uint16_t l_cdb_networks_count = 0;
     log_it(L_NOTICE,"Initialized Server List Module");
-    l_cdb_networks = dap_config_get_array_str( g_config, "cdb", "networks", &l_cdb_networks_count );
+    l_cdb_networks = dap_config_get_array_str( g_config, "cdb", "servers_list_networks", &l_cdb_networks_count );
 
     if ( l_cdb_networks_count ){
         s_cdb_net = DAP_NEW_Z_SIZE(dap_chain_net_t*, sizeof (dap_chain_net_t*)* l_cdb_networks_count );
@@ -115,6 +115,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     dap_string_append_printf( l_reply_str, "    {\n");
 
                     dap_string_append_printf( l_reply_str, "        \"Location\":\"NETHERLANDS\",\n");
+                    dap_string_append_printf( l_reply_str, "        \"ChainNet\":\"%s\",\n",l_net->pub.name );
                     dap_string_append_printf( l_reply_str, "        \"Name\":\"%s.Cell-%lu.%zd\",\n",l_net->pub.name, l_node_info->hdr.cell_id.uint64, j);
                     if ( l_node_ext_ipv4_str[0] )
                         dap_string_append_printf( l_reply_str,"        \"Address\":\"%s\",\n",l_node_ext_ipv4_str);
