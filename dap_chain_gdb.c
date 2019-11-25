@@ -95,6 +95,8 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash);
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_atom_iter_t * a_atom_iter ,
+                                                                       dap_chain_hash_fast_t * a_atom_hash);
 
 // Get event(s) from gdb
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter); //    Get the fisrt event from gdb
