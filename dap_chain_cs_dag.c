@@ -59,6 +59,7 @@ typedef struct dap_chain_cs_dag_event_item {
     UT_hash_handle hh;
 } dap_chain_cs_dag_event_item_t;
 
+
 typedef struct dap_chain_cs_dag_pvt {
     dap_enc_key_t* datum_add_sign_key;
 
@@ -66,6 +67,8 @@ typedef struct dap_chain_cs_dag_pvt {
     pthread_rwlock_t events_rwlock;
 
     dap_chain_cs_dag_event_item_t * events;
+
+    dap_chain_cs_dag_event_item_t * tx_events;
     dap_chain_cs_dag_event_item_t * events_treshold;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
 
@@ -85,6 +88,8 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
 
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
+                                                                       dap_chain_hash_fast_t * a_atom_hash);
+static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
                                                                        dap_chain_hash_fast_t * a_atom_hash);
 
 static dap_chain_datum_t* s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event);
@@ -181,6 +186,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_get_lasts = s_chain_callback_atom_iter_get_lasts;
 
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
+    a_chain->callback_tx_find_by_hash = s_chain_callback_atom_iter_find_by_tx_hash;
 
 
     a_chain->callback_datums_pool_proc = s_chain_callback_datums_pool_proc;
@@ -305,6 +311,8 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
         l_event_last->ts_added = l_event_item->ts_added;
         l_event_last->event = l_event;
+        dap_hash_fast(l_event, dap_chain_cs_dag_event_calc_size(l_event),&l_event_last->hash );
+
         HASH_ADD(hh,PVT(l_dag)->events_lasts_unlinked,hash,sizeof (l_event_last->hash),l_event_last);
     }
 
@@ -323,6 +331,12 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         break;
     case DAP_CHAIN_DATUM_TX: {
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+        dap_chain_cs_dag_event_item_t * l_tx_event= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+        l_tx_event->ts_added = l_event_item->ts_added;
+        l_tx_event->event = l_event;
+        memcpy(&l_tx_event->hash, &l_event_item->hash, sizeof (l_tx_event->hash) );
+        HASH_ADD(hh,PVT(l_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
+
         //if ( !l_gdb_priv->is_load_mode ) // If its not load module but mempool proc
         //    l_tx->header.ts_created = time(NULL);
         //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
@@ -678,12 +692,14 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
     l_atom_iter->chain = a_chain;
     l_atom_iter->cur = a_atom;
 
-    dap_chain_hash_fast_t l_atom_hash;
-    dap_hash_fast(a_atom, a_chain->callback_atom_get_size(a_atom), &l_atom_hash );
+    if ( a_atom ){
+        dap_chain_hash_fast_t l_atom_hash;
+        dap_hash_fast(a_atom, a_chain->callback_atom_get_size(a_atom), &l_atom_hash );
 
-    dap_chain_cs_dag_event_item_t  * l_atom_item;
-    HASH_FIND(hh, PVT(DAP_CHAIN_CS_DAG(a_chain))->events, &l_atom_hash, sizeof(l_atom_hash),l_atom_item );
-    l_atom_iter->cur_item = l_atom_item;
+        dap_chain_cs_dag_event_item_t  * l_atom_item;
+        HASH_FIND(hh, PVT(DAP_CHAIN_CS_DAG(a_chain))->events, &l_atom_hash, sizeof(l_atom_hash),l_atom_item );
+        l_atom_iter->cur_item = l_atom_item;
+    }
     return l_atom_iter;
 
 }
@@ -821,6 +837,20 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
         a_atom_iter->cur_item = l_event_item;
         a_atom_iter->cur = l_event_item->event;
         return  l_event_item->event;
+    }else
+        return NULL;
+}
+
+
+static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
+                                                                       dap_chain_hash_fast_t * a_atom_hash)
+{
+    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG( a_chain );
+    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+    HASH_FIND(hh, PVT(l_dag)->tx_events,a_atom_hash,sizeof(*a_atom_hash),l_event_item);
+    if ( l_event_item ){
+        dap_chain_datum_t * l_datum = dap_chain_cs_dag_event_get_datum(l_event_item->event) ;
+        return l_datum ? l_datum->header.data_size ? (dap_chain_datum_tx_t*) l_datum->data : NULL :NULL;
     }else
         return NULL;
 }
