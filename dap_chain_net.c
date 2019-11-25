@@ -1617,3 +1617,42 @@ void dap_chain_net_proc_datapool (dap_chain_net_t * a_net)
 {
 
 }
+
+/**
+ * @brief dap_chain_net_tx_get_by_hash
+ * @param a_net
+ * @param a_tx_hash
+ * @param a_search_type
+ * @return
+ */
+dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
+                                                     dap_chain_net_tx_search_type_t a_search_type)
+{
+    dap_ledger_t * l_ledger = dap_chain_ledger_by_net_name( a_net->pub.name );
+    dap_chain_datum_tx_t * l_tx = NULL;
+
+    switch (a_search_type) {
+        case TX_SEARCH_TYPE_NET:
+        case TX_SEARCH_TYPE_CELL:
+        case TX_SEARCH_TYPE_LOCAL:{
+            if ( ! l_tx ){
+                // pass all chains
+                for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+                    if ( l_chain->callback_tx_find_by_hash ){
+                        // try to find transaction in chain ( inside shard )
+                        l_tx = l_chain->callback_tx_find_by_hash( l_chain, a_tx_hash );
+                        if (l_tx)
+                            break;
+                    }
+                }
+            }
+        }break;
+
+        case TX_SEARCH_TYPE_NET_UNSPENT:
+        case TX_SEARCH_TYPE_CELL_UNSPENT:{
+            l_tx = dap_chain_ledger_tx_find_by_hash( l_ledger, a_tx_hash );
+        }break;
+    }
+    return l_tx;
+}
+

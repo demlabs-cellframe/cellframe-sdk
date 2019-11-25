@@ -108,6 +108,21 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
 void dap_chain_net_links_connect(dap_chain_net_t * a_net);
 
+typedef enum dap_chain_net_tx_search_type {
+    /// Search local, in memory, possible load data from drive to memory
+    TX_SEARCH_TYPE_LOCAL,
+    /// Do the request to the network if its not full node, search inside shard
+    TX_SEARCH_TYPE_CELL,
+    /// Do the request for unspent txs in cell
+    TX_SEARCH_TYPE_CELL_UNSPENT,
+    /// Do the search in whole network and request tx from others cells if need
+    TX_SEARCH_TYPE_NET,
+    /// Do the search in whole network but search only unspent
+    TX_SEARCH_TYPE_NET_UNSPENT
+}dap_chain_net_tx_search_type_t;
+
+dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
+                                                     dap_chain_net_tx_search_type_t a_search_type);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
