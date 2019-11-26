@@ -597,7 +597,13 @@ void  *thread_loop( void *arg )
   CPU_ZERO( &mask );
   CPU_SET( tn, &mask );
 
-  if ( pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) != 0 ) {
+  int err;
+#ifndef ANDROID
+  err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
+#else
+  err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
+#endif
+  if (err) {
     log_it( L_CRITICAL, "Error pthread_setaffinity_np() You really have %d or more core in CPU?", tn );
     abort();
   }

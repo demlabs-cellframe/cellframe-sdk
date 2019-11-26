@@ -280,19 +280,25 @@ static void *thread_worker_function( void *arg )
   time_t next_time_timeout_check = time( NULL ) + s_connection_timeout / 2;
   uint32_t tn = w->number_thread;
 
-  #ifndef _WIN32
-  #ifndef NO_POSIX_SHED
+#ifndef _WIN32
+#ifndef NO_POSIX_SHED
   cpu_set_t mask;
   CPU_ZERO( &mask );
   CPU_SET( tn, &mask );
 
-  if ( pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) != 0 )
+  int err;
+#ifndef __ANDROID__
+  err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
+#else
+  err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
+#endif
+  if (err)
   {
     log_it(L_CRITICAL, "Error pthread_setaffinity_np() You really have %d or more core in CPU?", *(int*)arg);
     abort();
   }
-  #endif
-  #else
+#endif
+#else
 
   if ( !SetThreadAffinityMask( GetCurrentThread(), (DWORD_PTR)(1 << tn) ) ) {
     log_it( L_CRITICAL, "Error pthread_setaffinity_np() You really have %d or more core in CPU?", tn );
