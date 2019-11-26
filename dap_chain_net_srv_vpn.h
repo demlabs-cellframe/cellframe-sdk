@@ -24,6 +24,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#ifdef DAP_OS_UNIX
+#include <netinet/in.h>
+#endif
 
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
@@ -59,7 +62,11 @@
 #define VPN_PACKET_OP_CODE_PONG             0xc1
 
 typedef struct dap_stream_ch_vpn_remote_single { //
-    in_addr_t addr;
+#ifdef DAP_OS_UNIX
+    in_addr_t addr_ipv4;
+#else
+    uint32_t addr_ipv4;
+#endif
 //    pthread_mutex_t mutex;
     dap_stream_ch_t * ch;
 

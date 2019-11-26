@@ -439,10 +439,10 @@ void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg)
                         n_addr.s_addr = ntohl(n_addr.s_addr);
                     }
 
-                    n_client->addr = n_addr.s_addr;
+                    n_client->addr_ipv4 = n_addr.s_addr;
                     s_raw_server->client_addr_last.s_addr = n_addr.s_addr;
                     ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
-                    HASH_ADD_INT(s_raw_server->clients, addr, n_client);
+                    HASH_ADD_INT(s_raw_server->clients, addr_ipv4, n_client);
 
                     pthread_mutex_unlock(&s_raw_server->clients_mutex);
 
