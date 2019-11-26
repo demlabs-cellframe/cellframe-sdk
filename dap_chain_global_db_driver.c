@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
