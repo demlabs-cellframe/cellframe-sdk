@@ -37,7 +37,7 @@
 
 typedef struct dap_chain_cs_dag_pos_pvt
 {
-    dap_chain_cert_t * events_sign_wallet;
+    dap_cert_t * events_sign_wallet;
     char ** tokens_hold;
     uint64_t * tokens_hold_value;
     size_t tokens_hold_size;
@@ -147,7 +147,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     const char * l_events_sign_wallet = NULL;
     if ( ( l_events_sign_wallet = dap_config_get_item_str(a_chain_net_cfg,"dag-pos","events-sign-wallet") ) != NULL ) {
 
-        if ( ( PVT(l_pos)->events_sign_wallet = dap_chain_cert_find_by_name(l_events_sign_wallet)) == NULL ){
+        if ( ( PVT(l_pos)->events_sign_wallet = dap_cert_find_by_name(l_events_sign_wallet)) == NULL ){
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_wallet);
         }else
             log_it(L_NOTICE,"Loaded \"%s\" certificate to sign pos event", l_events_sign_wallet);
@@ -218,8 +218,8 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 
     if ( a_dag_event->header.signs_count == 1 ){
         dap_chain_addr_t l_addr = { 0 };
-        dap_chain_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
-        dap_enc_key_t * l_key = dap_chain_sign_to_enc_key( l_sign);
+        dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
+        dap_enc_key_t * l_key = dap_sign_to_enc_key( l_sign);
 
         dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
         dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
