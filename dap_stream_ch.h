@@ -30,9 +30,7 @@ typedef struct dap_stream_ch_proc dap_stream_ch_proc_t;
 typedef struct dap_stream_ch dap_stream_ch_t;
 typedef struct dap_events_socket dap_events_socket_t;
 
-#define SERVICE_CHANNEL_ID 's'
-#define VPN_CLIENT_ID SERVICE_CHANNEL_ID
-#define DATA_CHANNEL_ID 'd'
+#define TECHICAL_CHANNEL_ID 't'
 
 typedef void (*dap_stream_ch_callback_t) (dap_stream_ch_t*,void*);
 
