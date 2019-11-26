@@ -26,7 +26,7 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_hash.h"
 
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
@@ -67,7 +67,7 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t 
 
 // Important: returns new deep copy of event
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, dap_enc_key_t * l_key);
-dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number);
+dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number);
 
 /**
  * @brief dap_chain_cs_dag_event_calc_size
@@ -87,7 +87,7 @@ static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *
     uint16_t l_signs_offset = 0;
     uint16_t l_signs_passed;
     for ( l_signs_passed=0;  l_signs_passed < a_event->header.signs_count; l_signs_passed++){
-        dap_chain_sign_t * l_sign = (dap_chain_sign_t *) l_signs+l_signs_offset;
+        dap_sign_t * l_sign = (dap_sign_t *) l_signs+l_signs_offset;
         l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
     }
 

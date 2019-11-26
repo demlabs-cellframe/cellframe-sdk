@@ -26,7 +26,7 @@
 #include "dap_enc_key.h"
 
 #include "dap_hash.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
@@ -65,11 +65,11 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
 
     if ( a_key ){
-        dap_chain_sign_t * l_sign = dap_chain_sign_create(a_key,l_event_new,
+        dap_sign_t * l_sign = dap_sign_create(a_key,l_event_new,
                                                           l_hashes_size+  sizeof(l_event_new->header)
                                                           + l_datum_size ,0);
         if ( l_sign ){
-            size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+            size_t l_sign_size = dap_sign_get_size(l_sign);
             l_event_new = (dap_chain_cs_dag_event_t* )DAP_REALLOC(l_event_new,l_event_size+l_sign_size );
             memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_size += l_sign_size;
@@ -111,8 +111,8 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_
 {
     size_t l_event_size = dap_chain_cs_dag_event_calc_size( a_event );
     size_t l_event_signing_size = dap_chain_cs_dag_event_calc_size_excl_signs( a_event );
-    dap_chain_sign_t * l_sign = dap_chain_sign_create(l_key,a_event,l_event_signing_size,0);
-    size_t l_sign_size = dap_chain_sign_get_size(l_sign);
+    dap_sign_t * l_sign = dap_sign_create(l_key,a_event,l_event_signing_size,0);
+    size_t l_sign_size = dap_sign_get_size(l_sign);
     dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
     memcpy(l_event_new, a_event,l_event_size);
     memcpy(l_event_new+l_event_size,l_sign,l_sign_size);
@@ -126,7 +126,7 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_
  * @param a_sign_number
  * @return
  */
-dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number)
+dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number)
 {
     if (a_event->header.signs_count > a_sign_number ){
         size_t l_offset_to_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_event);
@@ -134,10 +134,10 @@ dap_chain_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a
         uint16_t l_signs_offset = 0;
         uint16_t l_signs_passed;
         for ( l_signs_passed=0;  l_signs_passed < a_sign_number; l_signs_passed++){
-            dap_chain_sign_t * l_sign = (dap_chain_sign_t *) (l_signs+l_signs_offset);
+            dap_sign_t * l_sign = (dap_sign_t *) (l_signs+l_signs_offset);
             l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
         }
-        return (dap_chain_sign_t*) l_signs + l_signs_offset;
+        return (dap_sign_t*) l_signs + l_signs_offset;
     }else
         return NULL;
 }
