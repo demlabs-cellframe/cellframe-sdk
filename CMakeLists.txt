@@ -2,25 +2,11 @@ cmake_minimum_required(VERSION 2.8)
 project (dap_chain_crypto)
   
 set(DAP_CHAIN_CRYPTO_SRCS 
-        dap_hash.c
-        dap_hash_fusion.c
-        dap_hash_keccak.c
         dap_hash_slow.c
-        dap_chain_pkey.c
-        dap_chain_sign.c
-        dap_chain_cert.c
-        dap_chain_cert_file.c
         )
 
 set(DAP_CHAIN_CRYPTO_HEADERS
-        dap_hash.h
-        dap_hash_fusion.h
-        dap_hash_keccak.h
         dap_hash_slow.h
-        dap_chain_pkey.h
-        dap_chain_sign.h
-        dap_chain_cert.h
-        dap_chain_cert_file.h
     )
 
 if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
