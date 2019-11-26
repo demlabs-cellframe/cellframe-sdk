@@ -366,10 +366,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 //                                   l_dag->datum_add_hashes_count :
 //                                   l_events_round_new_size+a_datums_count;
 
-    if (l_dag->is_single_line ) // If single line - no any link inside
-        l_hashes_int_size = 0;
+    if (l_dag->is_single_line ) // If single line - only one link inside
+        l_hashes_int_size = min(l_hashes_int_size, 1);
 
-    size_t l_hashes_ext_size = 1; // Change in cfg
+    size_t l_hashes_ext_size = 0; // Change in cfg
     size_t l_hashes_size = l_hashes_int_size+l_hashes_ext_size;
     dap_chain_hash_fast_t * l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
                                              sizeof(dap_chain_hash_fast_t) * l_hashes_size);
@@ -417,9 +417,9 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
         // Now link with ext events
         dap_chain_cs_dag_event_item_t *l_event_ext_item = NULL;
-        // is_single_line - no any link inside
-        if(!l_dag->is_single_line)
-        if( PVT(l_dag)->events_lasts_unlinked) { // Take then the first one if any events_lasts are present
+        // is_single_line - only one link inside
+        if(!l_dag->is_single_line || !l_hashes_linked)
+        if( PVT(l_dag)->events_lasts_unlinked && l_hashes_linked < l_hashes_size) { // Take then the first one if any events_lasts are present
                 l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
                 memcpy(&l_hashes[l_hashes_linked], &l_event_ext_item->hash, sizeof(l_event_ext_item->hash));
                 l_hashes_linked++;
