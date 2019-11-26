@@ -36,6 +36,7 @@
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN               0x20
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB           0x21
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS               0x02
@@ -84,6 +85,7 @@ static const char* c_dap_stream_ch_chain_pkt_type_str[]={
 
 };
 
+uint dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(uint a_state);
 
 size_t dap_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
                                      dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
