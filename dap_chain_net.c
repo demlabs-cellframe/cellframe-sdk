@@ -630,6 +630,7 @@ lb_proc_state:
             }
         }
             break;
+        default: log_it (L_DEBUG, "Unprocessed state");
     }
     pthread_mutex_unlock(&PVT(l_net)->state_mutex );
     return ret;
@@ -845,6 +846,13 @@ void dap_chain_net_load_all()
                 continue;
             }
             DAP_DELETE(l_full_path);
+            // search only ".cfg" files
+            if(strlen(l_dir_entry->d_name) > 4) { // It has non zero name excluding file extension
+                if(strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) != 0) {
+                    // its not .cfg file
+                    continue;
+                }
+            }
             log_it(L_DEBUG,"Network config %s try to load", l_dir_entry->d_name);
             //char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
             char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
@@ -1064,6 +1072,23 @@ static int s_cli_net( int argc, char **argv, char **a_str_reply)
 
     }
     return  ret;
+}
+
+// for sequential loading chains
+typedef struct list_priority_{
+    uint16_t prior;
+    char * chains_path;
+}list_priority;
+
+static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2)
+{
+    list_priority *l_item1 = (list_priority*) a_item1;
+    list_priority *l_item2 = (list_priority*) a_item2;
+    if(!l_item1 || !l_item2 || l_item1->prior == l_item2->prior)
+        return 0;
+    if(l_item1->prior > l_item2->prior)
+        return 1;
+    return -1;
 }
 
 /**
@@ -1312,6 +1337,9 @@ int s_net_load(const char * a_net_name)
         DIR * l_chains_dir = opendir(l_chains_path);
         DAP_DELETE (l_chains_path);
         if ( l_chains_dir ){
+            // for sequential loading chains
+            dap_list_t *l_prior_list = NULL;
+
             struct dirent * l_dir_entry;
             while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
                 if (l_dir_entry->d_name[0]=='\0')
@@ -1322,20 +1350,48 @@ int s_net_load(const char * a_net_name)
                         l_entry_name [strlen(l_entry_name)-4] = 0;
                         log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
                         l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
-                        // Create chain object
-                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
-                                l_net->pub.id, l_chains_path);
-                        if(l_chain) {
-                            DL_APPEND(l_net->pub.chains, l_chain);
-                            if(l_chain->callback_created)
-                                l_chain->callback_created(l_chain, l_cfg);
+                        dap_config_t * l_cfg = dap_config_open(l_chains_path);
+                        if(l_cfg) {
+                            list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
+                            l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
+                            l_chain_prior->chains_path = l_chains_path;
+                            // add chain to load list;
+                            l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
                         }
-                        DAP_DELETE (l_chains_path);
+                        // Create chain object
+//                        dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
+//                                l_net->pub.id, l_chains_path);
+//                        if(l_chain) {
+//                            DL_APPEND(l_net->pub.chains, l_chain);
+//                            if(l_chain->callback_created)
+//                                l_chain->callback_created(l_chain, l_cfg);
+//                        }
+//                        DAP_DELETE (l_chains_path);
                     }
                 }
                 DAP_DELETE (l_entry_name);
             }
             closedir(l_chains_dir);
+
+            // sort list with chains names by priority
+            l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
+            // load chains by priority
+            dap_list_t *l_list = l_prior_list;
+            while(l_list){
+                list_priority *l_chain_prior = l_list->data;
+                // Create chain object
+                dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
+                        l_net->pub.id, l_chain_prior->chains_path);
+                if(l_chain) {
+                    DL_APPEND(l_net->pub.chains, l_chain);
+                    if(l_chain->callback_created)
+                        l_chain->callback_created(l_chain, l_cfg);
+                }
+                DAP_DELETE (l_chain_prior->chains_path);
+                l_list = dap_list_next(l_list);
+            }
+            dap_list_free(l_prior_list);
+
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
             PVT(l_net)->load_mode = false;
@@ -1485,7 +1541,7 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 {
    dap_chain_t * l_chain;
    DL_FOREACH(l_net->pub.chains, l_chain){
-        if(strcmp(l_chain->name,a_name) == 0)
+        if(dap_strcmp(l_chain->name,a_name) == 0)
             return  l_chain;
    }
    return NULL;
@@ -1561,3 +1617,42 @@ void dap_chain_net_proc_datapool (dap_chain_net_t * a_net)
 {
 
 }
+
+/**
+ * @brief dap_chain_net_tx_get_by_hash
+ * @param a_net
+ * @param a_tx_hash
+ * @param a_search_type
+ * @return
+ */
+dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
+                                                     dap_chain_net_tx_search_type_t a_search_type)
+{
+    dap_ledger_t * l_ledger = dap_chain_ledger_by_net_name( a_net->pub.name );
+    dap_chain_datum_tx_t * l_tx = NULL;
+
+    switch (a_search_type) {
+        case TX_SEARCH_TYPE_NET:
+        case TX_SEARCH_TYPE_CELL:
+        case TX_SEARCH_TYPE_LOCAL:{
+            if ( ! l_tx ){
+                // pass all chains
+                for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+                    if ( l_chain->callback_tx_find_by_hash ){
+                        // try to find transaction in chain ( inside shard )
+                        l_tx = l_chain->callback_tx_find_by_hash( l_chain, a_tx_hash );
+                        if (l_tx)
+                            break;
+                    }
+                }
+            }
+        }break;
+
+        case TX_SEARCH_TYPE_NET_UNSPENT:
+        case TX_SEARCH_TYPE_CELL_UNSPENT:{
+            l_tx = dap_chain_ledger_tx_find_by_hash( l_ledger, a_tx_hash );
+        }break;
+    }
+    return l_tx;
+}
+

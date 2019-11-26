@@ -86,12 +86,12 @@ bool dap_chain_node_check_addr(dap_chain_net_t * a_net,dap_chain_node_addr_t *ad
  */
 bool dap_chain_node_alias_register(dap_chain_net_t * a_net,const char *alias, dap_chain_node_addr_t *addr)
 {
-    const char *a_key = alias;
+    char *a_key = strdup(alias);
 //    char a_value[2 * sizeof(dap_chain_node_addr_t) + 1];
 //    if(bin2hex(a_value, (const unsigned char *) addr, sizeof(dap_chain_node_addr_t)) == -1)
 //        return false;
 //    a_value[2 * sizeof(dap_chain_node_addr_t)] = '\0';
-    bool res = dap_chain_global_db_gr_set(a_key, (const uint8_t*) addr, sizeof(dap_chain_node_addr_t)
+    bool res = dap_chain_global_db_gr_set(a_key,  addr, sizeof(dap_chain_node_addr_t)
                                           , a_net->pub.gdb_nodes_aliases);
     return res;
 }
@@ -114,7 +114,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const 
  */
 bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 {
-    const char *a_key = a_alias;
+    char *a_key = strdup(a_alias);
     bool res = dap_chain_global_db_gr_del(a_key, a_net->pub.gdb_nodes_aliases);
     return res;
 }
@@ -153,7 +153,7 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *nod
     }
     //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
     size_t node_info_size = dap_chain_node_info_get_size(node_info);
-    bool res = dap_chain_global_db_gr_set(l_key, (const uint8_t *) node_info, node_info_size, a_net->pub.gdb_nodes);
+    bool res = dap_chain_global_db_gr_set(l_key, node_info, node_info_size, a_net->pub.gdb_nodes);
     DAP_DELETE(l_key);
     //DAP_DELETE(a_value);
     return res?0:-3;
