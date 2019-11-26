@@ -78,8 +78,8 @@ void stream_delete(dap_http_client_t * sh, void * arg);
 //struct ev_loop *keepalive_loop;
 pthread_t keepalive_thread;
 
-static dap_stream_t  *stream_keepalive_list = NULL;
-static pthread_mutex_t mutex_keepalive_list;
+static dap_stream_t  *s_stream_keepalive_list = NULL;
+static pthread_mutex_t s_mutex_keepalive_list;
 
 static void start_keepalive( dap_stream_t *sid );
 static void keepalive_cb( void );
@@ -89,7 +89,7 @@ static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
-static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000 * 1000 };
+static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000  };
 
 // Start keepalive stream
 static void *stream_loop( void *arg )
@@ -127,7 +127,7 @@ int dap_stream_init( bool a_dump_packet_headers)
 
   bKeepaliveLoopQuitSignal = false;
 
-  pthread_mutex_init( &mutex_keepalive_list, NULL );
+  pthread_mutex_init( &s_mutex_keepalive_list, NULL );
   pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
 
   log_it(L_NOTICE,"Init streaming module");
@@ -143,7 +143,7 @@ void dap_stream_deinit()
   bKeepaliveLoopQuitSignal = true;
   pthread_join( keepalive_thread, NULL );
 
-  pthread_mutex_destroy( &mutex_keepalive_list );
+  pthread_mutex_destroy( &s_mutex_keepalive_list );
 
   dap_stream_ch_deinit( );
 }
@@ -229,32 +229,13 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
                         dap_stream_ch_new(sid, ss->active_channels[i]);
                         //sid->channel[i]->ready_to_write = true;
                     }
-                    ss->create_empty = false;                  
-                    if(ss->create_empty){
-                        log_it(L_INFO, "Opened stream session with only technical channels");
 
-                        cl_ht->reply_status_code=200;
-                        strcpy(cl_ht->reply_reason_phrase,"OK");
-                        //cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
-                        //cl_ht->client->ready_to_write=true;
-                        cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                        cl_ht->out_content_ready=true;
-                        dap_stream_ch_new(sid,SERVICE_CHANNEL_ID);
-                        //dap_stream_ch_new(sid,'t');
-                        stream_states_update(sid);
-                        dap_client_remote_ready_to_read(cl_ht->client,true);
-                    }else{
-                        dap_stream_ch_new(sid,SERVICE_CHANNEL_ID);
-                        //dap_stream_ch_new(sid,'g');
+                    cl_ht->reply_status_code=200;
+                    strcpy(cl_ht->reply_reason_phrase,"OK");
+                    cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+                    dap_client_remote_ready_to_read(cl_ht->client,true);
 
-                        cl_ht->reply_status_code=200;
-                        strcpy(cl_ht->reply_reason_phrase,"OK");
-                        cl_ht->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                        dap_client_remote_ready_to_read(cl_ht->client,true);
-
-                        stream_states_update(sid);
-
-                    }
+                    stream_states_update(sid);
                 }else{
                     log_it(L_ERROR,"Can't open session id %u",id);
                     cl_ht->reply_status_code=404;
@@ -290,49 +271,52 @@ dap_stream_t * stream_new_udp(dap_client_remote_t * sh)
  * @param id session id
  * @param cl DAP client structure
  */
-void check_session( unsigned int id, dap_client_remote_t *cl )
+void check_session( unsigned int a_id, dap_client_remote_t *a_client_remote )
 {
-    dap_stream_session_t *ss = NULL;
+    dap_stream_session_t *l_session = NULL;
 
-    ss = dap_stream_session_id( id );
+    l_session = dap_stream_session_id( a_id );
 
-    if ( ss == NULL ) {
-        log_it(L_ERROR,"No session id %u was found",id);
+    if ( l_session == NULL ) {
+        log_it(L_ERROR,"No session id %u was found",a_id);
         return;
     }
 
-    log_it( L_INFO, "Session id %u was found with media_id = %d", id,ss->media_id );
+    log_it( L_INFO, "Session id %u was found with media_id = %d", a_id,l_session->media_id );
 
-    if ( dap_stream_session_open(ss) != 0 ) { // Create new stream
+    if ( dap_stream_session_open(l_session) != 0 ) { // Create new stream
 
-        log_it( L_ERROR, "Can't open session id %u", id );
+        log_it( L_ERROR, "Can't open session id %u", a_id );
         return;
     }
 
-    dap_stream_t *sid;
+    dap_stream_t *l_stream;
 
-    if ( DAP_STREAM(cl) == NULL )
-        sid = stream_new_udp( cl );
+    if ( DAP_STREAM(a_client_remote) == NULL )
+        l_stream = stream_new_udp( a_client_remote );
     else
-        sid = DAP_STREAM( cl );
+        l_stream = DAP_STREAM( a_client_remote );
 
-    sid->session = ss;
+    l_stream->session = l_session;
 
-    if ( ss->create_empty )
+    if ( l_session->create_empty )
         log_it( L_INFO, "Session created empty" );
 
     log_it( L_INFO, "Opened stream session technical and data channels" );
 
-    dap_stream_ch_new( sid, SERVICE_CHANNEL_ID );
-    dap_stream_ch_new( sid, DATA_CHANNEL_ID);
-    stream_states_update( sid );
+    size_t count_channels = strlen(l_session->active_channels);
+    for (size_t i =0; i<sizeof (l_session->active_channels); i++ )
+        if ( l_session->active_channels[i])
+            dap_stream_ch_new( l_stream, l_session->active_channels[i] );
 
-    if ( DAP_STREAM(cl)->conn_udp )
-        dap_udp_client_ready_to_read( cl, true );
+    stream_states_update( l_stream );
+
+    if ( DAP_STREAM(a_client_remote)->conn_udp )
+        dap_udp_client_ready_to_read( a_client_remote, true );
     else
-        dap_client_remote_ready_to_read( cl, true );
+        dap_client_remote_ready_to_read( a_client_remote, true );
 
-    start_keepalive( sid );
+    start_keepalive( l_stream );
 }
 
 /**
@@ -358,25 +342,11 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
 void dap_stream_delete( dap_stream_t *a_stream )
 {
 //    log_it(L_DEBUG,"dap_stream_delete( )");
-
     if(a_stream == NULL) {
         log_it(L_ERROR,"stream delete NULL instance");
         return;
     }
-    size_t i;
-
-    for(i = 0; i < a_stream->channel_count; i++) {
-        dap_stream_ch_delete(a_stream->channel[i]);
-    }
-
-    if ( a_stream->session ) {
-        dap_stream_session_close(a_stream->session->id);
-    }
-
-    pthread_mutex_lock(&mutex_keepalive_list);
-    DL_DELETE(stream_keepalive_list, a_stream);
     stream_dap_delete(a_stream->conn, NULL);
-    pthread_mutex_unlock(&mutex_keepalive_list);
     free(a_stream);
 }
 
@@ -442,23 +412,22 @@ static void keepalive_cb (EV_P_ ev_timer *w, int revents)
 
 static void keepalive_cb( void )
 {
-  dap_stream_t  *sid, *tmp;
+  dap_stream_t  *l_stream, *tmp;
 
-  pthread_mutex_lock( &mutex_keepalive_list );
-  DL_FOREACH_SAFE( stream_keepalive_list, sid, tmp ) {
-
-    if ( sid->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
-      dap_stream_send_keepalive( sid );
-      sid->keepalive_passed += 1;
+  pthread_mutex_lock( &s_mutex_keepalive_list );
+  DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
+    if ( l_stream->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
+      dap_stream_send_keepalive( l_stream );
+      l_stream->keepalive_passed += 1;
     }
     else {
       log_it( L_INFO, "Client disconnected" );
-      DL_DELETE( stream_keepalive_list, sid );
-      stream_dap_delete( sid->conn, NULL );
+      DL_DELETE( s_stream_keepalive_list, l_stream );
+      stream_dap_delete( l_stream->conn, NULL );
     }
   }
 
-  pthread_mutex_unlock( &mutex_keepalive_list );
+  pthread_mutex_unlock( &s_mutex_keepalive_list );
 }
 
 
@@ -474,9 +443,9 @@ void start_keepalive( dap_stream_t *sid ) {
 //    sid->keepalive_watcher.data = sid;
 //    ev_timer_init (&sid->keepalive_watcher, keepalive_cb, STREAM_KEEPALIVE_TIMEOUT, STREAM_KEEPALIVE_TIMEOUT);
 //    ev_timer_start (keepalive_loop, &sid->keepalive_watcher);
-  pthread_mutex_lock( &mutex_keepalive_list );
-  DL_APPEND( stream_keepalive_list, sid );
-  pthread_mutex_unlock( &mutex_keepalive_list );
+  pthread_mutex_lock( &s_mutex_keepalive_list );
+  DL_APPEND( s_stream_keepalive_list, sid );
+  pthread_mutex_unlock( &s_mutex_keepalive_list );
 }
 
 /**
@@ -720,11 +689,18 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
     if(sid == NULL)
         return;
     (void) arg;
+
+    pthread_mutex_lock(&s_mutex_keepalive_list);
+    DL_DELETE(s_stream_keepalive_list, sid);
+    pthread_mutex_unlock(&s_mutex_keepalive_list);
+
     size_t i;
     for(i=0;i<sid->channel_count; i++)
         dap_stream_ch_delete(sid->channel[i]);
+    sid->channel_count = 0;
     if(sid->session)
         dap_stream_session_close(sid->session->id);
+    sid->session = NULL;
     //free(sid);
     log_it(L_NOTICE,"[core] Stream connection is finished");
 }
@@ -799,9 +775,10 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
                     }
                     ch->proc->packet_in_callback(ch,l_ch_pkt);
                 }
-            if(ch->proc->id == SERVICE_CHANNEL_ID && l_ch_pkt->hdr.type == STREAM_CH_PKT_TYPE_KEEPALIVE)
-                dap_stream_send_keepalive(a_stream);
-        }else{
+
+        } else if(l_ch_pkt->hdr.id == TECHICAL_CHANNEL_ID && l_ch_pkt->hdr.type == STREAM_CH_PKT_TYPE_KEEPALIVE){
+            dap_stream_send_keepalive(a_stream);
+        } else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
         }
     } else if(a_stream->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
@@ -843,4 +820,23 @@ void stream_data_read(dap_http_client_t * sh, void * arg)
 void stream_delete(dap_http_client_t * sh, void * arg)
 {
     stream_dap_delete(sh->client,arg);
+}
+
+/**
+ * @brief dap_stream_set_ready_to_write
+ * @param a_stream
+ * @param a_is_ready
+ */
+void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready)
+{
+    if(a_is_ready && a_stream->conn_http)
+        a_stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
+    if(a_stream->conn_udp)
+        dap_udp_client_ready_to_write(a_stream->conn,a_is_ready);
+    // for stream server
+    else if(a_stream->conn)
+        dap_client_remote_ready_to_write(a_stream->conn,a_is_ready);
+    // for stream client
+    else if(a_stream->events_socket)
+        dap_events_socket_set_writable(a_stream->events_socket, a_is_ready);
 }

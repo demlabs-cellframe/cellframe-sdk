@@ -64,7 +64,7 @@ const char* connection_type_str[] =
 
 #define DAPMP_VERSION 13
 bool stream_check_proto_version(unsigned int ver);
-void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
+void s_proc(struct dap_http_simple *cl_st, void * arg);
 
 static struct {
     size_t size;
@@ -100,26 +100,25 @@ void dap_stream_ctl_deinit()
  */
 void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
 {
-     dap_http_simple_proc_add(sh,url,4096,stream_ctl_proc);
+     dap_http_simple_proc_add(sh,url,14096,s_proc);
 }
 
 
 /**
- * @brief stream_ctl_headers_read Process CTL request
+ * @brief s_proc Process CTL request
  * @param cl_st HTTP server instance
  * @param arg Not used
  */
-void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
+void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
 {
-    http_status_code_t * return_code = (http_status_code_t*)arg;
+    http_status_code_t * return_code = (http_status_code_t*)a_arg;
 
-    unsigned int db_id=0;
    // unsigned int proto_version;
     dap_stream_session_t * ss=NULL;
    // unsigned int action_cmd=0;
     bool l_new_session = false;
 
-    enc_http_delegate_t *l_dg = enc_http_request_decode(cl_st);
+    enc_http_delegate_t *l_dg = enc_http_request_decode(a_http_simple);
 
     if(l_dg){
         size_t l_channels_str_size = sizeof(ss->active_channels);
@@ -180,7 +179,7 @@ void stream_ctl_proc(struct dap_http_simple *cl_st, void * arg)
 
         log_it(L_INFO,"setup connection_type: %s", connection_type_str[conn_t]);
 
-        enc_http_reply_encode(cl_st,l_dg);
+        enc_http_reply_encode(a_http_simple,l_dg);
         enc_http_delegate_delete(l_dg);
     }else{
         log_it(L_ERROR,"No encryption layer was initialized well");

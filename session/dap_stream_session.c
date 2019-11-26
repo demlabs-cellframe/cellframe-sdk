@@ -95,7 +95,7 @@ dap_stream_session_t * dap_stream_session_pure_new()
         HASH_FIND_INT(sessions,&session_id_new,ret);
     }while(ret);
     log_it(L_INFO,"Creating new session id %u",session_id);
-    ret=(dap_stream_session_t*) calloc(1,sizeof(dap_stream_session_t));
+    ret=DAP_NEW_Z(dap_stream_session_t);
     pthread_mutex_init(&ret->mutex, NULL);
     ret->id=session_id;
     ret->time_created=time(NULL);
@@ -142,20 +142,29 @@ int dap_stream_session_close(unsigned int id)
     return stream_session_close2(l_s);
 }
 
-int stream_session_close2(dap_stream_session_t * s)
+int stream_session_close2(dap_stream_session_t * a_session)
 {
 //    log_it(L_INFO,"Close session");
-    HASH_DEL(sessions,s);
-    free(s);
+    HASH_DEL(sessions,a_session);
+    if (a_session->callback_delete)
+        a_session->callback_delete(a_session, NULL);
+    if (a_session->_inheritor )
+        DAP_DELETE(a_session->_inheritor);
+    DAP_DELETE(a_session);
     return 0;
 }
 
-int dap_stream_session_open(dap_stream_session_t * ss)
+/**
+ * @brief dap_stream_session_open
+ * @param a_session
+ * @return
+ */
+int dap_stream_session_open(dap_stream_session_t * a_session)
 {
     int ret;
-    pthread_mutex_lock(&ss->mutex);
-    ret=ss->opened;
-    if(ss->opened==0) ss->opened=1;
-    pthread_mutex_unlock(&ss->mutex);
+    pthread_mutex_lock(&a_session->mutex);
+    ret=a_session->opened;
+    if(a_session->opened==0) a_session->opened=1;
+    pthread_mutex_unlock(&a_session->mutex);
     return ret;
 }

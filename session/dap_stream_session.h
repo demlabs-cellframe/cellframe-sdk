@@ -34,18 +34,20 @@
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYPE_VPN} stream_session_type_t;
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;
 
+typedef struct dap_stream_session dap_stream_session_t;
+typedef void (*dap_stream_session_callback_t)( dap_stream_session_t *,void*);
+
 struct dap_stream_session {
-
     bool create_empty;
-  unsigned int id;
-  unsigned int media_id;
+    unsigned int id;
+    unsigned int media_id;
 
-  dap_enc_key_t * key;
+    dap_enc_key_t * key;
 
-  bool open_preview;
-  pthread_mutex_t mutex;
-  int opened;
-  time_t time_created;
+    bool open_preview;
+    pthread_mutex_t mutex;
+    int opened;
+    time_t time_created;
 
     uint8_t enc_type;
 
@@ -54,9 +56,12 @@ struct dap_stream_session {
 
     stream_session_connection_type_t conn_type;
     stream_session_type_t type;
-  UT_hash_handle hh;
-
+    UT_hash_handle hh;
     struct in_addr tun_client_addr;
+
+    void * _inheritor;
+
+    dap_stream_session_callback_t callback_delete;
 };
 typedef struct dap_stream_session dap_stream_session_t;
 
@@ -66,6 +71,6 @@ void dap_stream_session_deinit();
 dap_stream_session_t * dap_stream_session_pure_new();
 dap_stream_session_t * dap_stream_session_new(unsigned int media_id, bool open_preview);
 dap_stream_session_t * dap_stream_session_id(unsigned int id);
-int dap_stream_session_open(dap_stream_session_t * ss); /*Lock for opening for single client , return 0 if ok*/
+int dap_stream_session_open(dap_stream_session_t * a_session); /*Lock for opening for single client , return 0 if ok*/
 int dap_stream_session_close(unsigned int id);
 
