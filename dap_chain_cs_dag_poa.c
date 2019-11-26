@@ -45,14 +45,14 @@
 #include "dap_chain_cs_dag_event.h"
 #include "dap_chain_cs_dag_poa.h"
 
-#include "dap_chain_cert.h"
+#include "dap_cert.h"
 
 #define LOG_TAG "dap_chain_cs_dag_poa"
 
 typedef struct dap_chain_cs_dag_poa_pvt
 {
-    dap_chain_cert_t * events_sign_cert;
-    dap_chain_cert_t ** auth_certs;
+    dap_cert_t * events_sign_cert;
+    dap_cert_t ** auth_certs;
     char * auth_certs_prefix;
     uint16_t auth_certs_count;
     uint16_t auth_certs_count_verify; // Number of signatures, needed for event verification
@@ -194,11 +194,11 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->auth_certs_count_verify = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
         l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") );
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
-            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_chain_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_chain_cert_t));
+            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%lu",l_poa_pvt->auth_certs_prefix, i);
-                if ( (l_poa_pvt->auth_certs[i] = dap_chain_cert_find_by_name( l_cert_name)) != NULL ) {
+                if ( (l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) != NULL ) {
                     log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
                 } else{
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
@@ -232,7 +232,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     const char * l_events_sign_cert = NULL;
     if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert") ) != NULL ) {
 
-        if ( ( PVT(l_poa)->events_sign_cert = dap_chain_cert_find_by_name(l_events_sign_cert)) == NULL ){
+        if ( ( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert)) == NULL ){
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_cert);
         }else
             log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
@@ -307,7 +307,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         size_t l_verified = 0;
         for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ){
             for ( uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++){
-                if( dap_chain_cert_compare_with_sign ( l_poa_pvt->auth_certs[j],
+                if( dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j],
                             dap_chain_cs_dag_event_get_sign(a_dag_event,i) ) == 0 )
                     l_verified++;
             }
