@@ -157,7 +157,7 @@ static pthread_t s_log_thread = 0;
 static void  *s_log_thread_proc(void *arg);
 
 typedef struct log_str_t {
-    char str[400];
+    char str[1000];
     unsigned int offset;
     struct log_str_t *prev, *next;
 } log_str_t;
@@ -204,13 +204,7 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
 
     // init randomer
     srand( (unsigned int)time(NULL) );
-
-#ifdef _WIN32
-    if (a_console_title)
-        SetupConsole( a_console_title, L"Lucida Console", 12, 20 );
-#else
     (void) a_console_title;
-#endif
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
     for (int i = 0; i < 16; ++i)
             s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
