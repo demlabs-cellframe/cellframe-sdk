@@ -211,13 +211,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             log_it(L_DEBUG, "STREAM_CTL request size %u", strlen(l_request));
 
             char *l_suburl;
-            // connect to vpn server
-            const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
-            if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
-                l_suburl = dap_strdup_printf("socket_forward");
-            // connect for node sync
-            else
-                l_suburl = dap_strdup_printf("stream_ctl,channels=%s", a_client_pvt->active_channels);
+            l_suburl = dap_strdup_printf("stream_ctl,channels=%s", a_client_pvt->active_channels);
             //
             dap_client_pvt_request_enc(a_client_pvt,
             DAP_UPLINK_PATH_STREAM_CTL,
@@ -316,19 +310,14 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //dap_client_request(a_client_pvt->client, l_full_path, "12345", 0, m_stream_response, m_stream_error);
 
             const char *l_add_str = "";
-            // if connect to vpn server
-            const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
-            if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
-                l_add_str = "\r\nService-Key: test";
 
-            {
-                char *l_message = dap_strdup_printf("GET /%s HTTP/1.1\r\nHost: %s:%d%s\r\n\r\n",
-                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
-                size_t l_message_size = dap_strlen(l_message);
-                int count = send(a_client_pvt->stream_socket, l_message, l_message_size, 0);
-                DAP_DELETE(l_message);
-            }
+            dap_events_socket_write_f( a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
+                                                                "Host: %s:%d%s\r\n"
+                                                                "\r\n",
+                                       l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
             DAP_DELETE(l_full_path);
+
+
 
             a_client_pvt->stage_status = STAGE_STATUS_DONE;
             s_stage_status_after(a_client_pvt);
