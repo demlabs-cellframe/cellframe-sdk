@@ -22,7 +22,46 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#pragma once
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 
-int dap_stream_ch_chain_net_srv_init();
-void dap_stream_ch_chain_net_srv_deinit();
+#ifdef WIN32
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+//#include "wrappers.h"
+#include <wepoll.h>
+#include <pthread.h>
+#endif
+
+#include "dap_chain_net_srv_common.h"
+
+typedef struct dap_stream_ch_chain_net_srv_pkt_hdr{
+    dap_chain_net_srv_uid_t srv_uid;
+    uint32_t type; // Chain data type
+    union{
+        struct{
+
+        }type_block;
+        struct{
+
+        }type_datum;
+        struct{
+
+        }type_global_db;
+
+    };
+}  __attribute__((packed)) dap_stream_ch_chain_net_srv_pkt_hdr_t;
+
+typedef struct dap_stream_ch_chain_net_srv_pkt{
+    dap_stream_ch_chain_net_srv_pkt_hdr_t hdr;
+    uint8_t data[];
+} __attribute__((packed)) dap_stream_ch_chain_net_srv_pkt_t;
