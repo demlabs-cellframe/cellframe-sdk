@@ -63,7 +63,7 @@
 #include "dap_list.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
-#include "dap_chain_sign.h"
+#include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 
@@ -778,7 +778,7 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum)
 static char* calc_datum_hash(const char *datum_str, size_t datum_size)
 {
     dap_chain_hash_fast_t a_hash;
-    dap_hash( datum_str, datum_size, a_hash.raw, sizeof(a_hash.raw), DAP_HASH_TYPE_SLOW_0);
+    dap_hash_fast( datum_str, datum_size, &a_hash);
     size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
     char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
 
