@@ -49,6 +49,12 @@
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL                0x23
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
 
+typedef enum dap_stream_ch_chain_state{
+    CHAIN_STATE_IDLE=0,
+    CHAIN_STATE_SYNC_CHAINS,
+    CHAIN_STATE_SYNC_GLOBAL_DB,
+    CHAIN_STATE_SYNC_ALL,
+} dap_stream_ch_chain_state_t;
 
 typedef struct dap_stream_ch_chain_sync_request{
     dap_chain_node_addr_t node_addr; // Requesting node's address
@@ -85,7 +91,7 @@ static const char* c_dap_stream_ch_chain_pkt_type_str[]={
 
 };
 
-uint dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(uint a_state);
+dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(char a_state);
 
 size_t dap_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
                                      dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,

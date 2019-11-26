@@ -32,12 +32,6 @@
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
 
-typedef enum dap_stream_ch_chain_state{
-    CHAIN_STATE_IDLE=0,
-    CHAIN_STATE_SYNC_CHAINS,
-    CHAIN_STATE_SYNC_GLOBAL_DB,
-    CHAIN_STATE_SYNC_ALL,
-} dap_stream_ch_chain_state_t;
 
 typedef struct dap_stream_ch_chain dap_stream_ch_chain_t;
 typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, uint8_t a_pkt_type,

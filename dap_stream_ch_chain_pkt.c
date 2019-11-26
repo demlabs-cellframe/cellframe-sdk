@@ -21,7 +21,6 @@
 
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_chain.h"
 
@@ -33,7 +32,7 @@
  * @param a_state
  * @return
  */
-uint dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(uint a_state)
+dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(char a_state)
 {
     switch (a_state) {
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
