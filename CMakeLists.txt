@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 3.0)
 project (dap_stream_ch_chain_net_srv)
-  
+
 set(DAP_STREAM_CH_CHAIN_NET_SRV_SRCS dap_stream_ch_chain_net_srv.c dap_stream_ch_chain_net_srv_session.c dap_stream_ch_chain_net_srv_pkt.c)
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/libmemcached/)
-  include_directories(../3rdparty/libmemcached/win32/)
   include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
