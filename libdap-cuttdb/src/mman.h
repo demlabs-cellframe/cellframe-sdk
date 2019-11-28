@@ -1,9 +1,5 @@
 #ifndef _MMAN_H_
-#define _MMAN_H_
-
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0600
-#endif						
+#define _MMAN_H_					
 
 #include <_mingw.h>
 #include <stdint.h>
