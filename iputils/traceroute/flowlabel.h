@@ -6,7 +6,7 @@
    conflicts with "netinet/in.h" .
 */
 
-struct in6_flowlabel_req
+struct in6_flowlabel_req_
 {
 	struct in6_addr	flr_dst;
 	__u32	flr_label;
