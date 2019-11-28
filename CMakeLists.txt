@@ -17,8 +17,13 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 
 endif()
 
-file(GLOB DAP_SERVER_CORE_SOURCES src/*.c ../sources/wepoll/*.c)
-file(GLOB DAP_SERVER_CORE_HEADERS include/*.h ../sources/wepoll/*.h)
+if(WIN32)
+    file(GLOB DAP_SERVER_CORE_SOURCES src/*.c ../sources/wepoll/*.c)
+    file(GLOB DAP_SERVER_CORE_HEADERS include/*.h ../sources/wepoll/*.h)
+else()
+    file(GLOB DAP_SERVER_CORE_SOURCES src/*.c)
+    file(GLOB DAP_SERVER_CORE_HEADERS include/*.h)
+endif()
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
