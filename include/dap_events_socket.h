@@ -29,6 +29,8 @@
 #include "uthash.h"
 #ifndef _WIN32
 #include <sys/epoll.h>
+#else
+#include "wepoll.h"
 #endif
 
 struct dap_events;
