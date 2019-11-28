@@ -1244,7 +1244,7 @@ int s_net_load(const char * a_net_name)
 
                     l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
                     if ( l_node_info->hdr.ext_addr_v4.s_addr ||
-                            l_node_info->hdr.ext_addr_v6.__in6_u.__u6_addr32[0] ){
+                            l_node_info->hdr.ext_addr_v6.s6_addr32[0] ){
                         int l_ret;
                         if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
                             if (dap_chain_node_alias_register(l_net,PVT(l_net)->seed_aliases[i],l_seed_node_addr))
