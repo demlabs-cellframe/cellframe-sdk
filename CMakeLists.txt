@@ -19,7 +19,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(test)
 endif()
 
-set(DAP_UDP_SERVER_SRCS dap_udp_server.c dap_udp_client.h dap_udp_client.c)
+set(DAP_UDP_SERVER_SRCS dap_udp_server.c dap_udp_client.h dap_udp_client.c )
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
@@ -27,6 +27,7 @@ if(WIN32)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
   include_directories(../3rdparty/curl/include/)
+  #include_directories(../sources/wepoll/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_UDP_SERVER_SRCS})
