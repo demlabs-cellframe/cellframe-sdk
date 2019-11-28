@@ -27,9 +27,6 @@ endif()
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
-  #include_directories(../sources/wepoll/)
-  include_directories(../3rdparty/libmemcached/)
-  include_directories(../3rdparty/libmemcached/win32/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
   include_directories(../3rdparty/curl/include/)
@@ -42,7 +39,12 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto pthread memcached ev)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto ev)
+
+  if(NOT ANDROID)
+      target_link_libraries(${PROJECT_NAME} pthread)
+  endif()
+
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
