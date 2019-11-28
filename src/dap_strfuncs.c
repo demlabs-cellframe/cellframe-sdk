@@ -690,7 +690,7 @@ char *strptime( char *buff, const char *fmt, struct tm *tm ) {
   return buff + len;
 }
 
-char *strndup(char *str, unsigned long len) {
+char *_strndup(char *str, unsigned long len) {
     char *buf = (char*)memchr(str, '\0', len);
     if (buf)
         len = buf - str;
