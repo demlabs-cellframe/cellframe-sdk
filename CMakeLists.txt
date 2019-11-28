@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1)
 project (dap_chain_global_db C)
   
 file(GLOB DAP_CHAIN_GLOBAL_DB_SRC *.c)
@@ -6,8 +6,6 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR *.h)
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/libmemcached/)
-  include_directories(../3rdparty/libmemcached/win32/)
   include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
@@ -24,7 +22,12 @@ if(WIN32)
   target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto dap_cuttdb)
 endif()
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto ldb talloc tevent sqlite3 dap_cuttdb)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto sqlite3 dap_cuttdb)
+
+  if(NOT ANDROID)
+      target_link_libraries(${PROJECT_NAME} ldb talloc tevent)
+  endif()
+
 endif()
 
 target_include_directories(dap_chain_global_db INTERFACE .)
