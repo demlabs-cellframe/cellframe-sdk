@@ -20,6 +20,11 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     
 endif()
 
+if (ANDROID)
+    add_subdirectory(libmagic)
+    add_subdirectory(curl)
+endif()
+
 add_subdirectory(http_server)
 add_subdirectory(enc_server)
 

@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project (dap_http_client)
-  
+
 set(HTTP_SRCS dap_http_client.c dap_http_client_simple.c dap_http_header.c)
 
 if(WIN32)
@@ -13,6 +13,6 @@ if(WIN32)
   include_directories(../../../3rdparty/libmagic/src/)
   include_directories(../../../3rdparty/curl/include/)
 endif()
- 
+
 add_library(${PROJECT_NAME} STATIC ${HTTP_SRCS})
 

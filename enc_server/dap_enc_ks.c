@@ -38,27 +38,12 @@
 #include "dap_enc.h"
 #include "dap_enc_ks.h"
 #include "dap_enc_key.h"
-#include "dap_memcached.h"
 
 #define LOG_TAG "dap_enc_ks"
 
 static dap_enc_ks_key_t * _ks = NULL;
 static bool s_memcache_enable = false;
 static time_t s_memcache_expiration_key = 0;
-
-int dap_enc_ks_init(bool a_memcache_backup_enable, time_t a_memcache_expiration_key)
-{
-    if(a_memcache_backup_enable) {
-        if(dap_memcache_is_enable()) {
-            s_memcache_expiration_key = a_memcache_expiration_key;
-            s_memcache_enable = true;
-        } else {
-            log_it(L_ERROR, "Can't init memcache backup. Memcache module is not activated.");
-            return -1;
-        }
-    }
-    return 0;
-}
 
 void _enc_key_free(dap_enc_ks_key_t **ptr);
 
