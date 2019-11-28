@@ -32,8 +32,6 @@
 #include <sys/select.h>
 #include <sys/queue.h>
 #define EPOLL_HANDLE  int
-#else
-#define EPOLL_HANDLE  HANDLE
 #endif
 
 #include "dap_udp_client.h"
