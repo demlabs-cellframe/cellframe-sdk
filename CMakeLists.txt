@@ -104,6 +104,11 @@ if(DARWIN)
     target_link_libraries(${PROJECT_NAME} dap_core_darwin)
 endif()
 
+if(ANDROID)
+    add_subdirectory(src/android)
+    target_link_libraries(${PROJECT_NAME} dap_core_android)
+endif()
+
 if(BUILD_DAP_TESTS)
     enable_testing()
     add_subdirectory(test)
