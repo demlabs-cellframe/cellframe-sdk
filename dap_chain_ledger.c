@@ -910,11 +910,18 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
                 HASH_ADD_KEYPTR(hh, PVT(a_ledger)->balance_accounts, wallet_balance->key,
                                 strlen(l_wallet_balance_key), wallet_balance);
             }
+#ifdef __ANDROID__
+            log_it(L_INFO, "Updated balance +%.3Lf %s on addr %s",
+                   dap_chain_balance_to_coins (l_out_item->header.value),
+                    l_token_ticker,
+                   l_addr_str);
+#else
             log_it(L_INFO, "Updated balance +%.3Lf %s, now %.3Lf on addr %s",
                    dap_chain_balance_to_coins (l_out_item->header.value),
                     l_token_ticker,
                    dap_chain_balance_to_coins (wallet_balance->balance),
                    l_addr_str);
+#endif
             DAP_DELETE (l_addr_str);
         } else {
             log_it(L_WARNING, "Can't detect tx ticker or matching output, can't append balances cache");
