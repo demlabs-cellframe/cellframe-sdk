@@ -184,7 +184,7 @@ else()
         message(STATUS "AES support not available on ARMv6")
       elseif(ARM7)
         message(STATUS "AES support not available on ARMv7")
-      elseif(ARM8)
+      elseif(ARM8 AND NOT ANDROID)
         CHECK_CXX_ACCEPTS_FLAG("-march=${ARCH}+crypto" ARCH_PLUS_CRYPTO)
         if(ARCH_PLUS_CRYPTO)
           message(STATUS "Crypto extensions enabled for ARMv8")
@@ -219,7 +219,7 @@ else()
         #0xd08 - Cortex-A72
         #0xd03 - Cortex-A73
 
-        if(NOT ARM8)
+        if(NOT ARM8 AND NOT ANDROID)
           CHECK_CXX_ACCEPTS_FLAG(-mfpu=vfp3-d16 CXX_ACCEPTS_VFP3_D16)
           CHECK_CXX_ACCEPTS_FLAG(-mfpu=vfp4 CXX_ACCEPTS_VFP4)
           CHECK_CXX_ACCEPTS_FLAG(-mfloat-abi=hard CXX_ACCEPTS_MFLOAT_HARD)
