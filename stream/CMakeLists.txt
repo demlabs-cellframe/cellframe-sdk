@@ -8,8 +8,7 @@ set(STREAM_SRCS
 
 if(WIN32)
   include_directories(../../libdap/src/win32/)
-  include_directories(../../3rdparty/libmemcached/)
-  include_directories(../../3rdparty/libmemcached/win32/)
+  include_directories(../../3rdparty/wepoll/include/)
   include_directories(../../3rdparty/uthash/src/)
   include_directories(../../3rdparty/libjson-c/)
   include_directories(../../3rdparty/curl/include/)
