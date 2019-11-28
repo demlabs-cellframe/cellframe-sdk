@@ -23,8 +23,6 @@ set(DAP_UDP_SERVER_SRCS dap_udp_server.c dap_udp_client.h dap_udp_client.c)
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/libmemcached/)
-  include_directories(../3rdparty/libmemcached/win32/)
   include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
