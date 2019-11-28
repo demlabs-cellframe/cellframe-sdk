@@ -41,7 +41,6 @@ See more details here <http://www.gnu.org/licenses/>.
 #endif
 
 #include <pthread.h>
-#include <json-c/json.h>
 
 #include "utlist.h"
 
