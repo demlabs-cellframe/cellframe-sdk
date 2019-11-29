@@ -29,10 +29,12 @@
 #include "dap_enc_base64.h"
 #include "dap_http.h"
 
+#ifndef __ANDROID__
 #include "db_core.h"
 #include "db_auth.h"
 #include "db_http.h"
 #include "db_http_file.h"
+#endif
 
 #include "dap_chain.h"
 #include "dap_chain_net.h"
@@ -244,6 +246,7 @@ void dap_chain_net_srv_vpn_cdb_deinit()
  */
 static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
 {
+#ifndef __ANDROID__
     db_auth_info_t *l_auth_info = (db_auth_info_t *) a_arg;
     log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present");
 
@@ -324,4 +327,5 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
 
     if (l_client_key)
         DAP_DELETE( l_client_key);
+#endif
 }

@@ -110,7 +110,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     char l_node_ext_ipv6_str[INET6_ADDRSTRLEN]={0};
                     if (l_node_info->hdr.ext_addr_v4.s_addr)
                         inet_ntop(AF_INET,&l_node_info->hdr.ext_addr_v4,l_node_ext_ipv4_str,sizeof(l_node_ext_ipv4_str));
-                    if (  *((uint128_t *) l_node_info->hdr.ext_addr_v6.__in6_u.__u6_addr8 ) )
+                    if (  *((uint128_t *) l_node_info->hdr.ext_addr_v6.s6_addr ) )
                         inet_ntop(AF_INET6,&l_node_info->hdr.ext_addr_v6,l_node_ext_ipv6_str,sizeof(l_node_ext_ipv6_str));
                     dap_string_append_printf( l_reply_str, "    {\n");
 
