@@ -26,6 +26,7 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_enc_http.h"
+#include "dap_enc_base64.h"
 #include "dap_http.h"
 
 #include "db_core.h"
@@ -46,8 +47,11 @@
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_sig.h"
 #include "dap_chain_global_db.h"
+
+#include "dap_chain_mempool.h"
 #include "dap_pkey.h"
 
+#include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_srv_vpn_cdb.h"
 #include "dap_chain_net_srv_vpn_cdb_server_list.h"
 
@@ -243,10 +247,15 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
     db_auth_info_t *l_auth_info = (db_auth_info_t *) a_arg;
     log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present");
 
+    size_t l_pkey_b64_length = strlen(l_auth_info->pkey);
+    byte_t * l_pkey_raw = DAP_NEW_Z_SIZE(byte_t,l_pkey_b64_length );
+    size_t l_pkey_raw_size = dap_enc_base64_decode(l_auth_info->pkey,l_pkey_b64_length,l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE );
+    char * l_pkey_gdb_group = dap_strdup_printf("%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX );
+    dap_chain_global_db_gr_set( l_auth_info->user , l_pkey_raw, l_pkey_raw_size,l_pkey_gdb_group);
+
+    dap_enc_key_t *l_client_key = dap_enc_key_deserealize(l_pkey_raw, l_pkey_raw_size);
+
     for ( tx_cond_template_t * l_tpl = s_tx_cond_templates; l_tpl; l_tpl=l_tpl->next) {
-        enc_http_reply_f(a_delegate,"\t<tx_cond_tpl>\n");
-        enc_http_reply_f(a_delegate,"\t\t<net>%s</net>\n",l_tpl->net_name);
-        enc_http_reply_f(a_delegate,"\t\t<token>%s</token>\n",l_tpl->token_ticker);
 
         size_t l_gdb_group_size=0;
 
@@ -278,12 +287,34 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         }
         // Try to create condition
         if (! l_tx_cond_hash ) {
+            // test
+            dap_chain_wallet_t *l_wallet_from = l_tpl->wallet;
+            dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet_from, 0);
+
+            // where to take coins for service
+            dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, l_tpl->net->pub.id );
+            dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
+            dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+            l_tx_cond_hash= dap_chain_mempool_tx_create_cond( l_tpl->net, l_key_from,l_client_key, l_addr_from,l_tpl->token_ticker,
+                                                       (uint64_t) l_tpl->value_datoshi , 0,l_price_unit,l_srv_uid, 0,NULL, 0);
+            char * l_addr_from_str =dap_chain_addr_to_str( l_addr_from );
+            DAP_DELETE( l_addr_from);
+            if ( l_tx_cond_hash == NULL ){
+                log_it( L_ERROR, "Can't create condiftion for user");
+            }else
+                log_it( L_NOTICE, "User \"%s\": created conditioned transaction from %s(%s) on "
+                                , l_auth_info->user, l_tpl->wallet_name, l_addr_from_str
+                                       );
+            DAP_DELETE( l_addr_from_str );
 
         }
 
         // If we loaded or created hash
         if( l_tx_cond_hash ){
             char * l_tx_cond_hash_str = dap_chain_hash_fast_to_str_new(l_tx_cond_hash);
+            enc_http_reply_f(a_delegate,"\t<tx_cond_tpl>\n");
+            enc_http_reply_f(a_delegate,"\t\t<net>%s</net>\n",l_tpl->net_name);
+            enc_http_reply_f(a_delegate,"\t\t<token>%s</token>\n",l_tpl->token_ticker);
             enc_http_reply_f(a_delegate,"\t\t<tx_cond>%s</tx_cond>\n",l_tx_cond_hash_str);
             DAP_DELETE(l_tx_cond_hash);
             DAP_DELETE(l_tx_cond_hash_str);
@@ -291,4 +322,6 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         enc_http_reply_f(a_delegate,"\t</tx_cond_tpl>\n");
     }
 
+    if (l_client_key)
+        DAP_DELETE( l_client_key);
 }

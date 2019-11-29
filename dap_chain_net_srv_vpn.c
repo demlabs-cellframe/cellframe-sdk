@@ -62,6 +62,7 @@
 #include "dap_stream_ch_pkt.h"
 
 #include "dap_chain_net.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_vpn_client.h"
 #include "dap_chain_ledger.h"
@@ -107,11 +108,20 @@ static vpn_local_network_t *s_raw_server;
 
 static const char *s_addr;
 
+// Service callbacks
+static int s_callback_request_after(dap_chain_net_srv_t * a_srv, dap_chain_net_srv_client_t * a_srv_client
+                                    , const void * a_custom_data, size_t a_custom_data_size );
+
+
+
+// Tunnel threads
 static void *srv_ch_sf_thread(void * arg);
 static void *srv_ch_sf_thread_raw(void *arg);
 static void s_tun_create(void);
 static void s_tun_destroy(void);
 
+
+// Stream callbacks
 static void s_new(dap_stream_ch_t* ch, void* arg);
 static void srv_ch_sf_delete(dap_stream_ch_t* ch, void* arg);
 static void srv_ch_sf_packet_in(dap_stream_ch_t* ch, void* arg);
@@ -122,6 +132,7 @@ static void srv_ch_sf_packet_out(dap_stream_ch_t* ch, void* arg);
 
 static char *s_srv_vpn_addr, *s_srv_vpn_mask;
 
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
@@ -130,8 +141,8 @@ static char *s_srv_vpn_addr, *s_srv_vpn_mask;
  */
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
 {
-    const char *c_addr = dap_config_get_item_str(g_config, "vpn", "network_address");
-    const char *c_mask = dap_config_get_item_str(g_config, "vpn", "network_mask");
+    const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
+    const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
     if(c_addr && c_mask) {
         s_srv_vpn_addr = strdup(c_addr);
         s_srv_vpn_mask = strdup(c_mask);
@@ -145,6 +156,9 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
         pthread_create(&srv_sf_socks_pid, NULL, srv_ch_sf_thread, NULL);
         dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_new, srv_ch_sf_delete, srv_ch_sf_packet_in,
                 srv_ch_sf_packet_out);
+
+        dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+        dap_chain_net_srv_add( l_uid, s_callback_request_after);
         return 0;
     }
     return -1;
@@ -162,6 +176,22 @@ void dap_chain_net_srv_vpn_deinit(void)
     if(s_raw_server)
         free(s_raw_server);
 }
+
+/**
+ * @brief s_callback_request_after
+ * @param a_srv
+ * @param a_srv_client
+ * @param a_custom_data
+ * @param a_custom_data_size
+ * @return
+ */
+static int s_callback_request_after(dap_chain_net_srv_t * a_srv, dap_chain_net_srv_client_t * a_srv_client
+                                    , const void * a_custom_data, size_t a_custom_data_size )
+{
+
+}
+
+
 
 /**
  * @brief s_tun_create
@@ -284,8 +314,7 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
         uint64_t l_value = dap_chain_net_srv_client_auth(l_ledger, a_stream_ch->stream->session->service_key, &l_cond);
 
         // add service
-        if(l_cond && l_value > 0)
-                {
+        if(l_cond && l_value > 0) {
             dap_chain_net_srv_t l_srv;
             memset(&l_srv, 0, sizeof(dap_chain_net_srv_t));
             l_srv.callback_trafic = s_callback_trafic;
@@ -293,8 +322,6 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
             l_srv.srv_common.proposal_params.vpn.limit_bytes = 2000;
             if(l_cond)
                 memcpy(&l_srv.srv_common, l_cond, sizeof(dap_chain_net_srv_abstract_t));
-            dap_chain_net_srv_gen_uid((uint8_t*) &l_srv.uid, sizeof(l_srv.uid));
-            dap_chain_net_srv_add(&l_srv);
             memcpy(&sf->net_srv, &l_srv, sizeof(dap_chain_net_srv_t)); // Unique ID for service.
         }
 
