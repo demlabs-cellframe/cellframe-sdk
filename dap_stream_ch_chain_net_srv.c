@@ -70,6 +70,7 @@ void dap_stream_ch_chain_net_srv_deinit(void)
  */
 void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
 {
+    (void ) arg;
     a_ch->internal=DAP_NEW_Z(dap_stream_ch_chain_net_srv_t);
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     pthread_mutex_init( &l_ch_chain_net_srv->mutex,NULL);
@@ -89,7 +90,9 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
  */
 void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
 {
-
+    (void) a_ch;
+    (void) a_arg;
+    log_it(L_DEBUG, "Stream ch chain net srv delete");
 }
 
 /**
@@ -104,6 +107,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     if(l_ch_pkt) {
         switch (l_ch_pkt->hdr.type) {
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
+                dap_stream_ch_chain_net_srv_pkt_request * l_request = l_ch_pkt->data;
+                //l_request->hdr.net_id
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST:{
             } break;
