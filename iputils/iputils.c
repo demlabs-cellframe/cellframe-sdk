@@ -41,7 +41,7 @@ int log_printf(const char *format, ...)
         if(log_str)
         {
 
-            ret = printf(log_str);
+            ret = printf("%s", log_str);
             DAP_DELETE(log_str);
         }
     }

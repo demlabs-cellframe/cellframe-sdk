@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <limits.h>
+#include <time.h>
 #include <linux/errqueue.h>
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
