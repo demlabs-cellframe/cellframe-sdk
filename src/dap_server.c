@@ -46,15 +46,12 @@
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #else
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0600
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include "wrappers.h"
 #include <io.h>
-#include <wepoll.h>
 #include <pthread.h>
 #endif
 

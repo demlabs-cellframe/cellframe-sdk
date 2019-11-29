@@ -17,12 +17,16 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 
 endif()
 
-file(GLOB DAP_SERVER_CORE_SOURCES src/*.c)
-file(GLOB DAP_SERVER_CORE_HEADERS include/*.h)
+if(WIN32)
+    file(GLOB DAP_SERVER_CORE_SOURCES src/*.c ../sources/wepoll/*.c)
+    file(GLOB DAP_SERVER_CORE_HEADERS include/*.h ../sources/wepoll/*.h)
+else()
+    file(GLOB DAP_SERVER_CORE_SOURCES src/*.c)
+    file(GLOB DAP_SERVER_CORE_HEADERS include/*.h)
+endif()
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
   include_directories(../3rdparty/curl/include/)
@@ -31,7 +35,7 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto ${CMAKE_CURRENT_SOURCE_DIR}/../lib/[x86_64CLANG]/wepoll[x86_64CLANG].a)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
 endif()
 
 if(UNIX)
