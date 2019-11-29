@@ -29,6 +29,7 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_sign.h"
+#include "dap_hash.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
@@ -58,8 +59,12 @@ static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
 
 static size_t dap_chain_tx_out_cond_get_size(const dap_chain_tx_out_cond_t *a_item)
 {
-    size_t size = sizeof(dap_chain_tx_out_cond_t) + a_item->header.pub_key_size + a_item->header.cond_size;
-    return size;
+    switch (a_item->header.subtype) {
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
+            return sizeof (a_item->header) + sizeof (a_item->subtype.srv_pay.header) + a_item->subtype.srv_pay.header.params_size;
+        default:
+                return 0;
+    }
 }
 
 static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
@@ -187,23 +192,27 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create(const dap_enc_key_t *a_key, dap_chain_addr_t *a_addr,
-        uint64_t a_value, const void *a_cond, size_t a_cond_size)
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+        uint64_t a_value,uint64_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                 const void *a_params, size_t a_params_size)
 {
-    if(!a_key || !a_cond)
+    if(!a_key || !a_params)
         return NULL;
     size_t l_pub_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key((dap_enc_key_t*)a_key, &l_pub_key_size);
+    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+
 
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t,
-            sizeof(dap_chain_tx_out_cond_t) + l_pub_key_size + a_cond_size);
-    l_item->header.type = TX_ITEM_TYPE_OUT_COND;
+            sizeof(l_item->header)+sizeof (l_item->subtype.srv_pay.header) + a_params_size);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
-    l_item->header.pub_key_size = l_pub_key_size;
-    l_item->header.cond_size = a_cond_size;
-    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
-    memcpy(l_item->data, l_pub_key, l_pub_key_size);
-    memcpy(l_item->data + l_pub_key_size, a_cond, a_cond_size);
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY; // By default creatre cond for service pay. Rework with smth more flexible
+    l_item->subtype.srv_pay.header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_pay.header.params_size = (uint32_t) a_params_size;
+    l_item->subtype.srv_pay.header.unit = a_unit;
+    l_item->subtype.srv_pay.header.unit_price_max_datoshi = a_value_max_per_unit;
+    dap_hash_fast( l_pub_key, l_pub_key_size, & l_item->subtype.srv_pay.header.pkey_hash);
+    memcpy(l_item->subtype.srv_pay.params, a_params, a_params_size);
     return l_item;
 }
 

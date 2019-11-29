@@ -140,6 +140,32 @@ typedef struct dap_chain_addr{
 
 typedef uint64_t dap_chain_time_t;
 
+#define DAP_CHAIN_NET_SRV_UID_SIZE 8
+
+typedef union {
+    uint8_t raw[DAP_CHAIN_NET_SRV_UID_SIZE];
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    uint64_t raw_ui64[1];
+    uint64_t uint64;
+#elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
+    uint64_t raw_ui64[1];
+    uint128_t uint128;
+#endif
+} dap_chain_net_srv_uid_t;
+
+
+typedef union {
+    uint8_t raw[4];
+    uint32_t raw_ui32[1];
+    uint32_t uint32;
+    enum {
+        SERV_UNIT_UNDEFINED = 0 ,
+        SERV_UNIT_MB = 1, // megabytes
+        SERV_UNIT_SEC = 2, // seconds
+        SERV_UNIT_DAY = 3 // days
+    } enm;
+} dap_chain_net_srv_price_unit_uid_t;
+
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);

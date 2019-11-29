@@ -28,23 +28,17 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_out_cond.h"
 
-
-uint8_t* dap_chain_datum_tx_out_cond_item_get_pkey(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_pkey_size_out)
+uint8_t* dap_chain_datum_tx_out_cond_item_get_params(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_cond_size_out)
 {
     if(a_tx_out_cond) {
-        if(a_pkey_size_out)
-            *a_pkey_size_out = a_tx_out_cond->header.pub_key_size;
-        return a_tx_out_cond->data;
-    }
-    return NULL;
-}
-
-uint8_t* dap_chain_datum_tx_out_cond_item_get_cond(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_cond_size_out)
-{
-    if(a_tx_out_cond) {
-        if(a_cond_size_out)
-            *a_cond_size_out = a_tx_out_cond->header.cond_size;
-        return a_tx_out_cond->data + a_tx_out_cond->header.pub_key_size;
+        switch (a_tx_out_cond->header.subtype ) {
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
+                if(a_cond_size_out)
+                    *a_cond_size_out = a_tx_out_cond->subtype.srv_pay.header.params_size;
+                return a_tx_out_cond->subtype.srv_pay.params;
+            }
+            default: return NULL;
+        }
     }
     return NULL;
 }

@@ -29,23 +29,43 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
+
+#define DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY     0x01
 /**
  * @struct dap_chain_tx_out
  * @brief Transaction item out_cond
  */
 typedef struct dap_chain_tx_out_cond {
     struct {
-        dap_chain_tx_item_type_t type :8; // Transaction item type
-        uint64_t value; // Number of Datoshis ( DAP/10^9 ) to be reserver for service
-        uint32_t pub_key_size; /// Public key size
-        uint32_t cond_size; /// Condition parameters size
+        /// Transaction item type
+        dap_chain_tx_item_type_t item_type :8;
+        /// Condition subtype
+        uint8_t subtype;
+        /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
+        uint64_t value;
+        /// When time expires this output could be used only by transaction owner
+        dap_chain_time_t ts_expires;
     } header;
-    dap_chain_addr_t addr; // wallet address, whose owner can use the service
-    uint8_t data[]; // serialized public key + condition parameters dap_chain_net_srv_abstract
+    union {
+        struct {
+            /// Structure with specific for service pay condition subtype
+            struct {
+                /// Public key hash that could use this conditioned outout
+                dap_chain_hash_fast_t pkey_hash;
+                /// Service uid that only could be used for this outout
+                dap_chain_net_srv_uid_t srv_uid;
+                /// Price unit thats used to check price max
+                dap_chain_net_srv_price_unit_uid_t unit;
+                /// Maximum price per unit
+                uint64_t unit_price_max_datoshi;
+                 /// Condition parameters size
+                uint32_t params_size;
+            } DAP_ALIGN_PACKED header;
+            uint8_t params[]; // condition parameters, pkey, hash or smth like this
+        } DAP_ALIGN_PACKED srv_pay;
+    } subtype;
 }DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
 
-uint8_t* dap_chain_datum_tx_out_cond_item_get_pkey(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_pkey_size_out);
-
-uint8_t* dap_chain_datum_tx_out_cond_item_get_cond(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_cond_size_out);
+uint8_t* dap_chain_datum_tx_out_cond_item_get_params(dap_chain_tx_out_cond_t *a_tx_out_cond, size_t *a_params_size_out);
 
 

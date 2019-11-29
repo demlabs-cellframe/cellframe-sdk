@@ -1367,7 +1367,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t
         const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
                 l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
 
-        if(l_tx_out_cond && !memcmp(&l_tx_out_cond->addr, a_addr, sizeof(dap_chain_addr_t))) {
+        if(l_tx_out_cond) {
             l_cur_tx = l_tx_tmp;
             memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
             break;
