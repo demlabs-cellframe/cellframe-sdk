@@ -119,8 +119,8 @@ uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
 
     size_t l_pkey_size = 0;
     size_t l_cond_size = 0;
-    uint8_t *l_cond = dap_chain_datum_tx_out_cond_item_get_cond(l_tx_out_cond, &l_cond_size);
-    uint8_t *l_pkey = dap_chain_datum_tx_out_cond_item_get_pkey(l_tx_out_cond, &l_pkey_size);
+    uint8_t *l_cond = dap_chain_datum_tx_out_cond_item_get_params(l_tx_out_cond, &l_cond_size);
+    //uint8_t *l_pkey = dap_chain_datum_tx_out_cond_item_get_pkey(l_tx_out_cond, &l_pkey_size);
 
     if(l_cond_size != sizeof(dap_chain_net_srv_abstract_t)) {
         return 0;
@@ -128,26 +128,5 @@ uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
     if(a_cond_out)
         *a_cond_out = (const dap_chain_net_srv_abstract_t*) l_cond;
     return l_value;
-}
-
-// callback for traffic
-void dap_chain_net_srv_traffic_callback(dap_server_t *a_server)
-{
-#if 0
-    pthread_mutex_lock(&a_server->mutex_on_hash);
-    dap_client_remote_t *l_client = a_server->clients;
-    if(l_client) {
-        dap_stream_t *l_stream = DAP_STREAM(l_client);
-        if(l_stream)
-            for(int i = 0; i < l_stream->channel_count; i++) {
-                dap_stream_ch_t * ch = l_stream->channel[i];
-                dap_chain_net_srv_t *net_srv = (dap_chain_net_srv_t*) (ch->internal);
-                // callback for service
-                if(net_srv && net_srv->callback_trafic)
-                    net_srv->callback_trafic(l_client, ch);
-            }
-    }
-    pthread_mutex_unlock(&a_server->mutex_on_hash);
-#endif
 }
 

@@ -41,7 +41,7 @@
 #endif
 
 #include <pthread.h>
-
+#include <dirent.h>
 
 #include "uthash.h"
 #include "utlist.h"
@@ -61,6 +61,7 @@
 static size_t m_uid_count;
 static dap_chain_net_srv_uid_t * m_uid;
 
+
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
     dap_chain_net_srv_t * srv;
@@ -72,6 +73,9 @@ static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_cli_net_srv( int argc, char **argv, char **a_str_reply);
+static void s_load(const char * a_path);
+static void s_load_all(void);
+
 /**
  * @brief dap_chain_net_srv_init
  * @return
@@ -96,8 +100,58 @@ int dap_chain_net_srv_init(void)
         "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
         "\tOrder create\n" );
 
+    s_load_all();
     return 0;
 }
+
+/**
+ * @brief s_load_all
+ */
+void s_load_all(void)
+{
+    char * l_net_dir_str = dap_strdup_printf("%s/service.d", dap_config_path());
+    DIR * l_net_dir = opendir( l_net_dir_str);
+    if ( l_net_dir ){
+        struct dirent * l_dir_entry;
+        while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
+            if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
+                continue;
+            // don't search in directories
+            char * l_full_path = dap_strdup_printf("%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            if(dap_dir_test(l_full_path)) {
+                DAP_DELETE(l_full_path);
+                continue;
+            }
+            // search only ".cfg" files
+            if(strlen(l_dir_entry->d_name) > 4) { // It has non zero name excluding file extension
+                if(strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) != 0) {
+                    // its not .cfg file
+                    continue;
+                }
+            }
+            log_it(L_DEBUG,"Service config %s try to load", l_dir_entry->d_name);
+            //char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
+            char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
+            if ( l_dot_pos )
+                *l_dot_pos = '\0';
+            s_load(l_full_path );
+            DAP_DELETE(l_full_path);
+        }
+        closedir(l_net_dir);
+    }
+    DAP_DELETE (l_net_dir_str);
+}
+
+/**
+ * @brief s_load
+ * @param a_name
+ */
+static void s_load(const char * a_path)
+{
+    log_it ( L_INFO, "Service config %s", a_path);
+    // TODO open service
+}
+
 
 /**
  * @brief dap_chain_net_srv_deinit
@@ -142,9 +196,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char *l_srv_uid_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
 
-            // Select with specified service class
-            const char *l_srv_class_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_class", &l_srv_class_str);
 
             // Select with specified price units
             const char*  l_price_unit_str = NULL;
@@ -164,7 +215,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
             dap_chain_net_srv_uid_t l_srv_uid={{0}};
-            dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
             uint64_t l_price_min=0, l_price_max =0 ;
             dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
 
@@ -178,9 +228,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             if ( l_srv_uid_str)
                 l_srv_uid.uint64 = (uint128_t) atoll( l_srv_uid_str);
 
-            if ( l_srv_class_str )
-                l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
-
             if ( l_price_min_str )
                 l_price_min = (uint64_t) atoll ( l_price_min_str );
 
@@ -191,7 +238,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_size =0;
-            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_srv_class,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
+            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
                 dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_size);
                 for (size_t i = 0; i< l_orders_size; i++){
                     dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
@@ -221,12 +268,11 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_order_t * l_orders = NULL;
                 size_t l_orders_size =0;
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
-                dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
                 uint64_t l_price_min=0, l_price_max =0 ;
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
 
-                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_srv_class,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
+                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
                     dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_size);
                     for (size_t i = 0; i< l_orders_size; i++){
                         dap_chain_net_srv_order_dump_to_string(&l_orders[i],l_string_ret);
@@ -288,7 +334,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             if ( l_srv_uid_str && l_srv_class_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
-                dap_chain_net_srv_class_t l_srv_class= SERV_CLASS_UNDEFINED;
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
                 dap_chain_time_t l_expires=0; // TS when the service expires
@@ -311,7 +356,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if (l_expires_str)
                     l_expires = (dap_chain_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
-                l_srv_class = (dap_chain_net_srv_class_t) atoi( l_srv_class_str );
                 if (l_node_addr_str){
 
                     if (dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str ) == 0 )
@@ -325,7 +369,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
 
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
-                            l_net,l_direction, l_srv_uid, l_srv_class, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
+                            l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
                             l_price_token, l_expires,l_ext);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
@@ -350,21 +394,31 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
 /**
  * @brief dap_chain_net_srv_add
- * @param a_srv
+ * @param a_uid
+ * @param a_callback_new
  */
-void dap_chain_net_srv_add(dap_chain_net_srv_t * a_srv)
+int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_request_after_t a_callback_request)
 {
+    int ret=0;
     service_list_t *l_sdata = NULL;
+    dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
     pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &(a_srv->uid), sizeof(a_srv->uid), l_sdata);
+    HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
     if(l_sdata == NULL) {
+        dap_chain_net_srv_t * l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
+        l_srv->uid.uint64 = a_uid.uint64;
+        l_srv->callback_request = a_callback_request;
         l_sdata = DAP_NEW_Z(service_list_t);
-        memcpy(&l_sdata->uid, &a_srv->uid, sizeof(dap_chain_net_srv_uid_t));
+        memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
         l_sdata->srv = DAP_NEW(dap_chain_net_srv_t);
-        memcpy(&l_sdata->srv, a_srv, sizeof(dap_chain_net_srv_t));
-        HASH_ADD(hh, s_srv_list, uid, sizeof(a_srv->uid), l_sdata);
+        memcpy(&l_sdata->srv, l_srv, sizeof(dap_chain_net_srv_t));
+        HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
+    }else{
+        log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
+        ret = -1;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
+    return ret;
 }
 
 /**

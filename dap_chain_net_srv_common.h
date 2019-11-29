@@ -29,34 +29,15 @@
 #include "dap_math_ops.h"
 #include "dap_server.h"
 #include "dap_stream_ch.h"
+#include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
-
-#define DAP_CHAIN_NET_SRV_UID_SIZE 8
-
-typedef union {
-    uint8_t raw[DAP_CHAIN_NET_SRV_UID_SIZE];
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-    uint64_t raw_ui64[1];
-    uint64_t uint64;
-#elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-    uint64_t raw_ui64[1];
-    uint128_t uint128;
-#endif
-} dap_chain_net_srv_uid_t;
+#include "dap_chain_net.h"
 
 
-typedef union {
-    uint8_t raw[4];
-    uint32_t raw_ui32[1];
-    uint32_t uint32;
-} dap_chain_net_srv_price_unit_uid_t;
 
-//Classes of services
-typedef enum {
-    SERV_CLASS_ONCE = 1, // one-time service (Token exchange )
-    SERV_CLASS_PERMANENT = 2 ,// Permanent working service (VPN, CDN, Streaming)
-    SERV_CLASS_UNDEFINED = 0
-} dap_chain_net_srv_class_t;
+//Units of service
+
+
 
 //Service direction
 typedef enum dap_chain_net_srv_order_direction{
@@ -66,13 +47,7 @@ typedef enum dap_chain_net_srv_order_direction{
 } dap_chain_net_srv_order_direction_t;
 
 
-//Units of service
-enum {
-    SERV_UNIT_UNDEFINED = 0 ,
-    SERV_UNIT_MB = 1, // megabytes
-    SERV_UNIT_SEC = 2, // seconds
-    SERV_UNIT_DAY = 3 // days
-};
+
 
 typedef struct dap_chain_net_srv_abstract
 {
@@ -99,19 +74,22 @@ typedef struct dap_chain_net_srv_abstract
 
 typedef void (*dap_chain_callback_trafic_t)(dap_client_remote_t *, dap_stream_ch_t *);
 
-typedef struct dap_chain_net_srv
+typedef struct dap_chain_net_srv_price
 {
-    dap_chain_net_srv_uid_t uid; // Unique ID for service.
-    dap_chain_net_srv_abstract_t srv_common;
+    char * net_name;
+    dap_chain_net_t * net;
+    uint64_t value_datoshi;
+    double value_coins;
+    char token[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint64_t units;
+    dap_chain_net_srv_price_unit_uid_t units_uid;
+} dap_chain_net_srv_price_t;
 
-    dap_chain_callback_trafic_t callback_trafic;
-    void * _internal;
-    //void * _inhertor;
-} dap_chain_net_srv_t;
+
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
-    switch ( a_uid.uint32 ) {
+    switch ( a_uid.enm) {
         case SERV_UNIT_UNDEFINED: return "BYTE";
         case SERV_UNIT_MB: return "MEGABYTE";
         case SERV_UNIT_SEC: return "SECOND";

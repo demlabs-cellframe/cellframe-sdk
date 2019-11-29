@@ -52,7 +52,6 @@ char* dap_chain_net_srv_order_create(
         dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
-        dap_chain_net_srv_class_t a_srv_class, //Class of service (once or permanent)
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
@@ -69,7 +68,6 @@ char* dap_chain_net_srv_order_create(
         l_order->srv_uid = a_srv_uid;
         l_order->direction = a_direction;
         l_order->ts_created = (dap_chain_time_t) time(NULL);
-        l_order->srv_class = a_srv_class;
 
         if ( a_node_addr.uint64)
             l_order->node_addr.uint64 = a_node_addr.uint64;
@@ -139,7 +137,7 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_n
  * @return
  */
 int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_net_srv_order_direction_t a_direction,
-                                        const dap_chain_net_srv_uid_t a_srv_uid,const dap_chain_net_srv_class_t a_srv_class,
+                                        const dap_chain_net_srv_uid_t a_srv_uid,
                                         const dap_chain_net_srv_price_unit_uid_t a_price_unit,const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                         const uint64_t a_price_min, const uint64_t a_price_max,
                                         dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
@@ -163,10 +161,6 @@ lb_order_pass:
             // Check srv uid
             if ( a_srv_uid.uint64 )
                 if ( l_order->srv_uid.uint64 != a_srv_uid.uint64 )
-                    continue;
-            // Check srv class
-            if ( a_srv_class != SERV_CLASS_UNDEFINED )
-                if ( l_order->srv_class != a_srv_class )
                     continue;
             // check price unit
             if ( a_price_unit.uint32 )
@@ -246,12 +240,6 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             case SERV_DIR_BUY: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" ); break;
         }
 
-        switch ( a_order->srv_class) {
-            case SERV_CLASS_ONCE: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_ONCE\n" ); break;;
-            case SERV_CLASS_PERMANENT: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_PERMANENT\n" ); break;
-            case SERV_CLASS_UNDEFINED: dap_string_append_printf(a_str_out, "  srv_class:        SERV_CLASS_UNDEFINED\n" ); break;
-            //default: dap_string_append_printf(a_str_out, "  srv_class:        UNKNOWN\n" );
-        }
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
         dap_string_append_printf(a_str_out, "  price:            \u00a0%.7Lf (%llu)\n", dap_chain_balance_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
