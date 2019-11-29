@@ -69,7 +69,7 @@ void s_save_key_in_storge(dap_enc_ks_key_t *a_key)
     HASH_ADD_STR(_ks,id,a_key);
     if(s_memcache_enable) {
         dap_enc_key_serealize_t* l_serealize_key = dap_enc_key_serealize(a_key->key);
-        dap_memcache_put(a_key->id, l_serealize_key, sizeof (dap_enc_key_serealize_t), s_memcache_expiration_key);
+        //dap_memcache_put(a_key->id, l_serealize_key, sizeof (dap_enc_key_serealize_t), s_memcache_expiration_key);
         free(l_serealize_key);
     }
 }
@@ -83,7 +83,7 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
         if(s_memcache_enable) {
             void* l_key_buf;
             size_t l_val_length;
-            bool find = dap_memcache_get(v_id, &l_val_length, (void**)&l_key_buf);
+            /*bool find = dap_memcache_get(v_id, &l_val_length, (void**)&l_key_buf);
             if(find) {
                 if(l_val_length != sizeof (dap_enc_key_serealize_t)) {
                     log_it(L_WARNING, "Data can be broken");
@@ -96,7 +96,7 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
                 HASH_ADD_STR(_ks,id,ret);
                 free(l_key_buf);
                 return ret;
-            }
+            }*/
         }
         log_it(L_WARNING, "Key not found");
     }
@@ -155,9 +155,6 @@ void dap_enc_ks_delete(const char *id)
     dap_enc_ks_key_t *delItem = dap_enc_ks_find(id);
     if (delItem) {
         HASH_DEL (_ks, delItem);
-        if(s_memcache_enable && dap_memcache_delete(id) == false) {
-            log_it(L_WARNING, "Cant delete key from memcache. Not found");
-        }
         pthread_mutex_destroy(&delItem->mutex);
         _enc_key_free(&delItem);
         return;
