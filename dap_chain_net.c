@@ -1607,6 +1607,75 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
 }
 
 /**
+ * Get remote node list
+ */
+dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
+{
+    dap_list_t *l_node_list = NULL;
+    /*
+     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+     // get nodes from seed_nodes
+     for(uint16_t i = 0; i < l_net_pvt->seed_aliases_count; i++) {
+     dap_chain_node_addr_t *l_node_address = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
+     l_node_list = dap_list_append(l_node_list, l_node_address);
+     }*/
+
+    // get nodes list from global_db
+    dap_global_db_obj_t *l_objs = NULL;
+    size_t l_nodes_count = 0;
+    // read all node
+    l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
+    if(!l_nodes_count || !l_objs)
+        return l_node_list;
+    for(size_t i = 0; i < l_nodes_count; i++) {
+        dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
+        dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+        l_address->uint64 = l_node_info->hdr.address.uint64;
+        l_node_list = dap_list_append(l_node_list, l_address);
+    }
+    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+    return l_node_list;
+
+        // get remote node list
+        /*dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_node_address);
+        if(!l_node_info)
+            continue;
+        // start connect
+        //debug inet_pton( AF_INET, "192.168.100.93", &l_node_info->hdr.ext_addr_v4);
+        dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_node_info);
+        //dap_chain_node_client_t *l_node_client = dap_chain_client_connect(l_node_info, l_stage_target, l_active_channels);
+        if(!l_node_client) {
+            DAP_DELETE(l_node_info);
+            continue;
+        }
+        // wait connected
+        int timeout_ms = 5000; //5 sec = 5000 ms
+        int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+        if(res) {
+            // clean client struct
+            dap_chain_node_client_close(l_node_client);
+            DAP_DELETE(l_node_info);
+            continue;
+        }
+        res = dap_chain_node_client_send_nodelist_req(l_node_client);
+        if(res) {
+            // clean client struct
+            dap_chain_node_client_close(l_node_client);
+            DAP_DELETE(l_node_info);
+            continue;
+        }
+        res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODELIST_GOT, timeout_ms);
+        if(res) {
+            // clean client struct
+            dap_chain_node_client_close(l_node_client);
+            DAP_DELETE(l_node_info);
+            continue;
+        }
+        DAP_DELETE(l_node_info);
+        */
+}
+
+/**
  * @brief dap_chain_net_proc_datapool
  * @param a_net
  */

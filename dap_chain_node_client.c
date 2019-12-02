@@ -644,3 +644,26 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
     }
     return l_ret;
 }
+
+/*static void nodelist_response_callback(dap_client_t *a_client, void *data, size_t data_len)
+{
+}
+
+static void nodelist_response_error_callback(dap_client_t *a_client, int a_err)
+{
+}*/
+
+/**
+ * Send nodelist request to server
+ */
+int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client)
+{
+    if(!a_client || !a_client->client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
+        return -1;
+    //dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client->client);
+
+    //TODO send request to get nodelist
+    //dap_client_request_enc(a_client->client, DAP_UPLINK_PATH_NODE_LIST, "", "", "", 0,
+    //        nodelist_response_callback, nodelist_response_error_callback);
+    return 1;
+}
