@@ -1204,7 +1204,7 @@ void tune_socket(int sk) {
             error("setsockopt IPV6_MTU_DISCOVER");
 
         if(flow_label) {
-            struct in6_flowlabel_req flr;
+            struct in6_flowlabel_req_ flr;
 
             memset(&flr, 0, sizeof(flr));
             flr.flr_label = htonl(flow_label & 0x000fffff);

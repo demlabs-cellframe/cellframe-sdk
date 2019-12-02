@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 project (dap_chain_net)
   
 set(DAP_CHAIN_NET_SRCS 
-  dap_chain_net.c 
+	dap_chain_net.c 
+	dap_chain_net_remote.c
         dap_chain_node.c
         dap_chain_node_cli.c
         dap_chain_node_cli_cmd.c
@@ -14,6 +15,7 @@ set(DAP_CHAIN_NET_SRCS
 
 set(DAP_CHAIN_NET_HEADERS
         dap_chain_net.h
+	dap_chain_net_remote.h
         dap_chain_node.h
         dap_chain_node_cli.h
         dap_chain_node_cli_cmd.h
@@ -22,6 +24,12 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node_remote.h
         dap_chain_node_ping.h
     )
+
+#if (ANDROID)
+#    set(DAP_CHAIN_NET_HEADERS ${DAP_CHAIN_NET_HEADERS}
+#        android/ifaddrs-android.h
+#    )
+#endif()
 
 set(IPUTILS_INCLUDE_DIRS
      iputils/traceroute/
@@ -47,8 +55,6 @@ if(WIN32)
   add_definitions ("-D_POSIX_THREAD_SAFE_FUNCTIONS")
   add_definitions ("-DNODE_NETNAME=\"cellframe\"")
   include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/libmemcached/)
-  include_directories(../3rdparty/libmemcached/win32/)
   include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
   include_directories(../3rdparty/libjson-c/)
@@ -63,7 +69,10 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_chain_net dap_core dap_crypto dap_client dap_stream_ch_chain dap_chain_gdb dap_stream_ch_chain_net dap_chain dap_chain_crypto dap_chain_wallet dap_chain_net_srv dap_chain_net_srv_vpn dap_chain_mempool dap_chain_global_db -lresolv)
+  target_link_libraries(dap_chain_net dap_core dap_crypto dap_client dap_stream_ch_chain dap_chain_gdb dap_stream_ch_chain_net dap_chain
+      dap_chain_crypto dap_chain_wallet dap_chain_net_srv dap_chain_net_srv_vpn dap_chain_mempool dap_chain_global_db
+      resolv
+      )
 endif()
 
 target_include_directories(dap_chain_net INTERFACE . PUBLIC ${IPUTILS_INCLUDE_DIRS})
