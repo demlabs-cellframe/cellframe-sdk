@@ -385,7 +385,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
     case STAGE_STATUS_DONE: {
         log_it(L_INFO, "Stage status %s is done",
                 dap_client_stage_str(a_client_pvt->stage));
-        bool l_is_last_stage = (a_client_pvt->stage == a_client_pvt->stage_target);
         if(a_client_pvt->stage_status_done_callback) {
             a_client_pvt->stage_status_done_callback(a_client_pvt->client, NULL);
             // Expecting that its one-shot callback
@@ -393,6 +392,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         } else
             log_it(L_WARNING, "Stage done callback is not present");
 
+        bool l_is_last_stage = (a_client_pvt->stage == a_client_pvt->stage_target);
         if(l_is_last_stage) {
             log_it(L_NOTICE, "Stage %s is achieved",
                     dap_client_stage_str(a_client_pvt->stage));
@@ -401,8 +401,9 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 // Expecting that its one-shot callback
                 a_client_pvt->stage_target_done_callback = NULL;
             }
-        } else
-            log_it(L_ERROR, "!! dap_CLIENT_STAGE_STATUS_DONE but not l_is_last_stage !!");
+        } else{
+            log_it(L_ERROR, "!! dap_CLIENT_STAGE_STATUS_DONE but not l_is_last_stage (cur stage=%d, target=%d)!!",a_client_pvt->stage, a_client_pvt->stage_target);
+        }
     }
         break;
     default:
