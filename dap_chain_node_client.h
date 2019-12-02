@@ -43,7 +43,7 @@ typedef enum dap_chain_node_client_state {
     //NODE_CLIENT_STATE_SENDED,
     NODE_CLIENT_STATE_SYNC_GDB = 101,
     NODE_CLIENT_STATE_SYNC_CHAINS = 102,
-    NODE_CLIENT_STATE_SYNCED = 103
+    NODE_CLIENT_STATE_SYNCED = 103,
 } dap_chain_node_client_state_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -111,4 +111,7 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms);
 
 int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
+
+int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client);
+
 

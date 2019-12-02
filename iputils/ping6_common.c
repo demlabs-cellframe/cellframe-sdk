@@ -90,7 +90,7 @@ static size_t cmsglen = 0;
 static int pr_icmph(uint8_t type, uint8_t code, uint32_t info);
 
 struct sockaddr_in6 source6 = { .sin6_family = AF_INET6 };
-extern char *device;
+//extern char *device;
 
 #if defined(USE_GCRYPT) || defined(USE_OPENSSL) || defined(USE_NETTLE)
 #include "iputils_md5dig.h"
@@ -562,7 +562,7 @@ int niquery_option_handler(const char *opt_arg)
     return ret;
 }
 
-int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock)
+int ping6_run(ping_handle_t *a_ping_handle, int argc, char **argv, struct addrinfo *ai, struct socket_st *sock)
 {
     static const struct addrinfo hints = { .ai_family = AF_INET6, .ai_flags = getaddrinfo_flags };
     struct addrinfo *result = NULL;
@@ -608,7 +608,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
         freeaddrinfo(result);
 
     if(memchr(target, ':', strlen(target)))
-        options |= F_NUMERIC;
+        a_ping_handle->ping_common.options |= F_NUMERIC;
 
     if(IN6_IS_ADDR_UNSPECIFIED(&firsthop.sin6_addr)) {
         memcpy(&firsthop.sin6_addr, &whereto.sin6_addr, 16);
@@ -620,7 +620,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
             scope_id = firsthop.sin6_scope_id;
     }
 
-    hostname = target;
+    a_ping_handle->ping_common.hostname = target;
 
     if(IN6_IS_ADDR_UNSPECIFIED(&source6.sin6_addr)) {
         socklen_t alen;
@@ -628,8 +628,8 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 
         if(probe_fd < 0)
             error(2, errno, "socket");
-        if(device) {
-            unsigned int iface = if_name2index(device);
+        if(a_ping_handle->device) {
+            unsigned int iface = if_name2index(a_ping_handle->device);
 #ifdef IPV6_RECVPKTINFO
             struct in6_pktinfo ipi;
 
@@ -640,7 +640,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
             if(IN6_IS_ADDR_LINKLOCAL(&firsthop.sin6_addr) ||
                     IN6_IS_ADDR_MC_LINKLOCAL(&firsthop.sin6_addr))
                 firsthop.sin6_scope_id = iface;
-            enable_capability_raw();
+            enable_capability_raw(a_ping_handle);
 #ifdef IPV6_RECVPKTINFO
             if(
             setsockopt(probe_fd, IPPROTO_IPV6, IPV6_PKTINFO, &ipi, sizeof ipi) == -1 ||
@@ -650,11 +650,11 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
             }
 #endif
             if(
-            setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device) + 1) == -1 ||
-                    setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, device, strlen(device) + 1) == -1) {
-                error(2, errno, "setsockopt(SO_BINDTODEVICE) %s", device);
+            setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, a_ping_handle->device, strlen(a_ping_handle->device) + 1) == -1 ||
+                    setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, a_ping_handle->device, strlen(a_ping_handle->device) + 1) == -1) {
+                error(2, errno, "setsockopt(SO_BINDTODEVICE) %s", a_ping_handle->device);
             }
-            disable_capability_raw();
+            disable_capability_raw(a_ping_handle);
         }
 
         if(!IN6_IS_ADDR_LINKLOCAL(&firsthop.sin6_addr) &&
@@ -670,7 +670,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
         source6.sin6_port = 0;
         close(probe_fd);
 
-        if(device) {
+        if(a_ping_handle->device) {
             struct ifaddrs *ifa0, *ifa;
 
             if(getifaddrs(&ifa0))
@@ -680,22 +680,22 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
                 if(!ifa->ifa_name || !ifa->ifa_addr ||
                         ifa->ifa_addr->sa_family != AF_INET6)
                     continue;
-                if(!strcmp(ifa->ifa_name, device) &&
+                if(!strcmp(ifa->ifa_name, a_ping_handle->device) &&
                         IN6_ARE_ADDR_EQUAL(&((struct sockaddr_in6 * )ifa->ifa_addr)->sin6_addr,
                                 &source6.sin6_addr))
                     break;
             }
             if(!ifa)
-                error(0, 0, "Warning: source address might be selected on device other than: %s", device);
+                error(0, 0, "Warning: source address might be selected on device other than: %s", a_ping_handle->device);
 
             freeifaddrs(ifa0);
         }
     }
-    else if(device && (IN6_IS_ADDR_LINKLOCAL(&source6.sin6_addr) ||
+    else if(a_ping_handle->device && (IN6_IS_ADDR_LINKLOCAL(&source6.sin6_addr) ||
             IN6_IS_ADDR_MC_LINKLOCAL(&source6.sin6_addr)))
-        source6.sin6_scope_id = if_name2index(device);
+        source6.sin6_scope_id = if_name2index(a_ping_handle->device);
 
-    if(device) {
+    if(a_ping_handle->device) {
         struct cmsghdr *cmsg;
         struct in6_pktinfo *ipi;
 
@@ -707,34 +707,34 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 
         ipi = (struct in6_pktinfo*) CMSG_DATA(cmsg);
         memset(ipi, 0, sizeof(*ipi));
-        ipi->ipi6_ifindex = if_name2index(device);
+        ipi->ipi6_ifindex = if_name2index(a_ping_handle->device);
     }
 
     if((whereto.sin6_addr.s6_addr16[0] & htons(0xff00)) == htons(0xff00)) {
-        if(uid) {
-            if(interval < 1000)
-                error(2, 0, "multicast ping with too short interval: %d", interval);
-            if(pmtudisc >= 0 && pmtudisc != IPV6_PMTUDISC_DO)
+        if(a_ping_handle->ping_common.uid) {
+            if(a_ping_handle->ping_common.interval < 1000)
+                error(2, 0, "multicast ping with too short interval: %d", a_ping_handle->ping_common.interval);
+            if(a_ping_handle->pmtudisc >= 0 && a_ping_handle->pmtudisc != IPV6_PMTUDISC_DO)
                 error(2, 0, "multicast ping does not fragment");
         }
-        if(pmtudisc < 0)
-            pmtudisc = IPV6_PMTUDISC_DO;
+        if(a_ping_handle->pmtudisc < 0)
+            a_ping_handle->pmtudisc = IPV6_PMTUDISC_DO;
     }
 
-    if(pmtudisc >= 0) {
-        if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &pmtudisc, sizeof pmtudisc) == -1)
+    if(a_ping_handle->pmtudisc >= 0) {
+        if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &a_ping_handle->pmtudisc, sizeof (a_ping_handle->pmtudisc)) == -1)
             error(2, errno, "IPV6_MTU_DISCOVER");
     }
 
-    if((options & F_STRICTSOURCE) &&
+    if((a_ping_handle->ping_common.options & F_STRICTSOURCE) &&
             bind(sock->fd, (struct sockaddr *) &source6, sizeof source6) == -1)
         error(2, errno, "bind icmp socket");
 
-    if((ssize_t) datalen >= (ssize_t) sizeof(struct timeval) && (ni_query < 0)) {
+    if((ssize_t) a_ping_handle->ping_common.datalen >= (ssize_t) sizeof(struct timeval) && (ni_query < 0)) {
         /* can we time transfer */
-        timing = 1;
+        a_ping_handle->ping_common.timing = 1;
     }
-    packlen = datalen + 8 + 4096 + 40 + 8; /* 4096 for rthdr */
+    packlen = a_ping_handle->ping_common.datalen + 8 + 4096 + 40 + 8; /* 4096 for rthdr */
     if(!(packet = (unsigned char *) malloc((unsigned int) packlen)))
         error(2, errno, "memory allocation failed");
 
@@ -742,9 +742,9 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 
     /* Estimate memory eaten by single packet. It is rough estimate.
      * Actually, for small datalen's it depends on kernel side a lot. */
-    hold = datalen + 8;
+    hold = a_ping_handle->ping_common.datalen + 8;
     hold += ((hold + 511) / 512) * (40 + 16 + 64 + 160);
-    sock_setbufs(sock, hold);
+    sock_setbufs(a_ping_handle,sock, hold);
 
 #ifdef __linux__
     if(sock->socktype == SOCK_RAW) {
@@ -784,15 +784,15 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
             error(2, errno, "setsockopt(ICMP6_FILTER)");
     }
 
-    if(options & F_NOLOOP) {
+    if(a_ping_handle->ping_common.options & F_NOLOOP) {
         int loop = 0;
         if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loop, sizeof loop) == -1)
             error(2, errno, "can't disable multicast loopback");
     }
-    if(options & F_TTL) {
-        if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof ttl) == -1)
+    if(a_ping_handle->ping_common.options & F_TTL) {
+        if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &a_ping_handle->ping_common.ttl, sizeof (a_ping_handle->ping_common.ttl)) == -1)
             error(2, errno, "can't set multicast hop limit");
-        if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof ttl) == -1)
+        if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &a_ping_handle->ping_common.ttl, sizeof (a_ping_handle->ping_common.ttl)) == -1)
             error(2, errno, "can't set unicast hop limit");
     }
 
@@ -807,7 +807,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
                     )
         error(2, errno, "can't receive hop limit");
 
-    if(options & F_TCLASS) {
+    if(a_ping_handle->ping_common.options & F_TCLASS) {
 #ifdef IPV6_TCLASS
         if(setsockopt(sock->fd, IPPROTO_IPV6, IPV6_TCLASS, &tclass, sizeof tclass) == -1)
             error(2, errno, "setsockopt(IPV6_TCLASS)");
@@ -816,7 +816,7 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 #endif
     }
 
-    if(options & F_FLOWINFO) {
+    if(a_ping_handle->ping_common.options & F_FLOWINFO) {
 #ifdef IPV6_FLOWLABEL_MGR
         char freq_buf[CMSG_ALIGN(sizeof(struct in6_flowlabel_req)) + cmsglen];
         struct in6_flowlabel_req *freq = (struct in6_flowlabel_req *)freq_buf;
@@ -843,27 +843,27 @@ int ping6_run(int argc, char **argv, struct addrinfo *ai, struct socket_st *sock
 #endif
     }
 
-    printf("PING %s(%s) ", hostname, pr_addr(&whereto, sizeof whereto));
+    printf("PING %s(%s) ", a_ping_handle->ping_common.hostname, pr_addr(a_ping_handle, &whereto, sizeof whereto));
     if(flowlabel)
         printf(", flow 0x%05x, ", (unsigned) ntohl(flowlabel));
-    if(device || (options & F_STRICTSOURCE)) {
-        int saved_options = options;
+    if(a_ping_handle->device || (a_ping_handle->ping_common.options & F_STRICTSOURCE)) {
+        int saved_options = a_ping_handle->ping_common.options;
 
-        options |= F_NUMERIC;
-        printf("from %s %s: ", pr_addr(&source6, sizeof source6), device ? device : "");
-        options = saved_options;
+        a_ping_handle->ping_common.options |= F_NUMERIC;
+        printf("from %s %s: ", pr_addr(a_ping_handle, &source6, sizeof source6), a_ping_handle->device ? a_ping_handle->device : "");
+        a_ping_handle->ping_common.options = saved_options;
     }
-    printf("%d data bytes\n", datalen);
+    printf("%d data bytes\n", a_ping_handle->ping_common.datalen);
 
-    setup(sock);
+    setup(a_ping_handle, sock);
 
     drop_capabilities();
 
-    main_loop(&ping6_func_set, sock, packet, packlen);
+    main_loop(a_ping_handle, &ping6_func_set, sock, packet, packlen);
     return 0;
 }
 
-int ping6_receive_error_msg(socket_st *sock)
+int ping6_receive_error_msg(ping_handle_t *a_ping_handle, socket_st *sock)
 {
     ssize_t res;
     char cbuf[512];
@@ -903,36 +903,36 @@ int ping6_receive_error_msg(socket_st *sock)
 
     if(e->ee_origin == SO_EE_ORIGIN_LOCAL) {
         local_errors++;
-        if(options & F_QUIET)
+        if(a_ping_handle->ping_common.options & F_QUIET)
             goto out;
-        if(options & F_FLOOD)
+        if(a_ping_handle->ping_common.options & F_FLOOD)
             write_stdout("E", 1);
         else if(e->ee_errno != EMSGSIZE)
             error(0, e->ee_errno, "local error");
         else
             error(0, 0, "local error: message too long, mtu: %u", e->ee_info);
-        nerrors++;
+        a_ping_handle->ping_common.nerrors++;
     } else if(e->ee_origin == SO_EE_ORIGIN_ICMP6) {
         struct sockaddr_in6 *sin6 = (struct sockaddr_in6*) (e + 1);
 
         if((size_t) res < sizeof(icmph) ||
                 memcmp(&target.sin6_addr, &whereto.sin6_addr, 16) ||
                 icmph.icmp6_type != ICMP6_ECHO_REQUEST ||
-                !is_ours(sock, icmph.icmp6_id)) {
+                !is_ours(a_ping_handle, sock, icmph.icmp6_id)) {
             /* Not our error, not an error at all. Clear. */
             saved_errno = 0;
             goto out;
         }
 
         net_errors++;
-        nerrors++;
-        if(options & F_QUIET)
+        a_ping_handle->ping_common.nerrors++;
+        if(a_ping_handle->ping_common.options & F_QUIET)
             goto out;
-        if(options & F_FLOOD) {
+        if(a_ping_handle->ping_common.options & F_FLOOD) {
             write_stdout("\bE", 2);
         } else {
-            print_timestamp();
-            printf("From %s icmp_seq=%u ", pr_addr(sin6, sizeof *sin6), ntohs(icmph.icmp6_seq));
+            print_timestamp(a_ping_handle);
+            printf("From %s icmp_seq=%u ", pr_addr(a_ping_handle, sin6, sizeof *sin6), ntohs(icmph.icmp6_seq));
             pr_icmph(e->ee_type, e->ee_code, e->ee_info);
             putchar('\n');
             fflush(stdout);
@@ -952,7 +952,7 @@ int ping6_receive_error_msg(socket_st *sock)
  * of the data portion are used to hold a UNIX "timeval" struct in VAX
  * byte-order, to compute the round-trip time.
  */
-int build_echo(uint8_t *_icmph, unsigned packet_size __attribute__((__unused__)))
+static int build_echo(ping_handle_t *a_ping_handle, uint8_t *_icmph, unsigned packet_size __attribute__((__unused__)))
 {
     struct icmp6_hdr *icmph;
     int cc;
@@ -961,19 +961,19 @@ int build_echo(uint8_t *_icmph, unsigned packet_size __attribute__((__unused__))
     icmph->icmp6_type = ICMP6_ECHO_REQUEST;
     icmph->icmp6_code = 0;
     icmph->icmp6_cksum = 0;
-    icmph->icmp6_seq= htons(ntransmitted+1);
-    icmph->icmp6_id= ident;
+    icmph->icmp6_seq= htons(a_ping_handle->ping_common.ntransmitted+1);
+    icmph->icmp6_id= a_ping_handle->ping_common.ident;
 
-    if(timing)
+    if(a_ping_handle->ping_common.timing)
         gettimeofday((struct timeval *) &_icmph[8],
                 (struct timezone *) NULL);
 
-    cc = datalen + 8; /* skips ICMP portion */
+    cc = a_ping_handle->ping_common.datalen + 8; /* skips ICMP portion */
 
     return cc;
 }
 
-int build_niquery(uint8_t *_nih, unsigned packet_size __attribute__((__unused__)))
+static int build_niquery(ping_handle_t *a_ping_handle, uint8_t *_nih, unsigned packet_size __attribute__((__unused__)))
 {
     struct ni_hdr *nih;
     int cc;
@@ -983,9 +983,9 @@ int build_niquery(uint8_t *_nih, unsigned packet_size __attribute__((__unused__)
 
     nih->ni_type = ICMPV6_NI_QUERY;
     cc = sizeof(*nih);
-    datalen = 0;
+    a_ping_handle->ping_common.datalen = 0;
 
-    niquery_fill_nonce(ntransmitted + 1, nih->ni_nonce);
+    niquery_fill_nonce(a_ping_handle->ping_common.ntransmitted + 1, nih->ni_nonce);
     nih->ni_code = ni_subject_type;
     nih->ni_qtype= htons(ni_query);
     nih->ni_flags= ni_flag;
@@ -995,19 +995,19 @@ int build_niquery(uint8_t *_nih, unsigned packet_size __attribute__((__unused__)
     return cc;
 }
 
-int ping6_send_probe(socket_st *sock, void *packet, unsigned packet_size)
+int ping6_send_probe(ping_handle_t *a_ping_handle, socket_st *sock, void *packet, unsigned packet_size)
 {
     int len, cc;
 
-    rcvd_clear(ntransmitted + 1);
+    rcvd_clear(a_ping_handle, a_ping_handle->ping_common.ntransmitted + 1);
 
     if(niquery_is_enabled())
-        len = build_niquery(packet, packet_size);
+        len = build_niquery(a_ping_handle, packet, packet_size);
     else
-        len = build_echo(packet, packet_size);
+        len = build_echo(a_ping_handle, packet, packet_size);
 
     if(cmsglen == 0) {
-        cc = sendto(sock->fd, (char *) packet, len, confirm,
+        cc = sendto(sock->fd, (char *) packet, len, a_ping_handle->ping_common.confirm,
                 (struct sockaddr *) &whereto,
                 sizeof(struct sockaddr_in6));
     } else {
@@ -1025,9 +1025,9 @@ int ping6_send_probe(socket_st *sock, void *packet, unsigned packet_size)
         mhdr.msg_control = cmsgbuf;
         mhdr.msg_controllen = cmsglen;
 
-        cc = sendmsg(sock->fd, &mhdr, confirm);
+        cc = sendmsg(sock->fd, &mhdr, a_ping_handle->ping_common.confirm);
     }
-    confirm = 0;
+    a_ping_handle->ping_common.confirm = 0;
 
     return (cc == len ? 0 : cc);
 }
@@ -1184,7 +1184,7 @@ void pr_niquery_reply(uint8_t *_nih, int len)
  * program to be run without having intermingled output (or statistics!).
  */
 int
-ping6_parse_reply(socket_st *sock, struct msghdr *msg, int cc, void *addr, struct timeval *tv)
+ping6_parse_reply(ping_handle_t *a_ping_handle, socket_st *sock, struct msghdr *msg, int cc, void *addr, struct timeval *tv)
 {
     struct sockaddr_in6 *from = addr;
     uint8_t *buf = msg->msg_iov->iov_base;
@@ -1210,19 +1210,19 @@ ping6_parse_reply(socket_st *sock, struct msghdr *msg, int cc, void *addr, struc
 
     icmph = (struct icmp6_hdr *) buf;
     if(cc < 8) {
-        if(options & F_VERBOSE)
+        if(a_ping_handle->ping_common.options & F_VERBOSE)
             error(0, 0, "packet too short: %d bytes", cc);
         return 1;
     }
 
     if(icmph->icmp6_type == ICMP6_ECHO_REPLY) {
-        if(!is_ours(sock, icmph->icmp6_id))
+        if(!is_ours(a_ping_handle, sock, icmph->icmp6_id))
         return 1;
-        if (!contains_pattern_in_payload((uint8_t*)(icmph+1)))
+        if (!contains_pattern_in_payload(a_ping_handle, (uint8_t*)(icmph+1)))
         return 1; /* 'Twas really not our ECHO */
-        if (gather_statistics((uint8_t*)icmph, sizeof(*icmph), cc,
+        if (gather_statistics(a_ping_handle, (uint8_t*)icmph, sizeof(*icmph), cc,
                 ntohs(icmph->icmp6_seq),
-                hops, 0, tv, pr_addr(from, sizeof *from),
+                hops, 0, tv, pr_addr(a_ping_handle, from, sizeof *from),
                 pr_echo_reply)) {
             fflush(stdout);
             return 0;
@@ -1232,9 +1232,9 @@ ping6_parse_reply(socket_st *sock, struct msghdr *msg, int cc, void *addr, struc
         int seq = niquery_check_nonce(nih->ni_nonce);
         if (seq < 0)
         return 1;
-        if (gather_statistics((uint8_t*)icmph, sizeof(*icmph), cc,
+        if (gather_statistics(a_ping_handle, (uint8_t*)icmph, sizeof(*icmph), cc,
                 seq,
-                hops, 0, tv, pr_addr(from, sizeof *from),
+                hops, 0, tv, pr_addr(a_ping_handle, from, sizeof *from),
                 pr_niquery_reply))
         return 0;
     } else {
@@ -1263,32 +1263,32 @@ ping6_parse_reply(socket_st *sock, struct msghdr *msg, int cc, void *addr, struc
         }
         if (nexthdr == IPPROTO_ICMPV6) {
             if (icmph1->icmp6_type != ICMP6_ECHO_REQUEST ||
-            !is_ours(sock, icmph1->icmp6_id))
+            !is_ours(a_ping_handle, sock, icmph1->icmp6_id))
             return 1;
-            acknowledge(ntohs(icmph1->icmp6_seq));
-            nerrors++;
-            if (options & F_FLOOD) {
+            acknowledge(a_ping_handle, ntohs(icmph1->icmp6_seq));
+            a_ping_handle->ping_common.nerrors++;
+            if (a_ping_handle->ping_common.options & F_FLOOD) {
                 write_stdout("\bE", 2);
                 return 0;
             }
-            print_timestamp();
-            printf("From %s: icmp_seq=%u ", pr_addr(from, sizeof *from), ntohs(icmph1->icmp6_seq));
+            print_timestamp(a_ping_handle);
+            printf("From %s: icmp_seq=%u ", pr_addr(a_ping_handle, from, sizeof *from), ntohs(icmph1->icmp6_seq));
         } else {
             /* We've got something other than an ECHOREPLY */
-            if (!(options & F_VERBOSE) || uid)
+            if (!(a_ping_handle->ping_common.options & F_VERBOSE) || a_ping_handle->ping_common.uid)
             return 1;
-            print_timestamp();
-            printf("From %s: ", pr_addr(from, sizeof *from));
+            print_timestamp(a_ping_handle);
+            printf("From %s: ", pr_addr(a_ping_handle, from, sizeof *from));
         }
         pr_icmph(icmph->icmp6_type, icmph->icmp6_code, ntohl(icmph->icmp6_mtu));
     }
 
-    if(options & F_AUDIBLE) {
+    if(a_ping_handle->ping_common.options & F_AUDIBLE) {
         putchar('\a');
-        if(options & F_FLOOD)
+        if(a_ping_handle->ping_common.options & F_FLOOD)
             fflush(stdout);
     }
-    if(!(options & F_FLOOD)) {
+    if(!(a_ping_handle->ping_common.options & F_FLOOD)) {
         putchar('\n');
         fflush(stdout);
     }
@@ -1369,7 +1369,7 @@ int pr_icmph(uint8_t type, uint8_t code, uint32_t info)
     return 0;
 }
 
-void ping6_install_filter(socket_st *sock)
+void ping6_install_filter(ping_handle_t *a_ping_handle, socket_st *sock)
 {
     static int once;
     static struct sock_filter insns[] = {
@@ -1391,7 +1391,7 @@ void ping6_install_filter(socket_st *sock)
     once = 1;
 
     /* Patch bpflet for current identifier. */
-    insns[1] = (struct sock_filter )BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, htons(ident), 0, 1);
+    insns[1] = (struct sock_filter )BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K, htons(a_ping_handle->ping_common.ident), 0, 1);
 
     if(setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
         error(0, errno, "WARNING: failed to install socket filter");

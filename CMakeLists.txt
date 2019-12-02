@@ -9,6 +9,7 @@ set(DAP_CHAIN_NET_SRCS
         dap_chain_node_cli_cmd_tx.c
         dap_chain_node_client.c
         dap_chain_node_remote.c
+        dap_chain_node_ping.c
         )
 
 set(DAP_CHAIN_NET_HEADERS
@@ -19,6 +20,7 @@ set(DAP_CHAIN_NET_HEADERS
         dap_chain_node_cli_cmd_tx.h
         dap_chain_node_client.h
         dap_chain_node_remote.h
+        dap_chain_node_ping.h
     )
 
 set(IPUTILS_INCLUDE_DIRS

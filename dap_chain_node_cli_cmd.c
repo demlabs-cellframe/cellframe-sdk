@@ -45,6 +45,7 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <wepoll.h>
+#include <signal.h>
 #include <pthread.h>
 #else
 #include <sys/types.h>
@@ -71,6 +72,7 @@
 #include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
+#include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_vpn_client.h"
 #include "dap_chain_cell.h"
@@ -752,150 +754,6 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     return  -555;
 }
 
-/*
- int com_global_db_prev(int a_argc, char ** a_argv, char **a_str_reply)
- {
- enum {
- CMD_NONE, CMD_NAME_NODE, CMD_NAME_CELL, CMD_ADD, CMD_DEL, CMD_LINK    };
- //printf("com_global_db\n");
- int arg_index = 1;
- int cmd_name =  CMD_NONE;
- // find 'node' as first parameter only
- arg_index = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "node", NULL);
- if(arg_index)
- cmd_name =  CMD_NAME_NODE;
- // find 'cells' as first parameter only
- if(!arg_index) {
- arg_index = 1;
- arg_index = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "cells", NULL);
- if(arg_index)
- cmd_name =  CMD_NAME_CELL;
- }
- if(!arg_index || a_argc < 3) {
- dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
- return -1;
- }
- dap_chain_t * l_chain = NULL;
- dap_chain_net_t * l_net = NULL;
-
- if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
- return -11;
-
- int arg_index_n = ++arg_index;
- // find command (add, delete, etc) as second parameter only
- int cmd_num = CMD_NONE;
- switch(cmd_name){
- case CMD_NAME_NODE:
- if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
- != 0) {
- cmd_num = CMD_ADD;
- }
- else if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del",
- NULL))
- != 0) {
- cmd_num = CMD_DEL;
- }
- else if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "link",
- NULL))
- != 0) {
- cmd_num = CMD_LINK;
- }
- break;
-
- case CMD_NAME_CELL:
- if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
- != 0) {
- cmd_num = CMD_ADD;
- }
- }
-
- if(cmd_num == CMD_NONE) {
- dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
- return -1;
- }
- //arg_index = arg_index_n; // no need, they are already equal must be
- assert(arg_index == arg_index_n);
- arg_index++;
- const char *l_addr_str = NULL, *alias_str = NULL, *l_cell_str = NULL, *l_chain_str = NULL, *l_link_str = NULL;
- const char *a_ipv4_str = NULL, *a_ipv6_str = NULL;
- // find addr, alias
-
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv4", &a_ipv4_str);
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv6", &a_ipv6_str);
- dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
-
- // struct to write to the global db
- dap_chain_node_addr_t l_link = { 0 };
- dap_chain_node_info_t *l_node_info;
- size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
- l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
-
- if(l_addr_str) {
- dap_digit_from_string(l_addr_str, l_node_info->hdr.address.raw, sizeof(l_node_info->hdr.address.raw));
- }
- if(l_cell_str) {
- dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
- }
- if(l_link_str) {
- dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
- }
-
- switch (cmd_num)
- {
- // add new node to global_db
- case CMD_ADD:
- if(cmd_name == CMD_NAME_NODE) {
- if(!arg_index || a_argc < 8) {
- dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
- return -1;
- }
- // handler of command 'global_db node add'
- return node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
- a_str_reply);
- }
- else if(cmd_name == CMD_NAME_CELL) {
- if(!arg_index || a_argc < 7) {
- dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
- return -1;
- }
- dap_chain_cell_t *l_cell = dap_chain_cell_create();
- l_cell->chain = l_chain;
- l_cell->id.uint64 = l_node_info->hdr.cell_id.uint64;
- l_cell->file_storage_path = "234";
- dap_chain_cell_file_update(l_cell);
- DAP_DELETE(l_cell);
-
- }
- break;
-
- case CMD_DEL:
- // handler of command 'global_db node del'
- return node_info_del_with_reply(l_net,l_node_info, alias_str, a_str_reply);
- case CMD_LINK:
- if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
- // handler of command 'global_db node link add -addr <node address> -link <node address>'
- return link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
- else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL))
- // handler of command 'global_db node link del -addr <node address> -link <node address>'
- return link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
- else {
- dap_chain_node_cli_set_reply_text(a_str_reply, "command not recognize, supported format:\n"
- "global_db node link <add|del] [-addr <node address>  | -alias <node alias>] -link <node address>");
- DAP_DELETE(l_node_info);
- return -1;
- }
-
- default:
- dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
- return -1;
- }
- }
- */
-
 /**
  * Node command
  */
@@ -1058,8 +916,87 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }
         if(!l_node_addr.uint64) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
-            return -1;
+            // check whether auto mode
+            int l_is_auto = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "auto", NULL);
+            if(!l_is_auto) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "addr not found");
+                return -1;
+            }
+            // if auto mode, then looking for the node address
+
+            // list of dap_chain_node_addr_t struct
+            dap_list_t *l_node_list = dap_chain_net_get_node_list(l_net);
+            // add cur node links to list
+            dap_chain_node_info_t *l_cur_node_info = NULL;
+            {
+                // get cur node address
+                dap_chain_node_addr_t l_cur_node_addr = { 0 };
+                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                // get cur node info
+                l_cur_node_info = node_info_read_and_reply(l_net, &l_cur_node_addr, NULL);
+                // add links to nodes list only from the same cell
+                if(l_cur_node_info) {
+                    for(unsigned int i = 0; i < l_cur_node_info->hdr.links_number; i++) {
+                        //if(l_node_info && l_node_info->hdr.cell_id == l_cur_node_info->hdr.cell_id){
+                        l_node_list = dap_list_append(l_node_list, l_cur_node_info->links + i);
+                        //}
+                    }
+
+                }
+            }
+
+            // select the nearest node from the list
+            unsigned int l_nodes_count = dap_list_length(l_node_list);
+            unsigned int l_thread_id = 0;
+            pthread_t *l_threads = DAP_NEW_Z_SIZE(pthread_t, sizeof(pthread_t) * l_nodes_count);
+            uint64_t *l_nodes_addr = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_nodes_count);
+            dap_list_t *l_node_list0 = l_node_list;
+            // send ping to all nodes
+            while(l_node_list) {
+                dap_chain_node_addr_t *l_node_addr = l_node_list->data;
+                dap_chain_node_info_t *l_node_info = node_info_read_and_reply(l_net, l_node_addr, NULL);
+
+                // start sending ping
+                start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
+
+                l_nodes_addr[l_thread_id] = l_node_info->hdr.address.uint64;
+                l_thread_id++;
+                DAP_DELETE(l_node_info);
+                l_node_list = dap_list_next(l_node_list);
+            }
+            // wait for reply from nodes
+            int best_node_pos = -1;
+            int best_node_reply = INT32_MAX;
+            // timeout for all threads
+            int l_timeout_full_ms = 3000;// wait max 3 second
+            for(l_thread_id = 0; l_thread_id < l_nodes_count; l_thread_id++) {
+                if(l_timeout_full_ms<100)
+                    l_timeout_full_ms = 100;// make small timeout anyway, may be
+                struct timespec l_time_start;
+                clock_gettime(CLOCK_MONOTONIC, &l_time_start);
+                int res = wait_node_ping(l_threads[l_thread_id], l_timeout_full_ms);
+                if(res > 0 && res < best_node_reply) {
+                    best_node_pos = l_thread_id;
+                    best_node_reply = res;
+                }
+                struct timespec l_time_stop;
+                clock_gettime(CLOCK_MONOTONIC, &l_time_stop);
+                l_timeout_full_ms -= timespec_diff(&l_time_start, &l_time_stop, NULL);
+                //printf(" thread %x ping=%d\n", l_threads[l_thread_id], res);
+            }
+            if(best_node_pos > 0) {
+                l_node_addr.uint64 = l_nodes_addr[best_node_pos];
+            }
+
+            DAP_DELETE(l_nodes_addr);
+            DAP_DELETE(l_threads);
+            dap_list_free_full(l_node_list0, free);
+            DAP_DELETE(l_cur_node_info);
+
+            if(!l_node_addr.uint64) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "no node is available");
+                return -1;
+            }
         }
 
         dap_chain_node_info_t *l_remote_node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
@@ -1479,7 +1416,9 @@ int com_ping(int argc, char** argv, char **str_reply)
         n = 1;
     const char *addr = argv[argc_host];
     iputils_set_verbose();
-    int res = (addr) ? ping_util(addr, n) : -EADDRNOTAVAIL;
+    ping_handle_t *l_ping_handle = ping_handle_create();
+    int res = (addr) ? ping_util(l_ping_handle, addr, n) : -EADDRNOTAVAIL;
+    DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(str_reply)
             dap_chain_node_cli_set_reply_text(str_reply, "ping %s time=%.1lf ms", addr, res * 1. / 1000);
