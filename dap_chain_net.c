@@ -1606,8 +1606,44 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
     return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.cell_id: 0;
 }
 
+
 /**
- * Get remote node list
+ * Get nodes list (list of dap_chain_node_addr_t struct)
+ */
+dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell)
+{
+    dap_list_t *l_node_list = NULL;
+    // get cur node address
+    dap_chain_node_addr_t l_cur_node_addr = { 0 };
+    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+
+    dap_chain_node_info_t *l_cur_node_info = dap_chain_node_info_read(l_net, &l_cur_node_addr);
+    // add links to nodes list only from the same cell
+    if(l_cur_node_info) {
+        for(unsigned int i = 0; i < l_cur_node_info->hdr.links_number; i++) {
+            bool l_is_add = true;
+            dap_chain_node_addr_t *l_remote_address = l_cur_node_info->links + i;
+            if(a_is_only_cur_cell) {
+                // get remote node list
+                dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_address);
+                if(!l_remote_node_info || l_remote_node_info->hdr.cell_id.uint64 != l_cur_node_info->hdr.cell_id.uint64)
+                    l_is_add = false;
+                DAP_DELETE(l_remote_node_info);
+            }
+            if(l_is_add) {
+                dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+                l_address->uint64 = l_cur_node_info->links[i].uint64;
+                l_node_list = dap_list_append(l_node_list, l_address);
+            }
+        }
+
+    }
+    DAP_DELETE(l_cur_node_info);
+    return l_node_list;
+}
+
+/**
+ * Get remote nodes list (list of dap_chain_node_addr_t struct)
  */
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
 {
