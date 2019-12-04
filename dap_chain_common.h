@@ -139,6 +139,7 @@ typedef struct dap_chain_addr{
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
 typedef uint64_t dap_chain_time_t;
+static inline dap_chain_time_t dap_chain_time_now() { return (dap_chain_time_t) time(NULL); }
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
@@ -165,6 +166,15 @@ typedef union {
         SERV_UNIT_DAY = 3 // days
     } enm;
 } dap_chain_net_srv_price_unit_uid_t;
+
+
+typedef struct dap_chain_receipt{
+    dap_chain_net_srv_uid_t srv_uid; // Service UID
+    dap_chain_net_srv_price_unit_uid_t units_type;
+    uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+    uint64_t value_datoshi; // Receipt value
+} dap_chain_receipt_t;
+
 
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 

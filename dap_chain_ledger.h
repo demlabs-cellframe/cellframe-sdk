@@ -60,7 +60,17 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger);
 
 void dap_chain_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_id_t a_local_cell_id);
 
-dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx);
+/**
+ * @brief dap_chain_node_datum_tx_calc_hash
+ * @param a_tx
+ * @return
+ */
+static inline dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
+{
+    dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
+    return tx_hash;
+}
 
 /**
  * Add new transaction to the cache
@@ -85,7 +95,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
 dap_chain_datum_token_emission_t * dap_chain_ledger_token_emission_find(dap_ledger_t *a_ledger,
         const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash);
 
-const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_chain_hash_fast_t *tx_hash);
+const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash);
 
 void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);

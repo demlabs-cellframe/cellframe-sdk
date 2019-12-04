@@ -385,6 +385,28 @@ void dap_chain_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_i
 }
 
 /**
+ * @brief dap_chain_ledger_tx_get_token_ticker_by_hash
+ * @param a_ledger
+ * @param a_tx_hash
+ * @return
+ */
+const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash)
+{
+    if(!a_ledger || !a_tx_hash)
+        return NULL;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+
+    if ( dap_hash_fast_is_blank(a_tx_hash) )
+        return NULL;
+
+    dap_chain_ledger_tx_item_t *l_item= NULL;
+    pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
+    HASH_FIND(hh, l_ledger_priv->ledger_items, a_tx_hash, sizeof ( *a_tx_hash), l_item );
+    pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    return l_item? l_item->token_tiker: NULL;
+}
+
+/**
  * @brief dap_chain_ledger_addr_get_token_ticker_all
  * @param a_addr
  * @param a_tickers
@@ -450,17 +472,7 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
     *a_tickers_size = l_count;
 }
 
-/**
- * @brief dap_chain_node_datum_tx_calc_hash
- * @param a_tx
- * @return
- */
-dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
-{
-    dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
-    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
-    return tx_hash;
-}
+
 
 /**
  * Get transaction in the cache by hash
