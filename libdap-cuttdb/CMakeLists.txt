@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1)
 
 project(dap_cuttdb C)
 
 add_definitions ("-D_GNU_SOURCE")
-set(CMAKE_C_FLAGS "-std=gnu11 -Wall -Wextra -fPIC")
+set(CMAKE_C_FLAGS " -Wall -Wextra -fPIC")
 
 file(GLOB cuttdb_src src/*.c)
 file(GLOB cuttdb_h src/*.h)
@@ -22,7 +22,7 @@ list(FILTER cuttdb_h EXCLUDE REGEX "test_mt.")
 
 if(UNIX)
    list(FILTER cuttdb_src EXCLUDE REGEX "mman.")
-    list(FILTER cuttdb_h EXCLUDE REGEX "mman.")
+   list(FILTER cuttdb_h EXCLUDE REGEX "mman.")
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${cuttdb_src} ${cuttdb_h})
@@ -31,6 +31,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES COMPILER_LANGUAGE C)
 
 set_target_properties(dap_cuttdb PROPERTIES LINKER_LANGUAGE C)
 
-target_link_libraries(${PROJECT_NAME} -lpthread)
+target_link_libraries(${PROJECT_NAME})
 
 target_include_directories(${PROJECT_NAME} INTERFACE src)
