@@ -115,6 +115,34 @@ void dap_stream_ch_delete(dap_stream_ch_t*ch)
     //free(ch);
 }
 
+/**
+ * @brief dap_stream_ch_set_ready_to_read
+ * @param a_ch
+ * @param a_is_ready
+ */
+void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * a_ch,bool a_is_ready)
+{
+    pthread_mutex_lock(&a_ch->mutex);
+    if( a_ch->ready_to_read != a_is_ready){
+        //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
+        a_ch->ready_to_read=a_is_ready;
+        if(a_ch->stream->conn_udp)
+            dap_udp_client_ready_to_read(a_ch->stream->conn,a_is_ready);
+        // for stream server
+        else if(a_ch->stream->conn)
+            dap_client_remote_ready_to_read( a_ch->stream->conn,a_is_ready);
+        // for stream client
+        else if(a_ch->stream->events_socket)
+            dap_events_socket_set_readable( a_ch->stream->events_socket, a_is_ready);
+    }
+    pthread_mutex_unlock(&a_ch->mutex);
+}
+
+/**
+ * @brief dap_stream_ch_set_ready_to_write
+ * @param ch
+ * @param is_ready
+ */
 void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
 {
     pthread_mutex_lock(&ch->mutex);
