@@ -394,7 +394,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_uid
  * @param a_callback_new
  */
-int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_request_after_t a_callback_request)
+int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request)
 {
     int ret=0;
     service_list_t *l_sdata = NULL;
@@ -404,7 +404,7 @@ int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callba
     if(l_sdata == NULL) {
         dap_chain_net_srv_t * l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
-        l_srv->callback_request = a_callback_request;
+        l_srv->callback_requested = a_callback_request;
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
         l_sdata->srv = DAP_NEW(dap_chain_net_srv_t);
@@ -455,7 +455,7 @@ void dap_chain_net_srv_del_all(void)
  * @param a_uid
  * @return
  */
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t *a_uid)
+dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
 {
     service_list_t *l_sdata = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);

@@ -83,6 +83,8 @@ typedef struct dap_chain_net_srv_price
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     uint64_t units;
     dap_chain_net_srv_price_unit_uid_t units_uid;
+    struct dap_chain_net_srv_price * next;
+    struct dap_chain_net_srv_price * prev;
 } dap_chain_net_srv_price_t;
 
 

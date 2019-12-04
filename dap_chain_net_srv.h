@@ -30,8 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 
-typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *);
-typedef int (*dap_chain_net_srv_callback_request_after_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_t *, const void *, size_t );
+typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_t *);
+typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_t *, const void *, size_t );
 
 typedef struct dap_chain_net_srv
 {
@@ -39,7 +39,9 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_abstract_t srv_common;
     dap_chain_net_srv_price_t *pricelist;
     dap_chain_callback_trafic_t callback_trafic;
-    dap_chain_net_srv_callback_request_after_t callback_request;
+    dap_chain_net_srv_callback_data_t callback_requested;
+    dap_chain_net_srv_callback_data_t callback_response_success;
+    dap_chain_net_srv_callback_data_t callback_response_error;
     void * _inhertor;
 } dap_chain_net_srv_t;
 typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_config_t *);
@@ -47,10 +49,10 @@ typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_conf
 
 int dap_chain_net_srv_init(void);
 void dap_chain_net_srv_deinit(void);
-int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_request_after_t a_callback_request);
+int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request);
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_del_all(void);
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t *a_uid);
+dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 

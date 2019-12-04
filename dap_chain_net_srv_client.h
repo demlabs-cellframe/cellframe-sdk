@@ -33,4 +33,6 @@ typedef struct dap_chain_net_srv_client
     dap_chain_net_remote_t *net_remote; // For remotes
     uint64_t bytes_received;
     uint64_t bytes_sent;
+    struct dap_chain_net_srv_client *prev;
+    struct dap_chain_net_srv_client *next;
 } dap_chain_net_srv_client_t;
