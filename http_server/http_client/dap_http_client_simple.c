@@ -16,7 +16,6 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <time.h>
-//#include "wrappers.h"
 #endif
 
 #include <pthread.h>
