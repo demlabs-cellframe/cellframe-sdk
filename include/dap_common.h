@@ -354,6 +354,7 @@ void dap_set_log_tag_width(size_t width);
 char *dap_itoa(int i);
 
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t);
+int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result);
 
 int get_select_breaker(void);
 int send_select_break(void);
