@@ -29,6 +29,14 @@
 #include "dap_config.h"
 #include "uthash.h"
 
+#ifndef _WIN32
+#include <unistd.h> // for close
+#define closesocket close
+typedef int SOCKET;
+#define SOCKET_ERROR    -1  // for win32 =  (-1)
+#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
+#endif
+
 
 typedef int cmdfunc_t(int argc, char ** argv, char **str_reply);
 
@@ -39,6 +47,10 @@ typedef struct dap_chain_node_cmd_item{
     char *doc_ex; /* Full documentation for this function.  */
     UT_hash_handle hh;
 } dap_chain_node_cmd_item_t;
+
+
+// Read from socket
+long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout);
 
 /**
  *  Look up NAME as the name of a command, and return a pointer to that

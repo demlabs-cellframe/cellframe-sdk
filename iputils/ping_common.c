@@ -36,6 +36,7 @@
 #define HZ sysconf(_SC_CLK_TCK)
 #endif
 
+/*
 int options;
 
 int mark;
@@ -48,39 +49,45 @@ uint16_t acked;
 unsigned char outpack[MAXPACKET];
 struct rcvd_table rcvd_tbl;
 
-/* counters */
-long npackets; /* max packets to transmit */
-long nreceived; /* # of packets we got back */
-long nrepeats; /* number of duplicates */
-long ntransmitted; /* sequence # for outbound packets = #sent */
-long nchecksum; /* replies with bad checksum */
-long nerrors; /* icmp errors */
-int interval = 1000; /* interval between packets (msec) */
+// counters
+long npackets; // max packets to transmit
+long nreceived; // # of packets we got back
+long nrepeats; // number of duplicates
+long ntransmitted; // sequence # for outbound packets = #sent
+long nchecksum; // replies with bad checksum
+long nerrors; // icmp errors
+int interval = 1000; // interval between packets (msec)
 int preload = 1;
-int deadline = 0; /* time to die */
+int deadline = 0; // time to die
 int lingertime = MAXWAIT * 1000;
 struct timeval start_time, cur_time;
+int confirm = 0;
+volatile int in_pr_addr = 0; // pr_addr() is executing
+jmp_buf pr_addr_jmp;
+*/
+
 volatile int exiting;
 volatile int status_snapshot;
-int confirm = 0;
-volatile int in_pr_addr = 0; /* pr_addr() is executing */
-jmp_buf pr_addr_jmp;
 
 /* Stupid workarounds for bugs/missing functionality in older linuces.
  * confirm_flag fixes refusing service of kernels without MSG_CONFIRM.
  * i.e. for linux-2.2 */
+/*
+
 int confirm_flag = MSG_CONFIRM;
 
-/* timing */
-int timing; /* flag to do timing */
-long tmin = LONG_MAX; /* minimum round trip time */
-long tmax; /* maximum round trip time */
+// timing
+int timing; // flag to do timing
+long tmin = LONG_MAX; // minimum round trip time
+long tmax; // maximum round trip time
+*/
 /* Message for rpm maintainers: have _shame_. If you want
  * to fix something send the patch to me for sanity checking.
  * "sparcfix" patch is a complete non-sense, apparenly the person
  * prepared it was stoned.
  */
-long long tsum; /* sum of all times, for doing average */
+/*
+long long tsum; // sum of all times, for doing average
 long long tsum2;
 int pipesize = -1;
 
@@ -89,16 +96,18 @@ int datalen = DEFDATALEN;
 char *hostname;
 int uid;
 uid_t euid;
-int ident; /* process id to identify our packets */
+int ident; // process id to identify our packets
 
 static int screen_width = INT_MAX;
-
-#define ARRAY_SIZE(a)	(sizeof(a) / sizeof(a[0]))
 
 #ifdef HAVE_LIBCAP
 static cap_value_t cap_raw = CAP_NET_RAW;
 static cap_value_t cap_admin = CAP_NET_ADMIN;
 #endif
+*/
+
+#define ARRAY_SIZE(a)	(sizeof(a) / sizeof(a[0]))
+
 
 void usage(void)
 {
@@ -149,7 +158,7 @@ void usage(void)
     exit(2);
 }
 
-void limit_capabilities(void)
+void limit_capabilities(ping_handle_t *a_ping_handle)
 {
 #ifdef HAVE_LIBCAP
     cap_t cap_cur_p;
@@ -181,10 +190,10 @@ void limit_capabilities(void)
     cap_free(cap_p);
     cap_free(cap_cur_p);
 #endif
-    uid = getuid();
-    euid = geteuid();
+    a_ping_handle->ping_common.uid = getuid();
+    a_ping_handle->ping_common.euid = geteuid();
 #ifndef HAVE_LIBCAP
-    if(seteuid(uid))
+    if(seteuid(a_ping_handle->ping_common.uid))
         error(-1, errno, "setuid");
 #endif
 }
@@ -225,9 +234,9 @@ int modify_capability(cap_value_t cap, cap_flag_value_t on)
     return rc;
 }
 #else
-int modify_capability(int on)
+int modify_capability(ping_handle_t *a_ping_handle, int on)
 {
-    if(seteuid(on ? euid : getuid())) {
+    if(seteuid(on ? a_ping_handle->ping_common.euid : getuid())) {
         error(0, errno, "seteuid");
         return -1;
     }
@@ -252,7 +261,7 @@ void drop_capabilities(void)
 /* Fills all the outpack, excluding ICMP header, but _including_
  * timestamp area with supplied pattern.
  */
-void fill(char *patp, unsigned char *packet, unsigned packet_size)
+void fill(ping_handle_t *a_ping_handle, char *patp, unsigned char *packet, unsigned packet_size)
 {
     int ii, jj;
     unsigned int pat[16];
@@ -279,7 +288,7 @@ void fill(char *patp, unsigned char *packet, unsigned packet_size)
             for(jj = 0; jj < ii; ++jj)
                 bp[jj + kk] = pat[jj];
     }
-    if(!(options & F_QUIET)) {
+    if(!(a_ping_handle->ping_common.options & F_QUIET)) {
         printf("PATTERN: 0x");
         for(jj = 0; jj < ii; ++jj)
             printf("%02x", bp[jj] & 0xFF);
@@ -293,17 +302,17 @@ void fill(char *patp, unsigned char *packet, unsigned packet_size)
 
 static void sigexit(int signo __attribute__((__unused__)))
 {
-    exiting = 1;
-    if(in_pr_addr)
-        longjmp(pr_addr_jmp, 0);
+    //exiting = 1;
+    //if(in_pr_addr)
+    //    longjmp(pr_addr_jmp, 0);
 }
 
 static void sigstatus(int signo __attribute__((__unused__)))
 {
-    status_snapshot = 1;
+    //status_snapshot = 1;
 }
 
-int __schedule_exit(int next)
+int __schedule_exit(ping_handle_t *a_ping_handle, int next)
 {
     static unsigned long waittime;
     struct itimerval it;
@@ -311,12 +320,12 @@ int __schedule_exit(int next)
     if(waittime)
         return next;
 
-    if(nreceived) {
-        waittime = 2 * tmax;
-        if(waittime < (unsigned long) (1000 * interval))
-            waittime = 1000 * interval;
+    if(a_ping_handle->ping_common.nreceived) {
+        waittime = 2 * a_ping_handle->ping_common.tmax;
+        if(waittime < (unsigned long) (1000 * a_ping_handle->ping_common.interval))
+            waittime = 1000 * a_ping_handle->ping_common.interval;
     } else
-        waittime = lingertime * 1000;
+        waittime = a_ping_handle->ping_common.lingertime * 1000;
 
     if(next < 0 || (unsigned long) next < waittime / 1000)
         next = waittime / 1000;
@@ -329,21 +338,21 @@ int __schedule_exit(int next)
     return next;
 }
 
-static inline void update_interval(void)
+static inline void update_interval(ping_handle_t *a_ping_handle)
 {
-    int est = rtt ? rtt / 8 : interval * 1000;
+    int est = a_ping_handle->ping_common.rtt ? a_ping_handle->ping_common.rtt / 8 : a_ping_handle->ping_common.interval * 1000;
 
-    interval = (est + rtt_addend + 500) / 1000;
-    if(uid && interval < MINUSERINTERVAL)
-        interval = MINUSERINTERVAL;
+    a_ping_handle->ping_common.interval = (est + a_ping_handle->ping_common.rtt_addend + 500) / 1000;
+    if(a_ping_handle->ping_common.uid && a_ping_handle->ping_common.interval < MINUSERINTERVAL)
+        a_ping_handle->ping_common.interval = MINUSERINTERVAL;
 }
 
 /*
  * Print timestamp
  */
-void print_timestamp(void)
+void print_timestamp(ping_handle_t *a_ping_handle)
 {
-    if(options & F_PTIMEOFDAY) {
+    if(a_ping_handle->ping_common.options & F_PTIMEOFDAY) {
         struct timeval tv;
         gettimeofday(&tv, NULL);
         printf("[%lu.%06lu] ",
@@ -359,65 +368,65 @@ void print_timestamp(void)
  * of the data portion are used to hold a UNIX "timeval" struct in VAX
  * byte-order, to compute the round-trip time.
  */
-int pinger(ping_func_set_st *fset, socket_st *sock)
+int pinger(ping_handle_t *a_ping_handle, ping_func_set_st *fset, socket_st *sock)
 {
     static int oom_count;
     static int tokens;
     int i;
 
     /* Have we already sent enough? If we have, return an arbitrary positive value. */
-    if(exiting || (npackets && ntransmitted >= npackets && !deadline))
+    if(exiting || (a_ping_handle->ping_common.npackets && a_ping_handle->ping_common.ntransmitted >= a_ping_handle->ping_common.npackets && !a_ping_handle->ping_common.deadline))
         return 1000;
 
     /* Check that packets < rate*time + preload */
-    if(cur_time.tv_sec == 0) {
-        gettimeofday(&cur_time, NULL);
-        tokens = interval * (preload - 1);
+    if(a_ping_handle->ping_common.cur_time.tv_sec == 0) {
+        gettimeofday(&a_ping_handle->ping_common.cur_time, NULL);
+        tokens = a_ping_handle->ping_common.interval * (a_ping_handle->ping_common.preload - 1);
     } else {
         long ntokens;
         struct timeval tv;
 
         gettimeofday(&tv, NULL);
-        ntokens = (tv.tv_sec - cur_time.tv_sec) * 1000 +
-                (tv.tv_usec - cur_time.tv_usec) / 1000;
-        if(!interval) {
+        ntokens = (tv.tv_sec - a_ping_handle->ping_common.cur_time.tv_sec) * 1000 +
+                (tv.tv_usec - a_ping_handle->ping_common.cur_time.tv_usec) / 1000;
+        if(!a_ping_handle->ping_common.interval) {
             /* Case of unlimited flood is special;
              * if we see no reply, they are limited to 100pps */
-            if(ntokens < MININTERVAL && in_flight() >= preload)
+            if(ntokens < MININTERVAL && in_flight(a_ping_handle) >= a_ping_handle->ping_common.preload)
                 return MININTERVAL - ntokens;
         }
         ntokens += tokens;
-        if(ntokens > interval * preload)
-            ntokens = interval * preload;
-        if(ntokens < interval)
-            return interval - ntokens;
+        if(ntokens > a_ping_handle->ping_common.interval * a_ping_handle->ping_common.preload)
+            ntokens = a_ping_handle->ping_common.interval * a_ping_handle->ping_common.preload;
+        if(ntokens < a_ping_handle->ping_common.interval)
+            return a_ping_handle->ping_common.interval - ntokens;
 
-        cur_time = tv;
-        tokens = ntokens - interval;
+        a_ping_handle->ping_common.cur_time = tv;
+        tokens = ntokens - a_ping_handle->ping_common.interval;
     }
 
-    if(options & F_OUTSTANDING) {
-        if(ntransmitted > 0 && !rcvd_test(ntransmitted)) {
-            print_timestamp();
-            printf("no answer yet for icmp_seq=%lu\n", (ntransmitted % MAX_DUP_CHK));
+    if(a_ping_handle->ping_common.options & F_OUTSTANDING) {
+        if(a_ping_handle->ping_common.ntransmitted > 0 && !rcvd_test(a_ping_handle, a_ping_handle->ping_common.ntransmitted)) {
+            print_timestamp(a_ping_handle);
+            printf("no answer yet for icmp_seq=%lu\n", (a_ping_handle->ping_common.ntransmitted % MAX_DUP_CHK));
             fflush(stdout);
         }
     }
 
     resend:
-    i = fset->send_probe(sock, outpack, sizeof(outpack));
+    i = fset->send_probe(a_ping_handle, sock, a_ping_handle->ping_common.outpack, sizeof(a_ping_handle->ping_common.outpack));
 
     if(i == 0) {
         oom_count = 0;
-        advance_ntransmitted();
-        if(!(options & F_QUIET) && (options & F_FLOOD)) {
+        advance_ntransmitted(a_ping_handle);
+        if(!(a_ping_handle->ping_common.options & F_QUIET) && (a_ping_handle->ping_common.options & F_FLOOD)) {
             /* Very silly, but without this output with
              * high preload or pipe size is very confusing. */
-            if((preload < screen_width && pipesize < screen_width) ||
-                    in_flight() < screen_width)
+            if((a_ping_handle->ping_common.preload < a_ping_handle->ping_common.screen_width && a_ping_handle->ping_common.pipesize < a_ping_handle->ping_common.screen_width) ||
+                    in_flight(a_ping_handle) < a_ping_handle->ping_common.screen_width)
                 write_stdout(".", 1);
         }
-        return interval - tokens;
+        return a_ping_handle->ping_common.interval - tokens;
     }
 
     /* And handle various errors... */
@@ -430,14 +439,14 @@ int pinger(ping_func_set_st *fset, socket_st *sock)
         /* Device queue overflow or OOM. Packet is not sent. */
         tokens = 0;
         /* Slowdown. This works only in adaptive mode (option -A) */
-        rtt_addend += (rtt < 8 * 50000 ? rtt / 8 : 50000);
-        if(options & F_ADAPTIVE)
-            update_interval();
-        nores_interval = SCHINT(interval / 2);
+        a_ping_handle->ping_common.rtt_addend += (a_ping_handle->ping_common.rtt < 8 * 50000 ? a_ping_handle->ping_common.rtt / 8 : 50000);
+        if(a_ping_handle->ping_common.options & F_ADAPTIVE)
+            update_interval(a_ping_handle);
+        nores_interval = SCHINT(a_ping_handle->ping_common.interval / 2);
         if(nores_interval > 500)
             nores_interval = 500;
         oom_count++;
-        if(oom_count * nores_interval < lingertime)
+        if(oom_count * nores_interval < a_ping_handle->ping_common.lingertime)
             return nores_interval;
         i = 0;
         /* Fall to hard error. It is to avoid complete deadlock
@@ -446,10 +455,10 @@ int pinger(ping_func_set_st *fset, socket_st *sock)
          * exit some day. :-) */
     } else if(errno == EAGAIN) {
         /* Socket buffer is full. */
-        tokens += interval;
+        tokens += a_ping_handle->ping_common.interval;
         return MININTERVAL;
     } else {
-        if((i = fset->receive_error_msg(sock)) > 0) {
+        if((i = fset->receive_error_msg(a_ping_handle, sock)) > 0) {
             /* An ICMP error arrived. In this case, we've received
              * an error from sendto(), but we've also received an
              * ICMP message, which means the packet did in fact
@@ -460,8 +469,8 @@ int pinger(ping_func_set_st *fset, socket_st *sock)
             goto hard_local_error;
         }
         /* Compatibility with old linuces. */
-        if(i == 0 && confirm_flag && errno == EINVAL) {
-            confirm_flag = 0;
+        if(i == 0 && a_ping_handle->ping_common.confirm_flag && errno == EINVAL) {
+            a_ping_handle->ping_common.confirm_flag = 0;
             errno = 0;
         }
         if(!errno)
@@ -470,30 +479,30 @@ int pinger(ping_func_set_st *fset, socket_st *sock)
 
     hard_local_error:
     /* Hard local error. Pretend we sent packet. */
-    advance_ntransmitted();
+    advance_ntransmitted(a_ping_handle);
 
-    if(i == 0 && !(options & F_QUIET)) {
-        if(options & F_FLOOD)
+    if(i == 0 && !(a_ping_handle->ping_common.options & F_QUIET)) {
+        if(a_ping_handle->ping_common.options & F_FLOOD)
             write_stdout("E", 1);
         else
             perror("ping: sendmsg");
     }
     tokens = 0;
-    return SCHINT(interval);
+    return SCHINT(a_ping_handle->ping_common.interval);
 }
 
 /* Set socket buffers, "alloc" is an estimate of memory taken by single packet. */
 
-void sock_setbufs(socket_st *sock, int alloc)
+void sock_setbufs(ping_handle_t *a_ping_handle, socket_st *sock, int alloc)
 {
     int rcvbuf, hold;
     socklen_t tmplen = sizeof(hold);
 
-    if(!sndbuf)
-        sndbuf = alloc;
-    setsockopt(sock->fd, SOL_SOCKET, SO_SNDBUF, (char *) &sndbuf, sizeof(sndbuf));
+    if(!a_ping_handle->ping_common.sndbuf)
+        a_ping_handle->ping_common.sndbuf = alloc;
+    setsockopt(sock->fd, SOL_SOCKET, SO_SNDBUF, (char *) &a_ping_handle->ping_common.sndbuf, sizeof(a_ping_handle->ping_common.sndbuf));
 
-    rcvbuf = hold = alloc * preload;
+    rcvbuf = hold = alloc * a_ping_handle->ping_common.preload;
     if(hold < 65536)
         hold = 65536;
     setsockopt(sock->fd, SOL_SOCKET, SO_RCVBUF, (char *) &hold, sizeof(hold));
@@ -505,49 +514,49 @@ void sock_setbufs(socket_st *sock, int alloc)
 
 /* Protocol independent setup and parameter checks. */
 
-void setup(socket_st *sock)
+void setup(ping_handle_t *a_ping_handle, socket_st *sock)
 {
     int hold;
     struct timeval tv;
     sigset_t sset;
 
-    if((options & F_FLOOD) && !(options & F_INTERVAL))
-        interval = 0;
+    if((a_ping_handle->ping_common.options & F_FLOOD) && !(a_ping_handle->ping_common.options & F_INTERVAL))
+        a_ping_handle->ping_common.interval = 0;
 
-    if(uid && interval < MINUSERINTERVAL)
+    if(a_ping_handle->ping_common.uid && a_ping_handle->ping_common.interval < MINUSERINTERVAL)
         error(2, 0, "cannot flood; minimal interval allowed for user is %dms", MINUSERINTERVAL);
 
-    if(interval >= INT_MAX / preload)
-        error(2, 0, "illegal preload and/or interval: %d", interval);
+    if(a_ping_handle->ping_common.interval >= INT_MAX / a_ping_handle->ping_common.preload)
+        error(2, 0, "illegal preload and/or interval: %d", a_ping_handle->ping_common.interval);
 
     hold = 1;
-    if(options & F_SO_DEBUG)
+    if(a_ping_handle->ping_common.options & F_SO_DEBUG)
         setsockopt(sock->fd, SOL_SOCKET, SO_DEBUG, (char *) &hold, sizeof(hold));
-    if(options & F_SO_DONTROUTE)
+    if(a_ping_handle->ping_common.options & F_SO_DONTROUTE)
         setsockopt(sock->fd, SOL_SOCKET, SO_DONTROUTE, (char *) &hold, sizeof(hold));
 
 #ifdef SO_TIMESTAMP
-    if(!(options & F_LATENCY)) {
+    if(!(a_ping_handle->ping_common.options & F_LATENCY)) {
         int on = 1;
         if(setsockopt(sock->fd, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)))
             error(0, 0, "Warning: no SO_TIMESTAMP support, falling back to SIOCGSTAMP");
     }
 #endif
 #ifdef SO_MARK
-    if(options & F_MARK) {
+    if(a_ping_handle->ping_common.options & F_MARK) {
         int ret;
         int errno_save;
 
-        enable_capability_admin();
-        ret = setsockopt(sock->fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+        enable_capability_admin(a_ping_handle);
+        ret = setsockopt(sock->fd, SOL_SOCKET, SO_MARK, &a_ping_handle->ping_common.mark, sizeof(a_ping_handle->ping_common.mark));
         errno_save = errno;
-        disable_capability_admin();
+        disable_capability_admin(a_ping_handle);
 
         if(ret == -1) {
             /* we probably dont wanna exit since old kernels
              * dont support mark ..
              */
-            error(0, errno_save, "Warning: Failed to set mark: %d", mark);
+            error(0, errno_save, "Warning: Failed to set mark: %d", a_ping_handle->ping_common.mark);
         }
     }
 #endif
@@ -558,32 +567,32 @@ void setup(socket_st *sock)
      */
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    if(interval < 1000) {
+    if(a_ping_handle->ping_common.interval < 1000) {
         tv.tv_sec = 0;
-        tv.tv_usec = 1000 * SCHINT(interval);
+        tv.tv_usec = 1000 * SCHINT(a_ping_handle->ping_common.interval);
     }
     setsockopt(sock->fd, SOL_SOCKET, SO_SNDTIMEO, (char*) &tv, sizeof(tv));
 
     /* Set RCVTIMEO to "interval". Note, it is just an optimization
      * allowing to avoid redundant poll(). */
-    tv.tv_sec = SCHINT(interval) / 1000;
-    tv.tv_usec = 1000 * (SCHINT(interval) % 1000);
+    tv.tv_sec = SCHINT(a_ping_handle->ping_common.interval) / 1000;
+    tv.tv_usec = 1000 * (SCHINT(a_ping_handle->ping_common.interval) % 1000);
     if(setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO, (char*) &tv, sizeof(tv)))
-        options |= F_FLOOD_POLL;
+        a_ping_handle->ping_common.options |= F_FLOOD_POLL;
 
-    if(!(options & F_PINGFILLED)) {
+    if(!(a_ping_handle->ping_common.options & F_PINGFILLED)) {
         int i;
-        unsigned char *p = outpack + 8;
+        unsigned char *p = a_ping_handle->ping_common.outpack + 8;
 
         /* Do not forget about case of small datalen,
          * fill timestamp area too!
          */
-        for(i = 0; i < datalen; ++i)
+        for(i = 0; i < a_ping_handle->ping_common.datalen; ++i)
             *p++ = i;
     }
 
     if(sock->socktype == SOCK_RAW)
-        ident = htons(getpid() & 0xFFFF);
+        a_ping_handle->ping_common.ident = htons(getpid() & 0xFFFF);
 
     set_signal(SIGINT, sigexit);
     set_signal(SIGALRM, sigexit);
@@ -592,14 +601,14 @@ void setup(socket_st *sock)
     sigemptyset(&sset);
     sigprocmask(SIG_SETMASK, &sset, NULL);
 
-    gettimeofday(&start_time, NULL);
+    gettimeofday(&a_ping_handle->ping_common.start_time, NULL);
 
-    if(deadline) {
+    if(a_ping_handle->ping_common.deadline) {
         struct itimerval it;
 
         it.it_interval.tv_sec = 0;
         it.it_interval.tv_usec = 0;
-        it.it_value.tv_sec = deadline;
+        it.it_value.tv_sec = a_ping_handle->ping_common.deadline;
         it.it_value.tv_usec = 0;
         setitimer(ITIMER_REAL, &it, NULL);
     }
@@ -609,7 +618,7 @@ void setup(socket_st *sock)
 
         if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
             if(w.ws_col > 0)
-                screen_width = w.ws_col;
+                a_ping_handle->ping_common.screen_width = w.ws_col;
         }
     }
 }
@@ -617,22 +626,22 @@ void setup(socket_st *sock)
 /*
  * Return 0 if pattern in payload point to be ptr did not match the pattern that was sent  
  */
-int contains_pattern_in_payload(uint8_t *ptr)
+int contains_pattern_in_payload(ping_handle_t *a_ping_handle, uint8_t *ptr)
 {
     int i;
     uint8_t *cp, *dp;
 
     /* check the data */
     cp = ((u_char*) ptr) + sizeof(struct timeval);
-    dp = &outpack[8 + sizeof(struct timeval)];
-    for(i = sizeof(struct timeval); i < datalen; ++i, ++cp, ++dp) {
+    dp = &a_ping_handle->ping_common.outpack[8 + sizeof(struct timeval)];
+    for(i = sizeof(struct timeval); i < a_ping_handle->ping_common.datalen; ++i, ++cp, ++dp) {
         if(*cp != *dp)
             return 0;
     }
     return 1;
 }
 
-void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int packlen)
+void main_loop(ping_handle_t *a_ping_handle, ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int packlen)
 {
     char addrbuf[128];
     char ans_data[4096];
@@ -650,18 +659,18 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
         /* Check exit conditions. */
         if(exiting)
             break;
-        if(npackets && nreceived + nerrors >= npackets)
+        if(a_ping_handle->ping_common.npackets && a_ping_handle->ping_common.nreceived + a_ping_handle->ping_common.nerrors >= a_ping_handle->ping_common.npackets)
             break;
-        if(deadline && nerrors)
+        if(a_ping_handle->ping_common.deadline && a_ping_handle->ping_common.nerrors)
             break;
         /* Check for and do special actions. */
         if(status_snapshot)
-            status();
+            status(a_ping_handle);
 
         /* Send probes scheduled to this time. */
         do {
-            next = pinger(fset, sock);
-            next = schedule_exit(next);
+            next = pinger(a_ping_handle, fset, sock);
+            next = schedule_exit(a_ping_handle, next);
         } while(next <= 0);
 
         /* "next" is time to send next probe, if positive.
@@ -676,8 +685,8 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
          *    timed waiting (SO_RCVTIMEO). */
         polling = 0;
         recv_error = 0;
-        if((options & (F_ADAPTIVE | F_FLOOD_POLL)) || next < SCHINT(interval)) {
-            int recv_expected = in_flight();
+        if((a_ping_handle->ping_common.options & (F_ADAPTIVE | F_FLOOD_POLL)) || next < SCHINT(a_ping_handle->ping_common.interval)) {
+            int recv_expected = in_flight(a_ping_handle);
 
             /* If we are here, recvmsg() is unable to wait for
              * required timeout. */
@@ -698,7 +707,7 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
             }
 
             if(!polling &&
-                    ((options & (F_ADAPTIVE | F_FLOOD_POLL)) || interval)) {
+                    ((a_ping_handle->ping_common.options & (F_ADAPTIVE | F_FLOOD_POLL)) || a_ping_handle->ping_common.interval)) {
                 struct pollfd pset;
                 pset.fd = sock->fd;
                 pset.events = POLLIN;
@@ -727,6 +736,7 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
             msg.msg_controllen = sizeof(ans_data);
 
             cc = recvmsg(sock->fd, &msg, polling);
+            //log_printf("**recvmsg(fd=%d,msg=0x%x,polling=%d)=%d\n",sock->fd,&msg,polling,cc);
             polling = MSG_DONTWAIT;
 
             if(cc < 0) {
@@ -738,7 +748,7 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
                 errno == EINTR)
                     break;
                 recv_error = 0;
-                if(!fset->receive_error_msg(sock)) {
+                if(!fset->receive_error_msg(a_ping_handle, sock)) {
                     if(errno) {
                         error(0, errno, "recvmsg");
                         break;
@@ -758,21 +768,21 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
                 }
 #endif
 
-                if((options & F_LATENCY) || recv_timep == NULL) {
-                    if((options & F_LATENCY) ||
+                if((a_ping_handle->ping_common.options & F_LATENCY) || recv_timep == NULL) {
+                    if((a_ping_handle->ping_common.options & F_LATENCY) ||
                             ioctl(sock->fd, SIOCGSTAMP, &recv_time))
                         gettimeofday(&recv_time, NULL);
                     recv_timep = &recv_time;
                 }
-                not_ours = fset->parse_reply(sock, &msg, cc, addrbuf, recv_timep);
+                not_ours = fset->parse_reply(a_ping_handle, sock, &msg, cc, addrbuf, recv_timep);
             }
 
             /* See? ... someone runs another ping on this host. */
             if(not_ours && sock->socktype == SOCK_RAW)
-                fset->install_filter(sock);
+                fset->install_filter(a_ping_handle, sock);
 
             /* If nothing is in flight, "break" returns us to pinger. */
-            if(in_flight() == 0)
+            if(in_flight(a_ping_handle) == 0)
                 break;
 
             /* Otherwise, try to recvmsg() again. recvmsg()
@@ -782,10 +792,10 @@ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int pac
         }
     }
     // here present exit() from app
-    finish();
+    finish(a_ping_handle);
 }
 
-int gather_statistics(uint8_t *icmph, int icmplen,
+int gather_statistics(ping_handle_t *a_ping_handle, uint8_t *icmph, int icmplen,
         int cc, uint16_t seq, int hops,
         int csfailed, struct timeval *tv, char *from,
         void (*pr_reply)(uint8_t *icmph, int cc))
@@ -794,11 +804,11 @@ int gather_statistics(uint8_t *icmph, int icmplen,
     long triptime = 0;
     uint8_t *ptr = icmph + icmplen;
 
-    ++nreceived;
+    ++a_ping_handle->ping_common.nreceived;
     if(!csfailed)
-        acknowledge(seq);
+        acknowledge(a_ping_handle, seq);
 
-    if(timing && cc >= (int) (8 + sizeof(struct timeval))) {
+    if(a_ping_handle->ping_common.timing && cc >= (int) (8 + sizeof(struct timeval))) {
         struct timeval tmp_tv;
         memcpy(&tmp_tv, ptr, sizeof(tmp_tv));
 
@@ -808,45 +818,45 @@ int gather_statistics(uint8_t *icmph, int icmplen,
         if(triptime < 0) {
             error(0, 0, "Warning: time of day goes back (%ldus), taking countermeasures", triptime);
             triptime = 0;
-            if(!(options & F_LATENCY)) {
+            if(!(a_ping_handle->ping_common.options & F_LATENCY)) {
                 gettimeofday(tv, NULL);
-                options |= F_LATENCY;
+                a_ping_handle->ping_common.options |= F_LATENCY;
                 goto restamp;
             }
         }
         if(!csfailed) {
-            tsum += triptime;
-            tsum2 += (long long) triptime * (long long) triptime;
-            if(triptime < tmin)
-                tmin = triptime;
-            if(triptime > tmax)
-                tmax = triptime;
-            if(!rtt)
-                rtt = triptime * 8;
+            a_ping_handle->ping_common.tsum += triptime;
+            a_ping_handle->ping_common.tsum2 += (long long) triptime * (long long) triptime;
+            if(triptime < a_ping_handle->ping_common.tmin)
+                a_ping_handle->ping_common.tmin = triptime;
+            if(triptime > a_ping_handle->ping_common.tmax)
+                a_ping_handle->ping_common.tmax = triptime;
+            if(!a_ping_handle->ping_common.rtt)
+                a_ping_handle->ping_common.rtt = triptime * 8;
             else
-                rtt += triptime - rtt / 8;
-            if(options & F_ADAPTIVE)
-                update_interval();
+                a_ping_handle->ping_common.rtt += triptime - a_ping_handle->ping_common.rtt / 8;
+            if(a_ping_handle->ping_common.options & F_ADAPTIVE)
+                update_interval(a_ping_handle);
         }
     }
 
     if(csfailed) {
-        ++nchecksum;
-        --nreceived;
-    } else if(rcvd_test(seq)) {
-        ++nrepeats;
-        --nreceived;
+        ++a_ping_handle->ping_common.nchecksum;
+        --a_ping_handle->ping_common.nreceived;
+    } else if(rcvd_test(a_ping_handle, seq)) {
+        ++a_ping_handle->ping_common.nrepeats;
+        --a_ping_handle->ping_common.nreceived;
         dupflag = 1;
     } else {
-        rcvd_set(seq);
+        rcvd_set(a_ping_handle, seq);
         dupflag = 0;
     }
-    confirm = confirm_flag;
+    a_ping_handle->ping_common.confirm = a_ping_handle->ping_common.confirm_flag;
 
-    if(options & F_QUIET)
+    if(a_ping_handle->ping_common.options & F_QUIET)
         return 1;
 
-    if(options & F_FLOOD) {
+    if(a_ping_handle->ping_common.options & F_FLOOD) {
         if(!csfailed)
             write_stdout("\b \b", 3);
         else
@@ -855,7 +865,7 @@ int gather_statistics(uint8_t *icmph, int icmplen,
         int i;
         uint8_t *cp, *dp;
 
-        print_timestamp();
+        print_timestamp(a_ping_handle);
         log_printf("%d bytes from %s:", cc, from);
 
         if(pr_reply)
@@ -864,11 +874,11 @@ int gather_statistics(uint8_t *icmph, int icmplen,
         if(hops >= 0)
             log_printf(" ttl=%d", hops);
 
-        if(cc < datalen + 8) {
+        if(cc < a_ping_handle->ping_common.datalen + 8) {
             log_printf(" (truncated)\n");
             return 1;
         }
-        if(timing) {
+        if(a_ping_handle->ping_common.timing) {
             if(triptime >= 100000)
                 log_printf(" time=%ld ms", (triptime + 500) / 1000);
             else if(triptime >= 10000)
@@ -880,7 +890,7 @@ int gather_statistics(uint8_t *icmph, int icmplen,
             else
                 log_printf(" time=%ld.%03ld ms", triptime / 1000,
                         triptime % 1000);
-            log_printf(" tsum=%d ", tsum);
+            log_printf(" tsum=%d ", a_ping_handle->ping_common.tsum);
         }
         if(dupflag)
             log_printf(" (DUP!)");
@@ -889,13 +899,13 @@ int gather_statistics(uint8_t *icmph, int icmplen,
 
         /* check the data */
         cp = ((unsigned char*) ptr) + sizeof(struct timeval);
-        dp = &outpack[8 + sizeof(struct timeval)];
-        for(i = sizeof(struct timeval); i < datalen; ++i, ++cp, ++dp) {
+        dp = &a_ping_handle->ping_common.outpack[8 + sizeof(struct timeval)];
+        for(i = sizeof(struct timeval); i < a_ping_handle->ping_common.datalen; ++i, ++cp, ++dp) {
             if(*cp != *dp) {
                 log_printf("\nwrong data byte #%d should be 0x%x but was 0x%x",
                         i, *dp, *cp);
                 cp = (unsigned char*) ptr + sizeof(struct timeval);
-                for(i = sizeof(struct timeval); i < datalen; ++i, ++cp) {
+                for(i = sizeof(struct timeval); i < a_ping_handle->ping_common.datalen; ++i, ++cp) {
                     if((i % 32) == sizeof(struct timeval))
                         log_printf("\n#%d\t", i);
                     log_printf("%x ", *cp);
@@ -927,14 +937,14 @@ static long llsqrt(long long a)
  * finish --
  *	Print out statistics, and give up.
  */
-void finish(void)
+void finish(ping_handle_t *a_ping_handle)
 {
-    struct timeval tv = cur_time;
+    struct timeval tv = a_ping_handle->ping_common.cur_time;
 #ifdef PING_DBG
     char *comma = "";
 #endif
 
-    tvsub(&tv, &start_time);
+    tvsub(&tv, &a_ping_handle->ping_common.start_time);
 #ifdef PING_DBG
     putchar('\n');
     fflush(stdout);
@@ -959,10 +969,10 @@ void finish(void)
     putchar('\n');
 #endif
 
-    if(nreceived && timing) {
+    if(a_ping_handle->ping_common.nreceived && a_ping_handle->ping_common.timing) {
 
-        tsum /= nreceived + nrepeats;
-        tsum2 /= nreceived + nrepeats;
+        a_ping_handle->ping_common.tsum /= a_ping_handle->ping_common.nreceived + a_ping_handle->ping_common.nrepeats;
+        a_ping_handle->ping_common.tsum2 /= a_ping_handle->ping_common.nreceived + a_ping_handle->ping_common.nrepeats;
 #ifdef PING_DBG
         long tmdev;
         tmdev = llsqrt(tsum2 - tsum * tsum);
@@ -980,7 +990,7 @@ void finish(void)
         printf("%spipe %d", comma, pipesize);
         comma = ", ";
     }
-    if (nreceived && (!interval || (options&(F_FLOOD|F_ADAPTIVE))) && ntransmitted > 1) {
+    if (nreceived && (!interval || (a_ping_handle->ping_common.options&(F_FLOOD|F_ADAPTIVE))) && ntransmitted > 1) {
         int ipg = (1000000*(long long)tv.tv_sec+tv.tv_usec)/(ntransmitted-1);
         printf("%sipg/ewma %d.%03d/%d.%03d ms",
                 comma, ipg/1000, ipg%1000, rtt/8000, (rtt/8)%1000);
@@ -990,31 +1000,31 @@ void finish(void)
 #endif
 }
 
-void status(void)
+void status(ping_handle_t *a_ping_handle)
 {
     int loss = 0;
     long tavg = 0;
 
     status_snapshot = 0;
 
-    if(ntransmitted)
-        loss = (((long long) (ntransmitted - nreceived)) * 100) / ntransmitted;
+    if(a_ping_handle->ping_common.ntransmitted)
+        loss = (((long long) (a_ping_handle->ping_common.ntransmitted - a_ping_handle->ping_common.nreceived)) * 100) / a_ping_handle->ping_common.ntransmitted;
 
-    fprintf(stderr, "\r%ld/%ld packets, %d%% loss", nreceived, ntransmitted, loss);
+    fprintf(stderr, "\r%ld/%ld packets, %d%% loss", a_ping_handle->ping_common.nreceived, a_ping_handle->ping_common.ntransmitted, loss);
 
-    if(nreceived && timing) {
-        tavg = tsum / (nreceived + nrepeats);
+    if(a_ping_handle->ping_common.nreceived && a_ping_handle->ping_common.timing) {
+        tavg = a_ping_handle->ping_common.tsum / (a_ping_handle->ping_common.nreceived + a_ping_handle->ping_common.nrepeats);
 
         fprintf(stderr, ", min/avg/ewma/max = %ld.%03ld/%lu.%03ld/%d.%03d/%ld.%03ld ms",
-                (long) tmin / 1000, (long) tmin % 1000,
+                (long) a_ping_handle->ping_common.tmin / 1000, (long) a_ping_handle->ping_common.tmin % 1000,
                 tavg / 1000, tavg % 1000,
-                rtt / 8000, (rtt / 8) % 1000,
-                (long) tmax / 1000, (long) tmax % 1000
+                a_ping_handle->ping_common.rtt / 8000, (a_ping_handle->ping_common.rtt / 8) % 1000,
+                (long) a_ping_handle->ping_common.tmax / 1000, (long) a_ping_handle->ping_common.tmax % 1000
                         );
     }
     fprintf(stderr, "\n");
 }
 
-inline int is_ours(socket_st *sock, uint16_t id) {
-    return sock->socktype == SOCK_DGRAM || id == ident;
+inline int is_ours(ping_handle_t *a_ping_handle, socket_st *sock, uint16_t id) {
+    return sock->socktype == SOCK_DGRAM || id == a_ping_handle->ping_common.ident;
 }

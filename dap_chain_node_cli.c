@@ -34,16 +34,16 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include <unistd.h> // for close
+//#include <unistd.h> // for close
 #include <fcntl.h>
 //#include <sys/poll.h>
 //#include <sys/select.h>
 #include <netinet/in.h>
 #include <sys/un.h>
-#define closesocket close
-typedef int SOCKET;
-#define SOCKET_ERROR    -1  // for win32 =  (-1)
-#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
+//#define closesocket close
+//typedef int SOCKET;
+//#define SOCKET_ERROR    -1  // for win32 =  (-1)
+//#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
 // for Windows
 #else
 #include <winsock2.h>
@@ -787,7 +787,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
                     "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
                     "node alias -addr <node address> -alias <node alias>\n\n"
-                    "node connect {<node address> | -alias <node alias>}\n\n"
+                    "node connect {<node address> | -alias <node alias> | auto}\n\n"
                     "node handshake {<node address> | -alias <node alias>}\n"
                     "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
