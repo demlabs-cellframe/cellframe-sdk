@@ -33,7 +33,6 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <time.h>
-#include <wepoll.h>
 #include <pthread.h>
 #endif
 
