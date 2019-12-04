@@ -50,7 +50,6 @@
 #include <windows.h>
 #include <mswsock.h>
 #include <ws2tcpip.h>
-#include "wrappers.h"
 #include <io.h>
 #include <pthread.h>
 #endif
@@ -642,12 +641,13 @@ void  *thread_loop( void *arg )
       }
 
       dap_cur->last_time_active = cur_time;
-
       if( events[i].events & EPOLLERR ) {
           log_it( L_ERROR,"Socket error: %u, remove it" , dap_cur->socket );
           dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
       }
-
+#ifdef _WIN32
+      set_nonblock_socket(dap_cur->socket); // pconst: for winsock2 has no appropriate MSG attributes
+#endif
       if ( !(dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) || dap_cur->no_close )
         read_write_cb( dap_cur, events[i].events );
 
