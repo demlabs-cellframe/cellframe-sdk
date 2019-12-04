@@ -32,12 +32,18 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_client.h"
 
 typedef struct dap_stream_ch_chain_net_srv_usage{
     uint32_t id; // Usage id
+    time_t ts_created; // Created timpestamp
     dap_chain_net_t * net; // Chain network where everything happens
     dap_chain_net_srv_t * service; // Service that used
-    dap_chain_datum_tx_receipt_t* receipt_active;
+    dap_chain_datum_tx_receipt_t* receipt;
+    size_t receipt_size;
+    dap_chain_net_srv_client_t * clients;
+    dap_chain_datum_tx_t * tx_cond;
+    bool is_active;
     UT_hash_handle hh; //
 } dap_stream_ch_chain_net_srv_usage_t;
 

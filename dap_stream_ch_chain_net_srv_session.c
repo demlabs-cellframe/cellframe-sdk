@@ -55,12 +55,18 @@ dap_stream_ch_chain_net_srv_session_t * dap_stream_ch_chain_net_srv_session_crea
 dap_stream_ch_chain_net_srv_usage_t* dap_stream_ch_chain_net_srv_usage_add (dap_stream_ch_chain_net_srv_session_t * a_srv_session,
                                                                             dap_chain_net_t * a_net, dap_chain_net_srv_t * a_srv)
 {
-    dap_stream_ch_chain_net_srv_usage_t * l_ret = DAP_NEW_Z(dap_stream_ch_chain_net_srv_usage_t);
-    randombytes(&l_ret->id, sizeof(l_ret->id));
-    l_ret->net = a_net;
-    l_ret->service = a_srv;
-    HASH_ADD_INT( a_srv_session->usages, id,l_ret );
-    return l_ret;
+    if ( a_srv_session && a_net && a_srv ){
+        dap_stream_ch_chain_net_srv_usage_t * l_ret = DAP_NEW_Z(dap_stream_ch_chain_net_srv_usage_t);
+        randombytes(&l_ret->id, sizeof(l_ret->id));
+        l_ret->net = a_net;
+        l_ret->service = a_srv;
+        HASH_ADD_INT( a_srv_session->usages, id,l_ret );
+        log_it( L_NOTICE, "Added service %s:0x%016llX usage ", l_ret->net->pub.name, a_srv->uid );
+        return l_ret;
+    }else{
+        log_it( L_ERROR, "Some NULLs was in input");
+        return NULL;
+    }
 }
 
 /**
@@ -72,8 +78,17 @@ dap_stream_ch_chain_net_srv_usage_t* dap_stream_ch_chain_net_srv_usage_add (dap_
 void dap_stream_ch_chain_net_srv_usage_delete (dap_stream_ch_chain_net_srv_session_t * a_srv_session,
                                                                                dap_stream_ch_chain_net_srv_usage_t* a_usage)
 {
-    if ( a_usage->receipt_active )
-        DAP_DELETE( a_usage->receipt_active );
+    if ( a_usage->receipt )
+        DAP_DELETE( a_usage->receipt );
+    if ( a_usage->clients ){
+        for (dap_chain_net_srv_client_t * l_srv_client = a_usage->clients, * tmp = NULL; l_srv_client; ){
+            tmp = l_srv_client;
+            l_srv_client = l_srv_client->next;
+            DAP_DELETE( tmp);
+        }
+
+
+    }
     HASH_DEL(a_srv_session->usages, a_usage);
     DAP_DELETE( a_usage );
 }
