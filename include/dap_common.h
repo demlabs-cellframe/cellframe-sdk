@@ -77,6 +77,7 @@ typedef uint8_t byte_t;
   #define DAP_REALLOC(a, b)     rprealloc(a,b)
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) ret = memcpy(ret,a,b) )
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -91,6 +92,7 @@ typedef uint8_t byte_t;
   #define DAP_REALLOC(a, b)     realloc(a,b)
   #define DAP_DELETE(a)         free(a)
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) memcpy(ret,a,b) )
 #endif
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
