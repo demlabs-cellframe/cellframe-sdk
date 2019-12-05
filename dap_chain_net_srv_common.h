@@ -32,6 +32,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
+#include "dap_chain_wallet.h"
 
 
 
@@ -76,6 +77,7 @@ typedef void (*dap_chain_callback_trafic_t)(dap_client_remote_t *, dap_stream_ch
 
 typedef struct dap_chain_net_srv_price
 {
+    dap_chain_wallet_t * wallet;
     char * net_name;
     dap_chain_net_t * net;
     uint64_t value_datoshi;

@@ -77,7 +77,7 @@ static void s_load_all(void);
  * @brief dap_chain_net_srv_init
  * @return
  */
-int dap_chain_net_srv_init(void)
+int dap_chain_net_srv_init(dap_config_t * a_cfg)
 {
     m_uid = NULL;
     m_uid_count = 0;
@@ -394,15 +394,16 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_uid
  * @param a_callback_new
  */
-int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request)
+dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request)
 {
     int ret=0;
     service_list_t *l_sdata = NULL;
+    dap_chain_net_srv_t * l_srv = NULL;
     dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
     if(l_sdata == NULL) {
-        dap_chain_net_srv_t * l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
+        l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         l_srv->callback_requested = a_callback_request;
         l_sdata = DAP_NEW_Z(service_list_t);
@@ -412,10 +413,9 @@ int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callba
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
-        ret = -1;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
-    return ret;
+    return l_srv;
 }
 
 /**

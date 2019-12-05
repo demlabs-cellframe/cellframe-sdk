@@ -47,9 +47,9 @@ typedef struct dap_chain_net_srv
 typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_config_t *);
 
 
-int dap_chain_net_srv_init(void);
+int dap_chain_net_srv_init(dap_config_t * a_cfg);
 void dap_chain_net_srv_deinit(void);
-int dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request);
+dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request);
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_del_all(void);
 dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
