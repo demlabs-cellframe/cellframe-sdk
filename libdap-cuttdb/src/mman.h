@@ -1,5 +1,5 @@
 #ifndef _MMAN_H_
-#define _MMAN_H_					
+#define _MMAN_H_
 
 #include <_mingw.h>
 #include <stdint.h>
