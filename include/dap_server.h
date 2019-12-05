@@ -27,6 +27,8 @@
 #define EPOLL_HANDLE  int
 #else
 #define EPOLL_HANDLE  HANDLE
+#define MSG_DONTWAIT 0
+#define MSG_NOSIGNAL 0
 #include "wepoll.h"
 #endif
 
