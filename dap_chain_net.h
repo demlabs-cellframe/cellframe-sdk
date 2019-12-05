@@ -93,7 +93,7 @@ inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_c
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }//NET_STATE_ONLINE
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
-void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
+void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
@@ -125,6 +125,8 @@ typedef enum dap_chain_net_tx_search_type {
 
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
+
+dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
