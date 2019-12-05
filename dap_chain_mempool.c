@@ -436,6 +436,66 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
 }
 
+dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net,dap_chain_hash_fast_t *a_tx_prev_hash,
+
+        const dap_chain_addr_t* a_addr_to, dap_enc_key_t *l_key_tx_sign, dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size)
+{
+    dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
+    if ( ! a_net || ! l_ledger || ! a_addr_to )
+        return NULL;
+    if ( ! dap_chain_addr_check_sum (a_addr_to) ){
+        log_it(L_ERROR, "Wrong address_to checksum");
+        return NULL;
+    }
+
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    uint16_t pos=0;
+    dap_chain_datum_tx_add_item(&l_tx, (byte_t*) l_receipt);
+    pos++;
+    // add 'in_cond' items
+    // TODO - find first cond_item occurance, not just set it to 1
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx,a_tx_prev_hash,1,pos-1) != 0 ){
+        dap_chain_datum_tx_delete(l_tx);
+        log_it( L_ERROR, "Cant add tx cond input");
+        return NULL;
+    }
+
+    if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_receipt->receipt.value_datoshi) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it( L_ERROR, "Cant add tx output");
+        return NULL;
+    }
+
+    // add 'sign' items
+    if (l_key_tx_sign){
+        if(dap_chain_datum_tx_add_sign_item(&l_tx, l_key_tx_sign) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it( L_ERROR, "Can't add sign output");
+            return NULL;
+        }
+    }
+    size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
+    dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
+
+    dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
+    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
+    DAP_DELETE( l_tx );
+
+    char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+    if( dap_chain_global_db_gr_set( l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
+                                   , l_gdb_group ) ) {
+        log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
+    }
+    DAP_DELETE(l_gdb_group);
+    DAP_DELETE(l_key_str);
+
+    return l_key_hash;
+}
+
+
 /**
  * Make transfer transaction & insert to cache
  *
