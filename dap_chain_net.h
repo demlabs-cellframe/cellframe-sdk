@@ -36,6 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "win32/ip.h"
 #include "win32/iphdr.h"
+#define s6_addr32 s6_addr
 #define herror perror
 #endif
 

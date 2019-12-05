@@ -20,7 +20,11 @@
  */
 #pragma once
 
+#ifndef _WIN32
 #include <netinet/in.h>
+#else
+#include <windows.h>
+#endif
 #include <pthread.h>
 
 // start sending ping

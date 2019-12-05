@@ -7,7 +7,18 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <netinet/ip.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include "win32/iphdr.h"
+#include "win32/ip.h"
+#define uid_t uint32_t
+#endif
 #include <setjmp.h>
 
 #ifdef __cplusplus
