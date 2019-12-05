@@ -30,6 +30,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx_out.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_receipt.h"
+#include "dap_chain_mempool.h"
 
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
@@ -51,6 +52,11 @@ static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
+
+static dap_chain_datum_tx_receipt_t * s_issue_receipt(dap_chain_net_srv_t *a_srv,
+                dap_stream_ch_chain_net_srv_usage_t * a_usage,
+                dap_chain_net_srv_price_t * a_price
+                );
 
 /**
  * @brief dap_stream_ch_chain_net_init
@@ -207,7 +213,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 l_usage->clients->ch = a_ch;
                 l_usage->clients->ts_created = time(NULL);
                 l_usage->tx_cond = l_tx;
+                memcpy(&l_usage->tx_cond_hash, &l_request->hdr.tx_cond,sizeof (l_usage->tx_cond_hash));
                 l_usage->ts_created = time(NULL);
+
                 int ret;
                 if ( (ret= l_srv->callback_requested(l_srv, l_usage->clients, l_request, l_ch_pkt->hdr.size  ) )!= 0 ){
                     log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
@@ -222,6 +230,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if (l_srv->pricelist ){
                     const char * l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_request->hdr.tx_cond );
                     dap_chain_net_srv_price_t * l_price = l_srv->pricelist;
+                    strncpy(l_usage->token_ticker, l_ticker, DAP_CHAIN_TICKER_SIZE_MAX-1);
+
                     for (; l_price; l_price = l_price->next ){
                         if (l_price->net->pub.id.uint64 == l_request->hdr.net_id.uint64  &&
                             dap_strcmp(l_price->token, l_ticker) == 0 &&
@@ -232,15 +242,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                     }
                     if ( l_price ){
-
-                        dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
-                                        l_srv->uid, l_price->units_uid, l_price->units, l_price->value_datoshi);
-                        size_t l_receipt_size = sizeof(dap_chain_receipt_t)+1; // nested receipt plus 8 bits for type
-
-                        dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
-                                                 l_receipt, l_receipt_size);
-                        l_usage->receipt = l_receipt;
-                        l_usage->receipt_size = l_receipt_size;
+                        s_issue_receipt( l_srv, l_usage, l_price);
                     } else {
                         log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                                 l_ticker, l_net->pub.name );
@@ -320,6 +322,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_chain_hash_fast_t l_pkey_hash={0};
                     dap_sign_get_pkey_hash( l_receipt_sign, &l_pkey_hash);
 
+
+
                     if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.header.pkey_hash.raw , sizeof(l_pkey_hash)  ) != 0 ){
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
@@ -329,18 +333,53 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     }
 
                     DAP_DELETE(l_usage->receipt);
+
+                    // Update actual receipt
                     log_it(L_NOTICE, "Receipt with remote client sign is acceptible for. Now start the service's usage");
                     l_usage->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
                     l_usage->receipt_size = l_receipt_size;
                     l_usage->is_active = true;
                     memcpy( l_usage->receipt, l_receipt, l_receipt_size);
 
+                    // Store receipt if any problems with transactions
+                    dap_chain_hash_fast_t l_receipt_hash={0};
+                    dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
+                    char * l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
+                    dap_chain_global_db_gr_set( l_receipt_hash_str,l_receipt,l_receipt_size,"local.receipts");
+
+                    // Form input transaction
+                    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->wallet, l_usage->net->pub.id);
+
+
+                    dap_chain_hash_fast_t * l_tx_in_hash = dap_chain_mempool_tx_create_cond_input(
+                                l_usage->net,&l_usage->tx_cond_hash,
+                                l_wallet_addr,dap_chain_wallet_get_key( l_usage->wallet,0), l_receipt, l_receipt_size);
+
+                    if ( l_tx_in_hash){
+                        char * l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
+                        log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
+
+
+                        // We could put transaction directly to chains
+                        if ( dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_MASTER ||
+                              dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_CELL_MASTER ||
+                             dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_ROOT ||
+                             dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_ROOT_MASTER ){
+                            dap_chain_net_proc_mempool( l_usage->net);
+                        }
+                        DAP_DELETE(l_tx_in_hash_str);
+                    }else
+                        log_it(L_ERROR, "Can't create input tx cond transaction!");
+
+
+
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
                                                  NULL, 0);
 
                     if (l_usage->service->callback_response_success)
                         l_usage->service->callback_response_success(l_usage->service, l_usage->clients, l_usage->receipt, l_usage->receipt_size );
-
+                    if (l_tx_in_hash)
+                        DAP_DELETE(l_tx_in_hash);
                 }else{
                     log_it(L_ERROR, "Wrong sign response size, %zd when expected at least %zd with smth", l_ch_pkt->hdr.size,
                            sizeof(dap_chain_receipt_t)+1 );
@@ -366,6 +405,21 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
 }
 
+dap_chain_datum_tx_receipt_t * s_issue_receipt(dap_chain_net_srv_t *a_srv,
+                dap_stream_ch_chain_net_srv_usage_t * a_usage,
+                dap_chain_net_srv_price_t * a_price
+                )
+{
+    dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
+                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi);
+    size_t l_receipt_size = sizeof(dap_chain_receipt_t)+1; // nested receipt plus 8 bits for type
+
+    dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
+                             l_receipt, l_receipt_size);
+    a_usage->receipt = l_receipt;
+    a_usage->receipt_size = l_receipt_size;
+    a_usage->wallet = a_price->wallet;
+}
 /**
  * @brief s_stream_ch_packet_out
  * @param a_ch
