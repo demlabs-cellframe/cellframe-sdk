@@ -48,6 +48,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
     l_ret->receipt.srv_uid = a_srv_uid;
     l_ret->receipt.units = a_units;
     l_ret->receipt.value_datoshi = a_value_datoshi;
+    l_ret->size = 1+sizeof (l_ret->receipt);
     return  l_ret;
 }
 
@@ -66,6 +67,7 @@ size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_rece
     a_receipt= (dap_chain_datum_tx_receipt_t*) DAP_REALLOC(a_receipt, a_receipt_size+l_sign_size);
     memcpy(a_receipt->signs+a_receipt_size, l_sign, l_sign_size);
     a_receipt_size += l_sign_size;
+    a_receipt->size = a_receipt_size;
     DAP_DELETE( l_sign );
     return a_receipt_size;
 }

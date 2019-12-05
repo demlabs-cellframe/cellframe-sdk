@@ -70,6 +70,8 @@ dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t
 dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
 
 
+dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
+                                                               uint32_t a_receipt_idx);
 /**
  * Create item dap_chain_tx_out_t
  *

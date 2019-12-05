@@ -114,6 +114,8 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
     case TX_ITEM_TYPE_OUT: // Transaction outputs
         size = dap_chain_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
         break;
+    case TX_ITEM_TYPE_RECEIPT: // Receipt
+        size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t*) a_item);
     case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
         size = dap_chain_tx_in_cond_get_size((const dap_chain_tx_in_cond_t*) a_item);
         break;
@@ -168,6 +170,26 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
     l_item->header.type = TX_ITEM_TYPE_IN;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
     memcpy(&l_item->header.tx_prev_hash, a_tx_prev_hash, sizeof(dap_chain_hash_fast_t));
+    return l_item;
+}
+
+/**
+ * @brief dap_chain_datum_tx_item_in_cond_create
+ * @param a_pkey_serialized
+ * @param a_pkey_serialized_size
+ * @param a_receipt_idx
+ * @return
+ */
+dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
+                                                               uint32_t a_receipt_idx)
+{
+    if(!a_tx_prev_hash )
+        return NULL;
+    dap_chain_tx_in_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_in_cond_t);
+    l_item->header.type = TX_ITEM_TYPE_IN;
+    l_item->header.receipt_idx = a_receipt_idx;
+    l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
+    memcpy(&l_item->header.tx_prev_hash, a_tx_prev_hash,sizeof(l_item->header.tx_prev_hash) );
     return l_item;
 }
 

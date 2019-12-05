@@ -99,6 +99,29 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
     return -1;
 }
 
+
+/**
+ * @brief dap_chain_datum_tx_add_in_cond_item
+ * @param a_tx
+ * @param a_pkey_serialized
+ * @param a_pkey_serialized_size
+ * @param a_receipt_idx
+ * @return
+ */
+int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                        uint32_t a_tx_out_prev_idx,
+                                        uint32_t a_receipt_idx)
+{
+    dap_chain_tx_in_cond_t *l_tx_in_cond = dap_chain_datum_tx_item_in_cond_create( a_tx_prev_hash, a_tx_out_prev_idx,
+                a_receipt_idx);
+    if(l_tx_in_cond) {
+        dap_chain_datum_tx_add_item(a_tx, (uint8_t *)l_tx_in_cond);
+        DAP_DELETE(l_tx_in_cond);
+        return 0;
+    }
+    return -1;
+
+}
 /**
  * Create 'out' item and insert to transaction
  *

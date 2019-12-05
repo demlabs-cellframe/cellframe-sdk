@@ -85,6 +85,7 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
  */
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_item);
 
+
 /**
  * Create 'in' item and insert to transaction
  *
@@ -92,6 +93,16 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_it
  */
 int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
         uint32_t a_tx_out_prev_idx);
+
+
+/**
+ * Create 'in_cond' item and insert to transaction
+ *
+ * return 0 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                        uint32_t a_tx_out_prev_idx,
+                                        uint32_t a_receipt_idx);
 
 /**
  * Create 'out' item and insert to transaction

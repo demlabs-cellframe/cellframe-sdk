@@ -35,6 +35,7 @@
 typedef struct dap_chain_datum_tx_receipt {
     dap_chain_tx_item_type_t type :8; // Transaction item type
     dap_chain_receipt_t receipt; // Receipt itself
+    uint16_t size;
     byte_t signs[]; // Signatures, first from provider, second from client
 }DAP_ALIGN_PACKED dap_chain_datum_tx_receipt_t;
 
@@ -44,4 +45,8 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
 size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_receipt, size_t a_receipt_size, dap_enc_key_t *a_key );
 dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size , uint16_t sign_position);
 uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size);
+static inline uint16_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    return l_receipt->size;
+}
 
