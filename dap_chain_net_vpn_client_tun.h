@@ -22,10 +22,12 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#pragma once
+#include "dap_chain_net_srv_vpn.h"
 
 int dap_chain_net_vpn_client_tun_init(const char *a_ipv4_gw_str);
 int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char *a_ipv4_gw_str);
 int dap_chain_net_vpn_client_tun_delete(void);
 int dap_chain_net_vpn_client_tun_status(void);
 
-int ch_sf_tun_addr_leased(dap_chain_net_srv_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size);
+int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size);

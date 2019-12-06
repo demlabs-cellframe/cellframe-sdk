@@ -563,7 +563,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     dap_stream_ch_set_ready_to_write(a_ch, true);
 }
 
-void ch_sf_tun_send(dap_chain_net_srv_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size) {
+void ch_sf_tun_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size) {
     bool passPacket = true;
     /*switch(ch_sf_snort_pkt(pkt_data,pkt_data_size)){
      case SNORT_ALERT: passPacket=false; break;
@@ -627,7 +627,7 @@ void ch_sf_tun_send(dap_chain_net_srv_vpn_t * ch_sf, void * pkt_data, size_t pkt
  * @param a_pkt
  * @param a_pkt_data_size
  */
-int ch_sf_tun_addr_leased(dap_chain_net_srv_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size)
+int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size)
 {
     // we'd receive address assigment from server
     struct in_addr l_addr = { 0 };

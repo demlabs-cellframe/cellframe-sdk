@@ -46,9 +46,10 @@
 #define VPN_PACKET_OP_CODE_RECV             0x000000ad
 #define VPN_PACKET_OP_CODE_PROBLEM          0x000000ae
 
-#define VPN_PROBLEM_CODE_NO_FREE_ADDR       0x00000001
-#define VPN_PROBLEM_CODE_TUNNEL_DOWN        0x00000002
-#define VPN_PROBLEM_CODE_PACKET_LOST        0x00000003
+#define VPN_PROBLEM_CODE_NO_FREE_ADDR                0x00000001
+#define VPN_PROBLEM_CODE_TUNNEL_DOWN                 0x00000002
+#define VPN_PROBLEM_CODE_PACKET_LOST                 0x00000003
+#define VPN_PROBLEM_CODE_ALREADY_ASSIGNED_ADDR       0x00000004
 
 #define VPN_PACKET_OP_CODE_VPN_METADATA     0x000000b0
 #define VPN_PACKET_OP_CODE_VPN_RESERVED     0x000000b1
@@ -61,25 +62,11 @@
 #define VPN_PACKET_OP_CODE_PING             0xc0
 #define VPN_PACKET_OP_CODE_PONG             0xc1
 
-typedef struct dap_stream_ch_vpn_remote_single { //
-#ifdef DAP_OS_UNIX
-    in_addr_t addr_ipv4;
-#else
-    uint32_t addr_ipv4;
-#endif
-//    pthread_mutex_t mutex;
-    dap_stream_ch_t * ch;
-
-    uint64_t bytes_sent;
-    uint64_t bytes_recieved;
-
-    UT_hash_handle hh;
-} dap_stream_ch_vpn_remote_single_t;
-
 typedef struct ch_vpn_pkt {
     struct {
         int sock_id; // Client's socket id
         uint32_t op_code; // Operation code
+        uint32_t usage_id; // Usage id (for multinetworking)
         union {
             struct { // L4 connect operation
                 uint32_t addr_size;
@@ -99,9 +86,9 @@ typedef struct ch_vpn_pkt {
                 uint32_t padding2;
             } raw; // Raw access to OP bytes
         };
-    }__attribute__((packed)) header;
+    } DAP_ALIGN_PACKED header;
     uint8_t data[]; // Binary data nested by packet
-}__attribute__((packed)) ch_vpn_pkt_t;
+}DAP_ALIGN_PACKED ch_vpn_pkt_t;
 
 /**
  * @struct ch_vpn_socket_proxy
@@ -138,19 +125,36 @@ typedef struct ch_vpn_socket_proxy {
  *
  *
  **/
-typedef struct dap_chain_net_srv_vpn
+typedef struct dap_chain_net_srv_ch_vpn
 {
-    dap_chain_net_srv_t net_srv;
+    uint32_t usage_id;
+    dap_chain_net_srv_t* net_srv;
     //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
     pthread_mutex_t mutex;
     ch_vpn_socket_proxy_t * socks;
     int raw_l3_sock;
+    bool is_allowed;
 
+
+    struct in_addr addr_ipv4;
     dap_stream_ch_t * ch;
-    dap_ledger_t *ledger;
+    UT_hash_handle hh;
+} dap_chain_net_srv_ch_vpn_t;
+
+
+typedef struct dap_chain_net_srv_vpn_item_ipv4{
+    struct in_addr addr;
+    struct dap_chain_net_srv_vpn_item_ipv4 * next;
+} dap_chain_net_srv_vpn_item_ipv4_t;
+
+typedef struct dap_chain_net_srv_vpn
+{
+    dap_chain_net_srv_vpn_item_ipv4_t * ipv4_unleased;
+    dap_chain_net_srv_ch_vpn_t * ch_vpn_ipv4;
+    dap_chain_net_srv_t * parent;
 } dap_chain_net_srv_vpn_t;
 
-#define CH_VPN(a) ((dap_chain_net_srv_vpn_t *) ((a)->internal) )
+#define CH_VPN(a) ((dap_chain_net_srv_ch_vpn_t *) ((a)->internal) )
 
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config);
 void dap_chain_net_srv_vpn_deinit(void);
