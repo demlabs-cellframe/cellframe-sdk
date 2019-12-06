@@ -329,6 +329,28 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
     pthread_rwlock_unlock(&s_clients_rwlock);
     log_it(L_NOTICE,"Enable VPN service");
+
+    dap_chain_net_srv_ch_vpn_t * l_srv_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
+            a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
+    if (l_srv_vpn ){ // If channel is already opened
+
+        dap_stream_ch_set_ready_to_read( l_srv_vpn->ch , true );
+
+        l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
+
+        if( l_srv_vpn->usage_id) {
+            // So complicated to update usage client to be sure that nothing breaks it
+            usage_client_t * l_usage_client = NULL;
+            pthread_rwlock_rdlock(&s_clients_rwlock);
+            HASH_FIND(hh,s_clients, &l_srv_vpn->usage_id,sizeof(l_srv_vpn->usage_id),l_usage_client );
+            if (l_usage_client){
+                pthread_rwlock_wrlock(&l_usage_client->rwlock);
+                l_usage_client->ch_vpn = l_srv_vpn;
+                pthread_rwlock_unlock(&l_usage_client->rwlock);
+            }
+            pthread_rwlock_unlock(&s_clients_rwlock);
+        }
+    }
     return 0;
 }
 
@@ -460,16 +482,19 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
     l_srv_vpn->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
 
     l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
-    // So complicated to update usage client to be sure that nothing breaks it
-    usage_client_t * l_usage_client = NULL;
-    pthread_rwlock_rdlock(&s_clients_rwlock);
-    HASH_FIND(hh,s_clients, &l_srv_vpn->usage_id,sizeof(l_srv_vpn->usage_id),l_usage_client );
-    if (l_usage_client){
-        pthread_rwlock_wrlock(&l_usage_client->rwlock);
-        l_usage_client->ch_vpn = l_srv_vpn;
-        pthread_rwlock_unlock(&l_usage_client->rwlock);
+
+    if( l_srv_vpn->usage_id) {
+        // So complicated to update usage client to be sure that nothing breaks it
+        usage_client_t * l_usage_client = NULL;
+        pthread_rwlock_rdlock(&s_clients_rwlock);
+        HASH_FIND(hh,s_clients, &l_srv_vpn->usage_id,sizeof(l_srv_vpn->usage_id),l_usage_client );
+        if (l_usage_client){
+            pthread_rwlock_wrlock(&l_usage_client->rwlock);
+            l_usage_client->ch_vpn = l_srv_vpn;
+            pthread_rwlock_unlock(&l_usage_client->rwlock);
+        }
+        pthread_rwlock_unlock(&s_clients_rwlock);
     }
-    pthread_rwlock_unlock(&s_clients_rwlock);
 
 }
 
