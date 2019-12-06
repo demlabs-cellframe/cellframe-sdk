@@ -32,12 +32,15 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_mempool.h"
 
+#include "dap_chain_net_srv_stream_session.h"
+
+
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_ch_chain_net_srv_pkt.h"
-#include "dap_stream_ch_chain_net_srv_session.h"
+
 #include "dap_stream_ch_proc.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
@@ -54,7 +57,7 @@ static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static dap_chain_datum_tx_receipt_t * s_issue_receipt(dap_chain_net_srv_t *a_srv,
-                dap_stream_ch_chain_net_srv_usage_t * a_usage,
+                dap_chain_net_srv_usage_t * a_usage,
                 dap_chain_net_srv_price_t * a_price
                 );
 
@@ -90,7 +93,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     pthread_mutex_init( &l_ch_chain_net_srv->mutex,NULL);
     if (a_ch->stream->session->_inheritor == NULL && a_ch->stream->session != NULL)
-        dap_stream_ch_chain_net_srv_session_create( a_ch->stream->session );
+        dap_chain_net_srv_stream_session_create( a_ch->stream->session );
     else if ( a_ch->stream->session == NULL)
         log_it( L_ERROR, "No session at all!");
     else
@@ -119,7 +122,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 {
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg; // chain packet
-    dap_stream_ch_chain_net_srv_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ?
+    dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ?
                                                                 a_ch->stream->session->_inheritor : NULL;
     if ( ! l_srv_session ){
         log_it( L_ERROR, "Not defined service session, switching off packet input process");
@@ -145,7 +148,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if ( l_err.code ){
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                     if (l_srv->callback_response_error)
-                            l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                            l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                     break;
                 }
 
@@ -160,7 +163,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
-                                l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                                l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                         break;
                     }
 
@@ -170,7 +173,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
-                                l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                                l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                         break;
                     }
                     int l_tx_out_cond_size =0;
@@ -183,7 +186,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
-                                l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                                l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                         break;
                     }
 
@@ -194,20 +197,22 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
-                                l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                                l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                         break;
                     }
                 }
-                dap_stream_ch_chain_net_srv_usage_t * l_usage = dap_stream_ch_chain_net_srv_usage_add( l_srv_session,
+                dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_add( l_srv_session,
                                                                                                        l_net,l_srv );
                 if ( !l_usage ){ // Usage can't add
                     log_it( L_WARNING, "Usage can't add");
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_USAGE_CANT_ADD;
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                     if (l_srv->callback_response_error)
-                            l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                            l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                     break;
                 }
+
+
                 // Create one client
                 l_usage->clients = DAP_NEW_Z( dap_chain_net_srv_client_t);
                 l_usage->clients->ch = a_ch;
@@ -216,20 +221,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 memcpy(&l_usage->tx_cond_hash, &l_request->hdr.tx_cond,sizeof (l_usage->tx_cond_hash));
                 l_usage->ts_created = time(NULL);
 
-                int ret;
-                if ( (ret= l_srv->callback_requested(l_srv, l_usage->clients, l_request, l_ch_pkt->hdr.size  ) )!= 0 ){
-                    log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
-                    dap_stream_ch_chain_net_srv_usage_delete(l_srv_session, l_usage);
-                    l_err.code =(uint32_t) ret ;
-                    dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
-                    if (l_srv->callback_response_error)
-                            l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
-                    break;
-                }
-                // If we a here we passed all the checks, wow, now if we're not for free we request the signature.
+                dap_chain_net_srv_price_t * l_price = NULL;
+                dap_chain_datum_tx_receipt_t * l_receipt = NULL;
+                const char * l_ticker = NULL;
                 if (l_srv->pricelist ){
-                    const char * l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_request->hdr.tx_cond );
-                    dap_chain_net_srv_price_t * l_price = l_srv->pricelist;
+                    l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_request->hdr.tx_cond );
+                    l_price = l_srv->pricelist;
                     strncpy(l_usage->token_ticker, l_ticker, DAP_CHAIN_TICKER_SIZE_MAX-1);
 
                     for (; l_price; l_price = l_price->next ){
@@ -241,27 +238,56 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                             break;
 
                     }
-                    if ( l_price ){
-                        s_issue_receipt( l_srv, l_usage, l_price);
-                    } else {
+
+
+                    if ( !l_price ){
+
                         log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                                 l_ticker, l_net->pub.name );
-                        dap_stream_ch_chain_net_srv_usage_delete(l_srv_session, l_usage);
+                        dap_chain_net_srv_usage_delete(l_srv_session, l_usage);
                         l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
-                                l_srv->callback_response_error(l_srv,NULL,&l_err,sizeof (l_err) );
+                                l_srv->callback_response_error(l_srv,l_usage->id,l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
-                }else {
+
+                }
+                int ret;
+                if ( (ret= l_srv->callback_requested(l_srv,l_usage->id, l_usage->clients, l_request, l_ch_pkt->hdr.size  ) )!= 0 ){
+                    log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
+                    dap_chain_net_srv_usage_delete(l_srv_session, l_usage);
+                    l_err.code =(uint32_t) ret ;
+                    dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
+                    if (l_srv->callback_response_error)
+                            l_srv->callback_response_error(l_srv,l_usage->id, NULL,&l_err,sizeof (l_err) );
+                    break;
+                }
+
+                if ( l_srv->pricelist ){
+                    if ( l_price ){
+
+                        l_receipt =s_issue_receipt( l_srv, l_usage, l_price);
+                        dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
+                                                 l_receipt, l_receipt->size);
+
+                    }else{
+                        l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND ;
+                        dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
+                        if (l_srv->callback_response_error)
+                                l_srv->callback_response_error(l_srv,l_usage->id, NULL,&l_err,sizeof (l_err) );
+                    }
+                // If we a here we passed all the checks, wow, now if we're not for free we request the signature.
+                } else{
                     log_it( L_INFO, "Service provide for free");
 
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
                                                  NULL, 0);
                     if (l_usage->service->callback_response_success)
-                        l_usage->service->callback_response_success(l_usage->service, l_usage->clients,NULL,0 );
+                        l_usage->service->callback_response_success(l_usage->service,l_usage->id,  l_usage->clients,NULL,0 );
 
                 }
+
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST:{
                 log_it( L_NOTICE, "Requested smth to sign");
@@ -271,7 +297,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if ( l_ch_pkt->hdr.size > sizeof(dap_chain_receipt_t)+1 ){
                     dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
                     size_t l_receipt_size = l_ch_pkt->hdr.size;
-                    dap_stream_ch_chain_net_srv_usage_t * l_usage= NULL, *l_tmp= NULL;
+                    dap_chain_net_srv_usage_t * l_usage= NULL, *l_tmp= NULL;
                     bool l_is_found = false;
                     HASH_ITER(hh, l_srv_session->usages, l_usage, l_tmp){
                         if ( l_usage->receipt ){
@@ -286,7 +312,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
                     if (! l_usage->tx_cond ){
@@ -294,7 +320,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
                     int l_tx_out_cond_size =0;
@@ -305,7 +331,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
 
@@ -314,7 +340,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
 
@@ -328,10 +354,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
 
+                    if (l_usage->receipt)
                     DAP_DELETE(l_usage->receipt);
 
                     // Update actual receipt
@@ -372,12 +399,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         log_it(L_ERROR, "Can't create input tx cond transaction!");
 
 
-
+                    size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+                    dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+                                                                                          l_success_size);
+                    l_success->hdr.usage_id = l_usage->id;
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
-                                                 NULL, 0);
+                                                 l_success, l_success_size);
 
                     if (l_usage->service->callback_response_success)
-                        l_usage->service->callback_response_success(l_usage->service, l_usage->clients, l_usage->receipt, l_usage->receipt_size );
+                        l_usage->service->callback_response_success(l_usage->service,l_usage->id,  l_usage->clients,
+                                                                    l_usage->receipt, l_usage->receipt_size );
                     if (l_tx_in_hash)
                         DAP_DELETE(l_tx_in_hash);
                 }else{
@@ -406,7 +437,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 }
 
 dap_chain_datum_tx_receipt_t * s_issue_receipt(dap_chain_net_srv_t *a_srv,
-                dap_stream_ch_chain_net_srv_usage_t * a_usage,
+                dap_chain_net_srv_usage_t * a_usage,
                 dap_chain_net_srv_price_t * a_price
                 )
 {
@@ -414,11 +445,10 @@ dap_chain_datum_tx_receipt_t * s_issue_receipt(dap_chain_net_srv_t *a_srv,
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi);
     size_t l_receipt_size = sizeof(dap_chain_receipt_t)+1; // nested receipt plus 8 bits for type
 
-    dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
-                             l_receipt, l_receipt_size);
     a_usage->receipt = l_receipt;
     a_usage->receipt_size = l_receipt_size;
     a_usage->wallet = a_price->wallet;
+    return  l_receipt;
 }
 /**
  * @brief s_stream_ch_packet_out
