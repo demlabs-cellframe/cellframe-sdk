@@ -7,6 +7,7 @@ set(DAP_CHAIN_NET_SRV_SRCS
       dap_chain_net_srv_key.c
       dap_chain_net_srv_client.c
       dap_chain_net_srv_common.c
+      dap_chain_net_srv_stream_session.c
    )
 
 set(DAP_CHAIN_NET_SRV_HEADERS
@@ -15,6 +16,7 @@ set(DAP_CHAIN_NET_SRV_HEADERS
         dap_chain_net_srv_order.h
         dap_chain_net_srv_key.h
         dap_chain_net_srv_common.h
+	dap_chain_net_srv_stream_session.h
     )
 
 

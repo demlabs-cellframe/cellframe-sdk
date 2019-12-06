@@ -392,11 +392,14 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 /**
  * @brief dap_chain_net_srv_add
  * @param a_uid
- * @param a_callback_new
+ * @param a_callback_request
+ * @param a_callback_response_success
+ * @param a_callback_response_error
+ * @return
  */
-dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request)
+dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request,
+                                           dap_chain_net_srv_callback_data_t a_callback_response_success,dap_chain_net_srv_callback_data_t a_callback_response_error)
 {
-    int ret=0;
     service_list_t *l_sdata = NULL;
     dap_chain_net_srv_t * l_srv = NULL;
     dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
@@ -406,6 +409,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         l_srv->callback_requested = a_callback_request;
+        l_srv->callback_response_success = a_callback_response_success;
+        l_srv->callback_response_error = a_callback_response_error;
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
         l_sdata->srv = DAP_NEW(dap_chain_net_srv_t);
