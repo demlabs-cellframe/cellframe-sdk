@@ -161,9 +161,11 @@ typedef union {
     uint32_t uint32;
     enum {
         SERV_UNIT_UNDEFINED = 0 ,
-        SERV_UNIT_MB = 1, // megabytes
-        SERV_UNIT_SEC = 2, // seconds
-        SERV_UNIT_DAY = 3 // days
+        SERV_UNIT_MB = 0x00000001, // megabytes
+        SERV_UNIT_SEC = 0x00000002, // seconds
+        SERV_UNIT_DAY = 0x00000003,  // days
+        SERV_UNIT_KB = 0x00000010,  // kilobytes
+        SERV_UNIT_B = 0x00000011,   // bytes
     } enm;
 } dap_chain_net_srv_price_unit_uid_t;
 
