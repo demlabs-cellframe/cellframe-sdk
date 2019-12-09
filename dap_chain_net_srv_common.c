@@ -44,6 +44,5 @@
 #include "rand/dap_rand.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_stream.h"
-#include "dap_chain_net_srv_key.h"
 #include "dap_chain_net_srv_common.h"
 
