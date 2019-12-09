@@ -135,7 +135,6 @@ typedef struct dap_chain_net_srv_ch_vpn
     int raw_l3_sock;
     bool is_allowed;
 
-
     struct in_addr addr_ipv4;
     dap_stream_ch_t * ch;
     UT_hash_handle hh;
