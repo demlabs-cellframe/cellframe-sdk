@@ -424,13 +424,19 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                                  l_success, l_success_size);
                     DAP_DELETE(l_success);
 
-                    if ( l_is_first_sign && l_usage->service->callback_receipt_first_success)
-                            if( l_usage->service->callback_receipt_first_success(l_usage->service,l_usage->id,  l_usage->clients,
-                                                                        l_receipt, l_receipt_size ) !=0 ){
-                                log_it(L_NOTICE, "No success by service callback, inactivating service usage");
-                                l_usage->is_active = false;
-                            }
-                    else if ( l_usage->service->callback_receipt_next_success){
+                    if ( l_is_first_sign && l_usage->service->callback_receipt_first_success){
+                        if( l_usage->service->callback_receipt_first_success(l_usage->service,l_usage->id,  l_usage->clients,
+                                                                    l_receipt, l_receipt_size ) !=0 ){
+                            log_it(L_NOTICE, "No success by service callback, inactivating service usage");
+                            l_usage->is_active = false;
+                        }
+                        // issue receipt next
+                        l_usage->receipt_next = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price );
+                        l_usage->receipt_next_size = l_usage->receipt_next->size;
+                        dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
+                                                 l_usage->receipt_next, l_usage->receipt_next->size);
+
+                    }else if ( l_usage->service->callback_receipt_next_success){
                         if (l_usage->service->callback_receipt_next_success(l_usage->service,l_usage->id,  l_usage->clients,
                                                                     l_receipt, l_receipt_size ) != 0 ){
                             log_it(L_NOTICE, "No success by service callback, inactivating service usage");
