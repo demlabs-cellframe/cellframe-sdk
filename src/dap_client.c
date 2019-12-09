@@ -191,14 +191,19 @@ void dap_client_delete(dap_client_t * a_client)
     pthread_mutex_lock(&a_client->mutex);
 
     dap_client_disconnect(a_client);
+    //dap_client_reset(a_client);
 
-    dap_client_reset(a_client);
-    if (DAP_CLIENT_PVT(a_client) )
-         dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+    //dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(a_client);
+    // reset l_client_pvt (before removal)
+    //memset(l_client_pvt, 0, sizeof(dap_client_pvt_t));
+    //a_client->_internal = NULL;
 
-    pthread_mutex_t *l_mutex = &a_client->mutex;
-    memset(a_client, 0, sizeof(dap_client_t));
-    pthread_mutex_unlock(l_mutex);
+    dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+
+    //pthread_mutex_t *l_mutex = &a_client->mutex;
+    //memset(a_client, 0, sizeof(dap_client_t));
+    //pthread_mutex_unlock(l_mutex);
+    pthread_mutex_unlock(&a_client->mutex);
     // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
     //DAP_DELETE(a_client);
 }

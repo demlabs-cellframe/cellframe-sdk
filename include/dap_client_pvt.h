@@ -99,3 +99,5 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal);
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvts);
 
+int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal);
+int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal);
