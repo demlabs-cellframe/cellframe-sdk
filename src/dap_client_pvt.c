@@ -125,11 +125,117 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_internal)
     a_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
 }
 
+typedef struct dap_client_pvt_ref_count {
+    dap_client_pvt_t *client_internal;
+    uint32_t ref_count;
+    UT_hash_handle hh;
+} dap_client_pvt_ref_count_t;
+
+static dap_client_pvt_ref_count_t *s_client_pvt_ref = NULL;
+static pthread_mutex_t s_mutex_ref = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_cond_ref = PTHREAD_COND_INITIALIZER;
+
+int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal)
+{
+    int l_ret = 0;
+    dap_client_pvt_ref_count_t *l_client_pvt_ref;
+    pthread_mutex_lock(&s_mutex_ref);
+    HASH_FIND(hh, s_client_pvt_ref, &a_client_internal, sizeof(dap_client_pvt_t*), l_client_pvt_ref);
+    if(!l_client_pvt_ref) {
+        l_client_pvt_ref = DAP_NEW_Z(dap_client_pvt_ref_count_t);
+        l_client_pvt_ref->client_internal = a_client_internal;
+        l_client_pvt_ref->ref_count = 1;
+        HASH_ADD(hh, s_client_pvt_ref, client_internal, sizeof(dap_client_pvt_t*), l_client_pvt_ref);
+    }
+    else {
+        l_client_pvt_ref->ref_count++;
+    }
+    l_ret = l_client_pvt_ref->ref_count;
+    //printf("** ref %d %x\n\n", l_client_pvt_ref->ref_count, a_client_internal);
+    pthread_mutex_unlock(&s_mutex_ref);
+
+    return l_ret;
+}
+
+int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal)
+{
+    int l_ret = -1;
+    dap_client_pvt_ref_count_t *l_client_pvt_ref;
+    pthread_mutex_lock(&s_mutex_ref);
+    HASH_FIND(hh, s_client_pvt_ref, &a_client_internal, sizeof(dap_client_pvt_t*), l_client_pvt_ref);
+    if(l_client_pvt_ref) {
+        if(l_client_pvt_ref->ref_count <= 1) {
+            HASH_DELETE(hh, s_client_pvt_ref, l_client_pvt_ref);
+            DAP_DELETE(l_client_pvt_ref);
+            pthread_cond_broadcast(&s_cond_ref);
+            l_ret = 0;
+        }
+        else {
+            l_client_pvt_ref->ref_count--;
+            l_ret = l_client_pvt_ref->ref_count;
+        }
+    }
+    else{
+        l_ret = -1;
+    }
+    //printf("** unref %d %x\n\n", l_ret, a_client_internal);
+    pthread_mutex_unlock(&s_mutex_ref);
+    return l_ret;
+}
+
+/**
+ * @brief dap_client_pvt_wait
+ * @param a_client_internal
+ */
+int dap_client_pvt_wait_unref(dap_client_pvt_t * a_client_internal, int a_timeout_ms)
+{
+    if(!a_client_internal)
+        return -1;
+    int l_ret = 0;
+    dap_client_pvt_ref_count_t *l_client_pvt_ref;
+    do {
+        pthread_mutex_lock(&s_mutex_ref);
+        HASH_FIND(hh, s_client_pvt_ref, &a_client_internal, sizeof(dap_client_pvt_t*), l_client_pvt_ref);
+        // wait for release a_client_internal
+        if(l_client_pvt_ref) {
+            struct timeval now;
+            struct timespec l_to;
+            gettimeofday(&now, 0);
+            l_to.tv_sec = now.tv_sec;      // sec
+            l_to.tv_nsec = now.tv_usec * 1000; // nsec
+            int64_t l_nsec_new = l_to.tv_nsec + a_timeout_ms * 1000000ll;
+            // if the new number of nanoseconds is more than a second
+            if(l_nsec_new > (long) 1e9) {
+                l_to.tv_sec += l_nsec_new / (long) 1e9;
+                l_to.tv_nsec = l_nsec_new % (long) 1e9;
+            }
+            else
+                l_to.tv_nsec = (long) l_nsec_new;
+            int l_res = pthread_cond_timedwait(&s_cond_ref, &s_mutex_ref, &l_to);
+            if(l_res == ETIMEDOUT) {
+                l_ret = -1;
+            }
+            else {
+                //a_timeout_ms = 0;
+                pthread_mutex_unlock(&s_mutex_ref);
+                continue;
+            }
+        }
+        else
+            l_ret = 0;
+
+        //printf("** end wait %x\n\n", a_client_internal);
+        pthread_mutex_unlock(&s_mutex_ref);
+    }
+    while(l_client_pvt_ref);
+    return l_ret;
+}
+
 /**
  * @brief dap_client_pvt_delete
  * @param a_client_pvt
  */
-void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
+static void dap_client_pvt_delete_in(dap_client_pvt_t * a_client_pvt)
 {
     if(!a_client_pvt)
         return;
@@ -150,6 +256,28 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
         dap_enc_key_delete(a_client_pvt->stream_key);
 
     DAP_DELETE(a_client_pvt);
+}
+
+static void* dap_client_pvt_delete_proc(void *a_arg)
+{
+    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*)a_arg;
+    // wait for release l_client_pvt
+    dap_client_pvt_wait_unref(l_client_pvt, 20000000);
+
+    //dap_client_reset(l_client_pvt->client);
+    dap_client_pvt_delete_in(l_client_pvt);
+    //DAP_DELETE(l_client_pvt->client);
+    pthread_exit(0);
+}
+
+/**
+ * @brief dap_client_pvt_delete
+ * @param a_client_pvt
+ */
+void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
+{
+    pthread_t l_thread = NULL;
+    pthread_create(&l_thread, NULL, dap_client_pvt_delete_proc, a_client_pvt);
 }
 
 /**
@@ -179,6 +307,8 @@ static void s_set_sock_nonblock(int sockfd, bool is_nonblock)
  */
 static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 {
+    bool l_is_unref = false;
+
     switch (a_client_pvt->stage_status) {
     case STAGE_STATUS_IN_PROGRESS: {
         switch (a_client_pvt->stage) {
@@ -357,6 +487,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         if(a_client_pvt->stage_target == STAGE_STREAM_ABORT) {
             a_client_pvt->stage = STAGE_STREAM_ABORT;
             a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
+            // unref pvt
+            l_is_unref = true;
         }
         else {
             if(!l_is_last_attempt) {
@@ -370,11 +502,14 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 a_client_pvt->stage = STAGE_ENC_INIT;
                 // Trying the step again
                 a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+                //dap_client_pvt_ref(a_client_pvt);
                 s_stage_status_after(a_client_pvt);
             }
             else{
                 log_it(L_INFO, "Too many connection attempts. Tries are over.");
                 //a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                // unref pvt
+                l_is_unref = true;
             }
         }
     }
@@ -401,6 +536,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         } else{
             log_it(L_ERROR, "!! dap_CLIENT_STAGE_STATUS_DONE but not l_is_last_stage (cur stage=%d, target=%d)!!",a_client_pvt->stage, a_client_pvt->stage_target);
         }
+        l_is_unref = true;
     }
         break;
     default:
@@ -410,6 +546,10 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
     if(a_client_pvt->stage_status_callback)
         a_client_pvt->stage_status_callback(a_client_pvt->client, NULL);
+    if(l_is_unref) {
+        // unref pvt
+        dap_client_pvt_unref(a_client_pvt);
+    }
 }
 
 /**
@@ -424,6 +564,8 @@ void dap_client_pvt_stage_transaction_begin(dap_client_pvt_t * a_client_internal
     a_client_internal->stage_status_done_callback = a_done_callback;
     a_client_internal->stage = a_stage_next;
     a_client_internal->stage_status = STAGE_STATUS_IN_PROGRESS;
+    // ref pvt client
+    dap_client_pvt_ref(a_client_internal);
     s_stage_status_after(a_client_internal);
 }
 
@@ -446,7 +588,7 @@ void dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a
     size_t l_url_size_max = 0;
     char *l_url = NULL;
     if(a_path) {
-        l_url_size_max = strlen(a_client_internal->uplink_addr) + strlen(a_path) + 15;
+        l_url_size_max = dap_strlen(a_client_internal->uplink_addr) + strlen(a_path) + 15;
         l_url = DAP_NEW_Z_SIZE(char, l_url_size_max);
 
         snprintf(l_url, l_url_size_max, "http://%s:%u/%s", a_client_internal->uplink_addr,
@@ -588,7 +730,12 @@ void m_request_error(int a_err_code, void * a_obj)
 {
     dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
     if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client)
-        a_client_internal->request_error_callback(a_client_internal->client, a_err_code);
+    {
+        if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client && a_client_internal->client->_internal)
+            a_client_internal->request_error_callback(a_client_internal->client, a_err_code);
+    }
+    // unref pvt client
+    //dap_client_pvt_unref(a_client_internal);
 }
 
 /**
@@ -600,6 +747,9 @@ void m_request_error(int a_err_code, void * a_obj)
 void m_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
+    if(!a_client_internal || !a_client_internal->client)
+        return;
+
     if(a_client_internal->is_encrypted) {
         size_t l_response_dec_size_max = a_response_size ? a_response_size * 2 + 16 : 0;
         char * l_response_dec = a_response_size ? DAP_NEW_Z_SIZE(char, l_response_dec_size_max) : NULL;
@@ -617,6 +767,9 @@ void m_request_response(void * a_response, size_t a_response_size, void * a_obj)
     } else {
         a_client_internal->request_response_callback(a_client_internal->client, a_response, a_response_size);
     }
+
+    // unref pvt client
+    dap_client_pvt_unref(DAP_CLIENT_PVT(a_client_internal->client));
 }
 
 /**
