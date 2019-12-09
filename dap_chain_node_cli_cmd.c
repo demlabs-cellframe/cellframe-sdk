@@ -913,7 +913,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
         }
-        // is auto mode
+        // for auto mode
         int l_is_auto = 0;
         // list of dap_chain_node_addr_t struct
         unsigned int l_nodes_count = 0;
@@ -936,55 +936,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 l_node_list = dap_chain_net_get_node_list(l_net);
             else
                 l_node_list = dap_list_concat(l_node_link_list, l_node_list);
-
-            /*
-            // select the nearest node from the list
-            unsigned int l_nodes_count = dap_list_length(l_node_list);
-            unsigned int l_thread_id = 0;
-            pthread_t *l_threads = DAP_NEW_Z_SIZE(pthread_t, sizeof(pthread_t) * l_nodes_count);
-            uint64_t *l_nodes_addr = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_nodes_count);
-            dap_list_t *l_node_list0 = l_node_list;
-            // send ping to all nodes
-            while(l_node_list) {
-                dap_chain_node_addr_t *l_node_addr = l_node_list->data;
-                dap_chain_node_info_t *l_node_info = node_info_read_and_reply(l_net, l_node_addr, NULL);
-
-                // start sending ping
-                start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
-
-                l_nodes_addr[l_thread_id] = l_node_info->hdr.address.uint64;
-                l_thread_id++;
-                DAP_DELETE(l_node_info);
-                l_node_list = dap_list_next(l_node_list);
-            }
-            // wait for reply from nodes
-            int best_node_pos = -1;
-            int best_node_reply = INT32_MAX;
-            // timeout for all threads
-            int l_timeout_full_ms = 3000;// wait max 3 second
-            for(l_thread_id = 0; l_thread_id < l_nodes_count; l_thread_id++) {
-                if(l_timeout_full_ms<100)
-                    l_timeout_full_ms = 100;// make small timeout anyway, may be
-                struct timespec l_time_start;
-                clock_gettime(CLOCK_MONOTONIC, &l_time_start);
-                int res = wait_node_ping(l_threads[l_thread_id], l_timeout_full_ms);
-                if(res > 0 && res < best_node_reply) {
-                    best_node_pos = l_thread_id;
-                    best_node_reply = res;
-                }
-                struct timespec l_time_stop;
-                clock_gettime(CLOCK_MONOTONIC, &l_time_stop);
-                l_timeout_full_ms -= timespec_diff(&l_time_start, &l_time_stop, NULL);
-                //printf(" thread %x ping=%d\n", l_threads[l_thread_id], res);
-            }
-            if(best_node_pos > 0) {
-                l_node_addr.uint64 = l_nodes_addr[best_node_pos];
-            }
-
-            DAP_DELETE(l_nodes_addr);
-            DAP_DELETE(l_threads);
-            dap_list_free_full(l_node_list0, free);
-            */
 
             // select random node from the list
             l_nodes_count = dap_list_length(l_node_list);
@@ -1016,7 +967,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
             // wait connected
-            int timeout_ms = 5000; //5 sec = 5000 ms
+            int timeout_ms = 100; //5 sec = 5000 ms
             res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
             // select new node addr
             if(l_is_auto && res){
@@ -1032,16 +983,25 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     // clean client struct
                     dap_chain_node_client_close(l_node_client);
                     DAP_DELETE(l_remote_node_info);
+                    //return -1;
                     continue;
                 }
             }
             break;
         }
         while(1);
-        dap_list_free_full(l_node_list, free);
+        // for auto mode only
+        if(l_is_auto) {
+            //start background thread for testing connect to the nodes
+            dap_chain_node_ping_background_start(l_net, l_node_list);
+            dap_list_free_full(l_node_list, free);
+        }
+
+
 
         if(res) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node: code %d", res);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "no response from remote node(s)");
+            log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
             //dap_chain_node_client_close(l_node_client);
             //DAP_DELETE(l_remote_node_info);
