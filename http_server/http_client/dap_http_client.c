@@ -315,7 +315,7 @@ static inline void ReportErrorAndRestart( dap_client_remote_t *cl, dap_http_clie
  */
 void dap_http_client_read( dap_client_remote_t *cl, void *arg )
 {
-  char buf_line[4096];
+    char buf_line[4096] = {'\0'};
   dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
 
 //  log_it( L_DEBUG, "dap_http_client_read..." );
@@ -329,12 +329,18 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
       char  *peol;
       uint32_t eol;
 
-      if ( !(peol = (char *)memchr(cl->buf_in, 10, cl->buf_in_size)) ) { /// search LF
-        break;
+      if (!(peol = (char*)memchr(cl->buf_in, 10, cl->buf_in_size))) { /// search LF
+          peol = (char*)memchr(cl->buf_in, 13, cl->buf_in_size));
       }
 
-      if ( !(eol = peol - cl->buf_in) ) {
-        break;
+      if (peol) {
+          eol = peol - cl->buf_in;
+          if (eol <= 0) {
+              eol = cl->buf_in_size - 2;
+          }
+      } else {
+          log_it( L_WARNING, "Single-line, possibly trash, input detected");
+          eol = cl->buf_in_size - 2;
       }
 
       if ( eol + 3 >= sizeof(buf_line) ) {
@@ -423,6 +429,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
 
       if ( !(peol = (char *)memchr(cl->buf_in, 10, cl->buf_in_size)) ) { /// search LF
         log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
+        ReportErrorAndRestart( cl, cl_ht );
         break;
       }
 
