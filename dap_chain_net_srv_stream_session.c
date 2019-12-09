@@ -24,6 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_common.h"
 #include "rand/dap_rand.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stream_session.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv_session"

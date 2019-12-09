@@ -31,10 +31,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_receipt.h"
-#include "dap_chain_net_srv.h"
+//#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_client.h"
 #include "dap_chain_wallet.h"
+
+typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_usage{
     uint32_t id; // Usage id
     pthread_rwlock_t rwlock;
@@ -42,8 +44,12 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_net_t * net; // Chain network where everything happens
     dap_chain_wallet_t * wallet;
     dap_chain_net_srv_t * service; // Service that used
+
     dap_chain_datum_tx_receipt_t* receipt;
+    dap_chain_datum_tx_receipt_t* receipt_next; // Receipt on the next units amount
+    dap_chain_net_srv_price_t * price; // Price for issue next receipt
     size_t receipt_size;
+    size_t receipt_next_size;
     dap_chain_net_srv_client_t * clients;
     dap_chain_datum_tx_t * tx_cond;
     dap_chain_hash_fast_t tx_cond_hash;
@@ -56,8 +62,11 @@ typedef struct dap_chain_net_srv_stream_session {
     dap_stream_session_t * parent;
     dap_chain_net_srv_usage_t * usages;
     dap_chain_net_srv_usage_t * usage_active;
-    uint64_t bytes_sent;
-    uint64_t bytes_received;
+
+    uint128_t limits_bytes; // Bytes left
+    time_t limits_ts; // Timestamp until its activte
+    dap_chain_net_srv_price_unit_uid_t limits_units_type;
+
     time_t ts_activated;
     dap_sign_t* user_sign; // User's signature for auth if reconnect
 } dap_chain_net_srv_stream_session_t;

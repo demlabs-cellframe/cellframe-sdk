@@ -153,16 +153,3 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
         default: return "UNKNOWN";
     }
 }
-
-// Initialize dap_chain_net_srv_abstract_t structure
-void dap_chain_net_srv_abstract_set(dap_chain_net_srv_abstract_t *a_cond, uint8_t a_class, uint128_t a_type_id,
-        uint64_t a_price, uint8_t a_price_units, const char *a_decription);
-
-// copy a_value_dst to a_uid_src
-void dap_chain_net_srv_uid_set(dap_chain_net_srv_uid_t *a_uid_src, uint128_t a_value_dst);
-
-// generate new dap_chain_net_srv_uid_t
-bool dap_chain_net_srv_gen_uid(uint8_t *a_srv, size_t a_srv_size);
-
-uint64_t dap_chain_net_srv_client_auth(dap_ledger_t  *a_ledger,
-        const char *a_service_key, const dap_chain_net_srv_abstract_t **a_cond_out);

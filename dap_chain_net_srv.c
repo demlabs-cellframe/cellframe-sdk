@@ -50,6 +50,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_stream_session.h"
 
 #include "dap_chain_node_cli_cmd.h"
 
@@ -398,7 +399,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @return
  */
 dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_chain_net_srv_callback_data_t a_callback_request,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_success,dap_chain_net_srv_callback_data_t a_callback_response_error)
+                                           dap_chain_net_srv_callback_data_t a_callback_response_success,
+                                           dap_chain_net_srv_callback_data_t a_callback_response_error,
+                                           dap_chain_net_srv_callback_data_t a_callback_receipt_next_success)
 {
     service_list_t *l_sdata = NULL;
     dap_chain_net_srv_t * l_srv = NULL;
@@ -409,8 +412,9 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         l_srv->callback_requested = a_callback_request;
-        l_srv->callback_response_success = a_callback_response_success;
+        l_srv->callback_receipt_first_success = a_callback_response_success;
         l_srv->callback_response_error = a_callback_response_error;
+        l_srv->callback_receipt_next_success = a_callback_receipt_next_success;
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
         l_sdata->srv = DAP_NEW(dap_chain_net_srv_t);
@@ -521,4 +525,31 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
     dap_list_free(l_list);
     return l_srv_uids;
 }
+
+/**
+ * @brief dap_chain_net_srv_issue_receipt
+ * @param a_srv
+ * @param a_usage
+ * @param a_price
+ * @return
+ */
+dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
+                dap_chain_net_srv_usage_t * a_usage,
+                dap_chain_net_srv_price_t * a_price
+                )
+{
+    dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
+                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi);
+    size_t l_receipt_size = sizeof(dap_chain_receipt_t)+1; // nested receipt plus 8 bits for type
+
+    // Sign with our wallet
+    l_receipt_size = dap_chain_datum_tx_receipt_sign_add(l_receipt,l_receipt_size , dap_chain_wallet_get_key( a_usage->wallet,0) );
+
+    a_usage->receipt = l_receipt;
+    a_usage->receipt_size = l_receipt_size;
+    a_usage->wallet = a_price->wallet;
+
+    return  l_receipt;
+}
+
 
