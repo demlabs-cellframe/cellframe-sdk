@@ -127,6 +127,8 @@ static void s_stage_status_callback(dap_client_t *a_client, void *a_arg)
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    if(!l_node_client)
+        return;
     // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
     if(l_is_last_attempt){
@@ -471,6 +473,8 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
 //    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
 
     l_node_client->state = NODE_CLIENT_STATE_CONNECT;
+    // ref pvt client
+    //dap_client_pvt_ref(DAP_CLIENT_PVT(l_node_client->client));
     // Handshake & connect
     dap_client_go_stage(l_node_client->client, a_stage_target, s_stage_connected_callback);
     return l_node_client;

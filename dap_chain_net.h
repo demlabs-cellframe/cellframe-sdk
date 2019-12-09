@@ -107,6 +107,7 @@ dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net);
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
+dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
 
 void dap_chain_net_links_connect(dap_chain_net_t * a_net);

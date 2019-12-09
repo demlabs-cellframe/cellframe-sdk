@@ -32,3 +32,9 @@ int start_node_ping(pthread_t *a_thread, struct in_addr a_addr, int a_port, int 
 
 // wait for ending ping within timeout_ms milliseconds
 int wait_node_ping(pthread_t l_thread, int timeout_ms);
+
+
+// background thread for testing connect to the nodes
+int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_node_list);
+int dap_chain_node_ping_background_stop(void);
+int dap_chain_node_ping_background_status(void);
