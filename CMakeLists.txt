@@ -8,12 +8,7 @@ set(DAP_CHAIN_COMMON_SRCS
         src/dap_chain_datum_hashtree_roots.c
         src/dap_chain_datum_tx_items.c
         src/dap_chain_datum_tx.c
-        src/dap_chain_datum_tx_in.c
-        src/dap_chain_datum_tx_in_cond.c
-        src/dap_chain_datum_tx_out.c
         src/dap_chain_datum_tx_out_cond.c
-        src/dap_chain_datum_tx_pkey.c
-        src/dap_chain_datum_tx_sig.c
         src/dap_chain_datum_tx_token.c
         src/dap_chain_datum_tx_receipt.c
         )
