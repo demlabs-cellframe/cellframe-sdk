@@ -1206,6 +1206,7 @@ void * srv_ch_sf_thread(void * arg)
                                         buf_size + sizeof(pout->header));
                                 pout->header.op_code = VPN_PACKET_OP_CODE_RECV;
                                 pout->header.sock_id = l_socket_proxy->id;
+                                pout->header.usage_id = l_usage->id;
                                 pout->header.op_data.data_size = buf_size;
                                 memcpy(pout->data, buf, buf_size);
                                 l_socket_proxy->pkt_out_size++;
