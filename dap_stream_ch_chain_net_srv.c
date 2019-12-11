@@ -316,12 +316,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     pthread_mutex_lock(& l_srv_session->parent->mutex );
                     HASH_ITER(hh, l_srv_session->usages, l_usage, l_tmp){
                         if ( l_usage->receipt_next ){ // If we have receipt next
-                            if ( memcmp(&l_usage->receipt_next->receipt, &l_receipt->receipt,sizeof (l_receipt->receipt) )==0 ){
+                            if ( memcmp(&l_usage->receipt_next->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
                                 l_is_found = true;
                                 break;
                             }
                         }else if (l_usage->receipt ){ // If we sign first receipt
-                            if ( memcmp(&l_usage->receipt->receipt, &l_receipt->receipt,sizeof (l_receipt->receipt) )==0 ){
+                            if ( memcmp(&l_usage->receipt->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
                                 l_is_found = true;
                                 break;
                             }
