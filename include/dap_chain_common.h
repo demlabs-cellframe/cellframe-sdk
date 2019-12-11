@@ -191,6 +191,10 @@ typedef struct dap_chain_receipt{
 } dap_chain_receipt_info_t;
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
@@ -246,3 +250,8 @@ static inline dap_chain_hash_slow_kind_t dap_chain_hash_slow_kind_check(dap_chai
     else
         return HASH_SILVER;
 }
+
+
+#ifdef __cplusplus
+}
+#endif

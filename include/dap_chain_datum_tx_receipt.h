@@ -33,10 +33,15 @@
  */
 typedef struct dap_chain_datum_tx_receipt {
     dap_chain_tx_item_type_t type :8; // Transaction item type
-    dap_chain_receipt_info_t receipt; // Receipt itself
+    dap_chain_receipt_info_t receipt_info; // Receipt itself
     uint16_t size;
     byte_t signs[]; // Signatures, first from provider, second from client
 }DAP_ALIGN_PACKED dap_chain_datum_tx_receipt_t;
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_srv_uid_t srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t units_type,
@@ -49,3 +54,7 @@ static inline uint16_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum
     return l_receipt->size;
 }
 
+
+#ifdef __cplusplus
+}
+#endif

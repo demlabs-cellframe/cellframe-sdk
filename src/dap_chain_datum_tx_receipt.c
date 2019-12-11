@@ -44,11 +44,11 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
 {
     dap_chain_datum_tx_receipt_t * l_ret = DAP_NEW_Z(dap_chain_datum_tx_receipt_t);
     l_ret->type = TX_ITEM_TYPE_RECEIPT;
-    l_ret->receipt.units_type = a_units_type;
-    l_ret->receipt.srv_uid = a_srv_uid;
-    l_ret->receipt.units = a_units;
-    l_ret->receipt.value_datoshi = a_value_datoshi;
-    l_ret->size = 1+sizeof (l_ret->receipt);
+    l_ret->receipt_info.units_type = a_units_type;
+    l_ret->receipt_info.srv_uid = a_srv_uid;
+    l_ret->receipt_info.units = a_units;
+    l_ret->receipt_info.value_datoshi = a_value_datoshi;
+    l_ret->size = 1+sizeof (l_ret->receipt_info);
     return  l_ret;
 }
 
@@ -58,7 +58,7 @@ size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_rece
         log_it( L_ERROR, "NULL receipt, can't add sign");
         return 0;
     }
-    dap_sign_t * l_sign = dap_sign_create(a_key,&a_receipt->receipt,sizeof (a_receipt->receipt),0);
+    dap_sign_t * l_sign = dap_sign_create(a_key,&a_receipt->receipt_info,sizeof (a_receipt->receipt_info),0);
     size_t l_sign_size = l_sign? dap_sign_get_size( l_sign ) : 0;
     if ( ! l_sign || ! l_sign_size ){
         log_it( L_ERROR, "Can't sign the receipt, may be smth with key?");
@@ -80,7 +80,7 @@ size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_rece
  */
 dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt,  size_t l_receipt_size,uint16_t a_sign_position  )
 {
-    if ( l_receipt_size <= sizeof (l_receipt->receipt)+1)
+    if ( l_receipt_size <= sizeof (l_receipt->receipt_info)+1)
         return NULL;
     dap_sign_t * l_sign = (dap_sign_t *) l_receipt->signs;
     for ( ; a_sign_position && l_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) l_receipt ) ; a_sign_position-- ){
