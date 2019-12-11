@@ -45,6 +45,10 @@ typedef union dap_chain_hash_fast{
     uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
 } dap_chain_hash_fast_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
 
@@ -106,3 +110,7 @@ static inline char *dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_has
     dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size );
     return ret;
 }
+
+#ifdef __cplusplus
+}
+#endif
