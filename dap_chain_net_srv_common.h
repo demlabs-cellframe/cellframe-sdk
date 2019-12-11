@@ -128,6 +128,8 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request{
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_success_hdr{
     uint32_t usage_id;
+    dap_chain_net_id_t net_id;
+    dap_chain_net_srv_uid_t srv_uid;
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_success_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_success{
@@ -137,6 +139,9 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_success{
 
 // TYPE_RESPONSE_ERROR
 typedef struct dap_stream_ch_chain_net_srv_pkt_error{
+    dap_chain_net_id_t net_id;
+    dap_chain_net_srv_uid_t srv_uid;
+    uint32_t usage_id;
     uint32_t code; // error code
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_error_t;
 
