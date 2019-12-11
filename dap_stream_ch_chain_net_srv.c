@@ -172,6 +172,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     l_tx = dap_chain_ledger_tx_find_by_hash( l_ledger,& l_request->hdr.tx_cond );
                     if ( ! l_tx){ // No tx cond transaction
                         log_it( L_WARNING, "No tx cond transaction");
+                        /// TODO Add tx cond treshold and ability to provide service before the transaction comes from CDB
+                        ///
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
