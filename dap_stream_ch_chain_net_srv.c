@@ -130,13 +130,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     if(l_ch_pkt ) {
         switch (l_ch_pkt->hdr.type) {
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
-
+                if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
+                    log_it( L_WARNING, "Wrong request size, less than minimum");
+                    break;
+                }
                 // Parse the request
                 dap_stream_ch_chain_net_srv_pkt_request_t * l_request =(dap_stream_ch_chain_net_srv_pkt_request_t *) l_ch_pkt->data;
+                //size_t l_request_size = l_ch_pkt->hdr.size;
                 dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get( l_request->hdr.srv_uid );
                 dap_chain_net_t * l_net = dap_chain_net_by_id( l_request->hdr.net_id );
 
-
+                l_err.net_id.uint64 = l_request->hdr.net_id.uint64;
+                l_err.srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
                 if ( ! l_net ) // Network not found
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
                 if ( ! l_srv ) // Service not found
@@ -209,6 +214,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     break;
                 }
 
+                l_err.usage_id = l_usage->id;
+
 
                 // Create one client
                 l_usage->clients = DAP_NEW_Z( dap_chain_net_srv_client_t);
@@ -277,14 +284,24 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 // If we a here we passed all the checks, wow, now if we're not for free we request the signature.
                 } else{
                     log_it( L_INFO, "Service provide for free");
+                    size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+                    dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+                                                                                          l_success_size);
+                    l_success->hdr.usage_id = l_usage->id;
+                    l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
+                    l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
 
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
-                                                 NULL, 0);
+                                                 l_success, l_success_size);
                     if (l_usage->service->callback_receipt_first_success)
                         l_usage->service->callback_receipt_first_success(l_usage->service,l_usage->id,  l_usage->clients,NULL,0 );
+                    DAP_DELETE(l_success);
 
                 }
-
+                if(l_request)
+                    DAP_DELETE(l_request);
+                if(l_receipt)
+                    DAP_DELETE(l_receipt);
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST:{
                 log_it( L_NOTICE, "Requested smth to sign");
@@ -320,6 +337,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                 l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
+                    l_err.usage_id = l_usage->id;
+                    l_err.net_id.uint64 = l_usage->net->pub.id.uint64;
+                    l_err.srv_uid.uint64 = l_usage->service->uid.uint64;
+
                     if (! l_usage->tx_cond ){
                         log_it(L_WARNING, "No tx out in usage");
                         l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
@@ -419,6 +440,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                                           l_success_size);
                     l_success->hdr.usage_id = l_usage->id;
+                    l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
+                    l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
 
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
                                                  l_success, l_success_size);
