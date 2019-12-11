@@ -330,7 +330,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
       uint32_t eol;
 
       if (!(peol = (char*)memchr(cl->buf_in, 10, cl->buf_in_size))) { /// search LF
-          peol = (char*)memchr(cl->buf_in, 13, cl->buf_in_size));
+          peol = (char*)memchr(cl->buf_in, 13, cl->buf_in_size);
       }
 
       if (peol) {
