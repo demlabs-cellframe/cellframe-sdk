@@ -611,17 +611,24 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     if ( ! l_usage){
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
         dap_stream_ch_set_ready_to_write(a_ch,false);
+        dap_stream_ch_set_ready_to_read(a_ch,false);
         return;
     }
 
     if ( ! l_usage->is_active ){
         log_it(L_INFO, "Usage inactivation: switch off packet output channel");
         dap_stream_ch_set_ready_to_write(a_ch,false);
+        dap_stream_ch_set_ready_to_read(a_ch,false);
+        if (l_usage->clients)
+            dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         return;
     }
     if ( ! l_usage->receipt ){
         log_it(L_WARNING, "No active receipt, switching off");
         dap_stream_ch_set_ready_to_write(a_ch,false);
+        dap_stream_ch_set_ready_to_read(a_ch,false);
+        if (l_usage->clients)
+            dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         return;
     }
 
@@ -719,6 +726,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                         log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", a_usage->receipt->receipt.units_type.uint32 );
                         dap_stream_ch_set_ready_to_write(a_ch,false);
                         dap_stream_ch_set_ready_to_read(a_ch,false);
+                        dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     }
                 }
 
@@ -727,6 +735,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_set_ready_to_write(a_ch,false);
                 dap_stream_ch_set_ready_to_read(a_ch,false);
+                dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
             }
         }
     }else if ( a_srv_session->limits_bytes ){
@@ -758,6 +767,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                         log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_bytes", a_usage->receipt->receipt.units_type.uint32 );
                         dap_stream_ch_set_ready_to_write(a_ch,false);
                         dap_stream_ch_set_ready_to_read(a_ch,false);
+                        dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     }
                 }
 
@@ -766,6 +776,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_set_ready_to_write(a_ch,false);
                 dap_stream_ch_set_ready_to_read(a_ch,false);
+                dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+
             }
 
         }
