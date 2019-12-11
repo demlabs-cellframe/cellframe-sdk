@@ -120,6 +120,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request_hdr{
     dap_chain_net_id_t net_id;// Network id wheither to request
     dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
     dap_chain_net_srv_uid_t srv_uid;
+    char token[DAP_CHAIN_TICKER_SIZE_MAX];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_request{
