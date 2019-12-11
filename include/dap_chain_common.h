@@ -169,6 +169,19 @@ typedef union {
     } enm;
 } dap_chain_net_srv_price_unit_uid_t;
 
+typedef enum dap_chain_tx_item_type {
+    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
+    TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
+    TX_ITEM_TYPE_PKEY = 0x20,
+    TX_ITEM_TYPE_SIG = 0x30,
+    TX_ITEM_TYPE_TOKEN = 0x40,
+    TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
+    TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
+    TX_ITEM_TYPE_RECEIPT = 0x70,
+
+    TX_ITEM_TYPE_ANY = 0xff,
+} dap_chain_tx_item_type_t;
+
 
 typedef struct dap_chain_receipt{
     dap_chain_net_srv_uid_t srv_uid; // Service UID
@@ -182,6 +195,9 @@ size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, 
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
+
+dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
+dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id);
 

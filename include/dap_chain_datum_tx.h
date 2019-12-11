@@ -27,18 +27,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
-typedef enum dap_chain_tx_item_type {
-    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
-    TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
-    TX_ITEM_TYPE_PKEY = 0x20,
-    TX_ITEM_TYPE_SIG = 0x30,
-    TX_ITEM_TYPE_TOKEN = 0x40,
-    TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
-    TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
-    TX_ITEM_TYPE_RECEIPT = 0x70,
-
-    TX_ITEM_TYPE_ANY = 0xff,
-} dap_chain_tx_item_type_t;
 
 typedef enum dap_chain_tx_cond_type {
     COND_SERVICE_PROVIDE = 0x20, //

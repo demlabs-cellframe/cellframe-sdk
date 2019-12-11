@@ -29,7 +29,7 @@
 #include "dap_enc_base58.h"
 #include "dap_hash.h"
 
-#define LOG_TAG "chain_common"
+#define LOG_TAG "dap_chain_common"
 
 /**
  * @brief dap_chain_hash_to_str
@@ -135,6 +135,84 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
         DAP_DELETE(l_addr);
     return NULL;
 }
+
+/**
+ * @brief dap_chain_net_id_from_str
+ * @param a_net_str
+ * @return
+ */
+dap_chain_net_id_t dap_chain_net_id_from_str( const char * a_net_str)
+{
+    dap_chain_net_id_t l_ret={0};
+    size_t l_net_str_len = strlen( a_net_str);
+    if (l_net_str_len >2){
+        a_net_str+=2;
+        l_net_str_len-=2;
+        if (l_net_str_len == sizeof (l_ret)/2 ){
+            size_t l_pos =0;
+            char l_byte[3];
+            while(l_net_str_len){
+                // Copy two characters for bytes
+                memcpy(l_byte,a_net_str,2);
+                l_byte[2]='\0';
+                // Read byte chars
+                if ( sscanf(l_byte,"%02hhx",&l_ret.raw[l_pos] ) != 1)
+                    if( sscanf(l_byte,"%02hhX",&l_ret.raw[l_pos] ) ==1 )
+                        break;
+
+                // Update pos
+                l_pos++;
+                // Reduce in two steps to not to break if input will have bad input
+                l_net_str_len-=1;
+                if(l_net_str_len)
+                    l_net_str_len-=1;
+            }
+        }else
+            log_it(L_WARNING,"Wrong input string \"%s\" not recognized as network id", a_net_str);
+    }
+    return  l_ret;
+}
+
+/**
+ * @brief dap_chain_net_srv_uid_from_str
+ * @param a_net_str
+ * @return
+ */
+dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_uid_str)
+{
+    dap_chain_net_srv_uid_t l_ret={{0}};
+    size_t l_net_srv_uid_str_len = strlen( a_net_srv_uid_str);
+    if (l_net_srv_uid_str_len >2){
+        a_net_srv_uid_str+=2;
+        l_net_srv_uid_str_len-=2;
+        if (l_net_srv_uid_str_len == sizeof (l_ret)/2 ){
+            size_t l_pos =0;
+            char l_byte[3];
+            while(l_net_srv_uid_str_len){
+
+                // Copy two characters for bytes
+                memcpy(l_byte,a_net_srv_uid_str,2);
+                l_byte[2]='\0';
+
+                // Read byte chars
+                if ( sscanf(l_byte,"%02hhx",&l_ret.raw[l_pos] ) != 1)
+                    if( sscanf(l_byte,"%02hhX",&l_ret.raw[l_pos] ) ==1 )
+                        break;
+
+                // Update pos
+                l_pos++;
+                // Reduce in two steps to not to break if input will have bad input
+                l_net_srv_uid_str_len-=1;
+                if(l_net_srv_uid_str_len)
+                    l_net_srv_uid_str_len-=1;
+            }
+        }else
+            log_it(L_WARNING,"Wrong input string \"%s\" not recognized as network id", a_net_srv_uid_str);
+    }
+    return  l_ret;
+}
+
+
 
 /**
  * @brief dap_chain_addr_fill
