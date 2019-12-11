@@ -308,7 +308,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 // TODO sign smth
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:{
-                if ( l_ch_pkt->hdr.size > sizeof(dap_chain_receipt_t)+1 ){
+                if ( l_ch_pkt->hdr.size > sizeof(dap_chain_receipt_info_t)+1 ){
                     dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
                     size_t l_receipt_size = l_ch_pkt->hdr.size;
                     dap_chain_net_srv_usage_t * l_usage= NULL, *l_tmp= NULL;
@@ -469,7 +469,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                 }else{
                     log_it(L_ERROR, "Wrong sign response size, %zd when expected at least %zd with smth", l_ch_pkt->hdr.size,
-                           sizeof(dap_chain_receipt_t)+1 );
+                           sizeof(dap_chain_receipt_info_t)+1 );
                 }
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS:{
