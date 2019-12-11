@@ -462,7 +462,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
         return NULL;
     }
 
-    if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_receipt->receipt.value_datoshi) != 1) {
+    if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_receipt->receipt_info.value_datoshi) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx output");
         return NULL;
