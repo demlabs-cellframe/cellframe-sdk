@@ -33,7 +33,7 @@
  */
 typedef struct dap_chain_datum_tx_receipt {
     dap_chain_tx_item_type_t type :8; // Transaction item type
-    dap_chain_receipt_t receipt; // Receipt itself
+    dap_chain_receipt_info_t receipt; // Receipt itself
     uint16_t size;
     byte_t signs[]; // Signatures, first from provider, second from client
 }DAP_ALIGN_PACKED dap_chain_datum_tx_receipt_t;

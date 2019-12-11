@@ -188,7 +188,7 @@ typedef struct dap_chain_receipt{
     dap_chain_net_srv_price_unit_uid_t units_type;
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
     uint64_t value_datoshi; // Receipt value
-} dap_chain_receipt_t;
+} dap_chain_receipt_info_t;
 
 
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
