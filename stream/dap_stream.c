@@ -688,7 +688,9 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
     (void) arg;
 
     pthread_mutex_lock(&s_mutex_keepalive_list);
-    DL_DELETE(s_stream_keepalive_list, sid);
+    if(s_stream_keepalive_list){
+        DL_DELETE(s_stream_keepalive_list, sid);
+    }
     pthread_mutex_unlock(&s_mutex_keepalive_list);
 
     size_t i;
