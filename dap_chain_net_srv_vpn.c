@@ -479,6 +479,12 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
 
     a_stream_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
     dap_chain_net_srv_ch_vpn_t * l_srv_vpn = CH_VPN(a_stream_ch);
+
+    if(a_stream_ch->stream->session->_inheritor == NULL && a_stream_ch->stream->session != NULL)
+        dap_chain_net_srv_stream_session_create(a_stream_ch->stream->session);
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    l_srv_vpn->net_srv = dap_chain_net_srv_get(l_uid);
+
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_stream_ch->stream->session->_inheritor;
     pthread_mutex_init(&l_srv_vpn->mutex, NULL);
     l_srv_vpn->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
@@ -525,7 +531,9 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
     }
 
     pthread_rwlock_wrlock(&s_clients_rwlock);
-    HASH_DEL(s_ch_vpn_addrs,l_ch_vpn);
+    if(s_ch_vpn_addrs) {
+        HASH_DEL(s_ch_vpn_addrs, l_ch_vpn);
+    }
 
     if ( l_is_unleased ){ // If unleased
         dap_chain_net_srv_vpn_item_ipv4_t * l_item_unleased = DAP_NEW_Z(dap_chain_net_srv_vpn_item_ipv4_t);
@@ -549,7 +557,9 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
     HASH_ITER(hh, l_ch_vpn->socks , cur, tmp)
     {
         log_it(L_DEBUG, "delete socket: %i", cur->sock);
-        HASH_DEL(l_ch_vpn->socks, cur);
+        if(l_ch_vpn->socks){
+            HASH_DEL(l_ch_vpn->socks, cur);
+        }
         if(cur)
             free(cur);
     }
