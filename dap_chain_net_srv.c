@@ -417,8 +417,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_srv->callback_receipt_next_success = a_callback_receipt_next_success;
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
-        l_sdata->srv = DAP_NEW(dap_chain_net_srv_t);
-        memcpy(&l_sdata->srv, l_srv, sizeof(dap_chain_net_srv_t));
+        l_sdata->srv = l_srv;//DAP_NEW(dap_chain_net_srv_t);
+        //memcpy(l_sdata->srv, l_srv, sizeof(dap_chain_net_srv_t));
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
