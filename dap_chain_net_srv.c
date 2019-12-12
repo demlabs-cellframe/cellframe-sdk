@@ -540,7 +540,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi);
-    size_t l_receipt_size = sizeof(dap_chain_receipt_t)+1; // nested receipt plus 8 bits for type
+    size_t l_receipt_size = sizeof(dap_chain_receipt_info_t)+1; // nested receipt plus 8 bits for type
 
     // Sign with our wallet
     l_receipt_size = dap_chain_datum_tx_receipt_sign_add(l_receipt,l_receipt_size , dap_chain_wallet_get_key( a_usage->wallet,0) );
