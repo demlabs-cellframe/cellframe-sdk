@@ -58,6 +58,8 @@ typedef struct dap_chain_net_srv_usage{
     UT_hash_handle hh; //
 } dap_chain_net_srv_usage_t;
 
+typedef void (*dap_response_success_callback_t) (dap_stream_ch_chain_net_srv_pkt_success_t*, void*);
+
 typedef struct dap_chain_net_srv_stream_session {
     dap_stream_session_t * parent;
     dap_chain_net_srv_usage_t * usages;
@@ -69,6 +71,10 @@ typedef struct dap_chain_net_srv_stream_session {
 
     time_t ts_activated;
     dap_sign_t* user_sign; // User's signature for auth if reconnect
+
+    dap_response_success_callback_t response_success_callback;
+    void *response_success_callback_data;
+
 } dap_chain_net_srv_stream_session_t;
 
 #define DAP_CHAIN_NET_SRV_STREAM_SESSION(a) ((dap_chain_net_srv_stream_session_t *) (a)->_inheritor )
