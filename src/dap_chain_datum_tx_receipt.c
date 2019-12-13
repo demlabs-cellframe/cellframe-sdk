@@ -36,19 +36,27 @@
  * @param a_units_type
  * @param a_units
  * @param a_value_datoshi
+ * @param a_ext
+ * @param a_ext_size
  * @return
  */
 dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_srv_uid_t a_srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t a_units_type,
-                                                                    uint64_t a_units, uint64_t a_value_datoshi)
+                                                                    uint64_t a_units, uint64_t a_value_datoshi,
+                                                                  const void * a_ext, size_t a_ext_size)
 {
-    dap_chain_datum_tx_receipt_t * l_ret = DAP_NEW_Z(dap_chain_datum_tx_receipt_t);
+    dap_chain_datum_tx_receipt_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_datum_tx_receipt_t, dap_chain_datum_tx_receipt_get_size_hdr() +a_ext_size );
     l_ret->type = TX_ITEM_TYPE_RECEIPT;
     l_ret->receipt_info.units_type = a_units_type;
     l_ret->receipt_info.srv_uid = a_srv_uid;
     l_ret->receipt_info.units = a_units;
     l_ret->receipt_info.value_datoshi = a_value_datoshi;
-    l_ret->size = 1+sizeof (l_ret->receipt_info);
+    l_ret->size = dap_chain_datum_tx_receipt_get_size_hdr()+a_ext_size;
+
+    if( a_ext_size && a_ext){
+        l_ret->exts_size = a_ext_size;
+        memcpy(l_ret->exts_n_signs, a_ext, a_ext_size);
+    }
     return  l_ret;
 }
 
@@ -65,7 +73,7 @@ size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_rece
         return 0;
     }
     a_receipt= (dap_chain_datum_tx_receipt_t*) DAP_REALLOC(a_receipt, a_receipt_size+l_sign_size);
-    memcpy(a_receipt->signs+a_receipt_size, l_sign, l_sign_size);
+    memcpy(a_receipt->exts_n_signs+a_receipt_size+a_receipt->exts_size, l_sign, l_sign_size);
     a_receipt_size += l_sign_size;
     a_receipt->size = a_receipt_size;
     DAP_DELETE( l_sign );
@@ -82,7 +90,7 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
 {
     if ( l_receipt_size <= sizeof (l_receipt->receipt_info)+1)
         return NULL;
-    dap_sign_t * l_sign = (dap_sign_t *) l_receipt->signs;
+    dap_sign_t * l_sign = (dap_sign_t *) (l_receipt->exts_n_signs+l_receipt->exts_size);
     for ( ; a_sign_position && l_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) l_receipt ) ; a_sign_position-- ){
         l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign ));
     }
@@ -91,13 +99,14 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
 
 /**
  * @brief dap_chain_datum_tx_receipt_signs_count
- * @param l_receipt
+ * @param a_receipt
+ * @param a_receipt_size
  * @return
  */
-uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size)
+uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a_receipt, size_t a_receipt_size)
 {
     uint16_t l_ret = 0;
-    for (dap_sign_t * l_sign = (dap_sign_t *) l_receipt->signs ; l_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) l_receipt ) ;
+    for (dap_sign_t * l_sign = (dap_sign_t *) (a_receipt->exts_n_signs +a_receipt->exts_size); a_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
         l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign )) ){
         l_ret++;
     }
