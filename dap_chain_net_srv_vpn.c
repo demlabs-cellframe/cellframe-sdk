@@ -796,7 +796,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     // If issue new receipt
     if ( l_issue_new_receipt ) {
         if ( a_usage->receipt){
-            dap_chain_datum_tx_receipt_t * l_receipt =dap_chain_net_srv_issue_receipt(a_usage->service, a_usage,a_usage->price );
+            dap_chain_datum_tx_receipt_t * l_receipt =dap_chain_net_srv_issue_receipt(a_usage->service, a_usage,a_usage->price,NULL,0 );
             a_usage->receipt_next = l_receipt;
             dap_stream_ch_pkt_write( a_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
                                      l_receipt, l_receipt->size);
