@@ -35,6 +35,7 @@
 #include "dap_chain.h"
 #include "dap_cert.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_vf.h"
 #include <uthash.h>
 #include <pthread.h>
 
@@ -85,6 +86,8 @@ int dap_chain_init(void)
     dap_chain_cell_init();
 
     dap_chain_cs_init();
+
+    dap_chain_vf_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
