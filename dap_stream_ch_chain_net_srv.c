@@ -273,7 +273,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if ( l_srv->pricelist ){
                     if ( l_price ){
                         l_usage->price = l_price;
-                        l_receipt = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price );
+                        // TODO extend callback to pass ext and ext size from service callbacks
+                        l_receipt = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price,NULL,0 );
                         dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
                                                  l_receipt, l_receipt->size);
 
@@ -456,7 +457,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                             l_usage->is_active = false;
                         }
                         // issue receipt next
-                        l_usage->receipt_next = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price );
+                        l_usage->receipt_next = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price ,NULL,0);
                         l_usage->receipt_next_size = l_usage->receipt_next->size;
                         dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
                                                  l_usage->receipt_next, l_usage->receipt_next->size);
