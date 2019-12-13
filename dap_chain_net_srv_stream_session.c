@@ -42,6 +42,7 @@ dap_chain_net_srv_stream_session_t * dap_chain_net_srv_stream_session_create( da
     }
     dap_chain_net_srv_stream_session_t * l_session_srv= DAP_NEW_Z(dap_chain_net_srv_stream_session_t);
     a_session->_inheritor = l_session_srv;
+    l_session_srv->parent = a_session;
     log_it(L_NOTICE, "created service session");
     return  l_session_srv;
 }
