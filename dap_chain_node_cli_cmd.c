@@ -72,9 +72,11 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_vpn_client.h"
 #include "dap_chain_cell.h"
 
+#include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
@@ -2551,24 +2553,122 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
 int com_tx_cond_create(int argc, char ** argv, char **str_reply)
 {
     (void) argc;
-    // test
-    /*
-    const char * l_token_ticker = NULL;
+    int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    const char *c_wallet_name_from = "w_tesla"; // where to take coins for service
-    const char *c_wallet_name_cond = "w_picnic"; // who will be use service, usually the same address (addr_from)
-    uint64_t l_value = 50;
+    const char * l_token_ticker = NULL;
+    const char * l_wallet_from_str = NULL;
+    const char * l_wallet_to_str = NULL; //l_addr_to_str
+    const char * l_value_datoshi_str = NULL;
+    const char * l_net_name = NULL;
+    const char * l_unit_str = NULL;
+    const char * l_service_str = NULL;
+    uint64_t l_value_datoshi = 0;
 
-    dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(c_wallet_name_from, c_wallets_path);
-    dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet_from, 0);
-    dap_chain_wallet_t *l_wallet_cond = dap_chain_wallet_open(c_wallet_name_cond, c_wallets_path);
+    // Token ticker
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);
+    // Wallet name - from
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-wallet_f", &l_wallet_from_str);
+    // Wallet address - to
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-wallet_t", &l_wallet_to_str);
+    // value datoshi
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-value", &l_value_datoshi_str);
+    // net
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
+    // unit
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-unit", &l_unit_str);
+    // service
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-service", &l_service_str);
+
+    if(!l_token_ticker) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-token'");
+        return -1;
+    }
+    if(!l_wallet_from_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-wallet_f'");
+        return -2;
+    }
+    if(!l_wallet_to_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-wallet_t'");
+        return -3;
+    }
+    if(!l_value_datoshi_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-value'");
+        return -4;
+    }
+
+    if(!l_net_name) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-net'");
+        return -5;
+    }
+    if(!l_unit_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-unit={mb|kb|b|sec|day}'");
+        return -6;
+    }
+    if(!l_service_str) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_cond_create requires parameter '-service={vpn}'");
+        return -7;
+    }
+    dap_chain_net_srv_uid_t l_srv_uid = { 0 };
+    if(!dap_strcmp(l_service_str, "vpn"))
+        l_srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
+    //dap_chain_addr_t *addr_to = dap_chain_addr_from_str(l_addr_to_str);
+    if(!l_srv_uid.uint64) {
+        dap_chain_node_cli_set_reply_text(str_reply, "can't recognize service='%s' unit must look like {vpn}",
+                l_service_str);
+        return -8;
+    }
+
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_UNDEFINED };
+    if(!dap_strcmp(l_unit_str, "mb"))
+        l_price_unit.enm = SERV_UNIT_MB;
+    else if(!dap_strcmp(l_unit_str, "sec"))
+        l_price_unit.enm = SERV_UNIT_SEC;
+    else if(!dap_strcmp(l_unit_str, "day"))
+        l_price_unit.enm = SERV_UNIT_DAY;
+    else if(!dap_strcmp(l_unit_str, "kb"))
+        l_price_unit.enm = SERV_UNIT_KB;
+    else if(!dap_strcmp(l_unit_str, "b"))
+        l_price_unit.enm = SERV_UNIT_B;
+
+    if(l_price_unit.enm == SERV_UNIT_UNDEFINED) {
+        dap_chain_node_cli_set_reply_text(str_reply, "can't recognize unit='%s' unit must look like {mb|kb|b|sec|day}",
+                l_unit_str);
+        return -9;
+    }
+
+    l_value_datoshi = strtoll(l_value_datoshi_str, NULL, 10);
+    if(!l_value_datoshi) {
+        dap_chain_node_cli_set_reply_text(str_reply, "can't recognize value='%s' as a number", l_value_datoshi_str);
+        return -10;
+    }
+
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
+    if(!l_net) {
+        dap_chain_node_cli_set_reply_text(str_reply, "can't find net '%s'", l_net_name);
+        return -11;
+    }
+    dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(l_wallet_from_str, c_wallets_path);
+    if(!l_wallet_from) {
+        dap_chain_node_cli_set_reply_text(str_reply, "can't open wallet '%s'", l_wallet_from);
+        return -12;
+    }
+    dap_chain_wallet_t *l_wallet_cond = dap_chain_wallet_open(l_wallet_to_str, c_wallets_path);
+    if(!l_wallet_to_str) {
+        dap_chain_wallet_close(l_wallet_from);
+        dap_chain_node_cli_set_reply_text(str_reply, "can't open wallet '%s'", l_wallet_to_str);
+        return -13;
+    }
+    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet_from, 0);
     dap_enc_key_t *l_key_cond = dap_chain_wallet_get_key(l_wallet_cond, 0);
-    // where to take coins for service
-    const dap_chain_addr_t *addr_from = dap_chain_wallet_get_addr(l_wallet_from);
-    // who will be use service, usually the same address (addr_from)
-    const dap_chain_addr_t *addr_cond = dap_chain_wallet_get_addr(l_wallet_cond);
 
-    dap_chain_net_srv_abstract_t l_cond;
+
+    // where to take coins for service
+    const dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, l_net->pub.id);
+    // who will be use service, usually the same address (addr_from)
+    //const dap_chain_addr_t *l_addr_cond = dap_chain_wallet_get_addr(l_wallet_cond, l_net->pub.id);
+
+
+/*    //dap_chain_net_srv_abstract_t l_cond;
 //    dap_chain_net_srv_abstract_set(&l_cond, SERV_CLASS_PERMANENT, SERV_ID_VPN, l_value, SERV_UNIT_MB,
 //            "test vpn service");
 //    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) c_net_name);
@@ -2576,14 +2676,33 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
     int res = dap_chain_mempool_tx_create_cond(NULL, l_key, l_key_cond, addr_from,
             addr_cond,
             NULL, l_token_ticker, l_value, 0, (const void*) &l_cond, sizeof(dap_chain_net_srv_abstract_t));
+*/
+
+    dap_chain_hash_fast_t *l_tx_cond_hash = dap_chain_mempool_tx_create_cond(l_net, l_key_from, l_key_cond, l_addr_from, l_token_ticker,
+            l_value_datoshi, 0, l_price_unit, l_srv_uid, 0, NULL, 0);
 
     dap_chain_wallet_close(l_wallet_from);
     dap_chain_wallet_close(l_wallet_cond);
-    dap_chain_node_cli_set_reply_text(str_reply, "cond create=%s\n",
+
+    char *l_hash_str = l_tx_cond_hash ? dap_chain_hash_fast_to_str_new(l_tx_cond_hash) : NULL;
+
+    /*dap_chain_node_cli_set_reply_text(str_reply, "cond create=%s\n",
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for service fee" : "False");
-    return res;
-    */
-    return  -1;
+    return res;*/
+
+    int l_ret;
+    // example: cond create succefully hash=0x4AA303EB7C10430C0AAC42F399D265BC7DD09E3983E088E02B8CED38DA22EDA9
+    if(l_hash_str){
+        dap_chain_node_cli_set_reply_text(str_reply, "cond create succefully hash=%s\n", l_hash_str);
+        l_ret = 0;
+    }
+    else{
+        dap_chain_node_cli_set_reply_text(str_reply, "cond can't create\n");
+        l_ret = -1;
+    }
+
+    DAP_DELETE(l_hash_str);
+    return  l_ret;
 }
 
 /**
