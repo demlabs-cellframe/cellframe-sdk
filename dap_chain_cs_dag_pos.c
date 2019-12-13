@@ -41,6 +41,7 @@ typedef struct dap_chain_cs_dag_pos_pvt
     char ** tokens_hold;
     uint64_t * tokens_hold_value;
     size_t tokens_hold_size;
+    uint16_t confirmations_minimum;
 } dap_chain_cs_dag_pos_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pos_pvt_t *) a->_pvt )
@@ -100,6 +101,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         log_it(L_CRITICAL, "tokens_hold and tokens_hold_value are different size!");
         goto lb_err;
     }
+    l_pos_pvt->confirmations_minimum = dap_config_get_item_uint16_default( a_chain_cfg,"dag-pos","confirmations_minimum",1);
     l_pos_pvt->tokens_hold_size = l_tokens_hold_size;
     l_pos_pvt->tokens_hold = DAP_NEW_Z_SIZE( char*, sizeof(char*) *
                                              l_tokens_hold_size );
@@ -210,44 +212,51 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
  */
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
 {
+
     dap_chain_cs_dag_pos_t * l_pos =DAP_CHAIN_CS_DAG_POS( a_dag ) ;
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
 
     if(a_dag->chain->ledger == NULL)
         return -3;
 
-    if ( a_dag_event->header.signs_count == 1 ){
-        dap_chain_addr_t l_addr = { 0 };
-        dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
-        dap_enc_key_t * l_key = dap_sign_to_enc_key( l_sign);
+    if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
+        int ret = 0;
 
-        dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
-        dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
+        // TODO fix verify for signs more than one
+        for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
+            dap_chain_addr_t l_addr = { 0 };
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
+            dap_enc_key_t * l_key = dap_sign_to_enc_key( l_sign);
 
-        dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
-        // transaction include emission?
-        bool l_is_emit = false;
-        if(l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-            // transaction
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-            // find Token items
-            dap_list_t *l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_TOKEN, NULL);
-            if(l_list_tx_token)
-                l_is_emit = true;
-            dap_list_free(l_list_tx_token);
-        }
-        // if emission then the wallet can be with zero balance
-        if(l_is_emit)
-            return 0;
+            dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
+            dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
 
-        for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
-            if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
+            dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
+            // transaction include emission?
+            bool l_is_emit = false;
+            if(l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                // transaction
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+                // find Token items
+                dap_list_t *l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_TOKEN, NULL);
+                if(l_list_tx_token)
+                    l_is_emit = true;
+                dap_list_free(l_list_tx_token);
+            }
+            // if emission then the wallet can be with zero balance
+            if(l_is_emit)
                 return 0;
+
+            for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
+                if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
+                    return 0;
+            }
+            char *l_addr_str = dap_chain_addr_to_str(&l_addr);
+            log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
+            DAP_DELETE(l_addr_str);
+            return -1;
         }
-        char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-        log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
-        DAP_DELETE(l_addr_str);
-        return -1;
+        return ret;
     }else
        return -2; // Wrong signatures number
 }
