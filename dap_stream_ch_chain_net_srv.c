@@ -142,15 +142,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                 l_err.net_id.uint64 = l_request->hdr.net_id.uint64;
                 l_err.srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
+
                 if ( ! l_net ) // Network not found
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
+
                 if ( ! l_srv ) // Service not found
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
 
                 if ( l_err.code ){
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                     if (l_srv->callback_response_error)
-                            l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
+                        l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                     break;
                 }
 
@@ -158,7 +160,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_chain_datum_tx_t * l_tx = NULL;
                 dap_chain_tx_out_cond_t * l_tx_out_cond = NULL;
                 if (l_srv->pricelist ){ // Is present pricelist, not free service
-
 
                     if ( !l_ledger ){ // No ledger
                         log_it( L_WARNING, "No Ledger");
@@ -170,7 +171,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     }
 
                     l_tx = dap_chain_ledger_tx_find_by_hash( l_ledger,& l_request->hdr.tx_cond );
-                    if ( ! l_tx){ // No tx cond transaction
+                    if ( ! l_tx ){ // No tx cond transaction
                         log_it( L_WARNING, "No tx cond transaction");
                         /// TODO Add tx cond treshold and ability to provide service before the transaction comes from CDB
                         ///
@@ -184,7 +185,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     l_tx_out_cond = (dap_chain_tx_out_cond_t *)
                             dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size );
 
-                    if ( ! l_tx_out_cond ){ // No conditioned output
+                    if ( ! l_tx_out_cond ) { // No conditioned output
                         log_it( L_WARNING, "No conditioned output");
 
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
@@ -263,7 +264,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if ( (ret= l_srv->callback_requested(l_srv,l_usage->id, l_usage->clients, l_request, l_ch_pkt->hdr.size  ) )!= 0 ){
                     log_it( L_WARNING, "Request canceled by service callback, return code %d", ret);
                     dap_chain_net_srv_usage_delete(l_srv_session, l_usage);
-                    l_err.code =(uint32_t) ret ;
+                    l_err.code = (uint32_t) ret ;
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                     if (l_srv->callback_response_error)
                             l_srv->callback_response_error(l_srv,l_usage->id, NULL,&l_err,sizeof (l_err) );
@@ -279,10 +280,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                                  l_receipt, l_receipt->size);
 
                     }else{
-                        l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND ;
+                        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
-                                l_srv->callback_response_error(l_srv,l_usage->id, NULL,&l_err,sizeof (l_err) );
+                                l_srv->callback_response_error( l_srv, l_usage->id, NULL, &l_err, sizeof( l_err ) );
                     }
                 // If we a here we passed all the checks, wow, now if we're not for free we request the signature.
                 } else{
@@ -296,8 +297,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
                                                  l_success, l_success_size);
-                    if (l_usage->service->callback_receipt_first_success)
-                        l_usage->service->callback_receipt_first_success(l_usage->service,l_usage->id,  l_usage->clients,NULL,0 );
+
+                    if ( l_usage->service->callback_receipt_first_success )
+                        l_usage->service->callback_receipt_first_success ( l_usage->service, l_usage->id,  l_usage->clients, NULL, 0 );
                     DAP_DELETE(l_success);
 
                 }
@@ -334,7 +336,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                     if ( !l_is_found || ! l_usage ){
                         log_it(L_WARNING, "Can't find receipt in usages thats equal to response receipt");
-                        l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
+                        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
                                 l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
@@ -346,10 +348,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                     if (! l_usage->tx_cond ){
                         log_it(L_WARNING, "No tx out in usage");
-                        l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
+                        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error( l_usage->service, l_usage->id, l_usage->clients,
+                                                                          &l_err, sizeof (l_err) );
                         break;
                     }
                     int l_tx_out_cond_size =0;
@@ -360,16 +363,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error( l_usage->service, l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
 
                     dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_receipt, l_receipt_size, 0);
-                    if( ! l_receipt_sign ){
+                    if ( ! l_receipt_sign ){
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
-                                l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
+                                l_usage->service->callback_response_error( l_usage->service, l_usage->id, l_usage->clients,
+                                                                           &l_err, sizeof (l_err) );
                         break;
                     }
 
@@ -378,8 +382,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_sign_get_pkey_hash( l_receipt_sign, &l_pkey_hash);
 
 
-
-                    if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.header.pkey_hash.raw , sizeof(l_pkey_hash)  ) != 0 ){
+                    if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.header.pkey_hash.raw , sizeof(l_pkey_hash) ) != 0 ){
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
