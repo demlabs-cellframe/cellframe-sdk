@@ -526,37 +526,38 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_list_t *l_list = l_ch_chain->request_global_db_trs; //dap_list_last( l_ch_chain->request_global_db_trs );
 
 
-         log_it( L_NOTICE,"last of request_global_db_trs l_list = %X", l_list );
+         //log_it( L_NOTICE,"last of request_global_db_trs l_list = %X", l_list );
 
-         log_it( L_WARNING,"Listing request_global_db_trs: ========" );
+         //log_it( L_WARNING,"Listing request_global_db_trs: ========" );
          {
          dap_list_t *l_item = l_ch_chain->request_global_db_trs;
          if ( l_item ) {
-         log_it( L_NOTICE,"list request_global_db_trs %X", l_item );
+         //log_it( L_NOTICE,"list request_global_db_trs %X", l_item );
 
          while( l_item ) {
-         log_it( L_DEBUG,"list item %X data = %X", l_item, l_item->data );
+         //log_it( L_DEBUG,"list item %X data = %X", l_item, l_item->data );
          l_item = l_item->next;
          }
          }
          else {
 
-         log_it( L_NOTICE,"request_global_db_trs EMPTY %X", l_item );
+         //log_it( L_NOTICE,"request_global_db_trs EMPTY %X", l_item );
          }
          }
 
         if ( l_list ) {
 
-            log_it(L_DEBUG, "l_list = %X", l_list);
+            //log_it(L_DEBUG, "l_list = %X", l_list);
             size_t len = dap_list_length( l_list );
-            log_it( L_DEBUG,"len = dap_list_length(l_list ); = %u", len );
-            log_it( L_DEBUG,"l_list->data = %p", l_list->data );
+            //log_it( L_DEBUG,"len = dap_list_length(l_list ); = %u", len );
+            //log_it( L_DEBUG,"l_list->data = %p", l_list->data );
 
             size_t l_item_size_out = 0;
             uint8_t *l_item = dap_db_log_pack( (dap_global_db_obj_t *) l_list->data, &l_item_size_out );
 
             if(!l_item || !l_item_size_out) {
-                log_it(L_WARNING, "Log pack returned NULL???");
+                log_it(L_WARNING, "Log pack returned NULL??? Switch off channel for sending (nothing to send)");
+                dap_stream_ch_set_ready_to_write(a_ch, false);
             }
             else {
                 dap_stream_ch_chain_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
