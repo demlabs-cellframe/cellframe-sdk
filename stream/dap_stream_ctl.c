@@ -143,7 +143,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
             char *key_str = calloc(1, KEX_KEY_STR_SIZE);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate(s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
+            ss->key = dap_enc_key_new_generate( s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
             enc_http_reply_f(l_dg,"%u %s",ss->id,key_str);
             *return_code = Http_Status_OK;
