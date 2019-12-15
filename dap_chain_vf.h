@@ -52,6 +52,7 @@ typedef struct dap_chain_vf_tx_cond_in_check {
     dap_chain_receipt_info_t receipt_info;
 } dap_chain_vf_tx_cond_in_check_t;
 
+
 typedef struct dap_chain_vf_tx_cond_out_srv_pay_check {
     /// Do the general tx checks if some of them are not null
     dap_chain_vf_tx_check_t tx_check;
@@ -67,10 +68,12 @@ typedef struct dap_chain_vf_tx_cond_out_srv_pay_check {
     uint32_t params_size;
 } dap_chain_vf_tx_cond_out_check_t;
 
-// General usage verificators IDs
-#define DAP_CHAIN_VF_ID_TX_CHECK                            0x0000000000000010
-#define DAP_CHAIN_VF_ID_TX_IN_COND_CHECK                    0x0000000000000020
-#define DAP_CHAIN_VF_ID_TX_OUT_COND_SRV_PAY_CHECK           0x0000000000000030
+
+///              General usage verificators IDs
+
+#define         DAP_CHAIN_VF_ID_TX_CHECK                            0x0000000000000010
+#define         DAP_CHAIN_VF_ID_TX_IN_COND_CHECK                    0x0000000000000020
+#define         DAP_CHAIN_VF_ID_TX_OUT_COND_SRV_PAY_CHECK           0x0000000000000030
 
 #ifdef __cplusplus
 extern "C" {
