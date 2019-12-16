@@ -319,7 +319,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
   dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
 
 //  log_it( L_DEBUG, "dap_http_client_read..." );
-  log_it( L_WARNING, "HTTP client in state read %d taked bytes in input %lu", cl_ht->state_read, cl->buf_in_size );
+  //log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", cl_ht->state_read, cl->buf_in_size );
 
   do {
     switch( cl_ht->state_read ) {
