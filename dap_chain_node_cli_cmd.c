@@ -969,7 +969,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
             // wait connected
-            int timeout_ms = 100; //5 sec = 5000 ms
+            int timeout_ms = 5000; //5 sec = 5000 ms
             res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
             // select new node addr
             if(l_is_auto && res){
@@ -2076,12 +2076,23 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
             if(l_objs_size > 15) {
                 dap_string_append_printf(l_str_tmp, "...\n");
             }
-            size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums, l_datums_size);
+
+            size_t l_objs_processed = 0;
+            bool l_procecced[l_objs_size];
+            for(size_t i = 0; i < l_objs_size; i++) {
+                int l_is_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums + i, 1); //l_datums_size
+                l_objs_processed += l_is_processed;
+                l_procecced[i] = l_is_processed;
+            }
             // Delete processed objects
             size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
-            for(size_t i = 0; i < l_objs_processed; i++) {
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
-                if(i < l_objs_processed_tmp) {
+            size_t l_objs_processed_cur = 0;
+            for(size_t i = 0; i < l_datums_size; i++) {
+                if(l_procecced[i]!=1)
+                    continue;
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool_tmp);
+                l_objs_processed_cur++;
+                if(l_objs_processed_cur < l_objs_processed_tmp) {
                     dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
                             l_objs[i].key);
                 }
