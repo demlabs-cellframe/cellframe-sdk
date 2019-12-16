@@ -797,6 +797,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     log_it ( L_INFO, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
 
 
+    char * l_token_ticker = NULL;
     dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
     pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
     HASH_FIND(hh, l_ledger_priv->ledger_items, l_tx_hash, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash already in the hash?
@@ -810,7 +811,6 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         ret = 1;
         goto FIN;
     }
-    char * l_token_ticker = NULL;
     if (ret == -1) {
         goto FIN;
     }
