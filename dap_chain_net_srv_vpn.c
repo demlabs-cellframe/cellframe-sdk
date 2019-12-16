@@ -1264,6 +1264,14 @@ void * srv_ch_sf_thread(void * arg)
     }
 }
 
+static volatile bool s_srv_ch_sf_thread_raw_is_exit = false;
+
+/* Signal handler. */
+static void s_sig_handle (int sig)
+{
+    s_srv_ch_sf_thread_raw_is_exit = true;
+}
+
 /**
  *
  *
@@ -1298,6 +1306,11 @@ void* srv_ch_sf_thread_raw(void *arg)
     log_it(L_INFO, "Tun/tap thread starts with MTU = %d", tun_MTU);
 
     fd_set fds_read, fds_read_active;
+    sigset_t l_sig_mask_proc;
+    sigset_t l_sig_mask_orig;
+    sigemptyset (&l_sig_mask_proc);
+    sigaddset (&l_sig_mask_proc, SIGTERM);
+
 
     FD_ZERO(&fds_read);
     FD_SET(s_raw_server->tun_fd, &fds_read);
@@ -1369,10 +1382,10 @@ void* srv_ch_sf_thread_raw(void *arg)
 
              }*/
         } else {
-            log_it(L_CRITICAL, "Select returned %d", ret);
-            break;
+            log_it(L_WARNING, "Select returned %d: %s", ret, strerror(errno));
+            //break;
         }
-    } while(1);
+    } while(! s_srv_ch_sf_thread_raw_is_exit );
     log_it(L_NOTICE, "Raw sockets listen thread is stopped");
     s_tun_destroy();
     return NULL;
