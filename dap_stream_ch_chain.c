@@ -557,7 +557,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
             if(!l_item || !l_item_size_out) {
                 log_it(L_WARNING, "Log pack returned NULL??? Switch off channel for sending (nothing to send)");
-                dap_stream_ch_set_ready_to_write(a_ch, false);
+                //dap_stream_ch_set_ready_to_write(a_ch, false);
             }
             else {
                 dap_stream_ch_chain_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
