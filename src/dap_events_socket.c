@@ -288,7 +288,7 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
  */
 size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
-    log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
+    //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
 
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
