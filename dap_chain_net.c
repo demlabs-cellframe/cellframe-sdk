@@ -829,6 +829,8 @@ int dap_chain_net_init()
     dap_chain_global_db_add_history_group_prefix("global");
 
     dap_chain_global_db_add_history_callback_notify("global", s_gbd_history_callback_notify, NULL );
+
+    dap_chain_net_load_all();
     return 0;
 }
 
