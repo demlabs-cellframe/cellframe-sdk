@@ -71,7 +71,7 @@ typedef struct tx_cond_template{
     long double value_coins;
     uint128_t value_datoshi;
 
-    char * token_ticker;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     char * net_name;
     dap_chain_net_t * net;
     dap_ledger_t * ledger;
@@ -129,11 +129,13 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
                                                             "cdb_auth",
                                                             "tx_cond_create",
                                                             false)) {
-            log_it (L_DEBUG, "2791: tx_cond_create is true");
             // Parse tx cond templates
             size_t l_tx_cond_tpls_count = 0;
+
+            /* ! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
+             * ! it also must NOT be freed within this module !
+             */
             char **l_tx_cond_tpls = dap_config_get_array_str(g_config, "cdb_auth", "tx_cond_templates", &l_tx_cond_tpls_count);
-            log_it (L_DEBUG, "2791: tx_cond_templates: %d", l_tx_cond_tpls_count);
             if (l_tx_cond_tpls_count == 0) {
                 log_it( L_ERROR, "No condition tpl, can't setup auth callback");
                 return -5;
@@ -141,74 +143,71 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
             db_auth_set_callbacks(s_auth_callback);
 
             for (size_t i = 0 ; i < l_tx_cond_tpls_count; i++) {
-                char *l_wallet_name     = NULL;
-                long double l_value     = 0.0L;
-                char *l_token_ticker    = NULL;
-                char *l_net_name        = NULL;
-                int l_step              = 0;
-                time_t l_min_time       = 0;
-                log_it (L_DEBUG, "2791: tx_cond: %s", l_tx_cond_tpls[i]);
-
-                // Parse template entries
-                char *ctx;
-                for (char *l_tpl_token = strtok_r(l_tx_cond_tpls[i], ":", &ctx); l_tpl_token && l_step <= 4; l_tpl_token = strtok_r(NULL, ":", &ctx), ++l_step) {
-                    log_it (L_DEBUG, "2791: tx_cond_token: %s", l_tpl_token);
-                    switch (l_step) {
-                        case 0: l_wallet_name = l_tpl_token;                break;
-                        case 1: l_value = strtold( l_tpl_token, NULL);      break;
-                        case 2: l_min_time =(time_t) atoll(l_tpl_token);    break;
-                        case 3: l_token_ticker = l_tpl_token;               break;
-                        case 4: l_net_name = l_tpl_token;                   break;
-                        default: log_it(L_WARNING, "Too many ':' (%d) characters in condition template", l_step); break;
-                    }
-                }
-
-                // If all what we need is present
-                if (l_step <= 4) {
-                    log_it(L_ERROR, "Not enough elements in condition template: 5 needed, %d present", l_step);
-                    //assert(l_wallet_name && l_value > 0.0L && l_token_ticker && l_net_name && l_min_time);
-                    if (!l_wallet_name || l_value <= 0.0L || !l_token_ticker || !l_net_name || !l_min_time) {
-                        log_it(L_ERROR, "Condition template inconsistent");
-                    }
-                    continue;
-                }
-
-                // we create condition template
                 tx_cond_template_t *l_tx_cond_template = DAP_NEW_Z(tx_cond_template_t);
 
-                if(!(l_tx_cond_template->wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path))) {
-                    log_it(L_ERROR, "Can't open wallet \"%s\" for condition transaction template \"%s\"", l_wallet_name, l_tx_cond_tpls[i]);
-                    DAP_DELETE(l_tx_cond_template);
-                    continue;
+                // Parse template entries
+                short l_step = 0;
+                char *ctx;
+                for (char *l_tpl_token = strtok_r(l_tx_cond_tpls[i], ":", &ctx); l_tpl_token || l_step == 5; l_tpl_token = strtok_r(NULL, ":", &ctx), ++l_step) {
+                    switch (l_step) {
+                    case 0:
+                        if(!(l_tx_cond_template->wallet = dap_chain_wallet_open(l_tpl_token, c_wallets_path))) {
+                            log_it(L_ERROR, "Can't open wallet \"%s\"", l_tpl_token);
+                            DAP_DELETE(l_tx_cond_template);
+                            break;
+                        }
+                        l_tx_cond_template->wallet_name = l_tpl_token;
+                        continue;
+                    case 1:
+                        if (!(l_tx_cond_template->value_coins = strtold(l_tpl_token, NULL))) {
+                            log_it(L_ERROR, "Error parsing tpl: text on 2nd position \"%s\" is not a number", l_tpl_token);
+                            DAP_DELETE(l_tx_cond_template->wallet);
+                            DAP_DELETE(l_tx_cond_template);
+                            l_step = 0;
+                            break;
+                        }
+                        l_tx_cond_template->value_datoshi = dap_chain_coins_to_balance(l_tx_cond_template->value_coins);
+                        continue;
+                    case 2:
+                        if (!(l_tx_cond_template->min_time = (time_t)atoll(l_tpl_token))) {
+                            log_it(L_ERROR, "Error parsing tpl: text on 3d position \"%s\" is not a number", l_tpl_token);
+                            DAP_DELETE(l_tx_cond_template->wallet);
+                            DAP_DELETE(l_tx_cond_template);
+                            l_step = 0;
+                            break;
+                        }
+                        continue;
+                    case 3:
+                        dap_stpcpy(l_tx_cond_template->token_ticker, l_tpl_token);
+                        continue;
+                    case 4:
+                        if (!(l_tx_cond_template->net = dap_chain_net_by_name(l_tpl_token))
+                                || !(l_tx_cond_template->ledger = dap_chain_ledger_by_net_name(l_tpl_token)))
+                        {
+                            log_it(L_ERROR, "Can't open network \"%s\" or ledger in it", l_tpl_token);
+                            DAP_DELETE(l_tx_cond_template->wallet);
+                            DAP_DELETE(l_tx_cond_template);
+                            l_step = 0;
+                            break;
+                        }
+                        l_tx_cond_template->net_name = l_tpl_token;
+                        continue;
+                    case 5:
+                        log_it(L_INFO, "Condition template correct, added to list");
+                        DL_APPEND(s_tx_cond_templates, l_tx_cond_template);
+                        break;
+                    default:
+                        break;
+                    }
+                    log_it(L_DEBUG, "Done with tpl item %d", i);
+                    break; // double break exits tokenizer loop and steps to next tpl item
                 }
-
-                if (!(l_tx_cond_template->net = dap_chain_net_by_name(l_net_name))) {
-                    log_it(L_ERROR, "Can't open network \"%s\" for condition transaction template \"%s\"", l_net_name, l_tx_cond_tpls[i]);
-                    DAP_DELETE(l_tx_cond_template->wallet);
-                    DAP_DELETE(l_tx_cond_template);
-                    continue;
-                }
-
-                if (!(l_tx_cond_template->ledger = dap_chain_ledger_by_net_name(l_net_name))) {
-                    log_it(L_ERROR, "Can't open ledger in network \"%s\" for condition transaction template \"%s\"", l_net_name, l_tx_cond_tpls[i]);
-                    DAP_DELETE(l_tx_cond_template->wallet);
-                    DAP_DELETE(l_tx_cond_template);
-                    continue;
-                }
-
-                l_tx_cond_template->wallet_name     = l_wallet_name;
-                l_tx_cond_template->net_name        = l_net_name;
-                l_tx_cond_template->min_time        = l_min_time;
-                l_tx_cond_template->value_coins     = l_value;
-                l_tx_cond_template->value_datoshi   = dap_chain_coins_to_balance (l_value);
-                l_tx_cond_template->token_ticker    = l_token_ticker;
-                DL_APPEND(s_tx_cond_templates, l_tx_cond_template);
             }
+            if (!s_tx_cond_templates) ret = -1;
+        } else {
+            log_it(L_INFO, "No conditional transactions, provide VPN service for free");
         }
     }
-
-    if (!s_tx_cond_templates)
-        ret = -1;
     return ret;
 }
 
@@ -246,8 +245,8 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         l_client_key = dap_enc_key_deserealize(l_pkey_raw, l_pkey_raw_size);
     }
 
-    tx_cond_template_t *l_tpl, *l_tmp;
-    DL_FOREACH_SAFE(s_tx_cond_templates, l_tpl, l_tmp) {
+    tx_cond_template_t *l_tpl;
+    DL_FOREACH(s_tx_cond_templates, l_tpl) {
         size_t l_gdb_group_size = 0;
 
         // Try to load from gdb
