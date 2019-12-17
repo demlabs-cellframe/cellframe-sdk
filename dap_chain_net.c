@@ -720,6 +720,11 @@ static void s_net_proc_kill( dap_chain_net_t * a_net )
     return;
 }
 
+dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
+{
+    return  PVT(a_net)->node_role;
+}
+
 /**
  * @brief dap_chain_net_new
  * @param a_id
@@ -824,6 +829,8 @@ int dap_chain_net_init()
     dap_chain_global_db_add_history_group_prefix("global");
 
     dap_chain_global_db_add_history_callback_notify("global", s_gbd_history_callback_notify, NULL );
+
+    dap_chain_net_load_all();
     return 0;
 }
 
@@ -1606,8 +1613,44 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
     return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.cell_id: 0;
 }
 
+
 /**
- * Get remote node list
+ * Get nodes list (list of dap_chain_node_addr_t struct)
+ */
+dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell)
+{
+    dap_list_t *l_node_list = NULL;
+    // get cur node address
+    dap_chain_node_addr_t l_cur_node_addr = { 0 };
+    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+
+    dap_chain_node_info_t *l_cur_node_info = dap_chain_node_info_read(l_net, &l_cur_node_addr);
+    // add links to nodes list only from the same cell
+    if(l_cur_node_info) {
+        for(unsigned int i = 0; i < l_cur_node_info->hdr.links_number; i++) {
+            bool l_is_add = true;
+            dap_chain_node_addr_t *l_remote_address = l_cur_node_info->links + i;
+            if(a_is_only_cur_cell) {
+                // get remote node list
+                dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_address);
+                if(!l_remote_node_info || l_remote_node_info->hdr.cell_id.uint64 != l_cur_node_info->hdr.cell_id.uint64)
+                    l_is_add = false;
+                DAP_DELETE(l_remote_node_info);
+            }
+            if(l_is_add) {
+                dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+                l_address->uint64 = l_cur_node_info->links[i].uint64;
+                l_node_list = dap_list_append(l_node_list, l_address);
+            }
+        }
+
+    }
+    DAP_DELETE(l_cur_node_info);
+    return l_node_list;
+}
+
+/**
+ * Get remote nodes list (list of dap_chain_node_addr_t struct)
  */
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
 {
@@ -1679,9 +1722,55 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
  * @brief dap_chain_net_proc_datapool
  * @param a_net
  */
-void dap_chain_net_proc_datapool (dap_chain_net_t * a_net)
+void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
 {
 
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    for(dap_chain_type_t i = CHAIN_TYPE_FIRST + 1; i < CHAIN_TYPE_LAST; i++) {
+        dap_chain_t * l_chain = dap_chain_net_get_chain_by_chain_type(a_net, i);
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+
+        size_t l_objs_size = 0;
+        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+        if(l_objs_size) {
+            log_it(L_INFO, "%s.%s: Found %u records :", a_net->pub.name, l_chain->name,
+                    l_objs_size);
+            size_t l_datums_size = l_objs_size;
+            dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
+                    sizeof(dap_chain_datum_t*) * l_datums_size);
+            size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
+            for(size_t i = 0; i < l_objs_size; i++) {
+                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
+                l_datums[i] = l_datum;
+                if(i < l_objs_size_tmp) {
+                    char buf[50];
+                    time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                    log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
+                            l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
+                            ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                }
+            }
+            size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums, l_datums_size);
+            // Delete processed objects
+            size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
+            for(size_t i = 0; i < l_objs_processed; i++) {
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
+                if(i < l_objs_processed_tmp) {
+                    dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
+                            l_objs[i].key);
+                }
+            }
+            if(l_objs_processed < l_datums_size)
+                log_it(L_WARNING, "%s.%s: %d records not processed", a_net->pub.name, l_chain->name,
+                        l_datums_size - l_objs_processed);
+            dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        }
+        else {
+            log_it(L_INFO, "%s.%s: No records in mempool", a_net->pub.name, l_chain ? l_chain->name : "[no chain]");
+        }
+        DAP_DELETE(l_gdb_group_mempool);
+
+    }
 }
 
 /**

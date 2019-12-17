@@ -75,7 +75,7 @@ typedef struct dap_chain_node_client {
 
     bool keep_connection;
 } dap_chain_node_client_t;
-#define DAP_CHAIN_NODE_CLIENT(a) ( (dap_chain_node_client_t *) (a)->_inheritor )
+#define DAP_CHAIN_NODE_CLIENT(a) (a ? (dap_chain_node_client_t *) (a)->_inheritor : NULL)
 
 int dap_chain_node_client_init(void);
 

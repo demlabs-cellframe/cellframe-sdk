@@ -36,6 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "win32/ip.h"
 #include "win32/iphdr.h"
+#define s6_addr32 s6_addr
 #define herror perror
 #endif
 
@@ -93,7 +94,7 @@ inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_c
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }//NET_STATE_ONLINE
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
-void dap_chain_net_proc_datapool (dap_chain_net_t * a_net);
+void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
@@ -106,6 +107,7 @@ dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net);
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
+dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
 
 void dap_chain_net_links_connect(dap_chain_net_t * a_net);
@@ -125,6 +127,8 @@ typedef enum dap_chain_net_tx_search_type {
 
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
+
+dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
