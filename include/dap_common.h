@@ -62,6 +62,12 @@ typedef uint8_t byte_t;
   #define ROUNDUP(n,width) (((n) + (width) - 1) & ~(unsigned)((width) - 1))
 #endif
 
+#ifdef __cplusplus
+#define DAP_CAST_REINT(t,v) reinterpret_cast<t*>(v)
+#else
+#define DAP_CAST_REINT(t,v) ((t*) v)
+#endif
+
 #if DAP_USE_RPMALLOC
   #include "rpmalloc.h"
   #define DAP_MALLOC(a)         rpmalloc(a)
@@ -70,13 +76,14 @@ typedef uint8_t byte_t;
   #define DAP_ALMALLOC(a, b)    rpaligned_alloc(a, b)
   #define DAP_ALREALLOC(a,b,c)  rpaligned_realloc(a, b, c, 0, 0)
   #define DAP_ALFREE(a)         rpfree(a)
-  #define DAP_NEW(a)            ((a*) rpmalloc(sizeof(a)))
-  #define DAP_NEW_SIZE(a, b)    ((a*) rpmalloc(b))
-  #define DAP_NEW_Z(a)          ((a*) rpcalloc(1,sizeof(a)))
-  #define DAP_NEW_Z_SIZE(a, b)  ((a*) rpcalloc(1,b))
+  #define DAP_NEW(a)            DAP_CAST_REINT(a, rpmalloc(sizeof(a)))
+  #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, rpmalloc(b))
+  #define DAP_NEW_Z(a)          DAP_CAST_REINT(a, rpcalloc(1,sizeof(a)))
+  #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, rpcalloc(1,b))
   #define DAP_REALLOC(a, b)     rprealloc(a,b)
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) ret = memcpy(ret,a,b) )
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -84,13 +91,14 @@ typedef uint8_t byte_t;
   #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
   #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
   #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
-  #define DAP_NEW( a )          ((a*) malloc(sizeof(a)))
-  #define DAP_NEW_SIZE(a, b)    ((a*) malloc(b) )
-  #define DAP_NEW_Z( a )        ((a*) calloc(1,sizeof(a)))
-  #define DAP_NEW_Z_SIZE(a, b)  ((a*) calloc(1,b))
+  #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
+  #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
+  #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
+  #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
   #define DAP_REALLOC(a, b)     realloc(a,b)
   #define DAP_DELETE(a)         free(a)
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) memcpy(ret,a,b) )
 #endif
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
