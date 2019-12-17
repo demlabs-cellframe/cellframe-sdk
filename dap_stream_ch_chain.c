@@ -529,7 +529,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
          //log_it( L_NOTICE,"last of request_global_db_trs l_list = %X", l_list );
 
          //log_it( L_WARNING,"Listing request_global_db_trs: ========" );
-         {
+        /* {
          dap_list_t *l_item = l_ch_chain->request_global_db_trs;
          if ( l_item ) {
          //log_it( L_NOTICE,"list request_global_db_trs %X", l_item );
@@ -544,7 +544,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
          //log_it( L_NOTICE,"request_global_db_trs EMPTY %X", l_item );
          }
          }
-
+        */
         if ( l_list ) {
 
             //log_it(L_DEBUG, "l_list = %X", l_list);
