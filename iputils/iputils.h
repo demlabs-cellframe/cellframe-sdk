@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <netinet/ip.h>
 #include <setjmp.h>
+#include <sys/time.h>
 
 #ifdef __cplusplus
 extern "C" {
