@@ -219,7 +219,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                 l_err.usage_id = l_usage->id;
 
-
                 // Create one client
                 l_usage->clients = DAP_NEW_Z( dap_chain_net_srv_client_t);
                 l_usage->clients->ch = a_ch;
@@ -233,22 +232,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 const char * l_ticker = NULL;
                 if (l_srv->pricelist ){
                     l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_request->hdr.tx_cond );
-                    l_price = l_srv->pricelist;
-                    strncpy(l_usage->token_ticker, l_ticker, DAP_CHAIN_TICKER_SIZE_MAX-1);
+                    dap_stpcpy(l_usage->token_ticker, l_ticker);
 
-                    for (; l_price; l_price = l_price->next ){
-                        if (l_price->net->pub.id.uint64 == l_request->hdr.net_id.uint64  &&
-                            dap_strcmp(l_price->token, l_ticker) == 0 &&
-                            l_price->units_uid.enm == l_tx_out_cond->subtype.srv_pay.header.unit.enm &&
-                            ( l_price->value_datoshi/ l_price->units ) < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi
-                                )
-                            break;
-
+                    dap_chain_net_srv_price_t *l_price;
+                    DL_FOREACH(l_srv->pricelist, l_price) {
+                        if (l_price->net->pub.id.uint64                 == l_request->hdr.net_id.uint64
+                            && dap_strcmp(l_price->token, l_ticker)     == 0
+                            && l_price->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.header.unit.enm
+                            && (l_price->value_datoshi/l_price->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
+                                break;
                     }
-
-
-                    if ( !l_price ){
-
+                    if ( !l_price ) {
                         log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                                 l_ticker, l_net->pub.name );
                         dap_chain_net_srv_usage_delete(l_srv_session, l_usage);
@@ -258,7 +252,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                 l_srv->callback_response_error(l_srv,l_usage->id,l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
-
                 }
                 int ret;
                 if ( (ret= l_srv->callback_requested(l_srv,l_usage->id, l_usage->clients, l_request, l_ch_pkt->hdr.size  ) )!= 0 ){
