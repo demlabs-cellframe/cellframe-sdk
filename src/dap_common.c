@@ -539,8 +539,8 @@ void _log_it( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
   len += msg_offset;
 
   #ifdef DAP_OS_ANDROID
-    buf2[ len ] = 0;
-    __android_log_write( ANDROID_LOG_INFO, DAP_BRAND, buf0 + msg_offset );
+//    buf2[ len ] = 0;
+//    __android_log_write( ANDROID_LOG_INFO, DAP_BRAND, buf0 + msg_offset );
   #endif
 
   buf0[ len++ ] = 10;
