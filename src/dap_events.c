@@ -335,7 +335,7 @@ static void *thread_worker_function( void *arg )
       //connection already closed (EPOLLHUP - shutdown has been made in both directions)
       if(events[n].events & EPOLLHUP && events[n].events & EPOLLERR) {
           log_it( L_DEBUG,"Socket error (EPOLLHUP): 0x%x",events[n].events );
-          if(events[n].events & ~(EPOLLIN | EPOLLOUT))
+          if(!(events[n].events & EPOLLIN))
               cur->no_close = false;
           cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
       }
