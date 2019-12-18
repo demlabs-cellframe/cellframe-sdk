@@ -20,6 +20,7 @@
 #define uid_t uint32_t
 #endif
 #include <setjmp.h>
+#include <sys/time.h>
 
 #ifdef __cplusplus
 extern "C" {
