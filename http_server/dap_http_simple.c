@@ -305,10 +305,11 @@ inline static void _set_only_write_http_client_state(dap_http_client_t* http_cli
 //  Sleep(300);
 
   dap_client_remote_ready_to_read(http_client->client,false);
-  http_client->state_write=DAP_HTTP_CLIENT_STATE_NONE;
+//  http_client->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
-  dap_client_remote_ready_to_write(http_client->client,true);
   http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+  dap_client_remote_ready_to_write(http_client->client,true);
+//  http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
 }
 
 static void _copy_reply_and_mime_to_response( dap_http_simple_t *cl_sh )
@@ -381,7 +382,7 @@ void* dap_http_simple_proc( dap_http_simple_t *cl_sh )
     DAP_HTTP_SIMPLE_URL_PROC(cl_sh->http->proc)->proc_callback(cl_sh,&return_code);
 
     if(return_code) {
-        log_it(L_DEBUG, "Request was processed well");
+        log_it(L_DEBUG, "Request was processed well return_code=%d", return_code);
         cl_sh->http->reply_status_code = (uint16_t)return_code;
         _copy_reply_and_mime_to_response(cl_sh);
     } else {
