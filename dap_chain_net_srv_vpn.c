@@ -323,7 +323,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 //    dap_stream_ch_chain_net_srv_pkt_request_t * l_request =  (dap_stream_ch_chain_net_srv_pkt_request_t *) a_request;
 //    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
-    dap_chain_net_srv_usage_t * l_usage_active= dap_chain_net_srv_usage_find(l_srv_session->usages,a_usage_id);
+    dap_chain_net_srv_usage_t * l_usage_active= dap_chain_net_srv_usage_find(l_srv_session,a_usage_id);
     dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
             a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
 
@@ -482,6 +482,7 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
         dap_chain_net_srv_stream_session_create(a_stream_ch->stream->session);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     l_srv_vpn->net_srv = dap_chain_net_srv_get(l_uid);
+    l_srv_vpn->ch = a_stream_ch;
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_stream_ch->stream->session->_inheritor;
     pthread_mutex_init(&l_srv_vpn->mutex, NULL);
