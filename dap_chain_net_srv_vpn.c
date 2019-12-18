@@ -191,7 +191,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
             size_t l_iter = 0;
             char * l_pos_old = l_price_str;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
-            for (char * l_pos = index(l_price_str,':');  ;  l_pos = index(l_pos+1,':') ){
+            for (char * l_pos = strchr(l_price_str,':');  ;  l_pos = strchr(l_pos+1,':') ){
                 if( l_iter == 0)
                     break;
 
