@@ -6,6 +6,9 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#ifdef __ANDROID__
+    #include "pthread_barrier.h"
+#endif
 
 #include "dap_network_monitor.h"
 #include "dap_common.h"
