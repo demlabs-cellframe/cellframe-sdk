@@ -296,8 +296,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     DAP_DELETE(l_success);
 
                 }
-                if(l_request)
-                    DAP_DELETE(l_request);
                 if(l_receipt)
                     DAP_DELETE(l_receipt);
             } break;
