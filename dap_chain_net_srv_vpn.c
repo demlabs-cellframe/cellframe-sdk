@@ -147,7 +147,6 @@ static void s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 static char *s_srv_vpn_addr = NULL, *s_srv_vpn_mask = NULL;
 
-
 static void s_update_limits(dap_stream_ch_t * a_ch ,
                            dap_chain_net_srv_stream_session_t * a_srv_session,
                            dap_chain_net_srv_usage_t * a_usage, size_t a_bytes);
@@ -205,80 +204,79 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
                 if ( l_iter == 0){
                     l_price->net_name = strdup(l_parse_token);
 
-                    l_price->net = dap_chain_net_by_name( l_price->net_name);
-                    if( ! l_price->net ){
-                        log_it(L_ERROR, "Error parse pricelist: can't find network \"%s\"", l_price->net_name);
-                        DAP_DELETE( l_price->net);
+        /* ! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
+         * ! it also must NOT be freed within this module !
+         */
+        char **l_pricelist = dap_config_get_array_str(g_config, "srv_vpn", "pricelist", &l_pricelist_count); // must not be freed!
+        for (uint16_t i = 0; i < l_pricelist_count; i++) {
+            dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+            short l_iter = 0;
+            char *l_ctx;
+            for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
+                //log_it(L_DEBUG, "Tokenizer: %s", l_price_token);
+                switch (l_iter) {
+                case 0:
+                    l_price->net_name = l_price_token;
+                    if (!(l_price->net = dap_chain_net_by_name(l_price->net_name))) {
+                        log_it(L_ERROR, "Error parsing pricelist: can't find network \"%s\"", l_price_token);
                         DAP_DELETE(l_price);
-                        DAP_DELETE(l_parse_token);
                         break;
                     }
-                }else if (l_iter == 1){
-                    l_price->value_coins = atof( l_parse_token);
-                    l_price->value_datoshi =(uint64_t) dap_chain_coins_to_balance((long double)l_price->value_coins);
-                    if ( ! l_price->value_datoshi ){
-                        log_it(L_ERROR, "Error parse pricelist: text on 2nd position \"%s\" is not floating number", l_parse_token);
-                        DAP_DELETE( l_price->net);
+                    continue;
+                case 1:
+                    l_price->value_coins = atof(l_price_token);
+                    if (!(l_price->value_datoshi = (uint64_t)dap_chain_coins_to_balance((long double)l_price->value_coins))) {
+                        log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
+                        l_iter = 0;
                         DAP_DELETE(l_price);
-                        DAP_DELETE(l_parse_token);
                         break;
                     }
-                }else if (l_iter == 2){
-                    strncpy( l_price->token, l_parse_token, sizeof (l_price->token)-1);
-
-                }else if (l_iter == 3){
-                    l_price->units = strtoul( l_parse_token,NULL,10);
-                    if ( !l_price->units ){
-                        log_it(L_ERROR, "Error parse pricelist: text on 4th position \"%s\" is not unsigned integer", l_parse_token);
-                        DAP_DELETE( l_price->net);
+                    continue;
+                case 2:
+                    dap_stpcpy(l_price->token, l_price_token);
+                    continue;
+                case 3:
+                    l_price->units = strtoul(l_price_token, NULL, 10);
+                    if (!l_price->units) {
+                        log_it(L_ERROR, "Error parsing pricelist: text on 4th position \"%s\" is not unsigned integer", l_price_token);
+                        l_iter = 0;
                         DAP_DELETE(l_price);
-                        DAP_DELETE(l_parse_token);
                         break;
                     }
-                }else if (l_iter == 4){
-                    if ( strcmp(l_parse_token,"SEC") == 0 ){
+                    continue;
+                case 4:
+                    if (!strcmp(l_price_token,      "SEC"))
                         l_price->units_uid.enm = SERV_UNIT_SEC;
-                    }else if ( strcmp(l_parse_token,"DAY") == 0 ){
+                    else if (!strcmp(l_price_token, "DAY"))
                         l_price->units_uid.enm = SERV_UNIT_DAY;
-                    }else if ( strcmp(l_parse_token,"MB") == 0 ){
+                    else if (!strcmp(l_price_token, "MB"))
                         l_price->units_uid.enm = SERV_UNIT_MB;
-                    }else {
-                        log_it(L_ERROR, "Error parse pricelist: wrong unit type \"%s\"", l_parse_token);
-                        DAP_DELETE( l_price->net);
+                    else {
+                        log_it(L_ERROR, "Error parsing pricelist: wrong unit type \"%s\"", l_price_token);
+                        l_iter = 0;
                         DAP_DELETE(l_price);
-                        DAP_DELETE(l_parse_token);
                         break;
                     }
-                }else if (l_iter == 5){
-                    l_price->wallet = dap_chain_wallet_open( l_parse_token, dap_config_get_item_str_default(g_config,"resources","wallets_path",NULL) );
-                    if (! l_price->wallet ){
-                        log_it(L_ERROR, "Error parse pricelist: can't open wallet \"%s\"", l_parse_token);
-                        DAP_DELETE( l_price->net);
+                    continue;
+                case 5:
+                    if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
+                        log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
+                        l_iter = 0;
                         DAP_DELETE(l_price);
-                        DAP_DELETE(l_parse_token);
                         break;
                     }
-                }else{
-                    DAP_DELETE(l_parse_token);
+                    continue;
+                case 6:
+                    log_it(L_INFO, "Price item correct, added to service");
+                    DL_APPEND(l_srv->pricelist, l_price);
+                    break;
+                default:
                     break;
                 }
-                l_iter++;
-                l_pos_old = l_pos;
-                if (! l_pos ){
-                    DAP_DELETE(l_parse_token);
-                    break;
-                }
+                log_it(L_DEBUG, "Done with price item %d", i);
+                break; // double break exits tokenizer loop and steps to next price item
             }
-            if( l_iter == 6){
-                log_it(L_NOTICE, "All price parsed well, added to service %s", l_price_str);
-                if (l_srv->pricelist)
-                    l_srv->pricelist->prev = l_price;
-                l_price->next =  l_srv->pricelist;
-                l_srv->pricelist = l_price;
-            }
-
         }
-
         return 0;
     }
     return -1;
@@ -291,10 +289,10 @@ void dap_chain_net_srv_vpn_deinit(void)
 {
     pthread_mutex_destroy(&s_sf_socks_mutex);
     pthread_cond_destroy(&s_sf_socks_cond);
-    free((char*) s_srv_vpn_addr);
-    free((char*) s_srv_vpn_mask);
+    DAP_DELETE(s_srv_vpn_addr);
+    DAP_DELETE(s_srv_vpn_mask);
     if(s_raw_server)
-        free(s_raw_server);
+        DAP_DELETE(s_raw_server);
 }
 
 /**
