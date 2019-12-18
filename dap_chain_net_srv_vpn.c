@@ -157,8 +157,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
  * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
-{
+int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
     if(c_addr && c_mask) {
@@ -183,26 +182,6 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
         l_srv_vpn->parent = l_srv;
 
         uint16_t l_pricelist_count = 0;
-        char ** l_pricelist = dap_config_get_array_str(g_config,"srv_vpn","pricelist", &l_pricelist_count );
-        for ( uint16_t i = 0; i < l_pricelist_count; i++ ){
-            char * l_price_str = l_pricelist[i];
-            size_t l_price_length = strlen(l_price_str);
-            size_t l_iter = 0;
-            char * l_pos_old = l_price_str;
-            dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
-            for (char * l_pos = strchr(l_price_str,':');  ;  l_pos = strchr(l_pos+1,':') ){
-                if( l_iter == 0)
-                    break;
-
-                size_t l_parse_token_size =  l_pos?(size_t) (l_pos - l_pos_old)-1: l_price_length- (size_t)(l_pos_old - l_pricelist[i]) ;
-                char * l_parse_token = strndup(l_pos_old, l_parse_token_size);
-                if( l_parse_token_size ==0 ){
-                    log_it(L_ERROR, "Wrong price element size nil");
-                    DAP_DELETE(l_parse_token);
-                    break;
-                }
-                if ( l_iter == 0){
-                    l_price->net_name = strdup(l_parse_token);
 
         /* ! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
          * ! it also must NOT be freed within this module !
