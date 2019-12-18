@@ -405,6 +405,7 @@ lb_proc_state:
                                                    dap_chain_net_get_cur_addr(l_net),
                                                    sizeof (dap_chain_node_addr_t) );
                             }
+                            PVT(l_net)->state = NET_STATE_SYNC_GDB;
                         }break;
                         case NODE_ROLE_CELL_MASTER:
                         case NODE_ROLE_MASTER:{
