@@ -59,6 +59,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
 {
     if ( a_srv_session && a_net && a_srv ){
         dap_chain_net_srv_usage_t * l_ret = DAP_NEW_Z(dap_chain_net_srv_usage_t);
+        //l_ret->id = 666;
         randombytes(&l_ret->id, sizeof(l_ret->id));
         l_ret->net = a_net;
         l_ret->service = a_srv;
@@ -66,7 +67,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
         pthread_mutex_lock(&a_srv_session->parent->mutex);
         HASH_ADD_INT( a_srv_session->usages, id,l_ret );
         pthread_mutex_unlock(&a_srv_session->parent->mutex);
-        log_it( L_NOTICE, "Added service %s:0x%016llX usage ", l_ret->net->pub.name, a_srv->uid.uint64 );
+        log_it( L_NOTICE, "Added service %s:0x%016llX , usage id: %d", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
         return l_ret;
     }else{
         log_it( L_ERROR, "Some NULLs was in input");
