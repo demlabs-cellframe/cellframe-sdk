@@ -402,7 +402,7 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
     if (l_arg.q > 0) {
         l_count_out = l_arg.n - l_arg.q;
         void *tmp = DAP_REALLOC(l_arg.o, l_count_out * sizeof(dap_store_obj_t));
-        if (!tmp) {
+        if (!tmp && l_count_out) {
             log_it(L_CRITICAL, "Couldn't re-allocate memory for portion of store objects!");
             DAP_DELETE(l_arg.o);
             return NULL;
