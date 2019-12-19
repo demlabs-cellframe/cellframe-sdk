@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <kahovski@gmail.com>
  * Anatolii Kurotych <akurotych@gmail.com>
  * DeM Labs Inc.   https://demlabs.net
- * DeM Labs Open source community https://gitlab.demlabs.net/cellframe
+ * DeM Labs Open source community https://github.com/demlabsinc
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
@@ -30,9 +30,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <time.h>
 
 #include "portable_endian.h"
+
+typedef uint8_t byte_t;
 
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
@@ -56,7 +59,13 @@
 #endif
 
 #ifndef ROUNDUP
-  #define ROUNDUP(n,width) (((n) + (width) - 1) & ~unsigned((width) - 1))
+  #define ROUNDUP(n,width) (((n) + (width) - 1) & ~(unsigned)((width) - 1))
+#endif
+
+#ifdef __cplusplus
+#define DAP_CAST_REINT(t,v) reinterpret_cast<t*>(v)
+#else
+#define DAP_CAST_REINT(t,v) ((t*) v)
 #endif
 
 #if DAP_USE_RPMALLOC
@@ -67,13 +76,14 @@
   #define DAP_ALMALLOC(a, b)    rpaligned_alloc(a, b)
   #define DAP_ALREALLOC(a,b,c)  rpaligned_realloc(a, b, c, 0, 0)
   #define DAP_ALFREE(a)         rpfree(a)
-  #define DAP_NEW(a)            ((a*) rpmalloc(sizeof(a)))
-  #define DAP_NEW_SIZE(a, b)    ((a*) rpmalloc(b))
-  #define DAP_NEW_Z(a)          ((a*) rpcalloc(1,sizeof(a)))
-  #define DAP_NEW_Z_SIZE(a, b)  ((a*) rpcalloc(1,b))
+  #define DAP_NEW(a)            DAP_CAST_REINT(a, rpmalloc(sizeof(a)))
+  #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, rpmalloc(b))
+  #define DAP_NEW_Z(a)          DAP_CAST_REINT(a, rpcalloc(1,sizeof(a)))
+  #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, rpcalloc(1,b))
   #define DAP_REALLOC(a, b)     rprealloc(a,b)
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) ret = memcpy(ret,a,b) )
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -81,65 +91,52 @@
   #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
   #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
   #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
-  #define DAP_NEW( a )          ((a*) malloc(sizeof(a)))
-  #define DAP_NEW_SIZE(a, b)    ((a*) malloc(b) )
-  #define DAP_NEW_Z( a )        ((a*) calloc(1,sizeof(a)))
-  #define DAP_NEW_Z_SIZE(a, b)  ((a*) calloc(1,b))
+  #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
+  #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
+  #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
+  #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
   #define DAP_REALLOC(a, b)     realloc(a,b)
   #define DAP_DELETE(a)         free(a)
   #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) memcpy(ret,a,b) )
 #endif
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
-  uintptr_t ptr = (uintptr_t) DAP_MALLOC( size + (alignment * 2) + sizeof(void *) );
+    uintptr_t ptr = (uintptr_t) DAP_MALLOC( size + (alignment * 2) + sizeof(void *) );
 
-  if ( !ptr )
-    return (void *)ptr;
+    if ( !ptr )
+        return (void *)ptr;
 
-  uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
-  ((uintptr_t *)al_ptr)[-1] = ptr;
+    uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
+    ((uintptr_t *)al_ptr)[-1] = ptr;
 
-  return (void *)al_ptr;
+    return (void *)al_ptr;
 }
 
 DAP_STATIC_INLINE void *_dap_aligned_realloc( uintptr_t alignment, void *bptr, uintptr_t size )
 {
-  uintptr_t ptr = (uintptr_t) DAP_REALLOC( bptr, size + (alignment * 2) + sizeof(void *) );
+    uintptr_t ptr = (uintptr_t) DAP_REALLOC( bptr, size + (alignment * 2) + sizeof(void *) );
 
-  if ( !ptr )
-    return (void *)ptr;
+    if ( !ptr )
+        return (void *)ptr;
 
-  uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
-  ((uintptr_t *)al_ptr)[-1] = ptr;
+    uintptr_t al_ptr = ( ptr + sizeof(void *) + alignment) & ~(alignment - 1 );
+    ((uintptr_t *)al_ptr)[-1] = ptr;
 
-  return (void *)al_ptr;
+    return (void *)al_ptr;
 }
 
 DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 {
-  if ( !ptr )
-    return;
+    if ( !ptr )
+        return;
 
-  void  *base_ptr = (void *)((uintptr_t *)ptr)[-1];
-  DAP_FREE( base_ptr );
+    void  *base_ptr = (void *)((uintptr_t *)ptr)[-1];
+    DAP_FREE( base_ptr );
 }
 
 #define DAP_PROTOCOL_VERSION  22
-
-#ifndef MAX
-  #define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
-#ifndef MIN
-  #define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
-
-#ifndef min
-  #define min MIN
-#endif
-#ifndef max
-  #define max MAX
-#endif
 
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
@@ -159,10 +156,12 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #define QBYTE RGBA
 
-#define DAP_LOG_HISTORY_STR_SIZE    128
-#define DAP_LOG_HISTORY_MAX_STRINGS 4096
-#define DAP_LOG_HISTORY_BUFFER_SIZE (DAP_LOG_HISTORY_STR_SIZE * DAP_LOG_HISTORY_MAX_STRINGS)
-#define DAP_LOG_HISTORY_M           (DAP_LOG_HISTORY_MAX_STRINGS - 1)
+#define DAP_LOG_HISTORY 1
+
+//#define DAP_LOG_HISTORY_STR_SIZE    128
+//#define DAP_LOG_HISTORY_MAX_STRINGS 4096
+//#define DAP_LOG_HISTORY_BUFFER_SIZE (DAP_LOG_HISTORY_STR_SIZE * DAP_LOG_HISTORY_MAX_STRINGS)
+//#define DAP_LOG_HISTORY_M           (DAP_LOG_HISTORY_MAX_STRINGS - 1)
 
 #ifdef _WIN32
   #define dap_sscanf            __mingw_sscanf
@@ -200,6 +199,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
   #define dap_vasprintf         vasprintf
 #endif
 
+typedef int dap_spinlock_t;
 
 /**
  * @brief The log_level enum
@@ -220,16 +220,30 @@ typedef enum dap_log_level {
 
 } dap_log_level_t;
 
-typedef struct dap_log_str_s {
+typedef struct dap_log_history_str_s {
 
   time_t    t;
   uint8_t   *str;
   uint32_t  len;
 
-} dap_log_str_t;
+} dap_log_history_str_t;
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifndef MAX_PATH
+#define MAX_PATH 120
+#endif
+
+#ifndef _WIN32
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 #endif
 
 extern uint16_t htoa_lut256[ 256 ];
@@ -294,6 +308,28 @@ static const uint16_t s_ascii_table_data[256] = {
 #define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0
 #define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0
 
+void dap_sleep( uint32_t ms );
+
+DAP_STATIC_INLINE bool DAP_AtomicTryLock( dap_spinlock_t *lock )
+{
+    return (__sync_lock_test_and_set(lock, 1) == 0);
+}
+
+DAP_STATIC_INLINE void DAP_AtomicLock( dap_spinlock_t *lock )
+{
+    while ( !DAP_AtomicTryLock(lock) ) {
+        dap_sleep( 0 );
+    }
+}
+
+DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
+{
+    __sync_lock_release( lock );
+}
+
+extern char s_sys_dir_path[MAX_PATH];
+extern unsigned int l_sys_dir_path_len;
+
 //int dap_common_init( const char * a_log_file );
 int dap_common_init( const char *console_title, const char *a_log_file );
 
@@ -304,12 +340,16 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
-
+#ifdef DAP_LOG_MT
 void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
-void _vlog_it( const char * log_tag, enum dap_log_level, const char * format, va_list ap );
+#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
+#else
+void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... );
+#define log_it( _log_level, ...) _log_it2( LOG_TAG, _log_level, ##__VA_ARGS__)
+#endif
+//void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
 
-#define log_it(_log_level,...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, a_log_level, a_format, a_ap )
+//#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
@@ -320,6 +360,7 @@ void dap_set_log_tag_width(size_t width);
 char *dap_itoa(int i);
 
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t);
+int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result);
 
 int get_select_breaker(void);
 int send_select_break(void);

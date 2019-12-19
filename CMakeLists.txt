@@ -43,7 +43,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
   option(BUILD_64 "Build for 64-bit? 'OFF' builds for 32-bit." ${DEFAULT_BUILD_64})
 
   add_definitions ("-DDAP_SERVER")
-  add_definitions ("-DNODE_NETNAME=\"kelvin\"")
+  add_definitions ("-DNODE_NETNAME=\"cellframe\"")
 
 	if(WIN32)
 
@@ -55,7 +55,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 	  add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
 
 #	  if(DAP_RELEASE)
-	    set(_CCOPT "-mconsole -static -Wall -O3 -fno-ident -ffast-math -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections -Wl,--strip-all")
+	    set(_CCOPT "-mwindows -static -Wall -O3 -fno-ident -ffast-math -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections -Wl,--strip-all")
 #	  else()
 #	    set(_CCOPT "-mconsole -static -Wall -pg")
 #	    set(_LOPT "-mconsole -static -pg")
@@ -102,6 +102,11 @@ endif()
 if(DARWIN)
     add_subdirectory(src/darwin)
     target_link_libraries(${PROJECT_NAME} dap_core_darwin)
+endif()
+
+if(ANDROID)
+    add_subdirectory(src/android)
+    target_link_libraries(${PROJECT_NAME} dap_core_android)
 endif()
 
 if(BUILD_DAP_TESTS)

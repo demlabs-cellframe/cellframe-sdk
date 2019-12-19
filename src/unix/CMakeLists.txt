@@ -13,7 +13,13 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${CORE_UNIX_SRCS} ${CORE_UNIX_HEADERS}
     ${CORE_LINUX_SRCS} ${CORE_LINUX_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core pthread)
+target_link_libraries(${PROJECT_NAME} dap_core)
+
+if (ANDROID)
+    target_link_libraries(${PROJECT_NAME} dap_core_android)
+else()
+    target_link_libraries(${PROJECT_NAME} pthread)
+endif()
 
 target_include_directories(dap_core_unix INTERFACE .)
 
