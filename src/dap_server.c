@@ -72,7 +72,7 @@
 #define DAP_MAX_THREAD_EVENTS           8192
 #define DAP_MAX_THREADS                 16
 
-#define SOCKET_TIMEOUT_TIME             30
+#define SOCKET_TIMEOUT_TIME             300
 #define SOCKETS_TIMEOUT_CHECK_PERIOD    15
 
 static uint32_t _count_threads = 0;

@@ -79,7 +79,7 @@
 //dap_events_socket_info_t **s_dap_events_sockets;
 
 static uint32_t s_threads_count = 1;
-static size_t   s_connection_timeout = 600;
+static size_t   s_connection_timeout = 6000;
 static struct epoll_event *g_epoll_events = NULL;
 
 dap_worker_t *s_workers = NULL;
