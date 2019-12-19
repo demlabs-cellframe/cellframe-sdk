@@ -125,7 +125,7 @@ int dap_stream_init( bool a_dump_packet_headers)
   bKeepaliveLoopQuitSignal = false;
 
   pthread_mutex_init( &s_mutex_keepalive_list, NULL );
-  pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
+  //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
 
   log_it(L_NOTICE,"Init streaming module");
 
