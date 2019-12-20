@@ -482,10 +482,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-//    log_it( L_DEBUG,"s_stream_ch_packet_out");
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
 
+    log_it( L_DEBUG,"s_stream_ch_packet_out state=%d", l_ch_chain ? l_ch_chain->state : -1);
     //  log_it( L_DEBUG,"l_ch_chain %X", l_ch_chain );
 
     switch (l_ch_chain->state) {
@@ -545,7 +545,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
          }
          }
         */
-        if ( l_list ) {
+        bool l_is_stop = true;//l_list ? false : true;
+        while(l_list) {
 
             //log_it(L_DEBUG, "l_list = %X", l_list);
             size_t len = dap_list_length( l_list );
@@ -556,25 +557,36 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             uint8_t *l_item = dap_db_log_pack( (dap_global_db_obj_t *) l_list->data, &l_item_size_out );
 
             if(!l_item || !l_item_size_out) {
-                log_it(L_WARNING, "Log pack returned NULL??? Switch off channel for sending (nothing to send)");
+                log_it(L_WARNING, "Log pack returned NULL??? data=0x%x (nothing to send) (rest=%d records)", l_list->data, len-1);
+                l_item_size_out = 0;
                 //dap_stream_ch_set_ready_to_write(a_ch, false);
             }
             else {
+                log_it(L_INFO, "Send one global_dr record data=0x%x len=%d (rest=%d records)", l_item, l_item_size_out, len-1);
                 dap_stream_ch_chain_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
                         l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
                         l_ch_chain->request_cell_id, l_item, l_item_size_out );
 
                 DAP_DELETE(l_item);
             }
-
             // remove current item from list and go to next item
-            if(l_list) {
-
-                dap_chain_global_db_obj_delete( (dap_global_db_obj_t *) l_list->data );
-                l_ch_chain->request_global_db_trs = dap_list_delete_link( l_ch_chain->request_global_db_trs, l_list );
+            dap_chain_global_db_obj_delete((dap_global_db_obj_t *) l_list->data);
+            l_ch_chain->request_global_db_trs = dap_list_delete_link(l_ch_chain->request_global_db_trs, l_list);
+            // nothing was sent
+            if(!l_item_size_out) {
+                l_list = l_ch_chain->request_global_db_trs;
+                // go to next item
+                if(l_list)
+                    continue;
+                // stop global_db sync
+                else
+                    break;
             }
-
-        } else {
+            // sent the record, another will be sent
+            l_is_stop = false;
+            break;
+        }
+        if(l_is_stop){
             log_it(L_DEBUG, "l_list == 0, STOP");
 
             if(l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB) {
