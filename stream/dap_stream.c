@@ -410,7 +410,7 @@ static void keepalive_cb (EV_P_ ev_timer *w, int revents)
 static void keepalive_cb( void )
 {
   dap_stream_t  *l_stream, *tmp;
-
+  return;
   pthread_mutex_lock( &s_mutex_keepalive_list );
   DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
     if ( l_stream->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
@@ -435,7 +435,7 @@ static void keepalive_cb( void )
  * @param sid Stream instance
  */
 void start_keepalive( dap_stream_t *sid ) {
-
+    return;
 //    keepalive_loop = EV_DEFAULT;
 //    sid->keepalive_watcher.data = sid;
 //    ev_timer_init (&sid->keepalive_watcher, keepalive_cb, STREAM_KEEPALIVE_TIMEOUT, STREAM_KEEPALIVE_TIMEOUT);
