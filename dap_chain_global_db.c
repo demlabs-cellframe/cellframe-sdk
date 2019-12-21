@@ -177,9 +177,6 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
-#ifdef WIN32
-    memcpy(l_storage_path, s_sys_dir_path, l_sys_dir_path_len);
-#endif
     s_storage_path= dap_strdup(
                 dap_config_get_item_str(g_config, "resources", "dap_global_db_path") );
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
