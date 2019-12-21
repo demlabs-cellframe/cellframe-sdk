@@ -75,6 +75,7 @@ typedef struct history_group_item
 
 // Tacked group callbacks
 static history_group_item_t * s_history_group_items = NULL;
+static char *s_storage_path = NULL;
 
 char * extract_group_prefix(const char * a_group);
 
@@ -176,16 +177,15 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
-    char l_storage_path[MAX_PATH];
 #ifdef WIN32
     memcpy(l_storage_path, s_sys_dir_path, l_sys_dir_path_len);
 #endif
-    dap_sprintf(l_storage_path + g_sys_dir_path_len, "%s",
-                dap_config_get_item_str(g_config, "resources", "dap_global_db_path"));
+    s_storage_path= dap_strdup(
+                dap_config_get_item_str(g_config, "resources", "dap_global_db_path") );
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
     lock();
-    int res = dap_db_driver_init(l_driver_name, l_storage_path);
+    int res = dap_db_driver_init(l_driver_name, s_storage_path);
     unlock();
     return res;
 }
