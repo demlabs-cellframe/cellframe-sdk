@@ -96,6 +96,7 @@ static inline bool dap_hash_fast_is_blank( dap_chain_hash_fast_t *a_hash )
 
 DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
 {
+    (void) a_str_max;
   a_str[0] = '0';
   a_str[1] = 'x';
   a_str[ DAP_CHAIN_HASH_FAST_SIZE * 2 + 2 ] = 0;
