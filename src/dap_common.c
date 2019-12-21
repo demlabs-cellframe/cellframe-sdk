@@ -135,8 +135,8 @@ static unsigned int s_ansi_seq_color_len[16] = {0};
 #endif
 
 static volatile bool s_log_term_signal = false;
-unsigned int l_sys_dir_path_len = 0;
-char s_sys_dir_path[MAX_PATH] = {'\0'};
+char* g_sys_dir_path = NULL;
+size_t g_sys_dir_path_len = 0;
 
 static char s_last_error[LAST_ERROR_MAX]    = {'\0'},
     s_log_file_path[MAX_PATH]               = {'\0'},
@@ -163,6 +163,7 @@ typedef struct log_str_t {
 } log_str_t;
 
 static log_str_t *log_buffer = NULL;
+static char* s_appname = NULL;
 
 DAP_STATIC_INLINE void s_update_log_time(char *a_datetime_str) {
     time_t t = time(NULL);
@@ -176,6 +177,26 @@ DAP_STATIC_INLINE void s_update_log_time(char *a_datetime_str) {
  */
 void dap_log_level_set( enum dap_log_level a_ll ) {
     dap_log_level = a_ll;
+}
+
+/**
+ * @brief dap_get_appname
+ * @return
+ */
+const char * dap_get_appname()
+{
+    return s_appname?s_appname: "dap";
+}
+
+/**
+ * @brief dap_set_appname
+ * @param a_appname
+ * @return
+ */
+void dap_set_appname(const char * a_appname)
+{
+    s_appname = dap_strdup(a_appname);
+
 }
 
 enum dap_log_level dap_log_level_get( void ) {

@@ -327,8 +327,11 @@ DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
     __sync_lock_release( lock );
 }
 
-extern char s_sys_dir_path[MAX_PATH];
-extern unsigned int l_sys_dir_path_len;
+
+
+char *g_sys_dir_path ;
+size_t g_sys_dir_path_len;
+
 
 //int dap_common_init( const char * a_log_file );
 int dap_common_init( const char *console_title, const char *a_log_file );
@@ -354,8 +357,10 @@ void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... )
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
 enum dap_log_level dap_log_level_get(void);
-
 void dap_set_log_tag_width(size_t width);
+
+const char * dap_get_appname();
+void dap_set_appname(const char * a_appname);
 
 char *dap_itoa(int i);
 
