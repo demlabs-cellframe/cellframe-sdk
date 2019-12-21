@@ -15,7 +15,9 @@ add_library(${PROJECT_NAME} STATIC ${CORE_UNIX_SRCS} ${CORE_UNIX_HEADERS}
 
 target_link_libraries(${PROJECT_NAME} dap_core)
 
-if (NOT ANDROID)
+if (ANDROID)
+    target_link_libraries(${PROJECT_NAME} dap_core_android)
+else()
     target_link_libraries(${PROJECT_NAME} pthread)
 endif()
 
