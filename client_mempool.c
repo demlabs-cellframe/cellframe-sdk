@@ -47,10 +47,6 @@
 #include "dap_http_client_simple.h"
 #include "client_mempool.h"
 
-#define DAP_APP_NAME NODE_NETNAME"-node"
-#define SYSTEM_PREFIX "/opt/"DAP_APP_NAME
-#define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
-
 #define LOG_TAG "dap_client_mempool"
 
 static int listen_port_tcp = 8079;
@@ -135,17 +131,7 @@ static void a_stage_end_callback(dap_client_t *a_client, void *a_arg)
 
 int client_mempool_init(void)
 {
-    /*dap_config_t *g_config;
-    // read listen_port_tcp from settings
-    dap_config_init(SYSTEM_CONFIGS_DIR);
-    if((g_config = dap_config_open(DAP_APP_NAME)) == NULL) {
-        return -1;
-    }
-    else { */
     listen_port_tcp = dap_config_get_item_int32_default(g_config, "server", "listen_port_tcp", 8079);
-    /*}
-    if(g_config)
-        dap_config_close(g_config); */
     return 0;
 }
 
