@@ -59,9 +59,6 @@
 
 #define LOG_TAG "dap_chain_node_client"
 
-#define DAP_APP_NAME NODE_NETNAME"-node"
-#define SYSTEM_PREFIX "/opt/"DAP_APP_NAME
-#define SYSTEM_CONFIGS_DIR SYSTEM_PREFIX"/etc"
 
 //static int listen_port_tcp = 8079;
 
@@ -79,21 +76,6 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
  */
 int dap_chain_node_client_init(void)
 {
-    dap_config_t *g_config;
-    // read listen_port_tcp from settings
-    memcpy( s_sys_dir_path + l_sys_dir_path_len, SYSTEM_CONFIGS_DIR, sizeof(SYSTEM_CONFIGS_DIR) );
-    dap_config_init(s_sys_dir_path);
-    memset(s_sys_dir_path + l_sys_dir_path_len, '\0', MAX_PATH - l_sys_dir_path_len);
-
-    if((g_config = dap_config_open(DAP_APP_NAME)) == NULL) {
-        return -1;
-    }
-    /*else {
-     const char *port_str = dap_config_get_item_str(g_config, "server", "listen_port_tcp");
-     listen_port_tcp = (port_str) ? atoi(port_str) : 8079;
-     }*/
-    if(g_config)
-        dap_config_close(g_config);
     return 0;
 }
 
