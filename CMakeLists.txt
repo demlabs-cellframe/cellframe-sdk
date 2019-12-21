@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project (dap_chain_net)
   
+
 set(DAP_CHAIN_NET_SRCS 
 	dap_chain_net.c 
 	dap_chain_net_remote.c
@@ -70,13 +71,13 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_chain_net dap_core dap_crypto dap_client dap_stream_ch_chain dap_chain_gdb dap_stream_ch_chain_net dap_chain
+    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_stream_ch_chain dap_chain_gdb dap_stream_ch_chain_net dap_chain
       dap_chain_crypto dap_chain_wallet dap_chain_net_srv dap_chain_net_srv_vpn dap_chain_mempool dap_chain_global_db
       resolv
       )
 endif()
 
-target_include_directories(dap_chain_net INTERFACE . PUBLIC ${IPUTILS_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} INTERFACE . PUBLIC ${IPUTILS_INCLUDE_DIRS})
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 

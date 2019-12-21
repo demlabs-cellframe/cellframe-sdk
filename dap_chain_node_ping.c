@@ -165,7 +165,7 @@ int wait_node_ping(pthread_t l_thread, int timeout_ms)
     timeout_ms *= 1000;
     l_wait_time.tv_sec += timeout_ms / DAP_USEC_PER_SEC;
     l_wait_time.tv_nsec += 1000 * (timeout_ms % DAP_USEC_PER_SEC);
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__ANDROID__)
     int res = pthread_timedjoin_np(l_thread, (void **) &l_ping_time, &l_wait_time);
 #else
     int res = pthread_join(l_thread, (void **) &l_ping_time);
