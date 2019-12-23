@@ -281,6 +281,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 // If we a here we passed all the checks, wow, now if we're not for free we request the signature.
                 } else{
                     log_it( L_INFO, "Service provide for free");
+                    l_usage->is_free = true;
                     size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
                     dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                                           l_success_size);
