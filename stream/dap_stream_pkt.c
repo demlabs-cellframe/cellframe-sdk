@@ -148,15 +148,18 @@ size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t
     if(a_stream->conn_udp){
         ret+=dap_udp_client_write(a_stream->conn,&pkt_hdr,sizeof(pkt_hdr));
         ret+=dap_udp_client_write(a_stream->conn,a_stream->buf,pkt_hdr.size);
+        dap_client_remote_ready_to_write(a_stream->conn, true);
     }
     else if(a_stream->conn){
         ret+=dap_client_remote_write(a_stream->conn,&pkt_hdr,sizeof(pkt_hdr));
         ret+=dap_client_remote_write(a_stream->conn,a_stream->buf,pkt_hdr.size);
+        dap_client_remote_ready_to_write(a_stream->conn, true);
     }
     else if(a_stream->events_socket) {
         ret += dap_events_socket_write(a_stream->events_socket, &pkt_hdr, sizeof(pkt_hdr));
         ret += dap_events_socket_write(a_stream->events_socket, a_stream->buf, pkt_hdr.size);
-        }
+        dap_events_socket_set_writable(a_stream->events_socket, true);
+    }
 
     return ret;
 }
