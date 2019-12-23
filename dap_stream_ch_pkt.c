@@ -75,6 +75,10 @@ void dap_stream_ch_pkt_deinit()
  */
 size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
 {
+    if (! a_data_size){
+        log_it(L_WARNING,"Zero data size to write out in channel");
+        return 0;
+    }
     pthread_mutex_lock( &a_ch->mutex);
 
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
@@ -105,6 +109,7 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
 
     size_t l_ret=dap_stream_pkt_write(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
     a_ch->stat.bytes_write+=a_data_size;
+    a_ch->ready_to_write=true;
     pthread_mutex_unlock( &a_ch->mutex);
     return l_ret;
 
