@@ -325,6 +325,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
 
     l_srv_session->usage_active = l_usage_active;
+    l_srv_session->usage_active->is_active = true;
     log_it(L_NOTICE,"Enable VPN service");
 
     if ( l_srv_ch_vpn ){ // If channel is already opened
@@ -862,16 +863,17 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                     l_srv_vpn->ipv4_unleased = l_item_ipv4->next;
                     DAP_DELETE(l_item_ipv4);
                 }else{
-                    struct in_addr n_addr={0};
+                    struct in_addr n_addr = { 0 };
                     n_addr.s_addr = ntohl(s_raw_server->ipv4_lease_last.s_addr);
                     n_addr.s_addr++;
-
-                    if( (uint32_t)n_addr.s_addr >= (uint32_t)(ntohl(s_raw_server->ipv4_network_addr.s_addr)|
-                                                              ~(ntohl(s_raw_server->ipv4_network_mask.s_addr)))  ) { // If the addres still in the network
-                        n_addr.s_addr = ntohl(n_addr.s_addr);
+                    log_it(L_DEBUG, "2791: is %u <= %u?", n_addr.s_addr, ntohl(s_raw_server->ipv4_network_addr.s_addr) | ~ntohl(s_raw_server->ipv4_network_mask.s_addr));
+                    if(n_addr.s_addr <= (ntohl(s_raw_server->ipv4_network_addr.s_addr)
+                                        | ~ntohl(s_raw_server->ipv4_network_mask.s_addr))) {
+                        //n_addr.s_addr = ntohl(n_addr.s_addr);
                         l_ch_vpn->addr_ipv4.s_addr = n_addr.s_addr;
                         s_raw_server->ipv4_lease_last.s_addr = n_addr.s_addr;
                         a_ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
+                        n_addr.s_addr = htonl(n_addr.s_addr);
 
                         log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(n_addr));
                         log_it(L_INFO, "\tgateway %s", inet_ntoa(s_raw_server->ipv4_host));
@@ -892,9 +894,11 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                         memcpy(pkt_out->data, &l_ch_vpn->addr_ipv4, sizeof(l_ch_vpn->addr_ipv4));
                         memcpy(pkt_out->data + sizeof(l_ch_vpn->addr_ipv4), &s_raw_server->ipv4_host,
                                 sizeof(s_raw_server->ipv4_host));
-                        dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                        dap_stream_ch_set_ready_to_write(a_ch, true);
+
+                        if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                                                   pkt_out->header.op_data.data_size + sizeof(pkt_out->header))) {
+                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                        }
 
                         //ch_sf_raw_write(n_addr.s_addr,STREAM_SF_PACKET_OP_CODE_RAW_L3_ADDR_REPLY,&n_addr,sizeof(n_addr));
                     } else { // All the network is filled with clients, can't lease a new address
