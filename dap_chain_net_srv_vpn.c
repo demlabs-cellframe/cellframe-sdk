@@ -612,7 +612,7 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write( l_usage->clients->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         return;
     }
-    if ( ! l_usage->receipt ){
+    if ( (! l_usage->is_free) && (! l_usage->receipt) ){
         log_it(L_WARNING, "No active receipt, switching off");
         dap_stream_ch_set_ready_to_write(a_ch,false);
         dap_stream_ch_set_ready_to_read(a_ch,false);
