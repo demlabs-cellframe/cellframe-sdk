@@ -55,6 +55,7 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_hash_fast_t tx_cond_hash;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool is_active;
+    bool is_free;
     UT_hash_handle hh; //
 } dap_chain_net_srv_usage_t;
 
