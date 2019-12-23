@@ -288,8 +288,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
                     l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
 
-                    dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
-                                                 l_success, l_success_size);
+                    if (dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,
+                                                 l_success, l_success_size)) {
+                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                    }
 
                     if ( l_usage->service->callback_receipt_first_success )
                         l_usage->service->callback_receipt_first_success ( l_usage->service, l_usage->id,  l_usage->clients, NULL, 0 );
