@@ -1348,7 +1348,6 @@ void* srv_ch_sf_thread_raw(void *arg)
                             memcpy(l_pkt_out->data, l_tmp_buf, l_read_ret);
                             dap_stream_ch_pkt_write(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
                                     l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                            dap_stream_ch_set_ready_to_write(l_ch_vpn->ch, true);
                             s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_read_ret);
                         }
                     }
