@@ -650,7 +650,7 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
     size_t i;
     (void) arg;
     bool ready_to_write=false;
-    log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(a_client )->channel_count );
+    //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(a_client )->channel_count );
 
     for(i=0;i<DAP_STREAM(a_client )->channel_count; i++){
         dap_stream_ch_t * ch = DAP_STREAM(a_client )->channel[i];
