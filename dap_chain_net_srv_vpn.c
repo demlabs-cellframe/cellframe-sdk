@@ -515,6 +515,7 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
     }
 
     if ( l_is_unleased ){ // If unleased
+        log_it(L_DEBUG, "Unlease address %s and store in treshold", inet_ntoa(l_ch_vpn->addr_ipv4));
         dap_chain_net_srv_vpn_item_ipv4_t * l_item_unleased = DAP_NEW_Z(dap_chain_net_srv_vpn_item_ipv4_t);
         l_item_unleased->addr.s_addr = l_ch_vpn->addr_ipv4.s_addr;
         l_item_unleased->next = l_srv_vpn->ipv4_unleased;
@@ -841,7 +842,8 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                 }
                 dap_chain_net_srv_vpn_item_ipv4_t * l_item_ipv4 = l_srv_vpn->ipv4_unleased;
                 if ( l_item_ipv4){
-                    l_ch_vpn->addr_ipv4.s_addr = l_item_ipv4->addr.s_addr;
+                    log_it(L_WARNING,"We have unleased ip address");
+                    l_ch_vpn->addr_ipv4.s_addr = htonl(l_item_ipv4->addr.s_addr);
 
                     pthread_rwlock_wrlock( &s_clients_rwlock );
                     HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
@@ -857,23 +859,28 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                     memcpy(l_pkt_out->data, &l_ch_vpn->addr_ipv4, sizeof(l_ch_vpn->addr_ipv4));
                     memcpy(l_pkt_out->data + sizeof(l_ch_vpn->addr_ipv4), &s_raw_server->ipv4_host,
                             sizeof(s_raw_server->ipv4_host));
-                    dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
+                    dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA , l_pkt_out,
                             l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(l_ch_vpn->addr_ipv4));
+                    log_it(L_INFO, "\tgateway %s", inet_ntoa(s_raw_server->ipv4_host));
+                    log_it(L_INFO, "\tmask %s", inet_ntoa(s_raw_server->ipv4_network_mask));
+                    log_it(L_INFO, "\taddr %s", inet_ntoa(s_raw_server->ipv4_network_addr));
+                    log_it(L_INFO, "\tlast_addr %s", inet_ntoa(s_raw_server->ipv4_lease_last));
+                    //dap_stream_ch_set_ready_to_write(a_ch, true);
                     l_srv_vpn->ipv4_unleased = l_item_ipv4->next;
                     DAP_DELETE(l_item_ipv4);
                 }else{
                     struct in_addr n_addr = { 0 };
                     n_addr.s_addr = ntohl(s_raw_server->ipv4_lease_last.s_addr);
                     n_addr.s_addr++;
-                    log_it(L_DEBUG, "2791: is %u <= %u?", n_addr.s_addr, ntohl(s_raw_server->ipv4_network_addr.s_addr) | ~ntohl(s_raw_server->ipv4_network_mask.s_addr));
+                    log_it(L_DEBUG, "Check if is %u <= %u?", n_addr.s_addr, ntohl(s_raw_server->ipv4_network_addr.s_addr) | ~ntohl(s_raw_server->ipv4_network_mask.s_addr));
                     if(n_addr.s_addr <= (ntohl(s_raw_server->ipv4_network_addr.s_addr)
                                         | ~ntohl(s_raw_server->ipv4_network_mask.s_addr))) {
                         //n_addr.s_addr = ntohl(n_addr.s_addr);
-                        l_ch_vpn->addr_ipv4.s_addr = n_addr.s_addr;
-                        s_raw_server->ipv4_lease_last.s_addr = n_addr.s_addr;
+                        s_raw_server->ipv4_lease_last.s_addr =htonl(n_addr.s_addr);
                         a_ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
                         n_addr.s_addr = htonl(n_addr.s_addr);
+                        l_ch_vpn->addr_ipv4.s_addr = n_addr.s_addr;
 
                         log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(n_addr));
                         log_it(L_INFO, "\tgateway %s", inet_ntoa(s_raw_server->ipv4_host));
