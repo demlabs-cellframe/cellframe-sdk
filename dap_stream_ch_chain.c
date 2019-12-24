@@ -243,7 +243,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     l_ch_chain->request_last_ts = dap_db_log_get_last_id();
                     log_it(L_DEBUG, "Requested transactions %llu:%llu", l_request->id_start,
                             (uint64_t ) l_ch_chain->request_last_ts);
-                    dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->id_start);
+                    dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
                     log_it(L_DEBUG, "Got %u items", dap_list_length(l_list));
                     if(l_list) {
                         // Add it to outgoing list
@@ -368,8 +368,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                         //check whether to apply the received data into the database
                         bool l_no_apply = false;
-                        if(l_obj->type == 'd' && !l_read_obj) {
-                            l_no_apply = true;
+                        if(l_obj->type == 'd') {
+                            // already deleted
+                            if(l_read_obj)
+                                l_no_apply = true;
                         }
                         else if(l_obj->type == 'a') {
                             bool l_is_the_same_present = false;
