@@ -277,18 +277,24 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         if(l_request) {
             uint64_t l_id_last_here = 1;
             // for sync chain not used time
-            if(a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS)
-                l_id_last_here =(uint64_t) dap_db_log_get_last_id();
-            if(l_request->id_start < l_id_last_here) {
+            //if(a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS)
+            //    l_id_last_here =(uint64_t) dap_db_log_get_last_id();
+            if(1) {//if(l_request->id_start < l_id_last_here) {
                 log_it(L_INFO, "Remote is synced but we have updates for it");
+                bool l_is_sync = true;
                 // Get log diff
-                a_ch_chain->request_last_ts = dap_db_log_get_last_id();
-                dap_list_t *l_list = dap_db_log_get_list((time_t) l_request->id_start);
-
-                if(l_list) {
-                    // Add it to outgoing list
-                    l_list->prev = a_ch_chain->request_global_db_trs;
-                    a_ch_chain->request_global_db_trs = l_list;
+                if(a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
+                    a_ch_chain->request_last_ts = dap_db_log_get_last_id();
+                    dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
+                    if(l_list) {
+                        // Add it to outgoing list
+                        l_list->prev = a_ch_chain->request_global_db_trs;
+                        a_ch_chain->request_global_db_trs = l_list;
+                    }
+                    else
+                        l_is_sync = false;
+                }
+                if(l_is_sync) {
                     a_ch_chain->request_net_id.uint64 = a_pkt->hdr.net_id.uint64;
                     a_ch_chain->request_cell_id.uint64 = a_pkt->hdr.cell_id.uint64;
                     a_ch_chain->request_chain_id.uint64 = a_pkt->hdr.chain_id.uint64;
@@ -311,8 +317,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                         for(size_t i = 0; i < l_lasts_size; i++) {
                             dap_chain_atom_item_t * l_item = NULL;
                             dap_chain_hash_fast_t l_atom_hash;
-                            dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]),
-                                    &l_atom_hash);
+                            dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]), &l_atom_hash);
                             HASH_FIND(hh, a_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash), l_item);
                             if(l_item == NULL) { // Not found, add new lasts
                                 l_item = DAP_NEW_Z(dap_chain_atom_item_t);
@@ -320,8 +325,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                                 memcpy(&l_item->atom_hash, &l_atom_hash, sizeof(l_atom_hash));
                                 HASH_ADD(hh, a_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash), l_item);
                             }
-                            else
-                                DAP_DELETE(l_lasts[i]);
+                            //else
+                            //    DAP_DELETE(l_lasts[i]);
                         }
                         DAP_DELETE(l_lasts);
                         DAP_DELETE(l_iter);
@@ -333,20 +338,21 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                             a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
                             a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
 
-                    log_it(L_INFO, "Sync for remote tr_count=%d", dap_list_length(l_list));
+                    log_it(L_INFO, "Sync for remote tr type=%d", a_pkt_type);//_count=%d", dap_list_length(l_list));
                     dap_stream_ch_set_ready_to_write(a_ch_chain->ch, true);
                 }
-            } else {
-                log_it(L_INFO, "Remote node has lastes ts for us");
-                pthread_mutex_lock(&l_node_client->wait_mutex);
-                l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                pthread_mutex_unlock(&l_node_client->wait_mutex);
+                else {
+                    log_it(L_INFO, "Remote node has lastes timestamp for us type=%d", a_pkt_type);
+                    pthread_mutex_lock(&l_node_client->wait_mutex);
+                    l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+                    pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
-                pthread_cond_signal(&l_node_client->wait_cond);
+                    pthread_cond_signal(&l_node_client->wait_cond);
 #else
                     SetEvent( l_node_client->wait_cond );
 #endif
 
+                }
             }
         } else {
             log_it(L_INFO, "Sync notify without request to sync back, stay in SYNCED state");
