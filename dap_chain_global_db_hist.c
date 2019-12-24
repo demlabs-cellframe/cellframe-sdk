@@ -1164,6 +1164,7 @@ dap_list_t* dap_db_log_get_list(uint64_t first_id)
 {
     dap_list_t *l_list = NULL;
     size_t l_data_size_out = 0;
+    log_it(L_DEBUG,"loading db list...");
     dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out);
     //dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
     for(size_t i = 0; i < l_data_size_out; i++) {
@@ -1174,6 +1175,7 @@ dap_list_t* dap_db_log_get_list(uint64_t first_id)
         l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
         l_list = dap_list_append(l_list, l_item);
     }
+    log_it(L_DEBUG,"loaded db list n=%d", l_data_size_out);
     dap_store_obj_free(l_objs, l_data_size_out);
 
     return l_list;
