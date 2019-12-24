@@ -231,6 +231,8 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
             s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
     if ( a_log_filename ) {
         s_log_file = fopen( a_log_filename , "a" );
+        if( s_log_file == NULL)
+            s_log_file = fopen( a_log_filename , "w" );
         if ( s_log_file == NULL ) {
             dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
             return -1;
