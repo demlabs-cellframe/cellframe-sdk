@@ -236,7 +236,7 @@ lb_proc_state:
     pthread_mutex_lock(&PVT(l_net)->state_mutex );
     switch ( PVT(l_net)->state ){
         case NET_STATE_OFFLINE:{
-            log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE",l_net->pub.name);
+            //log_it(L_DEBUG,"%s.state: NET_STATE_OFFLINE",l_net->pub.name);
             // reset current link
             PVT(l_net)->link_cur = 0;
             // delete all links
@@ -613,11 +613,12 @@ lb_proc_state:
         goto lb_proc_state;
 
         case NET_STATE_ONLINE: {
-            log_it(L_NOTICE, "State online");
+            //log_it(L_NOTICE, "State online");
             switch ( PVT(l_net)->state_target) {
             // disconnect
             case NET_STATE_OFFLINE:
                 PVT(l_net)->state = NET_STATE_OFFLINE;
+                log_it(L_NOTICE, "Going to disconnet");
                 pthread_mutex_unlock(&PVT(l_net)->state_mutex);
                 goto lb_proc_state;
                 // sync
@@ -677,7 +678,7 @@ static void *s_net_proc_thread ( void *a_net )
         WaitForSingleObject( p_net->state_proc_cond, (uint32_t)l_timeout_ms );
 
     #endif
-        log_it( L_DEBUG, "Waked up s_net_proc_thread( )" );
+        //log_it( L_DEBUG, "Waked up s_net_proc_thread( )" );
     }
 
     return NULL;
