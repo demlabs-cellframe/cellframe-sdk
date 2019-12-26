@@ -459,7 +459,7 @@ static void read_write_cb( dap_client_remote_t *dap_cur, int32_t revents )
     _current_run_server->client_write_callback( dap_cur, NULL ); // Call callback to process write event
 
     if( dap_cur->buf_out_size == 0 ) {
-     log_it(L_DEBUG, "dap_cur->buf_out_size = 0, set ev_read watcher " );
+     //log_it(L_DEBUG, "dap_cur->buf_out_size = 0, set ev_read watcher " );
 
       dap_cur->pevent.events = EPOLLIN | EPOLLERR;
       if( epoll_ctl(dap_cur->efd, EPOLL_CTL_MOD, dap_cur->socket, &dap_cur->pevent) != 0 ) {
