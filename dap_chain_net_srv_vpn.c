@@ -870,16 +870,26 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                     l_srv_vpn->ipv4_unleased = l_item_ipv4->next;
                     DAP_DELETE(l_item_ipv4);
                 }else{
-                    struct in_addr n_addr = { 0 };
+                    struct in_addr n_addr = { 0 }, n_addr_max;
                     n_addr.s_addr = ntohl(s_raw_server->ipv4_lease_last.s_addr);
                     n_addr.s_addr++;
-                    log_it(L_DEBUG, "Check if is %u <= %u?", n_addr.s_addr, ntohl(s_raw_server->ipv4_network_addr.s_addr) | ~ntohl(s_raw_server->ipv4_network_mask.s_addr));
-                    if(n_addr.s_addr <= (ntohl(s_raw_server->ipv4_network_addr.s_addr)
-                                        | ~ntohl(s_raw_server->ipv4_network_mask.s_addr))) {
-                        //n_addr.s_addr = ntohl(n_addr.s_addr);
-                        s_raw_server->ipv4_lease_last.s_addr =htonl(n_addr.s_addr);
-                        a_ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
+                    n_addr_max.s_addr = (ntohl(s_raw_server->ipv4_network_addr.s_addr)
+                                         | ~ntohl(s_raw_server->ipv4_network_mask.s_addr));
+
+                    //  Just for log output we revert it back and forward
+                    n_addr.s_addr = htonl(n_addr.s_addr);
+                    n_addr_max.s_addr = htonl(n_addr_max.s_addr);
+                    log_it(L_DEBUG, "Check if is address is lesser than");
+                    log_it(L_DEBUG,"    new_address     = %s", inet_ntoa(n_addr));
+                    log_it(L_DEBUG,"    new_address_max = %s", inet_ntoa(n_addr_max));
+                    n_addr.s_addr = ntohl(n_addr.s_addr);
+                    n_addr_max.s_addr = ntohl(n_addr_max.s_addr);
+                    if(n_addr.s_addr <= n_addr_max.s_addr ) {
                         n_addr.s_addr = htonl(n_addr.s_addr);
+                        n_addr_max.s_addr = htonl(n_addr_max.s_addr);
+
+                        s_raw_server->ipv4_lease_last.s_addr =n_addr.s_addr;
+                        a_ch->stream->session->tun_client_addr.s_addr = n_addr.s_addr;
                         l_ch_vpn->addr_ipv4.s_addr = n_addr.s_addr;
 
                         log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(n_addr));
