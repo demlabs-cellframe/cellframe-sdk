@@ -127,7 +127,6 @@ typedef struct dap_chain_net_pvt{
     uint16_t seed_aliases_count;
 
     dap_chain_net_state_t state;
-    //dap_chain_net_state_t state_prev;
     dap_chain_net_state_t state_target;
 } dap_chain_net_pvt_t;
 
