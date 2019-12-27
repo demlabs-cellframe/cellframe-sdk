@@ -88,6 +88,11 @@
 #define F_DAP_CHAIN_NET_SHUTDOWN  ( 1 << 9 )
 #define F_DAP_CHAIN_NET_GO_SYNC   ( 1 << 10 )
 
+// maximum number of connections
+static size_t s_max_links_count = 5;// by default 5
+// number of required connections
+static size_t s_required_links_count = 3;// by default 3
+
 /**
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
@@ -108,7 +113,7 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_info_t * node_info; // Current node's info
 
     dap_chain_node_client_t * links;
-    size_t link_cur;
+    size_t link_curdel;
     size_t links_count;
 
     dap_chain_node_addr_t *links_addrs;
@@ -123,7 +128,7 @@ typedef struct dap_chain_net_pvt{
     uint16_t seed_aliases_count;
 
     dap_chain_net_state_t state;
-    dap_chain_net_state_t state_prev;
+    //dap_chain_net_state_t state_prev;
     dap_chain_net_state_t state_target;
 } dap_chain_net_pvt_t;
 
@@ -253,7 +258,7 @@ lb_proc_state:
         case NET_STATE_OFFLINE:{
             //log_it(L_DEBUG,"%s.state: NET_STATE_OFFLINE",l_net->pub.name);
             // reset current link
-            PVT(l_net)->link_cur = 0;
+            PVT(l_net)->links_count = 0;
             // delete all links
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
@@ -409,8 +414,8 @@ lb_proc_state:
         } pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
         case NET_STATE_LINKS_CONNECTING:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
-            size_t l_links_established = 0;
-            for(size_t j = PVT(l_net)->link_cur; j < PVT(l_net)->links_addrs_count; j++) {
+            //size_t l_links_established = 0;
+            for(size_t j = PVT(l_net)->links_count; j < PVT(l_net)->links_addrs_count; j++) {
                 //size_t j =
                 log_it(L_INFO,"Establishing connection with " NODE_ADDR_FP_STR,
                        NODE_ADDR_FP_ARGS_S( PVT(l_net)->links_addrs[j]) );
@@ -423,22 +428,22 @@ lb_proc_state:
                         break;
                     }
                     // wait connected
-                    int timeout_ms = 5000; //15 sec = 15000 ms
+                    int timeout_ms = 5000; //5 sec = 5000 ms
                     int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
                     if (res == 0 ){
                         log_it(L_NOTICE, "Connected link %u",j);
-                        l_links_established++;
-                        HASH_ADD(hh,PVT(l_net)->links, remote_node_addr,sizeof(l_node_client->remote_node_addr), l_node_client);
-                        PVT(l_net)->link_cur++;
-                        break;
+                        HASH_ADD(hh, PVT(l_net)->links, remote_node_addr, sizeof(l_node_client->remote_node_addr), l_node_client);
+                        PVT(l_net)->links_count++;
+                        if(PVT(l_net)->links_count >= s_required_links_count || (PVT(l_net)->links_count + 1) >= s_max_links_count)
+                            break;
                     }else {
                         log_it(L_NOTICE, "Cant establish link %u",j);
                         dap_chain_node_client_close(l_node_client);
                     }
                 }
             }
-            if (l_links_established >0 ){
-                log_it(L_NOTICE, "Established %u links",l_links_established);
+            if (PVT(l_net)->links_count >0 ){
+                log_it(L_NOTICE, "Established %u links",PVT(l_net)->links_count);
                 PVT(l_net)->state = NET_STATE_LINKS_ESTABLISHED;
             }else {
                 log_it(L_NOTICE, "Can't establish links, go to offline");
@@ -512,7 +517,9 @@ lb_proc_state:
         }break;
         // get addr for remote node
         case NET_STATE_ADDR_REQUEST:{
+            int l_is_addr_leased = 0;
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
+
             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
                 uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for chain net request
                 dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
@@ -546,8 +553,10 @@ lb_proc_state:
                     continue; // try with another link
                     case 0:
                         log_it(L_INFO, "Node address leased");
-                        PVT(l_net)->state = NET_STATE_SYNC_GDB;
-                    pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+                        l_is_addr_leased++;
+                        //PVT(l_net)->state = NET_STATE_SYNC_GDB;
+                        //pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+                        break;
                     default:
                         if ( l_node_client->last_error[0] ){
                             log_it(L_INFO, "Node address request error %d: \"%s\"",l_res, l_node_client->last_error );
@@ -556,12 +565,20 @@ lb_proc_state:
                         log_it(L_INFO, "Node address request error %d",l_res);
                     continue;
                 }
-
+            }
+            if(l_is_addr_leased > 0) {
+                PVT(l_net)->state = NET_STATE_SYNC_GDB;
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+                goto lb_proc_state;
+            }
+            else{
                 log_it(L_WARNING,"Haven't received address from any links, return back to LINKS_ESTABLISHED");
                 PVT(l_net)->state = NET_STATE_LINKS_ESTABLISHED;
                 pthread_mutex_unlock(&PVT(l_net)->state_mutex );goto lb_proc_state; // One address assigned its enought for now
             }
-        }break;
+
+        }
+        break;
         case NET_STATE_SYNC_GDB:{
             // send request
             dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
@@ -918,6 +935,11 @@ int dap_chain_net_init()
     dap_chain_global_db_add_history_group_prefix("global");
 
     dap_chain_global_db_add_history_callback_notify("global", s_gbd_history_callback_notify, NULL );
+
+    // maximum number of connections to other nodes
+    s_max_links_count = dap_config_get_item_int32_default(g_config, "general", "max_links", s_max_links_count);
+    // required number of connections to other nodes
+    s_required_links_count = dap_config_get_item_int32_default(g_config, "general", "require_links", s_required_links_count);
 
     dap_chain_net_load_all();
     return 0;
