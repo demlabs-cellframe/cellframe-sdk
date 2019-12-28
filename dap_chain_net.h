@@ -84,6 +84,7 @@ void dap_chain_net_deinit(void);
 
 void dap_chain_net_load_all();
 
+void s_net_set_go_sync(dap_chain_net_t * a_net);
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }

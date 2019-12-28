@@ -223,6 +223,8 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
     bool res = dap_chain_global_db_gr_set(a_key, (uint8_t *) node_info, node_info_size,a_net->pub.gdb_nodes);
     DAP_DELETE(a_key);
     //DAP_DELETE(a_value);
+    if(res)
+        s_net_set_go_sync(a_net);
     return res;
 }
 
@@ -323,6 +325,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
             }
             // set text response
             dap_chain_node_cli_set_reply_text(str_reply, "node deleted");
+            s_net_set_go_sync(a_net);
         }
         else
             dap_chain_node_cli_set_reply_text(str_reply, "node not deleted");
@@ -1101,7 +1104,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
                 sizeof(l_sync_request))) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
             dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
@@ -1838,6 +1841,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
                     // Add datum to mempool with datum_token hash as a key
                     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+                        s_net_set_go_sync(l_net);
+
                         char* l_hash_str = strdup(l_datum_hash_str);
                         // Remove old datum from pool
                         if(dap_chain_global_db_gr_del( l_hash_str, l_gdb_group_mempool)) {
@@ -1848,6 +1853,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                             DAP_DELETE(l_datum);
                             //DAP_DELETE(l_datum_token);
                             DAP_DELETE(l_gdb_group_mempool);
+                            s_net_set_go_sync(l_net);
                             return 0;
                         } else {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2001,6 +2007,7 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
             if(dap_chain_global_db_gr_del(l_datum_hash_str2, l_gdb_group_mempool)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
                 DAP_DELETE( l_datum_hash_str2);
+                s_net_set_go_sync(l_net);
                 return 0;
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
@@ -2090,7 +2097,8 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
             for(size_t i = 0; i < l_datums_size; i++) {
                 if(l_procecced[i]!=1)
                     continue;
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool_tmp);
+                if(dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool_tmp))
+                    s_net_set_go_sync(l_net);
                 l_objs_processed_cur++;
                 if(l_objs_processed_cur < l_objs_processed_tmp) {
                     dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
@@ -2275,6 +2283,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 
     }
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+        s_net_set_go_sync(l_net);
         dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token %s is placed in datum pool ", l_key_str,
                 l_ticker);
         DAP_DELETE(l_datum);
@@ -2487,6 +2496,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     // Add to mempool emission token
     if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum_emission, l_datum_emission_size
             , l_gdb_group_mempool_emission)) {
+        s_net_set_go_sync(l_net);
         str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_key_str);
     }
     else {
@@ -2541,6 +2551,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     // Add to mempool tx token
     if(dap_chain_global_db_gr_set(l_key_str, l_datum_tx, l_datum_tx_size
             , l_gdb_group_mempool_base_tx)) {
+        s_net_set_go_sync(l_net);
         dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp,
                 l_key_str);
     }
