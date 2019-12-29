@@ -84,7 +84,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
-#include "dap_chain_gdb.h"
+//#include "dap_chain_gdb.h"
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
