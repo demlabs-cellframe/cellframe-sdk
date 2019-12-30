@@ -335,6 +335,7 @@ extern size_t g_sys_dir_path_len;
 
 //int dap_common_init( const char * a_log_file );
 int dap_common_init( const char *console_title, const char *a_log_file );
+int wdap_common_init( const char *console_title, const wchar_t *a_wlog_file);
 
 void dap_common_deinit(void);
 

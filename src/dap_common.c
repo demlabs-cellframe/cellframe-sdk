@@ -243,6 +243,28 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
     return 0;
 }
 
+int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename ) {
+
+    // init randomer
+    srand( (unsigned int)time(NULL) );
+    (void) a_console_title;
+    strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
+    for (int i = 0; i < 16; ++i)
+            s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
+    if ( a_log_filename ) {
+        s_log_file = _wfopen( a_log_filename , L"a" );
+        if( s_log_file == NULL)
+            s_log_file = _wfopen( a_log_filename , L"w" );
+        if ( s_log_file == NULL ) {
+            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
+            return -1;
+        }
+        //dap_stpcpy(s_log_file_path, a_log_filename);
+    }
+    pthread_create( &s_log_thread, NULL, s_log_thread_proc, NULL );
+    return 0;
+}
+
 /**
  * @brief dap_common_deinit Deinitialise
  */
