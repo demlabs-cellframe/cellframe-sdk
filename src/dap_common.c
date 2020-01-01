@@ -243,6 +243,7 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
     return 0;
 }
 
+#ifdef WIN32
 int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename ) {
 
     // init randomer
@@ -264,6 +265,8 @@ int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename
     pthread_create( &s_log_thread, NULL, s_log_thread_proc, NULL );
     return 0;
 }
+
+#endif
 
 /**
  * @brief dap_common_deinit Deinitialise
