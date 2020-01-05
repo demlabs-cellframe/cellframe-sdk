@@ -212,26 +212,26 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     }
 
     dap_chain_ledger_token_item_t * l_token_item;
-    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->header.ticker,l_token_item);
+    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->header_auth.ticker,l_token_item);
 
     if ( l_token_item == NULL ){
         l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header.ticker);
+        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header_auth.ticker);
         l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
         memcpy(l_token_item->datum_token, a_token,a_token_size);
-        l_token_item->total_supply = a_token->header.total_supply;
+        l_token_item->total_supply = a_token->header_auth.total_supply;
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
         dap_hash_fast(a_token,a_token_size, &l_token_item->datum_token_hash);
 
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item) ;
-        log_it(L_NOTICE,"Token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu version=%hu )",
-               a_token->header.ticker ,
-               (long double) a_token->header.total_supply / 1000000000000.0L,
-               a_token->header.signs_valid,a_token->header.signs_total, a_token->header.version);
+        log_it(L_NOTICE,"Token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu type=%hu )",
+               a_token->header_auth.ticker ,
+               (long double) a_token->header_auth.total_supply / 1000000000000.0L,
+               a_token->header_auth.signs_valid,a_token->header_auth.signs_total, a_token->header_auth.type);
         // Proc emissions tresholds
         s_treshold_emissions_proc( a_ledger);
     }else{
-        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->header.ticker);
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->header_auth.ticker);
         return -1;
     }
     return  0;
