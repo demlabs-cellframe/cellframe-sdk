@@ -702,26 +702,27 @@ lb_proc_state:
         case NET_STATE_ONLINE: {
             //log_it(L_NOTICE, "State online");
             switch ( PVT(l_net)->state_target) {
-            // disconnect
-            case NET_STATE_OFFLINE:
-                PVT(l_net)->state = NET_STATE_OFFLINE;
-                log_it(L_NOTICE, "Going to disconnet");
-                pthread_mutex_unlock(&PVT(l_net)->state_mutex);
-                goto lb_proc_state;
-            case NET_STATE_ONLINE:
-                // if flag set then go to SYNC_GDB
-                if(PVT(l_net)->flags & F_DAP_CHAIN_NET_GO_SYNC)
-                    PVT(l_net)->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-                else
-                    break;
-                // sync
-            case NET_STATE_SYNC_GDB:
-                PVT(l_net)->state = NET_STATE_SYNC_GDB;
-                pthread_mutex_unlock(&PVT(l_net)->state_mutex);
-                goto lb_proc_state;
+                // disconnect
+                case NET_STATE_OFFLINE:
+                    PVT(l_net)->state = NET_STATE_OFFLINE;
+                    log_it(L_NOTICE, "Going to disconnet");
+                    pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+                    goto lb_proc_state;
+                case NET_STATE_ONLINE:
+                    // if flag set then go to SYNC_GDB
+                    if(PVT(l_net)->flags & F_DAP_CHAIN_NET_GO_SYNC)
+                        PVT(l_net)->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
+                    else
+                        break;
+                    // sync
+                case NET_STATE_SYNC_GDB:
                     PVT(l_net)->state = NET_STATE_SYNC_GDB;
                     pthread_mutex_unlock(&PVT(l_net)->state_mutex);
                     goto lb_proc_state;
+                        PVT(l_net)->state = NET_STATE_SYNC_GDB;
+                        pthread_mutex_unlock(&PVT(l_net)->state_mutex);
+                        goto lb_proc_state;
+
             }
         }
             break;

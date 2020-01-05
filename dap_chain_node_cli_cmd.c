@@ -1761,7 +1761,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
                 size_t l_datum_token_size = l_datum->header.data_size;
-                size_t l_signs_size = l_datum_token_size - sizeof(l_datum_token->header);
+                size_t l_signs_size = l_datum_token_size - sizeof(l_datum_token->header_auth);
 
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_count = 0;
@@ -1769,7 +1769,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 for(size_t l_offset = 0; l_offset < l_signs_size; l_signs_count++) {
                     dap_sign_t * l_sign = (dap_sign_t *) l_datum_token->signs + l_offset;
                     l_offset += dap_sign_get_size(l_sign);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header)) != 1) {
+                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header_auth)) != 1) {
                         log_it(L_WARNING, "Wrong signature %u for datum_token with key %s in mempool!", l_signs_count, l_datum_hash_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %u, break process and exit",
@@ -1786,7 +1786,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                                 l_signs_count, l_signs_size);
 
                 // Check if all signs are present
-                if(l_signs_count == l_datum_token->header.signs_total) {
+                if(l_signs_count == l_datum_token->header_auth.signs_total) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Datum %s with datum token has all signs on board. Can't add anything in it");
                     DAP_DELETE(l_datum);
@@ -1794,21 +1794,21 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     DAP_DELETE(l_gdb_group_mempool);
                     return -7;
                 } // Check if more signs that could be (corrupted datum)
-                else if(l_signs_count > l_datum_token->header.signs_total) {
+                else if(l_signs_count > l_datum_token->header_auth.signs_total) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Warning! Datum %s with datum token has more signs on board (%u) than its possible to have (%u)!",
-                            l_signs_count, l_datum_token->header.signs_total);
+                            l_signs_count, l_datum_token->header_auth.signs_total);
                     DAP_DELETE(l_datum);
                     //DAP_DELETE(l_datum_token);
                     DAP_DELETE(l_gdb_group_mempool);
                     return -8;
                 } // Check if we have enough place to sign the datum token declaration
-                else if(l_datum_token->header.signs_total >= l_signs_count + l_certs_count) {
+                else if(l_datum_token->header_auth.signs_total >= l_signs_count + l_certs_count) {
                     size_t l_offset = 0;
                     for(size_t i = 0; i < l_certs_count; i++) {
                         dap_sign_t * l_sign = dap_sign_create(l_certs[i]->enc_key,
                                 l_datum_token,
-                                sizeof(l_datum_token->header), 0);
+                                sizeof(l_datum_token->header_auth), 0);
                         size_t l_sign_size = dap_sign_get_size(l_sign);
 
 
@@ -1880,7 +1880,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 } else {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Error! Not enought place for new signature (%u is left when we need %u signatures)",
-                            l_datum_token->header.signs_total - l_signs_count, l_certs_count);
+                            l_datum_token->header_auth.signs_total - l_signs_count, l_certs_count);
                     return -6;
                 }
             } else {
@@ -1955,9 +1955,9 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
                 if ( l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL ){
                     dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
                     dap_string_append_printf(l_str_tmp,
-                         "\tDAP_CHAIN_DATUM_TOKEN_DECL: version=%u ticker=\"%s\" signs_total=%u signs_valid=%u\n",
-                                             l_datum_token->header.version, l_datum_token->header.ticker,
-                                             l_datum_token->header.signs_total, l_datum_token->header.signs_valid );
+                         "\tDAP_CHAIN_DATUM_TOKEN_DECL: type=%u ticker=\"%s\" signs_total=%u signs_valid=%u\n",
+                                             l_datum_token->header_auth.type, l_datum_token->header_auth.ticker,
+                                             l_datum_token->header_auth.signs_total, l_datum_token->header_auth.signs_valid );
                 }
             }
             // Clean up
@@ -2136,6 +2136,10 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
 int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
+
+    const char * l_type_str = NULL;
+    uint16_t l_type =0;
+
     const char * l_ticker = NULL;
 
     const char * l_total_supply_str = NULL;
@@ -2179,6 +2183,9 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 
     // Signs minimum number thats need to authorize the emission
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-signs_emission", &l_signs_emission_str);
+
+    // Token type
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-type", &l_type_str);
 
     if(!l_total_supply_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_create requires parameter '-total_supply'");
@@ -2243,12 +2250,12 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
         l_certs_size = l_signs_total;
 
     // Create new datum token
-    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(l_datum_token->header));
-    l_datum_token->header.version = 1; // Current version
-    dap_snprintf(l_datum_token->header.ticker, sizeof(l_datum_token->header.ticker), "%s", l_ticker);
-    l_datum_token->header.total_supply = l_total_supply;
-    l_datum_token->header.signs_total = l_signs_total;
-    l_datum_token->header.signs_valid = l_signs_emission;
+    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(l_datum_token->header_auth));
+    l_datum_token->header_auth.type = 1; // Current version
+    dap_snprintf(l_datum_token->header_auth.ticker, sizeof(l_datum_token->header_auth.ticker), "%s", l_ticker);
+    l_datum_token->header_auth.total_supply = l_total_supply;
+    l_datum_token->header_auth.signs_total = l_signs_total;
+    l_datum_token->header_auth.signs_valid = l_signs_emission;
 
     size_t l_signs_offset = 0;
     // Sign header with all certificates in the list and add signs to the end of ticker declaration
@@ -2256,16 +2263,16 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
     for(size_t i = 0; i < l_certs_size; i++) {
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i],
                 l_datum_token,
-                sizeof(l_datum_token->header),
+                sizeof(l_datum_token->header_auth),
                 0);
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_datum_token = DAP_REALLOC(l_datum_token, sizeof(l_datum_token->header) + l_signs_offset + l_sign_size);
+        l_datum_token = DAP_REALLOC(l_datum_token, sizeof(l_datum_token->header_auth) + l_signs_offset + l_sign_size);
         memcpy(l_datum_token->signs + l_signs_offset, l_sign, l_sign_size);
         l_signs_offset += l_sign_size;
         DAP_DELETE(l_sign);
     }
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL, l_datum_token,
-            sizeof(l_datum_token->header) + l_signs_offset);
+            sizeof(l_datum_token->header_auth) + l_signs_offset);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
     // Calc datum's hash
