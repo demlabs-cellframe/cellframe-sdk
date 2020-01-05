@@ -843,7 +843,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                 dap_chain_net_srv_vpn_item_ipv4_t * l_item_ipv4 = l_srv_vpn->ipv4_unleased;
                 if ( l_item_ipv4){
                     log_it(L_WARNING,"We have unleased ip address");
-                    l_ch_vpn->addr_ipv4.s_addr = htonl(l_item_ipv4->addr.s_addr);
+                    l_ch_vpn->addr_ipv4.s_addr = l_item_ipv4->addr.s_addr;
 
                     pthread_rwlock_wrlock( &s_clients_rwlock );
                     HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
@@ -936,10 +936,8 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                 struct in_addr in_saddr, in_daddr;
                 in_saddr.s_addr = ((struct iphdr*) l_vpn_pkt->data)->saddr;
                 in_daddr.s_addr = ((struct iphdr*) l_vpn_pkt->data)->daddr;
-
-                char str_daddr[42], str_saddr[42];
-                strncpy(str_saddr, inet_ntoa(in_saddr), sizeof(str_saddr));
-                strncpy(str_daddr, inet_ntoa(in_daddr), sizeof(str_daddr));
+                // The packet can't be written, errno == EINVAL !!!
+                log_it(L_DEBUG, "VPN packet, source: %s; dest: %s", inet_ntoa(in_saddr), inet_ntoa(in_daddr));
                 int ret;
                 //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
                 struct sockaddr_in sin = { 0 };
