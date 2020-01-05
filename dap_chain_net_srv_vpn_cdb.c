@@ -130,7 +130,7 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
                                                             "tx_cond_create",
                                                             false)) {
             // Parse tx cond templates
-            size_t l_tx_cond_tpls_count = 0;
+            uint16_t l_tx_cond_tpls_count = 0;
 
             /* ! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
              * ! it also must NOT be freed within this module !
@@ -238,11 +238,11 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         memset(l_pkey_raw, 0, l_pkey_b64_length);
         size_t l_pkey_raw_size =
                 dap_enc_base64_decode(l_auth_info->pkey, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-        char l_pkey_gdb_group[sizeof(DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX) + 8] = { '\0' };
-        dap_snprintf(l_pkey_gdb_group, "%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-        log_it(L_DEBUG, "2791: pkey group %s", l_pkey_gdb_group);
+        char *l_pkey_gdb_group=  dap_strdup_printf( "%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+        log_it(L_DEBUG, "Pkey group %s", l_pkey_gdb_group);
         dap_chain_global_db_gr_set(l_auth_info->user, l_pkey_raw, l_pkey_raw_size, l_pkey_gdb_group);
         l_client_key = dap_enc_key_deserealize(l_pkey_raw, l_pkey_raw_size);
+        DAP_DELETE(l_pkey_gdb_group);
     }
 
     tx_cond_template_t *l_tpl;
@@ -250,11 +250,10 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         size_t l_gdb_group_size = 0;
 
         // Try to load from gdb
-        char l_tx_cond_gdb_group[128] = {'\0'};
-        dap_snprintf(l_tx_cond_gdb_group, "%s.%s.tx_cond", l_tpl->net->pub.name, DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-        log_it(L_DEBUG, "2791: Checkout group %s", l_tx_cond_gdb_group);
+        char *l_tx_cond_gdb_group =  dap_strdup_printf( "%s.%s.tx_cond", l_tpl->net->pub.name, DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+        log_it(L_DEBUG, "Checkout group %s", l_tx_cond_gdb_group);
         dap_chain_hash_fast_t *l_tx_cond_hash =
-            (dap_hash_type_t*)dap_chain_global_db_gr_get(l_auth_info->user, &l_gdb_group_size, l_tx_cond_gdb_group);
+            (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(l_auth_info->user, &l_gdb_group_size, l_tx_cond_gdb_group);
 
         // Check for entry size
         if (l_gdb_group_size && l_gdb_group_size != sizeof(dap_chain_hash_fast_t)) {
@@ -281,10 +280,8 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
 
         // Try to create condition
         if (! l_tx_cond_hash ) {
-            // test
-            log_it(L_DEBUG, "2791: Create a tx");
             dap_chain_wallet_t *l_wallet_from = l_tpl->wallet;
-            log_it(L_DEBUG, "2791: From wallet %s", l_wallet_from->name);
+            log_it(L_DEBUG, "Create tx from wallet %s", l_wallet_from->name);
             dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet_from, 0);
 
             // where to take coins for service
@@ -316,6 +313,7 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         }
         enc_http_reply_f(a_delegate,"\t</tx_cond_tpl>\n");
 
+        DAP_DELETE(l_tx_cond_gdb_group);
     }
     if (l_client_key)
         DAP_DELETE(l_client_key);

@@ -937,15 +937,16 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                 in_saddr.s_addr = ((struct iphdr*) l_vpn_pkt->data)->saddr;
                 in_daddr.s_addr = ((struct iphdr*) l_vpn_pkt->data)->daddr;
 
-                char str_daddr[42], str_saddr[42];
-                strncpy(str_saddr, inet_ntoa(in_saddr), sizeof(str_saddr));
-                strncpy(str_daddr, inet_ntoa(in_daddr), sizeof(str_daddr));
+                char str_daddr[43], str_saddr[43];
+                strncpy(str_saddr, inet_ntoa(in_saddr), sizeof(str_saddr)-1);
+                strncpy(str_daddr, inet_ntoa(in_daddr), sizeof(str_daddr)-1);
                 int ret;
                 //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
-                struct sockaddr_in sin = { 0 };
+                /*struct sockaddr_in sin = { 0 };
                 sin.sin_family = AF_INET;
                 sin.sin_port = 0;
-                sin.sin_addr.s_addr = in_daddr.s_addr;
+                sin.sin_addr.s_addr = in_daddr.s_addr;*/
+
 
                 //if((ret=sendto(CH_SF(ch)->raw_l3_sock , sf_pkt->data,sf_pkt->header.op_data.data_size,0,(struct sockaddr *) &sin, sizeof (sin)))<0){
                 if((ret = write(s_raw_server->tun_fd, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size)) < 0) {
