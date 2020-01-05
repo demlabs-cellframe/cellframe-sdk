@@ -26,18 +26,30 @@
 #include "dap_chain_common.h"
 #include "dap_sign.h"
 
+
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_AUTH 0x0001
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OPEN 0x0002
+
 // Token declaration
-
 typedef struct dap_chain_datum_token{
-    struct {
-        uint16_t version;
-        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        uint64_t total_supply;
-        uint16_t signs_valid; // Emission auth signs
-        uint16_t signs_total; // Emission auth signs
-    } DAP_ALIGN_PACKED header;
+    union {
+        struct {
+            uint16_t type;
+            char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+            uint64_t total_supply;
+            uint16_t signs_valid; // Emission auth signs
+            uint16_t signs_total; // Emission auth signs
+        } DAP_ALIGN_PACKED header_auth;
+        struct {
+            uint16_t type;
+            char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+            uint128_t total_supply;
+            uint128_t premine_supply;
+            dap_chain_addr_t premine_address;
+            uint32_t flags;
+        } DAP_ALIGN_PACKED header_open;
+    };
     uint8_t signs[]; // Signs if exists
-
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 
@@ -62,7 +74,7 @@ typedef struct dap_chain_datum_token_emission{
             dap_chain_addr_t addr;
             int flags;
             uint64_t lock_time;
-        } DAP_ALIGN_PACKED type_smart_contract;
+        } DAP_ALIGN_PACKED type_presale;
         struct {
             uint64_t value_start;// Default value. Static if nothing else is defined
             char value_change_algo_codename[32];

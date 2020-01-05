@@ -54,9 +54,6 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
 
     a_str[c_hash_str_size] = '\0';
 
-//#define dap_htoa64( out, in, len ) \
-
-
     return strlen(a_str);
 }
 
