@@ -41,6 +41,7 @@ static void _cdb_pagewarmup(CDB *db, bool loadbf);
 /* it isn't necessary to rehash bid in hash table cache */
 static uint32_t _pagehash(const void *key, int len)
 {
+    (void) len;
     return *(uint32_t*)key;
 }
 
