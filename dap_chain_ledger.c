@@ -869,7 +869,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
             // TODO restore when the blockchain appears
             // remove from mempool ledger
             /*char *l_tx_prev_hash_to_del_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
-             if(!dap_chain_global_db_gr_del(l_tx_prev_hash_to_del_str, c_dap_datum_mempool_gdb_group)) {
+             if(!dap_chain_global_db_gr_del( dap_strdup(l_tx_prev_hash_to_del_str), c_dap_datum_mempool_gdb_group)) {
              log_it(L_ERROR, "Can't delete previous transactions from mempool with hash=0x%x",
              l_tx_prev_hash_str);
              }
