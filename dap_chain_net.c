@@ -1864,7 +1864,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             // Delete processed objects
             size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
             for(size_t i = 0; i < l_objs_processed; i++) {
-                if(dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool))
+                if(dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool))
                     s_net_set_go_sync(a_net);
                 if(i < l_objs_processed_tmp) {
                     dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",

@@ -84,11 +84,13 @@ bool dap_chain_node_check_addr(dap_chain_net_t * a_net,dap_chain_node_addr_t *ad
 bool dap_chain_node_alias_register(dap_chain_net_t * a_net,const char *alias, dap_chain_node_addr_t *addr)
 {
     char *a_key = strdup(alias);
+    dap_chain_node_addr_t *l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+    memcpy(l_addr,addr,sizeof (*l_addr));
 //    char a_value[2 * sizeof(dap_chain_node_addr_t) + 1];
 //    if(bin2hex(a_value, (const unsigned char *) addr, sizeof(dap_chain_node_addr_t)) == -1)
 //        return false;
 //    a_value[2 * sizeof(dap_chain_node_addr_t)] = '\0';
-    bool res = dap_chain_global_db_gr_set(a_key,  addr, sizeof(dap_chain_node_addr_t)
+    bool res = dap_chain_global_db_gr_set( dap_strdup(a_key),  l_addr, sizeof(dap_chain_node_addr_t)
                                           , a_net->pub.gdb_nodes_aliases);
     if(res)
         s_net_set_go_sync(a_net);
@@ -140,21 +142,23 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
  * @param node_info
  * @return
  */
-int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *node_info)
+int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info)
 {
-    if(!node_info || !node_info->hdr.address.uint64){
-        log_it(L_ERROR,"Can't save node info: %s", node_info? "null address":"null object" );
+    if(!a_node_info || !a_node_info->hdr.address.uint64){
+        log_it(L_ERROR,"Can't save node info: %s", a_node_info? "null address":"null object" );
         return  -1;
     }
-    char *l_key = dap_chain_node_addr_to_hash_str(&node_info->hdr.address);
+    char *l_key = dap_chain_node_addr_to_hash_str(&a_node_info->hdr.address);
 
     if(!l_key){
         log_it(L_ERROR,"Can't produce key to save node info ");
         return -2;
     }
     //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
-    size_t node_info_size = dap_chain_node_info_get_size(node_info);
-    bool res = dap_chain_global_db_gr_set(l_key, node_info, node_info_size, a_net->pub.gdb_nodes);
+    size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);
+    dap_chain_node_info_t *l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
+    memcpy(l_node_info, a_node_info, sizeof (*a_node_info) );
+    bool res = dap_chain_global_db_gr_set( dap_strdup(l_key), l_node_info, l_node_info_size, a_net->pub.gdb_nodes);
     if(res)
         s_net_set_go_sync(a_net);
     DAP_DELETE(l_key);
