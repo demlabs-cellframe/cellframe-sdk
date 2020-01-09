@@ -14,7 +14,8 @@ wchar_t* getTapGUID();
 wchar_t* getTapName();
 wchar_t* getUserSID(LPCWSTR homePath);
 
-char* regGetUsrPath();
+wchar_t*    regWGetUsrPath();
+char*       regGetUsrPath();
 
 #ifdef __cplusplus
 }

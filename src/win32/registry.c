@@ -27,6 +27,21 @@ char* regGetUsrPath() {
     return path;
 }
 
+wchar_t* regWGetUsrPath() {
+    static wchar_t path[MAX_PATH] = {};
+    if (wcslen(path) > 3) { return path; }
+    HKEY hKey;
+    const char keyPath[] = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders";
+    LSTATUS err = RegOpenKeyExA(HKEY_CURRENT_USER,
+                                 keyPath,
+                                 0, KEY_READ, &hKey );
+    if (err != ERROR_SUCCESS) { return NULL; }
+    DWORD len = MAX_PATH;
+    err = RegGetValueW(hKey, NULL, L"Personal", RRF_RT_REG_SZ, NULL, (void*)path, &len);
+    RegCloseKey(hKey);
+    return path;
+}
+
 wchar_t* getTapGUID() {
     static wchar_t guid[MAX_PATH] = {};
     if (wcslen(guid) > 2) { return guid; }
