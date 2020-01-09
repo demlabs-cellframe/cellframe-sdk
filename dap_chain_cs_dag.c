@@ -459,10 +459,12 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                     dap_chain_hash_fast_t l_event_hash;
                     dap_chain_cs_dag_event_calc_hash(l_event, &l_event_hash);
                     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-                    if(dap_chain_global_db_gr_set(l_event_hash_str, (uint8_t *) l_event,
+                    if(dap_chain_global_db_gr_set(dap_strdup(l_event_hash_str), (uint8_t *) l_event,
                             dap_chain_cs_dag_event_calc_size(l_event),
                             l_dag->gdb_group_events_round_new)) {
                         log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
+                        DAP_DELETE(l_event_hash_str);
+                        l_event_hash_str = NULL;
                         // Clear old ext link and place itself as event_lasts
 
                         dap_chain_cs_dag_event_item_t * l_event_unlinked_item = DAP_NEW_Z(
@@ -1014,7 +1016,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         // delete events from db
                         dap_list_t *l_list_tmp = l_list_to_del;
                         while(l_list_tmp) {
-                            const char *l_key = (const char*) l_list_tmp->data;
+                            char *l_key = strdup((char*) l_list_tmp->data);
                             dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
                             l_list_tmp = dap_list_next(l_list_tmp);
                         }
@@ -1069,7 +1071,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                        dap_chain_hash_fast_t l_datum_hash;
                        dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
                        char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                       if ( dap_chain_global_db_gr_del(l_datums_datum_hash_str,l_gdb_group_mempool ) ){
+                       if ( dap_chain_global_db_gr_del( dap_strdup(l_datums_datum_hash_str),l_gdb_group_mempool ) ){
                            dap_chain_node_cli_set_reply_text(a_str_reply,
                                                              "Converted datum %s from mempool to event in the new forming round ",
                                                              l_datums_datum_hash_str);
@@ -1094,7 +1096,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             }break;
             case SUBCMD_EVENT_CANCEL:{
                 char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
-                if ( dap_chain_global_db_gr_del(l_event_hash_str ,l_gdb_group_events ) ){
+                if ( dap_chain_global_db_gr_del( dap_strdup(l_event_hash_str) ,l_gdb_group_events ) ){
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                                                       "Successfuly removed event 0x%s from the new forming round ",
                                                       l_event_hash_str);
