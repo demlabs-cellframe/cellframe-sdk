@@ -133,7 +133,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
             char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
             size_t l_event_size = 0;
             dap_chain_cs_dag_event_t * l_event;
-            if ( (l_event = (dap_chain_cs_dag_event_t*) dap_chain_global_db_gr_get(l_event_hash_str ,
+            if ( (l_event = (dap_chain_cs_dag_event_t*) dap_chain_global_db_gr_get( l_event_hash_str ,
                                                        &l_event_size, l_gdb_group_events )) == NULL  ){
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Can't find event in round.new - only place where could be signed the new event\n",
@@ -145,8 +145,8 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                 dap_chain_cs_dag_event_calc_hash(l_event_new,&l_event_new_hash);
                 //size_t l_event_new_size = dap_chain_cs_dag_event_calc_size(l_event_new);
                 char * l_event_new_hash_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
-                if (dap_chain_global_db_gr_set(l_event_new_hash_str,(uint8_t*) l_event,l_event_size,l_gdb_group_events) ){
-                    if ( dap_chain_global_db_gr_del(l_event_hash_str,l_gdb_group_events) ) { // Delete old event
+                if (dap_chain_global_db_gr_set( dap_strdup(l_event_new_hash_str),(uint8_t*) l_event,l_event_size,l_gdb_group_events) ){
+                    if ( dap_chain_global_db_gr_del(dap_strdup(l_event_hash_str),l_gdb_group_events) ) { // Delete old event
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n",
                                                           l_poa_pvt->events_sign_cert->name ,l_event_new_hash_str);
                         ret = 0;
@@ -163,6 +163,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                                       l_event_new_hash_str);
                     ret=-31;
                 }
+                DAP_DELETE(l_event_new_hash_str);
             }
             DAP_DELETE( l_gdb_group_events );
             DAP_DELETE(l_event);
