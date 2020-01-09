@@ -85,7 +85,7 @@ char* dap_chain_net_srv_order_create(
         dap_hash_fast( l_order, sizeof ( *l_order), l_order_hash );
         char * l_order_hash_str = dap_chain_hash_fast_to_str_new( l_order_hash );
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-        if ( !dap_chain_global_db_gr_set(l_order_hash_str, l_order, sizeof (*l_order), l_gdb_group_str ) ){
+        if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), l_order, sizeof (*l_order), l_gdb_group_str ) ){
             DAP_DELETE( l_order );
             DAP_DELETE( l_order_hash );
             DAP_DELETE( l_order_hash_str );
@@ -93,7 +93,7 @@ char* dap_chain_net_srv_order_create(
             return NULL;
         }
         DAP_DELETE( l_order_hash );
-        DAP_DELETE( l_order );
+        DAP_DELETE(l_order_hash_str );
         DAP_DELETE( l_gdb_group_str );
         return  l_order_hash_str;
     }else
@@ -214,7 +214,6 @@ int dap_chain_net_srv_order_delete_by_hash_str(dap_chain_net_t * a_net, const ch
         char * l_hash_str = strdup( a_hash_str );
         ret = dap_chain_global_db_gr_del( l_hash_str, l_gdb_group_str ) ? 0 : -1;
         DAP_DELETE( l_gdb_group_str );
-        DAP_DELETE( l_hash_str );
     }
     return ret;
 }
