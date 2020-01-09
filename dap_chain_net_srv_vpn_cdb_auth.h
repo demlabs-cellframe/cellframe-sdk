@@ -27,5 +27,11 @@
 #include "dap_http.h"
 #include "dap_enc_http.h"
 
-int dap_chain_net_srv_vpn_cdb_auth_add_proc(dap_http_t * a_http, const char * a_url);
+int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, bool a_is_registration_open);
+void dap_chain_net_srv_vpn_cdb_auth_deinit();
+
+void dap_chain_net_srv_vpn_cdb_auth_add_proc(dap_http_t * a_http, const char * a_url);
 void dap_chain_net_srv_vpn_cdb_auth_set_callback(dap_enc_http_callback_t a_callback_success);
+int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply);
+
+int dap_chain_net_srv_vpn_cdb_auth_check_password(const char * a_login, const char * a_password);

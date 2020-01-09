@@ -33,9 +33,6 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
 
-if(NOT ANDROID)
-    target_link_libraries(${PROJECT_NAME} dap_server_http_db_auth dap_server_http_db)
-endif()
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 

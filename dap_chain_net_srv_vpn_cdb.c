@@ -29,13 +29,6 @@
 #include "dap_enc_base64.h"
 #include "dap_http.h"
 
-#ifndef __ANDROID__
-#include "db_core.h"
-#include "db_auth.h"
-#include "db_http.h"
-#include "db_http_file.h"
-#endif
-
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 #include "dap_chain_ledger.h"
@@ -50,19 +43,21 @@
 #include "dap_chain_datum_tx_sig.h"
 #include "dap_chain_global_db.h"
 
+#include "dap_chain_node_cli.h"
+
 #include "dap_chain_mempool.h"
 #include "dap_pkey.h"
 
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_srv_vpn_cdb.h"
+#include "dap_chain_net_srv_vpn_cdb_auth.h"
 #include "dap_chain_net_srv_vpn_cdb_server_list.h"
 
 
 #define LOG_TAG "dap_chain_net_srv_vpn_cdb"
 
 #define DB_URL "/db"
-#define DB_FILE_URL "/db_file"
-#define SLIST_URL "/nodelist"
+#define NODELIST_URL "/nodelist"
 
 typedef struct tx_cond_template{
     char * wallet_name;
@@ -82,7 +77,7 @@ typedef struct tx_cond_template{
 static tx_cond_template_t *s_tx_cond_templates = NULL;
 const char *c_wallets_path = NULL;
 
-static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg);
+static int s_cli_vpn_cdb(int a_argc, char ** a_argv, char **a_str_reply);
 
 /**
  * @brief dap_chain_net_srv_vpn_cdb_init
@@ -90,7 +85,6 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg);
  */
 int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
 {
-    int rc;
     int ret=0;
     c_wallets_path = dap_chain_wallet_get_path(g_config);
     if (dap_config_get_item_bool_default( g_config,
@@ -104,26 +98,38 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
         }
     }
 
-
-    if((rc=db_core_init(dap_config_get_item_str_default(g_config,
-                                                        "cdb",
-                                                        "db_path",
-                                                        "mongodb://localhost/db")))!=0 ){
-        log_it(L_CRITICAL,"Can't init CDB module, return code %d",rc);
-        return -3;
-    }
-    db_http_add_proc( a_http , DB_URL );
-    db_http_file_proc_add( a_http , DB_FILE_URL );
+    dap_chain_node_cli_cmd_item_create ("vpn_cdb", s_cli_vpn_cdb , "VPN Central DataBase (CDB) commands",
+        "vpn_cdb user create --login <Login> --password <Password> [--first_name <First Name] [--last_name <Last Name>] [--email <Email>]"
+        "[--acive_days <Setup active day thats left for user >]\n"
+            "\tCreate user with login, password and some more optional fields\n\n"
+        "vpn_cdb user update --login <Login> [--password <Password>] [--first_name <First Name] [--last_name <Last Name>] [--email <Email>]"
+                             "[--acive_days <Setup active day thats left for user >]\n"
+            "\tUpdate existent user\n"
+        "vpn_cdb user delete --login <Login>\n"
+            "\tDelete user by login\n"
+        "vpn_cdb user show --login <Login>\n"
+            "\tShow user fields by login\n"
+        "vpn_cdb user check --login <Login> --password <Password>\n"
+            "\tCompare <Password> with stored in GDB for <Login>\n"
+        "vpn_cdb user list\n"
+            "\tShow all users\n"
+                                        );
 
     // Load all chain networks
     if (dap_config_get_item_bool_default( g_config,
                                                         "cdb",
                                                         "servers_list_enabled",
                                                         false)) {
-        dap_chain_net_srv_vpn_cdb_server_list_add_proc ( a_http, SLIST_URL);
+        dap_chain_net_srv_vpn_cdb_server_list_add_proc ( a_http, NODELIST_URL);
     }
     if (dap_config_get_item_bool_default( g_config,"cdb_auth","enabled",false) ){
-        db_auth_init( dap_config_get_item_str_default(g_config,"cdb_auth","collection_name","cdb") );
+
+        dap_chain_net_srv_vpn_cdb_auth_init(  dap_config_get_item_str_default(g_config,"cdb_auth","domain","cdb"),
+                                              dap_config_get_item_bool_default(g_config,"cdb_auth","registration_open",false)
+                                              );
+        dap_chain_net_srv_vpn_cdb_auth_add_proc( a_http , DB_URL );
+
+
         // Produce transaction for authorized users
         if (dap_config_get_item_bool_default( g_config,
                                                             "cdb_auth",
@@ -140,7 +146,6 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
                 log_it( L_ERROR, "No condition tpl, can't setup auth callback");
                 return -5;
             }
-            db_auth_set_callbacks(s_auth_callback);
 
             for (size_t i = 0 ; i < l_tx_cond_tpls_count; i++) {
                 tx_cond_template_t *l_tx_cond_template = DAP_NEW_Z(tx_cond_template_t);
@@ -211,6 +216,24 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
     return ret;
 }
 
+
+static int s_cli_vpn_cdb(int a_argc, char ** a_argv, char **a_str_reply)
+{
+    const char *l_user_str = NULL;
+    int l_arg_index = 1;
+    int l_ret = 0;
+
+    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "user", &l_user_str);
+
+
+    // Selected 'user' subcoummand
+    if ( l_user_str ){
+        return dap_chain_net_srv_vpn_cdb_auth_cli_cmd(l_user_str,l_arg_index,  a_argc,  a_argv,a_str_reply);
+    }
+    return l_ret;
+}
+
+
 /**
  * @brief dap_chain_net_srv_vpn_cdb_deinit
  */
@@ -219,28 +242,26 @@ void dap_chain_net_srv_vpn_cdb_deinit()
 
 }
 
-
-
 /**
- * @brief s_auth_callback
+ * @brief dap_chain_net_srv_vpn_cdb_auth_after
  * @param a_delegate
- * @param a_arg
+ * @param a_login
+ * @param a_pkey_b64
  */
-static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
+void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const char * a_login, const char * a_pkey_b64 )
 {
 #ifndef __ANDROID__
-    db_auth_info_t *l_auth_info = (db_auth_info_t *) a_arg;
     dap_enc_key_t *l_client_key;
     log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present");
     {
-        size_t l_pkey_b64_length = strlen(l_auth_info->pkey);
-        byte_t l_pkey_raw[l_pkey_b64_length];
+        size_t l_pkey_b64_length = dap_strlen( a_pkey_b64);
+        byte_t *l_pkey_raw = DAP_NEW_Z_SIZE(byte_t,l_pkey_b64_length);
         memset(l_pkey_raw, 0, l_pkey_b64_length);
         size_t l_pkey_raw_size =
-                dap_enc_base64_decode(l_auth_info->pkey, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                dap_enc_base64_decode(a_pkey_b64, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
         char *l_pkey_gdb_group=  dap_strdup_printf( "%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
         log_it(L_DEBUG, "Pkey group %s", l_pkey_gdb_group);
-        dap_chain_global_db_gr_set(l_auth_info->user, l_pkey_raw, l_pkey_raw_size, l_pkey_gdb_group);
+        dap_chain_global_db_gr_set( dap_strdup(a_login), l_pkey_raw, l_pkey_raw_size, l_pkey_gdb_group);
         l_client_key = dap_enc_key_deserealize(l_pkey_raw, l_pkey_raw_size);
         DAP_DELETE(l_pkey_gdb_group);
     }
@@ -253,7 +274,7 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
         char *l_tx_cond_gdb_group =  dap_strdup_printf( "%s.%s.tx_cond", l_tpl->net->pub.name, DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
         log_it(L_DEBUG, "Checkout group %s", l_tx_cond_gdb_group);
         dap_chain_hash_fast_t *l_tx_cond_hash =
-            (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(l_auth_info->user, &l_gdb_group_size, l_tx_cond_gdb_group);
+            (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(a_login, &l_gdb_group_size, l_tx_cond_gdb_group);
 
         // Check for entry size
         if (l_gdb_group_size && l_gdb_group_size != sizeof(dap_chain_hash_fast_t)) {
@@ -296,7 +317,7 @@ static void s_auth_callback(enc_http_delegate_t* a_delegate, void * a_arg)
                 log_it(L_ERROR, "Can't create condiftion for user");
             } else {
                 log_it(L_NOTICE, "User \"%s\": created conditioned transaction from %s(%s) on "
-                                , l_auth_info->user, l_tpl->wallet_name, l_addr_from_str);
+                                , a_login, l_tpl->wallet_name, l_addr_from_str);
             }
             DAP_DELETE( l_addr_from_str );
         }

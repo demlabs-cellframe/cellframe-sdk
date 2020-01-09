@@ -24,8 +24,10 @@
 */
 #pragma once
 #include "dap_http.h"
+#include "dap_enc_http.h"
 
 #define DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX "local.srv.vpn"
 
 int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http);
 void dap_chain_net_srv_vpn_cdb_deinit();
+void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const char * a_login, const char * a_pkey_b64 );
