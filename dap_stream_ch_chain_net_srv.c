@@ -409,7 +409,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
                     char * l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
                     dap_chain_global_db_gr_set( l_receipt_hash_str,l_receipt,l_receipt_size,"local.receipts");
-
+                    l_receipt_hash_str = NULL; // To prevent usage of this pointer when it will be free by GDB processor
                     // Form input transaction
                     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->wallet, l_usage->net->pub.id);
 
