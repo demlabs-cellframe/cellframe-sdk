@@ -214,7 +214,7 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
 
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
-    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
+    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
             ,l_gdb_group)) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
     }
@@ -485,7 +485,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
-    if( dap_chain_global_db_gr_set( l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
+    if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
                                    , l_gdb_group ) ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
     }
@@ -623,7 +623,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
-    if( dap_chain_global_db_gr_set( l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
+    if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
                                    , l_gdb_group ) ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
     }
@@ -755,7 +755,7 @@ int dap_chain_mempool_tx_create_receipt(uint64_t a_value)
     DAP_DELETE(l_tx);
 
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
+    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
             , c_dap_datum_mempool_gdb_group)) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
         // add transaction to ledger
@@ -940,19 +940,19 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if(dap_chain_global_db_gr_set(a_key, request_str,(size_t) request_size,
+                    if(dap_chain_global_db_gr_set(dap_strdup(a_key), request_str,(size_t) request_size,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "OK" : "False!");
-                    //DAP_DELETE(a_value);
+                    DAP_DELETE(a_key);
                     break;
 
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
-                    char *str = dap_chain_global_db_gr_get((const char*) a_key, NULL,
+                    char *str = dap_chain_global_db_gr_get( dap_strdup(a_key) , NULL,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"));
                     if(str) {
                         dg->response = strdup("1");
@@ -971,7 +971,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-                    if(dap_chain_global_db_gr_del(((const char*) a_key),
+                    if(dap_chain_global_db_gr_del( dap_strdup(a_key),
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         dg->response = strdup("1");
 
