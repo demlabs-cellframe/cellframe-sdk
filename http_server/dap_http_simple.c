@@ -3,7 +3,7 @@
 * Dmitrii Gerasimov <naeper@demlabs.net>
 * DeM Labs Inc.   https://demlabs.net
 * Cellframe https://cellframe.net
-* Copyright  (c) 2017-2019
+* Copyright  (c) 2017-2020
 * All rights reserved.
 
 This file is part of DAP the open source project.
@@ -40,6 +40,8 @@ See more details here <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 
 #include "utlist.h"
+#include "json-c/json.h"
+#include "json-c/json_object.h"
 
 #include "dap_common.h"
 #include "dap_config.h"
@@ -48,6 +50,7 @@ See more details here <http://www.gnu.org/licenses/>.
 #include "dap_http_simple.h"
 #include "dap_enc_key.h"
 #include "dap_http_user_agent.h"
+
 
 #include "../enc_server/dap_enc_ks.h"
 #include "../enc_server/dap_enc_http.h"

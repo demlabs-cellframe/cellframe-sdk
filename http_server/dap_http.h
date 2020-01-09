@@ -1,25 +1,27 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+* Authors:
+* Dmitrii Gerasimov <naeper@demlabs.net>
+* DeM Labs Inc.   https://demlabs.net
+* Cellframe https://cellframe.net
+* Copyright  (c) 2017-2019
+* All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+This file is part of DAP the open source project.
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+DAP is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Lesser General Public License for more details.
+DAP is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU Lesser General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+See more details here <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef _SERVER_HTTP_H_
-#define _SERVER_HTTP_H_
 #include "dap_server.h"
 #include "dap_client_remote.h"
 #include "http_client/dap_http_header.h"
@@ -60,13 +62,13 @@ typedef struct dap_http {
 
 #define DAP_HTTP(a) ((dap_http_t *) (a)->_inheritor)
 
-extern int dap_http_init( ); // Init module
-extern void dap_http_deinit( ); // Deinit module
+int dap_http_init( ); // Init module
+void dap_http_deinit( ); // Deinit module
 
-extern int dap_http_new( dap_server_t *sh, const char *server_name ); // Create dap_http structure in the internal data field of dap_server_t instance
-extern void dap_http_delete( dap_server_t *sh, void *arg ); // Clear dap_http structure in the internal data field of dap_server_t instance
+int dap_http_new( dap_server_t *sh, const char *server_name ); // Create dap_http structure in the internal data field of dap_server_t instance
+void dap_http_delete( dap_server_t *sh, void *arg ); // Clear dap_http structure in the internal data field of dap_server_t instance
 
-extern void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
+void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                              ,dap_http_client_callback_t new_callback
                              ,dap_http_client_callback_t delete_callback
                              ,dap_http_client_callback_t headers_read_callback
@@ -75,4 +77,3 @@ extern void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *intern
                              ,dap_http_client_callback_t data_write_callback
                              ,dap_http_client_callback_t error_callback ); // Add custom procesor for the HTTP server
 
-#endif

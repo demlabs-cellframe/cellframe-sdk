@@ -137,7 +137,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
  */
 void enc_http_add_proc(struct dap_http * sh, const char * url)
 {
-    dap_http_simple_proc_add(sh,url,40000,enc_http_proc);
+    dap_http_simple_proc_add(sh,url,140000,enc_http_proc);
 }
 
 /**
