@@ -66,13 +66,13 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out);
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set(char *a_key,  void *a_value, size_t a_value_len, char *a_group);
+bool dap_chain_global_db_gr_set(char *a_key,  void *a_value, size_t a_value_len,const char *a_group);
 bool dap_chain_global_db_set( char *a_key, void *a_value, size_t a_value_len);
 
 /**
  * Delete entry from base
  */
-bool dap_chain_global_db_gr_del(char *a_key, char *a_group);
+bool dap_chain_global_db_gr_del(char *a_key, const char *a_group);
 bool dap_chain_global_db_del(char *a_key);
 
 /**

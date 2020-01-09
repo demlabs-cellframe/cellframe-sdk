@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Authors:
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
@@ -295,9 +295,19 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 }
 
 /**
- * Set one entry to base
+ *
  */
-bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len,  char *a_group)
+
+/**
+ * @brief dap_chain_global_db_gr_set
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ * @param a_group
+ * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
+ * @return
+ */
+bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len,  const char *a_group)
 {
     dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     memset(&store_data, 0, sizeof(dap_store_obj_t));
@@ -348,14 +358,14 @@ bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
 /**
  * Delete entry from base
  */
-bool dap_chain_global_db_gr_del(char *a_key, char *a_group)
+bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
 {
     if(!a_key)
         return NULL;
     pdap_store_obj_t store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     store_data->key = a_key;
-    store_data->c_key = a_key;
-    store_data->group = a_group;
+   // store_data->c_key = a_key;
+    store_data->group = dap_strdup(a_group);
     store_data->c_group = a_group;
     lock();
     int l_res = dap_chain_global_db_driver_delete(store_data, 1);
@@ -379,7 +389,7 @@ bool dap_chain_global_db_gr_del(char *a_key, char *a_group)
         if(l_group_prefix)
             DAP_DELETE(l_group_prefix);
     }
-    DAP_DELETE(store_data);
+    //DAP_DELETE(store_data);
     if(!l_res)
         return true;
     return false;

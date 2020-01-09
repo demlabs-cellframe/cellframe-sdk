@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-//#include <dap_common.h>
+#include <dap_common.h>
 #include <dap_strfuncs.h>
 #include <dap_string.h>
 //#include "dap_chain_node.h"
@@ -19,12 +19,15 @@ static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name
     if(!a_net_name)
         return false;
     char *l_key = dap_strdup_printf("cur_node_addr_%s", a_net_name);
-    bool l_ret = dap_chain_global_db_gr_set(l_key, (uint8_t*) &a_address, sizeof(a_address), GROUP_LOCAL_GENERAL);
-    DAP_DELETE(l_key);
+    uint64_t * l_address = DAP_NEW_Z(uint64_t);
+    *l_address = a_address;
+    bool l_ret = dap_chain_global_db_gr_set(l_key, (uint8_t*) l_address, sizeof(a_address), GROUP_LOCAL_GENERAL);
+    //DAP_DELETE(l_key);
     if(l_ret) {
-        time_t l_cur_time = a_expire_time;
+        time_t *l_cur_time = DAP_NEW_Z(time_t);
+        *l_cur_time= a_expire_time;
         char *l_key_time = dap_strdup_printf("cur_node_addr_%s_time", a_net_name);
-        l_ret = dap_chain_global_db_gr_set(l_key_time, (uint8_t*) &l_cur_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
+        l_ret = dap_chain_global_db_gr_set( dap_strdup(l_key_time), (uint8_t*) l_cur_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
         DAP_DELETE(l_key_time);
     }
     return l_ret;
