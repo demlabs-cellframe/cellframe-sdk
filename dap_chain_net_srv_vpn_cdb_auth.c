@@ -218,13 +218,13 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
         const char * l_first_name_str = NULL;
         const char * l_last_name_str = NULL;
         const char * l_email_str = NULL;
-        const char * l_active_time_str = NULL;
+        const char * l_active_days_str = NULL;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--login", &l_login_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--password", &l_password_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--first_name", &l_first_name_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--last_name", &l_last_name_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--email", &l_email_str);
-        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--active_time", &l_active_time_str);
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--active_days", &l_active_days_str);
 
         if ( ( l_is_user_create && l_login_str && l_password_str ) ||
              ( l_is_user_update && l_login_str && ( l_password_str || l_first_name_str || l_last_name_str || l_email_str ) ) ){
@@ -252,11 +252,11 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
             dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_time,sizeof (*l_time),s_group_ts_updated );
             l_time = NULL; // to prevent usage uleased memory that could be free in any moment
 
-            if ( l_active_time_str ){
-                uint64_t l_active_time = strtoull(l_active_time_str,NULL,10);
-                if ( l_active_time ){
-                    *l_time = DAP_NEW_Z(dap_chain_time_t);
-                    *l_time = dap_chain_time_now() + (dap_chain_time_t) l_active_time ;
+            if ( l_active_days_str ){
+                uint64_t l_active_days = strtoull(l_active_days_str,NULL,10);
+                if ( l_active_days ){
+                    l_time = DAP_NEW_Z(dap_chain_time_t);
+                    *l_time = dap_chain_time_now() + (dap_chain_time_t) l_active_days*86400ull;
                     dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_time,sizeof (*l_time) ,s_group_ts_active_till );
                 }else
                     dap_string_append_printf(l_ret_str,"WARNING: Wrong --active_time format\n");
