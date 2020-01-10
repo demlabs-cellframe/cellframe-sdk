@@ -34,4 +34,4 @@ void dap_chain_net_srv_vpn_cdb_auth_add_proc(dap_http_t * a_http, const char * a
 void dap_chain_net_srv_vpn_cdb_auth_set_callback(dap_enc_http_callback_t a_callback_success);
 int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply);
 
-int dap_chain_net_srv_vpn_cdb_auth_check_password(const char * a_login, const char * a_password);
+int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_password);

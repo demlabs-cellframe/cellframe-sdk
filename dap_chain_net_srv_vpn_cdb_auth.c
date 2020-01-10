@@ -62,6 +62,7 @@
 #define OP_CODE_NOT_FOUND_LOGIN_IN_DB "0xf3"
 #define OP_CODE_SUBSCRIBE_EXPIRIED "0xf4"
 #define OP_CODE_INCORRECT_SYMOLS "0xf6"
+#define OP_CODE_LOGIN_INACTIVE  "0xf7"
 
 
 dap_enc_http_callback_t s_callback_success = NULL;
@@ -77,6 +78,7 @@ static char * s_group_ts_updated = NULL;
 static char * s_group_ts_last_login = NULL;
 static char * s_group_cookies = NULL;
 static char * s_group_cookie = NULL;
+static char * s_group_ts_active_till = NULL;
 
 static char * s_salt_str = "Ijg24GAS56h3hg7hj245b";
 
@@ -110,7 +112,7 @@ int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, bool a_is_regist
     s_group_cookie  = dap_strdup_printf("%s.cookie",s_group_users);
     s_group_ts_updated = dap_strdup_printf("%s.ts_updated",s_group_users);
     s_group_ts_last_login = dap_strdup_printf("%s.ts_last_login",s_group_users);
-
+    s_group_ts_active_till = dap_strdup_printf("%s.ts_active_till",s_group_users);
 
     return 0;
 }
@@ -137,14 +139,14 @@ void dap_chain_net_srv_vpn_cdb_auth_set_callback(dap_enc_http_callback_t a_callb
  * @param a_password
  * @return
  */
-int dap_chain_net_srv_vpn_cdb_auth_check_password(const char * a_login, const char * a_password)
+int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_password)
 {
     int l_ret;
 
-    size_t l_gdb_password_hash_size=0;
+    size_t l_tmp_size=0;
     dap_chain_hash_fast_t *l_gdb_password_hash;
     if ( (l_gdb_password_hash = (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get (
-             a_login,&l_gdb_password_hash_size  ,s_group_password ) ) ==NULL ){
+             a_login,&l_tmp_size  ,s_group_password ) ) ==NULL ){
         // No user in database
         return -1;
     }
@@ -156,6 +158,16 @@ int dap_chain_net_srv_vpn_cdb_auth_check_password(const char * a_login, const ch
 
     l_ret = (memcmp(&l_password_hash, l_gdb_password_hash,sizeof (l_password_hash) ) == 0)? 0: -2;
     DAP_DELETE(l_gdb_password_hash);
+
+    // if password check passed lets see is it active or not
+    if ( l_ret == 0){
+        time_t *l_ts_active_till= (time_t*) dap_chain_global_db_gr_get( a_login, &l_tmp_size, s_group_ts_active_till );
+        if ( l_ts_active_till ){
+            if ( *l_ts_active_till < time(NULL) )
+                l_ret = -4;
+        }else
+            l_ret = -3;
+    }
     return l_ret;
 }
 
@@ -206,12 +218,13 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
         const char * l_first_name_str = NULL;
         const char * l_last_name_str = NULL;
         const char * l_email_str = NULL;
+        const char * l_active_time_str = NULL;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--login", &l_login_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--password", &l_password_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--first_name", &l_first_name_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--last_name", &l_last_name_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--email", &l_email_str);
-
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--active_time", &l_active_time_str);
 
         if ( ( l_is_user_create && l_login_str && l_password_str ) ||
              ( l_is_user_update && l_login_str && ( l_password_str || l_first_name_str || l_last_name_str || l_email_str ) ) ){
@@ -224,14 +237,30 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
                 dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_password_hash,sizeof(*l_password_hash),s_group_password );
             }
 
-            if (l_first_name_str)
+            if ( l_first_name_str )
                 dap_chain_global_db_gr_set(dap_strdup(l_login_str), dap_strdup(l_first_name_str),strlen(l_first_name_str)+1,s_group_first_name );
 
-            if (l_last_name_str)
+            if ( l_last_name_str )
                 dap_chain_global_db_gr_set(dap_strdup(l_login_str), dap_strdup(l_last_name_str),strlen(l_last_name_str)+1,s_group_last_name );
 
-            if (l_email_str)
+            if ( l_email_str )
                 dap_chain_global_db_gr_set(dap_strdup(l_login_str), dap_strdup(l_email_str),strlen(l_email_str)+1,s_group_email );
+
+            // Update timestamp
+            dap_chain_time_t *l_time = DAP_NEW_Z(dap_chain_time_t);
+            *l_time = dap_chain_time_now();
+            dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_time,sizeof (*l_time),s_group_ts_updated );
+            l_time = NULL; // to prevent usage uleased memory that could be free in any moment
+
+            if ( l_active_time_str ){
+                uint64_t l_active_time = strtoull(l_active_time_str,NULL,10);
+                if ( l_active_time ){
+                    *l_time = DAP_NEW_Z(dap_chain_time_t);
+                    *l_time = dap_chain_time_now() + (dap_chain_time_t) l_active_time ;
+                    dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_time,sizeof (*l_time) ,s_group_ts_active_till );
+                }else
+                    dap_string_append_printf(l_ret_str,"WARNING: Wrong --active_time format\n");
+            }
 
             if (l_is_user_create){
                 dap_string_append_printf(l_ret_str,"OK: Created user '%s'\n",l_login_str );
@@ -291,7 +320,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
         const char * l_password_str = NULL;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--password", &l_password_str);
         if ( l_login_str && l_password_str) {
-            int l_check = dap_chain_net_srv_vpn_cdb_auth_check_password (l_login_str, l_password_str);
+            int l_check = dap_chain_net_srv_vpn_cdb_auth_check (l_login_str, l_password_str);
             if ( l_check == 0){
                 dap_string_append_printf(l_ret_str,"OK: Passed password check for '%s'\n",l_login_str );
                 l_ret = 0;
@@ -301,6 +330,12 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
             }else if (l_check == -2){
                 l_ret = -8;
                 dap_string_append_printf(l_ret_str,"ERROR: Wrong password for login '%s'\n", l_login_str );
+            }else if (l_check == -3){
+                l_ret = -10;
+                dap_string_append_printf(l_ret_str,"ERROR: Login '%s' is not activated\n", l_login_str );
+            }else if (l_check == -4){
+                l_ret = -11;
+                dap_string_append_printf(l_ret_str,"ERROR: Login '%s' activation is overdue\n", l_login_str );
             }else {
                 l_ret = -9;
                 dap_string_append_printf(l_ret_str,"ERROR: Unknown error in password check for login '%s'\n", l_login_str );
@@ -416,12 +451,12 @@ static void s_http_proc(dap_http_simple_t *a_http_simple, void * arg )
  */
 static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
 {
-    http_status_code_t * return_code = (http_status_code_t*)a_arg;
+    http_status_code_t * l_return_code = (http_status_code_t*)a_arg;
 
     if((a_delegate->request)&&(strcmp(a_delegate->action,"POST")==0)){
         if(a_delegate->in_query==NULL){
             log_it(L_WARNING,"Empty auth action");
-            *return_code = Http_Status_BadRequest;
+            *l_return_code = Http_Status_BadRequest;
             return;
         }else{
             if(strcmp(a_delegate->in_query,"logout")==0 ){
@@ -430,14 +465,14 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                                      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
                                      "<return>Successfuly logouted</return>\n"
                                      );
-                    *return_code = Http_Status_OK;
+                    *l_return_code = Http_Status_OK;
                 }else{
                     log_it(L_NOTICE,"Logout action: cookie %s is already logouted (by timeout?)", a_delegate->cookie);
                     enc_http_reply_f(a_delegate,
                                      "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
                                      "<err_str>No session in table</err_str>\n"
                                      );
-                    *return_code = Http_Status_OK;
+                    *l_return_code = Http_Status_OK;
                 }
 
             }else if(strcmp(a_delegate->in_query,"login")==0 ){
@@ -454,30 +489,30 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                     if(s_input_validation(l_login)==0){
                         log_it(L_WARNING,"Wrong symbols in username");
                         enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if(s_input_validation(l_password)==0){
                         log_it(L_WARNING,"Wrong symbols in password");
                         enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if(s_input_validation(l_pkey)==0){
                         log_it(L_WARNING,"Wrong symbols in base64 pkey string");
                         enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
 
-                    int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_password( l_login, l_password );
+                    int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check( l_login, l_password );
                     switch (l_login_result) {
                         case 0:{
                             size_t l_tmp_size;
                             char * l_first_name = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_first_name);
                             char * l_last_name = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_last_name);
                             char * l_email = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_email);
-                            time_t * l_ts_last_logined= (time_t*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_ts_last_login);
+                            dap_chain_time_t * l_ts_last_logined= (dap_chain_time_t*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_ts_last_login);
 
                             enc_http_reply_f(a_delegate,
                                              "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
@@ -498,7 +533,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             dap_chain_net_srv_vpn_cdb_auth_after (a_delegate, l_login, l_pkey ) ; // Here if smbd want to add smth to the output
                             enc_http_reply_f(a_delegate,"</auth_info>");
                             log_it(L_INFO, "Login: Successfuly logined user %s",l_login);
-                            *return_code = Http_Status_OK;
+                            *l_return_code = Http_Status_OK;
 
                             DAP_DELETE(l_first_name);
                             DAP_DELETE(l_last_name);
@@ -506,31 +541,35 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             DAP_DELETE(l_ts_last_logined);
 
                             // Update last logined
-                            l_ts_last_logined = DAP_NEW_Z(time_t);
-                            *l_ts_last_logined = time(NULL);
+                            l_ts_last_logined = DAP_NEW_Z(dap_chain_time_t);
+                            *l_ts_last_logined = dap_chain_time_now();
 
                             dap_chain_global_db_gr_set( dap_strdup( l_login), l_ts_last_logined, sizeof (time_t), s_group_ts_last_login );
                         }break;
                         case -1:
-                            enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
-                            *return_code = Http_Status_OK;
+                            enc_http_reply_f( a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
+                            *l_return_code = Http_Status_OK;
                             break;
                         case -2:
-                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
-                            *return_code = Http_Status_OK;
+                            enc_http_reply_f( a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
+                            *l_return_code = Http_Status_OK;
                             break;
-                        case 4:
-                            enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
-                            *return_code = Http_Status_PaymentRequired;
+                        case -3:
+                            enc_http_reply_f( a_delegate, OP_CODE_LOGIN_INACTIVE );
+                            *l_return_code = Http_Status_OK;
+                        break;
+                        case -4:
+                            enc_http_reply_f( a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED );
+                            *l_return_code = Http_Status_PaymentRequired;
                             break;
                         default:
                             log_it(L_WARNING, "Login: Unknown authorize error for login '%s'",l_login);
-                            *return_code = Http_Status_BadRequest;
+                            *l_return_code = Http_Status_BadRequest;
                             break;
                     }
                 }else{
                     log_it(L_DEBUG, "Login: wrong auth's request body ");
-                    *return_code = Http_Status_BadRequest;
+                    *l_return_code = Http_Status_BadRequest;
                 }
             }else if (s_is_registration_open && strcmp(a_delegate->in_query,"register")==0){
                 char l_login[128];
@@ -544,27 +583,27 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                           ,l_login,l_password,l_email,l_first_name,l_last_name)>=3){
                     if(s_input_validation(l_login)==0){
                         log_it(L_WARNING,"Registration: Wrong symbols in the username '%s'",l_login);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if(s_input_validation(l_password)==0){
                         log_it(L_WARNING,"Registration: Wrong symbols in the password");
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if(s_input_validation(l_first_name)==0){
                         log_it(L_WARNING,"Registration: Wrong symbols in the first name '%s'",l_first_name);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if(s_input_validation(l_last_name)==0){
                         log_it(L_WARNING,"Registration: Wrong symbols in the last name '%s'",l_last_name);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if(s_input_validation(l_email)==0){
                         log_it(L_WARNING,"Registration: Wrong symbols in the email '%s'",l_email);
-                        *return_code = Http_Status_BadRequest;
+                        *l_return_code = Http_Status_BadRequest;
                         return;
                     }
                     if ( l_login[0] && l_password[0] && l_email[0] ){
@@ -607,16 +646,16 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                     }
                 }else{
                     log_it(L_ERROR, "Registration: Wrong auth's request body ");
-                    *return_code = Http_Status_BadRequest;
+                    *l_return_code = Http_Status_BadRequest;
                 }
             }else{
                 log_it(L_ERROR, "Unknown auth command was selected (query_string='%s')",a_delegate->in_query);
-                *return_code = Http_Status_BadRequest;
+                *l_return_code = Http_Status_BadRequest;
             }
         }
     }else{
         log_it(L_ERROR, "Wrong auth request action '%s'",a_delegate->action);
-        *return_code = Http_Status_BadRequest;
+        *l_return_code = Http_Status_BadRequest;
     }
 }
 
