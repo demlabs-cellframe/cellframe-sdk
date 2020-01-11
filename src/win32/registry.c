@@ -13,31 +13,31 @@ wchar_t* readRegKey(HKEY hKey, LPCWSTR regSubKey, LPCWSTR val) {
 }
 
 char* regGetUsrPath() {
-    static char path[MAX_PATH] = {};
+    static char path[MAX_PATH] = {'\0'};
     if (strlen(path) > 3) { return path; }
     HKEY hKey;
     const char keyPath[] = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders";
-    LSTATUS err = RegOpenKeyExA(HKEY_CURRENT_USER,
+    LSTATUS err = RegOpenKeyExA(HKEY_LOCAL_MACHINE,
                                  keyPath,
                                  0, KEY_READ, &hKey );
     if (err != ERROR_SUCCESS) { return NULL; }
     DWORD len = MAX_PATH;
-    err = RegGetValueA(hKey, NULL, "Personal", RRF_RT_REG_SZ, NULL, (void*)path, &len);
+    err = RegGetValueA(hKey, NULL, "Common Documents", RRF_RT_REG_SZ, NULL, (void*)path, &len);
     RegCloseKey(hKey);
     return path;
 }
 
 wchar_t* regWGetUsrPath() {
-    static wchar_t path[MAX_PATH] = {};
+    static wchar_t path[MAX_PATH] = {'\0'};
     if (wcslen(path) > 3) { return path; }
     HKEY hKey;
     const char keyPath[] = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders";
-    LSTATUS err = RegOpenKeyExA(HKEY_CURRENT_USER,
+    LSTATUS err = RegOpenKeyExA(HKEY_LOCAL_MACHINE,
                                  keyPath,
                                  0, KEY_READ, &hKey );
     if (err != ERROR_SUCCESS) { return NULL; }
     DWORD len = MAX_PATH;
-    err = RegGetValueW(hKey, NULL, L"Personal", RRF_RT_REG_SZ, NULL, (void*)path, &len);
+    err = RegGetValueW(hKey, NULL, L"Common Documents", RRF_RT_REG_SZ, NULL, (void*)path, &len);
     RegCloseKey(hKey);
     return path;
 }
