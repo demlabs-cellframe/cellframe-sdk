@@ -121,7 +121,7 @@ RET:
 }
 
 /**
- * @brief dap_chain_wallet_create
+ * @brief dap_chain_wallet_create_with_seed
  * @param a_wallet_name
  * @param a_wallets_path
  * @param a_net_id
@@ -129,7 +129,8 @@ RET:
  * @details Creates new wallet
  * @return Wallet, new wallet or NULL if errors
  */
-dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type)
+dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
+        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size)
 {
     dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
@@ -142,8 +143,8 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
 
     dap_snprintf(l_wallet_internal->file_name,l_file_name_size,"%s/%s.dwallet",a_wallets_path,a_wallet_name);
 
-    l_wallet_internal->certs[0] = dap_cert_generate_mem(a_wallet_name,
-                                                         dap_sign_type_to_key_type(a_sig_type));
+    l_wallet_internal->certs[0] = dap_cert_generate_mem_with_seed(a_wallet_name,
+                                                         dap_sign_type_to_key_type(a_sig_type), a_seed, a_seed_size);
 
 
     if ( dap_chain_wallet_save(l_wallet) == 0 )
@@ -155,11 +156,27 @@ dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const c
 }
 
 /**
+ * @brief dap_chain_wallet_create
+ * @param a_wallet_name
+ * @param a_wallets_path
+ * @param a_net_id
+ * @param a_sig_type
+ * @details Creates new wallet
+ * @return Wallet, new wallet or NULL if errors
+ */
+dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type)
+{
+    return dap_chain_wallet_create_with_seed(a_wallet_name, a_wallets_path, a_sig_type, NULL, 0);
+}
+
+/**
  * @brief dap_chain_wallet_close
  * @param a_wallet
  */
 void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
 {
+    if(!a_wallet)
+        return;
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
     if(a_wallet->name)
         DAP_DELETE (a_wallet->name);
