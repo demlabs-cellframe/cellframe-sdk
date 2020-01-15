@@ -1506,11 +1506,11 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 
     dap_chain_node_addr_t address;
     memset(&address, 0, sizeof(dap_chain_node_addr_t));
-    const char *addr_str = NULL, *wallet_name = NULL, *l_net_name = NULL;
+    const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL;
     // find wallet addr
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &addr_str);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &wallet_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name); // for
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
@@ -1518,21 +1518,53 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     switch (cmd_num) {
     // new wallet
     case CMD_WALLET_NEW: {
-        if(!wallet_name) {
-            dap_chain_node_cli_set_reply_text(str_reply,
-                    "wallet name option <-w>  not defined");
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-sign", &l_sign_type_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-restore", &l_restore_str);
+        // rewrite existing wallet
+        int l_is_force = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-force", NULL);
+
+        if(!l_wallet_name) {
+            dap_chain_node_cli_set_reply_text(str_reply, "wallet name option <-w>  not defined");
             return -1;
         }
-        dap_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
+        // check wallet existence
+        if(!l_is_force) {
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+            if(l_wallet) {
+                dap_chain_node_cli_set_reply_text(str_reply, "wallet already exists");
+                dap_chain_wallet_close(l_wallet);
+                return -1;
+            }
+        }
+
+//        dap_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
+        dap_sign_type_t l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+        if(l_sign_type.type == SIG_TYPE_NULL){
+            l_sign_type.type = SIG_TYPE_BLISS;
+            l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+        }
+        uint8_t *l_seed = NULL;
+        size_t l_seed_size = 0;
+        size_t l_restore_str_size = dap_strlen(l_restore_str);
+        if(l_restore_str && l_restore_str_size > 2 && !dap_strncmp(l_restore_str, "0x", 2)) {
+            l_seed_size = (l_restore_str_size - 2) / 2;
+            l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
+            if(!dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2)){
+                DAP_DELETE(l_seed);
+                l_seed = NULL;
+                l_seed_size = 0;
+            }
+        }
         // Creates new wallet
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(wallet_name, c_wallets_path,  l_sign_type);
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
+                l_seed, l_seed_size);
         dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
-        if(!l_wallet ) {
+        if(!l_wallet) {
             dap_chain_node_cli_set_reply_text(str_reply, "wallet is not created");
             return -1;
         }
         char *l_addr_str = l_addr? dap_chain_addr_to_str(l_addr) : NULL;
-        dap_string_append_printf(l_string_ret, "wallet '%s' successfully created\n", l_wallet->name);
+        dap_string_append_printf(l_string_ret, "wallet '%s' (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
         if ( l_addr_str )
             dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
         DAP_DELETE(l_addr_str);
@@ -1573,13 +1605,13 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         dap_chain_wallet_t *l_wallet = NULL;
         dap_chain_addr_t *l_addr = NULL;
 
-        if(wallet_name) {
-            l_wallet = dap_chain_wallet_open(wallet_name, c_wallets_path);
+        if(l_wallet_name) {
+            l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
             if ( l_net )
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
         }
-        if(!l_addr && addr_str)
-            l_addr = dap_chain_addr_from_str(addr_str);
+        if(!l_addr && l_addr_str)
+            l_addr = dap_chain_addr_from_str(l_addr_str);
 
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) l_net_name);
         if(!l_net_name) {
