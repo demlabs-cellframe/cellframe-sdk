@@ -72,7 +72,7 @@ typedef struct {
 ///==========================================================================================
 bool tesla_params_init(tesla_param_t *, tesla_kind_t );
 
-int tesla_crypto_sign_keypair(tesla_public_key_t *, tesla_private_key_t *, tesla_kind_t );
+int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_t *private_key, tesla_kind_t kind, const void * seed, size_t seed_size);
 
 int tesla_crypto_sign(tesla_signature_t *, const unsigned char *, unsigned long long, const tesla_private_key_t *);
 

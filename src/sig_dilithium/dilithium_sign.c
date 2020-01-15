@@ -2,7 +2,7 @@
 #include "dilithium_sign.h"
 
 //#include "KeccakHash.h"
-//#include "SimpleFIPS202.h"
+#include "SimpleFIPS202.h"
 
 /********************************************************************************************/
 void expand_mat(polyvecl mat[], const unsigned char rho[SEEDBYTES], dilithium_param_t *p)
@@ -132,7 +132,9 @@ static int32_t dilithium_private_and_public_keys_init(dilithium_private_key_t *p
 }
 
 /*************************************************/
-int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_private_key_t *private_key, dilithium_kind_t kind) {
+int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_private_key_t *private_key,
+        dilithium_kind_t kind, const void * seed, size_t seed_size)
+{
 
     dilithium_param_t *p = malloc(sizeof(dilithium_param_t));
     if (! dilithium_params_init( p, kind)) return -1;
@@ -153,7 +155,13 @@ int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_
     polyvecl s1, s1hat;
     polyveck s2, t, t1, t0;
 
-    randombytes(seedbuf, SEEDBYTES);
+    if(seed && seed_size > 0) {
+        assert(SEEDBYTES==32);
+        SHA3_256((unsigned char *) seedbuf, (const unsigned char *) seed, seed_size);
+    }
+    else {
+        randombytes(seedbuf, SEEDBYTES);
+    }
 
     //SHAKE256(seedbuf, 3*SEEDBYTES, seedbuf, SEEDBYTES);
     shake256(seedbuf, 3*SEEDBYTES, seedbuf, SEEDBYTES);

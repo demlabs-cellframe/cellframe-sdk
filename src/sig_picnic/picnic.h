@@ -68,7 +68,7 @@ int picnic_validate_keypair(const picnic_privatekey_t* privatekey, const picnic_
 
 void picnic_keypair_delete(picnic_privatekey_t* sk, picnic_publickey_t *pk);
 
-int picnic_keys_gen(picnic_privatekey_t *sk, picnic_publickey_t *pk, picnic_params_t param);
+int picnic_keys_gen(picnic_privatekey_t *sk, picnic_publickey_t *pk, picnic_params_t param, const void * seed, size_t seed_size);
 
 int get_param_set(picnic_params_t picnicParams, paramset_t* paramset);
 

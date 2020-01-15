@@ -193,10 +193,10 @@ int dap_cert_add_cert_sign(dap_cert_t * a_cert, dap_cert_t * a_cert_signer)
  * @param a_key_type
  * @return
  */
-dap_cert_t * dap_cert_generate_mem(const char * a_cert_name,
-                                               dap_enc_key_type_t a_key_type )
+dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_key_type_t a_key_type,
+        const void* a_seed, size_t a_seed_size)
 {
-    dap_enc_key_t *l_enc_key = dap_enc_key_new_generate(a_key_type, NULL, 0, NULL, 0, 0);
+    dap_enc_key_t *l_enc_key = dap_enc_key_new_generate(a_key_type, NULL, 0, a_seed, a_seed_size, 0);
     if ( l_enc_key ){
         dap_cert_t * l_cert = dap_cert_new(a_cert_name);
         l_cert->enc_key = l_enc_key;
@@ -211,6 +211,17 @@ dap_cert_t * dap_cert_generate_mem(const char * a_cert_name,
         //dap_cert_delete(l_cert);
         return NULL;
     }
+}
+
+/**
+ * @brief dap_cert_generate_mem
+ * @param a_cert_name
+ * @param a_key_type
+ * @return
+ */
+dap_cert_t * dap_cert_generate_mem(const char * a_cert_name, dap_enc_key_type_t a_key_type)
+{
+    return dap_cert_generate_mem_with_seed(a_cert_name, a_key_type, NULL, 0);
 }
 
 /**
