@@ -42,6 +42,8 @@ void dap_chain_wallet_deinit(void);
 
 const char* dap_chain_wallet_get_path(dap_config_t * a_config);
 
+dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
+        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size);
 dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type); // Creates new one if not found
 dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name);
 dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path);
