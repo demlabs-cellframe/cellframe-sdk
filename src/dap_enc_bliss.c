@@ -6,6 +6,8 @@
 #include "dap_enc_bliss.h"
 #include "dap_common.h"
 #include "dap_rand.h"
+#include "SimpleFIPS202.h"
+
 #define LOG_TAG "dap_enc_sig_bliss"
 
 static enum DAP_BLISS_SIGN_SECURITY _bliss_type = MAX_SECURITY; // by default
@@ -74,7 +76,12 @@ void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * a_key, const void *
 
     uint8_t seed_tmp[SHA3_512_DIGEST_LENGTH];
     entropy_t entropy;
-    randombytes(&seed_tmp, 64);
+    if(seed && seed_size>0){
+        assert(SHA3_512_DIGEST_LENGTH==64);
+        SHA3_512((unsigned char *)seed_tmp, (const unsigned char *)seed, seed_size);
+    }
+    else
+        randombytes(&seed_tmp, 64);
     entropy_init(&entropy, seed_tmp);
 
     /* type is a param of sign-security

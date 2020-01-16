@@ -135,16 +135,16 @@ dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str)
 {
     dap_sign_type_t l_sign_type = {0};
-    if ( strcmp (a_type_str,"sig_bliss") == 0 ){
+    if ( dap_strcmp (a_type_str,"sig_bliss") == 0 ){
         l_sign_type.type = SIG_TYPE_BLISS;
-    } else if ( strcmp (a_type_str,"sig_tesla") == 0){
+    } else if ( dap_strcmp (a_type_str,"sig_tesla") == 0){
         l_sign_type.type = SIG_TYPE_TESLA;
-    } else if ( strcmp (a_type_str,"sig_picnic") == 0){
+    } else if ( dap_strcmp (a_type_str,"sig_picnic") == 0){
         l_sign_type.type = SIG_TYPE_PICNIC;
-    }else if ( strcmp (a_type_str,"sig_dil") == 0){
+    }else if ( dap_strcmp (a_type_str,"sig_dil") == 0){
         l_sign_type.type = SIG_TYPE_DILITHIUM;
     }else{
-       log_it (L_WARNING, "Wrong sign type string \"%s\"",a_type_str);
+        log_it(L_WARNING, "Wrong sign type string \"%s\"", a_type_str ? a_type_str : "(null)");
     }
     return l_sign_type;
 }

@@ -52,8 +52,9 @@ size_t dap_cert_parse_str_list(const char * a_certs_str, dap_cert_t *** a_certs,
 
 dap_cert_t * dap_cert_generate(const char * a_cert_name,const char * a_file_path,dap_enc_key_type_t a_key_type );
 
-dap_cert_t * dap_cert_generate_mem(const char * a_cert_name,
-                                               dap_enc_key_type_t a_key_type );
+dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_key_type_t a_key_type,
+        const void* a_seed, size_t a_seed_size);
+dap_cert_t * dap_cert_generate_mem(const char * a_cert_name, dap_enc_key_type_t a_key_type );
 
 
 dap_cert_t * dap_cert_add_file(const char * a_cert_name,const char *a_folder_path);

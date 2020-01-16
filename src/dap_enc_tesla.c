@@ -58,7 +58,7 @@ void dap_enc_sig_tesla_key_new_generate(struct dap_enc_key * key, const void *ke
     key->pub_key_data = malloc(key->pub_key_data_size);
 
     retcode = tesla_crypto_sign_keypair((tesla_public_key_t *) key->pub_key_data,
-            (tesla_private_key_t *) key->priv_key_data, _tesla_type);
+            (tesla_private_key_t *) key->priv_key_data, _tesla_type, seed, seed_size);
     if(retcode != 0) {
         tesla_private_and_public_keys_delete((tesla_private_key_t *) key->pub_key_data,
                 (tesla_public_key_t *) key->pub_key_data);

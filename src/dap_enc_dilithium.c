@@ -52,7 +52,7 @@ void dap_enc_sig_dilithium_key_new_generate(struct dap_enc_key * key, const void
     key->pub_key_data = malloc(key->pub_key_data_size);
 
     retcode = dilithium_crypto_sign_keypair((dilithium_public_key_t *) key->pub_key_data,
-            (dilithium_private_key_t *) key->priv_key_data, _dilithium_type);
+            (dilithium_private_key_t *) key->priv_key_data, _dilithium_type, seed, seed_size);
     if(retcode != 0) {
         dilithium_private_and_public_keys_delete((dilithium_private_key_t *) key->pub_key_data,
                 (dilithium_public_key_t *) key->pub_key_data);

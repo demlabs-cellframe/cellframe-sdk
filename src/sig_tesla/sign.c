@@ -653,7 +653,7 @@ static int32_t tesla_private_and_public_keys_init(tesla_private_key_t *private_k
 *              - tesla_param_t *params: struct of TESLA parametrs
 * Returns:     0 for successful execution
 **********************************************************/
-int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_t *private_key, tesla_kind_t kind)
+int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_t *private_key, tesla_kind_t kind, const void * seed, size_t seed_size)
 {
     tesla_param_t *p = malloc(sizeof(tesla_param_t));
     if (! tesla_params_init( p, kind)) return -1;
@@ -666,7 +666,13 @@ int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_
     unsigned char *randomness_extended = malloc((p->PARAM_K + 3) * CRYPTO_SEEDBYTES * sizeof(char));
 
     // Get randomness_extended <- seed_e, seed_s, seed_a, seed_y
-    randombytes(randomness, CRYPTO_RANDOMBYTES);
+    if(seed && seed_size>0){
+        assert(CRYPTO_RANDOMBYTES==32);
+        SHA3_256((unsigned char *)randomness, (const unsigned char *)seed, seed_size);
+    }
+    else{
+        randombytes(randomness, CRYPTO_RANDOMBYTES);
+    }
 
     if(p->kind == 0 || p->kind == 3)
         SHAKE128(randomness_extended, ((p->PARAM_K) + 3) * CRYPTO_SEEDBYTES, randomness, CRYPTO_RANDOMBYTES);

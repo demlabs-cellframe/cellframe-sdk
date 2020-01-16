@@ -33,6 +33,15 @@ int SHAKE128(unsigned char *output, size_t outputByteLen, const unsigned char *i
   */
 int SHAKE256(unsigned char *output, size_t outputByteLen, const unsigned char *input, size_t inputByteLen);
 
+
+/** Implementation of SHA3-192 [FIPS 202].
+  * @param  output          Pointer to the output buffer (24 bytes).
+  * @param  input           Pointer to the input message.
+  * @param  inputByteLen    The length of the input message in bytes.
+  * @return 0 if successful, 1 otherwise.
+  */
+int SHA3_192(unsigned char *output, const unsigned char *input, size_t inputByteLen);
+
 /** Implementation of SHA3-224 [FIPS 202].
   * @param  output          Pointer to the output buffer (28 bytes).
   * @param  input           Pointer to the input message.

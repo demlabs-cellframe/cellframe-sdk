@@ -21,6 +21,11 @@ int SHAKE256(unsigned char *output, size_t outputByteLen, const unsigned char *i
     return KeccakWidth1600_Sponge(1088, 512, input, inputByteLen, 0x1F, output, outputByteLen);
 }
 
+int SHA3_192(unsigned char *output, const unsigned char *input, size_t inputByteLen)
+{
+    return KeccakWidth1600_Sponge(1216, 384, input, inputByteLen, 0x06, output, 192/8);
+}
+
 int SHA3_224(unsigned char *output, const unsigned char *input, size_t inputByteLen)
 {
     return KeccakWidth1600_Sponge(1152, 448, input, inputByteLen, 0x06, output, 224/8);

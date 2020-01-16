@@ -74,7 +74,8 @@ typedef struct {
 ///==========================================================================================
 bool dilithium_params_init(dilithium_param_t *, dilithium_kind_t );
 
-int dilithium_crypto_sign_keypair(dilithium_public_key_t *, dilithium_private_key_t *, dilithium_kind_t );
+int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_private_key_t *private_key,
+        dilithium_kind_t kind, const void * seed, size_t seed_size);
 
 int dilithium_crypto_sign(dilithium_signature_t *, const unsigned char *, unsigned long long, const dilithium_private_key_t *);
 
