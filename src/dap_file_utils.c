@@ -384,7 +384,7 @@ dap_list_t *dap_dir_get_subdirectory(const char *a_path_dir){
             dap_list_append(list, info_file.cFileName);
         }
     }
-    FindClose(info_file);
+    FindClose(h_find_file);
     DAP_FREE(m_path);
 #else
     DIR *dir = opendir(a_path_dir);
