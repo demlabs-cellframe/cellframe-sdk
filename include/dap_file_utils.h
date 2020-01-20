@@ -30,6 +30,8 @@
 
 #ifdef _WIN32
 
+#include <Windows.h>
+
 /* On Win32, the canonical directory separator is the backslash, and
  * the search path separator is the semicolon. Note that also the
  * (forward) slash works as directory separator.
@@ -88,7 +90,7 @@ bool  dap_path_is_absolute(const char *a_file_name);
 char* dap_path_get_dirname(const char *a_file_name);
 
 /**
- * Added function to define all subdirectories in a directory.
+ * Get list of subdirectories
  *
  * @a_path_name directory path.
  * @return dap_list_t type variable that contains a list of subdirectories.
