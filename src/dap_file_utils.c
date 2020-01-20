@@ -368,3 +368,17 @@ char* dap_path_get_dirname(const char *a_file_name)
 
     return l_base;
 }
+
+dap_list_t *dap_dir_get_subdirectory(const char *a_path_dir){
+    dap_list_t *list = dap_list_alloc();
+    DIR *dir = opendir(a_path_dir);
+    struct dirent *entry = readdir(dir);
+    while (entry != NULL){
+        if (strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".") != 0 && entry->d_type == DT_DIR){
+            dap_list_append(list, entry->d_name);
+        }
+        entry = readdir(dir);
+    }
+    closedir(dir);
+    return list;
+}
