@@ -87,6 +87,12 @@ char* dap_path_get_basename(const char *a_file_name);
 bool  dap_path_is_absolute(const char *a_file_name);
 char* dap_path_get_dirname(const char *a_file_name);
 
+/**
+ * Added function to define all subdirectories in a directory.
+ *
+ * @a_path_name directory path.
+ * @return dap_list_t type variable that contains a list of subdirectories.
+ */
 dap_list_t *dap_dir_get_subdirectory(const char *a_path_name);
 
 #endif // _FILE_UTILS_H_
