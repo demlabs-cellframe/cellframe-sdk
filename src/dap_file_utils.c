@@ -369,7 +369,7 @@ char* dap_path_get_dirname(const char *a_file_name)
     return l_base;
 }
 
-dap_list_t *dap_dir_get_subdirectory(const char *a_path_dir){
+dap_list_t *dap_get_subs(const char *a_path_dir){
     dap_list_t *list = dap_list_alloc();
 #ifdef _WIN32
     size_t m_size = strlen(a_path_dir);
