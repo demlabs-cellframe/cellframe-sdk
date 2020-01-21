@@ -519,20 +519,26 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         }
 
         dap_string_append_printf(l_string_reply, "\n");
+        char l_port_str[10];
+        sprintf(l_port_str,"%d",node_info_read->hdr.ext_port);
+
         // set short reply with node param
         if(!a_is_full)
             dap_string_append_printf(l_string_reply,
-                    "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
+                    "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tport: %s\tnumber of links %u",
                     NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                     node_info_read->hdr.cell_id.uint64, str_ip4,
+                    node_info_read->hdr.ext_port ? l_port_str : "default",
                     node_info_read->hdr.links_number);
         else
             // set full reply with node param
             dap_string_append_printf(l_string_reply,
-                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s%s\nlinks %u%s",
+                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s\nport: %s%s\nlinks %u%s",
                     NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                     node_info_read->hdr.cell_id.uint64,
-                    str_ip4, str_ip6, aliases_string->str,
+                    str_ip4, str_ip6,
+                    node_info_read->hdr.ext_port ? l_port_str : "default",
+                    aliases_string->str,
                     node_info_read->hdr.links_number, links_string->str);
         dap_string_free(aliases_string, true);
         dap_string_free(links_string, true);
@@ -725,7 +731,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 }
         }
     }
-    /*case CMD_FLUSH:
+    case CMD_FLUSH:
     {
         int res_flush = dap_chain_global_db_flush();
         switch (res_flush) {
@@ -750,7 +756,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             break;
         }
         return 0;
-    }*/
+    }
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
         return -1;
@@ -796,7 +802,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-    const char *l_addr_str = NULL, *alias_str = NULL;
+    const char *l_addr_str = NULL, *l_port_str = NULL, *alias_str = NULL;
     const char *l_cell_str = NULL, *l_link_str = NULL, *a_ipv4_str = NULL, *a_ipv6_str = NULL;
 
     // find net
@@ -807,6 +813,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
     // find addr, alias
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-port", &l_port_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ipv4", &a_ipv4_str);
@@ -827,6 +834,12 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         if(l_node_info)
             memcpy(&l_node_info->hdr.address, &l_node_addr, sizeof(dap_chain_node_addr_t));
+    }
+    if(l_port_str) {
+        uint16_t l_node_port = 0;
+        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        if(l_node_info)
+            l_node_info->hdr.ext_port = l_node_port;
     }
     if(l_cell_str && l_node_info) {
         dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
