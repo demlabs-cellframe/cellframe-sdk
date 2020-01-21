@@ -22,11 +22,15 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdbool.h>
+#include "dap_list.h"
+#include <dirent.h>
 
 #ifndef _DAP_FILE_UTILS_H_
 #define _DAP_FILE_UTILS_H_
 
 #ifdef _WIN32
+
+#include <Windows.h>
 
 /* On Win32, the canonical directory separator is the backslash, and
  * the search path separator is the semicolon. Note that also the
@@ -84,5 +88,13 @@ int dap_mkdir_with_parents(const char *a_dir_path);
 char* dap_path_get_basename(const char *a_file_name);
 bool  dap_path_is_absolute(const char *a_file_name);
 char* dap_path_get_dirname(const char *a_file_name);
+
+/**
+ * Get list of subdirectories
+ *
+ * @a_path_name directory path.
+ * @return dap_list_t type variable that contains a list of subdirectories.
+ */
+dap_list_t *dap_get_subs(const char *a_path_name);
 
 #endif // _FILE_UTILS_H_

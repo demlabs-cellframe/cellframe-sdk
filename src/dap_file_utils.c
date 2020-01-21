@@ -368,3 +368,34 @@ char* dap_path_get_dirname(const char *a_file_name)
 
     return l_base;
 }
+
+dap_list_t *dap_get_subs(const char *a_path_dir){
+    dap_list_t *list = dap_list_alloc();
+#ifdef _WIN32
+    size_t m_size = strlen(a_path_dir);
+    char *m_path = DAP_NEW_SIZE(char, m_size + 2);
+    memcpy(m_path, a_path_dir, m_size);
+    m_path[m_size] = '*';
+    m_path[m_size + 1] = '\0';
+    WIN32_FIND_DATA info_file;
+    HANDLE h_find_file = FindFirstFileA(m_path, &info_file);
+    while (FindNextFileA(h_find_file, &info_file)){
+        if (info_file.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY){
+            dap_list_append(list, info_file.cFileName);
+        }
+    }
+    FindClose(h_find_file);
+    DAP_FREE(m_path);
+#else
+    DIR *dir = opendir(a_path_dir);
+    struct dirent *entry = readdir(dir);
+    while (entry != NULL){
+        if (strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".") != 0 && entry->d_type == DT_DIR){
+            dap_list_append(list, entry->d_name);
+        }
+        entry = readdir(dir);
+    }
+    closedir(dir);
+#endif
+    return list;
+}
