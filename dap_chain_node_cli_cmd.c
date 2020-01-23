@@ -618,20 +618,25 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 
                 if(i)
                     dap_string_append_printf(l_string_reply, "\n");
+                char l_port_str[10];
+                sprintf(l_port_str,"%d",node_info_read->hdr.ext_port);
                 // set short reply with node param
                 if(!a_is_full)
                     dap_string_append_printf(l_string_reply,
-                            "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tnumber of links %u",
+                            "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tport: %s\tnumber of links %u",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                             node_info_read->hdr.cell_id.uint64, str_ip4,
+                            node_info_read->hdr.ext_port ? l_port_str : "default",
                             node_info_read->hdr.links_number);
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
-                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s%s\nlinks %u%s",
+                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s\nport: %s%s\nlinks %u%s",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                             node_info_read->hdr.cell_id.uint64,
-                            str_ip4, str_ip6, aliases_string->str,
+                            str_ip4, str_ip6,
+                            node_info_read->hdr.ext_port ? l_port_str : "default",
+                            aliases_string->str,
                             node_info_read->hdr.links_number, links_string->str);
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);
@@ -2297,7 +2302,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
         l_certs_size = l_signs_total;
 
     // Create new datum token
-    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(l_datum_token->header_auth));
+    dap_chain_datum_token_t * l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
     l_datum_token->header_auth.type = 1; // Current version
     dap_snprintf(l_datum_token->header_auth.ticker, sizeof(l_datum_token->header_auth.ticker), "%s", l_ticker);
     l_datum_token->header_auth.total_supply = l_total_supply;
@@ -2313,7 +2318,7 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
                 sizeof(l_datum_token->header_auth),
                 0);
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_datum_token = DAP_REALLOC(l_datum_token, sizeof(l_datum_token->header_auth) + l_signs_offset + l_sign_size);
+        l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_signs_offset + l_sign_size);
         memcpy(l_datum_token->signs + l_signs_offset, l_sign, l_sign_size);
         l_signs_offset += l_sign_size;
         DAP_DELETE(l_sign);
