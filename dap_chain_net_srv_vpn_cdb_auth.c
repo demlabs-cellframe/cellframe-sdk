@@ -183,8 +183,7 @@ static int s_input_validation(const char * str)
         static const char *nospecial="0123456789"
                 "abcdefghijklmnopqrstuvwxyz"
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                ".=@?_!#$%";
-
+                ".=@?_!#$%-";
         while(*str) // Loop until (*url) == 0.  (*url) is about equivalent to url[0].
         {
                 // Can we find the character at *url in the string 'nospecial'?
@@ -478,12 +477,14 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
             }else if(strcmp(a_delegate->in_query,"login")==0 ){
                 char l_login[128]={0};
                 char l_password[256]={0};
-                char l_pkey[4096]={0};
+                char l_pkey[6001]={0};//char l_pkey[4096]={0};
 
                 char l_domain[64], l_domain2[64];
 
-                if( sscanf(a_delegate->request_str,"%127s %255s %4095s ",l_login,l_password,l_pkey) >=3 ||
-                    sscanf(a_delegate->request_str,"%127s %255s %63s %4095s %63s",l_login,l_password,l_domain, l_pkey, l_domain2) >=4 ){
+                //log_it(L_DEBUG, "request_size=%d request_str='%s'\n",a_delegate->request_size, a_delegate->request_str);
+
+                if( sscanf(a_delegate->request_str,"%127s %255s %63s %6000s %63s",l_login,l_password,l_domain, l_pkey, l_domain2) >=4 ||
+                    sscanf(a_delegate->request_str,"%127s %255s %6000s ",l_login,l_password,l_pkey) >=3){
                     log_it(L_INFO, "Trying to login with username '%s'",l_login);
 
                     if(s_input_validation(l_login)==0){
@@ -534,7 +535,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             enc_http_reply_f(a_delegate,"</auth_info>");
                             log_it(L_INFO, "Login: Successfuly logined user %s",l_login);
                             *l_return_code = Http_Status_OK;
-
+                            //log_it(L_DEBUG, "response_size='%d'",a_delegate->response_size);
                             DAP_DELETE(l_first_name);
                             DAP_DELETE(l_last_name);
                             DAP_DELETE(l_email);
