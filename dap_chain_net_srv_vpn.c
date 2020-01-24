@@ -505,7 +505,8 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
         if ( s_raw_server->ipv4_lease_last.s_addr == l_ch_vpn->addr_ipv4.s_addr ){
             s_raw_server->ipv4_lease_last.s_addr = ntohl( ntohl(s_raw_server->ipv4_lease_last.s_addr)-1 );
         }
-        l_is_unleased = true;
+        else
+            l_is_unleased = true;
         pthread_rwlock_unlock(& s_raw_server_rwlock);
     }
 
