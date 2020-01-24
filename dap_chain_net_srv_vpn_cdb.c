@@ -103,7 +103,7 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
         "[--acive_days <Setup active day thats left for user >]\n"
             "\tCreate user with login, password and some more optional fields\n\n"
         "vpn_cdb user update --login <Login> [--password <Password>] [--first_name <First Name] [--last_name <Last Name>] [--email <Email>]"
-                             "[--acive_days <Setup active day thats left for user >]\n"
+                             "[--active_days <Setup active day thats left for user >]\n"
             "\tUpdate existent user\n"
         "vpn_cdb user delete --login <Login>\n"
             "\tDelete user by login\n"
@@ -252,7 +252,8 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
 {
 #ifndef __ANDROID__
     dap_enc_key_t *l_client_key;
-    log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present");
+    log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present key_len=%d", dap_strlen( a_pkey_b64));
+    //log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present key_len=%d a_pkey_b64='%s'", dap_strlen( a_pkey_b64), a_pkey_b64);
     {
         size_t l_pkey_b64_length = dap_strlen( a_pkey_b64);
         byte_t *l_pkey_raw = DAP_NEW_Z_SIZE(byte_t,l_pkey_b64_length);
@@ -260,9 +261,12 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         size_t l_pkey_raw_size =
                 dap_enc_base64_decode(a_pkey_b64, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
         char *l_pkey_gdb_group=  dap_strdup_printf( "%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-        log_it(L_DEBUG, "Pkey group %s", l_pkey_gdb_group);
+        log_it(L_DEBUG, "Pkey group '%s'", l_pkey_gdb_group);
         dap_chain_global_db_gr_set( dap_strdup(a_login), l_pkey_raw, l_pkey_raw_size, l_pkey_gdb_group);
-        l_client_key = dap_enc_key_deserealize(l_pkey_raw, l_pkey_raw_size);
+
+        l_client_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_SIG_TESLA);
+        int l_res = dap_enc_key_deserealize_priv_key(l_client_key, l_pkey_raw, l_pkey_raw_size);
+        log_it(L_DEBUG, "dap_enc_key_deserealize_priv_key='%d'", l_res);
         DAP_DELETE(l_pkey_gdb_group);
     }
 
