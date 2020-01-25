@@ -318,7 +318,7 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
             char *l_addr_from_str = dap_chain_addr_to_str( l_addr_from );
             DAP_DELETE( l_addr_from);
             if (!l_tx_cond_hash) {
-                log_it(L_ERROR, "Can't create condiftion for user");
+                log_it(L_ERROR, "Can't create condition for user");
             } else {
                 log_it(L_NOTICE, "User \"%s\": created conditioned transaction from %s(%s) on "
                                 , a_login, l_tpl->wallet_name, l_addr_from_str);
@@ -333,10 +333,10 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
             enc_http_reply_f(a_delegate,"\t\t<net>%s</net>\n",l_tpl->net_name);
             enc_http_reply_f(a_delegate,"\t\t<token>%s</token>\n",l_tpl->token_ticker);
             enc_http_reply_f(a_delegate,"\t\t<tx_cond>%s</tx_cond>\n",l_tx_cond_hash_str);
+            enc_http_reply_f(a_delegate,"\t</tx_cond_tpl>\n");
             DAP_DELETE(l_tx_cond_hash);
             DAP_DELETE(l_tx_cond_hash_str);
         }
-        enc_http_reply_f(a_delegate,"\t</tx_cond_tpl>\n");
 
         DAP_DELETE(l_tx_cond_gdb_group);
     }
