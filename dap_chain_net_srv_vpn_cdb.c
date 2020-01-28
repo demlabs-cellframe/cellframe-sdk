@@ -313,13 +313,15 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
             dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, l_tpl->net->pub.id);
             dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
             dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
-            l_tx_cond_hash = dap_chain_mempool_tx_create_cond(l_tpl->net, l_key_from, l_client_key, l_addr_from, l_tpl->token_ticker,
+            l_tx_cond_hash = dap_chain_proc_tx_create_cond(l_tpl->net, l_key_from, l_client_key, l_addr_from, l_tpl->token_ticker,
                                                        (uint64_t) l_tpl->value_datoshi, 0, l_price_unit, l_srv_uid, 0, NULL, 0);
             char *l_addr_from_str = dap_chain_addr_to_str( l_addr_from );
             DAP_DELETE( l_addr_from);
             if (!l_tx_cond_hash) {
                 log_it(L_ERROR, "Can't create condition for user");
             } else {
+                // save transaction for login
+                dap_chain_global_db_gr_set(a_login, l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), l_tx_cond_gdb_group);
                 log_it(L_NOTICE, "User \"%s\": created conditioned transaction from %s(%s) on "
                                 , a_login, l_tpl->wallet_name, l_addr_from_str);
             }
@@ -330,7 +332,8 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         if( l_tx_cond_hash ){
             char * l_tx_cond_hash_str = dap_chain_hash_fast_to_str_new(l_tx_cond_hash);
             enc_http_reply_f(a_delegate,"\t<tx_cond_tpl>\n");
-            enc_http_reply_f(a_delegate,"\t\t<net>%s</net>\n",l_tpl->net_name);
+            //enc_http_reply_f(a_delegate,"\t\t<net>%s</net>\n",l_tpl->net_name);
+            enc_http_reply_f(a_delegate,"\t\t<net>0x%x</net>\n",l_tpl->net->pub.id.uint64);
             enc_http_reply_f(a_delegate,"\t\t<token>%s</token>\n",l_tpl->token_ticker);
             enc_http_reply_f(a_delegate,"\t\t<tx_cond>%s</tx_cond>\n",l_tx_cond_hash_str);
             enc_http_reply_f(a_delegate,"\t</tx_cond_tpl>\n");
