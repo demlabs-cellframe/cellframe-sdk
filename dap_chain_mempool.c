@@ -497,11 +497,11 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
 
 
 /**
- * Make transfer transaction & insert to cache
+ * Make transfer transaction
  *
- * return 0 Ok, -2 not enough funds to transfer, -1 other Error
+ * return dap_chain_datum_t, NULL if Error
  */
-dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
+static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
         dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
         const dap_chain_addr_t* a_addr_from,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -617,9 +617,86 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
     size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
     dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
 
-    dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
+    return l_datum;
+    /*dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
     dap_hash_fast( l_tx, l_tx_size, l_key_hash );
     DAP_DELETE( l_tx );
+
+    char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+    if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
+                                   , l_gdb_group ) ) {
+        log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
+    }
+    DAP_DELETE(l_gdb_group);
+    DAP_DELETE(l_key_str);
+
+    return l_key_hash;*/
+}
+
+/**
+ * Make transfer transaction & insert to cache
+ *
+ * return 0 Ok, -2 not enough funds to transfer, -1 other Error
+ */
+dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
+        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
+        const dap_chain_addr_t* a_addr_from,
+        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+        uint64_t a_value,uint64_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
+        dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
+{
+
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if(!l_chain)
+            return NULL;
+    // Make transfer transaction
+    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net,a_key_from, a_key_cond, a_addr_from,
+            a_token_ticker,a_value,a_value_per_unit_max, a_unit,
+            a_srv_uid, a_value_fee, a_cond, a_cond_size);
+
+    if(!l_datum)
+        return NULL;
+    size_t l_datums_number = l_chain->callback_datums_pool_proc(l_chain, &l_datum, 1);
+    if(!l_datums_number)
+            return NULL;
+
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)&(l_datum->data);
+    size_t l_tx_size = l_datum->header.data_size;
+
+    dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
+    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
+    //DAP_DELETE( l_tx );
+
+    return l_key_hash;
+}
+
+/**
+ * Make transfer transaction & insert to cache
+ *
+ * return 0 Ok, -2 not enough funds to transfer, -1 other Error
+ */
+dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
+        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
+        const dap_chain_addr_t* a_addr_from,
+        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+        uint64_t a_value,uint64_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
+        dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
+{
+    // Make transfer transaction
+    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net,a_key_from, a_key_cond, a_addr_from,
+            a_token_ticker,a_value,a_value_per_unit_max, a_unit,
+            a_srv_uid, a_value_fee, a_cond, a_cond_size);
+
+    if(!l_datum)
+        return NULL;
+
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)&(l_datum->data);
+    size_t l_tx_size = l_datum->header.data_size;//dap_chain_datum_tx_get_size( l_tx );
+
+    dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
+    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
+    //DAP_DELETE( l_tx );
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
