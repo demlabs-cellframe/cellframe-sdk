@@ -374,6 +374,21 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
                     DAP_DELETE( l_email );
                 }
 
+                size_t l_ts_active_till_size = 0;
+                time_t *l_ts_active_till = (time_t*) dap_chain_global_db_gr_get(l_login_str, &l_ts_active_till_size, s_group_ts_active_till);
+                if(l_ts_active_till_size) {
+                    double l_dt_days = difftime(*l_ts_active_till, time(NULL)) / 86400;
+
+                    if(l_dt_days < 1) {
+                        if(l_dt_days < 0)
+                            l_dt_days = 0;
+                        dap_string_append_printf(l_ret_str, "\tActive hours: %.2lf\n", l_dt_days * 24);
+                    }
+                    else
+                        dap_string_append_printf(l_ret_str, "\tActive days: %.2lf\n", l_dt_days);
+                    DAP_DELETE(l_ts_active_till);
+                }
+
                 l_ret = 0;
             }else{
                 l_ret = -6;
