@@ -866,10 +866,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     if ( l_listen_unix_socket_path && l_listen_unix_socket_permissions ) {
         if ( l_listen_unix_socket_permissions_str ) {
-            dap_sscanf(l_listen_unix_socket_permissions_str,"%04u", &l_listen_unix_socket_permissions );
-            dap_sscanf(l_listen_unix_socket_permissions_str,"%3u", &l_listen_unix_socket_permissions );
+            dap_sscanf(l_listen_unix_socket_permissions_str,"%ou", &l_listen_unix_socket_permissions );
         }
-        log_it( L_INFO, "Console interace on path %s (%04u) ", l_listen_unix_socket_path, l_listen_unix_socket_permissions );
+        log_it( L_INFO, "Console interace on path %s (%04o) ", l_listen_unix_socket_path, l_listen_unix_socket_permissions );
 
       #ifndef _WIN32
 
