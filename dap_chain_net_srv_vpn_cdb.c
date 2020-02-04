@@ -251,22 +251,29 @@ void dap_chain_net_srv_vpn_cdb_deinit()
 void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const char * a_login, const char * a_pkey_b64 )
 {
 #ifndef __ANDROID__
-    dap_enc_key_t *l_client_key;
+
+    dap_enc_key_t *l_client_key = NULL;
+    byte_t *l_pkey_raw = NULL;
+    size_t l_pkey_raw_size = 0;
     log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present key_len=%d", dap_strlen( a_pkey_b64));
-    //log_it( L_DEBUG, "Authorized, now need to create conditioned transaction if not present key_len=%d a_pkey_b64='%s'", dap_strlen( a_pkey_b64), a_pkey_b64);
     {
         size_t l_pkey_b64_length = dap_strlen( a_pkey_b64);
-        byte_t *l_pkey_raw = DAP_NEW_Z_SIZE(byte_t,l_pkey_b64_length);
+        l_pkey_raw = DAP_NEW_Z_SIZE(byte_t,l_pkey_b64_length);
         memset(l_pkey_raw, 0, l_pkey_b64_length);
-        size_t l_pkey_raw_size =
-                dap_enc_base64_decode(a_pkey_b64, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+        l_pkey_raw_size = dap_enc_base64_decode(a_pkey_b64, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
         char *l_pkey_gdb_group=  dap_strdup_printf( "%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
         log_it(L_DEBUG, "Pkey group '%s'", l_pkey_gdb_group);
         dap_chain_global_db_gr_set( dap_strdup(a_login), l_pkey_raw, l_pkey_raw_size, l_pkey_gdb_group);
 
         l_client_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_SIG_TESLA);
-        int l_res = dap_enc_key_deserealize_priv_key(l_client_key, l_pkey_raw, l_pkey_raw_size);
-        log_it(L_DEBUG, "dap_enc_key_deserealize_priv_key='%d'", l_res);
+        int l_res = dap_enc_key_deserealize_pub_key(l_client_key, l_pkey_raw, l_pkey_raw_size);
+        // bad pkey
+        if(l_res){
+            log_it(L_WARNING, "dap_enc_key_deserealize_priv_key='%d'", l_res);
+            DAP_DELETE(l_pkey_raw);
+            l_pkey_raw_size = 0;
+            l_pkey_raw = NULL;
+        }
         DAP_DELETE(l_pkey_gdb_group);
     }
 
@@ -314,7 +321,7 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
             dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
             dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
             l_tx_cond_hash = dap_chain_proc_tx_create_cond(l_tpl->net, l_key_from, l_client_key, l_addr_from, l_tpl->token_ticker,
-                                                       (uint64_t) l_tpl->value_datoshi, 0, l_price_unit, l_srv_uid, 0, NULL, 0);
+                                                       (uint64_t) l_tpl->value_datoshi, 0, l_price_unit, l_srv_uid, 0, l_pkey_raw, l_pkey_raw_size);
             char *l_addr_from_str = dap_chain_addr_to_str( l_addr_from );
             DAP_DELETE( l_addr_from);
             if (!l_tx_cond_hash) {
@@ -344,6 +351,6 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         DAP_DELETE(l_tx_cond_gdb_group);
     }
     if (l_client_key)
-        DAP_DELETE(l_client_key);
+        dap_enc_key_delete(l_client_key);
 #endif
 }
