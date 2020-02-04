@@ -64,7 +64,7 @@ typedef struct dap_chain_wallet_internal
     dap_cert_t ** certs;
 } dap_chain_wallet_internal_t;
 
-#define DAP_CHAIN_WALLET_INTERNAL(a) ((dap_chain_wallet_internal_t *) a->_internal  )
+#define DAP_CHAIN_WALLET_INTERNAL(a) (a ? (dap_chain_wallet_internal_t *) a->_internal : NULL)
 
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a)
 
