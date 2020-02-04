@@ -544,7 +544,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
     size_t l_receipt_size = l_receipt->size; // nested receipt plus 8 bits for type
 
     // Sign with our wallet
-    l_receipt_size = dap_chain_datum_tx_receipt_sign_add(l_receipt,l_receipt_size , dap_chain_wallet_get_key( a_usage->wallet,0) );
+    l_receipt_size = dap_chain_datum_tx_receipt_sign_add(&l_receipt,l_receipt_size , dap_chain_wallet_get_key( a_price->wallet,0) );
 
     a_usage->receipt = l_receipt;
     a_usage->receipt_size = l_receipt_size;
