@@ -60,23 +60,26 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
     return  l_ret;
 }
 
-size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_receipt, size_t a_receipt_size, dap_enc_key_t *a_key )
+size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t ** a_receipt, size_t a_receipt_size, dap_enc_key_t *a_key )
 {
-    if ( ! a_receipt ){
+    dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
+    if ( ! *a_receipt ){
         log_it( L_ERROR, "NULL receipt, can't add sign");
         return 0;
     }
-    dap_sign_t * l_sign = dap_sign_create(a_key,&a_receipt->receipt_info,sizeof (a_receipt->receipt_info),0);
+    dap_sign_t * l_sign = dap_sign_create(a_key,&l_receipt->receipt_info,sizeof (l_receipt->receipt_info),0);
     size_t l_sign_size = l_sign? dap_sign_get_size( l_sign ) : 0;
     if ( ! l_sign || ! l_sign_size ){
         log_it( L_ERROR, "Can't sign the receipt, may be smth with key?");
         return 0;
     }
-    a_receipt= (dap_chain_datum_tx_receipt_t*) DAP_REALLOC(a_receipt, a_receipt_size+l_sign_size);
-    memcpy(a_receipt->exts_n_signs+a_receipt_size+a_receipt->exts_size, l_sign, l_sign_size);
+    l_receipt= (dap_chain_datum_tx_receipt_t*) DAP_REALLOC(l_receipt, a_receipt_size+l_sign_size);
+    memcpy(l_receipt->exts_n_signs + l_receipt->exts_size, l_sign, l_sign_size);
     a_receipt_size += l_sign_size;
-    a_receipt->size = a_receipt_size;
+    l_receipt->size = a_receipt_size;
+    l_receipt->exts_size += l_sign_size;
     DAP_DELETE( l_sign );
+    *a_receipt = l_receipt;
     return a_receipt_size;
 }
 
@@ -86,14 +89,17 @@ size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t * a_rece
  * @param a_sign_position
  * @return
  */
-dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt,  size_t l_receipt_size,uint16_t a_sign_position  )
+dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size, uint16_t a_sign_position)
 {
-    if ( l_receipt_size <= sizeof (l_receipt->receipt_info)+1)
+    if ( !l_receipt ||  l_receipt_size != l_receipt->size || l_receipt_size <= sizeof (l_receipt->receipt_info)+1)
         return NULL;
-    dap_sign_t * l_sign = (dap_sign_t *) (l_receipt->exts_n_signs+l_receipt->exts_size);
+    dap_sign_t * l_sign = (dap_sign_t *)l_receipt->exts_n_signs;//+l_receipt->exts_size);
     for ( ; a_sign_position && l_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) l_receipt ) ; a_sign_position-- ){
         l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign ));
     }
+    // not enough signs in receipt
+    if(a_sign_position>0)
+        return NULL;
     return l_sign;
 }
 
@@ -106,10 +112,14 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
 uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a_receipt, size_t a_receipt_size)
 {
     uint16_t l_ret = 0;
-    for (dap_sign_t * l_sign = (dap_sign_t *) (a_receipt->exts_n_signs +a_receipt->exts_size); a_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
+    if(!a_receipt)
+        return 0;
+    dap_sign_t *l_sign;
+    for (l_sign = (dap_sign_t *)a_receipt->exts_n_signs; a_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
         l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign )) ){
         l_ret++;
     }
+    if(a_receipt_size != (size_t) ((byte_t *) l_sign - (byte_t *) a_receipt) )
+        log_it(L_ERROR, "Receipt 0x%x (size=%ud) is corrupted", a_receipt, a_receipt_size);
     return l_ret;
-
 }
