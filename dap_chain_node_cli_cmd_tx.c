@@ -430,7 +430,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
                                 l_records_tmp = dap_list_next(l_records_tmp);
                             }
                         }
-                        dap_list_free(l_records_out);
+                        //dap_list_free(l_records_out);
                     }
                     // in other transactions except first one
                     else {
@@ -570,7 +570,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
                                 }
                                 l_records_tmp = dap_list_next(l_records_tmp);
                             }
-                            dap_list_free(l_records_out);
+                            //dap_list_free(l_records_out);
                             DAP_DELETE(l_src_str);
 
                         }
@@ -587,7 +587,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
             dap_list_free(l_list_out_items);
         if(l_list_in_items)
             dap_list_free(l_list_in_items);
-
+        dap_list_free(l_records_out);
         DAP_DELETE(l_time_str);
 
         // go to next transaction
