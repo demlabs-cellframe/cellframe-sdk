@@ -40,6 +40,8 @@ static bliss_signature_t s_sign_bliss_null = {0};
 // calc signature size
 size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size_t a_output_wish_size )
 {
+    if(!a_key)
+        return 0;
     size_t l_sign_size = 0;
     switch (a_key->type){
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_size = sizeof(s_sign_bliss_null); break;
