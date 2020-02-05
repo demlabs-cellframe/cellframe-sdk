@@ -493,7 +493,7 @@ dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
 dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size)
 {
     if(buf_size != sizeof (dap_enc_key_serealize_t)) {
-        log_it(L_ERROR, "Key can't be deserealize. buf_size != sizeof (dap_enc_key_serealize_t)");
+        log_it(L_ERROR, "Key can't be deserealize. buf_size(%d) != sizeof (dap_enc_key_serealize_t)(%d)",buf_size,sizeof (dap_enc_key_serealize_t));
         return NULL;
     }
     const dap_enc_key_serealize_t *in_key = (const dap_enc_key_serealize_t *)buf;
