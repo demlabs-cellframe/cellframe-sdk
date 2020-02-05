@@ -253,6 +253,8 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet)
  */
 dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx )
 {
+    if(!a_wallet)
+        return NULL;
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
     if( l_wallet_internal->certs_count > a_pkey_idx ){
         return l_wallet_internal->certs[a_pkey_idx] ?
