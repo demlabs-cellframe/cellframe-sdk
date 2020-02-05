@@ -234,13 +234,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_request->hdr.tx_cond );
                     dap_stpcpy(l_usage->token_ticker, l_ticker);
 
-                    dap_chain_net_srv_price_t *l_price;
-                    DL_FOREACH(l_srv->pricelist, l_price) {
-                        if (l_price->net->pub.id.uint64                 == l_request->hdr.net_id.uint64
-                            && dap_strcmp(l_price->token, l_ticker)     == 0
-                            && l_price->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.header.unit.enm
-                            && (l_price->value_datoshi/l_price->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
-                                break;
+                    dap_chain_net_srv_price_t *l_price_tmp;
+                    DL_FOREACH(l_srv->pricelist, l_price_tmp) {
+                        if (l_price_tmp->net->pub.id.uint64                 == l_request->hdr.net_id.uint64
+                            && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
+                            && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.header.unit.enm
+                            )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
+                        {
+                            l_price = l_price_tmp;
+                            break;
+                        }
                     }
                     if ( !l_price ) {
                         log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
@@ -299,8 +302,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     DAP_DELETE(l_success);
 
                 }
-                if(l_receipt)
-                    DAP_DELETE(l_receipt);
+                // l_receipt used in l_usage->receipt
+                //if(l_receipt)
+                //    DAP_DELETE(l_receipt);
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST:{
                 log_it( L_NOTICE, "Requested smth to sign");
@@ -332,7 +336,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         log_it(L_WARNING, "Can't find receipt in usages thats equal to response receipt");
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
-                        if (l_usage->service->callback_response_error)
+                        if (l_usage && l_usage->service && l_usage->service->callback_response_error)
                                 l_usage->service->callback_response_error(l_usage->service,l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
@@ -360,8 +364,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                 l_usage->service->callback_response_error( l_usage->service, l_usage->id, l_usage->clients,&l_err,sizeof (l_err) );
                         break;
                     }
-
-                    dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_receipt, l_receipt_size, 0);
+                    // get a second signature - from the client (first sign in server, second sign in client)
+                    dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_receipt, l_receipt_size, 1);
                     if ( ! l_receipt_sign ){
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
