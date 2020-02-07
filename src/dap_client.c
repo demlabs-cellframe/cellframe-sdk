@@ -199,6 +199,7 @@ void dap_client_delete(dap_client_t * a_client)
     //a_client->_internal = NULL;
 
     dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+    a_client->_internal = NULL;
 
     //pthread_mutex_t *l_mutex = &a_client->mutex;
     //memset(a_client, 0, sizeof(dap_client_t));
@@ -322,6 +323,10 @@ void dap_client_request(dap_client_t * a_client, const char * a_full_path, void 
 int dap_client_disconnect( dap_client_t *a_client )
 {
     dap_client_pvt_t *l_client_internal = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
+    if (!l_client_internal)
+        return -1;
+    // stop connection
+    dap_http_client_simple_request_break(l_client_internal->curl_sockfd);
 
     if ( l_client_internal && l_client_internal->stream_socket ) {
 

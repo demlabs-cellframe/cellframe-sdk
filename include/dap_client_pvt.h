@@ -50,7 +50,8 @@ typedef struct dap_client_internal
 
 
     char  * session_key_id;
-
+    void  *curl;// curl connection descriptor
+    long  curl_sockfd;// curl socket descriptor
 
     char * last_parsed_node;
     char  * uplink_addr;
@@ -80,7 +81,7 @@ typedef struct dap_client_internal
     dap_client_callback_int_t request_error_callback;
 } dap_client_pvt_t;
 
-#define DAP_CLIENT_PVT(a) ((dap_client_pvt_t*) a->_internal )
+#define DAP_CLIENT_PVT(a) (a ? (dap_client_pvt_t*) a->_internal : NULL)
 
 int dap_client_pvt_init();
 void dap_client_pvt_deinit();
