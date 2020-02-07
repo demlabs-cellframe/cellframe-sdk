@@ -116,6 +116,24 @@ void dap_http_client_internal_delete( dap_http_client_internal_t * a_client_inte
 }
 
 /**
+ * @brief dap_http_client_simple_request_break
+ * @param a_curl
+ */
+void dap_http_client_simple_request_break(long a_curl_sock)
+{
+    //if(!a_curl)
+    if(a_curl_sock<0)
+        return;
+#ifdef _WIN32
+    closesocket(a_curl_sock);
+#else
+    close(a_curl_sock);
+#endif
+    //curl_multi_remove_handle(m_curl_mh, a_curl);
+    //curl_easy_cleanup(a_curl);
+}
+
+/**
  * @brief dap_http_client_simple_request
  * @param a_url
  * @param a_method
@@ -126,11 +144,11 @@ void dap_http_client_internal_delete( dap_http_client_internal_t * a_client_inte
  * @param a_error_callback
  * @param a_obj
  */
-void dap_http_client_simple_request_custom( const char *a_url, const char *a_method, const char *a_request_content_type, 
+void* dap_http_client_simple_request_custom( const char *a_url, const char *a_method, const char *a_request_content_type,
                                             void *a_request, size_t a_request_size, char *a_cookie, 
                                             dap_http_client_simple_callback_data_t a_response_callback,
                                             dap_http_client_simple_callback_error_t a_error_callback, 
-                                            void *a_obj, char **a_custom, size_t a_custom_count )
+                                            long *curl_sockfd, void *a_obj, char **a_custom, size_t a_custom_count )
 {
   log_it( L_DEBUG, "Simple HTTP request with static predefined buffer (%lu bytes) on url '%s'",
          DAP_HTTP_CLIENT_RESPONSE_SIZE_MAX, a_url );
@@ -190,6 +208,9 @@ void dap_http_client_simple_request_custom( const char *a_url, const char *a_met
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEDATA , l_client_internal );
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEFUNCTION , dap_http_client_curl_response_callback );
 
+  //if(curl_sockfd)
+      //curl_easy_getinfo( l_curl_h , CURLINFO_LASTSOCKET, curl_sockfd);
+
   curl_multi_add_handle( m_curl_mh, l_curl_h );
     //curl_multi_perform(m_curl_mh, &m_curl_cond);
 
@@ -197,7 +218,7 @@ void dap_http_client_simple_request_custom( const char *a_url, const char *a_met
   pthread_cond_signal( &m_curl_cond);
   send_select_break( );
 #endif
-
+  return l_curl_h;
 }
 
 /**
@@ -211,8 +232,8 @@ void dap_http_client_simple_request_custom( const char *a_url, const char *a_met
  * @param a_error_callback
  * @param a_obj
  */
-void dap_http_client_simple_request(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, char * a_cookie, dap_http_client_simple_callback_data_t a_response_callback,
-                                   dap_http_client_simple_callback_error_t a_error_callback, void *a_obj, void * a_custom)
+void* dap_http_client_simple_request(const char * a_url, const char * a_method, const char* a_request_content_type, void *a_request, size_t a_request_size, char * a_cookie, dap_http_client_simple_callback_data_t a_response_callback,
+                                   dap_http_client_simple_callback_error_t a_error_callback, long *curl_sockfd, void *a_obj, void * a_custom)
 {
     char *a_custom_new[1];
     size_t a_custom_count = 0;
@@ -222,8 +243,8 @@ void dap_http_client_simple_request(const char * a_url, const char * a_method, c
     if(a_custom)
         a_custom_count = 1;
 
-    dap_http_client_simple_request_custom(a_url, a_method, a_request_content_type, a_request, a_request_size,
-            a_cookie, a_response_callback, a_error_callback, a_obj, a_custom_new, a_custom_count);
+    return dap_http_client_simple_request_custom(a_url, a_method, a_request_content_type, a_request, a_request_size,
+            a_cookie, a_response_callback, a_error_callback, curl_sockfd, a_obj, a_custom_new, a_custom_count);
 }
 
 /**
