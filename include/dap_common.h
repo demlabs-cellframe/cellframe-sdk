@@ -330,9 +330,7 @@ DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
 
 
 
-extern char *g_sys_dir_path ;
-extern size_t g_sys_dir_path_len;
-
+extern char *g_sys_dir_path;
 
 //int dap_common_init( const char * a_log_file );
 int dap_common_init( const char *console_title, const char *a_log_file );
