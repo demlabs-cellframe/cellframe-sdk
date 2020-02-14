@@ -71,16 +71,8 @@ int dap_chain_init(void)
     uint16_t l_ca_folders_size = 0;
     char ** l_ca_folders;
     l_ca_folders = dap_config_get_array_str(g_config, "resources", "ca_folders", &l_ca_folders_size);
-    for (uint16_t i=0; i < l_ca_folders_size; i++){
-#ifdef _WIN32
-        char l_temp[MAX_PATH] = {'\0'};
-        memcpy(l_temp, s_sys_dir_path, l_sys_dir_path_len);
-        memcpy(l_temp + l_sys_dir_path_len, l_ca_folders[i], strlen(l_ca_folders[i]));
-        //dap_sprintf(l_temp, "%s/%s", l_sys_dir_path, l_ca_folders[i]);
-        dap_cert_add_folder(l_temp);
-#else
+    for (uint16_t i=0; i < l_ca_folders_size; i++) {
         dap_cert_add_folder(l_ca_folders[i]);
-#endif
     }
     // Cell sharding init
     dap_chain_cell_init();
