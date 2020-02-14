@@ -135,7 +135,6 @@ static unsigned int s_ansi_seq_color_len[16] = {0};
 
 static volatile bool s_log_term_signal = false;
 char* g_sys_dir_path = NULL;
-size_t g_sys_dir_path_len = 0;
 
 static char s_last_error[LAST_ERROR_MAX]    = {'\0'},
     s_log_file_path[MAX_PATH]               = {'\0'},
