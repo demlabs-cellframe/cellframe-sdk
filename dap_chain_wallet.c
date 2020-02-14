@@ -110,11 +110,6 @@ const char* dap_chain_wallet_get_path(dap_config_t * a_config)
     static char l_wallets_path[MAX_PATH];
     if (strlen(l_wallets_path) > 3)
         goto RET;
-
-#ifdef _WIN32
-    memcpy(l_wallets_path, s_sys_dir_path, l_sys_dir_path_len);
-    dap_sprintf(l_wallets_path + g_sys_dir_path_len, "%s", dap_config_get_item_str(g_config, "resources", "wallets_path"));
-#endif
     dap_sprintf(l_wallets_path, "%s", dap_config_get_item_str(g_config, "resources", "wallets_path"));
 RET:
     return l_wallets_path;
