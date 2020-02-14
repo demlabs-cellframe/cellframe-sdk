@@ -212,7 +212,9 @@ static void* node_ping_background_proc(void *a_arg)
         if(!str_ip4)
             continue;
         int hops = 0, time_usec = 0;
+#ifndef _WIN32
         int res = traceroute_util(str_ip4, &hops, &time_usec);
+#endif
         DAP_DELETE(host4);
         if(l_min_hops>hops)
             s_node_addr_tr = l_node_list->data;

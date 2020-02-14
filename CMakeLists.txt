@@ -77,7 +77,12 @@ if(UNIX)
       )
 endif()
 
-target_include_directories(${PROJECT_NAME} INTERFACE . PUBLIC ${IPUTILS_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} INTERFACE . )
+
+if (!WIN32)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${IPUTILS_INCLUDE_DIRS})
+endif()
+
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
