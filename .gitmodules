@@ -94,3 +94,7 @@
 	path = libdap-chain-global-db
 	url = https://gitlab.demlabs.net/cellframe/libdap-chain-global-db
 	branch = master
+[submodule "libdap-chain-cli"]
+	path = libdap-chain-cli
+	url = https://gitlab.demlabs.net/cellframe/libdap-chain-cli.git
+	branch = master
