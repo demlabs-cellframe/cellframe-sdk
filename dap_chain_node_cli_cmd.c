@@ -991,7 +991,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
             // wait connected
-            int timeout_ms = 7000; //5 sec = 5000 ms
+            int timeout_ms = 700000; //5 sec = 5000 ms
             res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
             // select new node addr
             if(l_is_auto && res){
@@ -1027,7 +1027,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "no response from remote node(s)");
             log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
-            //dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client);
             //DAP_DELETE(l_remote_node_info);
             return -1;
         }
