@@ -52,7 +52,9 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_node_cli.h" // for UNIX_SOCKET_FILE
-#include "main_node_cli_net.h"
+
+#include "dap_app_cli.h"
+#include "dap_app_cli_net.h"
 
 /**
  * Add to one array another one
@@ -81,7 +83,7 @@ static int add_mem_data(uint8_t **memory, size_t *memory_len, char *add_mem, siz
 }
 
 //callback functions to receive header
-static size_t WriteHttpMemoryHeadCallback(void *contents, size_t size, size_t nmemb, cmd_state *cmd)
+static size_t WriteHttpMemoryHeadCallback(void *contents, size_t size, size_t nmemb, dap_app_cli_cmd_state_t *cmd)
 {
     if(!cmd)
         return 0;
@@ -97,7 +99,7 @@ static size_t WriteHttpMemoryHeadCallback(void *contents, size_t size, size_t nm
 }
 
 // callback function to receive data
-static size_t WriteHttpMemoryCallback(void *contents, size_t size, size_t nmemb, cmd_state *cmd)
+static size_t WriteHttpMemoryCallback(void *contents, size_t size, size_t nmemb, dap_app_cli_cmd_state_t *cmd)
 {
     //printf("[data] %s len=%d\n", contents, size * nmemb);
     if(!cmd)
@@ -113,10 +115,10 @@ static size_t WriteHttpMemoryCallback(void *contents, size_t size, size_t nmemb,
  *
  * return struct connect_param if connect established, else NULL
  */
-connect_param* node_cli_connect(void)
+dap_app_cli_connect_param_t* dap_app_cli_connect(void)
 {
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    connect_param *param = DAP_NEW_Z(connect_param);
+    dap_app_cli_connect_param_t *param = DAP_NEW_Z(dap_app_cli_connect_param_t);
     CURL *curl_handle = curl_easy_init();
 
 #ifndef _WIN32
@@ -152,7 +154,7 @@ connect_param* node_cli_connect(void)
  *
  * return 0 if OK, else error code
  */
-int node_cli_post_command( connect_param *conn, cmd_state *cmd )
+int dap_app_cli_post_command( dap_app_cli_connect_param_t *conn, dap_app_cli_cmd_state_t *cmd )
 {
     if(!conn || !conn->curl || !cmd || !cmd->cmd_name)
             {
@@ -222,7 +224,7 @@ int node_cli_post_command( connect_param *conn, cmd_state *cmd )
     return l_err_code;
 }
 
-int node_cli_disconnect(connect_param *param)
+int dap_app_cli_disconnect(dap_app_cli_connect_param_t *param)
 {
     if(param) {
         if(param->curl)

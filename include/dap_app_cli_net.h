@@ -24,27 +24,27 @@
 
 #pragma once
 
+#include "dap_app_cli.h"
 #include <curl/curl.h>
-#include "main_node_cli.h"
 
 // connection description
-typedef struct connect_param_ {
+typedef struct dap_app_cli_connect_param {
     CURL    *curl;
     //SOCKET sock;
-} connect_param;
+} dap_app_cli_connect_param_t;
 
 /**
  * Connect to node unix socket server
  *
  * return struct connect_param if connect established, else NULL
  */
-connect_param* node_cli_connect(void);
+dap_app_cli_connect_param_t* dap_app_cli_connect(void);
 
 /**
  * Send request to kelvin-node
  *
  * return 0 if OK, else error code
  */
-int node_cli_post_command(connect_param *conn, cmd_state *cmd);
+int dap_app_cli_post_command(dap_app_cli_connect_param_t *conn, dap_app_cli_cmd_state_t *cmd);
 
-int node_cli_disconnect(connect_param *conn);
+int dap_app_cli_disconnect(dap_app_cli_connect_param_t *conn);

@@ -24,9 +24,10 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 // command description
-typedef struct cmd_state_ {
+typedef struct dap_app_cli_cmd_state {
     char *cmd_name;
     char **cmd_param;
     int cmd_param_count;
@@ -35,9 +36,18 @@ typedef struct cmd_state_ {
     char *cmd_res;
     size_t cmd_res_len;
     size_t cmd_res_cur;
-} cmd_state;
+} dap_app_cli_cmd_state_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * Clear and delete memory of structure cmd_state
  */
-void free_cmd_state(cmd_state *cmd);
+void dap_app_cli_free_cmd_state(dap_app_cli_cmd_state_t *cmd);
+
+int dap_app_cli_main(const char * a_app_name,int argc, char **argv);
+
+#ifdef __cplusplus
+}
+#endif

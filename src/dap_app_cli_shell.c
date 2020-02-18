@@ -26,8 +26,8 @@
 #endif
 
 #include "dap_common.h"
-#include "main_node_cli.h"
-#include "main_node_cli_shell.h"
+#include "dap_app_cli.h"
+#include "dap_app_cli_shell.h"
 
 //#include "posixjmp.h"
 
