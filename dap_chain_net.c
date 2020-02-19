@@ -56,6 +56,7 @@
 #include "dap_file_utils.h"
 #include "dap_config.h"
 #include "dap_hash.h"
+#include "dap_cert.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -1300,9 +1301,43 @@ int s_net_load(const char * a_net_name)
         char ** l_seed_nodes_port = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_port"
                                                                      ,&l_seed_nodes_port_len);
 
-        //const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
-        const char * l_node_addr_str = dap_config_get_item_str(l_cfg , "general" ,"node-addr");
-        const char * l_node_alias_str = dap_config_get_item_str(l_cfg , "general" , "node-alias");
+        const char * l_node_addr_type = dap_config_get_item_str_default(l_cfg , "general" ,"node_addr_type","auto");
+
+        const char * l_node_addr_str = NULL;
+        const char * l_node_alias_str = NULL;
+
+        // use unique addr from pub key
+        if(!dap_strcmp(l_node_addr_type, "auto")) {
+            const char * l_certs_name_str = "node-addr";
+            dap_cert_t ** l_certs = NULL;
+            size_t l_certs_size = 0;
+            dap_cert_t * l_cert = NULL;
+            // Load certs or create if not found
+            if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) {// Load certs
+                const char *l_cert_folder = dap_cert_get_folder(0);
+                if(l_cert_folder) {
+                    char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
+                    l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
+                    DAP_DELETE(l_cert_path);
+                }
+            }
+            // generate addr
+            if(l_cert){
+                dap_chain_hash_fast_t *l_hash;
+                if(dap_hash_fast(l_cert->enc_key->pub_key_data,l_cert->enc_key->pub_key_data_size, l_hash)){
+                    l_hash->raw
+                    !!!! uint64
+                }
+            }
+
+        }
+        // use static addr from setting
+        else if(!dap_strcmp(l_node_addr_type, "static")) {
+            //const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
+            const char * l_node_addr_str = dap_config_get_item_str(l_cfg, "general", "node-addr");
+            const char * l_node_alias_str = dap_config_get_item_str(l_cfg, "general", "node-alias");
+        }
+
         log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
                 PVT(l_net)->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
         // save new nodes from cfg file to db
