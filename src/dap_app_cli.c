@@ -189,38 +189,18 @@ int shell_reader_loop()
  * @param argv
  * @return
  */
-int dap_app_cli_main(const char * a_app_name, int a_argc, char **a_argv)
+int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_argc, char **a_argv)
 {
     dap_set_appname(a_app_name);
-
-#ifdef _WIN32
-    g_sys_dir_path = dap_strdup_printf("%s/%s", regGetUsrPath(), dap_get_appname());
-#elif DAP_OS_MAC
-    g_sys_dir_path = dap_strdup_printf("/Applications/%s.app/Contents/Resources", dap_get_appname());
-#elif DAP_OS_ANDROID
-    g_sys_dir_path = dap_strdup_printf("/storage/emulated/0/opt/%s",dap_get_appname());
-#elif DAP_OS_UNIX
-    g_sys_dir_path = dap_strdup_printf("/opt/%s", dap_get_appname());
-#endif
     if (dap_common_init(dap_get_appname(), NULL) != 0) {
         printf("Fatal Error: Can't init common functions module");
         return -2;
     }
 
-    {
-        char l_config_dir[MAX_PATH] = {'\0'};
-        dap_sprintf(l_config_dir, "%s/etc", g_sys_dir_path);
-        dap_config_init(l_config_dir);
-    }
     dap_log_level_set(L_CRITICAL);
 
-    if((g_config = dap_config_open(dap_get_appname())) == NULL) {
-        printf("Can't init general configurations %s.cfg\n", dap_get_appname());
-        exit(-1);
-    }
-
     // connect to node
-    cparam = dap_app_cli_connect();
+    cparam = dap_app_cli_connect( a_socket_path );
     if(!cparam)
     {
         printf("Can't connected to %s\n",dap_get_appname());

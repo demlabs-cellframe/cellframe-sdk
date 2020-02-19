@@ -111,18 +111,19 @@ static size_t WriteHttpMemoryCallback(void *contents, size_t size, size_t nmemb,
 }
 
 /**
- * Connect to node unix socket server
- *
- * return struct connect_param if connect established, else NULL
+ * @brief dap_app_cli_connect
+ * @details Connect to node unix socket server
+ * @param a_socket_path
+ * @return if connect established, else NULL
  */
-dap_app_cli_connect_param_t* dap_app_cli_connect(void)
+dap_app_cli_connect_param_t* dap_app_cli_connect(const char * a_socket_path)
 {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     dap_app_cli_connect_param_t *param = DAP_NEW_Z(dap_app_cli_connect_param_t);
     CURL *curl_handle = curl_easy_init();
 
 #ifndef _WIN32
-    int ret = curl_easy_setopt(curl_handle, CURLOPT_UNIX_SOCKET_PATH, dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path") ); // unix socket mode
+    int ret = curl_easy_setopt(curl_handle, CURLOPT_UNIX_SOCKET_PATH, a_socket_path ); // unix socket mode
 #else
     int ret = curl_easy_setopt(curl_handle, CURLOPT_PORT, dap_config_get_item_uint16 ( g_config, "conserver", "listen_port_tcp")); // unix socket mode
 #endif

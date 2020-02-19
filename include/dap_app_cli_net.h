@@ -38,7 +38,7 @@ typedef struct dap_app_cli_connect_param {
  *
  * return struct connect_param if connect established, else NULL
  */
-dap_app_cli_connect_param_t* dap_app_cli_connect(void);
+dap_app_cli_connect_param_t* dap_app_cli_connect(const char * a_socket_path);
 
 /**
  * Send request to kelvin-node

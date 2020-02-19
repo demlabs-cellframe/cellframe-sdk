@@ -46,7 +46,7 @@ extern "C" {
  */
 void dap_app_cli_free_cmd_state(dap_app_cli_cmd_state_t *cmd);
 
-int dap_app_cli_main(const char * a_app_name,int argc, char **argv);
+int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int argc, char **argv);
 
 #ifdef __cplusplus
 }
