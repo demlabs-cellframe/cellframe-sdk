@@ -173,9 +173,11 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
 dap_events_socket_t *dap_events_socket_find( int sock, struct dap_events *a_events )
 {
   dap_events_socket_t *ret = NULL;
-
+  if(!a_events)
+      return NULL;
   pthread_rwlock_rdlock( &a_events->sockets_rwlock );
-  HASH_FIND_INT( a_events->sockets, &sock, ret );
+  if(a_events->sockets)
+      HASH_FIND_INT( a_events->sockets, &sock, ret );
   pthread_rwlock_unlock( &a_events->sockets_rwlock );
 
   return ret;
@@ -247,6 +249,37 @@ void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
 
 
 /**
+ * @brief dap_events_socket_kill_socket
+ * @param sc Connection instance
+ */
+int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
+{
+  if ( !a_es ) {
+    log_it( L_ERROR, "dap_events_socket_kill_socket( NULL )" );
+    return -1;
+  }
+
+  uint32_t tn = a_es->dap_worker->number_thread;
+
+  dap_worker_t *w = a_es->dap_worker;
+  //dap_events_t *d_ev = w->events;
+
+  pthread_mutex_lock( &w->locker_on_count );
+  if ( a_es->kill_signal ) {
+    pthread_mutex_unlock( &w->locker_on_count );
+    return 0;
+  }
+
+  log_it( L_DEBUG, "KILL %u socket! (in queue) [ thread %u ]", a_es->socket, tn );
+
+  a_es->kill_signal = true;
+  //DL_LIST_ADD_NODE_HEAD( d_ev->to_kill_sockets, a_es, kprev, knext, w->event_to_kill_count );
+
+  pthread_mutex_unlock( &w->locker_on_count );
+  return 0;
+}
+
+/**
  * @brief dap_events_socket_remove Removes the client from the list
  * @param sc Connection instance
  */
@@ -256,8 +289,13 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
 
   log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
 
+  if(!dap_events_socket_find(a_es->socket, a_es->events)){
+      log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
+      return ;
+  }
   pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
-  HASH_DEL( a_es->events->sockets, a_es );
+  if(a_es->events->sockets)
+    HASH_DEL( a_es->events->sockets, a_es );
   pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
 
   log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
@@ -266,7 +304,7 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
     a_es->callbacks->delete_callback( a_es, NULL ); // Init internal structure
 
   if ( a_es->_inheritor && !preserve_inheritor )
-    free( a_es->_inheritor );
+    DAP_DELETE( a_es->_inheritor );
 
   if ( a_es->socket ) {
 #ifdef _WIN32
@@ -277,6 +315,34 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
   }
 
   free( a_es );
+}
+
+/**
+ * @brief dap_events_socket_delete
+ * @param a_es
+ */
+void dap_events_socket_remove( dap_events_socket_t *a_es)
+{
+  if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
+     log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
+  else
+     log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
+
+  DL_DELETE( a_es->events->dlsockets, a_es );
+  a_es->dap_worker->event_sockets_count --;
+}
+
+void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool preserve_inheritor )
+{
+  if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
+     log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
+  else
+     log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
+
+  DL_DELETE( a_es->events->dlsockets, a_es );
+  a_es->dap_worker->event_sockets_count --;
+
+  dap_events_socket_delete( a_es, preserve_inheritor );
 }
 
 /**
