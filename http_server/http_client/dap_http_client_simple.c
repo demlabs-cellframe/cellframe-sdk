@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -18,14 +19,9 @@
 #include <time.h>
 #endif
 
-#include <pthread.h>
-
 #include <curl/curl.h>
 
-#include "utlist.h"
-
 #include "dap_common.h"
-
 #include "dap_http_client.h"
 #include "dap_http_client_simple.h"
 
@@ -47,7 +43,20 @@ typedef struct dap_http_client_internal {
 
 } dap_http_client_internal_t;
 
+typedef struct dap_http_client_active_conn{
+    void *curl_h;// CURL
+    void *client_obj;// dap_client_pvt_t
+    UT_hash_handle hh;
+} dap_http_client_active_conn_t;
+
+// List of active connections
+static dap_http_client_active_conn_t *s_conn_list = NULL;
+// for separate access to s_conn_list
+static pthread_mutex_t s_conn_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 CURLM *m_curl_mh = NULL; // Multi-thread handle to stack lot of parallel requests
+
+
 
 #ifndef _WIN32
   pthread_t curl_pid = 0;
@@ -92,6 +101,118 @@ int dap_http_client_simple_init( )
 void dap_http_client_simple_deinit( )
 {
   curl_multi_cleanup( m_curl_mh );
+}
+
+
+
+/**
+ * dap_http_client_lock_active_conn
+ */
+int dap_http_client_lock_active_conn(void)
+{
+    return pthread_mutex_lock(&s_conn_list_mutex);
+}
+
+/**
+ * dap_http_client_unlock_active_conn
+ */
+int dap_http_client_unlock_active_conn(void)
+{
+    return pthread_mutex_unlock(&s_conn_list_mutex);
+}
+
+/**
+ * find active connection in the list by CURL
+ *
+ * return 0 OK, -1 error, -2 connection not found
+ */
+static dap_http_client_active_conn_t* dap_http_client_get_active_conn_by_curl(void *a_curl_h)
+{
+    if(!a_curl_h)
+        return NULL;
+    dap_http_client_active_conn_t *l_cur_item;
+    HASH_FIND(hh, s_conn_list, a_curl_h, sizeof(CURL), l_cur_item);
+    return l_cur_item;
+}
+
+/**
+ * find active connection in the list by dap_http_client_internal_t
+ *
+ * return 0 OK, -1 error, -2 connection not found
+ */
+void* dap_http_client_get_active_conn_by_obj(void *a_client_obj)
+{
+    if(!a_client_obj)
+        return NULL;
+    dap_http_client_active_conn_t * l_cur_item, *l_item_tmp;
+    HASH_ITER(hh, s_conn_list, l_cur_item, l_item_tmp)
+    {
+        if(l_cur_item->client_obj == a_client_obj)
+            break;
+    }
+    return (void*)l_cur_item;
+}
+
+/**
+ * Add new active connection to the list
+ *
+ * return 0 OK, -1 error, -2 connection present
+ */
+static int dap_http_client_add_active_conn(CURL *a_curl_h, dap_http_client_internal_t *a_client_obj)
+{
+    int l_ret = 0;
+    if(!a_curl_h || !a_client_obj)
+        return -1;
+    pthread_mutex_lock(&s_conn_list_mutex);
+    dap_http_client_active_conn_t *l_cur_item = dap_http_client_get_active_conn_by_curl(a_curl_h);
+    if(l_cur_item == NULL) {
+        l_cur_item = DAP_NEW(dap_http_client_active_conn_t);
+        l_cur_item->curl_h = a_curl_h;
+        l_cur_item->client_obj = a_client_obj;
+        HASH_ADD(hh, s_conn_list, curl_h, sizeof(CURL), l_cur_item); // address: name of key field
+        l_ret = 0;
+    }
+    // connection already present
+    else
+        l_ret = -2;
+    //connect_list = g_list_append(connect_list, client);
+    pthread_mutex_unlock(&s_conn_list_mutex);
+    return l_ret;
+}
+
+/**
+ * Delete active connection from the list
+ *
+ * return 0 OK, -1 error, -2 connection not found
+ */
+int dap_http_client_del_active_conn(void *a_curl_h, void *a_client_obj)
+{
+    int ret = -1;
+    if(!a_curl_h && !a_client_obj)
+        return -1;
+    dap_http_client_active_conn_t *l_cur_item;
+    pthread_mutex_lock(&s_conn_list_mutex);
+    do {
+        if(a_curl_h)
+        l_cur_item = dap_http_client_get_active_conn_by_curl(a_curl_h);
+        else if(a_client_obj)
+        l_cur_item = dap_http_client_get_active_conn_by_obj(a_client_obj);
+        if(l_cur_item != NULL) {
+            HASH_DEL(s_conn_list, l_cur_item);
+            DAP_DELETE(l_cur_item);
+            ret = 0;
+        }
+        // connection not found in the hash
+        else {
+            ret = -2;
+            break;
+        }
+    }
+    // maybe some active conn with the same a_client_obj, required del all of them
+    while(l_cur_item);
+
+    pthread_mutex_unlock(&s_conn_list_mutex);
+    return ret;
 }
 
 /**
@@ -208,9 +329,11 @@ void* dap_http_client_simple_request_custom( const char *a_url, const char *a_me
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEDATA , l_client_internal );
   curl_easy_setopt( l_curl_h , CURLOPT_WRITEFUNCTION , dap_http_client_curl_response_callback );
 
+  // add active connection to list
+  dap_http_client_add_active_conn(l_curl_h, a_obj);
+
   //if(curl_sockfd)
       //curl_easy_getinfo( l_curl_h , CURLINFO_LASTSOCKET, curl_sockfd);
-
   curl_multi_add_handle( m_curl_mh, l_curl_h );
     //curl_multi_perform(m_curl_mh, &m_curl_cond);
 
@@ -449,9 +572,12 @@ static void* dap_http_client_thread(void * arg)
                       else {
                         log_it(L_CRITICAL, "Can't get private information from libcurl handle to perform the reply to SAP connection");
                       }
+                      // del active connection from list
+                      dap_http_client_del_active_conn(e, NULL);
 
                       curl_multi_remove_handle(m_curl_mh, e);
                       curl_easy_cleanup(e);
+
                   }
 
              } while(m);
