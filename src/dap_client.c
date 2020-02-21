@@ -190,7 +190,7 @@ void dap_client_delete(dap_client_t * a_client)
 
     pthread_mutex_lock(&a_client->mutex);
 
-    dap_client_disconnect(a_client);
+    //dap_client_disconnect(a_client);
     //dap_client_reset(a_client);
 
     //dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(a_client);
@@ -199,6 +199,7 @@ void dap_client_delete(dap_client_t * a_client)
     //a_client->_internal = NULL;
 
     dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+    //a_client->_internal = NULL;
 
     //pthread_mutex_t *l_mutex = &a_client->mutex;
     //memset(a_client, 0, sizeof(dap_client_t));
@@ -206,6 +207,7 @@ void dap_client_delete(dap_client_t * a_client)
     pthread_mutex_unlock(&a_client->mutex);
     // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
     //DAP_DELETE(a_client);
+    DAP_DELETE(a_client);
 }
 
 /**
@@ -312,41 +314,6 @@ void dap_client_request(dap_client_t * a_client, const char * a_full_path, void 
 {
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     dap_client_pvt_request(l_client_internal, a_full_path, a_request, a_request_size, a_response_proc, a_response_error);
-}
-
-/**
- * @brief dap_client_disconnect
- * @param a_client
- * @return
- */
-int dap_client_disconnect( dap_client_t *a_client )
-{
-    dap_client_pvt_t *l_client_internal = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
-
-    if ( l_client_internal && l_client_internal->stream_socket ) {
-
-//        if ( l_client_internal->stream_es ) {
-//            dap_events_socket_remove_and_delete( l_client_internal->stream_es, true );
-//            l_client_internal->stream_es = NULL;
-//        }
-
-//        l_client_internal->stream_es->signal_close = true;
-        dap_events_kill_socket( l_client_internal->stream_es );
-
-//        if (l_client_internal->stream_socket ) {
-//            close (l_client_internal->stream_socket);
-        l_client_internal->stream_socket = 0;
-//        }
-
-        return 1;
-    }
-    //l_client_internal->stream_socket = 0;
-
-    l_client_internal->is_reconnect = false;
-
-    log_it(L_DEBUG, "dap_client_disconnect( ) done" );
-
-    return -1;
 }
 
 /**
