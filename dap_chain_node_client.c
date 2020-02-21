@@ -487,13 +487,13 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
     if(a_client) {
 
-        pthread_mutex_lock(&a_client->wait_mutex);
-        a_client->client->_inheritor = NULL; // because client->_inheritor == a_client
-        pthread_mutex_unlock(&a_client->wait_mutex);
+        //pthread_mutex_lock(&a_client->wait_mutex);
+        //a_client->client->_inheritor = NULL; // because client->_inheritor == a_client
+        //pthread_mutex_unlock(&a_client->wait_mutex);
 
         // clean client
         dap_client_delete(a_client->client);
-        a_client->client = NULL;
+        //a_client->client = NULL;
 
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);
