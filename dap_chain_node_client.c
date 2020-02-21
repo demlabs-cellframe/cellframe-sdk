@@ -493,7 +493,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 
         // clean client
         dap_client_delete(a_client->client);
-        a_client->client = NULL;
+        //a_client->client = NULL;
 
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);

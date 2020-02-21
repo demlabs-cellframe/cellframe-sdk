@@ -1131,7 +1131,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_stream_ch_set_ready_to_write(l_ch_chain, true);
         // wait for finishing of request
-        int timeout_ms = 1200000; // 20 min = 1200 sec = 1 200 000 ms
+        int timeout_ms = 420000; // 7 min = 420 sec = 420 000 ms
         // TODO add progress info to console
         res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
         if(res < 0) {
@@ -1173,9 +1173,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         log_it(L_INFO, "Chains and gdb are synced");
         DAP_DELETE(l_remote_node_info);
-        dap_client_disconnect(l_node_client->client);
-        l_node_client->client = NULL;
-        //dap_chain_node_client_close(l_node_client);
+        //dap_client_disconnect(l_node_client->client);
+        //l_node_client->client = NULL;
+        dap_chain_node_client_close(l_node_client);
         dap_chain_node_cli_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
