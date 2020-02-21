@@ -54,6 +54,12 @@ typedef struct dap_cert_item
     UT_hash_handle hh;
 } dap_cert_item_t;
 
+typedef struct dap_cert_folder
+{
+    char *name;
+    UT_hash_handle hh;
+} dap_cert_folder_t;
+
 typedef struct dap_cert_pvt
 {
     dap_sign_item_t *signs;
@@ -63,6 +69,7 @@ typedef struct dap_cert_pvt
 #define PVT(a) ( ( dap_cert_pvt_t *)((a)->_pvt) )
 
 static dap_cert_item_t * s_certs = NULL;
+static dap_cert_folder_t * s_cert_folders = NULL;
 
 /**
  * @brief dap_cert_init
@@ -444,6 +451,25 @@ void dap_cert_dump(dap_cert_t * a_cert)
     printf ("Certificates signatures chain size: %lu\n",dap_cert_count_cert_sign (a_cert));
 }
 
+/**
+ * @brief dap_cert_get_folder
+ * @param a_folder_path
+ */
+const char* dap_cert_get_folder(int a_n_folder_path)
+{
+    dap_cert_folder_t *l_cert_folder_item = NULL, *l_cert_folder_item_tmp = NULL;
+    int l_n_cur_folder_path = 0;
+    HASH_ITER(hh, s_cert_folders, l_cert_folder_item, l_cert_folder_item_tmp)
+    {
+        if(l_cert_folder_item) {
+            if(a_n_folder_path == l_n_cur_folder_path)
+                return l_cert_folder_item->name;
+            l_n_cur_folder_path++;
+        }
+    }
+    return NULL;
+}
+
 
 /**
  * @brief dap_cert_add_folder
@@ -451,6 +477,13 @@ void dap_cert_dump(dap_cert_t * a_cert)
  */
 void dap_cert_add_folder(const char *a_folder_path)
 {
+    // save dir
+    {
+        dap_cert_folder_t * l_cert_folder_item = DAP_NEW_Z(dap_cert_folder_t);
+        l_cert_folder_item->name = dap_strdup(a_folder_path);
+        HASH_ADD_STR(s_cert_folders, name, l_cert_folder_item);
+    }
+
     DIR * l_dir = opendir(a_folder_path);
     if( l_dir ) {
         struct dirent * l_dir_entry;
@@ -471,9 +504,9 @@ void dap_cert_add_folder(const char *a_folder_path)
                     DAP_DELETE(l_cert_name);
                 }
             }
-
         }
         closedir(l_dir);
+
         log_it(L_NOTICE, "Added folder %s",a_folder_path);
     }else
         log_it(L_WARNING, "Can't add folder %s to cert manager",a_folder_path);
