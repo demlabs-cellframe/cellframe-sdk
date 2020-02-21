@@ -154,7 +154,12 @@ size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_
 size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,...);
 size_t dap_events_socket_read(dap_events_socket_t *sc, void * data, size_t data_size);
 
+void dap_events_socket_remove( dap_events_socket_t *a_es);
 void dap_events_socket_delete(dap_events_socket_t *sc,bool preserve_inheritor); // Removes the client from the list
+void dap_events_socket_remove_and_delete(dap_events_socket_t* a_es, bool preserve_inheritor );
+int dap_events_socket_kill_socket( dap_events_socket_t *a_es );
+
+
 
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 

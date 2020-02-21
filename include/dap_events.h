@@ -63,7 +63,7 @@ typedef struct dap_events {
 typedef struct dap_worker
 {
   uint32_t event_sockets_count;
-  uint32_t event_to_kill_count;
+  //uint32_t event_to_kill_count;
 
   EPOLL_HANDLE epoll_fd;
   uint32_t number_thread;
@@ -78,10 +78,6 @@ void dap_events_deinit( ); // Deinit server module
 void dap_events_thread_wake_up( dap_thread_t *th );
 dap_events_t* dap_events_new( );
 void dap_events_delete( dap_events_t * sh );
-//void dap_events_socket_remove_and_delete( dap_events_socket_t* a_es );
-void dap_events_socket_remove_and_delete(dap_events_socket_t* a_es, bool preserve_inheritor );
-
-void dap_events_kill_socket( dap_events_socket_t *a_es );
 
 int32_t dap_events_start( dap_events_t *sh );
 int32_t dap_events_wait( dap_events_t *sh );
