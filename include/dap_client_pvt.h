@@ -50,8 +50,8 @@ typedef struct dap_client_internal
 
 
     char  * session_key_id;
-    void  *curl;// curl connection descriptor
-    long  curl_sockfd;// curl socket descriptor
+    //void  *curl;// curl connection descriptor
+    //long  curl_sockfd;// curl socket descriptor
 
     char * last_parsed_node;
     char  * uplink_addr;
@@ -100,5 +100,12 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal);
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvts);
 
-int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal);
-int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal);
+//int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal);
+//int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal);
+
+// from dap_client_pvt_hh.c
+int dap_client_pvt_hh_lock(void);
+int dap_client_pvt_hh_unlock(void);
+void* dap_client_pvt_hh_get(dap_client_pvt_t* a_client_pvt);
+int dap_client_pvt_hh_add(dap_client_pvt_t* a_client_pvt);
+int dap_client_pvt_hh_del(dap_client_pvt_t *a_client_pvt);

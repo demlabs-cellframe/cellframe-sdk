@@ -117,7 +117,7 @@ void dap_client_request_enc(dap_client_t * a_client, const char * a_path,const c
 void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
-int dap_client_disconnect(dap_client_t * a_client);
+//int dap_client_disconnect(dap_client_t * a_client);
 
 const char * dap_client_get_stage_str(dap_client_t * a_client);
 const char * dap_client_stage_str(dap_client_stage_t a_stage);
@@ -136,7 +136,7 @@ void dap_client_set_active_channels (dap_client_t * a_client, const char * a_act
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);
 
-#define DAP_CLIENT(a) ((dap_client_t *) (a)->_inheritor )
+#define DAP_CLIENT(a) (a ? (dap_client_t *) (a)->_inheritor : NULL)
 
 #ifdef __cplusplus
 }
