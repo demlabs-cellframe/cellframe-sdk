@@ -57,6 +57,7 @@
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_cert.h"
+#include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -1308,34 +1309,54 @@ int s_net_load(const char * a_net_name)
 
         // use unique addr from pub key
         if(!dap_strcmp(l_node_addr_type, "auto")) {
-            const char * l_certs_name_str = "node-addr";
-            dap_cert_t ** l_certs = NULL;
-            size_t l_certs_size = 0;
-            dap_cert_t * l_cert = NULL;
-            // Load certs or create if not found
-            if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) {// Load certs
-                const char *l_cert_folder = dap_cert_get_folder(0);
-                if(l_cert_folder) {
-                    char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
-                    l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
-                    DAP_DELETE(l_cert_path);
-                }
-            }
-            // generate addr
-            if(l_cert){
-                dap_chain_hash_fast_t *l_hash;
-                if(dap_hash_fast(l_cert->enc_key->pub_key_data,l_cert->enc_key->pub_key_data_size, l_hash)){
-                    l_hash->raw
-                    !!!! uint64
-                }
-            }
+            size_t l_pub_key_data_size = 0;
+            uint8_t *l_pub_key_data = NULL;
 
+            // read pub key
+            l_pub_key_data = dap_chain_global_db_gr_get("cur-node-addr-pkey", &l_pub_key_data_size, GROUP_LOCAL_NODE_ADDR);
+            // generate new pub key
+            if(!l_pub_key_data || !l_pub_key_data_size){
+
+                const char * l_certs_name_str = "node-addr";
+                dap_cert_t ** l_certs = NULL;
+                size_t l_certs_size = 0;
+                dap_cert_t * l_cert = NULL;
+                // Load certs or create if not found
+                if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) { // Load certs
+                    const char *l_cert_folder = dap_cert_get_folder(0);
+                    // create new cert
+                    if(l_cert_folder) {
+                        char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
+                        l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
+                        DAP_DELETE(l_cert_path);
+                    }
+                }
+                if(l_certs_size > 0)
+                    l_cert = l_certs[0];
+                if(l_cert) {
+                    l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+                    // save pub key
+                    if(l_pub_key_data && l_pub_key_data_size > 0)
+                        dap_chain_global_db_gr_set(dap_strdup("cur-node-addr-pkey"), (uint8_t*) l_pub_key_data, l_pub_key_data_size,
+                        GROUP_LOCAL_NODE_ADDR);
+                }
+            }
+            // generate addr from pub_key
+            dap_chain_hash_fast_t l_hash;
+            if(l_pub_key_data_size > 0 && dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash) == 1) {
+                l_node_addr_str = dap_strdup_printf("%04X::%04X::%04X::%04X",
+                        (uint16_t) *(uint16_t*) (l_hash.raw),
+                        (uint16_t) *(uint16_t*) (l_hash.raw + 2),
+                        (uint16_t) *(uint16_t*) (l_hash.raw + DAP_CHAIN_HASH_FAST_SIZE - 4),
+                        (uint16_t) *(uint16_t*) (l_hash.raw + DAP_CHAIN_HASH_FAST_SIZE - 2));
+            }
+            DAP_DELETE(l_pub_key_data);
         }
         // use static addr from setting
         else if(!dap_strcmp(l_node_addr_type, "static")) {
             //const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
-            const char * l_node_addr_str = dap_config_get_item_str(l_cfg, "general", "node-addr");
-            const char * l_node_alias_str = dap_config_get_item_str(l_cfg, "general", "node-alias");
+            l_node_addr_str = dap_strdup(dap_config_get_item_str(l_cfg, "general", "node-addr"));
+            l_node_alias_str = dap_config_get_item_str(l_cfg, "general", "node-alias");
         }
 
         log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
@@ -1429,20 +1450,20 @@ int s_net_load(const char * a_net_name)
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 bool parse_succesfully = false;
                 if ( sscanf(l_node_addr_str, "0x%016llx",&l_node_addr->uint64 ) == 1 ){
-                    log_it(L_DEBUG, "Parse node address with format 0x016llx");
+                    log_it(L_DEBUG, "Parse node address with format 0x%016llx");
                     parse_succesfully = true;
                 }
                 if ( !parse_succesfully && dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0) {
-                    log_it(L_DEBUG, "Parse node address with format " NODE_ADDR_FP_STR);
+                    log_it(L_DEBUG, "Parse node address with format 04hX::04hX::04hX::04hX");
                     parse_succesfully = true;
                 }
 
                 if (!parse_succesfully){
-                    log_it(L_ERROR,"Can't parse node address");
+                    log_it(L_ERROR,"Can't parse node address %s", l_node_addr_str);
                     DAP_DELETE(l_node_addr);
                     l_node_addr = NULL;
                 }
-                log_it(L_NOTICE, "Parse node addr %s successfully", l_node_addr_str);
+                log_it(L_NOTICE, "Parse node addr " NODE_ADDR_FP_STR " successfully", NODE_ADDR_FP_ARGS(l_node_addr));
                 PVT(l_net)->node_addr = l_node_addr;
                 //}
             }

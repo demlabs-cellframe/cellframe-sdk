@@ -991,7 +991,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
             // wait connected
-            int timeout_ms = 700000; //5 sec = 5000 ms
+            int timeout_ms = 7000; // 7 sec = 7000 ms
             res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
             // select new node addr
             if(l_is_auto && res){
