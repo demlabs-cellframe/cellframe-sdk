@@ -855,6 +855,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
+    // Exit
+    dap_chain_node_cli_cmd_item_create ("exit", com_exit, "Stop application and exit",
+                "exit\n" );
+
     // create thread for waiting of clients
     pthread_t l_thread_id;
 

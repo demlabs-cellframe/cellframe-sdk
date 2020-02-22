@@ -3047,6 +3047,12 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
     return 0;
 }
 
+int com_exit(int argc, char ** argv, char **str_reply)
+{
+    exit(0);
+}
+
+
 /**
  * print_log command
  *

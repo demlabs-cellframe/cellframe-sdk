@@ -126,6 +126,8 @@ int com_tx_history(int argc, char ** argv, char **str_reply);
 // Print log info
 int com_print_log(int argc, char ** argv, char **str_reply);
 
+int com_exit(int argc, char ** argv, char **str_reply);
+
 // vpn_client command
 int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply);
 
