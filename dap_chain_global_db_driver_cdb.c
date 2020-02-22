@@ -34,7 +34,7 @@
 #include "dap_chain_global_db_driver_cdb.h"
 #include "dap_file_utils.h"
 
-#define LOG_TAG "db_cdb"
+#define LOG_TAG "dap_chain_global_db_cdb"
 
 typedef struct _obj_arg {
     pdap_store_obj_t o;
