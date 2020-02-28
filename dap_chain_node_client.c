@@ -47,6 +47,7 @@
 #include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
+#include "dap_chain_global_db_hist.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
@@ -285,11 +286,12 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 // Get log diff
                 if(a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
                     a_ch_chain->request_last_ts = dap_db_log_get_last_id();
-                    dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
-                    if(l_list) {
+                    //dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
+                    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_request->id_start + 1);
+                    if(l_db_log) {
                         // Add it to outgoing list
-                        l_list->prev = a_ch_chain->request_global_db_trs;
-                        a_ch_chain->request_global_db_trs = l_list;
+                        //l_list->prev = a_ch_chain->request_global_db_trs;
+                        a_ch_chain->request_global_db_trs = l_db_log;//l_list;
                     }
                     else
                         l_is_sync = false;
