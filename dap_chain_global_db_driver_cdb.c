@@ -227,6 +227,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     a_drv_callback->apply_store_obj     = dap_db_driver_cdb_apply_store_obj;
     a_drv_callback->read_store_obj      = dap_db_driver_cdb_read_store_obj;
     a_drv_callback->read_cond_store_obj = dap_db_driver_cdb_read_cond_store_obj;
+    a_drv_callback->read_count_store    = dap_db_driver_cdb_read_count_store;
     a_drv_callback->deinit              = dap_db_driver_cdb_deinit;
     a_drv_callback->flush               = dap_db_driver_cdb_flush;
 
@@ -416,6 +417,21 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
         l_arg.o[i].group = dap_strdup(a_group);
     }
     return l_arg.o;
+}
+
+size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
+{
+    if(!a_group) {
+        return 0;
+    }
+    pcdb_instance l_cdb_i = dap_cdb_get_db_by_group(a_group);
+    if(!l_cdb_i) {
+        return NULL;
+    }
+    CDB *l_cdb = l_cdb_i->cdb;
+    CDBSTAT l_cdb_stat;
+    cdb_stat(l_cdb, &l_cdb_stat);
+    return (size_t) l_cdb_stat.rnum;
 }
 
 int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {

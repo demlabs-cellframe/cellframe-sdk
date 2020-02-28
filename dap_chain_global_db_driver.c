@@ -527,6 +527,21 @@ int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_sto
 }
 
 /**
+ * Read the number of items
+ *
+ * a_group - group name
+ * a_id - from this id
+ */
+size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
+{
+    size_t l_count_out = 0;
+    // read the number of items
+    if(s_drv_callback.read_count_store)
+        l_count_out = s_drv_callback.read_count_store(a_group, id);
+    return l_count_out;
+}
+
+/**
  * Read last items
  *
  * a_group - group name
