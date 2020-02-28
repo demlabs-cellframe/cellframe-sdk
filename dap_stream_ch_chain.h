@@ -28,6 +28,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain.h"
+#include "dap_chain_global_db_hist.h"
 #include "dap_list.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
@@ -47,7 +48,7 @@ typedef struct dap_stream_ch_chain {
     pthread_mutex_t mutex;
     dap_stream_ch_t * ch;
 
-    dap_list_t *request_global_db_trs; // list of transactions
+    dap_db_log_list_t *request_global_db_trs; // list of transactions
     dap_stream_ch_chain_state_t state;
 
     dap_chain_atom_iter_t * request_atom_iter;
