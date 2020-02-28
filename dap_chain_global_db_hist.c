@@ -5,12 +5,10 @@
 
 #include <dap_common.h>
 #include <dap_strfuncs.h>
-#include <dap_list.h>
 #include <dap_string.h>
 #include <dap_hash.h>
 #include "dap_chain_datum_tx_items.h"
 
-#include "dap_chain_global_db.h"
 #include "dap_chain_global_db_hist.h"
 
 #include "uthash.h"
@@ -52,19 +50,25 @@ static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_re
 static char* dap_db_new_history_timestamp()
 {
     static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+    uint64_t l_suffix = 0;
+    time_t l_cur_time;
     // get unique key
     pthread_mutex_lock(&s_mutex);
     static time_t s_last_time = 0;
     static uint64_t s_suffix = 0;
-    time_t l_cur_time = time(NULL);
-    if(s_last_time == l_cur_time)
+    time_t l_cur_time_tmp = time(NULL);
+    if(s_last_time == l_cur_time_tmp)
         s_suffix++;
     else {
         s_suffix = 0;
-        s_last_time = l_cur_time;
+        s_last_time = l_cur_time_tmp;
     }
-    char *l_str = dap_strdup_printf("%lld_%lld", (uint64_t) l_cur_time, s_suffix);
+    // save tmp values
+    l_cur_time = l_cur_time_tmp;
+    l_suffix = s_suffix;
     pthread_mutex_unlock(&s_mutex);
+
+    char *l_str = dap_strdup_printf("%lld_%lld", (uint64_t) l_cur_time, l_suffix);
     return l_str;
 }
 
@@ -1217,4 +1221,185 @@ dap_list_t* dap_db_log_get_list(uint64_t first_id)
 void dap_db_log_del_list(dap_list_t *a_list)
 {
     dap_list_free_full(a_list, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
+}
+
+
+
+
+/**
+ * Thread for reading log list
+ * instead dap_db_log_get_list()
+ */
+static void *s_list_thread_proc(void *arg)
+{
+    dap_db_log_list_t *l_dap_db_log_list = (dap_db_log_list_t*) arg;
+    size_t l_items_number = 0;
+    while(1) {
+        bool is_process;
+        // check for break process
+        pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+        is_process = l_dap_db_log_list->is_process;
+        size_t l_item_start = l_dap_db_log_list->item_start;
+        size_t l_data_size_out = l_dap_db_log_list->item_last;
+        pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+        if(!is_process)
+            break;
+        // calculating how many items required to read
+        l_data_size_out = min(10, l_data_size_out - l_item_start);
+        if(!l_data_size_out)
+            break;
+        // read next 1...10 items
+        dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, l_item_start, &l_data_size_out);
+        if(!l_objs)
+            break;
+        dap_list_t *l_list = NULL;
+        for(size_t i = 0; i < l_data_size_out; i++) {
+            dap_store_obj_t *l_obj_cur = l_objs + i;
+            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+            l_item->id = l_obj_cur->id;
+            l_item->key = dap_strdup(l_obj_cur->key);
+            l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
+            l_list = dap_list_append(l_list, l_item);
+        }
+        pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+        // add l_list to list_write
+        l_dap_db_log_list->list_write = dap_list_concat(l_dap_db_log_list->list_write, l_list);
+        // init read list if it ended already
+        if(!l_dap_db_log_list->list_read)
+            l_dap_db_log_list->list_read = l_list;
+        l_dap_db_log_list->item_start += l_data_size_out;
+        pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+        l_items_number += l_data_size_out;
+        log_it(L_DEBUG, "loaded items n=%u/%u", l_data_size_out, l_items_number);
+        dap_store_obj_free(l_objs, l_data_size_out);
+        // ...
+    }
+
+    pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+    l_dap_db_log_list->is_process = false;
+    pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+    pthread_exit(0);
+    return 0;
+}
+
+/**
+ * instead dap_db_log_get_list()
+ */
+dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id)
+{
+
+    log_it(L_DEBUG, "Start loading db list_write...");
+    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
+
+    size_t l_data_size_out = dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id);
+    // debug
+//    if(l_data_size_out>11)
+//        l_data_size_out = 11;
+    l_dap_db_log_list->item_start = first_id;
+    l_dap_db_log_list->item_last = first_id + l_data_size_out;
+    l_dap_db_log_list->items_number = l_data_size_out;
+    l_dap_db_log_list->items_rest = l_data_size_out;
+    // there are too few items, read items right now
+    if(l_data_size_out <= 10) {
+        dap_list_t *l_list = NULL;
+        // read first items
+        dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out);
+        for(size_t i = 0; i < l_data_size_out; i++) {
+            dap_store_obj_t *l_obj_cur = l_objs + i;
+            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+            l_item->id = l_obj_cur->id;
+            l_item->key = dap_strdup(l_obj_cur->key);
+            l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
+            l_list = dap_list_append(l_list, l_item);
+        }
+        l_dap_db_log_list->list_write = l_list;
+        l_dap_db_log_list->list_read = l_list;
+        log_it(L_DEBUG, "loaded items n=%d", l_data_size_out);
+        dap_store_obj_free(l_objs, l_data_size_out);
+    }
+    // start thread for items loading
+    else {
+        l_dap_db_log_list->is_process = true;
+        pthread_mutex_init(&l_dap_db_log_list->list_mutex, NULL);
+        pthread_create(&l_dap_db_log_list->thread, NULL, s_list_thread_proc, l_dap_db_log_list);
+    }
+    return l_dap_db_log_list;
+}
+
+/**
+ * Get number of items
+ */
+size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return NULL;
+    size_t l_items_number;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    l_items_number = a_db_log_list->items_number;
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    return l_items_number;
+}
+
+size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return NULL;
+    size_t l_items_rest;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    l_items_rest = a_db_log_list->items_rest;
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    return l_items_rest;
+}
+/**
+ * Get one item from log_list
+ */
+dap_global_db_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return NULL;
+    dap_list_t *l_list;
+    bool l_is_process;
+    int l_count = 0;
+    while(1) {
+        pthread_mutex_lock(&a_db_log_list->list_mutex);
+        l_is_process = a_db_log_list->is_process;
+        // check next item
+        l_list = a_db_log_list->list_read;
+        if (l_list){
+            a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
+            a_db_log_list->items_rest--;
+        }
+        pthread_mutex_unlock(&a_db_log_list->list_mutex);
+        // wait reading next item, no more 1 sec (50 ms * 100 times)
+        if(!l_list && l_is_process) {
+            dap_usleep(DAP_USEC_PER_SEC / 200);
+            l_count++;
+            if(l_count > 100)
+                break;
+        }
+        else
+            break;
+    }
+    log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
+    return (dap_global_db_obj_t*) l_list ? l_list->data : NULL;
+    //return l_list;
+}
+
+/**
+ * Get log diff as list_write
+ */
+void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return;
+    // stop thread if it has created
+    if(a_db_log_list->thread) {
+        pthread_mutex_lock(&a_db_log_list->list_mutex);
+        a_db_log_list->is_process = false;
+        pthread_mutex_unlock(&a_db_log_list->list_mutex);
+        pthread_join(a_db_log_list->thread, NULL);
+    }
+    dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
+    pthread_mutex_destroy(&a_db_log_list->list_mutex);
+    DAP_DELETE(a_db_log_list);
 }
