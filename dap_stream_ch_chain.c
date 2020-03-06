@@ -245,7 +245,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it(L_DEBUG, "Requested transactions %llu:%llu", l_request->id_start,
                             (uint64_t ) l_ch_chain->request_last_ts);
                     //dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
-                    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_request->id_start + 1);
+                    uint64_t l_start_item = l_request->id_start;
+                    // If the current global_db has been truncated, but the remote node has not known this
+                    if(l_request->id_start > l_ch_chain->request_last_ts) {
+                        l_start_item = 0;
+                    }
+                    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_start_item + 1);
                     if(l_db_log) {
                         log_it(L_DEBUG, "Start getting items %u:%u", l_request->id_start + 1,l_db_log->items_number);//dap_list_length(l_list));
                         // Add it to outgoing list
