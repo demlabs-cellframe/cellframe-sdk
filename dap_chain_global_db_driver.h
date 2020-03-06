@@ -34,7 +34,7 @@ typedef struct dap_store_obj {
 	uint8_t type;
     char *group;
     char *key;
-    const char *c_group;
+    //const char *c_group;
     const char *c_key;
     uint8_t *value;
 	size_t value_len;
@@ -51,6 +51,7 @@ typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const cha
 typedef dap_store_obj_t* (*dap_db_driver_read_cond_callback_t)(const char *,uint64_t , size_t *);
 typedef dap_store_obj_t* (*dap_db_driver_read_last_callback_t)(const char *);
 typedef size_t (*dap_db_driver_read_count_callback_t)(const char *,uint64_t);
+typedef bool (*dap_db_driver_is_obj_callback_t)(const char *, const char *);
 typedef int (*dap_db_driver_callback_t)(void);
 
 typedef struct dap_db_driver_callbacks {
@@ -59,6 +60,7 @@ typedef struct dap_db_driver_callbacks {
     dap_db_driver_read_last_callback_t read_last_store_obj;
     dap_db_driver_read_cond_callback_t read_cond_store_obj;
     dap_db_driver_read_count_callback_t read_count_store;
+    dap_db_driver_is_obj_callback_t is_obj;
     dap_db_driver_callback_t transaction_start;
     dap_db_driver_callback_t transaction_end;
     dap_db_driver_callback_t deinit;
@@ -81,6 +83,7 @@ int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_sto
 dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group);
 dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint64_t id, size_t *a_count_out);
 dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *count_out);
+bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key);
 size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id);
 
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,

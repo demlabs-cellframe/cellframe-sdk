@@ -3,7 +3,7 @@
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2019
+* Copyright  (c) 2019-2020
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -139,6 +139,8 @@ void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix
  */
 void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 {
+    if(!obj)
+        return;
     DAP_DELETE(obj->key);
     DAP_DELETE(obj->value);
     obj->key = NULL;
@@ -245,6 +247,31 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 }
 
 /**
+ * @brief dap_chain_global_db_obj_gr_get
+ * @param a_key
+ * @param a_data_out
+ * @param a_group
+ * @return
+ */
+dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
+{
+    uint8_t *l_ret_value = NULL;
+    // read several items, 0 - no limits
+    size_t l_data_len_out = 0;
+    if(a_data_len_out)
+        l_data_len_out = *a_data_len_out;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
+    if(l_store_data) {
+        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
+        memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
+        if(a_data_len_out)
+            *a_data_len_out = l_store_data->value_len;
+        //dap_store_obj_free(l_store_data, l_data_len_out);
+    }
+    return l_store_data;
+}
+
+/**
  * @brief dap_chain_global_db_gr_get
  * @param a_key
  * @param a_data_out
@@ -296,6 +323,82 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
     return dap_chain_global_db_gr_get(a_key, a_data_out, GROUP_LOCAL_GENERAL);
 }
 
+
+/**
+ * Add info about the deleted entry to the base
+ */
+static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_timestamp)
+{
+    dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
+    memset(&store_data, 0, sizeof(dap_store_obj_t));
+    store_data.type = 'a';
+    store_data.key = a_key;//dap_strdup(a_key);
+    // no data
+    store_data.value = NULL;
+    store_data.value_len = 0;
+    // group = parent group + '.del'
+    store_data.group = dap_strdup_printf("%s.del", a_group);
+    store_data.timestamp = a_timestamp;//time(NULL);
+    lock();
+    int l_res = dap_chain_global_db_driver_add(&store_data, 1);
+    unlock();
+    DAP_DELETE(store_data.group);
+    if(l_res>=0)
+        return true;
+    return false;
+}
+
+/**
+ * Delete info about the deleted entry from the base
+ */
+static bool global_db_gr_del_del(char *a_key,const char *a_group)
+{
+    if(!a_key)
+        return NULL;
+    dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
+    memset(&store_data, 0, sizeof(dap_store_obj_t));
+    store_data.key = a_key;
+   // store_data->c_key = a_key;
+    store_data.group = dap_strdup_printf("%s.del", a_group);
+    //store_data->c_group = a_group;
+    lock();
+    int l_res = 0;
+    if(dap_chain_global_db_driver_is(store_data.group, store_data.key))
+        l_res = dap_chain_global_db_driver_delete(&store_data, 1);
+    unlock();
+    DAP_DELETE(store_data.group);
+    if(l_res>=0)
+        return true;
+    return false;
+}
+
+/**
+ * Get timestamp of the deleted entry
+ */
+time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
+{
+    time_t l_timestamp = 0;
+    if(!a_key)
+        return l_timestamp;
+    dap_store_obj_t store_data;
+    memset(&store_data, 0, sizeof(dap_store_obj_t));
+    store_data.key = a_key;
+    // store_data->c_key = a_key;
+    store_data.group = dap_strdup_printf("%s.del", a_group);
+    //store_data->c_group = a_group;
+    lock();
+    if(dap_chain_global_db_driver_is(store_data.group, store_data.key)) {
+        size_t l_count_out = 0;
+        dap_store_obj_t *l_obj = dap_chain_global_db_driver_read(store_data.group, store_data.key, &l_count_out);
+        assert(l_count_out <= 1);
+        l_timestamp = l_obj->timestamp;
+        dap_store_obj_free(l_obj, l_count_out);
+    }
+    unlock();
+    DAP_DELETE(store_data.group);
+    return l_timestamp;
+}
+
 /**
  *
  */
@@ -328,6 +431,9 @@ bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, 
 
     // Extract prefix if added successfuly, add history log and call notify callback if present
     if(!l_res) {
+        // Delete info about the deleted entry from the base if one present
+        global_db_gr_del_del(a_key, a_group);
+
         char * l_group_prefix = extract_group_prefix(a_group);
         history_group_item_t * l_history_group_item = NULL;
         if(l_group_prefix)
@@ -357,6 +463,7 @@ bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
 {
     return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
 }
+
 /**
  * Delete entry from base
  */
@@ -368,11 +475,14 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
     store_data->key = a_key;
    // store_data->c_key = a_key;
     store_data->group = dap_strdup(a_group);
-    store_data->c_group = a_group;
+    //store_data->c_group = a_group;
     lock();
     int l_res = dap_chain_global_db_driver_delete(store_data, 1);
     unlock();
+    // do not add to history if l_res=1 (already deleted)
     if(!l_res) {
+        // added to Del group
+        global_db_gr_del_add(a_key, a_group, time(NULL));
         // Extract prefix
         char * l_group_prefix = extract_group_prefix(a_group);
         history_group_item_t * l_history_group_item = NULL;
@@ -392,8 +502,21 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
             DAP_DELETE(l_group_prefix);
     }
     //DAP_DELETE(store_data);
-    if(!l_res)
+    if(l_res>=0){
+        // added to Del group
+        global_db_gr_del_add(a_key, a_group, time(NULL));
+        /*/ read del info
+        char *l_group = dap_strdup_printf("%s.del", a_group);
+        size_t l_data_size_out = 0;
+        dap_store_obj_t *l_objs = dap_chain_global_db_obj_gr_get(a_key, &l_data_size_out,l_group);
+        // update timestamp
+        if(l_objs){
+            if(l_objs->timestamp<time(NULL))
+        dap_store_obj_free(l_objs, l_data_size_out);
+        }
+        DAP_DELETE(l_group);*/
         return true;
+    }
     return false;
 }
 bool dap_chain_global_db_del(char *a_key)
@@ -496,6 +619,16 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
     // Extract prefix if added successfuly, add history log and call notify callback if present
     if(!l_res) {
         for(size_t i = 0; i < a_objs_count; i++) {
+
+            dap_store_obj_t *a_store_obj = a_store_data + i;
+            if(a_store_obj->type == 'a')
+                // delete info about the deleted entry from the base if one present
+                global_db_gr_del_del(a_store_obj->key, a_store_obj->group);
+            else if(a_store_obj->type == 'd')
+                // add to Del group
+                global_db_gr_del_add(a_store_obj->key, a_store_obj->group, a_store_obj->timestamp);
+
+
             history_group_item_t * l_history_group_item = NULL;
             dap_store_obj_t* l_obj = (dap_store_obj_t*)a_store_data + i;
             char * l_group_prefix = extract_group_prefix(l_obj->group);
@@ -523,8 +656,9 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
         }
 
     }
-    if(!l_res)
+    if(l_res >= 0) {
         return true;
+    }
     return false;
 }
 

@@ -225,10 +225,12 @@ void *cdb_ht_get(CDBHASHTABLE *ht, const void *key, int ksize, int *vsize, bool 
 
     res = cdb_ht_get3(ht, key, ksize, mtf);
     if (res) {
-        *vsize = res->vsize;
+        if(vsize)
+            *vsize = res->vsize;
         return cdb_ht_itemval(ht, res);
     } else { 
-        *vsize = 0;
+        if(vsize)
+            *vsize = 0;
         return NULL;
     }
 }

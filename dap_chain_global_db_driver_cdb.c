@@ -228,6 +228,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     a_drv_callback->read_store_obj      = dap_db_driver_cdb_read_store_obj;
     a_drv_callback->read_cond_store_obj = dap_db_driver_cdb_read_cond_store_obj;
     a_drv_callback->read_count_store    = dap_db_driver_cdb_read_count_store;
+    a_drv_callback->is_obj              = dap_db_driver_cdb_is_obj;
     a_drv_callback->deinit              = dap_db_driver_cdb_deinit;
     a_drv_callback->flush               = dap_db_driver_cdb_flush;
 
@@ -319,6 +320,26 @@ dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
     cdb_iterate_destroy(l_cdb, l_iter);
     l_arg.o->group = dap_strdup(a_group);
     return l_arg.o;
+}
+
+bool dap_db_driver_cdb_is_obj(const char *a_group, const char *a_key)
+{
+    bool l_ret = false;
+    if(!a_group) {
+        return false;
+    }
+    pcdb_instance l_cdb_i = dap_cdb_get_db_by_group(a_group);
+    if(!l_cdb_i) {
+        return false;
+    }
+    CDB *l_cdb = l_cdb_i->cdb;
+    if(a_key) {
+
+        int l_vsize;
+        if(!cdb_is(l_cdb, a_key, (int) dap_strlen(a_key)))
+            l_ret = true;
+    }
+    return l_ret;
 }
 
 dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out) {
@@ -426,12 +447,14 @@ size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
     }
     pcdb_instance l_cdb_i = dap_cdb_get_db_by_group(a_group);
     if(!l_cdb_i) {
-        return NULL;
+        return 0;
     }
     CDB *l_cdb = l_cdb_i->cdb;
     CDBSTAT l_cdb_stat;
     cdb_stat(l_cdb, &l_cdb_stat);
-    return (size_t) l_cdb_stat.rnum;
+    if(a_id > l_cdb_stat.rnum)
+        return 0;
+    return (size_t) l_cdb_stat.rnum - a_id + 1;
 }
 
 int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
@@ -448,7 +471,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         return -1;
     }
     if(a_store_obj->type == 'a') {
-        if(!a_store_obj->key || !a_store_obj->value || !a_store_obj->value_len){
+        if(!a_store_obj->key) {// || !a_store_obj->value || !a_store_obj->value_len){
             return -2;
         }
         cdb_record l_rec;
@@ -459,7 +482,9 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         offset += sizeof(uint64_t);
         dap_cdb_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(unsigned long));
         offset += sizeof(unsigned long);
-        memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
+        if(a_store_obj->value && a_store_obj->value_len){
+            memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
+        }
         offset += a_store_obj->value_len;
         unsigned long l_time = (unsigned long)a_store_obj->timestamp;
         dap_cdb_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
@@ -473,7 +498,8 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         DAP_DELETE(l_rec.val);
     } else if(a_store_obj->type == 'd') {
         if(a_store_obj->key) {
-            cdb_del(l_cdb_i->cdb, a_store_obj->key, (int)strlen(a_store_obj->key));
+            if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
+                ret = 1;
         } else {
             cdb_destroy(l_cdb_i->cdb);
             if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP)) {

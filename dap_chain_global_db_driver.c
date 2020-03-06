@@ -407,12 +407,21 @@ static int save_write_buf(void)
             dap_store_obj_t *l_obj = s_list_begin->data;
             assert(l_obj);
             if(s_drv_callback.apply_store_obj) {
-                if(!s_drv_callback.apply_store_obj(l_obj)) {
+                int l_ret_tmp = s_drv_callback.apply_store_obj(l_obj);
+                if(l_ret_tmp == 1) {
+                    log_it(L_INFO, "item is missing (may be already deleted) %s/%s\n", l_obj->group, l_obj->key);
+                    l_ret = 1;
+                }
+                if(l_ret_tmp < 0) {
+                    log_it(L_ERROR, "Can't write item %s/%s\n", l_obj->group, l_obj->key);
+                    l_ret -= 1;
+                }
+                /*if(!s_drv_callback.apply_store_obj(l_obj)) {
                     //log_it(L_INFO, "Write item Ok %s/%s\n", l_obj->group, l_obj->key);
                 }
                 else {
                     log_it(L_ERROR, "Can't write item %s/%s\n", l_obj->group, l_obj->key);
-                }
+                }*/
             }
 
             s_list_begin = dap_list_next(s_list_begin);
@@ -496,10 +505,12 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
         for(size_t i = 0; i < a_store_count; i++) {
             dap_store_obj_t *l_store_obj_cur = a_store_obj + i;
             assert(l_store_obj_cur);
-            if(!s_drv_callback.apply_store_obj(l_store_obj_cur)) {
-                //log_it(L_INFO, "Write item Ok %s/%s\n", l_obj->group, l_obj->key);
+            int l_ret_tmp = s_drv_callback.apply_store_obj(l_store_obj_cur);
+            if(l_ret_tmp == 1) {
+                log_it(L_INFO, "item is missing (may be already deleted) %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
+                l_ret = 1;
             }
-            else {
+            if(l_ret_tmp < 0) {
                 log_it(L_ERROR, "Can't write item %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
                 l_ret -= 1;
             }
@@ -599,5 +610,20 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
     // read records using the selected database engine
     if(s_drv_callback.read_store_obj)
         l_ret = s_drv_callback.read_store_obj(a_group, a_key, a_count_out);
+    return l_ret;
+}
+
+/**
+ * Check an element in the database
+ *
+ * a_group - group name
+ * a_key - key name
+ */
+bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key)
+{
+    bool l_ret = NULL;
+    // read records using the selected database engine
+    if(s_drv_callback.is_obj)
+        l_ret = s_drv_callback.is_obj(a_group, a_key);
     return l_ret;
 }

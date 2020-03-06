@@ -47,3 +47,4 @@ dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char*);
 dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char*, const char*, size_t*);
 size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id);
 dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char*, uint64_t, size_t*);
+bool dap_db_driver_cdb_is_obj(const char *a_group, const char *a_key);

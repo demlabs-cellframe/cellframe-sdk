@@ -107,6 +107,7 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
             l_obj->id = a_obj->id;
             l_obj->group = dap_strdup(l_rec.group);
             l_obj->key = dap_strdup(l_keys[i]);
+            l_obj->timestamp = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
         }
         if(l_obj == NULL) {
             dap_store_obj_free(l_store_obj, l_count);
@@ -1292,6 +1293,8 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id)
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
 
     size_t l_data_size_out = dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id);
+    if(!l_data_size_out)
+        return NULL;
     // debug
 //    if(l_data_size_out>11)
 //        l_data_size_out = 11;
