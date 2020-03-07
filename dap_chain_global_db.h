@@ -61,6 +61,7 @@ void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix
  * Get entry from base
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
+dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_out, const char *a_group);
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out);
 
@@ -75,6 +76,11 @@ bool dap_chain_global_db_set( char *a_key, void *a_value, size_t a_value_len);
  */
 bool dap_chain_global_db_gr_del(char *a_key, const char *a_group);
 bool dap_chain_global_db_del(char *a_key);
+
+/**
+ * Get timestamp of the deleted entry
+ */
+time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key);
 
 /**
  * Read the entire database into an array of size bytes

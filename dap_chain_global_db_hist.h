@@ -25,12 +25,12 @@ bool dap_db_history_truncate(void);
 // for dap_db_log_list_xxx()
 typedef struct dap_db_log_list {
     dap_list_t *list_write; // writed list
-    dap_list_t *list_read;  // readed list (inside list_write)
+    dap_list_t *list_read; // readed list (inside list_write)
     bool is_process;
-    size_t item_start;
-    size_t item_last;
-    size_t items_rest;
-    size_t items_number;
+    size_t item_start; // first item to read from db
+    size_t item_last; // last item to read from db
+    size_t items_rest; // rest items to read from list_read
+    size_t items_number; // remaining items in list_write after reading from db
     pthread_t thread;
     pthread_mutex_t list_mutex;
 } dap_db_log_list_t;

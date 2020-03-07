@@ -1086,6 +1086,61 @@ int cdb_set2(CDB *db, const char *key, int ksize, const char *val, int vsize, in
 }
 
 
+int cdb_is(CDB *db, const char *key, int ksize)
+{
+    FOFF soffs[SFOFFNUM];
+    FOFF *offs;
+    int dupnum, ret = -3;
+    uint64_t hash;
+    uint32_t now = time(NULL);
+    uint32_t lockid;
+
+    if (db->rcache) {
+        char *cval;
+        cdb_lock_lock(db->rclock);
+        cval = cdb_ht_get(db->rcache, key, ksize, 0, true);
+        if (cval) {
+            db->rchit++;
+            cdb_lock_unlock(db->rclock);
+            return 0;
+        } else {
+            db->rcmiss++;
+            if (db->vio == NULL) {
+                cdb_lock_unlock(db->rclock);
+                return -3;
+            }
+        }
+        cdb_lock_unlock(db->rclock);
+    }
+
+    offs = soffs;
+    hash = CDBHASH64(key, ksize);
+    lockid = (hash >> 24) % db->hsize % MLOCKNUM;
+    cdb_lock_lock(db->mlock[lockid]);
+    dupnum = cdb_getoff(db, hash, &offs, CDB_LOCKED);
+    if (dupnum <= 0) {
+        cdb_lock_unlock(db->mlock[lockid]);
+        return -1;
+    }
+    else
+        ret = 0;
+    cdb_lock_unlock(db->mlock[lockid]);
+
+    if (RCOVERFLOW(db))
+        _cdb_recout(db);
+
+    if (offs != soffs)
+        free(offs);
+
+    if (ret < 0)
+        cdb_seterrno(db, CDB_NOTFOUND, __FILE__, __LINE__);
+    else {
+        db->rcmiss++;
+        cdb_seterrno(db, CDB_SUCCESS, __FILE__, __LINE__);
+    }
+    return ret;
+}
+
 
 int cdb_get(CDB *db, const char *key, int ksize, void **val, int *vsize)
 {

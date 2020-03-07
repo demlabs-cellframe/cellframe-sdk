@@ -155,6 +155,8 @@ int cdb_set(CDB *db, const char *key, int ksize, const char *val, int vsize);
 int cdb_set2(CDB *db, const char *key, int ksize, const char *val, int vsize, int opt, int expire);
 
 
+int cdb_is(CDB *db, const char *key, int ksize);
+
 /* get an record by 'key', the value will be allocated and passed out by 'val', its size is
    'vsize'.  return 0 if success, or -1 at failure. */
 int cdb_get(CDB *db, const char *key, int ksize, void **val, int *vsize);

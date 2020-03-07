@@ -106,7 +106,7 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 bool dap_db_log_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
 {
     dap_global_db_obj_t l_objs;
-    l_objs.key = dap_strdup_printf("%lld", a_node_addr);
+    l_objs.key = dap_strdup_printf("%ju", a_node_addr);
     l_objs.value = (uint8_t*) &a_id;
     l_objs.value_len = sizeof(uint64_t);
     bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_LOCAL_NODE_LAST_ID);
@@ -120,7 +120,7 @@ bool dap_db_log_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
  */
 uint64_t dap_db_log_get_last_id_remote(uint64_t a_node_addr)
 {
-    char *l_node_addr_str = dap_strdup_printf("%lld", a_node_addr);
+    char *l_node_addr_str = dap_strdup_printf("%ju", a_node_addr);
     size_t l_timestamp_len = 0;
     uint8_t *l_timestamp = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_timestamp_len,
     GROUP_LOCAL_NODE_LAST_ID);
