@@ -22,7 +22,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdbool.h>
-#include "dap_list.h"
+#include "utlist.h"
 #include <dirent.h>
 
 #ifndef _DAP_FILE_UTILS_H_
@@ -51,6 +51,11 @@
 #define DAP_SEARCHPATH_SEPARATOR_S ":"
 
 #endif
+
+typedef struct dap_list_name_directories{
+    char *name_directory;
+    struct dap_list_name_directories *next;
+}dap_list_name_directories_t;
 
 /**
  * Check the directory path for unsupported symbols
@@ -95,6 +100,6 @@ char* dap_path_get_dirname(const char *a_file_name);
  * @a_path_name directory path.
  * @return dap_list_t type variable that contains a list of subdirectories.
  */
-dap_list_t *dap_get_subs(const char *a_path_name);
+dap_list_name_directories_t *dap_get_subs(const char *a_path_name);
 
 #endif // _FILE_UTILS_H_
