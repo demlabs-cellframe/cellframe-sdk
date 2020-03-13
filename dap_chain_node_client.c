@@ -287,12 +287,17 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 if(a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
                     a_ch_chain->request_last_ts = dap_db_log_get_last_id();
                     uint64_t l_start_item = l_request->id_start;
+                    dap_db_log_list_t *l_db_log = NULL;
                     // If the current global_db has been truncated, but the remote node has not known this
+                    uint64_t l_last_id = dap_db_log_get_last_id();
                     if(l_request->id_start > a_ch_chain->request_last_ts){
-                        l_start_item = 0;
+                        l_db_log = dap_db_log_list_start(l_start_item + 1);
+                        if(!l_db_log)
+                            l_start_item = 0;
                     }
                     //dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
-                    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_start_item + 1);
+                    if(!l_db_log)
+                        l_db_log = dap_db_log_list_start(l_start_item + 1);
                     if(l_db_log) {
                         // Add it to outgoing list
                         //l_list->prev = a_ch_chain->request_global_db_trs;

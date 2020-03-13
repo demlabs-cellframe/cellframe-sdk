@@ -1140,9 +1140,12 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
 
+            log_it(L_WARNING, "Gdb synced err -2");
             return -2;
 
         }
+        log_it(L_INFO, "Gdb synced Ok");
+
         // Requesting chains
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(l_net->pub.chains, l_chain)
@@ -1158,6 +1161,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 // clean client struct
                 dap_chain_node_client_close(l_node_client);
                 DAP_DELETE(l_remote_node_info);
+                log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
                 return -3;
             }
             log_it(L_NOTICE, "Requested syncronization for chain \"%s\"", l_chain->name);
