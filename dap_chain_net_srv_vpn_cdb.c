@@ -316,6 +316,11 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
             log_it(L_DEBUG, "Create tx from wallet %s", l_wallet_from->name);
             dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet_from, 0);
 
+
+            //dap_chain_cell_id_t *xccell = dap_chain_net_get_cur_cell(l_tpl->net);
+            //uint64_t uint64 =dap_chain_net_get_cur_cell(l_tpl->net)->uint64;
+
+
             // where to take coins for service
             dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, l_tpl->net->pub.id);
             dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
@@ -334,6 +339,9 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
             }
             DAP_DELETE( l_addr_from_str );
         }
+        // dbg
+        //dap_ledger_t * l_ledger = dap_chain_ledger_by_net_name( l_tpl->net->pub.name);
+        //dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash( l_ledger, l_tx_cond_hash);
 
         // If we loaded or created hash
         if( l_tx_cond_hash ){
