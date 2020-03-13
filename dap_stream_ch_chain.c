@@ -550,10 +550,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         //dap_list_t *l_list = l_ch_chain->request_global_db_trs; //dap_list_last( l_ch_chain->request_global_db_trs );
         bool l_is_stop = true; //l_list ? false : true;
         while(l_obj) {
-            //log_it(L_DEBUG, "l_list = %X", l_list);
-            //size_t len = dap_list_length( l_list );
-            //log_it( L_DEBUG,"len = dap_list_length(l_list ); = %u", len );
-            //log_it( L_DEBUG,"l_list->data = %p", l_list->data );
 
             size_t l_items_total = dap_db_log_list_get_count(l_db_list);
             size_t l_items_rest = dap_db_log_list_get_count_rest(l_db_list);
@@ -658,7 +654,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_t * l_chain = l_ch_chain->request_atom_iter->chain;
         */
 
-        dap_chain_atom_item_t * l_atom_item = NULL, *l_atom_item_tmp = NULL, *l_chains_lasts_new = NULL;
+        dap_chain_atom_item_t * l_atom_item = NULL, *l_atom_item_tmp = NULL;//, *l_chains_lasts_new = NULL;
         if(l_ch_chain->request_atoms_lasts == NULL) { // All chains synced
             dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
             uint8_t l_send_pkt_type = l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS ?
@@ -674,7 +670,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             if(l_ch_chain->callback_notify_packet_out)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, l_send_pkt_type, NULL, 0, l_ch_chain->callback_notify_arg);
         }
-        // Process all chains lasts
+        // Process one chain from l_ch_chain->request_atoms_lasts
         HASH_ITER(hh,l_ch_chain->request_atoms_lasts, l_atom_item, l_atom_item_tmp)
         {
             dap_chain_atom_item_t * l_atom_item_proc = NULL;
@@ -715,21 +711,25 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                         l_link_item = DAP_NEW_Z(dap_chain_atom_item_t);
                         l_link_item->atom = l_links[i];// do not use memory cause it will be deleted
                         memcpy(&l_link_item->atom_hash, &l_link_hash, sizeof(l_link_hash));
-                        HASH_ADD(hh, l_chains_lasts_new, atom_hash, sizeof(l_link_hash), l_link_item);
+                        //HASH_ADD(hh, l_chains_lasts_new, atom_hash, sizeof(l_link_hash), l_link_item);
+                        HASH_ADD(hh, l_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_link_hash), l_link_item);
                     }
                     //else
                     //    DAP_DELETE(l_links[i]);
                 }
                 DAP_DELETE(l_links);
-
+                HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
+                break;
             }
-            HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
+            else{
+                HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
+            }
         }
-        assert(l_ch_chain->request_atoms_lasts == NULL);
-        l_ch_chain->request_atoms_lasts = l_chains_lasts_new;
-
+        //assert(l_ch_chain->request_atoms_lasts == NULL);
+        //l_ch_chain->request_atoms_lasts = l_chains_lasts_new;
     }
         break;
+
     }
 
     if(l_ch_chain->state == CHAIN_STATE_SYNC_ALL) {
