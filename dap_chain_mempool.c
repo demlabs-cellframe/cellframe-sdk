@@ -635,7 +635,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
 }
 
 /**
- * Make transfer transaction & insert to cache
+ * Make transfer transaction & insert to database
  *
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
