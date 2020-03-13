@@ -1268,12 +1268,15 @@ static void *s_list_thread_proc(void *arg)
         // init read list if it ended already
         if(!l_dap_db_log_list->list_read)
             l_dap_db_log_list->list_read = l_list;
-        l_dap_db_log_list->item_start += l_data_size_out;
+        // set new start pos = lastitem pos + 1
+        if(l_data_size_out > 0)
+            l_dap_db_log_list->item_start = l_objs[l_data_size_out - 1].id + 1;
+        //else
+        //    l_dap_db_log_list->item_start += l_data_size_out;
         pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         l_items_number += l_data_size_out;
         log_it(L_DEBUG, "loaded items n=%u/%u", l_data_size_out, l_items_number);
         dap_store_obj_free(l_objs, l_data_size_out);
-        // ...
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
