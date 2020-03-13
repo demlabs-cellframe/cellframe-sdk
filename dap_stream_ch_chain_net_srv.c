@@ -151,7 +151,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                 if ( l_err.code ){
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
-                    if (l_srv->callback_response_error)
+                    if (l_srv && l_srv->callback_response_error)
                         l_srv->callback_response_error(l_srv,0,NULL,&l_err,sizeof (l_err) );
                     break;
                 }
