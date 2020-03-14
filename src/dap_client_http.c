@@ -294,11 +294,8 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     // set socket param
     int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
 #ifdef _WIN32
-    int optsize = sizeof(int);
-    {
-      setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, &optsize );
-      setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize );
-    }
+      setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
+      setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
 #else
     setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
     setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
