@@ -776,6 +776,15 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return 0;
     }
 
+#ifdef __WIN32
+    WSADATA wsaData;
+    int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (ret != 0) {
+        log_it(L_CRITICAL, "Couldn't init Winsock DLL, error: %d", ret);
+        return 2;
+    }
+#endif
+
     dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
@@ -930,13 +939,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
         // create socket
         if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET ) {
-            log_it( L_ERROR, "Console Server: can't create socket, err %X", errno );
+#ifdef __WIN32
+            _set_errno(WSAGetLastError());
+#endif
+            log_it( L_ERROR, "Console Server: can't create socket, err %d", errno );
             return -3;
         }
 
         // connecting the address with a socket
         if ( bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == SOCKET_ERROR ) {
-            log_it( L_ERROR, "Console Server: can't bind socket, err %X", errno );
+            log_it( L_ERROR, "Console Server: can't bind socket, err %d", errno );
             closesocket( sockfd );
             return -4;
         }
@@ -969,7 +981,9 @@ void dap_chain_node_cli_delete(void)
 {
     if(server_sockfd >= 0)
         closesocket(server_sockfd);
-
+#ifdef __WIN32
+    WSACleanup();
+#endif
     // deinit client for handshake
     dap_chain_node_client_deinit();
 }
