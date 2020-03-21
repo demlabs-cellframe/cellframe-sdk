@@ -22,8 +22,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _DAP_ENC_BASE64_H_
-#define _DAP_ENC_BASE64_H_
+#ifndef _DAP_ENC_BASE58_H_
+#define _DAP_ENC_BASE58_H_
 #include <stddef.h>
 #include <stdint.h>
 #include "dap_enc_key.h"
