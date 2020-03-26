@@ -29,7 +29,7 @@
 #include <stddef.h>
 #include <time.h>
 #include <stdint.h>
-
+#include "dap_common.h"
 
 
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
@@ -229,8 +229,8 @@ uint8_t* dap_enc_key_serealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_si
 uint8_t* dap_enc_key_deserealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_sign, size_t *a_sign_len);
 uint8_t* dap_enc_key_serealize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_out);
 uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_out);
-int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, uint8_t *a_buf, size_t a_buflen);
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen);
+int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const byte_t *a_buf, size_t a_buflen);
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const byte_t *a_buf, size_t a_buflen);
 
 dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key);
 dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size);

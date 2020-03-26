@@ -11,6 +11,7 @@
 #define LOG_TAG "dap_enc_sig_bliss"
 
 static enum DAP_BLISS_SIGN_SECURITY _bliss_type = MAX_SECURITY; // by default
+bliss_kind_t _bliss_kind = BLISS_B_4; // same as previous as I expect
 
 void dap_enc_sig_bliss_set_type(enum DAP_BLISS_SIGN_SECURITY type)
 {
@@ -94,7 +95,7 @@ void dap_enc_sig_bliss_key_new_generate(struct dap_enc_key * a_key, const void *
     //int32_t type = 4;
     a_key->priv_key_data_size = sizeof(bliss_private_key_t);
     a_key->priv_key_data = DAP_NEW_SIZE(void, a_key->priv_key_data_size);
-    l_retcode = bliss_b_private_key_gen((bliss_private_key_t *) a_key->priv_key_data, _bliss_type, &entropy);
+    l_retcode = bliss_b_private_key_gen((bliss_private_key_t *) a_key->priv_key_data, _bliss_kind, &entropy);
     if(l_retcode != BLISS_B_NO_ERROR) {
         bliss_b_private_key_delete(a_key->priv_key_data);
         a_key->priv_key_data = NULL;
@@ -180,7 +181,7 @@ uint8_t* dap_enc_sig_bliss_write_signature(bliss_signature_t* a_sign, size_t *a_
 }
 
 /* Deserialize a signature */
-bliss_signature_t* dap_enc_sig_bliss_read_signature(uint8_t *a_buf, size_t a_buflen)
+bliss_signature_t* dap_enc_sig_bliss_read_signature(const byte_t *a_buf, size_t a_buflen)
 {
     if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(bliss_kind_t)))
         return NULL ;
@@ -258,7 +259,7 @@ uint8_t* dap_enc_sig_bliss_write_public_key(const bliss_public_key_t* a_public_k
 }
 
 /* Deserialize a private key. */
-bliss_private_key_t* dap_enc_sig_bliss_read_private_key(uint8_t *a_buf, size_t a_buflen)
+bliss_private_key_t* dap_enc_sig_bliss_read_private_key(const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(bliss_kind_t)))
         return NULL;
