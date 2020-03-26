@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
@@ -3048,6 +3048,58 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_set_reply_text(str_reply, l_str_ret);
     DAP_DELETE(l_str_out);
     DAP_DELETE(l_str_ret);
+    return 0;
+}
+
+/**
+ * stats command
+ */
+int com_stats(int argc, char ** argv, char **str_reply)
+{
+    enum {
+        CMD_NONE, CMD_STATS_CPU
+    };
+    int arg_index = 1;
+    int cmd_num = CMD_NONE;
+    // find  add parameter ('cpu')
+    if (dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "cpu", NULL)) {
+        cmd_num = CMD_STATS_CPU;
+    }
+    switch (cmd_num) {
+    case CMD_NONE:
+    default:
+        dap_chain_node_cli_set_reply_text(str_reply, "format of command: stats cpu");
+        return -1;
+    case CMD_STATS_CPU:
+#if (defined DAP_OS_UNIX) || (defined __WIN32)
+    {
+        dap_cpu_monitor_init();
+        usleep(500000);
+        char *str_reply_prev = dap_strdup_printf("");
+        char *str_delimiter;
+        dap_cpu_stats_t s_cpu_stats = dap_cpu_get_stats();
+        for (int n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
+            if ((n_cpu_num % 4 == 0) && (n_cpu_num != 0)) {
+                str_delimiter = dap_strdup_printf("\n");
+            } else if (n_cpu_num == s_cpu_stats.cpu_cores_count - 1) {
+                str_delimiter = dap_strdup_printf("");
+            } else {
+                str_delimiter = dap_strdup_printf(" ");
+            }
+            *str_reply = dap_strdup_printf("%sCPU-%d: %f%%%s", str_reply_prev, n_cpu_num, s_cpu_stats.cpus[n_cpu_num].load, str_delimiter);
+            DAP_DELETE(str_reply_prev);
+            DAP_DELETE(str_delimiter);
+            str_reply_prev = *str_reply;
+        }
+        *str_reply = dap_strdup_printf("%s\nTotal: %f%%", str_reply_prev, s_cpu_stats.cpu_summary.load);
+        DAP_DELETE(str_reply_prev);
+        break;
+    }
+#else
+        dap_chain_node_cli_set_reply_text(str_reply, "only Linux or Windows environment supported");
+        return -1;
+#endif // DAP_OS_UNIX
+    }
     return 0;
 }
 

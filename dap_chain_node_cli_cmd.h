@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
@@ -125,6 +125,9 @@ int com_tx_history(int argc, char ** argv, char **str_reply);
 
 // Print log info
 int com_print_log(int argc, char ** argv, char **str_reply);
+
+// Print statistics
+int com_stats(int argc, char ** argv, char **str_reply);
 
 int com_exit(int argc, char ** argv, char **str_reply);
 
