@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
@@ -570,9 +570,9 @@ static void *thread_pipe_client_func( void *args )
 
     log_it( L_INFO, "close connection pipe = %X", hPipe );
 
-    FlushFileBuffers( hPipe ); 
-    DisconnectNamedPipe( hPipe ); 
-    CloseHandle( hPipe ); 
+    FlushFileBuffers( hPipe );
+    DisconnectNamedPipe( hPipe );
+    CloseHandle( hPipe );
 
     return NULL;
 }
@@ -583,44 +583,44 @@ static void *thread_pipe_client_func( void *args )
  */
 static void* thread_pipe_func( void *args )
 {
-   BOOL   fConnected = FALSE; 
+   BOOL   fConnected = FALSE;
    pthread_t threadId;
-   HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL; 
-   static const char *cPipeName = "\\\\.\\pipe\\node_cli.pipe"; 
+   HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL;
+   static const char *cPipeName = "\\\\.\\pipe\\node_cli.pipe";
 
-   for (;;) 
-   { 
+   for (;;)
+   {
 ///      printf( "\nPipe Server: Main thread awaiting client connection on %s\n", lpszPipename );
 
-      hPipe = CreateNamedPipe( 
-          cPipeName,                // pipe name 
-          PIPE_ACCESS_DUPLEX,       // read/write access 
-          PIPE_TYPE_MESSAGE |       // message type pipe 
-          PIPE_READMODE_MESSAGE |   // message-read mode 
-          PIPE_WAIT,                // blocking mode 
-          PIPE_UNLIMITED_INSTANCES, // max. instances  
-          4096,                     // output buffer size 
-          4096,                     // input buffer size 
-          0,                        // client time-out 
-          NULL );                   // default security attribute 
+      hPipe = CreateNamedPipe(
+          cPipeName,                // pipe name
+          PIPE_ACCESS_DUPLEX,       // read/write access
+          PIPE_TYPE_MESSAGE |       // message type pipe
+          PIPE_READMODE_MESSAGE |   // message-read mode
+          PIPE_WAIT,                // blocking mode
+          PIPE_UNLIMITED_INSTANCES, // max. instances
+          4096,                     // output buffer size
+          4096,                     // input buffer size
+          0,                        // client time-out
+          NULL );                   // default security attribute
 
       if ( hPipe == INVALID_HANDLE_VALUE ) {
           log_it( L_ERROR, "CreateNamedPipe failed, GLE = %d.\n", GetLastError() );
           return NULL;
       }
-  
-      fConnected = ConnectNamedPipe( hPipe, NULL ) ? TRUE : ( GetLastError() == ERROR_PIPE_CONNECTED ); 
- 
+
+      fConnected = ConnectNamedPipe( hPipe, NULL ) ? TRUE : ( GetLastError() == ERROR_PIPE_CONNECTED );
+
       if ( fConnected )
-      { 
-        log_it( L_INFO, "Client %X connected, creating a processing thread.\n", hPipe ); 
+      {
+        log_it( L_INFO, "Client %X connected, creating a processing thread.\n", hPipe );
 
         pthread_create( &threadId, NULL, thread_pipe_client_func, hPipe );
         pthread_detach( threadId );
-      } 
-      else 
+      }
+      else
          CloseHandle( hPipe );
-    } 
+    }
 
     return NULL;
 }
@@ -864,6 +864,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
+    // Statisticss
+    dap_chain_node_cli_cmd_item_create("stats", com_stats, "Print statistics",
+                "stats cpu");
+
     // Exit
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
@@ -931,8 +935,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         const char *l_listen_addr_str = dap_config_get_item_str(g_config, "conserver", "listen_address");
 
         log_it( L_INFO, "Console interace on addr %s port %u ", l_listen_addr_str, l_listen_port );
- 
-        server_addr.sin_family = AF_INET; 
+
+        server_addr.sin_family = AF_INET;
         inet_pton( AF_INET, l_listen_addr_str, &server_addr.sin_addr );
         //server.sin_addr.s_addr = htonl( INADDR_ANY );
         server_addr.sin_port = htons( (uint16_t)l_listen_port );
