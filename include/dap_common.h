@@ -343,13 +343,8 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
-#ifdef DAP_LOG_MT
 void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
 #define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-#else
-void _log_it2( const char *log_tag, enum dap_log_level ll, const char *fmt,... );
-#define log_it( _log_level, ...) _log_it2( LOG_TAG, _log_level, ##__VA_ARGS__)
-#endif
 //void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
 
 //#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
