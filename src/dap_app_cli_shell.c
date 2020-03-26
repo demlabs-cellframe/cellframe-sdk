@@ -225,6 +225,7 @@ int rl_initialize(void)
     rl_instream = (FILE *) stdin;
     rl_outstream = (FILE *) stdout;
     RL_UNSETSTATE(RL_STATE_INITIALIZING);
+    return 0;
 }
 
 int parse_shell_options(char **argv, int arg_start, int arg_end)
