@@ -108,8 +108,8 @@ target_link_libraries(${PROJECT_NAME}  dap_core dap_crypto dap_crypto dap_server
         dap_enc_server dap_stream dap_stream_ch_chain dap_stream_ch_chain_net
         dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_client
         dap_chain_cs_dag dap_chain_cs_dag_poa dap_chain_cs_dag_pos
-        dap_chain_net dap_chain_net_srv dap_chain_net_srv_app dap_chain_net_srv_app_db
-        dap_chain_net_srv_datum dap_chain_net_srv_datum_pool dap_chain_net_srv_vpn
+        dap_chain_net dap_chain_net_srv
+        dap_chain_net_srv_vpn
         dap_chain_wallet dap_chain_global_db dap_chain_mempool dap_chain_gdb m magic
         dap_cuttdb   )
 #target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
