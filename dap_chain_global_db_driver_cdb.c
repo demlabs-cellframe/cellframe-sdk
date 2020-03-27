@@ -66,11 +66,11 @@ static inline uint64_t dap_cdb_hex_to_uint(const char *arr, short size) {
     short i = 0;
     for (i = 0; i < size; ++i){
         uint8_t byte = (uint8_t) *arr++;
-        if (byte >= 'a' && byte <='f'){
+        /*if (byte >= 'a' && byte <='f'){
             byte = byte - 'a' + 10;
         } else if (byte >= 'A' && byte <='F') {
             byte = byte - 'A' + 10;
-        }
+        }*/
         val = (val << 8) | (byte & 0xFFu);
     }
     return val;
