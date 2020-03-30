@@ -316,7 +316,7 @@ lb_proc_state:
                             DAP_DELETE(PVT(l_net)->links_addrs);
                         PVT(l_net)->links_addrs_count = PVT(l_net)->node_info->hdr.links_number;
                         PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE( dap_chain_node_addr_t,
-                                                                  PVT(l_net)->links_addrs_count);
+                                                                  PVT(l_net)->links_addrs_count * sizeof(dap_chain_node_addr_t));
                         for (size_t i =0 ; i < PVT(l_net)->node_info->hdr.links_number; i++ ){
                             PVT(l_net)->links_addrs[i].uint64 = PVT(l_net)->node_info->links[i].uint64;
                         }
