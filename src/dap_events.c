@@ -66,6 +66,7 @@
 #include <sched.h>
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_server.h"
 #include "dap_events.h"
 
@@ -83,6 +84,7 @@ static uint32_t s_threads_count = 1;
 static size_t   s_connection_timeout = 6000;
 static struct epoll_event *g_epoll_events = NULL;
 
+bool s_workers_init = false;
 dap_worker_t *s_workers = NULL;
 dap_thread_t *s_threads = NULL;
 
@@ -139,6 +141,7 @@ int32_t dap_events_init( uint32_t a_threads_count, size_t conn_timeout )
     log_it( L_CRITICAL, "Can't init client submodule dap_events_socket_init( )" );
     goto err;
   }
+  s_workers_init = true;
 
   log_it( L_NOTICE, "Initialized socket server module" );
 
@@ -462,7 +465,14 @@ static void *thread_worker_function(void *arg)
  */
 dap_worker_t *dap_worker_get_min( )
 {
-  return &s_workers[dap_worker_get_index_min()];
+    // wait for s_workers init
+    while(!s_workers_init)
+        dap_usleep(DAP_USEC_PER_SEC / 1000);
+    dap_worker_t *l_workers = &s_workers[dap_worker_get_index_min()];
+    // wait for worker start
+    while(!l_workers->events)
+        dap_usleep(DAP_USEC_PER_SEC / 1000);
+    return l_workers;
 }
 
 /**
