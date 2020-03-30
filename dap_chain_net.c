@@ -106,6 +106,7 @@ typedef struct dap_chain_net_pvt{
 #else
     HANDLE state_proc_cond;
 #endif    
+    pthread_mutex_t state_mutex_cond;
     pthread_mutex_t state_mutex;
     dap_chain_node_role_t node_role;
     uint32_t  flags;
@@ -168,6 +169,8 @@ int s_net_load(const char * a_net_name);
 static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
+static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id);
+
 static int s_cli_net(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
@@ -180,8 +183,9 @@ static bool s_seed_mode = false;
  */
 void s_net_set_go_sync(dap_chain_net_t * a_net)
 {
-    if(a_net)
-        PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+    if(!a_net)
+        return;
+    dap_chain_net_start(a_net);
 }
 
 /**
@@ -201,22 +205,28 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
-    pthread_mutex_lock( &PVT(a_net)->state_mutex);
+    pthread_mutex_lock( &PVT(a_net)->state_mutex_cond);
     if (PVT(a_net)->state_target == a_new_state){
         log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
     }
-    PVT(a_net)->state_target = a_new_state;
+    if(pthread_mutex_trylock(&PVT(a_net)->state_mutex) == 0) {
+        PVT(a_net)->state_target = a_new_state;
+        pthread_mutex_unlock(&PVT(a_net)->state_mutex);
+    }
+    // set flag for sync
+    PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 #ifndef _WIN32
     pthread_cond_signal( &PVT(a_net)->state_proc_cond );
 #else
     SetEvent( PVT(a_net)->state_proc_cond );
 #endif    
-    pthread_mutex_unlock( &PVT(a_net)->state_mutex);
+    pthread_mutex_unlock( &PVT(a_net)->state_mutex_cond);
     return 0;
 }
 
 /**
  * @brief s_gbd_history_callback_notify
+ * @param a_arg
  * @param a_op_code
  * @param a_prefix
  * @param a_group
@@ -232,16 +242,30 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
 
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-        if (!PVT (l_net)->load_mode ){
+        s_net_set_go_sync(l_net);
+        /*if (!PVT (l_net)->load_mode ){
             if( pthread_mutex_trylock( &PVT (l_net)->state_mutex) == 0 ){
                 if ( PVT(l_net)->state == NET_STATE_ONLINE || PVT(l_net)->state == NET_STATE_ONLINE  )
                     dap_chain_net_sync_all(l_net);
                 pthread_mutex_unlock( &PVT (l_net)->state_mutex);
             }
-        }
+        }*/
     }
 }
 
+/**
+ * @brief s_chain_callback_notify
+ * @param a_arg
+ * @param a_chain
+ * @param a_id
+ */
+static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id)
+{
+    if(!a_arg)
+        return;
+    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+    s_net_set_go_sync(l_net);
+}
 
 
 /**
@@ -275,6 +299,9 @@ lb_proc_state:
                 pthread_mutex_unlock(&PVT(l_net)->state_mutex );
                 goto lb_proc_state;
             }
+            // disable SYNC_GDB
+            if(PVT(l_net)->flags & F_DAP_CHAIN_NET_GO_SYNC)
+                PVT(l_net)->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
         } break;
         case NET_STATE_LINKS_PREPARE:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE",l_net->pub.name);
@@ -289,7 +316,7 @@ lb_proc_state:
                             DAP_DELETE(PVT(l_net)->links_addrs);
                         PVT(l_net)->links_addrs_count = PVT(l_net)->node_info->hdr.links_number;
                         PVT(l_net)->links_addrs = DAP_NEW_Z_SIZE( dap_chain_node_addr_t,
-                                                                  PVT(l_net)->links_addrs_count);
+                                                                  PVT(l_net)->links_addrs_count * sizeof(dap_chain_node_addr_t));
                         for (size_t i =0 ; i < PVT(l_net)->node_info->hdr.links_number; i++ ){
                             PVT(l_net)->links_addrs[i].uint64 = PVT(l_net)->node_info->links[i].uint64;
                         }
@@ -337,9 +364,9 @@ lb_proc_state:
                 case NODE_ROLE_MASTER:
                 case NODE_ROLE_LIGHT:{
                     // If we haven't any assigned shard - connect to root-0
-                if(l_net->pub.cell_id.uint64 == 0) {
+                    if(1) { //if(l_net->pub.cell_id.uint64 == 0) {
 
-                    dap_chain_net_pvt_t *pvt_debug = PVT(l_net);
+                    //dap_chain_net_pvt_t *pvt_debug = PVT(l_net);
                     // get current node address
                     dap_chain_node_addr_t l_address;
                     l_address.uint64 = dap_chain_net_get_cur_addr(l_net) ?
@@ -355,19 +382,23 @@ lb_proc_state:
                                 l_links_addrs_count * sizeof(dap_chain_node_addr_t));
 
                         // add linked nodes for connect
-                        for(uint16_t i = 0; i < min(1, l_cur_node_info->hdr.links_number); i++) {
+                        for(uint16_t i = 0; i < min(4, l_cur_node_info->hdr.links_number); i++) {
                             dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
+                            dap_chain_node_addr_t link_addr = l_cur_node_info->links[i];
                             dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
-                            // if only nodes from the same cell
-                            if(l_cur_node_info->hdr.cell_id.uint64 == l_remore_node_info->hdr.cell_id.uint64) {
-                                PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 =
-                                        l_remore_node_info->hdr.address.uint64;
-                                PVT(l_net)->links_addrs_count++;
+                            if(l_remore_node_info) {
+                                // if only nodes from the same cell of cell=0
+                                if(!l_cur_node_info->hdr.cell_id.uint64 ||
+                                    l_cur_node_info->hdr.cell_id.uint64 == l_remore_node_info->hdr.cell_id.uint64) {
+                                    PVT(l_net)->links_addrs[PVT(l_net)->links_addrs_count].uint64 =
+                                            l_remore_node_info->hdr.address.uint64;
+                                    PVT(l_net)->links_addrs_count++;
+                                }
+                                DAP_DELETE(l_remore_node_info);
                             }
-                            DAP_DELETE(l_remore_node_info);
                         }
                     }
-                    // add root nodes for connect
+                    // if no links then add root nodes for connect
                     if(!PVT(l_net)->links_addrs_count){
                         // use no more then 4 root node
                         int l_use_root_nodes = min(4, PVT(l_net)->seed_aliases_count);
@@ -397,7 +428,7 @@ lb_proc_state:
                     }
                 } break;
             }
-            if ( PVT(l_net)->state_target != NET_STATE_LINKS_PREPARE ){
+            if ( PVT(l_net)->state_target > NET_STATE_LINKS_PREPARE ){
                 if ( PVT(l_net)->links_addrs_count>0 ) { // If links are present
                     PVT(l_net)->state = NET_STATE_LINKS_CONNECTING;
                     log_it(L_DEBUG,"Prepared %u links, start to establish them", PVT(l_net)->links_addrs_count );
@@ -411,7 +442,10 @@ lb_proc_state:
                 log_it(L_WARNING,"Target state is NET_STATE_LINKS_PREPARE? Realy?");
                 PVT(l_net)->state = NET_STATE_OFFLINE;
             }
-        } pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+        }
+        pthread_mutex_unlock(&PVT(l_net)->state_mutex );
+        goto lb_proc_state;
+
         case NET_STATE_LINKS_CONNECTING:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             //size_t l_links_established = 0;
@@ -450,7 +484,9 @@ lb_proc_state:
                 PVT(l_net)->state = NET_STATE_OFFLINE ;
                 PVT(l_net)->state_target = NET_STATE_OFFLINE ;
             }
-        } pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+        }
+        pthread_mutex_unlock(&PVT(l_net)->state_mutex );
+        goto lb_proc_state;
 
         case NET_STATE_LINKS_ESTABLISHED:{
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_ESTABLISHED",l_net->pub.name);
@@ -459,7 +495,7 @@ lb_proc_state:
                     switch ( PVT(l_net)->node_role.enums ){
                         case NODE_ROLE_ROOT_MASTER:
                         case NODE_ROLE_ROOT:{
-                            dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
+                            /*dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
 
                             // Send everybody your address when linked
                             HASH_ITER(hh,PVT(l_net)->links,l_node_client,l_node_client_tmp){
@@ -468,12 +504,12 @@ lb_proc_state:
                                                    DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR, l_net->pub.id,
                                                    dap_chain_net_get_cur_addr(l_net),
                                                    sizeof (dap_chain_node_addr_t) );
-                            }
+                            }*/
                             PVT(l_net)->state = NET_STATE_SYNC_GDB;
                         }break;
                         case NODE_ROLE_CELL_MASTER:
                         case NODE_ROLE_MASTER:{
-                            PVT(l_net)->state = NET_STATE_ADDR_REQUEST;
+                            PVT(l_net)->state = NET_STATE_SYNC_GDB;//NET_STATE_ADDR_REQUEST;
                         } break;
                        default:{
                         // get addr for current node if it absent
@@ -483,7 +519,10 @@ lb_proc_state:
                             PVT( l_net)->state = NET_STATE_SYNC_GDB;
                        }
                     }
-                }pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+                }
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex );
+                goto lb_proc_state;
+
                 case NET_STATE_SYNC_GDB: // we need only to sync gdb
                     PVT(l_net)->state = NET_STATE_SYNC_GDB ;
                     if ( PVT(l_net)->addr_request_attempts >=10 && PVT(l_net)->state == NET_STATE_ADDR_REQUEST){
@@ -494,6 +533,7 @@ lb_proc_state:
                                 PVT(l_net)->state = NET_STATE_SYNC_GDB;
                             pthread_mutex_unlock(&PVT(l_net)->state_mutex );
                             goto lb_proc_state;
+
                             case NET_STATE_SYNC_CHAINS:
                                 PVT(l_net)->state = NET_STATE_SYNC_CHAINS;
                             pthread_mutex_unlock(&PVT(l_net)->state_mutex );
@@ -504,14 +544,19 @@ lb_proc_state:
                             }
                         }
                     }
-                pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex );
+                goto lb_proc_state;
+
                 case NET_STATE_SYNC_CHAINS:
                     PVT(l_net)->state = (PVT(l_net)->node_info && PVT(l_net)->node_info->hdr.address.uint64)?
                                 NET_STATE_SYNC_CHAINS : NET_STATE_ADDR_REQUEST;
-                pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex );
+                goto lb_proc_state;
+
                 case NET_STATE_ADDR_REQUEST :
                     PVT(l_net)->state = NET_STATE_ADDR_REQUEST;
-                pthread_mutex_unlock(&PVT(l_net)->state_mutex ); goto lb_proc_state;
+                pthread_mutex_unlock(&PVT(l_net)->state_mutex );
+                goto lb_proc_state;
                 default:{}
             }
         }break;
@@ -615,7 +660,7 @@ lb_proc_state:
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 50000; // 2 min = 120 sec = 120 000 ms
+                int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
                 // TODO add progress info to console
                 int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (res) {
@@ -675,6 +720,8 @@ lb_proc_state:
                             log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
                             break;
                         case 0:
+                            // flush global_db
+                            dap_chain_global_db_flush();
                             log_it(L_INFO, "sync of chain '%s' completed ", l_chain->name);
                             // set time of last sync
                             {
@@ -694,9 +741,11 @@ lb_proc_state:
 
             }
             PVT(l_net)->state = NET_STATE_ONLINE;
+            // end sync, go to offline state
+            PVT(l_net)->state_target = NET_STATE_OFFLINE;
             // end sync, return to online state
-            if(PVT(l_net)->state_target > NET_STATE_ONLINE)
-                PVT(l_net)->state_target = NET_STATE_ONLINE;
+            //if(PVT(l_net)->state_target > NET_STATE_ONLINE)
+            //    PVT(l_net)->state_target = NET_STATE_ONLINE;
         }
         pthread_mutex_unlock(&PVT(l_net)->state_mutex);
         goto lb_proc_state;
@@ -718,12 +767,13 @@ lb_proc_state:
                         break;
                     // sync
                 case NET_STATE_SYNC_GDB:
+                    // if flag set then go to SYNC_GDB
+                    if(PVT(l_net)->flags & F_DAP_CHAIN_NET_GO_SYNC)
+                        PVT(l_net)->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
+
                     PVT(l_net)->state = NET_STATE_SYNC_GDB;
                     pthread_mutex_unlock(&PVT(l_net)->state_mutex);
                     goto lb_proc_state;
-                        PVT(l_net)->state = NET_STATE_SYNC_GDB;
-                        pthread_mutex_unlock(&PVT(l_net)->state_mutex);
-                        goto lb_proc_state;
 
             }
         }
@@ -733,6 +783,18 @@ lb_proc_state:
     pthread_mutex_unlock(&PVT(l_net)->state_mutex );
     return ret;
 }
+
+// Global
+/*static void s_net_proc_thread_callback_update_db(void)
+{
+    dap_chain_net_item_t *l_net_item, *l_net_item_tmp;
+    printf("update0\n");
+    HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp)
+    {
+        s_net_set_go_sync(l_net_item->chain_net);
+    }
+    printf("update1\n");
+}*/
 
 /**
  * @brief s_net_proc_thread
@@ -745,44 +807,50 @@ static void *s_net_proc_thread ( void *a_net )
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_net;
     dap_chain_net_pvt_t *p_net = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
 
-    const uint64_t l_timeout_ms = 20000;// 20 sec
+    const uint64_t l_timeout_ms = 60000;// 60 sec
+
+    // set callback to update data
+    //dap_chain_global_db_set_callback_for_update_base(s_net_proc_thread_callback_update_db);
 
     while( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
 
+        // check or start sync
         s_net_states_proc( l_net );
-    #ifndef _WIN32
-        pthread_mutex_lock( &p_net->state_mutex );
 
-        // prepare for signal waiting
 
-        struct timespec l_to;
+        // wait if flag not set then go to SYNC_GDB
+        if(!(PVT(l_net)->flags & F_DAP_CHAIN_NET_GO_SYNC)) {
+#ifndef _WIN32
+            pthread_mutex_lock( &p_net->state_mutex_cond );
+            // prepare for signal waiting
+            struct timespec l_to;
+            clock_gettime( CLOCK_MONOTONIC, &l_to );
+            int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
 
-        clock_gettime( CLOCK_MONOTONIC, &l_to );
-        int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
+            // if the new number of nanoseconds is more than a second
+            if(l_nsec_new > (long) 1e9) {
+                l_to.tv_sec += l_nsec_new / (long) 1e9;
+                l_to.tv_nsec = l_nsec_new % (long) 1e9;
+            }
+            else
+                l_to.tv_nsec = (long) l_nsec_new;
 
-        // if the new number of nanoseconds is more than a second
-        if(l_nsec_new > (long) 1e9) {
-            l_to.tv_sec += l_nsec_new / (long) 1e9;
-            l_to.tv_nsec = l_nsec_new % (long) 1e9;
+            // signal waiting
+            pthread_cond_timedwait( &p_net->state_proc_cond, &p_net->state_mutex_cond, &l_to );
+            pthread_mutex_unlock(&p_net->state_mutex_cond);
+#else // WIN32
+
+            WaitForSingleObject( p_net->state_proc_cond, (uint32_t)l_timeout_ms );
+
+#endif
+            // checking whether new sync is needed
+            time_t l_sync_timeout = 300; // 300 sec = 5 min
+            clock_gettime(CLOCK_MONOTONIC, &l_to);
+            // start sync every l_sync_timeout sec
+            if(l_to.tv_sec >= p_net->last_sync + l_sync_timeout) {
+                p_net->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+            }
         }
-        else
-            l_to.tv_nsec = (long) l_nsec_new;
-
-        // signal waiting
-        pthread_cond_timedwait( &p_net->state_proc_cond, &p_net->state_mutex, &l_to );
-
-        // checking whether new sync is needed
-        time_t l_sync_timeout = 300;// 300 sec = 5 min
-        clock_gettime( CLOCK_MONOTONIC, &l_to );
-        if(l_to.tv_sec >= p_net->last_sync + l_sync_timeout)
-            p_net->flags |= F_DAP_CHAIN_NET_GO_SYNC;
-
-        pthread_mutex_unlock( &p_net->state_mutex );
-    #else // WIN32
-
-        WaitForSingleObject( p_net->state_proc_cond, (uint32_t)l_timeout_ms );
-
-    #endif
         log_it( L_DEBUG, "Waked up s_net_proc_thread( )" );
     }
 
@@ -847,6 +915,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
     ret->pub.name = strdup( a_name );
 
     pthread_mutex_init( &PVT(ret)->state_mutex, NULL );
+    pthread_mutex_init( &PVT(ret)->state_mutex_cond, NULL );
 
 #ifndef _WIN32
     pthread_condattr_t l_attr;
@@ -1558,6 +1627,8 @@ int s_net_load(const char * a_net_name)
                     DL_APPEND(l_net->pub.chains, l_chain);
                     if(l_chain->callback_created)
                         l_chain->callback_created(l_chain, l_cfg);
+                    // add a callback to monitor changes in the chain
+                    dap_chain_add_callback_notify(l_chain, s_chain_callback_notify, l_net);
                 }
                 DAP_DELETE (l_chain_prior->chains_path);
                 l_list = dap_list_next(l_list);
@@ -1922,8 +1993,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             // Delete processed objects
             size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
             for(size_t i = 0; i < l_objs_processed; i++) {
-                if(dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool))
-                    s_net_set_go_sync(a_net);
+                dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
                 if(i < l_objs_processed_tmp) {
                     dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
                             l_objs[i].key);

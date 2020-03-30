@@ -218,14 +218,18 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
     }
     //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
     size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);
-    dap_chain_node_info_t *l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
-    memcpy(l_node_info, a_node_info, sizeof (*a_node_info) );
+    //dap_chain_node_info_t *l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
+    //memcpy(l_node_info, a_node_info, l_node_info_size );
 
-    bool res = dap_chain_global_db_gr_set(a_key, (uint8_t *) l_node_info, l_node_info_size,a_net->pub.gdb_nodes);
-    DAP_DELETE(a_key);
+    //size_t data_len_out = 0;
+    //dap_chain_node_info_t *a_node_info1 = dap_chain_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
+
+    bool res = dap_chain_global_db_gr_set(a_key, (uint8_t *) a_node_info, l_node_info_size, a_net->pub.gdb_nodes);
+
+    //data_len_out = 0;
+    //dap_chain_node_info_t *a_node_info2 = dap_chain_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
+    //DAP_DELETE(a_key);
     //DAP_DELETE(a_value);
-    if(res)
-        s_net_set_go_sync(a_net);
     return res;
 }
 
@@ -326,7 +330,6 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
             }
             // set text response
             dap_chain_node_cli_set_reply_text(str_reply, "node deleted");
-            s_net_set_go_sync(a_net);
         }
         else
             dap_chain_node_cli_set_reply_text(str_reply, "node not deleted");
@@ -397,9 +400,10 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
     // add link
     if(cmd_int == 1) {
         if(index_link == -1) {
-            l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size += sizeof(*link));
-            memcpy(&(l_node_info_read->links[l_node_info_read->hdr.links_number]), link, sizeof(dap_chain_node_addr_t));
             l_node_info_read->hdr.links_number++;
+            l_node_info_read_size = dap_chain_node_info_get_size(l_node_info_read);
+            l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size);
+            memcpy(&(l_node_info_read->links[l_node_info_read->hdr.links_number-1]), link, sizeof(dap_chain_node_addr_t));
             res_successful = true;
         }
     }
@@ -862,7 +866,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
             return -1;
         }
-        // handler of command 'global_db node add'
+        // handler of command 'node add'
         int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
                 a_str_reply);
         DAP_DELETE(l_node_info);
@@ -870,7 +874,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         //break;
 
     case CMD_DEL:
-        // handler of command 'global_db node del'
+        // handler of command 'node del'
     {
         int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
         DAP_DELETE(l_node_info);
@@ -878,13 +882,13 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     case CMD_LINK:
         if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
-            // handler of command 'global_db node link add -addr <node address> -link <node address>'
+            // handler of command 'node link add -addr <node address> -link <node address>'
             int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
             DAP_DELETE(l_node_info);
             return l_ret;
         }
         else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
-            // handler of command 'global_db node link del -addr <node address> -link <node address>'
+            // handler of command 'node link del -addr <node address> -link <node address>'
             int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
             DAP_DELETE(l_node_info);
             return l_ret;
@@ -1144,6 +1148,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             return -2;
 
         }
+        // flush global_db
+        dap_chain_global_db_flush();
         log_it(L_INFO, "Gdb synced Ok");
 
         // Requesting chains
@@ -1896,7 +1902,6 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
                     // Add datum to mempool with datum_token hash as a key
                     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
-                        s_net_set_go_sync(l_net);
 
                         char* l_hash_str = strdup(l_datum_hash_str);
                         // Remove old datum from pool
@@ -1908,7 +1913,6 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                             DAP_DELETE(l_datum);
                             //DAP_DELETE(l_datum_token);
                             DAP_DELETE(l_gdb_group_mempool);
-                            s_net_set_go_sync(l_net);
                             return 0;
                         } else {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2063,7 +2067,6 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
             if(dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str2), l_gdb_group_mempool)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
                 DAP_DELETE( l_datum_hash_str2);
-                s_net_set_go_sync(l_net);
                 return 0;
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
@@ -2153,8 +2156,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
             for(size_t i = 0; i < l_datums_size; i++) {
                 if(l_procecced[i]!=1)
                     continue;
-                if(dap_chain_global_db_gr_del( dap_strdup(l_objs[i].key), l_gdb_group_mempool_tmp))
-                    s_net_set_go_sync(l_net);
+                dap_chain_global_db_gr_del( dap_strdup(l_objs[i].key), l_gdb_group_mempool_tmp);
                 l_objs_processed_cur++;
                 if(l_objs_processed_cur < l_objs_processed_tmp) {
                     dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
@@ -2346,7 +2348,6 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
 
     }
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
-        s_net_set_go_sync(l_net);
         dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token %s is placed in datum pool ", l_key_str,
                 l_ticker);
         DAP_DELETE(l_datum);
@@ -2561,7 +2562,6 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     // Add to mempool emission token
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum_emission, l_datum_emission_size
             , l_gdb_group_mempool_emission)) {
-        s_net_set_go_sync(l_net);
         str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_key_str);
         DAP_DELETE(l_key_str);
     }
@@ -2618,7 +2618,6 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
     // Add to mempool tx token
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), l_datum_tx, l_datum_tx_size
             , l_gdb_group_mempool_base_tx)) {
-        s_net_set_go_sync(l_net);
         dap_chain_node_cli_set_reply_text(str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp,
                 l_key_str);
         DAP_DELETE(l_key_str);
