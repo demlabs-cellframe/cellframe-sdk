@@ -76,6 +76,7 @@ typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  )
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
+typedef void (*dap_chain_callback__notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id); //change in chain happened
 
 typedef  enum dap_chain_type
 {
@@ -129,6 +130,9 @@ typedef struct dap_chain{
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_lasts;
     dap_chain_callback_atom_iter_delete_t callback_atom_iter_delete;
 
+    dap_chain_callback__notify_t callback_notify;
+    void *callback_notify_arg;
+
     /*
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;
@@ -158,6 +162,7 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
 dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
+void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback__notify_t a_callback, void * a_arg);
 
 
 
