@@ -153,7 +153,7 @@ int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_pa
 
     char * l_hash_str = dap_strdup_printf("%s%s",a_password, s_salt_str );
     dap_chain_hash_fast_t l_password_hash = {0};
-    dap_hash_fast(l_hash_str,strlen(l_hash_str), &l_password_hash );
+    dap_hash_fast(l_hash_str,dap_strlen(l_hash_str), &l_password_hash );
     DAP_DELETE(l_hash_str);
 
     l_ret = (memcmp(&l_password_hash, l_gdb_password_hash,sizeof (l_password_hash) ) == 0)? 0: -2;
@@ -231,7 +231,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
             if (l_password_str){
                 char * l_hash_str = dap_strdup_printf("%s%s",l_password_str, s_salt_str );
                 dap_chain_hash_fast_t *l_password_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
-                dap_hash_fast(l_hash_str,strlen(l_hash_str), l_password_hash );
+                dap_hash_fast(l_hash_str,dap_strlen(l_hash_str), l_password_hash );
                 DAP_DELETE(l_hash_str);
                 dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_password_hash,sizeof(*l_password_hash),s_group_password );
             }
@@ -627,7 +627,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         // Hash password with salt
                         char * l_hash_str = dap_strdup_printf("%s%s",l_password, s_salt_str );
                         dap_chain_hash_fast_t *l_password_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
-                        dap_hash_fast(l_hash_str,strlen(l_hash_str), l_password_hash );
+                        dap_hash_fast(l_hash_str,dap_strlen(l_hash_str), l_password_hash );
                         DAP_DELETE(l_hash_str);
                         dap_chain_global_db_gr_set(dap_strdup(l_login), l_password_hash,sizeof(*l_password_hash),s_group_password );
 

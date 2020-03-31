@@ -284,8 +284,18 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         // Try to load from gdb
         char *l_tx_cond_gdb_group =  dap_strdup_printf( "%s.%s.tx_cond", l_tpl->net->pub.name, DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
         log_it(L_DEBUG, "Checkout group %s", l_tx_cond_gdb_group);
-        dap_chain_hash_fast_t *l_tx_cond_hash =
-            (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(a_login, &l_gdb_group_size, l_tx_cond_gdb_group);
+        // get key for tx_cond
+        char *l_user_key;
+        {
+            dap_chain_hash_fast_t l_hash = { 0 };
+            char *l_key_hash_str;
+            if(dap_hash_fast(a_pkey_b64, dap_strlen(a_pkey_b64), &l_hash))
+                l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+            l_user_key = dap_strdup_printf("%s/%s", a_login, l_key_hash_str);
+            DAP_DELETE(l_key_hash_str);
+        }
+        log_it(L_DEBUG, "\ndbg l_user_key=%s\n", l_user_key);
+        dap_chain_hash_fast_t *l_tx_cond_hash = (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(l_user_key, &l_gdb_group_size, l_tx_cond_gdb_group);
 
         // Check for entry size
         if (l_gdb_group_size && l_gdb_group_size != sizeof(dap_chain_hash_fast_t)) {
@@ -333,12 +343,13 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
                 log_it(L_ERROR, "Can't create condition for user");
             } else {
                 // save transaction for login
-                dap_chain_global_db_gr_set(a_login, l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), l_tx_cond_gdb_group);
+                dap_chain_global_db_gr_set(l_user_key, l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), l_tx_cond_gdb_group);
                 log_it(L_NOTICE, "User \"%s\": created conditioned transaction from %s(%s) on "
                                 , a_login, l_tpl->wallet_name, l_addr_from_str);
             }
             DAP_DELETE( l_addr_from_str );
         }
+        DAP_DELETE(l_user_key);
         // dbg
         //dap_ledger_t * l_ledger = dap_chain_ledger_by_net_name( l_tpl->net->pub.name);
         //dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash( l_ledger, l_tx_cond_hash);

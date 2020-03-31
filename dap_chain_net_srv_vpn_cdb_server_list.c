@@ -83,6 +83,39 @@ void dap_chain_net_srv_vpn_cdb_server_list_deinit(void)
 {
 }
 
+static void order_info_print(dap_string_t *a_reply_str, dap_chain_net_t * a_net, dap_chain_net_srv_order_t * a_orders)
+{
+    dap_chain_node_info_t * l_node_info = dap_chain_node_info_read(a_net, &a_orders->node_addr);
+    if(l_node_info) {
+        char l_node_ext_ipv4_str[INET_ADDRSTRLEN] = { 0 };
+        char l_node_ext_ipv6_str[INET6_ADDRSTRLEN] = { 0 };
+        if(l_node_info->hdr.ext_addr_v4.s_addr)
+            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ext_ipv4_str, sizeof(l_node_ext_ipv4_str));
+        if(*((uint128_t *) l_node_info->hdr.ext_addr_v6.s6_addr))
+            inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ext_ipv6_str, sizeof(l_node_ext_ipv6_str));
+        dap_string_append_printf(a_reply_str, "    {\n");
+        const char *l_continent_str = dap_chain_net_srv_order_get_continent_str(a_orders->continent);
+        dap_string_append_printf(a_reply_str, "        \"Locations\":\"%s-%s\",\n",
+                l_continent_str ? l_continent_str : "None", a_orders->region[0] ? a_orders->region : "None"); //NETHERLANDS
+        dap_string_append_printf(a_reply_str, "        \"ChainNet\":\"%s\",\n", a_net->pub.name);
+        dap_string_append_printf(a_reply_str, "        \"Name\":\"%s.Cell-%lu.%zd\",\n", a_net->pub.name,
+                l_node_info->hdr.cell_id.uint64, 0);
+        if(l_node_ext_ipv4_str[0])
+            dap_string_append_printf(a_reply_str, "        \"Address\":\"%s\",\n", l_node_ext_ipv4_str);
+        if(l_node_ext_ipv6_str[0])
+            dap_string_append_printf(a_reply_str, "        \"Address6\":\"%s\",\n", l_node_ext_ipv6_str);
+        dap_string_append_printf(a_reply_str, "        \"Port\":%hu,\n",
+                l_node_info->hdr.ext_port ? l_node_info->hdr.ext_port : 80);
+        dap_string_append_printf(a_reply_str, "        \"Ext\":\"%s\",\n", a_orders->ext);
+        dap_string_append_printf(a_reply_str, "        \"Price\":%lu,\n", a_orders->price);
+        dap_string_append_printf(a_reply_str, "        \"PriceUnits\":%u,\n", a_orders->price_unit.uint32);
+        dap_string_append_printf(a_reply_str, "        \"PriceToken\":\"%s\"\n", a_orders->price_ticker);
+
+
+    } else
+        log_it(L_WARNING, "Order in \"%s\" network issued by node without ext_ipv4 field", a_net->pub.name);
+}
+
 
 static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
 {
@@ -103,36 +136,16 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                                                  NULL,0,0, &l_orders, &l_orders_count );
             log_it(L_DEBUG, "Found %zd orders in \"%s\" network", l_orders_count, l_net->pub.name );
 
+            char *l_node_name;
+            // first random node
+
             for ( size_t j = 0; j < l_orders_count ; j++ ) {
-                dap_chain_node_info_t * l_node_info = dap_chain_node_info_read( l_net, &l_orders[j].node_addr );
-                if ( l_node_info ){
-                    char l_node_ext_ipv4_str[INET_ADDRSTRLEN]={0};
-                    char l_node_ext_ipv6_str[INET6_ADDRSTRLEN]={0};
-                    if (l_node_info->hdr.ext_addr_v4.s_addr)
-                        inet_ntop(AF_INET,&l_node_info->hdr.ext_addr_v4,l_node_ext_ipv4_str,sizeof(l_node_ext_ipv4_str));
-                    if (  *((uint128_t *) l_node_info->hdr.ext_addr_v6.s6_addr ) )
-                        inet_ntop(AF_INET6,&l_node_info->hdr.ext_addr_v6,l_node_ext_ipv6_str,sizeof(l_node_ext_ipv6_str));
-                    dap_string_append_printf( l_reply_str, "    {\n");
-
-                    dap_string_append_printf( l_reply_str, "        \"Location\":\"NETHERLANDS\",\n");
-                    dap_string_append_printf( l_reply_str, "        \"ChainNet\":\"%s\",\n",l_net->pub.name );
-                    dap_string_append_printf( l_reply_str, "        \"Name\":\"%s.Cell-%lu.%zd\",\n",l_net->pub.name, l_node_info->hdr.cell_id.uint64, j);
-                    if ( l_node_ext_ipv4_str[0] )
-                        dap_string_append_printf( l_reply_str,"        \"Address\":\"%s\",\n",l_node_ext_ipv4_str);
-                    if ( l_node_ext_ipv6_str[0] )
-                        dap_string_append_printf( l_reply_str, "        \"Address6\":\"%s\",\n",l_node_ext_ipv6_str);
-                    dap_string_append_printf( l_reply_str, "        \"Port\":%hu,\n",l_node_info->hdr.ext_port?l_node_info->hdr.ext_port:80);
-                    dap_string_append_printf( l_reply_str, "        \"Ext\":\"%s\",\n",l_orders[j].ext);
-                    dap_string_append_printf( l_reply_str, "        \"Price\":%lu,\n",l_orders[j].price);
-                    dap_string_append_printf( l_reply_str, "        \"PriceUnits\":%u,\n",l_orders[j].price_unit.uint32);
-                    dap_string_append_printf( l_reply_str, "        \"PriceToken\":\"%s\"\n",l_orders[j].price_ticker);
-                    if ( j != l_orders_count-1)
-                        dap_string_append_printf( l_reply_str, "    },\n");
-                    else
-                        dap_string_append_printf( l_reply_str, "    }\n");
-
-                }else
-                    log_it( L_WARNING, "Order %zd in \"%s\" network issued by node without ext_ipv4 field",j,l_net->pub.name);
+                ///!!!l_node_name =
+                //!!!order_info_print(l_reply_str, l_net, &l_orders[j], l_node_name);
+                if(j != l_orders_count - 1)
+                    dap_string_append_printf(l_reply_str, "    },\n");
+                else
+                    dap_string_append_printf(l_reply_str, "    }\n");
             }
         }
     }
