@@ -211,6 +211,9 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
         l_total_wrote_bytes += sizeof (a_atom_size);
         if ( fwrite(a_atom,1,a_atom_size,a_cell->file_storage) == a_atom_size ){
             l_total_wrote_bytes += a_atom_size;
+            // change in chain happened -> nodes synchronization required
+            if(a_cell->chain && a_cell->chain->callback_notify)
+                a_cell->chain->callback_notify(a_cell->chain->callback_notify_arg, a_cell->chain, a_cell->id);
         } else {
             log_it (L_ERROR, "Can't write data from cell 0x%016X to the file \"%s\"",
                             a_cell->id.uint64,

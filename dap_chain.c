@@ -413,3 +413,16 @@ void dap_chain_info_dump_log(dap_chain_t * a_chain)
 
 }
 
+/**
+ * @brief Add a callback to monitor changes in the chain
+ * @param a_chain
+ * @param a_callback
+ * @param a_arg
+ */
+void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_callback_arg)
+{
+    if(!a_chain)
+        return;
+    a_chain->callback_notify = a_callback;
+    a_chain->callback_notify_arg = a_callback_arg;
+}
