@@ -29,6 +29,15 @@
 
 #define LOG_TAG "dap_chain_net_srv_order"
 
+char *s_server_continents[]={
+        "None",
+        "Africa",
+        "Europa",
+        "North America",
+        "South America",
+        "Southeast Asia",
+        "Near East",
+ };
 
 /**
  * @brief dap_chain_net_srv_order_init
@@ -48,6 +57,37 @@ void dap_chain_net_srv_order_deinit()
 
 }
 
+/**
+ * @brief dap_chain_net_srv_order_get_continent_str
+ */
+const char* dap_chain_net_srv_order_get_continent_str(int8_t a_num)
+{
+    int8_t l_count = sizeof(s_server_continents) / sizeof(char*);
+    if(a_num >= l_count)
+        return NULL;
+    return s_server_continents[a_num];
+}
+
+/**
+ * @brief dap_chain_net_srv_order_get_continent_num
+ */
+int8_t dap_chain_net_srv_order_get_continent_num(const char *a_continent_str)
+{
+    int8_t l_count = sizeof(s_server_continents) / sizeof(char*);
+    char *l_continent_str = dap_strup(a_continent_str, -1);
+    for(int8_t i = 1; i < l_count; i++) {
+        char *l_server_continents = dap_strup(s_server_continents[i], -1);
+        if(!dap_strcmp(l_continent_str, l_server_continents)) {
+            DAP_DELETE(l_server_continents);
+            DAP_DELETE(l_continent_str);
+            return i;
+        }
+        DAP_DELETE(l_server_continents);
+    }
+    DAP_DELETE(l_continent_str);
+    return -1;
+}
+
 char* dap_chain_net_srv_order_create(
         dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
@@ -58,7 +98,9 @@ char* dap_chain_net_srv_order_create(
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
-        const char * a_ext
+        const char *a_ext,
+        const char *a_region,
+        int8_t a_continent_num
         )
 {
     if (a_net) {
@@ -68,6 +110,9 @@ char* dap_chain_net_srv_order_create(
         l_order->srv_uid = a_srv_uid;
         l_order->direction = a_direction;
         l_order->ts_created = (dap_chain_time_t) time(NULL);
+        if(a_region)
+            strncpy(l_order->region, a_region, min(sizeof(l_order->region) - 1, strlen(a_region) + 1));
+        l_order->continent = a_continent_num;
 
         if ( a_node_addr.uint64)
             l_order->node_addr.uint64 = a_node_addr.uint64;
@@ -101,6 +146,29 @@ char* dap_chain_net_srv_order_create(
 }
 
 /**
+ * @brief dap_chain_net_srv_order_update
+ * @param a_net
+ * @param a_order
+ * @return
+ */
+int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_order_t *a_order)
+{
+    if (!a_net || !a_order)
+        return -1;
+
+    dap_chain_hash_fast_t l_order_hash;
+    dap_hash_fast( a_order, sizeof ( *a_order), &l_order_hash );
+    char * l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
+    char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
+    if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), a_order, sizeof (*a_order), l_gdb_group_str ) ){
+        DAP_DELETE( l_gdb_group_str );
+        return -1;
+    }
+    DAP_DELETE( l_gdb_group_str );
+    return 0;
+}
+
+/**
  * @brief dap_chain_net_srv_order_find_by_hash_str
  * @param a_net
  * @param a_hash_str
@@ -113,7 +181,8 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_n
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
         size_t l_order_size =0;
         l_order = (dap_chain_net_srv_order_t *) dap_chain_global_db_gr_get(a_hash_str, &l_order_size, l_gdb_group_str );
-        if (l_order_size != sizeof (dap_chain_net_srv_order_t) ){
+        // todo 218 is old size - added to replace old orders
+        if (l_order_size != sizeof (dap_chain_net_srv_order_t) && l_order_size!=218 ){
             log_it( L_ERROR, "Found wrong size order");
             DAP_DELETE( l_order );
             DAP_DELETE( l_gdb_group_str );
@@ -240,14 +309,17 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:            \u00a0%.7Lf (%llu)\n", dap_chain_balance_to_coins(a_order->price) , a_order->price);
+        dap_string_append_printf(a_str_out, "  price:           \u00a0%.7Lf (%llu)\n", dap_chain_balance_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       0x%016llX\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)
             dap_string_append_printf(a_str_out, "  node_addr:        "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr) );
 
+        const char *l_continent_str = dap_chain_net_srv_order_get_continent_str(a_order->continent);
+        dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , a_order->region[0] ? a_order->region : "None");
+
         dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str,sizeof(l_hash_str)-1);
-        dap_string_append_printf(a_str_out, "  tx_cond_hash:          %s\n", l_hash_str );
-        dap_string_append_printf(a_str_out, "  ext:          \"%s\"\n", a_order->ext );
+        dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
+        dap_string_append_printf(a_str_out, "  ext:              \"%s\"\n", a_order->ext );
     }
 }

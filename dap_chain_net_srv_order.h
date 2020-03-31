@@ -29,6 +29,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_common.h"
 
+extern char *s_server_regions[];
+
 typedef struct dap_chain_net_srv_order
 {
     uint16_t version;
@@ -42,12 +44,17 @@ typedef struct dap_chain_net_srv_order
     dap_chain_time_t ts_expires;
     uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
+    uint8_t continent;
+    char region[32];
     char ext[128];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
 // Init/deinit should be call only if private
 int dap_chain_net_srv_order_init(void);
 void dap_chain_net_srv_order_deinit(void);
+
+const char* dap_chain_net_srv_order_get_continent_str(int8_t a_num);
+int8_t dap_chain_net_srv_order_get_continent_num(const char *l_continent_str);
 
 dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_net_t * a_net, const char * a_hash_str);
 
@@ -88,9 +95,12 @@ char* dap_chain_net_srv_order_create(
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
-        const char * a_comments
+        const char *a_ext,
+        const char *a_region,
+        int8_t a_continent_num
         );
 
+int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_order_t *a_order);
 void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out);
 
 /**
