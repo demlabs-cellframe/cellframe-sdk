@@ -32,7 +32,7 @@
 char *s_server_continents[]={
         "None",
         "Africa",
-        "Europa",
+        "Europe",
         "North America",
         "South America",
         "Southeast Asia",
@@ -413,7 +413,11 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         dap_bin2hex(l_ext_out, a_order->ext, a_order->ext_size);
-        dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out ? l_ext_out : "");
+        if(l_ext_out)
+            dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out);
+        else
+            dap_string_append_printf(a_str_out, "  ext:              0x0\n");
+
         DAP_DELETE(l_ext_out);
     }
 }
