@@ -57,12 +57,89 @@ void dap_chain_net_srv_order_deinit()
 
 }
 
+size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
+{
+    return a_order ? sizeof(dap_chain_net_srv_order_t) + a_order->ext_size : 0;
+}
+
+/**
+ * @brief dap_chain_net_srv_order_get_region_continent
+ * @param a_continent_num [in]
+ * @param a_region [in]
+ */
+bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_order, uint8_t a_continent_num, const char *a_region)
+{
+    dap_chain_net_srv_order_t *l_order = *a_order;
+    if(!l_order || (!a_continent_num && !a_region))
+        return false;
+    uint8_t l_continent_num_prev = 0;
+    char *l_region_prev = NULL;
+    dap_chain_net_srv_order_get_continent_region(*a_order, &l_continent_num_prev, &l_region_prev);
+    uint32_t l_ext_size = 1 + sizeof(uint8_t);
+    if(a_region)
+        l_ext_size += strlen(a_region) + 1;
+    else if(l_region_prev)
+        l_ext_size += strlen(l_region_prev) + 1;
+
+    l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_ext_size);
+    l_order->ext[0] =0x52;
+    if(a_continent_num)
+        memcpy(l_order->ext + 1, &a_continent_num, sizeof(uint8_t));
+    else
+        memcpy(l_order->ext + 1, &l_continent_num_prev, sizeof(uint8_t));
+    if(a_region)
+        memcpy(l_order->ext + 1 + sizeof(uint8_t), a_region, strlen(a_region) + 1);
+    else if(l_region_prev)
+        memcpy(l_order->ext + 1 + sizeof(uint8_t), l_region_prev, strlen(l_region_prev) + 1);
+    //dap_sprintf(l_order->ext, "\52%d-%s", a_continent_num, a_region);
+    l_order->ext_size = l_ext_size;
+    *a_order = l_order;
+    DAP_DELETE(l_region_prev);
+    return true;
+}
+
+/**
+ * @brief dap_chain_net_srv_order_get_region_continent
+ * @param a_continent_num [out]
+ * @param a_region [out]
+ */
+bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region)
+{
+    if(!a_order || !a_order->ext_size || !a_order->ext || a_order->ext[0]!=0x52)
+        return false;
+    if(a_continent_num) {
+        memcpy(a_continent_num, a_order->ext + 1, sizeof(uint8_t));
+    }
+    else
+        a_continent_num = 0;
+    if(a_region) {
+        size_t l_size = a_order->ext_size - sizeof(uint8_t) - 1;
+        if(l_size > 0) {
+            *a_region = DAP_NEW_SIZE(char, l_size);
+            memcpy(*a_region, a_order->ext + 1 + sizeof(uint8_t), l_size);
+        }
+        else
+            *a_region = NULL;
+    }
+    return true;
+}
+
+
+/**
+ * @brief dap_chain_net_srv_order_continents_count
+ */
+size_t dap_chain_net_srv_order_continents_count(void)
+{
+    size_t l_count = sizeof(s_server_continents) / sizeof(char*);
+    return l_count;
+}
+
 /**
  * @brief dap_chain_net_srv_order_get_continent_str
  */
-const char* dap_chain_net_srv_order_get_continent_str(int8_t a_num)
+const char* dap_chain_net_srv_order_continent_to_str(int8_t a_num)
 {
-    int8_t l_count = sizeof(s_server_continents) / sizeof(char*);
+    int8_t l_count = dap_chain_net_srv_order_continents_count();
     if(a_num >= l_count)
         return NULL;
     return s_server_continents[a_num];
@@ -71,9 +148,9 @@ const char* dap_chain_net_srv_order_get_continent_str(int8_t a_num)
 /**
  * @brief dap_chain_net_srv_order_get_continent_num
  */
-int8_t dap_chain_net_srv_order_get_continent_num(const char *a_continent_str)
+int8_t dap_chain_net_srv_order_continent_to_num(const char *a_continent_str)
 {
-    int8_t l_count = sizeof(s_server_continents) / sizeof(char*);
+    int8_t l_count = dap_chain_net_srv_order_continents_count();
     char *l_continent_str = dap_strup(a_continent_str, -1);
     for(int8_t i = 1; i < l_count; i++) {
         char *l_server_continents = dap_strup(s_server_continents[i], -1);
@@ -110,9 +187,11 @@ char* dap_chain_net_srv_order_create(
         l_order->srv_uid = a_srv_uid;
         l_order->direction = a_direction;
         l_order->ts_created = (dap_chain_time_t) time(NULL);
-        if(a_region)
-            strncpy(l_order->region, a_region, min(sizeof(l_order->region) - 1, strlen(a_region) + 1));
-        l_order->continent = a_continent_num;
+
+        if(a_ext)
+            strncpy(l_order->ext, a_ext, strlen(l_order->ext) + 1);
+        else
+            dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
 
         if ( a_node_addr.uint64)
             l_order->node_addr.uint64 = a_node_addr.uint64;
@@ -124,13 +203,11 @@ char* dap_chain_net_srv_order_create(
         if ( a_price_ticker)
             strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
 
-        if ( a_ext)
-            strncpy(l_order->ext, a_ext, sizeof ( l_order->ext)-1 );
-
-        dap_hash_fast( l_order, sizeof ( *l_order), l_order_hash );
+        size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
+        dap_hash_fast( l_order, l_order_size, l_order_hash );
         char * l_order_hash_str = dap_chain_hash_fast_to_str_new( l_order_hash );
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-        if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), l_order, sizeof (*l_order), l_gdb_group_str ) ){
+        if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), l_order, l_order_size, l_gdb_group_str ) ){
             DAP_DELETE( l_order );
             DAP_DELETE( l_order_hash );
             DAP_DELETE( l_order_hash_str );
@@ -138,7 +215,7 @@ char* dap_chain_net_srv_order_create(
             return NULL;
         }
         DAP_DELETE( l_order_hash );
-        DAP_DELETE(l_order_hash_str );
+        //DAP_DELETE(l_order_hash_str );
         DAP_DELETE( l_gdb_group_str );
         return  l_order_hash_str;
     }else
@@ -157,10 +234,11 @@ int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_orde
         return -1;
 
     dap_chain_hash_fast_t l_order_hash;
-    dap_hash_fast( a_order, sizeof ( *a_order), &l_order_hash );
+    size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
+    dap_hash_fast( a_order, l_order_size, &l_order_hash );
     char * l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-    if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), a_order, sizeof (*a_order), l_gdb_group_str ) ){
+    if ( !dap_chain_global_db_gr_set(l_order_hash_str, a_order, l_order_size, l_gdb_group_str ) ){
         DAP_DELETE( l_gdb_group_str );
         return -1;
     }
@@ -181,8 +259,8 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_n
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
         size_t l_order_size =0;
         l_order = (dap_chain_net_srv_order_t *) dap_chain_global_db_gr_get(a_hash_str, &l_order_size, l_gdb_group_str );
-        // todo 218 is old size - added to replace old orders
-        if (l_order_size != sizeof (dap_chain_net_srv_order_t) && l_order_size!=218 ){
+        // check order size
+        if(l_order_size != dap_chain_net_srv_order_get_size(l_order)) {
             log_it( L_ERROR, "Found wrong size order");
             DAP_DELETE( l_order );
             DAP_DELETE( l_gdb_group_str );
@@ -217,9 +295,11 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str,&l_orders_count);
         log_it( L_DEBUG ,"Loaded %zd orders", l_orders_count);
         bool l_order_pass_first=true;
-        size_t l_order_passed_index;
+        size_t l_order_passed_index = 0;
+        size_t l_orders_size = 0;
 lb_order_pass:
-        l_order_passed_index =0;
+        l_order_passed_index = 0;
+        l_orders_size = 0;
         for (size_t i=0; i< l_orders_count; i++){
             dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *) l_orders[i].value;
             // Check direction
@@ -248,8 +328,14 @@ lb_order_pass:
                 if ( strcmp( l_order->price_ticker, a_price_ticker) != 0 )
                     continue;
 
-            if( !l_order_pass_first )
-                memcpy( *a_output_orders+l_order_passed_index, l_order, sizeof (dap_chain_net_srv_order_t));
+            if( !l_order_pass_first ){
+                size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
+                memcpy((char*)*a_output_orders + l_orders_size, l_order, l_order_size);
+                l_orders_size += l_order_size;
+            }
+            else
+                // calc size of all orders
+                l_orders_size += dap_chain_net_srv_order_get_size(l_order);
             l_order_passed_index++;
 
         }
@@ -257,7 +343,7 @@ lb_order_pass:
         if (l_order_pass_first) {
             l_order_pass_first = false;
             *a_output_orders_count = l_order_passed_index;
-            *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, sizeof (dap_chain_net_srv_order_t)*l_order_passed_index );
+            *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
             goto lb_order_pass;
         }
         // If we here - its the second pass through
@@ -297,7 +383,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
         char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
-        dap_hash_fast(a_order,sizeof (*a_order),&l_hash );
+        dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
         dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
@@ -315,11 +401,19 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         if ( a_order->node_addr.uint64)
             dap_string_append_printf(a_str_out, "  node_addr:        "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr) );
 
-        const char *l_continent_str = dap_chain_net_srv_order_get_continent_str(a_order->continent);
-        dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , a_order->region[0] ? a_order->region : "None");
+        char *l_region = NULL;
+        uint8_t l_continent_num = 0;
+        const char *l_continent_str = NULL;
+        if(dap_chain_net_srv_order_get_continent_region(a_order, &l_continent_num, &l_region))
+            l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
+        dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
+        DAP_DELETE(l_region);
 
-        dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str,sizeof(l_hash_str)-1);
+        dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
-        dap_string_append_printf(a_str_out, "  ext:              \"%s\"\n", a_order->ext );
+        char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
+        dap_bin2hex(l_ext_out, a_order->ext, a_order->ext_size);
+        dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out ? l_ext_out : "");
+        DAP_DELETE(l_ext_out);
     }
 }
