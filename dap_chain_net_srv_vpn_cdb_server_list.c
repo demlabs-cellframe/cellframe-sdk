@@ -127,7 +127,10 @@ static int order_info_print(dap_string_t *a_reply_str, dap_chain_net_t * a_net, 
         dap_string_append_printf(a_reply_str, "        \"Port\":%hu,\n", l_node_info->hdr.ext_port ? l_node_info->hdr.ext_port : 80);
 
         //dap_string_append_printf(a_reply_str, "        \"Ext\":\"%s-%s\",\n", l_continent_str ? l_continent_str : "", l_region ? l_region : "");
-        dap_string_append_printf(a_reply_str, "        \"Ext\":0x%s,\n", l_ext_out ? l_ext_out : "");
+        if(l_ext_out)
+            dap_string_append_printf(a_reply_str, "        \"Ext\":0x%s,\n", l_ext_out);
+        else
+            dap_string_append_printf(a_reply_str, "        \"Ext\":0x0,\n");
         dap_string_append_printf(a_reply_str, "        \"Price\":%lu,\n", a_order->price);
         dap_string_append_printf(a_reply_str, "        \"PriceUnits\":%u,\n", a_order->price_unit.uint32);
         dap_string_append_printf(a_reply_str, "        \"PriceToken\":\"%s\"\n", a_order->price_ticker);
