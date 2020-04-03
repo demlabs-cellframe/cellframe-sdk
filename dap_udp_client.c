@@ -60,6 +60,7 @@
  * @return 64 bit Key
  */
 #define get_key( host, key ) (((uint64_t)host << 32) + (uint64_t)port)
+extern bool sb_payload_ready;
 
 /**
  * @brief udp_client_create Create new client and add it to hashmap
@@ -72,7 +73,7 @@
 dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE efd, unsigned long host, unsigned short port )
 {
   dap_udp_server_t *udp_server = DAP_UDP_SERVER( dap_srv );
-  log_it( L_DEBUG, "Client structure create" );
+  log_it( L_DEBUG, "Client structure create with host = %x, port = %d", host, port );
 
   dap_udp_client_t *inh = DAP_NEW_Z( dap_udp_client_t );
   inh->host_key = get_key( host, port );
@@ -112,11 +113,11 @@ dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE 
  * @param host Variable for host address
  * @param host Variable for port
  */
-void dap_udp_client_get_address( dap_client_remote_t *client, unsigned int* host, unsigned short* port ) 
+void dap_udp_client_get_address( dap_client_remote_t *client, unsigned int* host, unsigned short* port )
 {
   dap_udp_client_t* udp_client = DAP_UDP_CLIENT( client );
   *host = udp_client->host_key >> 32;
-  *port = (udp_client->host_key <<32) - *host;
+  *port = udp_client->host_key;
 }
 
 /**
@@ -134,7 +135,7 @@ dap_client_remote_t *dap_udp_client_find( dap_server_t *dap_srv, unsigned long h
   uint64_t token = get_key( host, port );
 
   pthread_mutex_lock( &udp_server->mutex_on_list );
-  HASH_FIND_INT( udp_server->hclients, &token, inh );    
+  HASH_FIND_INT( udp_server->hclients, &token, inh );
   pthread_mutex_unlock( &udp_server->mutex_on_list );
 
   if( inh == NULL )
@@ -187,14 +188,18 @@ void dap_udp_client_ready_to_write( dap_client_remote_t *sc, bool is_ready )
     sc->flags |= DAP_SOCK_READY_TO_WRITE;
   else
     sc->flags ^= DAP_SOCK_READY_TO_WRITE;
-
   int events = EPOLLERR;
 
   if( sc->flags & DAP_SOCK_READY_TO_READ )
     events |= EPOLLIN;
 
   if( sc->flags & DAP_SOCK_READY_TO_WRITE )
-    events |= EPOLLOUT;
+  {
+    dap_udp_server_t *udp_server = DAP_UDP_SERVER(sc->server);
+    pthread_mutex_lock(&udp_server->mutex_on_list);
+    sb_payload_ready = true;
+    pthread_mutex_unlock(&udp_server->mutex_on_list );
+  }
 
   sc->pevent.events = events;
 

@@ -59,12 +59,11 @@
 #define BUFSIZE 1024
 
 char buf[ BUFSIZE ]; /* message buf */
-
+bool sb_payload_ready;
 //struct ev_io w_read;
 //struct ev_io w_write;
 
 EPOLL_HANDLE efd_read  = (EPOLL_HANDLE)-1;
-EPOLL_HANDLE efd_write = (EPOLL_HANDLE)-1;
 
 //static void write_cb( EPOLL_HANDLE efd, int revents );
 
@@ -72,7 +71,7 @@ int check_close( dap_client_remote_t *client );
 
 /**
  */
-void error( char *msg ) {
+static void error( char *msg ) {
 
   perror( msg );
   exit( 1 );
@@ -126,7 +125,7 @@ void dap_udp_server_delete( dap_server_t *sh )
 /**
  * @brief dap_udp_server_listen Create and bind server structure
  * @param port Binding port
- * @return Server instance 
+ * @return Server instance
  */
 dap_server_t *dap_udp_server_listen( uint16_t port ) {
 
@@ -155,7 +154,7 @@ dap_server_t *dap_udp_server_listen( uint16_t port ) {
     dap_udp_server_delete( sh );
     return NULL;
   }
-
+  log_it(L_INFO, "UDP server listening port 0.0.0.0:%d", port);
   pthread_mutex_init( &DAP_UDP_SERVER(sh)->mutex_on_list, NULL );
   pthread_mutex_init( &DAP_UDP_SERVER(sh)->mutex_on_hash, NULL );
 
@@ -188,14 +187,15 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 
       if ( client->buf_out_size > 0 ) {
 
-        //log_it(L_INFO,"write_cb_client");
 
+
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        dap_udp_client_get_address( client, (unsigned int *)&addr.sin_addr.s_addr, &addr.sin_port );
+        //log_it(L_INFO,"write_cb_client host = %x, port = %d, socket = %x", addr.sin_addr.s_addr, addr.sin_port, sh->socket_listener);
         for( size_t total_sent = 0; total_sent < client->buf_out_size; ) {
-          struct sockaddr_in addr;
-          addr.sin_family = AF_INET;
-          dap_udp_client_get_address( client, (unsigned int *)&addr.sin_addr.s_addr, &addr.sin_port );
 
-          int bytes_sent = sendto( sh->socket_listener, client->buf_out + total_sent, 
+          int bytes_sent = sendto( sh->socket_listener, client->buf_out + total_sent,
                         client->buf_out_size - total_sent, 0, (struct sockaddr*) &addr, sizeof(addr) );
 
           if ( bytes_sent < 0 ) {
@@ -206,6 +206,8 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
         }
         client->buf_out_size = 0;
         memset( client->buf_out, 0, DAP_CLIENT_REMOTE_BUF + 1 );
+        client->flags &= ~DAP_SOCK_READY_TO_WRITE;
+        sb_payload_ready = false;
       }
       LL_DELETE( udp->waiting_clients, udp_client );
     }
@@ -302,7 +304,7 @@ static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 
             if ( sh->client_read_callback )
                 sh->client_read_callback( client, NULL );
-                
+
             bytes_processed += bytes_to_transfer;
             bytes_recieved -= bytes_to_transfer;
         }
@@ -326,65 +328,20 @@ static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 }
 
 /**
- * @brief dap_udp_client_loop Create client listening event loop
- */
-void *dap_udp_client_loop( void *arg )
-{
-  dap_server_t *d_server = (dap_server_t *)arg;
-  struct epoll_event  pev;
-  struct epoll_event  events[ 16 ];
-
-  pev.events = EPOLLOUT | EPOLLERR;
-  pev.data.fd = d_server->socket_listener;
-
-  if ( epoll_ctl( efd_write, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
-    log_it( L_ERROR, "epoll_ctl failed 001" );
-    return NULL;
-  }
-
-  log_it( L_NOTICE, "Start client write thread" );
-
-  do {
-
-    int32_t n = epoll_wait( efd_write, events, 16, -1 );
-
-    if ( n == -1 )
-      break;
-
-    for ( int32_t i = 0; i < n; ++ i ) {
-
-      if ( events[i].events & EPOLLOUT ) {
-        write_cb( efd_write, events[i].events, d_server );
-      }
-      else if( events[i].events & EPOLLERR ) {
-        log_it( L_ERROR, "Server socket error event" );
-        break;
-      }
-    }
-
-  } while( 1 );
-
-  return NULL;
-}
-
-
-/**
  * @brief dap_udp_server_loop Start server event loop
  * @param sh Server instance
  */
 void dap_udp_server_loop( dap_server_t *d_server )
 {
-  EPOLL_HANDLE efd_read  = epoll_create1( 0 );
-  EPOLL_HANDLE efd_write = epoll_create1( 0 );
-  pthread_t thread;
+  efd_read  = epoll_create1( 0 );
 
-  if ( (intptr_t)efd_read == -1 || (intptr_t)efd_write == -1 ) {
+  if ( (intptr_t)efd_read == -1 ) {
 
     log_it( L_ERROR, "epoll_create1 failed" );
-    goto error;
+    goto udp_error;
   }
 
-  pthread_create( &thread, NULL, dap_udp_client_loop, d_server );
+  sb_payload_ready = false;
 
   struct epoll_event  pev;
   struct epoll_event  events[ 16 ];
@@ -394,7 +351,7 @@ void dap_udp_server_loop( dap_server_t *d_server )
 
   if ( epoll_ctl( efd_read, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
     log_it( L_ERROR, "epoll_ctl failed 000" );
-    goto error;
+    goto udp_error;
   }
 
   while( 1 ) {
@@ -415,21 +372,25 @@ void dap_udp_server_loop( dap_server_t *d_server )
       if ( events[i].events & EPOLLIN ) {
         read_cb( efd_read, events[i].events, d_server );
       }
-      else if( events[i].events & EPOLLERR ) {
+      if ( events[i].events & EPOLLOUT) {
+        // Do nothing. It always true until socket eturn EAGAIN
+      }
+      if (sb_payload_ready) {
+        write_cb( efd_read, events[i].events, d_server );
+      }
+      if( events[i].events & EPOLLERR ) {
         log_it( L_ERROR, "Server socket error event" );
-        goto error;
+        goto udp_error;
       }
     }
 
   }
 
-error:
+udp_error:
 
   #ifndef _WIN32
     if ( efd_read != -1 )
       close( efd_read );
-    if ( efd_write != -1 )
-      close( efd_write );
   #else
     if ( efd_read != INVALID_HANDLE_VALUE )
       epoll_close( efd_read );
