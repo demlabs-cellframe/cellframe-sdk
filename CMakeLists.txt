@@ -19,7 +19,8 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
     add_subdirectory(test)
 endif()
 
-set(DAP_UDP_SERVER_SRCS dap_udp_server.c dap_udp_client.h dap_udp_client.c )
+set(DAP_UDP_SERVER_SRCS dap_udp_server.c dap_udp_client.c dap_dns_server.c)
+set(DAP_UDP_SERVER_HEADERS dap_udp_server.h dap_udp_client.h dap_dns_server.h)
 
 if(WIN32)
   include_directories(../libdap/src/win32/)
@@ -32,6 +33,6 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_UDP_SERVER_SRCS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_server_core )
+target_link_libraries(${PROJECT_NAME} dap_core dap_server_core dap_chain_net)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
