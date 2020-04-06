@@ -851,7 +851,7 @@ static void *s_net_proc_thread ( void *a_net )
                 p_net->flags |= F_DAP_CHAIN_NET_GO_SYNC;
             }
         }
-        log_it( L_DEBUG, "Waked up s_net_proc_thread( )" );
+        //log_it( L_DEBUG, "Waked up s_net_proc_thread( )" );
     }
 
     return NULL;
