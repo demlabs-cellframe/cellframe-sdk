@@ -98,3 +98,19 @@
 	path = libdap-app-cli
 	url = https://gitlab.demlabs.net/cellframe/libdap-app-cli.git
 	branch = master
+[submodule "libdap-chain-net-srv-app"]
+	path = libdap-chain-net-srv-app
+	url = https://gitlab.demlabs.net/cellframe/libdap-chain-net-srv-app
+	branch = master
+[submodule "libdap-chain-net-srv-app-db"]
+	path = libdap-chain-net-srv-app-db
+	url = https://gitlab.demlabs.net/cellframe/libdap-chain-net-srv-app-db
+	branch = master
+[submodule "libdap-chain-net-srv-datum"]
+	path = libdap-chain-net-srv-datum
+	url = https://gitlab.demlabs.net/cellframe/libdap-chain-net-srv-datum
+	branch = master
+[submodule "libdap-chain-net-srv-datum-pool"]
+	path = libdap-chain-net-srv-datum-pool
+	url = https://gitlab.demlabs.net/cellframe/libdap-chain-net-srv-datum-pool
+	branch = master
