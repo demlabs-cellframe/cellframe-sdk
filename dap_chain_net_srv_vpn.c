@@ -943,7 +943,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* arg)
                 strncpy(str_daddr, inet_ntoa(in_daddr), sizeof(str_daddr)-1);
 
                 // The packet can't be written, errno == EINVAL !!!
-                log_it(L_DEBUG, "VPN packet, source: %s; dest: %s", inet_ntoa(in_saddr), inet_ntoa(in_daddr));
+                //log_it(L_DEBUG, "VPN packet, source: %s; dest: %s", inet_ntoa(in_saddr), inet_ntoa(in_daddr));
                 int ret;
                 //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
                 /*struct sockaddr_in sin = { 0 };
@@ -1385,7 +1385,7 @@ void* srv_ch_sf_thread_raw(void *arg)
 
              }*/
         } else {
-            log_it(L_WARNING, "Select returned %d: %s", ret, strerror(errno));
+            //log_it(L_WARNING, "Select returned %d: %s", ret, strerror(errno));
             //break;
         }
     } while(! s_srv_ch_sf_thread_raw_is_exit );
