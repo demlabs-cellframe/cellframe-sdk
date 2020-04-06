@@ -83,7 +83,7 @@ bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_
 
     l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_ext_size);
     l_order->ext[0] =0x52;
-    if(a_continent_num)
+    if(a_continent_num > 0)
         memcpy(l_order->ext + 1, &a_continent_num, sizeof(uint8_t));
     else
         memcpy(l_order->ext + 1, &l_continent_num_prev, sizeof(uint8_t));

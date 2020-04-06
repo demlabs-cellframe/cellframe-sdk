@@ -400,13 +400,15 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             const char *l_order_hash_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
             if ( l_order_hash_str ){
-                if (dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_str) == 0){
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_str );
+                if (l_order && dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_str) == 0){
                     ret = 0 ;
                     dap_string_append_printf(l_string_ret,"Deleted order %s\n", l_order_hash_str );
                 }else{
                     ret = -8 ;
                     dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_str );
                 }
+                DAP_DELETE(l_order);
             } else{
                 ret = -9 ;
                 dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
