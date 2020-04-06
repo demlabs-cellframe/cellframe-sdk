@@ -181,10 +181,117 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
-        if ( l_order_str == NULL){
-            dap_string_append_printf( l_string_ret, "Expected subcommand. Variants: find, dump, create, delete\n");
-            ret=-3;
-        } else if ( strcmp( l_order_str, "find" ) == 0 ){
+
+        // Order direction
+        const char *l_direction_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-direction", &l_direction_str);
+
+        const char* l_srv_uid_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
+
+        const char* l_srv_class_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_class", &l_srv_class_str);
+
+        const char* l_node_addr_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-node_addr", &l_node_addr_str);
+
+        const char* l_tx_cond_hash_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-tx_cond", &l_tx_cond_hash_str);
+
+        const char* l_price_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price", &l_price_str);
+
+        const char* l_expires_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-expires", &l_expires_str);
+
+        const char* l_price_unit_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_unit", &l_price_unit_str);
+
+        const char* l_price_token_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_token", &l_price_token_str);
+
+        const char* l_ext = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-ext", &l_ext);
+
+        const char *l_order_hash_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
+
+        const char* l_region_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-region", &l_region_str);
+        const char* l_continent_str = NULL;
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-continent", &l_continent_str);
+
+        int8_t l_continent_num = dap_chain_net_srv_order_continent_to_num(l_continent_str);
+
+        if(l_continent_str && l_continent_num <= 0) {
+            dap_string_t *l_string_err = dap_string_new("Unrecognized \"-continent\" option=");
+            dap_string_append_printf(l_string_err, "\"%s\". Variants: ", l_continent_str);
+            int i = 0;
+            while(1) {
+                const char *l_continent = dap_chain_net_srv_order_continent_to_str(i);
+                if(!l_continent)
+                    break;
+                if(!i)
+                    dap_string_append_printf(l_string_err, "\"%s\"", l_continent);
+                else
+                    dap_string_append_printf(l_string_err, ", \"%s\"", l_continent);
+                i++;
+            }
+            dap_string_append_printf(l_string_ret, "%s\n", l_string_err->str);
+            dap_string_free(l_string_err, true);
+            ret = -1;
+        }
+        // Update order
+        else if(dap_strcmp(l_order_str, "update") == 0) {
+
+            if(!l_order_hash_str) {
+                ret = -1;
+                dap_string_append(l_string_ret, "Can't find option '-hash'\n");
+            }
+            else {
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+                if(!l_order) {
+                    ret = -2;
+                    dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
+                }
+                else {
+                    if(l_ext) {
+                        l_order->ext_size = strlen(l_ext) + 1;
+                        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
+                        strncpy(l_order->ext, l_ext, l_order->ext_size);
+                    }
+                    else
+                        dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
+                    /*if(l_region_str) {
+                        strncpy(l_order->region, l_region_str, min(sizeof(l_order->region) - 1, strlen(l_region_str) + 1));
+                    }
+                    if(l_continent_num>=0)
+                        l_order->continent = l_continent_num;*/
+
+
+                    ret = dap_chain_net_srv_order_save(l_net, l_order);
+                    if(!ret)
+                        ret = 0;
+                    if(!ret) {
+                        dap_chain_hash_fast_t l_new_order_hash;
+                        size_t l_new_order_size = dap_chain_net_srv_order_get_size(l_order);
+                        dap_hash_fast(l_order, l_new_order_size, &l_new_order_hash);
+                        char * l_new_order_hash_str = dap_chain_hash_fast_to_str_new(&l_new_order_hash);
+                        // delete prev order
+                        if(dap_strcmp(l_new_order_hash_str, l_order_hash_str))
+                            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                        DAP_DELETE(l_new_order_hash_str);
+                        dap_string_append_printf(l_string_ret, "order updated\n");
+                    }
+                    else
+                        dap_string_append_printf(l_string_ret, "order did not updated\n");
+
+                    DAP_DELETE(l_order);
+                }
+            }
+
+        }
+        else if ( dap_strcmp( l_order_str, "find" ) == 0 ){
 
             // Order direction
             const char *l_direction_str = NULL;
@@ -235,11 +342,14 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
 
             dap_chain_net_srv_order_t * l_orders;
-            size_t l_orders_size =0;
-            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
-                dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_size);
-                for (size_t i = 0; i< l_orders_size; i++){
-                    dap_chain_net_srv_order_dump_to_string(l_orders+i,l_string_ret);
+            size_t l_orders_num = 0;
+            if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
+                dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_num);
+                size_t l_orders_size = 0;
+                for (size_t i = 0; i< l_orders_num; i++){
+                    dap_chain_net_srv_order_t *l_order = (char*) l_orders + l_orders_size;
+                    dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret);
+                    l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                     dap_string_append(l_string_ret,"\n");
                 }
                 ret = 0;
@@ -247,11 +357,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 ret = -5 ;
                 dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
             }
+            DAP_DELETE(l_orders);
 
-        }else if( strcmp( l_order_str, "dump" ) == 0 ){
+        }else if( dap_strcmp( l_order_str, "dump" ) == 0 ){
             // Select with specified service uid
-            const char *l_order_hash_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
             if ( l_order_hash_str ){
                 dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_str );
                 if (l_order){
@@ -264,68 +373,47 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             } else{
 
                 dap_chain_net_srv_order_t * l_orders = NULL;
-                size_t l_orders_size =0;
+                size_t l_orders_num =0;
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 uint64_t l_price_min=0, l_price_max =0 ;
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
 
-                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_size) == 0 ){
-                    dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_size);
-                    for (size_t i = 0; i< l_orders_size; i++){
-                        dap_chain_net_srv_order_dump_to_string(&l_orders[i],l_string_ret);
-                        dap_string_append(l_string_ret,"\n");
+                if( dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
+                    dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_num);
+                    size_t l_orders_size = 0;
+                    for(size_t i = 0; i < l_orders_num; i++) {
+                        dap_chain_net_srv_order_t *l_order = (char*) l_orders + l_orders_size;
+                        dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret);
+                        l_orders_size += dap_chain_net_srv_order_get_size(l_order);
+                        dap_string_append(l_string_ret, "\n");
                     }
                     ret = 0;
                 }else{
                     ret = -5 ;
                     dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
                 }
+                DAP_DELETE(l_orders);
             }
-        }else if( strcmp( l_order_str, "delete" ) == 0 ){
+        }else if( dap_strcmp( l_order_str, "delete" ) == 0 ){
             // Select with specified service uid
             const char *l_order_hash_str = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
             if ( l_order_hash_str ){
-                if (dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_str) == 0){
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_str );
+                if (l_order && dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_str) == 0){
                     ret = 0 ;
                     dap_string_append_printf(l_string_ret,"Deleted order %s\n", l_order_hash_str );
                 }else{
                     ret = -8 ;
                     dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_str );
                 }
+                DAP_DELETE(l_order);
             } else{
                 ret = -9 ;
                 dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
             }
-        }else if( strcmp( l_order_str, "create" ) == 0 ){
-            // Order direction
-            const char *l_direction_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-direction", &l_direction_str);
-
-            const char* l_srv_uid_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
-
-            const char* l_node_addr_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-node_addr", &l_node_addr_str);
-
-            const char*  l_tx_cond_hash_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-tx_cond", &l_tx_cond_hash_str);
-
-            const char*  l_price_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price", &l_price_str);
-
-            const char*  l_expires_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-expires", &l_expires_str);
-
-            const char*  l_price_unit_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_unit", &l_price_unit_str);
-
-            const char*  l_price_token_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-price_token", &l_price_token_str);
-
-            const char*  l_ext = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-ext", &l_ext);
+        }else if( dap_strcmp( l_order_str, "create" ) == 0 ){
 
             if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
@@ -365,7 +453,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
-                            l_price_token, l_expires,l_ext);
+                            l_price_token, l_expires,l_ext, l_region_str, l_continent_num);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{
