@@ -204,7 +204,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                     // received ping request - > send pong request
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING: {
-                    log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
+                    //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG,
                                                       l_ch_chain_net_pkt->hdr.net_id,NULL, 0);
                     dap_stream_ch_set_ready_to_write(a_ch, true);
@@ -212,7 +212,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                     // receive pong request -> send nothing
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG: {
-                    log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PONG");
+                    //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PONG");
                     dap_stream_ch_set_ready_to_write(a_ch, false);
                 }
                 break;
