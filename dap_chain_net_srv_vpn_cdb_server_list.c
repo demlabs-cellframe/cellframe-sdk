@@ -110,8 +110,9 @@ static int order_info_print(dap_string_t *a_reply_str, dap_chain_net_t * a_net, 
         dap_bin2hex(l_ext_out, a_order->ext, a_order->ext_size);
 
         dap_string_append_printf(a_reply_str, "    {\n");
-        dap_string_append_printf(a_reply_str, "        \"Locations\":\"%s-%s\",\n",
-                l_continent_str ? l_continent_str : "None", l_region ? l_region : "None"); //NETHERLANDS
+        dap_string_append_printf(a_reply_str, "        \"Location\":\"%s\",\n", l_region ? l_region : "None"); //NETHERLANDS
+                //l_continent_str ? l_continent_str : "None", l_region ? l_region : "None");
+
 
         dap_string_append_printf(a_reply_str, "        \"ChainNet\":\"%s\",\n", a_net->pub.name);
         //dap_string_append_printf(a_reply_str, "        \"Name\":\"%s.Cell-%lu.%zd\",\n", a_net->pub.name, l_node_info->hdr.cell_id.uint64, 0);
@@ -128,9 +129,9 @@ static int order_info_print(dap_string_t *a_reply_str, dap_chain_net_t * a_net, 
 
         //dap_string_append_printf(a_reply_str, "        \"Ext\":\"%s-%s\",\n", l_continent_str ? l_continent_str : "", l_region ? l_region : "");
         if(l_ext_out)
-            dap_string_append_printf(a_reply_str, "        \"Ext\":0x%s,\n", l_ext_out);
+            dap_string_append_printf(a_reply_str, "        \"Ext\":\"0x%s\",\n", l_ext_out);
         else
-            dap_string_append_printf(a_reply_str, "        \"Ext\":0x0,\n");
+            dap_string_append_printf(a_reply_str, "        \"Ext\":\"0x0\",\n");
         dap_string_append_printf(a_reply_str, "        \"Price\":%lu,\n", a_order->price);
         dap_string_append_printf(a_reply_str, "        \"PriceUnits\":%u,\n", a_order->price_unit.uint32);
         dap_string_append_printf(a_reply_str, "        \"PriceToken\":\"%s\"\n", a_order->price_ticker);
@@ -166,27 +167,59 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                                                  NULL,0,0, &l_orders, &l_orders_num );
             log_it(L_DEBUG, "Found %zd orders in \"%s\" network", l_orders_num, l_net->pub.name );
 
-            // node numbering
+
+            // find the shift for each node
+            dap_chain_net_srv_order_t *l_orders_pos[l_orders_num];
+            size_t l_orders_size = 0;
+            for(size_t j = 0; j < l_orders_num; j++) {
+                l_orders_pos[j] = (dap_chain_net_srv_order_t*) ((char*) l_orders + l_orders_size);
+                l_orders_size += dap_chain_net_srv_order_get_size(l_orders_pos[j]);
+            }
+
 
             // list of node numbers
-            //int *l_node_numbering = DAP_NEW_Z_SIZE(int, l_orders_num * sizeof(int));
-            size_t l_continents_count = dap_chain_net_srv_order_continents_count();
+            size_t l_continents_count = dap_chain_net_srv_order_continents_count(); //int *l_node_numbering = DAP_NEW_Z_SIZE(int, l_orders_num * sizeof(int));
             // list of the number of nodes in each continent
-            int *l_continents_numbers = DAP_NEW_Z_SIZE(int, l_continents_count * sizeof(int));
+            int l_continents_numbers[l_continents_count]; //int *l_continents_numbers = DAP_NEW_Z_SIZE(int, l_continents_count * sizeof(int));
             int l_node_numbering[l_continents_count][l_orders_num];
-            for(size_t m1 = 0; m1 <= l_continents_count; m1++)
-                for(size_t m2 = 0; m2 <= l_orders_num; m2++)
-                    l_node_numbering[m1][m2] = 0;
+            // init arrays
+            for(size_t m1 = 0; m1 < l_continents_count; m1++) {
+                l_continents_numbers[m1] = 0;
+                for(size_t m2 = 0; m2 < l_orders_num; m2++)
+                    l_node_numbering[m1][m2] = -1;
+            }
+
+            // node numbering
             {
-                size_t l_orders_size = 0;
                 // filling l_continents_numbers and l_node_numbering
                 for(size_t j = 0; j < l_orders_num; j++) {
-                    dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*) ((char*) l_orders + l_orders_size);
-                    l_orders_size += dap_chain_net_srv_order_get_size(l_order);
+                    dap_chain_net_srv_order_t *l_order = l_orders_pos[j];
                     uint8_t l_continent_num;
                     if(!dap_chain_net_srv_order_get_continent_region(l_order, &l_continent_num, NULL))
                         continue;
                     l_node_numbering[l_continent_num][j] = l_continents_numbers[l_continent_num]++;
+                }
+                // shuffle nodes for each continent
+                for(size_t m1 = 0; m1 < l_continents_count; m1++) {
+                    int l_cont_num = l_continents_numbers[m1];
+                    if(l_cont_num <= 1)
+                        continue;
+                    // number of shuffles
+                    int l_shuffle_num = rand() % (l_cont_num + 1);
+                    for(size_t l_sh = 0; l_sh <= l_shuffle_num; l_sh++) {
+                        size_t l_pos1 = 0;
+                        size_t l_pos2 = 0;
+                        while(l_pos1 == l_pos2) {
+                            l_pos1 = rand() % l_cont_num;
+                            l_pos2 = rand() % l_cont_num;
+                        }
+                        for(size_t m2 = 0; m2 < l_orders_num; m2++) {
+                            if(l_node_numbering[m1][m2] == l_pos1)
+                                l_node_numbering[m1][m2] = l_pos2;
+                            else if(l_node_numbering[m1][m2] == l_pos2)
+                                l_node_numbering[m1][m2] = l_pos1;
+                        }
+                    }
                 }
             }
 
@@ -195,14 +228,8 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
             while(l_orders_num > 0) {
                 // first random node
                 size_t k = rand() % l_orders_num;
-                // find orded pos
-                size_t l_orders_size = 0;
-                dap_chain_net_srv_order_t *l_order = l_orders;
-                for(size_t j = 0; j <= k; j++) {
-                    l_order = (dap_chain_net_srv_order_t*)((char*) l_orders + l_orders_size);
-                    l_orders_size += dap_chain_net_srv_order_get_size(l_order);
-                }
-                if(!order_info_print(l_reply_str, l_net, l_order, "Random server", -1)){
+                dap_chain_net_srv_order_t *l_order = l_orders_pos[k];
+                if(!order_info_print(l_reply_str, l_net, l_order, "Auto", -1)){
                     dap_string_append_printf(l_reply_str, ",\n");
                     break;
                 }
@@ -215,22 +242,17 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                 while(l_continents_numbers[l_c] > 0) {
                     // random node for continent
                     size_t k = rand() % l_continents_numbers[l_c];
-                    size_t l_node_pos = 0;
+                    size_t l_node_pos = -1;
                     for(size_t j2 = 0; j2 <= l_orders_num; j2++) {
                         if(k == l_node_numbering[l_c][j2]) {
                             l_node_pos = j2;
                             break;
                         }
                     }
-
-                    // find orded pos
-                    size_t l_orders_size = 0;
-                    dap_chain_net_srv_order_t *l_order = l_orders;
-                    for(size_t j = 0; j <= l_node_pos; j++) {
-                        l_order = (dap_chain_net_srv_order_t*) ((char*) l_orders + l_orders_size);
-                        l_orders_size += dap_chain_net_srv_order_get_size(l_order);
-                    }
-                    char *l_server_name = dap_strdup_printf("Random server: %s", dap_chain_net_srv_order_continent_to_str(l_c));
+                    if(l_node_pos == -1)
+                        break;
+                    dap_chain_net_srv_order_t *l_order = l_orders_pos[l_node_pos];
+                    char *l_server_name = dap_strdup_printf("%s", dap_chain_net_srv_order_continent_to_str(l_c));
                     if(!order_info_print(l_reply_str, l_net, l_order, l_server_name, -1)) {
                         dap_string_append_printf(l_reply_str, ",\n");
                         DAP_DELETE(l_server_name);
@@ -243,11 +265,27 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     l_count++;
                 }
             }
-            DAP_DELETE(l_continents_numbers);
-
-            size_t l_orders_size = 0;
-            for ( size_t j = 0; j < l_orders_num ; j++ ) {
-                dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)((char*) l_orders + l_orders_size);
+            for(size_t l_c = 0; l_c < l_continents_count; l_c++) {
+                // print all nodes for continent
+                for(size_t l_n = 0; l_n < l_continents_numbers[l_c]; l_n++) {
+                    // since the nodes are shuffled, look for the desired node index
+                    for(size_t l_o = 0; l_o < l_orders_num; l_o++) {
+                        if(l_node_numbering[l_c][l_o] != l_n)
+                            continue;
+                        dap_chain_net_srv_order_t *l_order = l_orders_pos[l_o];
+                        if(!order_info_print(l_reply_str, l_net, l_order, NULL, l_n)) {
+                            if(l_o != l_orders_num - 1)
+                                dap_string_append_printf(l_reply_str, ",\n");
+                            else
+                                dap_string_append_printf(l_reply_str, "\n");
+                        }
+                        break;
+                    }
+                }
+            }
+            //DAP_DELETE(l_continents_numbers);
+/*            for(size_t j = 0; j < l_orders_num; j++) {
+                dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*) ((char*) l_orders + l_orders_size);
                 l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                 uint8_t l_continent_num = 0;
                 dap_chain_net_srv_order_get_continent_region(l_order, &l_continent_num, NULL);
@@ -257,7 +295,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     else
                         dap_string_append_printf(l_reply_str, "\n");
                 }
-            }
+            }*/
             //DAP_DELETE(l_node_numbering);
         }
     }
