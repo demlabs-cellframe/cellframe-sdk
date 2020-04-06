@@ -86,14 +86,14 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
         return -1;
 
     dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <chain net name> order find [-direction <sell|buy>][-srv_uid <Service UID>] [-srv_class <Service Class>] [-price_unit <price unit>]\\\n"
+        "net_srv -net <chain net name> order find [-direction <sell|buy>][-srv_uid <Service UID>] [-price_unit <price unit>]\\\n"
         "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <chain net name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -srv_class <Service Class> -price <Price>\\\n"
+        "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -price <Price>\\\n"
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>] \\\n"
         "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
         "\tOrder create\n" );
@@ -415,7 +415,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
         }else if( dap_strcmp( l_order_str, "create" ) == 0 ){
 
-            if ( l_srv_uid_str && l_srv_class_str && l_price_str && l_price_token_str && l_price_unit_str) {
+            if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
