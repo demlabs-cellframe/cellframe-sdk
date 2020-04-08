@@ -7,12 +7,8 @@ file(GLOB DAP_CHAIN_MEMPOOL_HDR *.h)
 add_definitions ("-DNODE_NETNAME=\"kelvin\"")
 
 if(WIN32)
-  include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/wepoll/include/)
+  include_directories(../3rdparty/wepoll/)
   include_directories(../3rdparty/uthash/src/)
-  include_directories(../3rdparty/libjson-c/)
-  include_directories(../3rdparty/curl/include/)
-  include_directories(../3rdparty/libsqlite3/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_MEMPOOL_SRC} ${DAP_CHAIN_MEMPOOL_HDR})
