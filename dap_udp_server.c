@@ -394,8 +394,6 @@ udp_error:
   #else
     if ( efd_read != INVALID_HANDLE_VALUE )
       epoll_close( efd_read );
-    if ( efd_write != INVALID_HANDLE_VALUE )
-      epoll_close( efd_write );
   #endif
 
   return;
