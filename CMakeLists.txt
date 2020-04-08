@@ -4,12 +4,8 @@ project (dap_stream_ch_chain_net)
 set(DAP_STREAM_CH_CHAIN_NET_SRCS dap_stream_ch_chain_net.c dap_stream_ch_chain_net_pkt.c)
 
 if(WIN32)
-  include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/wepoll/include/)
+  include_directories(../3rdparty/wepoll/)
   include_directories(../3rdparty/uthash/src/)
-  include_directories(../3rdparty/libjson-c/)
-  include_directories(../3rdparty/curl/include/)
-  include_directories(../3rdparty/libsqlite3/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_STREAM_CH_CHAIN_NET_SRCS})
