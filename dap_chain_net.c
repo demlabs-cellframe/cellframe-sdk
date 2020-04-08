@@ -820,10 +820,11 @@ static void *s_net_proc_thread ( void *a_net )
 
         // wait if flag not set then go to SYNC_GDB
         if(!(PVT(l_net)->flags & F_DAP_CHAIN_NET_GO_SYNC)) {
+            struct timespec l_to;
 #ifndef _WIN32
             pthread_mutex_lock( &p_net->state_mutex_cond );
             // prepare for signal waiting
-            struct timespec l_to;
+
             clock_gettime( CLOCK_MONOTONIC, &l_to );
             int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
 
