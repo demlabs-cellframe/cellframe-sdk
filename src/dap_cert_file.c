@@ -59,7 +59,7 @@ int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
             return -4;
         }
     }else{
-        log_it(L_ERROR, "Can't open file for write: %s", strerror(errno));
+        log_it(L_ERROR, "Can't open file '%s' for write: %s", a_cert_file_path, strerror(errno));
         return -2;
     }
 }
