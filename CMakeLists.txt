@@ -5,12 +5,8 @@ file(GLOB DAP_CHAIN_GDB_SRC *.c)
 file(GLOB DAP_CHAIN_GDB_HDR *.h)
 
 if(WIN32)
-  include_directories(../libdap/src/win32/)
-  include_directories(../3rdparty/wepoll/include/)
+  include_directories(../3rdparty/wepoll/)
   include_directories(../3rdparty/uthash/src/)
-  include_directories(../3rdparty/libjson-c/)
-  include_directories(../3rdparty/curl/include/)
-  include_directories(../3rdparty/libsqlite3/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GDB_SRC} ${DAP_CHAIN_GDB_HDR})
