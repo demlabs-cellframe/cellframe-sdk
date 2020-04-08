@@ -15,12 +15,10 @@ set(DAP_APP_CLI_HEADERS
 
 
 if(WIN32)
-  include_directories(../3rdparty/curl/include/)
+  #include_directories(../3rdparty/curl/include/)
 endif()
 
-if(UNIX)
 add_library(${PROJECT_NAME} STATIC ${DAP_APP_CLI_SRCS} ${DAP_APP_CLI_HEADERS} )
-endif()
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_chain_net m curl)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
