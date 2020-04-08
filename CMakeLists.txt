@@ -21,13 +21,10 @@ if(WIN32)
   file(GLOB CORE_SRCS 
       src/*.c 
       src/etc/*.c 
-      src/win32/*.c 
       src/rpmalloc/*.c
   )
   file(GLOB CORE_HEADERS 
       include/*.h 
-      src/win32/*.h 
-      src/win32/*.h 
   )
 endif()
 
@@ -81,7 +78,7 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
 	endif()
 endif()
 
-add_library(${PROJECT_NAME} STATIC ${CORE_SRCS} ${CORE_UNIX_SRCS})
+add_library(${PROJECT_NAME} STATIC ${CORE_SRCS} ${CORE_HEADERS})
 
 #This paths will be used by project-dependent project libraries
 target_include_directories(${PROJECT_NAME} INTERFACE include/ src/rpmalloc/)
@@ -107,6 +104,11 @@ endif()
 if(ANDROID)
     add_subdirectory(src/android)
     target_link_libraries(${PROJECT_NAME} dap_core_android)
+endif()
+
+if (WIN32)
+    add_subdirectory(src/win32)
+    target_link_libraries(${PROJECT_NAME} dap_core_win32)
 endif()
 
 if(BUILD_DAP_TESTS)
