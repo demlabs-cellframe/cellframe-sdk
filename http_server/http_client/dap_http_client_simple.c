@@ -19,7 +19,7 @@
 #include <time.h>
 #endif
 
-#include <curl/curl.h>
+#include "curl/curl.h"
 
 #include "dap_common.h"
 #include "dap_http_client.h"
