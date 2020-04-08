@@ -25,7 +25,7 @@
 #pragma once
 
 #include "dap_app_cli.h"
-#include <curl/curl.h>
+#include "curl/curl.h"
 
 // connection description
 typedef struct dap_app_cli_connect_param {
