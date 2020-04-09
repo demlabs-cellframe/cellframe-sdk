@@ -73,11 +73,11 @@ static inline double gettimefloat( void )
   return (double)gettime64() / 1000000000.0;
 }
 
-#include "keccak.h"
+#include "dap_hash.h"
 #include "XKCP/lib/high/Keccak/FIPS202/KeccakHash.h"
 #include "fips202.h"
 #include "SimpleFIPS202.h"
-
+/*
 #define DAP_CHAIN_HASH_FAST_SIZE    32
 
 typedef union dap_chain_hash_fast{
@@ -119,7 +119,7 @@ int dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_chain_hash_
 
     return 1;
 }
-
+*/
 #define DATA_SIZE 2048
 
 uint8_t data[8192];

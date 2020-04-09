@@ -1,9 +1,7 @@
-if(TARGET crypto_cert_test)
+﻿if(TARGET crypto_cert_test)
     return() # The project has already been built.
 endif()
 project(crypto_cert_test)
-
-add_subdirectory(libdap-test)
 
 file(GLOB SOURCES *.c)
 file(GLOB HEADERS *.h)
