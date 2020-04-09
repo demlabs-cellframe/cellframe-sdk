@@ -45,11 +45,7 @@ add_subdirectory(libdap-chain-cs-dag)
 add_subdirectory(libdap-chain-cs-dag-poa)
 add_subdirectory(libdap-chain-cs-dag-pos)
 
-if(WIN32 )
-add_library(${PROJECT_NAME} SHARED cellframe-sdk.c)
-else()
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
-endif()
 
 if(NOT (WIN32))
     target_link_libraries(${PROJECT_NAME}  dap_core dap_crypto dap_crypto dap_server_core dap_enc_server dap_udp_server dap_session
