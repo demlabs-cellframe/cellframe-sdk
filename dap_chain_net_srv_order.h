@@ -42,12 +42,24 @@ typedef struct dap_chain_net_srv_order
     dap_chain_time_t ts_expires;
     uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
-    char ext[128];
+    //uint8_t continent;
+    //char region[32];
+    uint32_t ext_size;
+    char ext[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
 // Init/deinit should be call only if private
 int dap_chain_net_srv_order_init(void);
 void dap_chain_net_srv_order_deinit(void);
+
+size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order);
+
+bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_order, uint8_t a_continent_num, const char *a_region);
+bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region);
+
+size_t dap_chain_net_srv_order_continents_count(void);
+const char* dap_chain_net_srv_order_continent_to_str(int8_t a_num);
+int8_t dap_chain_net_srv_order_continent_to_num(const char *l_continent_str);
 
 dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_net_t * a_net, const char * a_hash_str);
 
@@ -88,9 +100,12 @@ char* dap_chain_net_srv_order_create(
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
-        const char * a_comments
+        const char *a_ext,
+        const char *a_region,
+        int8_t a_continent_num
         );
 
+int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_order_t *a_order);
 void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out);
 
 /**
