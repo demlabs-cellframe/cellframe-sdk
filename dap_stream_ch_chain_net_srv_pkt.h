@@ -2,8 +2,8 @@
 * Authors:
 * Dmitriy Gerasimov <naeper@demlabs.net>
 * Cellframe       https://cellframe.net
-* DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2017-2019
+* Demlabs Limited   https://demlabs.net
+* Copyright  (c) 2017-2020
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -32,5 +32,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stdint.h>
 
 #include "dap_chain_net_srv_common.h"
+#include "dap_chain_net_srv_stream_session.h"
 
 
+size_t dap_stream_ch_chain_net_srv_pkt_data_write(dap_stream_ch_t *a_ch,
+                                                  dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
+                                                  const void * a_data, size_t a_data_size);
+
+size_t dap_stream_ch_chain_net_srv_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id,
+                                                    const char *a_str, ...);

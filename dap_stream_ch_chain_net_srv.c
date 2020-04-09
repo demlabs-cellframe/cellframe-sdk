@@ -95,6 +95,9 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
         log_it( L_ERROR, "No session at all!");
     else
         log_it(L_ERROR, "Session inheritor is already present!");
+
+    dap_chain_net_srv_call_new_all( a_ch);
+
 }
 
 
@@ -108,6 +111,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
     (void) a_ch;
     (void) a_arg;
     log_it(L_DEBUG, "Stream ch chain net srv delete");
+    dap_chain_net_srv_call_delete_all( a_ch);
 }
 
 /**
@@ -117,7 +121,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
  */
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 {
-    dap_stream_ch_chain_net_srv_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
+    dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg; // chain packet
     dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ?
                                                                 a_ch->stream->session->_inheritor : NULL;
@@ -126,7 +130,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_stream_ch_set_ready_to_read(a_ch, false);
         return;
     }
-    dap_stream_ch_chain_net_srv_pkt_error_t l_err={0};
+    dap_stream_ch_chain_net_srv_pkt_error_t l_err;
+    memset(&l_err,0,sizeof (l_err));
+
     if(l_ch_pkt ) {
         switch (l_ch_pkt->hdr.type) {
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
@@ -480,6 +486,37 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 log_it( L_NOTICE, "Responsed with success");
                 // TODO code for service client mode
             } break;
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA:{
+                if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_data_hdr_t) ){
+                    log_it( L_WARNING, "Wrong request size, less than minimum");
+                    break;
+                }
+                // Parse the packet
+                dap_stream_ch_chain_net_srv_pkt_data_t * l_pkt =(dap_stream_ch_chain_net_srv_pkt_data_t *) l_ch_pkt->data;
+                size_t l_pkt_size = l_ch_pkt->hdr.size - sizeof (dap_stream_ch_chain_net_srv_pkt_data_t);
+                dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get( l_pkt->hdr.srv_uid);
+                dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find( l_srv_session, l_pkt->hdr.usage_id );
+
+                // If service not found
+                if ( l_srv == NULL){
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND ;
+                    l_err.srv_uid = l_pkt->hdr.srv_uid;
+                    dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
+                    break;
+                }
+                // Check if callback is not present
+                if ( l_srv->callback_stream_ch_read == NULL ){
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND ;
+                    l_err.srv_uid = l_pkt->hdr.srv_uid;
+                    dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
+                    break;
+                }
+                // Call callback if present
+
+                l_srv->callback_stream_ch_read( l_srv,l_usage->id, l_usage->clients, l_pkt->data, l_pkt_size );
+
+
+            } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR:{
                 if ( l_ch_pkt->hdr.size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t) ){
                     dap_stream_ch_chain_net_srv_pkt_error_t * l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *) l_ch_pkt->data;
@@ -504,6 +541,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
     (void) a_arg;
-    log_it(L_WARNING,"We don't need anything special to write but for some reasons write flag was on and now we're in output callback. Why?");
+
     dap_stream_ch_set_ready_to_write(a_ch, false);
+    // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
+    dap_chain_net_srv_call_write_all( a_ch);
 }
