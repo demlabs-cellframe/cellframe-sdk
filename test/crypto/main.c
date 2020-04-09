@@ -9,6 +9,7 @@
 #include "dap_enc_picnic_test.h"
 #include "dap_enc_tesla_test.h"
 #include "dap_enc_dilithium_test.h"
+#include "dap_enc_sign_multi_test.h"
 #include "rand/dap_rand.h"
 
 #include "dap_common.h"
@@ -28,4 +29,5 @@ int main(void)
     dap_enc_tesla_tests_run();
     dap_enc_picnic_tests_run();
     dap_enc_dilithium_tests_run();
+    dap_enc_multi_sign_tests_run();
 }

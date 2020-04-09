@@ -35,38 +35,38 @@ if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
   endif()
 endif()
 
-file( GLOB CRYPTO_SRCS 
-      src/*.c 
-      src/rand/*.c 
-      src/iaes/*.c 
-      src/oaes/*.c 
-      src/sha3/*.c 
-      src/msrln/*.c 
-      src/defeo_scheme/*.c 
-      src/sig_bliss/*.c 
-      src/sig_tesla/*.c 
+file( GLOB CRYPTO_SRCS
+      src/*.c
+      src/rand/*.c
+      src/iaes/*.c
+      src/oaes/*.c
+      src/sha3/*.c
+      src/msrln/*.c
+      src/defeo_scheme/*.c
+      src/sig_bliss/*.c
+      src/sig_tesla/*.c
       src/sig_picnic/*.c
       src/sig_dilithium/*.c
 )
 
-file( GLOB CRYPTO_HEADERS 
-      src/*.h 
-      src/rand/*.h 
-      src/iaes/*.h 
-      src/oaes/*.h 
-      src/sha3/*.h 
-      src/msrln/*.h 
-      src/defeo_scheme/*.h 
-      src/sig_bliss/*.h 
-      src/sig_tesla/*.h 
-      src/sig_picnic/*.h 
+file( GLOB CRYPTO_HEADERS
+      src/*.h
+      src/rand/*.h
+      src/iaes/*.h
+      src/oaes/*.h
+      src/sha3/*.h
+      src/msrln/*.h
+      src/defeo_scheme/*.h
+      src/sig_bliss/*.h
+      src/sig_tesla/*.h
+      src/sig_picnic/*.h
       src/sig_dilithium/*.h
       include/*.h
 )
 
 enable_language(ASM)
 
-file( GLOB XKCP_SRCS 
+file( GLOB XKCP_SRCS
   src/XKCP/lib/high/Keccak/FIPS202/KeccakHash.c
   src/XKCP/lib/high/Keccak/KeccakSpongeWidth1600.c
   src/XKCP/lib/high/Keccak/SP800-185/SP800-185.c
