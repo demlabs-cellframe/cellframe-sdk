@@ -33,6 +33,7 @@ typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 
 typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_t *);
 typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_t *, const void *, size_t );
+typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
 typedef struct dap_chain_net_srv
 {
@@ -40,10 +41,26 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_abstract_t srv_common;
     dap_chain_net_srv_price_t *pricelist;
     dap_chain_callback_trafic_t callback_trafic;
+
+    // Request for usage
     dap_chain_net_srv_callback_data_t callback_requested;
+
+    // Receipt first sign successfull
     dap_chain_net_srv_callback_data_t callback_receipt_first_success;
+
+    // Response error
     dap_chain_net_srv_callback_data_t callback_response_error;
+
+    // Receipt next sign succesfull
     dap_chain_net_srv_callback_data_t callback_receipt_next_success;
+
+    // Stream CH callbacks - channed opened,ready for read, ready for write and closed
+    dap_chain_net_srv_callback_ch_t      callback_stream_ch_opened;
+    dap_chain_net_srv_callback_data_t callback_stream_ch_read;
+    dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
+    dap_chain_net_srv_callback_ch_t      callback_stream_ch_closed;
+
+    // Pointer to inheritor object
     void * _inhertor;
 } dap_chain_net_srv_t;
 typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_config_t *);
@@ -56,8 +73,20 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
                                            dap_chain_net_srv_callback_data_t a_callback_response_error,
                                            dap_chain_net_srv_callback_data_t a_callback_receipt_next_success
                                            );
+
+int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid, dap_chain_net_srv_callback_t a_callback_stream_ch_opened,
+                                       dap_chain_net_srv_callback_data_t a_callback_stream_ch_read,
+                                       dap_chain_net_srv_callback_t a_callback_stream_ch_write,
+                                       dap_chain_net_srv_callback_t a_callback_stream_ch_closed
+                                       );
+
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_del_all(void);
+
+void dap_chain_net_srv_call_write_all(dap_stream_ch_t * a_client);
+void dap_chain_net_srv_call_closed_all(dap_stream_ch_t * a_client);
+void dap_chain_net_srv_call_opened_all(dap_stream_ch_t * a_client);
+
 dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);

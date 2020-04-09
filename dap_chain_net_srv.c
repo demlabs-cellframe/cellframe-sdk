@@ -425,6 +425,43 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
 }
 
 /**
+ * @brief dap_chain_net_srv_set_ch_callbacks
+ * @param a_uid
+ * @param a_callback_stream_ch_opened
+ * @param a_callback_stream_ch_read
+ * @param a_callback_stream_ch_write
+ * @param a_callback_stream_ch_closed
+ * @return
+ */
+int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid, dap_chain_net_srv_callback_t a_callback_stream_ch_opened,
+                                       dap_chain_net_srv_callback_data_t a_callback_stream_ch_read,
+                                       dap_chain_net_srv_callback_data_t a_callback_stream_ch_write,
+                                       dap_chain_net_srv_callback_t a_callback_stream_ch_closed
+                                       )
+{
+    service_list_t *l_sdata = NULL;
+    int l_ret =0;
+    dap_chain_net_srv_t * l_srv = NULL;
+    dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
+
+    pthread_mutex_lock(&s_srv_list_mutex);
+    HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
+    if( l_sdata ) {
+        l_srv = l_sdata->srv;
+        l_srv->callback_stream_ch_opened = a_callback_stream_ch_opened;
+        l_srv->callback_stream_ch_read = a_callback_stream_ch_read;
+        l_srv->callback_stream_ch_read = a_callback_stream_ch_write;
+        l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
+    }else{
+        log_it(L_ERROR, "Can't find service with 0x%016llX", a_uid.uint64);
+        l_ret= -1;
+    }
+    pthread_mutex_unlock(&s_srv_list_mutex);
+    return l_ret;
+}
+
+
+/**
  * @brief dap_chain_net_srv_del
  * @param a_srv
  */
@@ -439,6 +476,52 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
+
+/**
+ * @brief dap_chain_net_srv_call_write_all
+ * @param a_client
+ */
+void dap_chain_net_srv_call_write_all(dap_stream_ch_t * a_client)
+{
+    service_list_t *l_sdata, *l_sdata_tmp;
+    pthread_mutex_lock(&s_srv_list_mutex);
+    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
+    {
+        if ( l_sdata->srv->callback_stream_ch_write)
+         l_sdata->srv->callback_stream_ch_write(l_sdata->srv, a_client);
+    }
+    pthread_mutex_unlock(&s_srv_list_mutex);
+}
+
+/**
+ * @brief dap_chain_net_srv_call_opened_all
+ * @param a_client
+ */
+void dap_chain_net_srv_call_opened_all(dap_stream_ch_t * a_client)
+{
+    service_list_t *l_sdata, *l_sdata_tmp;
+    pthread_mutex_lock(&s_srv_list_mutex);
+    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
+    {
+        if ( l_sdata->srv->callback_stream_ch_opened)
+         l_sdata->srv->callback_stream_ch_opened(l_sdata->srv, a_client);
+    }
+    pthread_mutex_unlock(&s_srv_list_mutex);
+}
+
+void dap_chain_net_srv_call_closed_all(dap_stream_ch_t * a_client)
+{
+    service_list_t *l_sdata, *l_sdata_tmp;
+    pthread_mutex_lock(&s_srv_list_mutex);
+    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
+    {
+        if ( l_sdata->srv->callback_stream_ch_closed)
+         l_sdata->srv->callback_stream_ch_closed(l_sdata->srv, a_client);
+    }
+    pthread_mutex_unlock(&s_srv_list_mutex);
+}
+
+
 
 /**
  * @brief dap_chain_net_srv_del_all

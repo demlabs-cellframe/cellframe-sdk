@@ -95,11 +95,13 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST                  0x10
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE                 0x11
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED                0x20
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA                          0x30
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS              0xf0
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR                0xff
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED                  0x00000000
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND          0x00000100
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND       0x00000101
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND          0x00000200
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER          0x00000201
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_USAGE_CANT_ADD             0x00000300
@@ -111,8 +113,8 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SIZE         0x00000405
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND          0x00000500
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN            0x00000501
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH    0x00000502
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND            0x00000600
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH         0x00000502
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNKNOWN                    0xffffffff
 // TYPE_REQUEST
@@ -127,6 +129,18 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request{
     dap_stream_ch_chain_net_srv_pkt_request_hdr_t hdr;
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_t;
+
+// Custom service data packet
+typedef struct dap_stream_ch_chain_net_srv_pkt_data_hdr{
+    dap_chain_net_srv_uid_t srv_uid;
+    uint32_t usage_id;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_data_hdr_t;
+
+typedef struct dap_stream_ch_chain_net_srv_pkt_data{
+    dap_stream_ch_chain_net_srv_pkt_data_hdr_t hdr;
+    uint8_t data[];
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_data_t;
+
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_success_hdr{
     uint32_t usage_id;
