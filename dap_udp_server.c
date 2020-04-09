@@ -259,7 +259,7 @@ static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 
     memset( buf, 0, BUFSIZE );
 
-    int32_t bytes = recvfrom( sh->socket_listener, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, &clientlen );
+    int32_t bytes = (int32_t) recvfrom( sh->socket_listener, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, &clientlen );
 
     dap_client_remote_t *client = dap_udp_client_find( sh, clientaddr.sin_addr.s_addr, clientaddr.sin_port );
 
