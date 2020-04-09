@@ -9,8 +9,7 @@ set(DAP_CHAIN_CRYPTO_HEADERS
         dap_hash_slow.h
     )
 
-if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
-  set(SUBMODULES_NO_BUILD ON)
+if(NOT SUBMODULES_NO_BUILD)
 
   # Check whether we're on a 32-bit or 64-bit system
   if(CMAKE_SIZEOF_VOID_P EQUAL "8")
