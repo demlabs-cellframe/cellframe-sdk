@@ -5,8 +5,7 @@ set(CMAKE_C_STANDARD 11)
 
 add_definitions ("-D_GNU_SOURCE")
 
-if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
-    set(SUBMODULES_NO_BUILD ON)
+if(NOT SUBMODULES_NO_BUILD)
     if ( NOT ( TARGET dap_core ) )
         add_subdirectory(libdap)
     endif()
