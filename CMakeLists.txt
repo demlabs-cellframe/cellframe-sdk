@@ -28,8 +28,7 @@ if(WIN32)
   )
 endif()
 
-if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
-  set(SUBMODULES_NO_BUILD ON)
+if(NOT SUBMODULES_NO_BUILD)
 
   # Check whether we're on a 32-bit or 64-bit system
   if(CMAKE_SIZEOF_VOID_P EQUAL "8")
