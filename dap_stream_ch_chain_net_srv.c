@@ -96,7 +96,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
     else
         log_it(L_ERROR, "Session inheritor is already present!");
 
-    dap_chain_net_srv_call_new_all( a_ch);
+    dap_chain_net_srv_call_opened_all( a_ch);
 
 }
 
@@ -111,7 +111,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
     (void) a_ch;
     (void) a_arg;
     log_it(L_DEBUG, "Stream ch chain net srv delete");
-    dap_chain_net_srv_call_delete_all( a_ch);
+    dap_chain_net_srv_call_closed_all( a_ch);
 }
 
 /**
