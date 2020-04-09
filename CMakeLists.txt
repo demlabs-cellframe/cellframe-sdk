@@ -1,8 +1,7 @@
 project(libdap-stream C)
 cmake_minimum_required(VERSION 3.0)
 
-if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
-    set(SUBMODULES_NO_BUILD ON)
+if(NOT SUBMODULES_NO_BUILD)
     if ( NOT ( TARGET dap_core ) )
 	add_subdirectory(libdap)
     endif()
