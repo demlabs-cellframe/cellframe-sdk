@@ -347,7 +347,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_num);
                 size_t l_orders_size = 0;
                 for (size_t i = 0; i< l_orders_num; i++){
-                    dap_chain_net_srv_order_t *l_order = (char*) l_orders + l_orders_size;
+                    dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
                     dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret);
                     l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                     dap_string_append(l_string_ret,"\n");
@@ -521,10 +521,11 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
  * @param a_callback_stream_ch_closed
  * @return
  */
-int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid, dap_chain_net_srv_callback_t a_callback_stream_ch_opened,
+int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
                                        dap_chain_net_srv_callback_data_t a_callback_stream_ch_read,
-                                       dap_chain_net_srv_callback_data_t a_callback_stream_ch_write,
-                                       dap_chain_net_srv_callback_t a_callback_stream_ch_closed
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write,
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed
                                        )
 {
     service_list_t *l_sdata = NULL;
@@ -538,7 +539,7 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid, dap_chain_
         l_srv = l_sdata->srv;
         l_srv->callback_stream_ch_opened = a_callback_stream_ch_opened;
         l_srv->callback_stream_ch_read = a_callback_stream_ch_read;
-        l_srv->callback_stream_ch_read = a_callback_stream_ch_write;
+        l_srv->callback_stream_ch_write = a_callback_stream_ch_write;
         l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
     }else{
         log_it(L_ERROR, "Can't find service with 0x%016llX", a_uid.uint64);

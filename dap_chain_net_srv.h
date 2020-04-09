@@ -74,10 +74,11 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
                                            dap_chain_net_srv_callback_data_t a_callback_receipt_next_success
                                            );
 
-int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid, dap_chain_net_srv_callback_t a_callback_stream_ch_opened,
+int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
                                        dap_chain_net_srv_callback_data_t a_callback_stream_ch_read,
-                                       dap_chain_net_srv_callback_t a_callback_stream_ch_write,
-                                       dap_chain_net_srv_callback_t a_callback_stream_ch_closed
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write,
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed
                                        );
 
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);

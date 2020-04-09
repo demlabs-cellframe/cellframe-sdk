@@ -132,8 +132,10 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request{
 
 // Custom service data packet
 typedef struct dap_stream_ch_chain_net_srv_pkt_data_hdr{
-    dap_chain_net_srv_uid_t srv_uid;
+    uint8_t version;
+    uint8_t offset[3];
     uint32_t usage_id;
+    dap_chain_net_srv_uid_t srv_uid;
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_data_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_data{
