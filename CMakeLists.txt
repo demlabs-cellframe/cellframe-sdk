@@ -11,7 +11,7 @@ add_definitions ("-D_GNU_SOURCE")
 #set(CMAKE_C_FLAGS "-static -Wall -O3 -fno-ident -ffast-math -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections -Wl,--strip-all")
 #set(CMAKE_ASM_FLAGS "-static -Wall -O3 -fno-ident -ffast-math -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections -Wl,--strip-all")
 
-if(NOT (${SUBMODULES_NO_BUILD} MATCHES ON))
+if(NOT SUBMODULES_NO_BUILD)
 
   # Check whether we're on a 32-bit or 64-bit system
   if(CMAKE_SIZEOF_VOID_P EQUAL "8")
