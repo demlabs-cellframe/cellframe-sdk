@@ -24,7 +24,7 @@ static void test_signing_verifying(void)
     size_t siglen = key->enc_na(key, source, source_size, sig, max_signature_size);
     dap_assert_PIF(siglen > 0, "Signing message");
 
-    size_t verify = 0;//key->dec_na(key, source, source_size, sig, siglen);
+    size_t verify = key->dec_na(key, source, source_size, sig, siglen);
     dap_assert_PIF(!verify, "Verifying signature");
 
     tesla_signature_delete((tesla_signature_t*)sig);
