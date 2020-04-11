@@ -220,12 +220,17 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         return -3;
 
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
-        int ret = 0;
+        int l_ret = 0;
 
         // TODO fix verify for signs more than one
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
             dap_chain_addr_t l_addr = { 0 };
             dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
+            if ( l_sign == NULL){
+                log_it(L_WARNING, "Event is NOT signed with anything");
+                return -4;
+            }
+
             dap_enc_key_t * l_key = dap_sign_to_enc_key( l_sign);
 
             dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
@@ -256,7 +261,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             DAP_DELETE(l_addr_str);
             return -1;
         }
-        return ret;
+        return l_ret;
     }else
        return -2; // Wrong signatures number
 }
