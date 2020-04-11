@@ -79,7 +79,7 @@ typedef struct dap_http_client_internal {
  */
 static void s_http_new(dap_events_socket_t * a_es, void * arg)
 {
-    log_it(L_DEBUG, "s_http_new ");
+    log_it(L_DEBUG, "HTTP client connected");
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
     if(!l_client_http_internal) {
         log_it(L_ERROR, "s_http_new: l_client_http_internal is NULL!");
@@ -99,7 +99,7 @@ static void s_http_new(dap_events_socket_t * a_es, void * arg)
  */
 static void s_http_write(dap_events_socket_t * a_es, void * arg)
 {
-    log_it(L_DEBUG, "s_http_write ");
+//    log_it(L_DEBUG, "s_http_write ");
 //    dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
 //    if(!l_client_internal) {
 //        log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
@@ -117,7 +117,7 @@ static void s_http_write(dap_events_socket_t * a_es, void * arg)
  */
 static void s_http_read(dap_events_socket_t * a_es, void * arg)
 {
-    log_it(L_DEBUG, "s_http_read ");
+//    log_it(L_DEBUG, "s_http_read ");
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
     if(!l_client_http_internal) {
         log_it(L_ERROR, "s_http_read: l_client_http_internal is NULL!");
@@ -217,7 +217,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
  */
 static void s_http_error(dap_events_socket_t * a_es, void * arg)
 {
-    log_it(L_DEBUG, "s_http_error ");
+    log_it(L_INFO, "http client error");
     int l_err_code = -1;
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
     if(!l_client_http_internal) {
@@ -243,7 +243,7 @@ static void s_http_error(dap_events_socket_t * a_es, void * arg)
 static void s_http_delete(dap_events_socket_t *a_es, void *arg)
 {
     // call from dap_events_socket_delete(ev_socket, true);
-    log_it(L_DEBUG, "s_http_delete ");
+    log_it(L_DEBUG, "HTTP client disconnected");
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
     if(!l_client_http_internal) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
@@ -280,7 +280,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
         void *a_obj, char **a_custom, size_t a_custom_count)
 {
-    log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
+    //log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
     static dap_events_socket_callbacks_t l_s_callbacks = {
         .new_callback = s_http_new,
         .read_callback = s_http_read,
@@ -347,7 +347,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
 
     if(a_request && (dap_strcmp(a_method, "POST") == 0 || dap_strcmp(a_method, "POST_ENC") == 0)) {
         char l_buf[1024];
-        log_it(L_DEBUG, "POST request with %u bytes of decoded data", a_request_size);
+        //log_it(L_DEBUG, "POST request with %u bytes of decoded data", a_request_size);
 
         if(a_request_content_type) {
             dap_snprintf(l_buf, sizeof(l_buf), "Content-Type: %s\r\n", a_request_content_type);
