@@ -322,7 +322,7 @@ uint8_t* dap_enc_key_serealize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_o
 uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_out)
 {
     uint8_t *data = NULL;
-    if ( a_key->pub_key_data ){
+    if ( a_key->pub_key_data == NULL ){
         log_it(L_ERROR, "Public key is NULL");
         return NULL;
     }
