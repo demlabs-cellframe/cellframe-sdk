@@ -85,8 +85,8 @@ void tesla_private_and_public_keys_delete(tesla_private_key_t *private_key, tesl
 void tesla_signature_delete(tesla_signature_t *signature);
 
 ///==========================================================================================
-typedef	int64_t __attribute__ ((aligned(32))) poly;//[ 2048 ]; //PARAM_N
-typedef	int64_t __attribute__ ((aligned(32))) poly_k;//[ 5 * 2048]; // PARAM_K * PARAM_N
+typedef	int64_t poly;//[ 2048 ]; //PARAM_N __attribute__ ((aligned(32)))
+typedef	int64_t poly_k;//[ 5 * 2048]; // PARAM_K * PARAM_N __attribute__ ((aligned(32)))
 
 int64_t init_mass_poly(poly *zeta, poly *zetainv, tesla_param_t *p);
 int64_t reduce(int64_t a, tesla_param_t *p);
