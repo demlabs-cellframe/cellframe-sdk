@@ -3,6 +3,9 @@ project(test)
 
 set(CMAKE_C_STANDARD 11)
 
-#add_subdirectory(libdap-test)
+if(NOT SUBMODULES_NO_BUILD)
+    add_subdirectory(libdap-test)
+endif()
+
 add_subdirectory(crypto)
 add_subdirectory(cert)
