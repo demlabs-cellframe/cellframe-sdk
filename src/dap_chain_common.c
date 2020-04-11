@@ -239,6 +239,11 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
     dap_chain_hash_fast_t l_hash_public_key;
     size_t l_pub_key_data_size;
     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
+    if ( l_pub_key_data == NULL ){
+        log_it(L_ERROR,"Can't fill address from key, its empty");
+        return;
+    }
+
     // serialized key -> key hash
 
     if(dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key))
