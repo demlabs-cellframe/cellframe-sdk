@@ -322,6 +322,10 @@ uint8_t* dap_enc_key_serealize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_o
 uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_out)
 {
     uint8_t *data = NULL;
+    if ( a_key->pub_key_data ){
+        log_it(L_ERROR, "Public key is NULL");
+        return NULL;
+    }
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_BLISS:
         data = dap_enc_sig_bliss_write_public_key(a_key->pub_key_data, a_buflen_out);
