@@ -54,6 +54,8 @@ typedef struct dap_stream_ch_chain {
     dap_chain_atom_iter_t * request_atom_iter;
     dap_chain_atom_item_t * request_atoms_lasts;
     dap_chain_atom_item_t * request_atoms_processed;
+    uint64_t stats_request_atoms_processed;
+    uint64_t stats_request_gdb_processed;
     dap_stream_ch_chain_sync_request_t request;
     dap_chain_net_id_t request_net_id;
     dap_chain_id_t request_chain_id;
@@ -72,3 +74,4 @@ int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
 
 inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
+void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain);
