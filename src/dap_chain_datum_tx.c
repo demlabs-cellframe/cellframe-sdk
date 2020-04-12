@@ -186,20 +186,25 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
 {
     int ret = -1;
     if(!tx)
-        return -1;
+        return -2;
     uint32_t tx_items_pos = 0, tx_items_size = tx->header.tx_items_size;
     while(tx_items_pos < tx_items_size) {
         uint8_t *item = tx->tx_items + tx_items_pos;
-        int item_size = dap_chain_datum_item_tx_get_size(item);
-        if(!item_size)
-            return -1;
+        size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
+        if(!l_item_tx_size)
+            return -3;
         if(dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG) {
-            dap_chain_tx_sig_t *item_tx_sig = (dap_chain_tx_sig_t*) item;
-            dap_sign_t *a_chain_sign = (dap_sign_t*) item_tx_sig->sig;
-            if(dap_sign_verify(a_chain_sign, tx->tx_items, tx_items_pos) != 1) {
+            dap_chain_tx_sig_t *l_item_tx_sig = (dap_chain_tx_sig_t*) item;
+            dap_sign_t *l_sign = (dap_sign_t*) l_item_tx_sig->sig;
+            if ( ( l_sign->header.sign_size + l_sign->header.sign_pkey_size +sizeof (l_sign->header) )
+                  > l_item_tx_size ){
+                log_it(L_WARNING,"Incorrect signature's header, possible corrupted data");
+                return -4;
+            }
+            if(dap_sign_verify(l_sign, tx->tx_items, tx_items_pos) != 1) {
                 // invalid signature
                 ret = 0;
-                tx_items_pos += item_size;
+                tx_items_pos += l_item_tx_size;
                 break;
             }
             // signature verify successfully
@@ -207,9 +212,9 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
         }
         // sign item or items must be at the end, therefore ret will be changed later anyway
         else
-            ret = -1;
+            ret = -4;
         // go to text item
-        tx_items_pos += item_size;
+        tx_items_pos += l_item_tx_size;
     }
     assert(tx_items_pos == tx_items_size);
     return ret;
