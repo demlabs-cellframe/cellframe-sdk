@@ -319,34 +319,50 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
 {
     int l_ret;
     if (!a_chain_sign || !a_data)
-        return -1;
+        return -2;
     dap_enc_key_t * l_key = dap_sign_to_enc_key(a_chain_sign);
-    size_t l_sign_size = a_chain_sign->header.sign_size;
-    size_t l_sign_ser_size;
-    uint8_t *l_sign_ser = dap_sign_get_sign(a_chain_sign, &l_sign_ser_size);
+
+    if ( ! l_key ){
+        log_it(L_WARNING,"Incorrect signature, can't extract key");
+        return -3;
+    }
+    size_t l_sign_data_ser_size;
+    uint8_t *l_sign_data_ser = dap_sign_get_sign(a_chain_sign, &l_sign_data_ser_size);
+
+    if ( ! l_sign_data_ser ){
+        log_it(L_WARNING,"Incorrect signature, can't extract serialized signature's data ");
+        return -4;
+    }
+
+    size_t l_sign_data_size = a_chain_sign->header.sign_size;
     // deserialize signature
-    uint8_t * l_sign = dap_enc_key_deserealize_sign(l_key->type, l_sign_ser, &l_sign_size);
+    uint8_t * l_sign_data = dap_enc_key_deserealize_sign(l_key->type, l_sign_data_ser, &l_sign_data_size);
+
+    if ( ! l_sign_data ){
+        log_it(L_WARNING,"Incorrect signature, can't deserialize signature's data");
+        return -5;
+    }
 
     //uint8_t * l_sign = a_chain_sign->pkey_n_sign + a_chain_sign->header.sign_pkey_size;
     switch (l_key->type) {
-    case DAP_ENC_KEY_TYPE_SIG_TESLA:
-    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        if(l_key->dec_na(l_key, a_data, a_data_size, l_sign, l_sign_size) > 0)
-            l_ret = 0;
-        else
-            l_ret = 1;
-        break;
-    case DAP_ENC_KEY_TYPE_SIG_BLISS:
-        if(dap_enc_sig_bliss_verify_sign(l_key, a_data, a_data_size, l_sign, l_sign_size) != BLISS_B_NO_ERROR)
-            l_ret = 0;
-        else
-            l_ret = 1;
-        break;
-    default:
-        l_ret = -1;
+        case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+            if(l_key->dec_na(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) > 0)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_SIG_BLISS:
+            if(dap_enc_sig_bliss_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != BLISS_B_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        default:
+            l_ret = -6;
     }
-    dap_enc_key_signature_delete(l_key->type, l_sign);
+    dap_enc_key_signature_delete(l_key->type, l_sign_data);
     dap_enc_key_delete(l_key);
     return l_ret;
 }

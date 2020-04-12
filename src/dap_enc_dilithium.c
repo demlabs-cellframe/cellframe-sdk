@@ -133,13 +133,13 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
 /* Deserialize a signature */
 dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(dilithium_kind_t)))
+    if( !a_buf || (a_buflen < (sizeof(size_t) + sizeof(dilithium_kind_t)) )  )
         return NULL ;
     dilithium_kind_t kind;
-    size_t l_buflen = 0;
-    memcpy(&l_buflen, a_buf, sizeof(size_t));
+    size_t l_buflen_internal = 0;
+    memcpy(&l_buflen_internal, a_buf, sizeof(size_t));
     memcpy(&kind, a_buf + sizeof(size_t), sizeof(dilithium_kind_t));
-    if(l_buflen != a_buflen)
+    if(l_buflen_internal != a_buflen)
         return NULL ;
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
