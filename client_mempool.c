@@ -137,7 +137,7 @@ int client_mempool_init(void)
 
 void client_mempool_deinit()
 {
-    dap_http_client_simple_deinit();
+    //dap_http_client_simple_deinit();
     dap_client_deinit();
 }
 
