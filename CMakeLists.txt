@@ -41,7 +41,7 @@ if(UNIX)
 
     if (ANDROID)
         set(_CCOPT "${_CCOPT} -fforce-enable-int128 -std=gnu11")
-        add_definitions ("-DDAP_OS_ANDROID -DDAP_OS_UNIX")
+        add_definitions ("-DDAP_OS_ANDROID")
     endif()
 
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_CCOPT}")
