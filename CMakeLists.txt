@@ -2,8 +2,8 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "1.1-1")
-
+set(CELLFRAME_SDK_NATIVE_VERSION "1.2-0")
+add_subdirectory(cmake/OS_Detection.cmake)
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 if((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (DAP_DEBUG))
