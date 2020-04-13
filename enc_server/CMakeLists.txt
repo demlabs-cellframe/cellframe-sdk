@@ -20,7 +20,6 @@ add_library(${PROJECT_NAME} STATIC ${DAP_ENC_SERVER_SRCS})
 
 if(WIN32)
   target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server json-c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/[x86_64CLANG]/curl[x86_64CLANG].a
   KERNEL32
   USER32
   SHELL32
