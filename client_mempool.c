@@ -44,7 +44,7 @@
 #include "dap_events.h"
 #include "dap_chain_node.h"
 #include "dap_client_pvt.h"
-#include "dap_http_client_simple.h"
+//#include "dap_http_client_simple.h"
 #include "client_mempool.h"
 
 #define LOG_TAG "dap_client_mempool"
