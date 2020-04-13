@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project (dap_http_client)
 
-set(HTTP_SRCS dap_http_client.c dap_http_client_simple.c dap_http_header.c)
+set(HTTP_SRCS dap_http_client.c dap_http_header.c)
 
 if(WIN32)
   include_directories(../../../libdap/src/win32/)
