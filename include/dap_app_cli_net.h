@@ -25,13 +25,16 @@
 #pragma once
 
 #include "dap_app_cli.h"
-#include "curl/curl.h"
+#include "dap_events_socket.h"
+
+#define DAP_CLI_HTTP_RESPONSE_SIZE_MAX 8192
+#define DAP_CLI_HTTP_TIMEOUT 10  // seconds
+#define DAP_CLI_ERROR_FORMAT    -1
+#define DAP_CLI_ERROR_TIMEOUT   -2
+#define DAP_CLI_ERROR_SOCKET    -3
 
 // connection description
-typedef struct dap_app_cli_connect_param {
-    CURL    *curl;
-    //SOCKET sock;
-} dap_app_cli_connect_param_t;
+typedef int32_t dap_app_cli_connect_param_t;
 
 /**
  * Connect to node unix socket server
@@ -45,6 +48,6 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char * a_socket_path);
  *
  * return 0 if OK, else error code
  */
-int dap_app_cli_post_command(dap_app_cli_connect_param_t *conn, dap_app_cli_cmd_state_t *cmd);
+int dap_app_cli_post_command(dap_app_cli_connect_param_t *socket, dap_app_cli_cmd_state_t *cmd);
 
-int dap_app_cli_disconnect(dap_app_cli_connect_param_t *conn);
+int dap_app_cli_disconnect(dap_app_cli_connect_param_t *socket);
