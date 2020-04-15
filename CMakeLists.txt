@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_app_cli)
-  
+
 set(DAP_APP_CLI_SRCS
         src/dap_app_cli.c
         src/dap_app_cli_net.c
@@ -20,5 +20,5 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_APP_CLI_SRCS} ${DAP_APP_CLI_HEADERS} )
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_chain_net m curl)
+target_link_libraries(${PROJECT_NAME} dap_core dap_chain_net m)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
