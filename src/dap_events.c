@@ -1,9 +1,9 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2019
+ * DeM Labs Limited   https://demlabs.net
+ * Cellframe https://cellframe.net
+ * Copyright  (c) 2017-2020
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -308,7 +308,7 @@ static void *thread_worker_function(void *arg)
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
-            log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", w->number_thread, w->epoll_fd,cur->socket, events[n].events,events[n].events);
+            //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", w->number_thread, w->epoll_fd,cur->socket, events[n].events,events[n].events);
 
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
@@ -368,7 +368,7 @@ static void *thread_worker_function(void *arg)
 
                     if(!cur->buf_out_size) {
 
-                        log_it(L_WARNING, "Output: nothing to send. Why we are in write socket set?");
+                        //log_it(L_WARNING, "Output: nothing to send. Why we are in write socket set?");
                         cur->buf_out_zero_count++;
 
                         if(cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
