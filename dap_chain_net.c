@@ -30,6 +30,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <fnmatch.h>
 
 #ifdef DAP_OS_UNIX
 #include <sys/types.h>
@@ -125,6 +126,11 @@ typedef struct dap_chain_net_pvt{
     bool load_mode;
     uint8_t padding2[7];
     char ** seed_aliases;
+
+    uint16_t gdb_sync_groups_count;
+    uint16_t gdb_sync_nodes_addrs_count;
+    char **gdb_sync_groups;
+    dap_chain_node_addr_t *gdb_sync_nodes_addrs;
 
     uint8_t padding3[6];
     uint16_t seed_aliases_count;
@@ -1002,7 +1008,7 @@ int dap_chain_net_init()
             "\tList,add,del, dump or establish links\n\n"
                                         );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_chain_global_db_add_history_group_prefix("global");
+    dap_chain_global_db_add_history_group_prefix("global", GROUP_LOCAL_HISTORY);
 
     dap_chain_global_db_add_history_callback_notify("global", s_gbd_history_callback_notify, NULL );
 
@@ -1305,12 +1311,54 @@ int s_net_load(const char * a_net_name)
         PVT(l_net)->load_mode = true;
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
-        dap_chain_global_db_add_history_group_prefix( l_net->pub.gdb_groups_prefix);
+        dap_chain_global_db_add_history_group_prefix( l_net->pub.gdb_groups_prefix, GROUP_LOCAL_HISTORY);
         dap_chain_global_db_add_history_callback_notify(l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net );
 
         l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
         l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
+        // for sync special groups - nodes
+        char **l_gdb_sync_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_addrs",
+                &PVT(l_net)->gdb_sync_nodes_addrs_count);
+        if(l_gdb_sync_nodes_addrs && PVT(l_net)->gdb_sync_nodes_addrs_count > 0) {
+            PVT(l_net)->gdb_sync_nodes_addrs = (dap_chain_node_addr_t*) DAP_NEW_Z_SIZE(char**,
+                    sizeof(dap_chain_node_addr_t)*PVT(l_net)->gdb_sync_nodes_addrs_count);
+            for(uint16_t i = 0; i < PVT(l_net)->gdb_sync_nodes_addrs_count; i++) {
+                dap_chain_node_addr_from_str(PVT(l_net)->gdb_sync_nodes_addrs + i, l_gdb_sync_nodes_addrs[i]);
+            }
+        }
+        // for sync special groups - groups
+        char **l_gdb_sync_groups = dap_config_get_array_str(l_cfg, "general", "gdb_sync_groups", &PVT(l_net)->gdb_sync_groups_count);
+        if(l_gdb_sync_groups && PVT(l_net)->gdb_sync_groups_count > 0) {
+            PVT(l_net)->gdb_sync_groups = (char **) DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->gdb_sync_groups_count);
+            for(uint16_t i = 0; i < PVT(l_net)->gdb_sync_groups_count; i++) {
+                PVT(l_net)->gdb_sync_groups[i] = dap_strdup(l_gdb_sync_groups[i]);
+                // added group to history log
+                dap_list_t *l_groups0 = dap_chain_global_db_driver_get_groups_by_mask(PVT(l_net)->gdb_sync_groups[i]);
+                dap_list_t *l_groups = l_groups0;
+                while(l_groups) {
+                    char *l_group_name = l_groups->data;
+                    // do not use groups with names like *.del
+                    if(fnmatch("*.del", l_group_name, 0)) {
+                        const char *l_history_group = dap_chain_global_db_add_history_extra_group(l_group_name, PVT(l_net)->gdb_sync_nodes_addrs,
+                                PVT(l_net)->gdb_sync_nodes_addrs_count);
+                        dap_chain_global_db_add_history_extra_group_callback_notify(l_group_name,
+                                s_gbd_history_callback_notify, l_net);
+                        // create history for group
+                        if(dap_db_log_get_group_history_last_id(l_history_group) <= 0) {
+                            size_t l_data_size_out = 0;
+                            dap_store_obj_t *l_obj = dap_chain_global_db_obj_gr_get(NULL, &l_data_size_out, l_group_name);
+                            if(l_obj && l_data_size_out > 0) {
+                                dap_db_history_add('a', l_obj, l_data_size_out, l_history_group);
+                                dap_store_obj_free(l_obj, l_data_size_out);
+                            }
+                        }
+                    }
+                    l_groups = dap_list_next(l_groups);
+                }
+                dap_list_free_full(l_groups0, (dap_callback_destroyed_t)free);
+            }
+        }
 
 
         // Add network to the list
@@ -2050,3 +2098,22 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
     return l_tx;
 }
 
+/**
+ * @brief dap_chain_net_get_add_gdb_group
+ * @param a_net
+ * @param a_node_addr
+ * @return
+ */
+dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr)
+{
+    dap_list_t *l_list_groups = NULL;
+    if(!PVT(a_net)->gdb_sync_nodes_addrs || !a_net)
+        return NULL;
+    for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
+        if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {
+            for(uint16_t j = 0; j < PVT(a_net)->gdb_sync_groups_count; j++)
+                l_list_groups = dap_list_append(l_list_groups, PVT(a_net)->gdb_sync_groups[j]);
+        }
+    }
+    return l_list_groups;
+}

@@ -291,13 +291,18 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     // If the current global_db has been truncated, but the remote node has not known this
                     uint64_t l_last_id = dap_db_log_get_last_id();
                     if(l_request->id_start > a_ch_chain->request_last_ts){
-                        l_db_log = dap_db_log_list_start(l_start_item + 1);
+                        dap_chain_net_t *l_net = dap_chain_net_by_id(a_pkt->hdr.net_id);
+                        dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, a_ch_chain->request.node_addr);
+                        l_db_log = dap_db_log_list_start(l_start_item + 1, l_add_groups);
                         if(!l_db_log)
                             l_start_item = 0;
                     }
                     //dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
-                    if(!l_db_log)
-                        l_db_log = dap_db_log_list_start(l_start_item + 1);
+                    if(!l_db_log){
+                        dap_chain_net_t *l_net = dap_chain_net_by_id(a_pkt->hdr.net_id);
+                        dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, a_ch_chain->request.node_addr);
+                        l_db_log = dap_db_log_list_start(l_start_item + 1, l_add_groups);
+                    }
                     if(l_db_log) {
                         // Add it to outgoing list
                         //l_list->prev = a_ch_chain->request_global_db_trs;
