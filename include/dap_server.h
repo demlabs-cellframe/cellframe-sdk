@@ -102,6 +102,7 @@ void    dap_server_deinit( void ); // Deinit server module
 dap_server_t *dap_server_listen( const char *addr, uint16_t port, dap_server_type_t type );
 
 int32_t dap_server_loop( dap_server_t *d_server );
+void dap_server_loop_stop( void );
 
 #define DL_LIST_REMOVE_NODE( head, obj, _prev_, _next_, total )  \
                                                                  \

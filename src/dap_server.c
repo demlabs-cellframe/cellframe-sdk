@@ -78,6 +78,7 @@
 static uint32_t _count_threads = 0;
 static uint32_t epoll_max_events = 0;
 static bool bQuitSignal = false;
+static bool moduleInit = false;
 
 static struct epoll_event  *threads_epoll_events = NULL;
 static dap_server_t *_current_run_server = NULL;
@@ -127,6 +128,7 @@ static uint32_t  get_epoll_max_user_watches( void )
 int32_t dap_server_init( uint32_t count_threads )
 {
   dap_server_thread_t *dap_thread;
+  moduleInit = true;
 
   #ifndef _WIN32
     signal( SIGPIPE, SIG_IGN );
@@ -175,6 +177,11 @@ err:;
   return 1;
 }
 
+void dap_server_loop_stop( void ){
+    bQuitSignal = true;
+    dap_server_deinit();
+}
+
 /*
 =========================================================
   dap_server_deinit( )
@@ -184,23 +191,26 @@ err:;
 */
 void  dap_server_deinit( void )
 {
-  dap_client_remote_t *dap_cur, *tmp;
-  dap_server_thread_t *t = &dap_server_threads[0];
+    if (moduleInit) {
+      dap_client_remote_t *dap_cur, *tmp;
+      dap_server_thread_t *t = &dap_server_threads[0];
 
-  dap_client_remote_deinit( );
+      dap_client_remote_deinit( );
 
-  if ( threads_epoll_events ) {
-    free( threads_epoll_events );
+      if ( threads_epoll_events ) {
+        free( threads_epoll_events );
 
-    for ( uint32_t i = 0; i < _count_threads; ++i, ++t ) {
+        for ( uint32_t i = 0; i < _count_threads; ++i, ++t ) {
 
-      HASH_ITER( hh, t->hclients, dap_cur, tmp )
-        dap_client_remote_remove( dap_cur );
+          HASH_ITER( hh, t->hclients, dap_cur, tmp )
+            dap_client_remote_remove( dap_cur );
 
-      pthread_mutex_destroy( &dap_server_threads[i].mutex_on_hash );
-      pthread_mutex_destroy( &dap_server_threads[i].mutex_dlist_add_remove );
+          pthread_mutex_destroy( &dap_server_threads[i].mutex_on_hash );
+          pthread_mutex_destroy( &dap_server_threads[i].mutex_dlist_add_remove );
+        }
+      }
+      moduleInit = false;
     }
-  }
 }
 
 /*
