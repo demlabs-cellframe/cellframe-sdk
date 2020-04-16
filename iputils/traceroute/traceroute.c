@@ -27,7 +27,6 @@
 /*  XXX: Remove this when things will be defined properly in netinet/ ...  */
 #include "flowlabel.h"
 
-#include <clif.h>
 //#include "version.h"
 #include <stdbool.h>
 //#include <glib.h>

@@ -44,7 +44,7 @@
 #include "dap_config.h"
 #include "dap_events.h"
 #include "dap_hash.h"
-#include "dap_http_client_simple.h"
+//#include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
@@ -85,7 +85,7 @@ int dap_chain_node_client_init(void)
  */
 void dap_chain_node_client_deinit()
 {
-    dap_http_client_simple_deinit();
+    //dap_http_client_simple_deinit();
     dap_client_deinit();
 }
 

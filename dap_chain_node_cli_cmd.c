@@ -1568,7 +1568,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 //        dap_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
         dap_sign_type_t l_sign_type = dap_sign_type_from_str(l_sign_type_str);
         if(l_sign_type.type == SIG_TYPE_NULL){
-            l_sign_type.type = SIG_TYPE_BLISS;
+            l_sign_type.type = SIG_TYPE_DILITHIUM;
             l_sign_type_str = dap_sign_type_to_str(l_sign_type);
         }
         uint8_t *l_seed = NULL;
