@@ -190,6 +190,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
             }
 
             // node numbering
+            size_t l_orders_used_num = 0;
             {
                 // filling l_continents_numbers and l_node_numbering
                 for(size_t j = 0; j < l_orders_num; j++) {
@@ -198,6 +199,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     if(!dap_chain_net_srv_order_get_continent_region(l_order, &l_continent_num, NULL))
                         continue;
                     l_node_numbering[l_continent_num][j] = l_continents_numbers[l_continent_num]++;
+                    l_orders_used_num++;
                 }
                 // shuffle nodes for each continent
                 for(size_t m1 = 0; m1 < l_continents_count; m1++) {
@@ -265,6 +267,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     l_count++;
                 }
             }
+            size_t l_num_print_nodes = 0;
             for(size_t l_c = 0; l_c < l_continents_count; l_c++) {
                 // print all nodes for continent
                 for(size_t l_n = 0; l_n < l_continents_numbers[l_c]; l_n++) {
@@ -274,7 +277,9 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                             continue;
                         dap_chain_net_srv_order_t *l_order = l_orders_pos[l_o];
                         if(!order_info_print(l_reply_str, l_net, l_order, NULL, l_n)) {
-                            if(l_o != l_orders_num - 1)
+                            //if(l_o != l_orders_num - 1)
+                            l_num_print_nodes++;
+                            if(l_num_print_nodes < l_orders_used_num)
                                 dap_string_append_printf(l_reply_str, ",\n");
                             else
                                 dap_string_append_printf(l_reply_str, "\n");
@@ -283,20 +288,6 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                     }
                 }
             }
-            //DAP_DELETE(l_continents_numbers);
-/*            for(size_t j = 0; j < l_orders_num; j++) {
-                dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*) ((char*) l_orders + l_orders_size);
-                l_orders_size += dap_chain_net_srv_order_get_size(l_order);
-                uint8_t l_continent_num = 0;
-                dap_chain_net_srv_order_get_continent_region(l_order, &l_continent_num, NULL);
-                if(!order_info_print(l_reply_str, l_net, l_order, NULL, l_node_numbering[l_continent_num][j])) {
-                    if(j != l_orders_num - 1)
-                        dap_string_append_printf(l_reply_str, ",\n");
-                    else
-                        dap_string_append_printf(l_reply_str, "\n");
-                }
-            }*/
-            //DAP_DELETE(l_node_numbering);
         }
     }
     dap_string_append_printf( l_reply_str, "]\n\n");
