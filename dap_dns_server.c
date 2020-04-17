@@ -148,8 +148,8 @@ dap_dns_zone_callback_t dap_dns_zone_find(char *hostname) {
         if (!strcmp(hostname, &s_root_alias[0])) {
             return NULL;
         }
-        char *zone_up = strchr(hostname, '.') + 1;
-        if (zone_up == 1) {
+        char *zone_up = strchr(hostname, '.');
+        if (zone_up++ == NULL) {
             zone_up = &s_root_alias[0];
         }
         return dap_dns_zone_find(zone_up);
@@ -327,4 +327,5 @@ void dap_dns_server_stop() {
     }
     // TODO add code to stop udp_thread
     dap_udp_server_delete(s_dns_server->instance);
+    DAP_DELETE(s_dns_server);
 }
