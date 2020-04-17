@@ -41,7 +41,6 @@
 #include "registry.h"
 #endif
 
-static dap_app_cli_connect_param_t *cparam;
 
 /**
  * split string to argc and argv
@@ -83,7 +82,7 @@ static char** split_word(char *line, int *argc)
 /*
  * Execute a command line.
  */
-int execute_line(char *line)
+int execute_line(dap_app_cli_connect_param_t *cparam, char *line)
 {
     register int i;
     dap_chain_node_cmd_item_t *command;
@@ -94,25 +93,6 @@ int execute_line(char *line)
     while(line[i] && whitespace(line[i]))
         i++;
     word = line + i;
-
-    /*    while(line[i] && !whitespace(line[i]))
-     i++;
-
-     if(line[i])
-     line[i++] = '\0';
-
-     command = find_command(word);
-
-     if(!command)
-     {
-     fprintf(stderr, "%s: No such command\n", word);
-     return (-1);
-     }*/
-
-    /* Get argument to command, if any.
-     while(whitespace(line[i]))
-     i++;
-     word = line + i;*/
 
     int argc = 0;
     char **argv = split_word(word, &argc);
@@ -130,7 +110,7 @@ int execute_line(char *line)
         return res;
     }
     fprintf(stderr, "No command\n");
-    return -1; //((*(command->func))(argc, (const char **) argv, NULL));
+    return -1;
 }
 
 /**
@@ -151,7 +131,7 @@ void dap_app_cli_free_cmd_state(dap_app_cli_cmd_state_t *cmd) {
  *  Read and execute commands until EOF is reached.  This assumes that
  *  the input source has already been initialized.
  */
-int shell_reader_loop()
+int shell_reader_loop(dap_app_cli_connect_param_t *cparam)
 {
     char *line, *s;
 
@@ -173,7 +153,7 @@ int shell_reader_loop()
         if(*s)
         {
             add_history(s);
-            execute_line(s);
+            execute_line(cparam, s);
         }
 
         DAP_DELETE(line);
@@ -200,29 +180,15 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
     dap_log_level_set(L_CRITICAL);
 
     // connect to node
-    cparam = dap_app_cli_connect( a_socket_path );
+    dap_app_cli_connect_param_t *cparam = dap_app_cli_connect( a_socket_path );
     if(!cparam)
     {
         printf("Can't connect to %s\n",dap_get_appname());
         exit(-1);
     }
 
-    /*{
-     printf("start node_cli_post_command()\n");
-     cmd_state *cmd = DAP_NEW_Z(cmd_state);
-     cmd->cmd_name = "cmd1";
-     cmd->cmd_param_count = 2;
-     cmd->cmd_param = DAP_NEW_Z_SIZE(char*, cmd->cmd_param_count * sizeof(char*));
-     cmd->cmd_param[0] = strdup("t2-t1");
-     cmd->cmd_param[1] = strdup("-opt");
-     int a = node_cli_post_command(cparam, cmd);
-     printf("node_cli_post_command()=%d\n", a);
-     free_cmd_state(cmd);
-     }*/
-
     if(a_argc > 1){
         // Call the function
-        //int res = ((*(command->func))(argc - 2, argv + 2));
         dap_app_cli_cmd_state_t cmd;
         memset(&cmd, 0, sizeof(dap_app_cli_cmd_state_t));
         cmd.cmd_name = strdup(a_argv[1]);
@@ -235,7 +201,7 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
         return res;
     }else{
         // command not found, start interactive shell
-        shell_reader_loop();
+        shell_reader_loop(cparam);
         dap_app_cli_disconnect(cparam);
     }
     return 0;
