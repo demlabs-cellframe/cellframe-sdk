@@ -90,9 +90,15 @@ typedef struct dap_events_socket {
 } dap_events_socket_t; // Node of bidirectional list of clients
 #endif
 
+typedef enum {
+    DESCRIPTOR_TYPE_SOCKET = 0,
+    DESCRIPTOR_TYPE_FILE
+} dap_events_desc_type_t;
+
 typedef struct dap_events_socket {
 
   int32_t socket;
+  dap_events_desc_type_t type;
 
   uint32_t  flags;
 //  bool signal_close;
