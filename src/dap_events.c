@@ -336,8 +336,15 @@ static void *thread_worker_function(void *arg)
                     cur->buf_in_size = 0;
                 }
 
-                int32_t bytes_read = recv(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
-                        sizeof(cur->buf_in) - cur->buf_in_size, 0);
+                int32_t bytes_read = 0;
+                if(cur->type == DESCRIPTOR_TYPE_SOCKET) {
+                    bytes_read = recv(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
+                            sizeof(cur->buf_in) - cur->buf_in_size, 0);
+                }else if(cur->type = DESCRIPTOR_TYPE_FILE) {
+                    bytes_read = read(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
+                            sizeof(cur->buf_in) - cur->buf_in_size);
+                }
+
                 if(bytes_read > 0) {
                     cur->buf_in_size += bytes_read;
                     //log_it(DEBUG, "Received %d bytes", bytes_read);
@@ -381,12 +388,16 @@ static void *thread_worker_function(void *arg)
                         cur->buf_out_zero_count = 0;
                 }
                 for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
-
-                    bytes_sent = send(cur->socket, (char *) (cur->buf_out + total_sent),
-                            cur->buf_out_size - total_sent, MSG_DONTWAIT | MSG_NOSIGNAL);
+                    if(cur->type == DESCRIPTOR_TYPE_SOCKET) {
+                        bytes_sent = send(cur->socket, (char *) (cur->buf_out + total_sent),
+                                cur->buf_out_size - total_sent, MSG_DONTWAIT | MSG_NOSIGNAL);
+                    }else if(cur->type == DESCRIPTOR_TYPE_FILE) {
+                        bytes_sent = write(cur->socket, (char *) (cur->buf_out + total_sent),
+                                cur->buf_out_size - total_sent);
+                    }
 
                     if(bytes_sent < 0) {
-                        log_it(L_ERROR, "Some error occured in send() function");
+                        log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
                         cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                         break;
                     }
