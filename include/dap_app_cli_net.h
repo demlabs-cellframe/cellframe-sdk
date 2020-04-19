@@ -34,7 +34,7 @@
 #define DAP_CLI_ERROR_SOCKET    -3
 
 // connection description
-typedef int32_t dap_app_cli_connect_param_t;
+typedef uint64_t dap_app_cli_connect_param_t;
 
 /**
  * Connect to node unix socket server
