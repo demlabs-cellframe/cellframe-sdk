@@ -47,6 +47,7 @@ file( GLOB CRYPTO_SRCS
       src/sig_tesla/*.c
       src/sig_picnic/*.c
       src/sig_dilithium/*.c
+      src/ringct20/*.c
 )
 
 file( GLOB CRYPTO_HEADERS
@@ -61,6 +62,7 @@ file( GLOB CRYPTO_HEADERS
       src/sig_tesla/*.h
       src/sig_picnic/*.h
       src/sig_dilithium/*.h
+      src/ringct20/*.h
       include/*.h
 )
 
@@ -277,6 +279,8 @@ endif()
 if(UNIX)
   target_link_libraries(dap_crypto dap_core m)
 endif()
+
+set(BUILD_CRYPTO_TESTS ON)
 
 if(BUILD_CRYPTO_TESTS)
     enable_testing()
