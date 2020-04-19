@@ -51,7 +51,7 @@
 static int s_status;
 
 //callback function to receive http data
-static void dap_app_cli_http_read(int32_t *socket, dap_app_cli_cmd_state_t *l_cmd)
+static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_cmd)
 {
     size_t l_recv_len = recv(*socket, &l_cmd->cmd_res[l_cmd->cmd_res_cur], DAP_CLI_HTTP_RESPONSE_SIZE_MAX, 0);
     if (l_recv_len == -1) {
@@ -109,10 +109,10 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     int buffsize = DAP_CLI_HTTP_RESPONSE_SIZE_MAX;
 #ifdef WIN32
     // TODO connect to the named pipe "\\\\.\\pipe\\node_cli.pipe"
-    uint16 l_cli_port = dap_config_get_item_uint16 ( g_config, "conserver", "listen_port_tcp");
+    uint16_t l_cli_port = dap_config_get_item_uint16 ( g_config, "conserver", "listen_port_tcp");
     if (!l_cli_port)
         return NULL;
-    int l_socket = socket(AF_INET, SOCK_STREAM, 0);
+    SOCKET l_socket = socket(AF_INET, SOCK_STREAM, 0);
     setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
     setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
 #else
@@ -132,7 +132,8 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
 #ifdef WIN32
     struct sockaddr_in l_remote_addr;
     l_remote_addr.sin_family = AF_INET;
-    l_remote_addr.sin_addr = INADDR_LOOPBACK;
+    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
+    l_remote_addr.sin_addr = _in_addr;
     l_remote_addr.sin_port = l_cli_port;
     l_addr_len = sizeof(struct sockaddr_in);
 #else
@@ -141,11 +142,15 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     strcpy(l_remote_addr.sun_path, a_socket_path);
     l_addr_len = SUN_LEN(&l_remote_addr);
 #endif
-    if (connect(l_socket, (struct sockaddr *)&l_remote_addr, l_addr_len) == -1) {
+    if (connect(l_socket, (struct sockaddr *)&l_remote_addr, l_addr_len) == SOCKET_ERROR) {
+#ifdef __WIN32
+            _set_errno(WSAGetLastError());
+#endif
+        printf("Socket connection err: %d\n", errno);
         closesocket(l_socket);
         return NULL;
     }
-    int32_t *l_ret = DAP_NEW(int32_t);
+    uint64_t *l_ret = DAP_NEW(uint64_t);
     *l_ret = l_socket;
     return l_ret;
 }
@@ -157,7 +162,7 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
  */
 int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli_cmd_state_t *a_cmd )
 {
-    if(!socket || !a_cmd || !a_cmd->cmd_name) {
+    if(!a_socket || !a_cmd || !a_cmd->cmd_name) {
         assert(0);
         return -1;
     }

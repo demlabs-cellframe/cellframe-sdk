@@ -183,7 +183,7 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
     dap_app_cli_connect_param_t *cparam = dap_app_cli_connect( a_socket_path );
     if(!cparam)
     {
-        printf("Can't connect to %s\n",dap_get_appname());
+        printf("Can't connect to %s on socket %s\n",dap_get_appname(), a_socket_path);
         exit(-1);
     }
 
