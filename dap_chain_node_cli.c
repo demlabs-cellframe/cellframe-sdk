@@ -937,10 +937,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         log_it( L_INFO, "Console interace on addr %s port %u ", l_listen_addr_str, l_listen_port );
 
         server_addr.sin_family = AF_INET;
-        IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
+#ifdef _WIN32
+        struct in_addr _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
         server_addr.sin_addr = _in_addr;
         server_addr.sin_port = l_listen_port;
-
+#else
+        inet_pton( AF_INET, l_listen_addr_str, &server_addr.sin_addr );
+        server_addr.sin_port = htons( (uint16_t)l_listen_port );
+#endif
         // create socket
         if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET ) {
 #ifdef __WIN32
