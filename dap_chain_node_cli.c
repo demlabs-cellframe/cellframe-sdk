@@ -314,7 +314,7 @@ static void* thread_one_client_func(void *args)
                     char **l_argv = dap_strsplit(str_cmd, ";", -1);
                     // Call the command function
                     if(l_cmd &&  l_argv && l_cmd->func)
-                        res = (*(l_cmd->func))(argc, l_argv, &str_reply);
+                        res = (*(l_cmd->func))(argc, l_argv, l_cmd->arg_func, &str_reply);
                     else if (l_cmd){
                         log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd);
                     }else {
@@ -712,17 +712,19 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
  * @brief s_cmd_item_create
  * @param a_name
  * @param func
+ * @param a_arg_func
  * @param doc
  * @param doc_ex
  * @return
  */
-void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, const char *a_doc, const char *a_doc_ex)
+void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex)
 {
     dap_chain_node_cmd_item_t *l_cmd_item = DAP_NEW_Z(dap_chain_node_cmd_item_t);
     dap_snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
     l_cmd_item->doc = strdup( a_doc);
     l_cmd_item->doc_ex = strdup( a_doc_ex);
     l_cmd_item->func = a_func;
+    l_cmd_item->arg_func = a_arg_func;
     HASH_ADD_STR(s_commands,name,l_cmd_item);
     log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
 }
@@ -785,13 +787,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
 #endif
 
-    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
+    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, NULL, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
 
-    dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
+    dap_chain_node_cli_cmd_item_create("node", com_node, NULL, "Work with node",
             "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
                     "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
                     "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
@@ -800,76 +802,76 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node handshake {<node address> | -alias <node alias>}\n"
                     "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
+    dap_chain_node_cli_cmd_item_create ("ping", com_ping, NULL, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
-    dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
+    dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, NULL, "Print the hops and time of packets trace to network host",
             "traceroute host\n");
-    dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, "Traces path to a network host along this path",
+    dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, NULL, "Traces path to a network host along this path",
             "tracepath host\n");
-    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters",
+    dap_chain_node_cli_cmd_item_create ("help", com_help, NULL, "Description of command parameters",
                                         "help [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for \"help\"",
+    dap_chain_node_cli_cmd_item_create ("?", com_help, NULL, "Synonym for \"help\"",
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
+    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, NULL, "Wallet operations",
             "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
 
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
+    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, NULL, "Token declaration",
             "token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
             "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
-    dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
+    dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, NULL, "Token declaration add sign",
             "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
-    dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
+    dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, NULL, "Token emission",
             "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> -token <token ticker> -certs <cert> -emission_value <val>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network and chain id",
+    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, NULL, "List mempool entries for selected chain network and chain id",
             "mempool_list -net <net name> -chain <chain name>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entries for selected chain network and chain id",
+    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, NULL, "Proc mempool entries for selected chain network and chain id",
             "mempool_proc -net <net name> -chain <chain name>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash>",
+    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, NULL, "Delete datum with hash <datum hash>",
             "mempool_delete -net <net name> -chain <chain name> -datum <datum hash>\n");
 
 
     // Transaction commands
-    dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
+    dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, NULL, "Make transaction",
             "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
+    dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
             "tx_cond_create todo\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
+    dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, NULL, "Verifing transaction",
             "tx_verify  -wallet <wallet name> \n" );
 
     // Transaction history
-    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
+    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
 
     // vpn client
-    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, "VPN client control",
+    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
     "vpn_client [start -addr <server address> -port <server port>| stop | status]\n");
 
 
     // Log
-    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
+    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, NULL, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
     // Statisticss
-    dap_chain_node_cli_cmd_item_create("stats", com_stats, "Print statistics",
+    dap_chain_node_cli_cmd_item_create("stats", com_stats, NULL, "Print statistics",
                 "stats cpu");
 
     // Exit
-    dap_chain_node_cli_cmd_item_create ("exit", com_exit, "Stop application and exit",
+    dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
 
     // create thread for waiting of clients

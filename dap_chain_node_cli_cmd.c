@@ -662,7 +662,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
  * return 0 OK, -1 Err
  */
 
-int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
+int com_global_db(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH
@@ -776,7 +776,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 /**
  * Node command
  */
-int com_node(int a_argc, char ** a_argv, char **a_str_reply)
+int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP
@@ -1256,7 +1256,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
  *
  * return 0 OK, -1 Err
  */
-int com_traceroute(int argc, char** argv, char **str_reply)
+int com_traceroute(int argc, char** argv, void *arg_func, char **str_reply)
 {
 #ifndef _WIN32
     const char *addr = NULL;
@@ -1335,7 +1335,7 @@ int com_traceroute(int argc, char** argv, char **str_reply)
  *
  * return 0 OK, -1 Err
  */
-int com_tracepath(int argc, char** argv, char **str_reply)
+int com_tracepath(int argc, char** argv, void *arg_func, char **str_reply)
 {
 #ifndef _WIN32
     const char *addr = NULL;
@@ -1409,7 +1409,7 @@ int com_tracepath(int argc, char** argv, char **str_reply)
  *
  * return 0 OK, -1 Err
  */
-int com_ping(int argc, char** argv, char **str_reply)
+int com_ping(int argc, char** argv, void *arg_func, char **str_reply)
 {
 #ifndef _WIN32
 
@@ -1471,7 +1471,7 @@ int com_ping(int argc, char** argv, char **str_reply)
 /**
  * Help command
  */
-int com_help(int argc, char ** argv, char **str_reply)
+int com_help(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     if(argc > 1) {
         log_it(L_DEBUG, "Help for command %s", argv[1]);
@@ -1506,7 +1506,7 @@ int com_help(int argc, char ** argv, char **str_reply)
  *
  * Wallet info
  */
-int com_tx_wallet(int argc, char ** argv, char **str_reply)
+int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     // Get address of wallet
@@ -1763,10 +1763,11 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
  * @brief com_token_decl_sign
  * @param argc
  * @param argv
+ * @param arg_func
  * @param str_reply
  * @return
  */
-int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
+int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 {
     int arg_index = 1;
 
@@ -1964,10 +1965,11 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
  * @brief com_token_decl_list
  * @param argc
  * @param argv
+ * @param arg_func
  * @param str_reply
  * @return
  */
-int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
+int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
@@ -2043,10 +2045,11 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
  * @brief com_mempool_delete
  * @param argc
  * @param argv
+ * @param arg_func
  * @param a_str_reply
  * @return
  */
-int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
+int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
@@ -2088,10 +2091,11 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
  * @brief com_mempool_proc
  * @param argc
  * @param argv
+ * @param arg_func
  * @param a_str_reply
  * @return
  */
-int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
+int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
@@ -2188,10 +2192,11 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
  * @brief com_token_decl
  * @param argc
  * @param argv
+ * @param arg_func
  * @param str_reply
  * @return
  */
-int com_token_decl(int argc, char ** argv, char ** a_str_reply)
+int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 {
     int arg_index = 1;
 
@@ -2371,10 +2376,11 @@ int com_token_decl(int argc, char ** argv, char ** a_str_reply)
  * @brief com_token_emit
  * @param argc
  * @param argv
+ * @param arg_func
  * @param str_reply
  * @return
  */
-int com_token_emit(int argc, char ** argv, char ** str_reply)
+int com_token_emit(int argc, char ** argv, void *arg_func, char ** str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
@@ -2639,7 +2645,7 @@ int com_token_emit(int argc, char ** argv, char ** str_reply)
  *
  * Create transaction
  */
-int com_tx_cond_create(int argc, char ** argv, char **str_reply)
+int com_tx_cond_create(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     (void) argc;
     int arg_index = 1;
@@ -2799,7 +2805,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply)
  *
  * Create transaction
  */
-int com_tx_create(int argc, char ** argv, char **str_reply)
+int com_tx_create(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     int arg_index = 1;
 //    int cmd_num = 1;
@@ -2931,7 +2937,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
  *
  * Verifing transaction
  */
-int com_tx_verify(int argc, char ** argv, char **str_reply)
+int com_tx_verify(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     if(argc > 1) {
         if(str_reply)
@@ -2947,7 +2953,7 @@ int com_tx_verify(int argc, char ** argv, char **str_reply)
  *
  * Transaction history for an address
  */
-int com_tx_history(int argc, char ** argv, char **str_reply)
+int com_tx_history(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
@@ -3053,7 +3059,7 @@ int com_tx_history(int argc, char ** argv, char **str_reply)
 /**
  * stats command
  */
-int com_stats(int argc, char ** argv, char **str_reply)
+int com_stats(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     enum {
         CMD_NONE, CMD_STATS_CPU
@@ -3102,7 +3108,7 @@ int com_stats(int argc, char ** argv, char **str_reply)
     return 0;
 }
 
-int com_exit(int argc, char ** argv, char **str_reply)
+int com_exit(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     exit(0);
 }
@@ -3114,7 +3120,7 @@ int com_exit(int argc, char ** argv, char **str_reply)
  * Print log info
  * print_log [ts_after <timestamp >] [limit <line numbers>]
  */
-int com_print_log(int argc, char ** argv, char **str_reply)
+int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
 {
     int arg_index = 1;
     const char * l_str_ts_after = NULL;
@@ -3152,7 +3158,7 @@ int com_print_log(int argc, char ** argv, char **str_reply)
  *
  * VPN client control
  */
-int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
+int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 {
 #ifndef _WIN32
     enum {
