@@ -108,9 +108,11 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
     if(!a_order || !a_order->ext_size || !a_order->ext || a_order->ext[0]!=0x52)
         return false;
     if(a_continent_num) {
-        memcpy(a_continent_num, a_order->ext + 1, sizeof(uint8_t));
-    }
-    else
+       if((uint8_t)a_order->ext[1]!=0xff)
+           memcpy(a_continent_num, a_order->ext + 1, sizeof(uint8_t));
+        else
+           a_continent_num = 0;
+    }else
         a_continent_num = 0;
     if(a_region) {
         size_t l_size = a_order->ext_size - sizeof(uint8_t) - 1;

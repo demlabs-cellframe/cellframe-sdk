@@ -70,7 +70,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply);
+static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
 
@@ -85,7 +85,7 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
     if( dap_chain_net_srv_order_init() != 0 )
         return -1;
 
-    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
+    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, NULL, "Network services managment",
         "net_srv -net <chain net name> order find [-direction <sell|buy>][-srv_uid <Service UID>] [-price_unit <price unit>]\\\n"
         "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
@@ -169,7 +169,7 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
