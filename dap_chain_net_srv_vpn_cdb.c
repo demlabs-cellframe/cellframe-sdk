@@ -77,7 +77,7 @@ typedef struct tx_cond_template{
 static tx_cond_template_t *s_tx_cond_templates = NULL;
 const char *c_wallets_path = NULL;
 
-static int s_cli_vpn_cdb(int a_argc, char ** a_argv, char **a_str_reply);
+static int s_cli_vpn_cdb(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply);
 
 /**
  * @brief dap_chain_net_srv_vpn_cdb_init
@@ -98,7 +98,7 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
         }
     }
 
-    dap_chain_node_cli_cmd_item_create ("vpn_cdb", s_cli_vpn_cdb , "VPN Central DataBase (CDB) commands",
+    dap_chain_node_cli_cmd_item_create ("vpn_cdb", s_cli_vpn_cdb, NULL, "VPN Central DataBase (CDB) commands",
         "vpn_cdb user create --login <Login> --password <Password> [--first_name <First Name] [--last_name <Last Name>] [--email <Email>]"
         "[--acive_days <Setup active day thats left for user >]\n"
             "\tCreate user with login, password and some more optional fields\n\n"
@@ -217,7 +217,7 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
 }
 
 
-static int s_cli_vpn_cdb(int a_argc, char ** a_argv, char **a_str_reply)
+static int s_cli_vpn_cdb(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 {
     const char *l_user_str = NULL;
     int l_arg_index = 1;
