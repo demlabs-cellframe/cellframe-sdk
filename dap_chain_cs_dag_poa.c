@@ -68,7 +68,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
 // CLI commands
-static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
+static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **str_reply);
 
 static bool s_seed_mode = false;
 /**
@@ -80,7 +80,7 @@ int dap_chain_cs_dag_poa_init(void)
     // Add consensus constructor
     dap_chain_cs_add ("dag_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
+    dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",
         "dag_poa -net <chain net name> -chain <chain name> event sign -event <event hash>\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
 
@@ -101,10 +101,11 @@ void dap_chain_cs_dag_poa_deinit(void)
  * @brief s_cli_dag_poa
  * @param argc
  * @param argv
+ * @param arg_func
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
+static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_reply)
 {
     int ret = -666;
     int arg_index = 1;
