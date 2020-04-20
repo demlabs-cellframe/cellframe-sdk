@@ -31,6 +31,7 @@
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
+#include "dap_enc_ringct20.h"
 
 
 #include "dap_enc_key.h"
@@ -201,6 +202,24 @@ struct dap_enc_key_callbacks{
         .dec_out_size = NULL,
         .sign_get = NULL,
         .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_SIG_RINGCT20]={
+        .name = "SIG_RINGCT20",
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = dap_enc_sig_ringct20_get_sign,
+        .dec_na = dap_enc_sig_ringct20_verify_sign,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .gen_bob_shared_key = NULL,
+        .gen_alice_shared_key = NULL,
+        .new_callback = dap_enc_sig_ringct20_key_new,
+        .delete_callback = dap_enc_sig_ringct20_key_delete,
+        .new_generate_callback = dap_enc_sig_ringct20_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
     }
 };
 
@@ -352,7 +371,7 @@ uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const byte_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;
@@ -414,7 +433,7 @@ int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const byte_t *a_buf, 
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const byte_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;
