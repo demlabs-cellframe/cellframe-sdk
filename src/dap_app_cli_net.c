@@ -157,7 +157,7 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
  */
 int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli_cmd_state_t *a_cmd )
 {
-    if(!socket || !a_cmd || !a_cmd->cmd_name) {
+    if(!a_socket || !a_cmd || !a_cmd->cmd_name) {
         assert(0);
         return -1;
     }
