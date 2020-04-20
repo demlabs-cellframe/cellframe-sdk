@@ -44,54 +44,54 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int argc, cha
 /**
  * global_db command
  */
-int com_global_db(int argc,  char ** argv, char **str_reply);
+int com_global_db(int argc,  char ** argv, void *arg_func, char **str_reply);
 
 /**
  * Node command
  */
-int com_node(int argc,  char ** argv, char **str_reply);
+int com_node(int argc,  char ** argv, void *arg_func, char **str_reply);
 
 /**
  * Traceroute command
  *
  * return 0 OK, -1 Err
  */
-int com_traceroute(int argc,  char** argv, char **str_reply);
+int com_traceroute(int argc,  char** argv, void *arg_func, char **str_reply);
 
 /**
  * Tracepath command
  *
  * return 0 OK, -1 Err
  */
-int com_tracepath(int argc,  char** argv, char **str_reply);
+int com_tracepath(int argc,  char** argv, void *arg_func, char **str_reply);
 
 /**
  * Ping command
  *
  * return 0 OK, -1 Err
  */
-int com_ping(int argc,  char** argv, char **str_reply);
+int com_ping(int argc,  char** argv, void *arg_func, char **str_reply);
 
 /**
  * Help command
  */
-int com_help(int argc,  char ** argv, char **str_reply);
+int com_help(int argc,  char ** argv, void *arg_func, char **str_reply);
 
 
 /**
  * Token declaration
  */
-int com_token_decl ( int argc,  char ** argv, char ** str_reply);
+int com_token_decl ( int argc,  char ** argv, void *arg_func, char ** str_reply);
 
 /**
  * Token declaration add sign
  */
-int com_token_decl_sign ( int argc,  char ** argv, char ** str_reply);
+int com_token_decl_sign ( int argc,  char ** argv, void *arg_func, char ** str_reply);
 
 /**
  * Token emission
  */
-int com_token_emit (int argc,  char ** argv, char ** str_reply);
+int com_token_emit (int argc,  char ** argv, void *arg_func, char ** str_reply);
 
 
 /**
@@ -99,42 +99,42 @@ int com_token_emit (int argc,  char ** argv, char ** str_reply);
  *
  * Wallet info
  */
-int com_tx_wallet(int argc, char ** argv, char **str_reply);
+int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply);
 
 /**
  * com_tx_create command
  *
  * Create transaction
  */
-int com_tx_create(int argc, char ** argv, char **str_reply);
-int com_tx_cond_create(int argc, char ** argv, char **str_reply);
+int com_tx_create(int argc, char ** argv, void *arg_func, char **str_reply);
+int com_tx_cond_create(int argc, char ** argv, void *arg_func, char **str_reply);
 
 /**
  * tx_verify command
  *
  * Verifing transaction
  */
-int com_tx_verify(int argc, char ** argv, char **str_reply);
+int com_tx_verify(int argc, char ** argv, void *arg_func, char **str_reply);
 
 /**
  * tx_history command
  *
  * Transaction history for an address
  */
-int com_tx_history(int argc, char ** argv, char **str_reply);
+int com_tx_history(int argc, char ** argv, void *arg_func, char **str_reply);
 
 // Print log info
-int com_print_log(int argc, char ** argv, char **str_reply);
+int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply);
 
 // Print statistics
-int com_stats(int argc, char ** argv, char **str_reply);
+int com_stats(int argc, char ** argv, void *arg_func, char **str_reply);
 
-int com_exit(int argc, char ** argv, char **str_reply);
+int com_exit(int argc, char ** argv, void *arg_func, char **str_reply);
 
 // vpn_client command
-int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply);
+int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply);
 
-int com_mempool_delete(int argc, char ** argv, char ** a_str_reply);
-int com_mempool_list(int argc, char ** argv, char ** a_str_reply);
-int com_mempool_proc(int argc, char ** argv, char ** a_str_reply);
+int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 

@@ -38,11 +38,12 @@ typedef int SOCKET;
 #endif
 
 
-typedef int cmdfunc_t(int argc, char ** argv, char **str_reply);
+typedef int cmdfunc_t(int argc, char ** argv, void *arg_func, char **str_reply);
 
 typedef struct dap_chain_node_cmd_item{
     char name[32]; /* User printable name of the function. */
     cmdfunc_t *func; /* Function to call to do the job. */
+    void *arg_func; /* additional argument of function*/
     char *doc; /* Documentation for this function.  */
     char *doc_ex; /* Full documentation for this function.  */
     UT_hash_handle hh;
@@ -58,7 +59,7 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout);
  */
 dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_get_first();
 dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name);
-void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, const char *a_doc, const char *a_doc_ex);
+void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex);
 
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...);
 

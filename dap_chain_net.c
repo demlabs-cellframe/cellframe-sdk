@@ -171,7 +171,7 @@ static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, co
                                                      const size_t a_value_len);
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id);
 
-static int s_cli_net(int argc, char ** argv, char **str_reply);
+static int s_cli_net(int argc, char ** argv, void *arg_func, char **str_reply);
 
 static bool s_seed_mode = false;
 
@@ -990,7 +990,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  */
 int dap_chain_net_init()
 {
-    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
+    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, NULL, "Network commands",
         "net -net <chain net name> go < online | offline >\n"
             "\tFind and establish links and stay online\n"
         "net -net <chain net name> get status\n"
@@ -1055,10 +1055,11 @@ void dap_chain_net_load_all()
  * @brief s_cli_net
  * @param argc
  * @param argv
+ * @param arg_func
  * @param str_reply
  * @return
  */
-static int s_cli_net( int argc, char **argv, char **a_str_reply)
+static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
