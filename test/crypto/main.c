@@ -18,7 +18,7 @@
 int main(void)
 {
     //test
-    //test2
+    //test3
     // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
     //LRCT_Setup_Test();
