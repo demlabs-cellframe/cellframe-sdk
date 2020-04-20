@@ -17,6 +17,7 @@
 #include"ringct20/ring_test.h"
 int main(void)
 {
+    //test
     // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
     //LRCT_Setup_Test();
