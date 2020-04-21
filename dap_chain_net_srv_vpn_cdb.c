@@ -288,7 +288,7 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         char *l_user_key;
         {
             dap_chain_hash_fast_t l_hash = { 0 };
-            char *l_key_hash_str;
+            char *l_key_hash_str = NULL;
             if(dap_hash_fast(a_pkey_b64, dap_strlen(a_pkey_b64), &l_hash))
                 l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
             l_user_key = dap_strdup_printf("%s/%s", a_login, l_key_hash_str);
