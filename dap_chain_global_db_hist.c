@@ -1296,8 +1296,11 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id)
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
 
     size_t l_data_size_out = dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id);
-    if(!l_data_size_out)
-        return NULL;
+    if(!l_data_size_out) {
+       DAP_DELETE(l_dap_db_log_list);
+       return NULL;
+    }
+
     // debug
 //    if(l_data_size_out>11)
 //        l_data_size_out = 11;
