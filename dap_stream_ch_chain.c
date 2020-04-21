@@ -671,7 +671,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
             // Synchronize chains
         case CHAIN_STATE_SYNC_CHAINS: {
-            log_it(L_DEBUG, "CHAIN_STATE_SYNC_CHAINS");
+            //log_it(L_DEBUG, "CHAIN_STATE_SYNC_CHAINS");
             dap_chain_t * l_chain = dap_chain_find_by_id(l_ch_chain->request_net_id, l_ch_chain->request_chain_id);
             /*
             // alternative way to get l_chain
