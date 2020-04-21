@@ -118,17 +118,12 @@ static int32_t bliss_b_private_key_init(bliss_private_key_t *private_key, bliss_
 
   f = calloc(n, sizeof(int32_t));
   if (f == NULL) {
-      free(f);
-      free(g);
-      free(a);
       return BLISS_B_NO_MEM;
   }
 
   g = calloc(n, sizeof(int32_t));
   if (g == NULL) {
       free(f);
-      free(g);
-      free(a);
       return BLISS_B_NO_MEM;
   }
 
@@ -136,7 +131,6 @@ static int32_t bliss_b_private_key_init(bliss_private_key_t *private_key, bliss_
   if (a == NULL) {
       free(f);
       free(g);
-      free(a);
       return BLISS_B_NO_MEM;
   }
 
