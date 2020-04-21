@@ -255,10 +255,10 @@ static void* node_ping_background_proc(void *a_arg)
     // allocate memory for best node addresses
     dap_chain_node_addr_t *s_node_addr_tmp;
     s_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
-    memcmp(s_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
+    memcpy(s_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
     s_node_addr_tr = s_node_addr_tmp;
     s_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
-    memcmp(s_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
+    memcpy(s_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
     s_node_addr_ping = s_node_addr_tmp;
 
     // delete memory

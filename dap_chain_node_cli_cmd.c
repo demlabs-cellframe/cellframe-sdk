@@ -468,7 +468,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     dap_string_t *l_string_reply = dap_string_new("Node dump:");
 
     if((a_addr && a_addr->uint64) || a_alias) {
-        dap_chain_node_addr_t *l_addr;
+        dap_chain_node_addr_t *l_addr = NULL;
         if(a_addr && a_addr->uint64) {
             l_addr = DAP_NEW(dap_chain_node_addr_t);
             l_addr->uint64 = a_addr->uint64;
