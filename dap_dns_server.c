@@ -274,7 +274,7 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
     // Compose DNS answer
         block_len = DNS_ANSWER_SIZE;
         dns_reply->data = DAP_REALLOC(dns_reply->data, dns_reply->ptr + block_len);
-        val = 0xc000 || DNS_HEADER_SIZE;                // Link to host name
+        val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
         dap_dns_buf_put_uint16(dns_reply, val);
         val = DNS_RECORD_TYPE_A;
         dap_dns_buf_put_uint16(dns_reply, val);
