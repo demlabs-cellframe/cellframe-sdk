@@ -327,7 +327,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
                 break;
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN: {
-                log_it(L_INFO, "In: CHAIN pkt");
+                //log_it(L_INFO, "In: CHAIN pkt");
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if(l_chain) {
                     // Expect atom element in
