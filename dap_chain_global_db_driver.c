@@ -553,6 +553,22 @@ size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
 }
 
 /**
+ * Get group matching the pattern
+ * Check whether the groups match the pattern a_group_mask, which is a shell wildcard pattern
+ * patterns: [] {} [!] * ?
+ * https://en.wikipedia.org/wiki/Glob_(programming)
+ * a_group_mask - group mask
+ */
+dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask)
+{
+    dap_list_t *l_list = NULL;
+    if(s_drv_callback.get_groups_by_mask)
+        l_list = s_drv_callback.get_groups_by_mask(a_group_mask);
+    return l_list;
+}
+
+
+/**
  * Read last items
  *
  * a_group - group name

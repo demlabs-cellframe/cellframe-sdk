@@ -28,6 +28,9 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <uthash.h>
+#define _GNU_SOURCE
+#include <fnmatch.h>
+
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
@@ -228,6 +231,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     a_drv_callback->read_store_obj      = dap_db_driver_cdb_read_store_obj;
     a_drv_callback->read_cond_store_obj = dap_db_driver_cdb_read_cond_store_obj;
     a_drv_callback->read_count_store    = dap_db_driver_cdb_read_count_store;
+    a_drv_callback->get_groups_by_mask  = dap_db_driver_cdb_get_groups_by_mask;
     a_drv_callback->is_obj              = dap_db_driver_cdb_is_obj;
     a_drv_callback->deinit              = dap_db_driver_cdb_deinit;
     a_drv_callback->flush               = dap_db_driver_cdb_flush;
@@ -334,8 +338,7 @@ bool dap_db_driver_cdb_is_obj(const char *a_group, const char *a_key)
     }
     CDB *l_cdb = l_cdb_i->cdb;
     if(a_key) {
-
-        int l_vsize;
+        //int l_vsize;
         if(!cdb_is(l_cdb, a_key, (int) dap_strlen(a_key)))
             l_ret = true;
     }
@@ -455,6 +458,26 @@ size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
     if(a_id > l_cdb_stat.rnum)
         return 0;
     return (size_t) l_cdb_stat.rnum - a_id + 1;
+}
+
+/**
+ * Check whether the groups match the pattern a_group_mask, which is a shell wildcard pattern
+ */
+dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
+{
+    dap_list_t *l_ret_list = NULL;
+    if(!a_group_mask)
+        return NULL;
+    cdb_instance *cur_cdb, *tmp;
+    pthread_mutex_lock(&cdb_mutex);
+    HASH_ITER(hh, s_cdb, cur_cdb, tmp)
+    {
+        if(!fnmatch(a_group_mask, cur_cdb->local_group, 0))
+            if(fnmatch("*.del", cur_cdb->local_group, 0))
+                l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(cur_cdb->local_group));
+    }
+    pthread_mutex_unlock(&cdb_mutex);
+    return l_ret_list;
 }
 
 int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {

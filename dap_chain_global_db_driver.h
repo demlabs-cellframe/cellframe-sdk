@@ -27,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "dap_common.h"
+#include "dap_list.h"
 
 typedef struct dap_store_obj {
 	uint64_t id;
@@ -51,6 +52,7 @@ typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const cha
 typedef dap_store_obj_t* (*dap_db_driver_read_cond_callback_t)(const char *,uint64_t , size_t *);
 typedef dap_store_obj_t* (*dap_db_driver_read_last_callback_t)(const char *);
 typedef size_t (*dap_db_driver_read_count_callback_t)(const char *,uint64_t);
+typedef dap_list_t* (*dap_db_driver_get_groups_callback_t)(const char *);
 typedef bool (*dap_db_driver_is_obj_callback_t)(const char *, const char *);
 typedef int (*dap_db_driver_callback_t)(void);
 
@@ -60,6 +62,7 @@ typedef struct dap_db_driver_callbacks {
     dap_db_driver_read_last_callback_t read_last_store_obj;
     dap_db_driver_read_cond_callback_t read_cond_store_obj;
     dap_db_driver_read_count_callback_t read_count_store;
+    dap_db_driver_get_groups_callback_t get_groups_by_mask;
     dap_db_driver_is_obj_callback_t is_obj;
     dap_db_driver_callback_t transaction_start;
     dap_db_driver_callback_t transaction_end;
@@ -85,6 +88,7 @@ dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint6
 dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *count_out);
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key);
 size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id);
+dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask);
 
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,
 		time_t a_timestamp, size_t a_store_obj_count);
