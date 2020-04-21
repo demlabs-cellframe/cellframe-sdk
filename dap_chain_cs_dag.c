@@ -299,7 +299,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
                   l_event->hashes_n_datum_n_signs + l_event->header.hash_count*sizeof (*l_link_hash) );
                   l_link_hash += sizeof (dap_chain_hash_fast_t ) ) {
             l_event_last = NULL;
-            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_link_hash,sizeof(l_link_hash), l_event_last);
+            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_link_hash,sizeof(*l_link_hash), l_event_last);
             if ( l_event_last ){ // If present in unlinked - remove
                 HASH_DEL(PVT(l_dag)->events_lasts_unlinked,l_event_last);
                 DAP_DELETE(l_event_last);
@@ -1159,14 +1159,14 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                 }
                 if ( l_event ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
-                    char * l_ctime_tmp = NULL;
+                    char buf[50];
                     time_t l_ts_reated = (time_t) l_event->header.ts_created;
                      // Header
                     dap_string_append_printf(l_str_tmp,"Event %s:\n", l_event_hash_str);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tversion: 0x%04sX\n",l_event->header.version);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tcell_id: 0x%016llX\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tchain_id: 0x%016llX\n",l_event->header.chain_id.uint64);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\tts_created: %s\n",ctime_r(&l_ts_reated,l_ctime_tmp) );
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\tts_created: %s\n",ctime_r(&l_ts_reated, buf) );
 
                     // Hash links
                     dap_string_append_printf(l_str_tmp,"\t\t\t\thashes:\tcount: %us\n",l_event->header.hash_count);
@@ -1180,7 +1180,6 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                    char buf[50];
                     time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
 
                     // Nested datum

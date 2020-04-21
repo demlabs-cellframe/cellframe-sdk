@@ -77,6 +77,7 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
             DAP_DELETE(l_sign);
         }else {
             log_it(L_ERROR,"Can't sign dag event!");
+            DAP_DELETE(l_event_new);
             return NULL;
         }
     }else {
