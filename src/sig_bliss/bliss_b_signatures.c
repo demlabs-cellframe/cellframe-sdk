@@ -404,18 +404,7 @@ int32_t bliss_b_sign(bliss_signature_t *signature,  const bliss_private_key_t *p
       /* initialize our sampler */
       if (!sampler_init(&sampler, p.sigma, p.ell, p.precision, entropy)) {
         retval = BLISS_B_BAD_ARGS;
-        secure_free(&z1, n);
-        secure_free(&z2, n);
-        secure_free((int32_t **)&indices, kappa);
-        free(hash);
-        hash = NULL;
         delete_ntt_state(state);
-        secure_free(&v, n);
-        secure_free(&dv, n);
-        secure_free(&y1, n);
-        secure_free(&y2, n);
-        secure_free(&v1, n);
-        secure_free(&v2, n);
         return retval;
       }
 
@@ -429,46 +418,91 @@ int32_t bliss_b_sign(bliss_signature_t *signature,  const bliss_private_key_t *p
 
       z1 = malloc(n * sizeof(int32_t));
       if(z1 ==  NULL){
+        free(hash);
         return BLISS_B_NO_MEM;
       }
 
       z2 = malloc(n * sizeof(int32_t));
       if(z2 ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
         return BLISS_B_NO_MEM;
       }
 
       v1 = malloc(n * sizeof(int32_t));
       if(v1 ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
         return BLISS_B_NO_MEM;
       }
 
       v2 = malloc(n * sizeof(int32_t));
       if(v2 ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
+        secure_free(&v1, n);
         return BLISS_B_NO_MEM;
       }
 
       y1 = malloc(n * sizeof(int32_t));
       if(y1 ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
+        secure_free(&v1, n);
+        secure_free(&v2, n);
         return BLISS_B_NO_MEM;
       }
 
       y2 = malloc(n * sizeof(int32_t));
       if(y2 ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
+        secure_free(&v1, n);
+        secure_free(&v2, n);
+        secure_free(&y1, n);
         return BLISS_B_NO_MEM;
       }
 
       v = calloc(n, sizeof(int32_t));
       if(v ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
+        secure_free(&v1, n);
+        secure_free(&v2, n);
+        secure_free(&y1, n);
+        secure_free(&y2, n);
         return BLISS_B_NO_MEM;
       }
 
       dv = calloc(n, sizeof(int32_t));
       if(dv ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
+        secure_free(&v1, n);
+        secure_free(&v2, n);
+        secure_free(&y1, n);
+        secure_free(&y2, n);
+        secure_free(&v, n);
         return BLISS_B_NO_MEM;
       }
 
       indices = calloc(kappa, sizeof(int32_t));
       if(indices ==  NULL){
+        free(hash);
+        secure_free(&z1, n);
+        secure_free(&z2, n);
+        secure_free(&v1, n);
+        secure_free(&v2, n);
+        secure_free(&y1, n);
+        secure_free(&y2, n);
+        secure_free(&v, n);
+        secure_free(&dv, n);
         return BLISS_B_NO_MEM;
       }
 

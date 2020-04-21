@@ -112,8 +112,6 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
     *b_pub = malloc(MSRLN_PKB_BYTES);
     if(b_pub == NULL) {
         ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
         DAP_DELETE(b_key->priv_key_data);
         b_key->priv_key_data = NULL;
         return ret;
@@ -125,8 +123,6 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
         ret = 0;
         DAP_DELETE(b_pub);
         b_pub = NULL;
-        DAP_DELETE(b_key->priv_key_data);
-        b_key->priv_key_data = NULL;
         return ret;
     }
 
