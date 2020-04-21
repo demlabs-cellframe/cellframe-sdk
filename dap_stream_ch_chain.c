@@ -370,7 +370,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
                 break;
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB: {
-                log_it(L_INFO, "In: GLOBAL_DB data_size=%d", l_chain_pkt_data_size);
+                //log_it(L_INFO, "In: GLOBAL_DB data_size=%d", l_chain_pkt_data_size);
                 // get transaction and save it to global_db
                 if(l_chain_pkt_data_size > 0) {
 
