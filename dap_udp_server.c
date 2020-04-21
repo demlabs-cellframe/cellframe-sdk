@@ -205,7 +205,7 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
           total_sent += bytes_sent;
         }
         client->buf_out_size = 0;
-        memset( client->buf_out, 0, DAP_CLIENT_REMOTE_BUF + 1 );
+        memset( client->buf_out, 0, sizeof(client->buf_out) );
         client->flags &= ~DAP_SOCK_READY_TO_WRITE;
         sb_payload_ready = false;
       }
@@ -310,7 +310,7 @@ static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
         }
 
         client->buf_in_size = 0;
-        memset( client->buf_in, 0, DAP_CLIENT_REMOTE_BUF + 1 );
+        memset( client->buf_in, 0, sizeof(client->buf_out) );
 
         pthread_mutex_unlock( &udp_client->mutex_on_client );
 
