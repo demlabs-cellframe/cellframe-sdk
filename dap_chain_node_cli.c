@@ -520,7 +520,7 @@ static void *thread_pipe_client_func( void *args )
                     // Call the command function
 
                     if ( l_cmd &&  l_argv && l_cmd->func )
-                        res = (* (l_cmd->func))( argc, l_argv, &str_reply );
+                        res = (* (l_cmd->func))( argc, l_argv, NULL, &str_reply );
 
                     else if ( l_cmd ) {
                         log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd );
