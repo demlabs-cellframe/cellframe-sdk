@@ -26,7 +26,7 @@
 #include "dap_http.h"
 #include "dap_enc_http.h"
 
-#define DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX "local.srv.vpn"
+#define DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX "srv.vpn"
 
 int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http);
 void dap_chain_net_srv_vpn_cdb_deinit();
