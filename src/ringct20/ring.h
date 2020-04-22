@@ -4,7 +4,7 @@
 
 #include "params.h"
 #include "poly.h"
-
+#include"dap_crypto_common.h"
 /**
 *function: setup
 

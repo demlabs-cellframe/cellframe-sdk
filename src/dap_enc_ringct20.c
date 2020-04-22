@@ -148,7 +148,7 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
     //Pi %= p->wLen;//
     //CRUTCH
     Pi = 1 + Pi%(p->wLen - 1);
-    printf("Pi = %d\n", Pi);
+  //printf("Pi = %d\n", Pi);
     poly_ringct20 *aList = malloc(p->POLY_RINGCT20_SIZE*p->wLen);
     poly_ringct20 *S =  malloc(p->POLY_RINGCT20_SIZE*p->mLen);
     ringct20_unpack_prk(private_key->data,S,p);
@@ -188,7 +188,7 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
 
     for (int k = 0; k < p->M; k++)
     {
-        OQS_randombytes(bt, NEWHOPE_POLYBYTES);
+        randombytes(bt, NEWHOPE_POLYBYTES);
         poly_frombytes(u + k, bt);
         poly_serial(u + k);
         //poly_print(u+k);
@@ -259,7 +259,6 @@ int ringct20_crypto_sign_open( const unsigned char * msg, const unsigned long lo
         result = 1 ^ LRCT_SigVer(&c1, t, p->A, p->H, p->mLen, &h, aList, p->wLen, msg, msg_size);
 
 
-    printf("result = %d\n", result);
     free(aList);
 
     for(int i = 0; i < p->wLen; ++i)

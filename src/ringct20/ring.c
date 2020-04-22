@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "ring.h"
-#include "rand.h"
+//#include "rand.h"
 #include "common.h"
 #include "sha256.h"
 
@@ -11,7 +11,7 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 	size_t i;
 	for ( i = 0; i < mLen; i++)
 	{
-		OQS_randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_SYMBYTES);
 		for (size_t j = 0; j < NEWHOPE_SYMBYTES; j++)
 		{
 
@@ -24,7 +24,7 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 			r[i].coeffs[j * 8 + 6] = (seed[j] & 0x40)>>6;
 			r[i].coeffs[j * 8 + 7] = (seed[j] & 0x80)>>7;
 		}
-		OQS_randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_SYMBYTES);
 		for (size_t j = 0; j < NEWHOPE_SYMBYTES; j++)
 		{
 
@@ -49,10 +49,10 @@ void LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
 
 	for ( i = 0; i < mLen; i++)
 	{
-		OQS_randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_SYMBYTES);
 		poly_uniform_ringct20(A + i, seed);
 		poly_serial(A + i);
-		OQS_randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_SYMBYTES);
 		poly_uniform_ringct20(H + i, seed);
 		poly_serial(H + i);
 	}
@@ -142,7 +142,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		
 		for ( k = 0; k < mLen+1; k++)
 		{
-			OQS_randombytes(bt, NEWHOPE_POLYBYTES);
+            randombytes(bt, NEWHOPE_POLYBYTES);
 			poly_frombytes(t[j] + k, bt);
 			poly_serial(t[j] + k);
 		}
@@ -157,8 +157,8 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		poly_tobytes(bpoly, &tmp);
 		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
 		SHA256_Final(bHash, &ctx);//C_(pai+1)
-        printf("sign bHash======================%d:\n", j);
-        BytePrint(bHash, 32);
+//        printf("sign bHash======================%d:\n", j);
+//        BytePrint(bHash, 32);
 
 		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
 		poly_frombytes(&c, bt);
@@ -170,7 +170,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		}
 
 	}
-	OQS_randombytes(&coin, 1);
+    randombytes(&coin, 1);
 	LRCT_PolyMultMatrix(tmp2q, &cpai, S2q, mLen + 1);//S2qpai *c_pai
 	if (coin&0x01)//b =1
 	{
@@ -232,8 +232,8 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 		poly_tobytes(bpoly, &tmp);
 		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
 		SHA256_Final(bHash, &ctx);//C_(pai+1)
-		printf("bHash======================%d:\n", i);
-		BytePrint(bHash, 32);
+//		printf("bHash======================%d:\n", i);
+//		BytePrint(bHash, 32);
 		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
 		poly_frombytes(&c, bpoly);
 		poly_serial(&c);
@@ -291,10 +291,10 @@ void MIMO_LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
 
 	for (i = 0; i < mLen; i++)
 	{
-		OQS_randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_SYMBYTES);
 		poly_uniform_ringct20(A + i, seed);
 		poly_serial(A + i);
-		OQS_randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_SYMBYTES);
 		poly_uniform_ringct20(H + i, seed);
 		poly_serial(H + i);
 	}
@@ -401,7 +401,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 	{
 		for (k = 0; k < mLen + 1; k++)
 		{
-			OQS_randombytes(bt, NEWHOPE_POLYBYTES);
+            randombytes(bt, NEWHOPE_POLYBYTES);
 			poly_frombytes(u + i * (mLen + 1) + k, bt);
 			poly_serial(u + i * (mLen + 1) + k);
 		}
@@ -455,7 +455,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		   LRCT_Lift(tmp2q, A, LList + j * wLen + index, mLen);
 			for (k = 0; k < mLen + 1; k++)
 			{
-				OQS_randombytes(bt, NEWHOPE_POLYBYTES);
+                randombytes(bt, NEWHOPE_POLYBYTES);
 				poly_frombytes(tList + j * wLen*(mLen + 1) + index * (mLen + 1) + k, bt);
 				poly_serial(tList + j * wLen*(mLen + 1) + index * (mLen+1)+ k);
 			}
@@ -485,7 +485,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		poly_copy(S2q, SList+i*mLen, mLen);
 		poly_setValue(S2q + mLen, 1);//S_{2q}
 		//////
-		OQS_randombytes(&coin, 1);
+        randombytes(&coin, 1);
 		LRCT_PolyMultMatrix(tmp2q, &cpai, S2q, mLen + 1);//S2qpai *c_pai
 		if (coin & 0x01)//b =1
 		{

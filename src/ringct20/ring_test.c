@@ -1,5 +1,5 @@
 #include "ring.h"
-#include "rand.h"
+//#include "rand.h"
 #include "common.h"
 
 #define MSIZE 2
