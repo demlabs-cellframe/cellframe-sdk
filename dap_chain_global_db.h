@@ -11,7 +11,7 @@
 #include "dap_chain_global_db_driver.h"
 
 
-#define GROUP_LOCAL_HISTORY "global.history"
+#define GROUP_LOCAL_HISTORY "local.history"
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"
@@ -50,13 +50,21 @@ int dap_chain_global_db_init(dap_config_t * a_config);
 
 void dap_chain_global_db_deinit(void);
 
+/*
+ * Get history group by group name
+ */
+char* dap_chain_global_db_get_history_group_by_group_name(const char * a_group_name);
+
 /**
  * Setup callbacks and filters
  */
-void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix); // Add group prefix that will be tracking all changes
+// Add group prefix that will be tracking all changes
+void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix, const char * a_group_name_for_history);
 void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix,
                                                      dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
-
+const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, size_t *a_nodes_count);
+void dap_chain_global_db_add_history_extra_group_callback_notify(const char * a_group_prefix,
+        dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
 /**
  * Get entry from base
  */
@@ -124,6 +132,7 @@ void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_
 //time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, size_t a_data_size);
 
 // Get last id in log
+uint64_t dap_db_log_get_group_history_last_id(const char *a_history_group_name);
 uint64_t dap_db_log_get_last_id(void);
 // Get log diff as list
 dap_list_t* dap_db_log_get_list(uint64_t first_id);
