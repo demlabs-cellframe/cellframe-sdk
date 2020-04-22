@@ -261,7 +261,7 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         l_pkey_raw = DAP_NEW_Z_SIZE(byte_t,l_pkey_b64_length);
         memset(l_pkey_raw, 0, l_pkey_b64_length);
         l_pkey_raw_size = dap_enc_base64_decode(a_pkey_b64, l_pkey_b64_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-        char *l_pkey_gdb_group=  dap_strdup_printf( "%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+        char *l_pkey_gdb_group =  dap_strdup_printf( "cdb.%s.pkey", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
         log_it(L_DEBUG, "Pkey group '%s'", l_pkey_gdb_group);
         dap_chain_global_db_gr_set( dap_strdup(a_login), l_pkey_raw, l_pkey_raw_size, l_pkey_gdb_group);
 
