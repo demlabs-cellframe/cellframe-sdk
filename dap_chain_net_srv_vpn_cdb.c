@@ -282,7 +282,8 @@ void dap_chain_net_srv_vpn_cdb_auth_after(enc_http_delegate_t* a_delegate, const
         size_t l_gdb_group_size = 0;
 
         // Try to load from gdb
-        char *l_tx_cond_gdb_group =  dap_strdup_printf( "%s.%s.tx_cond", l_tpl->net->pub.name, DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+        //char *l_tx_cond_gdb_group =  dap_strdup_printf( "%s.%s.tx_cond", l_tpl->net->pub.name, DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+        char *l_tx_cond_gdb_group =  dap_strdup_printf( "cdb.%s.tx_cond", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
         log_it(L_DEBUG, "Checkout group %s", l_tx_cond_gdb_group);
         // get key for tx_cond
         char *l_user_key;
