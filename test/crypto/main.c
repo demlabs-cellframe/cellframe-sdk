@@ -14,14 +14,14 @@
 #include "rand/dap_rand.h"
 
 #include "dap_common.h"
-#include"ringct20/ring_test.h"
+
 int main(void)
 {
     //test
     //test4
     // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
-    //LRCT_Setup_Test();
+
     dap_enc_ringct20_tests_run(100);
     //dap_enc_picnic_tests_run();
     //dap_enc_sig_bliss_tests_run(10);

@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include "ring.h"
-//#include "rand.h"
 #include "common.h"
 #include "sha256.h"
+#include"sha3/fips202.h"
 
 
 void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
@@ -116,7 +116,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	SHA256_Final(bHash, &ctx);//C_(pai+1)
 	SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
 	poly_frombytes(&c, bt);
-	poly_serial(&c);
+    poly_serial(&c);
     //poly_print(&c);
 	/////////////////////////////////////
 	for ( i = 0; i < (w-1); i++)
@@ -163,10 +163,14 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
 		poly_frombytes(&c, bt);
 		poly_serial(&c);//C_{j+1}
-		if (j == (pai-1))
+        if (j == (w + pai-1)%w)
 		{
 			poly_cofcopy(&cpai, &c);
-			break;
+            if(pai == 0)
+            {
+                poly_cofcopy(c1, &c);
+            }
+            break;
 		}
 
 	}

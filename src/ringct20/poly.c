@@ -2,8 +2,8 @@
 #include "ntt.h"
 #include "reduce.h"
 
-#include "sha3.h"
-
+//#include "sha3.h"
+#include"sha3/fips202.h"
 
 void poly_init(poly_ringct20 *r)
 {
@@ -238,28 +238,28 @@ void poly_tomsg(unsigned char *msg, const poly_ringct20 *x) {
 void poly_uniform_ringct20(poly_ringct20 *a, const unsigned char *seed) {
 	unsigned int ctr = 0;
 	uint16_t val;
-	uint64_t state[OQS_SHA3_STATESIZE];
-	uint8_t buf[OQS_SHA3_CSHAKE128_RATE];
+    uint64_t state[SHA3_STATESIZE];
+    uint8_t buf[SHAKE128_RATE];
 	uint8_t extseed[NEWHOPE_SYMBYTES + 1];
 	int i, j, k;
 
 	for (i = 0; i < NEWHOPE_SYMBYTES; i++)
 		extseed[i] = seed[i];
 
-	for (i = 0; i < OQS_SHA3_STATESIZE; ++i)
+    for (i = 0; i < SHA3_STATESIZE; ++i)
 		state[i] = 0;
 
 	for (i = 0; i < NEWHOPE_N / 64; i++) /* generate a in blocks of 64 coefficients */
 	{
 		ctr = 0;
 		extseed[NEWHOPE_SYMBYTES] = i; /* domain-separate the 16 independent calls */
-		for (k = 0; k < OQS_SHA3_STATESIZE; ++k)
+        for (k = 0; k < SHA3_STATESIZE; ++k)
 			state[k] = 0;
-		OQS_SHA3_shake128_absorb(state, extseed, NEWHOPE_SYMBYTES + 1);
+        shake128_absorb(state, extseed, NEWHOPE_SYMBYTES + 1);
 		while (ctr < 64) /* Very unlikely to run more than once */
 		{
-			OQS_SHA3_shake128_squeezeblocks(buf, 1, state);
-			for (j = 0; j < OQS_SHA3_CSHAKE128_RATE && ctr < 64; j += 2) {
+            shake128_squeezeblocks(buf, 1, state);
+            for (j = 0; j < SHAKE128_RATE && ctr < 64; j += 2) {
 				val = (buf[j] | ((uint16_t) buf[j + 1] << 8));
 				if (val < 5 * NEWHOPE_Q) {
 					a->coeffs[i * 64 + ctr] = val;
@@ -312,7 +312,7 @@ void poly_sample(poly_ringct20 *r, const unsigned char *seed, unsigned char nonc
 	for (i = 0; i < NEWHOPE_N / 64; i++) /* Generate noise in blocks of 64 coefficients */
 	{
 		extseed[NEWHOPE_SYMBYTES + 1] = i;
-		OQS_SHA3_shake256(buf, 128, extseed, NEWHOPE_SYMBYTES + 2);
+        shake256(buf, 128, extseed, NEWHOPE_SYMBYTES + 2);
 		for (j = 0; j < 64; j++) {
 			a = buf[2 * j];
 			b = buf[2 * j + 1];

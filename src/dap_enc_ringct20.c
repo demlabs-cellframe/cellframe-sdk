@@ -145,10 +145,7 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
 
     uint32_t Pi;
     randombytes(&Pi, sizeof(Pi));
-    //Pi %= p->wLen;//
-    //CRUTCH
-    Pi = 1 + Pi%(p->wLen - 1);
-  //printf("Pi = %d\n", Pi);
+    Pi %= p->wLen;
     poly_ringct20 *aList = malloc(p->POLY_RINGCT20_SIZE*p->wLen);
     poly_ringct20 *S =  malloc(p->POLY_RINGCT20_SIZE*p->mLen);
     ringct20_unpack_prk(private_key->data,S,p);

@@ -26,7 +26,7 @@ static void uint8_to_uint32(uint32 *output, const uint8 *input, const size_t len
 #define G0(x) (ROTR(x,  7) ^ ROTR(x, 18) ^ SHR(x,  3))
 #define G1(x) (ROTR(x, 17) ^ ROTR(x, 19) ^ SHR(x, 10))
 
-static const uint32 K[64] = {
+static const uint32 Key_out[64] = {
 	0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
 	0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
 	0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
@@ -61,7 +61,7 @@ static void SHA256_compress(SHA256_CTX *ctx)
 		}
 		else
 			W[i] = G1(W[i-2]) + W[i-7] + G0(W[i-15]) + W[i-16];
-		T1 = h + F1(e) + CH(e, f, g) + K[i] + W[i];
+        T1 = h + F1(e) + CH(e, f, g) + Key_out[i] + W[i];
 		T2 = F0(a) + MAJ(a, b, c);
 		h = g;
 		g = f;
@@ -161,28 +161,28 @@ unsigned char *SHA256(unsigned char *md, const unsigned char *data, size_t len)
 	return md;
 }
 
-void SHA256_KDF(unsigned char  *Z, unsigned short zlen, unsigned short klen, unsigned char *K)
+void SHA256_KDF(unsigned char  *Z, unsigned short input_len, unsigned short K_out_byte_len, unsigned char *Key_out)
 {
 	unsigned short i, j, t;
 	unsigned int bitklen;
 	SHA256_CTX md;
 	unsigned char Ha[SHA256_len / 8];
 	unsigned char ct[4] = { 0,0,0,1 };
-	bitklen = klen * 8;
+    bitklen = K_out_byte_len * 8;
     //set number of output blocks
 	if (bitklen%SHA256_len)
 		t = bitklen / SHA256_len + 1;
 	else
 		t = bitklen / SHA256_len;
-	//s4: K=Ha1||Ha2||...
+    //s4: Key_out=Ha1||Ha2||...
 	for (i = 1; i<t; i++)
 	{
 		//s2: Hai=Hv(Z||ct)
 		SHA256_Init(&md);
-		SHA256_Update(&md, Z, zlen);
+        SHA256_Update(&md, Z, input_len);
 		SHA256_Update(&md, ct, 4);
 		SHA256_Final(Ha, &md);
-		memcpy((K + (SHA256_len / 8)*(i - 1)), Ha, SHA256_len / 8);
+        memcpy((Key_out + (SHA256_len / 8)*(i - 1)), Ha, SHA256_len / 8);
 		if (ct[3] == 0xff)
 		{
 			ct[3] = 0;
@@ -200,20 +200,20 @@ void SHA256_KDF(unsigned char  *Z, unsigned short zlen, unsigned short klen, uns
 		}
 		else ct[3]++;
 	}
-    //s3: klen/v proccessing part block?
+    //s3: K_out_byte_len/v proccessing part block?
 	SHA256_Init(&md);
-	SHA256_Update(&md, Z, zlen);
+    SHA256_Update(&md, Z, input_len);
 	SHA256_Update(&md, ct, 4);
 	SHA256_Final(Ha, &md);
 	if (bitklen%SHA256_len)
 	{
 		i = (SHA256_len - bitklen + SHA256_len * (bitklen / SHA256_len)) / 8;
 		j = (bitklen - SHA256_len * (bitklen / SHA256_len)) / 8;
-		memcpy((K + (SHA256_len / 8)*(t - 1)), Ha, j);
+        memcpy((Key_out + (SHA256_len / 8)*(t - 1)), Ha, j);
 	}
 	else
 	{
-		memcpy((K + (SHA256_len / 8)*(t - 1)), Ha, SHA256_len / 8);
+        memcpy((Key_out + (SHA256_len / 8)*(t - 1)), Ha, SHA256_len / 8);
 	}
 }
 
