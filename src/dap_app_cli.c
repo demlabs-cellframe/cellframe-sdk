@@ -178,7 +178,10 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
     }
 
     dap_log_level_set(L_CRITICAL);
-
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2,2), &wsaData);
+#endif
     // connect to node
     dap_app_cli_connect_param_t *cparam = dap_app_cli_connect( a_socket_path );
     if(!cparam)
@@ -198,12 +201,18 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
         // Send command
         int res = dap_app_cli_post_command(cparam, &cmd);
         dap_app_cli_disconnect(cparam);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return res;
     }else{
         // command not found, start interactive shell
         shell_reader_loop(cparam);
         dap_app_cli_disconnect(cparam);
     }
+#ifdef _WIN32
+        WSACleanup();
+#endif
     return 0;
 }
 
