@@ -59,6 +59,10 @@ typedef uint8_t byte_t;
   #define FALSE false
 #endif
 
+#ifndef UNUSED
+  #define UNUSED(x) (void)(x)
+#endif
+
 #ifndef ROUNDUP
   #define ROUNDUP(n,width) (((n) + (width) - 1) & ~(unsigned)((width) - 1))
 #endif
@@ -229,6 +233,14 @@ typedef struct dap_log_history_str_s {
 
 } dap_log_history_str_t;
 
+#define DAP_INTERVAL_TIMERS_MAX 15
+
+typedef void (*dap_timer_callback_t)(void);
+typedef struct dap_timer_interface {
+    void *timer;
+    dap_timer_callback_t callback;
+} dap_timer_interface_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -328,8 +340,6 @@ DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
     __sync_lock_release( lock );
 }
 
-
-
 extern char *g_sys_dir_path;
 
 //int dap_common_init( const char * a_log_file );
@@ -375,6 +385,8 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len);
 void dap_digit_from_string2(const char *num_str, uint8_t *raw, size_t raw_len);
 
+void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback);
+int dap_interval_timer_delete(void *a_timer);
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);

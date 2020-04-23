@@ -92,7 +92,7 @@ endif()
 
 if(UNIX)
     add_subdirectory(src/unix)
-    target_link_libraries(${PROJECT_NAME} dap_core_unix)
+    target_link_libraries(${PROJECT_NAME} dap_core_unix rt)
 endif()
 
 if(DARWIN)
