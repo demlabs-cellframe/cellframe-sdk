@@ -106,7 +106,7 @@ typedef struct dap_chain_net_pvt{
     pthread_cond_t state_proc_cond;
 #else
     HANDLE state_proc_cond;
-#endif    
+#endif
     pthread_mutex_t state_mutex_cond;
     pthread_mutex_t state_mutex;
     dap_chain_node_role_t node_role;
@@ -225,7 +225,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     pthread_cond_signal( &PVT(a_net)->state_proc_cond );
 #else
     SetEvent( PVT(a_net)->state_proc_cond );
-#endif    
+#endif
     pthread_mutex_unlock( &PVT(a_net)->state_mutex_cond);
     return 0;
 }
@@ -1095,7 +1095,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
     }
 
     int ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
-    
+
     if ( l_net ) {
         const char *l_sync_str = NULL;
         const char *l_links_str = NULL;
@@ -1762,6 +1762,18 @@ int s_net_load(const char * a_net_name)
  */
 void dap_chain_net_deinit()
 {
+}
+
+dap_chain_net_t **dap_chain_net_list(size_t *a_size)
+{
+    *a_size = HASH_COUNT(s_net_items);
+    dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
+    dap_chain_net_item_t *l_current_item, *l_tmp;
+    int i = 0;
+    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
+        l_net_list[i++] = l_current_item->chain_net;
+    }
+    return l_net_list;
 }
 
 /**

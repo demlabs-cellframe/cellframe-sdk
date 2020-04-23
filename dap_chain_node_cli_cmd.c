@@ -2027,8 +2027,9 @@ int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply
             if (l_gdb_group_mempool_tmp)
                 DAP_DELETE(l_gdb_group_mempool_tmp);
             // only one time if group defined
-            if(l_gdb_group_mempool)
+            if(l_gdb_group_mempool) {
                 break;
+            }
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
         dap_string_free(l_str_tmp, false);
@@ -2061,21 +2062,19 @@ int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_rep
         return -1;
     }
 
-    if(l_chain && l_net) {
+    if(l_chain && l_net) {  // UNUSED(l_net)
         const char * l_datum_hash_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
         if(l_datum_hash_str) {
-            char * l_datum_hash_str2 = strdup(l_datum_hash_str);
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-            if(dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str2), l_gdb_group_mempool)) {
+            if(dap_chain_global_db_gr_del(strdup(l_datum_hash_str), l_gdb_group_mempool)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
-                DAP_DELETE( l_datum_hash_str2);
                 return 0;
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
-                DAP_DELETE( l_datum_hash_str2);
                 return -4;
             }
+            DAP_DELETE(l_gdb_group_mempool);
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
             return -3;
@@ -2154,6 +2153,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 l_objs_processed += l_is_processed;
                 l_procecced[i] = l_is_processed;
             }
+            DAP_DELETE(l_datums);
             // Delete processed objects
             size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
             size_t l_objs_processed_cur = 0;

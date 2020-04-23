@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Dmitriy A. Gerasimov <naeper@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -42,6 +42,8 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_global_db.h"
+#include "dap_chain.h"
+#include "dap_chain_net.h"
 
 typedef struct dap_chain_net dap_chain_net_t;
 /**
@@ -95,6 +97,8 @@ typedef struct dap_chain_node_publ{
     dap_chain_node_info_t node_info;
 } DAP_ALIGN_PACKED dap_chain_node_publ_t;
 
+#define DAP_CHAIN_NODE_MEMPOOL_INTERVAL 1000    // milliseconds
+
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
@@ -137,4 +141,6 @@ inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *addre
     return a_key;
 }
 
-
+int dap_chain_node_mempool_process(dap_chain_t *a_chain);
+int dap_chain_node_mempool_init();
+void dap_chain_node_mempool_deinit();
