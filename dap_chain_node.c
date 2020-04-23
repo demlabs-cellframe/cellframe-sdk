@@ -291,16 +291,26 @@ void dap_chain_node_mempool_periodic()
 
 static void *s_mempool_timer = NULL;
 
+/**
+ * @brief dap_chain_node_mempool_init
+ * @return
+ */
 int dap_chain_node_mempool_init()
 {
-    s_mempool_timer = dap_interval_timer_create(DAP_CHAIN_NODE_MEMPOOL_INTERVAL, dap_chain_node_mempool_periodic);
-    if (s_mempool_timer) {
+    if ( dap_config_get_item_bool_default( g_config, "mempool", "auto_proc", true) ){
+        s_mempool_timer = dap_interval_timer_create(DAP_CHAIN_NODE_MEMPOOL_INTERVAL, dap_chain_node_mempool_periodic);
+        if (s_mempool_timer) {
+            return 0;
+        } else {
+            return -1;
+        }
+    }else
         return 0;
-    } else {
-        return -1;
-    }
 }
 
+/**
+ * @brief dap_chain_node_mempool_deinit
+ */
 void dap_chain_node_mempool_deinit()
 {
     if (s_mempool_timer) {
