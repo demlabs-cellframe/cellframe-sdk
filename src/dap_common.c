@@ -41,6 +41,7 @@
 
   #include <pthread.h>
   #include <syslog.h>
+  #include <signal.h>
 
 #else // WIN32
 
@@ -92,7 +93,7 @@ static const char *s_log_level_tag[ 16 ] = {
 
 const char *s_ansi_seq_color[ 16 ] = {
 
-    "\x1b[0;37;40m",   // L_DEBUG     = 0 
+    "\x1b[0;37;40m",   // L_DEBUG     = 0
     "\x1b[1;32;40m",   // L_INFO      = 2,
     "\x1b[0;32;40m",   // L_NOTICE    = 1,
     "\x1b[1;33;40m",   // L_MESSAGE   = 3,
@@ -795,5 +796,122 @@ int exec_silent(const char * a_cmd) {
     }
 #else
     return execl(".",a_cmd);
+#endif
+}
+
+static int s_timers_count = 0;
+static dap_timer_interface_t s_timers[DAP_INTERVAL_TIMERS_MAX];
+#ifdef _WIN32
+static CRITICAL_SECTION s_timers_lock;
+#else
+static pthread_mutex_t s_timers_lock;
+#endif
+
+static int s_timer_find(void *a_timer)
+{
+    for (int i = 0; i < s_timers_count; i++) {
+        if (s_timers[i].timer == a_timer) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+#ifdef _WIN32
+static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
+{
+    UNUSED(a_always_true);
+    s_timers[(int)a_arg].callback();
+}
+#else
+static void s_posix_callback(union sigval a_arg)
+{
+    s_timers[a_arg.sival_int].callback();
+}
+#endif
+
+/*!
+ * \brief dap_interval_timer_create Create new timer object and set callback function to it
+ * \param a_msec Timer period
+ * \param a_callback Function to be called with timer period
+ * \return pointer to timer object if success, otherwise return NULL
+ */
+void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback)
+{
+    if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
+        return NULL;
+    }
+#ifdef _WIN32
+    if (s_timers_count == 0) {
+        InitializeCriticalSection(&s_timers_lock);
+    }
+    HANDLE l_timer;
+    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)s_timers_count, a_msec, a_msec, 0)) {
+        return NULL;
+    }
+    EnterCriticalSection(&s_timers_lock);
+#else
+    if (s_timers_count == 0) {
+        pthread_mutex_init(&s_timers_lock, NULL);
+    }
+    timer_t l_timer;
+    struct sigevent l_sig_event = { };
+    l_sig_event.sigev_notify = SIGEV_THREAD;
+    l_sig_event.sigev_value.sival_int = s_timers_count;
+    l_sig_event.sigev_notify_function = s_posix_callback;
+    if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &l_timer)) {
+        return NULL;
+    }
+    struct itimerspec l_period = { };
+    l_period.it_interval.tv_sec = l_period.it_value.tv_sec = a_msec / 1000;
+    l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
+    timer_settime(l_timer, 0, &l_period, NULL);
+    pthread_mutex_lock(&s_timers_lock);
+#endif
+    s_timers[s_timers_count].timer = (void *)l_timer;
+    s_timers[s_timers_count].callback = a_callback;
+    s_timers_count++;
+#ifdef _WIN32
+    LeaveCriticalSection(&s_timers_lock);
+#else
+    pthread_mutex_unlock(&s_timers_lock);
+#endif
+    return (void *)l_timer;
+}
+
+/*!
+ * \brief dap_interval_timer_delete Delete existed timer object and stop callback function calls
+ * \param a_timer A timer object created previously with dap_interval_timer_create
+ * \return 0 if success, -1 otherwise
+ */
+int dap_interval_timer_delete(void *a_timer)
+{
+    if (!s_timers_count) {
+        return -1;
+    }
+#ifdef _WIN32
+    EnterCriticalSection(&s_timers_lock);
+#else
+    pthread_mutex_lock(&s_timers_lock);
+#endif
+    int l_timer_idx = s_timer_find(a_timer);
+    if (l_timer_idx == -1) {
+        return -1;
+    }
+    for (int i = l_timer_idx; i < s_timers_count - 1; i++) {
+        s_timers[i] = s_timers[i + 1];
+    }
+    s_timers_count--;
+#ifdef _WIN32
+    LeaveCriticalSection(&s_timers_lock);
+    if (s_timers_count == 0) {
+        DeleteCriticalSection(&s_timers_lock);
+    }
+    return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
+#else
+    if (s_timers_count == 0) {
+        pthread_mutex_destroy(&s_timers_lock);
+    }
+    return timer_delete((timer_t)a_timer);
 #endif
 }
