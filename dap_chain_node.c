@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Dmitriy A. Gerasimov <naeper@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -39,6 +39,7 @@
 #include <netinet/in.h>
 #endif
 
+#include "utlist.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_net.h"
@@ -117,11 +118,6 @@ bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
     bool res = dap_chain_global_db_gr_del(a_key, a_net->pub.gdb_nodes_aliases);
     return res;
 }
-
-
-
-
-
 
 /**
  * Calculate size of struct dap_chain_node_info_t
@@ -240,4 +236,76 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     }
     return node_info;
 }*/
+
+int dap_chain_node_mempool_process(dap_chain_t *a_chain)
+{
+    char *l_gdb_group_mempool = NULL;
+    if (!a_chain) {
+        return -1;
+    }
+    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+    if (l_objs_size) {
+        for (size_t i = 0; i < l_objs_size; i++) {
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+                continue;
+            }
+            if (a_chain->callback_datums_pool_proc(a_chain, &l_datum, 1) != 1) {
+                continue;
+            } // Delete processed objects
+            dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+        }
+        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    }
+    DAP_DELETE(l_gdb_group_mempool);
+    return 0;
+}
+
+void dap_chain_node_mempool_periodic()
+{
+    size_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (int i = 0; i < l_net_count; i++) {
+        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
+        dap_chain_t *l_chain;
+        switch (l_role.enums) {
+        case NODE_ROLE_ROOT:
+        case NODE_ROLE_MASTER:
+        case NODE_ROLE_ROOT_MASTER:
+        case NODE_ROLE_CELL_MASTER: {
+                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+                    for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+                        if(l_chain->datum_types[i] == CHAIN_TYPE_TX)
+                            dap_chain_node_mempool_process(l_chain);
+                    }
+                }
+            } break;
+        default:
+            break;
+        }
+    }
+    DAP_DELETE(l_net_list);
+}
+
+static void *s_mempool_timer = NULL;
+
+int dap_chain_node_mempool_init()
+{
+    s_mempool_timer = dap_interval_timer_create(DAP_CHAIN_NODE_MEMPOOL_INTERVAL, dap_chain_node_mempool_periodic);
+    if (s_mempool_timer) {
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
+void dap_chain_node_mempool_deinit()
+{
+    if (s_mempool_timer) {
+        dap_interval_timer_delete(s_mempool_timer);
+        s_mempool_timer = NULL;
+    }
+}
 
