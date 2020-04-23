@@ -226,7 +226,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item) ;
         log_it(L_NOTICE,"Token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu type=%hu )",
                a_token->header_auth.ticker ,
-               (long double) a_token->header_auth.total_supply / 1000000000000.0L,
+               (long double) a_token->header_auth.total_supply / DATOSHI_LD ,
                a_token->header_auth.signs_valid,a_token->header_auth.signs_total, a_token->header_auth.type);
         // Proc emissions tresholds
         s_treshold_emissions_proc( a_ledger);
