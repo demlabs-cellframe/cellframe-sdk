@@ -100,6 +100,9 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     // not enough signs in receipt
     if(a_sign_position>0)
         return NULL;
+    // too big sign size
+    if((l_sign->header.sign_size + ((byte_t*) l_sign - (byte_t*) l_receipt->exts_n_signs)) >= l_receipt->exts_size)
+        return NULL;
     return l_sign;
 }
 
