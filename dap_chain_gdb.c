@@ -182,7 +182,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     }
 
     // Add group prefix that will be tracking all changes
-    dap_chain_global_db_add_history_group_prefix("chain-gdb");
+    dap_chain_global_db_add_history_group_prefix("chain-gdb", GROUP_LOCAL_HISTORY);
 
     dap_chain_global_db_add_history_callback_notify("chain-gdb", s_history_callback_notify,l_gdb);
 
@@ -393,7 +393,7 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
  * @return
  */
 static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_ptr_t a_atom)
-{ 
+{
     return ((dap_chain_datum_t *) a_atom)->header.data_size +sizeof (((dap_chain_datum_t *) a_atom)->header);
 }
 
