@@ -2027,9 +2027,9 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
 {
 
     dap_string_t * l_str_tmp = dap_string_new(NULL);
-    for(dap_chain_type_t i = CHAIN_TYPE_FIRST + 1; i < CHAIN_TYPE_LAST; i++) {
-        dap_chain_t * l_chain = dap_chain_net_get_chain_by_chain_type(a_net, i);
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    dap_chain_t *l_chain;
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
 
         size_t l_objs_size = 0;
         dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
