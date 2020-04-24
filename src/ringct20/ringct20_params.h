@@ -10,33 +10,17 @@
 #include "ring.h"
 
 
-/*
-#define SEEDBYTES		32U
-#define CRHBYTES		48U
-
-//#ifdef N
-//#error N defined
-//#endif
-
-#define NN 				256U
-
-#define Q 				8380417U
-#define QBITS 			23U
-#define ROOT_OF_UNITY	1753U
-#define D 				14U
-#define GAMMA1 ((Q - 1U)/16U)
-#define GAMMA2 (GAMMA1/2U)
-#define ALPHA (2U*GAMMA2)
-
-*/
 
 
 ///========================================================================
 /* Names for the four varieties of Ring CT2.0 */
-typedef enum { MODERINGCT20_0, MODERINGCT20_1, MODERINGCT20_2, MODERINGCT20_3 } ringct20_kind_t;
+//typedef enum { RINGCT20_MINSEC, RINGCT20_MIDSEC, RINGCT20_MAXSEC} ringct20_kind_t;
+typedef enum  {
+    RINGCT20_MINSEC = 0, RINGCT20_MIDSEC, RINGCT20_MAXSEC
+}DAP_RINGCT20_SIGN_SECURITY;
 
 typedef struct {
-  ringct20_kind_t kind;    //  the kind of Dilithium (i.e. *this* choice of parameters)
+  DAP_RINGCT20_SIGN_SECURITY kind;    //  the kind of Dilithium (i.e. *this* choice of parameters)
   uint32_t M;
   uint32_t mLen;
   uint32_t wLen;//number of public key
@@ -72,27 +56,27 @@ typedef struct {
 
 ///==========================================================================================
 typedef struct {
-  ringct20_kind_t kind;                 /* the kind of ringct20       */
+  DAP_RINGCT20_SIGN_SECURITY kind;                 /* the kind of ringct20       */
   unsigned char *data;
 } ringct20_private_key_t;
 
 typedef struct {
-  ringct20_kind_t kind;                 /* the kind of ringct20       */
+  DAP_RINGCT20_SIGN_SECURITY kind;                 /* the kind of ringct20       */
   unsigned char *data;
 } ringct20_public_key_t;
 
 typedef struct {
-  ringct20_kind_t kind;                      /* the kind of ringct20       */
+  DAP_RINGCT20_SIGN_SECURITY kind;                      /* the kind of ringct20       */
   unsigned char *sig_data;
   unsigned long long sig_len;
 } ringct20_signature_t;
 
 
 ///==========================================================================================
-bool ringct20_params_init(ringct20_param_t *ringct20_p, ringct20_kind_t kind);
+bool ringct20_params_init(ringct20_param_t *ringct20_p, DAP_RINGCT20_SIGN_SECURITY kind);
 void ringct20_params_free(ringct20_param_t *ringct20_p);
 
-int ringct20_crypto_sign_keypair(ringct20_public_key_t *, ringct20_private_key_t *, ringct20_kind_t );
+int ringct20_crypto_sign_keypair(ringct20_public_key_t *, ringct20_private_key_t *, DAP_RINGCT20_SIGN_SECURITY );
 
 int ringct20_crypto_sign(ringct20_signature_t *, const unsigned char *, unsigned long long, const ringct20_private_key_t *);
 

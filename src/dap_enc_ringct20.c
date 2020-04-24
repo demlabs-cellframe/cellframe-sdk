@@ -10,7 +10,7 @@
 
 #define LOG_TAG "dap_enc_sig_ringct20"
 
-static enum DAP_RINGCT20_SIGN_SECURITY _ringct20_type = RINGCT20_MIN_SIZE; // by default
+DAP_RINGCT20_SIGN_SECURITY _ringct20_type = RINGCT20_MINSEC; // by default
 //poly_ringct20 Afixed[10];
 //poly_ringct20 Hfixed[10];
 #include "ringct20/common.h"
@@ -287,7 +287,7 @@ int ringct20_crypto_sign_open( const unsigned char * msg, const unsigned long lo
 
 
 
-int ringct20_crypto_sign_keypair(ringct20_public_key_t *pbk, ringct20_private_key_t *prk, ringct20_kind_t kind)
+int ringct20_crypto_sign_keypair(ringct20_public_key_t *pbk, ringct20_private_key_t *prk, DAP_RINGCT20_SIGN_SECURITY kind)
 {
     ringct20_param_t *p;
     p = calloc(sizeof (ringct20_param_t),1);
@@ -371,7 +371,7 @@ int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_ke
     return 0;
 }
 
-void dap_enc_sig_ringct20_set_type(enum DAP_RINGCT20_SIGN_SECURITY type)
+void dap_enc_sig_ringct20_set_type(DAP_RINGCT20_SIGN_SECURITY type)
 {
     _ringct20_type = type;
 }
@@ -403,8 +403,7 @@ void dap_enc_sig_ringct20_key_new_generate(struct dap_enc_key * key, const void 
 
     int32_t retcode;
 
-    int ringct20_type = RINGCT20_TOY;//(seed && seed_size >= sizeof(uint8_t)) ? ((uint8_t*)seed)[0] % (RINGCT20_MAX_SECURITY + 1) :
-                                     //                         RINGCT20_MIN_SIZE;
+    DAP_RINGCT20_SIGN_SECURITY ringct20_type = RINGCT20_MAXSEC;
     dap_enc_sig_ringct20_set_type(ringct20_type);
 
 
@@ -467,13 +466,13 @@ uint8_t* dap_enc_ringct20_write_signature(ringct20_signature_t* a_sign, size_t *
         return NULL ;
     }
     size_t l_shift_mem = 0;
-    size_t l_buflen = sizeof(size_t) + sizeof(ringct20_kind_t) + a_sign->sig_len + sizeof(unsigned long long);
+    size_t l_buflen = sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY) + a_sign->sig_len + sizeof(unsigned long long);
 
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(size_t));
     l_shift_mem += sizeof(size_t);
-    memcpy(l_buf + l_shift_mem, &a_sign->kind, sizeof(ringct20_kind_t));
-    l_shift_mem += sizeof(ringct20_kind_t);
+    memcpy(l_buf + l_shift_mem, &a_sign->kind, sizeof(DAP_RINGCT20_SIGN_SECURITY));
+    l_shift_mem += sizeof(DAP_RINGCT20_SIGN_SECURITY);
     memcpy(l_buf + l_shift_mem, &a_sign->sig_len, sizeof(unsigned long long));
     l_shift_mem += sizeof(unsigned long long);
     memcpy(l_buf + l_shift_mem, a_sign->sig_data, a_sign->sig_len );
@@ -487,12 +486,12 @@ uint8_t* dap_enc_ringct20_write_signature(ringct20_signature_t* a_sign, size_t *
 /* Deserialize a signature */
 ringct20_signature_t* dap_enc_ringct20_read_signature(uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(ringct20_kind_t)))
+    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY)))
         return NULL ;
-    ringct20_kind_t kind;
+    DAP_RINGCT20_SIGN_SECURITY kind;
     size_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(size_t));
-    memcpy(&kind, a_buf + sizeof(size_t), sizeof(ringct20_kind_t));
+    memcpy(&kind, a_buf + sizeof(size_t), sizeof(DAP_RINGCT20_SIGN_SECURITY));
     if(l_buflen != a_buflen)
         return NULL ;
     ringct20_param_t p;
@@ -501,7 +500,7 @@ ringct20_signature_t* dap_enc_ringct20_read_signature(uint8_t *a_buf, size_t a_b
 
     ringct20_signature_t* l_sign = DAP_NEW(ringct20_signature_t);
     l_sign->kind = kind;
-    size_t l_shift_mem = sizeof(size_t) + sizeof(ringct20_kind_t);
+    size_t l_shift_mem = sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     l_shift_mem += sizeof(unsigned long long);
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
@@ -520,11 +519,11 @@ uint8_t* dap_enc_ringct20_write_private_key(const ringct20_private_key_t* a_priv
 
         return NULL;
     }
-    size_t l_buflen = sizeof(size_t) + sizeof(ringct20_kind_t) + p->RINGCT20_PRK_SIZE; //CRYPTO_PUBLICKEYBYTES;
+    size_t l_buflen = sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY) + p->RINGCT20_PRK_SIZE; //CRYPTO_PUBLICKEYBYTES;
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(size_t));
-    memcpy(l_buf + sizeof(size_t), &a_private_key->kind, sizeof(ringct20_kind_t));
-    memcpy(l_buf + sizeof(size_t) + sizeof(ringct20_kind_t), a_private_key->data, p->RINGCT20_PRK_SIZE);
+    memcpy(l_buf + sizeof(size_t), &a_private_key->kind, sizeof(DAP_RINGCT20_SIGN_SECURITY));
+    memcpy(l_buf + sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY), a_private_key->data, p->RINGCT20_PRK_SIZE);
     if(a_buflen_out)
         *a_buflen_out = l_buflen;
     ringct20_params_free(p);
@@ -542,11 +541,11 @@ uint8_t* dap_enc_ringct20_write_public_key(const ringct20_public_key_t* a_public
         return NULL;
     }
 
-    size_t l_buflen = sizeof(size_t) + sizeof(ringct20_kind_t) + p->RINGCT20_PBK_SIZE;//.CRYPTO_PUBLICKEYBYTES;
+    size_t l_buflen = sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY) + p->RINGCT20_PBK_SIZE;//.CRYPTO_PUBLICKEYBYTES;
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(size_t));
-    memcpy(l_buf + sizeof(size_t), &a_public_key->kind, sizeof(ringct20_kind_t));
-    memcpy(l_buf + sizeof(size_t) + sizeof(ringct20_kind_t), a_public_key->data, p->RINGCT20_PBK_SIZE);//.CRYPTO_PUBLICKEYBYTES);
+    memcpy(l_buf + sizeof(size_t), &a_public_key->kind, sizeof(DAP_RINGCT20_SIGN_SECURITY));
+    memcpy(l_buf + sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY), a_public_key->data, p->RINGCT20_PBK_SIZE);//.CRYPTO_PUBLICKEYBYTES);
     if(a_buflen_out)
         *a_buflen_out = l_buflen;
     ringct20_params_free(p);
@@ -556,12 +555,12 @@ uint8_t* dap_enc_ringct20_write_public_key(const ringct20_public_key_t* a_public
 /* Deserialize a private key. */
 ringct20_private_key_t* dap_enc_ringct20_read_private_key(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(ringct20_kind_t)))
+    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY)))
         return NULL;
-    ringct20_kind_t kind;
+    DAP_RINGCT20_SIGN_SECURITY kind;
     size_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(size_t));
-    memcpy(&kind, a_buf + sizeof(size_t), sizeof(ringct20_kind_t));
+    memcpy(&kind, a_buf + sizeof(size_t), sizeof(DAP_RINGCT20_SIGN_SECURITY));
     if(l_buflen != a_buflen)
         return NULL;
     ringct20_param_t *p = calloc(sizeof(ringct20_param_t),1);
@@ -575,7 +574,7 @@ ringct20_private_key_t* dap_enc_ringct20_read_private_key(const uint8_t *a_buf, 
     l_private_key->kind = kind;
 
     l_private_key->data = DAP_NEW_SIZE(unsigned char, p->RINGCT20_PRK_SIZE);//.CRYPTO_SECRETKEYBYTES);
-    memcpy(l_private_key->data, a_buf + sizeof(size_t) + sizeof(ringct20_kind_t), p->RINGCT20_PRK_SIZE);//.CRYPTO_SECRETKEYBYTES);
+    memcpy(l_private_key->data, a_buf + sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY), p->RINGCT20_PRK_SIZE);//.CRYPTO_SECRETKEYBYTES);
 
     ringct20_params_free(p);
     return l_private_key;
@@ -584,12 +583,12 @@ ringct20_private_key_t* dap_enc_ringct20_read_private_key(const uint8_t *a_buf, 
 /* Deserialize a public key. */
 ringct20_public_key_t* dap_enc_ringct20_read_public_key(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(ringct20_kind_t)))
+    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY)))
         return NULL;
-    ringct20_kind_t kind;
+    DAP_RINGCT20_SIGN_SECURITY kind;
     size_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(size_t));
-    memcpy(&kind, a_buf + sizeof(size_t), sizeof(ringct20_kind_t));
+    memcpy(&kind, a_buf + sizeof(size_t), sizeof(DAP_RINGCT20_SIGN_SECURITY));
     if(l_buflen != a_buflen)
         return NULL;
     ringct20_param_t *p = calloc(sizeof(ringct20_param_t),1);
@@ -602,7 +601,7 @@ ringct20_public_key_t* dap_enc_ringct20_read_public_key(const uint8_t *a_buf, si
     l_public_key->kind = kind;
 
     l_public_key->data = DAP_NEW_SIZE(unsigned char, p->RINGCT20_PBK_SIZE);//.CRYPTO_PUBLICKEYBYTES);
-    memcpy(l_public_key->data, a_buf + sizeof(size_t) + sizeof(ringct20_kind_t), p->RINGCT20_PBK_SIZE);//.CRYPTO_PUBLICKEYBYTES);
+    memcpy(l_public_key->data, a_buf + sizeof(size_t) + sizeof(DAP_RINGCT20_SIGN_SECURITY), p->RINGCT20_PBK_SIZE);//.CRYPTO_PUBLICKEYBYTES);
     ringct20_params_free(p);
     return l_public_key;
 }

@@ -5,11 +5,8 @@
 #include "dap_enc_key.h"
 
 
-enum DAP_RINGCT20_SIGN_SECURITY {
-    RINGCT20_TOY = 0, RINGCT20_MAX_SPEED, RINGCT20_MIN_SIZE, RINGCT20_MAX_SECURITY
-};
 
-void dap_enc_sig_ringct20_set_type(enum DAP_RINGCT20_SIGN_SECURITY type);
+void dap_enc_sig_ringct20_set_type(DAP_RINGCT20_SIGN_SECURITY type);
 
 void dap_enc_sig_ringct20_key_new(struct dap_enc_key *key);
 

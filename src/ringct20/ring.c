@@ -532,10 +532,10 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		LRCT_PolyMultMatrix(tmp2q, &cpai, S2q, mLen + 1);//S2qpai *c_pai
 		if (coin & 0x01)//b =1
 		{
-			LRCT_MatrixSubMatrix(tList + i * wLen*(mLen + 1) + (pai-1) * (mLen + 1), u + i * (mLen + 1), tmp2q, mLen + 1);
+            LRCT_MatrixSubMatrix(tList + i * wLen*(mLen + 1) + (pai - 1) * (mLen + 1), u + i * (mLen + 1), tmp2q, mLen + 1);
 		}
 		else {
-			LRCT_MatrixAddMatrix(tList + i * wLen*(mLen + 1) + (pai - 1) * (mLen + 1), u+ i * (mLen + 1), tmp2q, mLen + 1);
+            LRCT_MatrixAddMatrix(tList + i * wLen*(mLen + 1) + (pai - 1) * (mLen + 1), u + i * (mLen + 1), tmp2q, mLen + 1);
 		}
 	}
 	/////
