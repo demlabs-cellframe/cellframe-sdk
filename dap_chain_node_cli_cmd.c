@@ -1993,11 +1993,8 @@ int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply
         }
         dap_string_t * l_str_tmp = dap_string_new(NULL);
 
-        for(dap_chain_type_t i = CHAIN_TYPE_FIRST + 1; i < CHAIN_TYPE_LAST; i++) {
+        DL_FOREACH(l_net->pub.chains, l_chain) {
             if(!l_gdb_group_mempool) {
-                l_chain = dap_chain_net_get_chain_by_chain_type(l_net, i);
-                if(!l_chain)
-                    continue;
                 l_gdb_group_mempool_tmp = dap_chain_net_get_gdb_group_mempool(l_chain);
             }
             size_t l_objs_size = 0;
@@ -2116,10 +2113,8 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
     }
 
     dap_string_t * l_str_tmp = dap_string_new(NULL);
-    for(dap_chain_type_t i = CHAIN_TYPE_FIRST + 1; i < CHAIN_TYPE_LAST; i++) {
-
+    DL_FOREACH(l_net->pub.chains, l_chain) {
         if(!l_gdb_group_mempool) {
-            l_chain = dap_chain_net_get_chain_by_chain_type(l_net, i);
             l_gdb_group_mempool_tmp = dap_chain_net_get_gdb_group_mempool(l_chain);
         }
         size_t l_objs_size = 0;
