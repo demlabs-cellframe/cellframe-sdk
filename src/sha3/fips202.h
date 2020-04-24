@@ -12,6 +12,9 @@
 
 #define SHA3_256_RATE 136
 
+void keccak_absorb(uint64_t *s, unsigned int r, const unsigned char *m, unsigned long long int mlen, unsigned char p);
+void keccak_squeezeblocks(unsigned char *h, unsigned long long int nblocks, uint64_t *s, unsigned int r);
+
 void shake128_absorb(uint64_t *s, const unsigned char *input, unsigned int inputByteLen);
 void shake128_squeezeblocks(unsigned char *output, unsigned long long nblocks, uint64_t *s);
 void shake128(unsigned char *output, unsigned long long outlen, const unsigned char *input,  unsigned long long inlen);

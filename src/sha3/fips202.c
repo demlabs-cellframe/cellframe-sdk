@@ -341,7 +341,7 @@ void KeccakF1600_StatePermute(uint64_t * state)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 
-static void keccak_absorb(uint64_t *s, unsigned int r, const unsigned char *m, unsigned long long int mlen, unsigned char p)
+void keccak_absorb(uint64_t *s, unsigned int r, const unsigned char *m, unsigned long long int mlen, unsigned char p)
 {
   unsigned long long i;
   unsigned char t[200];
@@ -367,7 +367,7 @@ static void keccak_absorb(uint64_t *s, unsigned int r, const unsigned char *m, u
 }
 
 
-static void keccak_squeezeblocks(unsigned char *h, unsigned long long int nblocks, uint64_t *s, unsigned int r)
+void keccak_squeezeblocks(unsigned char *h, unsigned long long int nblocks, uint64_t *s, unsigned int r)
 {
   unsigned int i;
 
@@ -454,7 +454,9 @@ void cshake128_simple_squeezeblocks(unsigned char *output, unsigned long long nb
 
 void cshake128_simple(unsigned char *output, unsigned long long outlen, uint16_t cstm, const unsigned char *in, unsigned long long inlen)
 {
-  uint64_t s[25] = {0};
+  uint64_t s[25];
+  for(int i = 0; i < 25; ++i)
+      s[i] = 0;
   unsigned char t[SHAKE128_RATE];
   unsigned int i;
 

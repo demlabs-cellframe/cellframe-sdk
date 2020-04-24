@@ -38,7 +38,7 @@ void BytePrint(unsigned char *bBuff, size_t len)
 	size_t i = 0;
 	for (i = 0; i < len; i++)
 	{
-		printf("%02X", bBuff[i]);
+        printf("0x%02X, ", bBuff[i]);
 	}
 	printf("\n");
 }

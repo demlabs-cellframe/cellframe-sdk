@@ -280,7 +280,6 @@ if(UNIX)
   target_link_libraries(dap_crypto dap_core m)
 endif()
 
-set(BUILD_CRYPTO_TESTS ON)
 
 if(BUILD_CRYPTO_TESTS)
     enable_testing()

@@ -31,7 +31,6 @@
 */
 
 
-
 ///========================================================================
 /* Names for the four varieties of Ring CT2.0 */
 typedef enum { MODERINGCT20_0, MODERINGCT20_1, MODERINGCT20_2, MODERINGCT20_3 } ringct20_kind_t;
@@ -90,7 +89,8 @@ typedef struct {
 
 
 ///==========================================================================================
-bool ringct20_params_init(ringct20_param_t *, ringct20_kind_t );
+bool ringct20_params_init(ringct20_param_t *ringct20_p, ringct20_kind_t kind);
+void ringct20_params_free(ringct20_param_t *ringct20_p);
 
 int ringct20_crypto_sign_keypair(ringct20_public_key_t *, ringct20_private_key_t *, ringct20_kind_t );
 

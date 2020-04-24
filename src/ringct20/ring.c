@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include "ring.h"
 #include "common.h"
-#include "sha256.h"
-#include"sha3/fips202.h"
-
+#include "sha3/KeccakHash.h"
 
 void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 {
@@ -74,7 +72,9 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	poly_ringct20 *tmp2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20  tmp, tmp1;
 	poly_ringct20 c,  cpai;
-	SHA256_CTX ctx;
+    //SHA256_CTX ctx;
+    Keccak_HashInstance ctx;
+
 	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
 	unsigned char bt[NEWHOPE_POLYBYTES] = { 0 };
@@ -93,28 +93,38 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	poly_setValue(S2q + mLen, 1);//S_{2q}
 	///////////2.
 	LRCT_Lift(A2qp, A, L + pai, mLen);
-	SHA256_Init(&ctx);
+    //SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_256(&ctx);
 	for (i = 0; i < w; i++)
 	{
 		poly_tobytes(bpoly, L + i);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-	}
-	for ( i = 0; i < mLen+1; i++)
-	{
-		poly_tobytes(bpoly, H2q + i);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-	}
-	SHA256_Update(&ctx, msg, msgLen);//msg
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+    }
+    for ( i = 0; i < mLen+1; i++)
+    {
+        poly_tobytes(bpoly, H2q + i);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+    }
+    //SHA256_Update(&ctx, msg, msgLen);//msg
+    Keccak_HashUpdate(&ctx, msg, msgLen*8);
 
 	LRCT_MatrixMulPoly(&tmp, A2qp, u, mLen + 1);
 	poly_tobytes(bpoly, &tmp);
-	SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//A2qb*U
+    //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//A2qb*U
+    Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
 
 	LRCT_MatrixMulPoly(&tmp, H2q, u, mLen + 1);
 	poly_tobytes(bpoly, &tmp);
-	SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
-	SHA256_Final(bHash, &ctx);//C_(pai+1)
-	SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+    //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+    Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+    //SHA256_Final(bHash, &ctx);//C_(pai+1)
+    Keccak_HashFinal(&ctx, bHash);
+
+    //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+    Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
+
 	poly_frombytes(&c, bt);
     poly_serial(&c);
     //poly_print(&c);
@@ -127,18 +137,27 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 			poly_cofcopy(c1, &c);
 		}
 		LRCT_Lift(tmp2q, A, L + j, mLen);
-		SHA256_Init(&ctx);
+        //SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_256(&ctx);
+
 		for (k = 0; k < w; k++)
 		{
 			poly_tobytes(bpoly, L + k);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+
+
 		}
 		for (k = 0; k < mLen+1; k++)
 		{
 			poly_tobytes(bpoly, H2q + k);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-		}
-		SHA256_Update(&ctx, msg, msgLen);//msg
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+
+        }
+        //SHA256_Update(&ctx, msg, msgLen);//msg
+        Keccak_HashUpdate(&ctx, msg, msgLen*8);
+
 		
 		for ( k = 0; k < mLen+1; k++)
 		{
@@ -150,17 +169,21 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		poly_constmul(&tmp1, &c, NEWHOPE_Q);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_tobytes(bpoly, &tmp);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
 
 		LRCT_MatrixMulPoly(&tmp, H2q, t[j], mLen + 1);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_tobytes(bpoly, &tmp);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
-		SHA256_Final(bHash, &ctx);//C_(pai+1)
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Final(bHash, &ctx);//C_(pai+1)
+        Keccak_HashFinal(&ctx, bHash);
 //        printf("sign bHash======================%d:\n", j);
 //        BytePrint(bHash, 32);
 
-		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+        //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+        Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
 		poly_frombytes(&c, bt);
 		poly_serial(&c);//C_{j+1}
         if (j == (w + pai-1)%w)
@@ -196,7 +219,8 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 	poly_ringct20 *H2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *A2qp = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 c, tmp, tmp1;
-	SHA256_CTX ctx;
+    //SHA256_CTX ctx;
+    Keccak_HashInstance ctx;
 	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
 	for (i = 0; i < (mLen + 1); i++)
@@ -210,36 +234,47 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 	for ( i = 0; i < w; i++)
 	{
 		LRCT_Lift(A2qp, A, L+i, mLen);
-		SHA256_Init(&ctx);
+        //SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_256(&ctx);
 		for (k = 0; k < w; k++)
 		{
 			poly_tobytes(bpoly, L + k);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-		}
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+
+        }
 		for (k = 0; k < mLen+1; k++)
 		{
 			poly_tobytes(bpoly, H2q + k);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-		}
-		SHA256_Update(&ctx, msg, msgLen);//msg
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        }
+        //SHA256_Update(&ctx, msg, msgLen);//msg
+        Keccak_HashUpdate(&ctx, msg, msgLen*8);
 
 		poly_constmul(&tmp1, &c, NEWHOPE_Q);
 
 		LRCT_MatrixMulPoly(&tmp, A2qp, t[i], mLen + 1);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_tobytes(bpoly, &tmp);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//A2qb*U
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//A2qb*U
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
 
 		LRCT_MatrixMulPoly(&tmp, H2q, t[i], mLen + 1);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_serial(&tmp);
 		poly_tobytes(bpoly, &tmp);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
-		SHA256_Final(bHash, &ctx);//C_(pai+1)
-//		printf("bHash======================%d:\n", i);
-//		BytePrint(bHash, 32);
-		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
-		poly_frombytes(&c, bpoly);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+
+        //SHA256_Final(bHash, &ctx);//C_(pai+1)
+        Keccak_HashFinal(&ctx, bHash);
+//        printf("sign bHash======================%d:\n", j);
+//        BytePrint(bHash, 32);
+
+        //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
+        Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);
+        poly_frombytes(&c, bpoly);
 		poly_serial(&c);
 	}
 	free(H2q);
@@ -316,7 +351,9 @@ void MIMO_LRCT_Mint(IW *iw, poly_ringct20 *ck, poly_ringct20 *a, poly_ringct20 *
 }
 void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringct20 *ia, int beta)
 {
-	SHA256_CTX ctx;
+    //SHA256_CTX ctx;
+    Keccak_HashInstance ctx;
+
 	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
 	unsigned char bt[576] = { 0 };
@@ -326,19 +363,19 @@ void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringc
 	{
 		tmpTable[i] = i;
 	}
-	SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 	////H(L)
 	for (i = 0; i < beta; i++)
 	{
 		poly_tobytes(bpoly, cn + i);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 		poly_tobytes(bpoly, a + i);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 		poly_tobytes(bpoly, ia + i);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 	}///H_1(L||)
-	SHA256_Final(bHash, &ctx);//C_(pai)
-	SHA256_KDF(bHash, 32, 576, bt);
+    Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
+    Keccak_256KDF(bHash, 32, bt, 576);//CHECKIT//SHA256_KDF(bHash, 32, 576, bt);
 
 
 }
@@ -356,7 +393,9 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 	poly_ringct20 *u = (poly_ringct20 *)malloc(NLen*(mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *S2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	/////
-	SHA256_CTX ctx;
+    //SHA256_CTX ctx;
+    Keccak_HashInstance ctx;
+
 	poly_ringct20 tmp, tmp1, ctmp;
 	poly_ringct20 c, cpai;
 	unsigned char bHash[32] = { 0 };
@@ -380,12 +419,12 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		poly_init(u+i);
 	}
 	/////
-	SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 	////H(L)
 	for ( i = 0; i < wLen*NLen; i++)
 	{
 		poly_tobytes(bpoly, LList + i);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 	}///H_1(L||)
 	///H(L||H2q..)
 	for (i = 0; i < NLen; i++)
@@ -395,11 +434,11 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		for (k = 0; k < mLen + 1; k++)
 		{
 			poly_tobytes(bpoly, H2q + i * (mLen + 1) + k);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 		}
 	}
 	////H(L||...||mu)
-	SHA256_Update(&ctx, msg, msgLen);
+    Keccak_HashUpdate(&ctx, msg, msgLen*8);//SHA256_Update(&ctx, msg, msgLen);
 	/////u
 	for ( i = 0; i < NLen; i++)
 	{
@@ -418,12 +457,12 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 
 		LRCT_MatrixMulPoly(&tmp1, H2q + i * (mLen + 1), u+ i * (mLen + 1), mLen + 1);
 		poly_tobytes(bpoly, &tmp);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 		poly_tobytes(bpoly, &tmp1);
-		SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 	}
-	SHA256_Final(bHash, &ctx);//C_(pai)
-	SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+    Keccak_HashFinal(&ctx, bHash);//Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
+    Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
 	poly_frombytes(&c, bt);
 	poly_serial(&c);
 	//////////////////////
@@ -436,22 +475,22 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 			poly_cofcopy(c1, &ctmp);
 		}
 
-		SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 		////H_1(L||)
 		for (j = 0; j < wLen*NLen; j++)
 		{
 			poly_tobytes(bpoly, LList + j);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 		}
 		for (j = 0; j < NLen; j++)
 		{
 			for (k = 0; k < mLen + 1; k++)
 			{
 				poly_tobytes(bpoly, H2q + j * (mLen + 1) + k);
-				SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+                Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 			}
 		}//H_1(L||H2q)
-		SHA256_Update(&ctx, msg, msgLen);//H(L||...||mu)
+        Keccak_HashUpdate(&ctx, msg, msgLen*8);//SHA256_Update(&ctx, msg, msgLen);//H(L||...||mu)
 
 		poly_constmul(&tmp1, &ctmp, NEWHOPE_Q);//qC_i
 		for (j = 0; j < NLen; j++)
@@ -467,15 +506,15 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//
 			////////
 			LRCT_MatrixMulPoly(&tmp, H2q + j * (mLen + 1), tList + j * wLen*(mLen + 1) + index * (mLen + 1), mLen + 1);
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
 		}
-		SHA256_Final(bHash, &ctx);//
-		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+        Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
+        Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
 		poly_frombytes(&ctmp, bt);
 		poly_serial(&ctmp);//C_{index+1}
 		if (index == (pai - 2))
@@ -516,7 +555,9 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 	poly_ringct20 *H2q = (poly_ringct20 *)malloc(NLen*(mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *A2qp = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 ctmp,tmp, tmp1;
-	SHA256_CTX ctx;
+    //SHA256_CTX ctx;
+    Keccak_HashInstance ctx;
+
 	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
 	/////////
@@ -528,21 +569,21 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 	//////
 	for (i = 0; i < wLen; i++)
 	{
-		SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 		for (k = 0; k < wLen*NLen; k++)
 		{
 			poly_tobytes(bpoly, LList + k);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 		}///H_1(L||)
 		for (j = 0; j< NLen; j++)
 		{
 			for (k = 0; k < (mLen + 1); k++)
 			{
 				poly_tobytes(bpoly, H2q + j * (mLen + 1) + k);
-				SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+                Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 			}
 		}
-		SHA256_Update(&ctx, msg, msgLen);//H(L||...||mu)
+        Keccak_HashUpdate(&ctx, msg, msgLen*8);//Keccak_HashUpdate(&ctx, msg, msgLen*8);//SHA256_Update(&ctx, msg, msgLen);//H(L||...||mu)
 
 		poly_constmul(&tmp1, &ctmp, NEWHOPE_Q);//qC_i
 		for ( j = 0; j < NLen; j++)
@@ -551,15 +592,15 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 			LRCT_MatrixMulPoly(&tmp, A2qp, tList + j * wLen*(mLen + 1) + i * (mLen + 1), mLen + 1);
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 			
 			LRCT_MatrixMulPoly(&tmp, H2q + j * (mLen + 1), tList + j * wLen*(mLen + 1) + i* (mLen + 1), mLen + 1);
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-			SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
 		}
-		SHA256_Final(bHash, &ctx);//
-		SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
+        Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
+        Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
 		poly_frombytes(&ctmp, bpoly);
 		poly_serial(&ctmp);//
 	}

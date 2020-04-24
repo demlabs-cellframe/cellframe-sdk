@@ -11,47 +11,49 @@
 #define LOG_TAG "dap_enc_sig_ringct20"
 
 static enum DAP_RINGCT20_SIGN_SECURITY _ringct20_type = RINGCT20_MIN_SIZE; // by default
-poly_ringct20 Afixed[10];
-poly_ringct20 Hfixed[10];
-bool ringct20_params_init(ringct20_param_t *ringct20_p, ringct20_kind_t kind)
+//poly_ringct20 Afixed[10];
+//poly_ringct20 Hfixed[10];
+#include "ringct20/common.h"
+
+void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
 {
-    static int first_init = 1;//CRUTCH
-    if(first_init)
+    LRCT_Setup(A, H, mLen);
+    uint8_t polyb_tmp[NEWHOPE_POLYBYTES];
+    printf("A_bpoly[%d][NEWHOPE_POLYBYTES] = {\n", mLen);
+    for(int i = 0; i < mLen; ++i)
     {
-        LRCT_Setup(Afixed,Hfixed, 10);
-        first_init = 0;
+        poly_tobytes(polyb_tmp,A + i);
+        printf("{");
+        for(int j = 0; j < NEWHOPE_POLYBYTES; ++j)
+        {
+            printf("0x%.2x", polyb_tmp[j]);
+            if(j < NEWHOPE_POLYBYTES - 1)
+                printf(", ");
+        }
+        printf("}");
+        if(i < mLen - 1)
+            printf(",\n");
     }
-    if(kind != MODERINGCT20_0)
-        return false;
-    ringct20_p->M = 3;
+    printf("};\n");
+    printf("H_bpoly[%d][NEWHOPE_POLYBYTES] = {\n", mLen);
+    for(int i = 0; i < mLen; ++i)
+    {
+        poly_tobytes(polyb_tmp,H + i);
+        printf("{");
+        for(int j = 0; j < NEWHOPE_POLYBYTES; ++j)
+        {
+            printf("0x%.2x", polyb_tmp[j]);
+            if(j < NEWHOPE_POLYBYTES - 1)
+                printf(", ");
+        }
+        printf("}");
+        if(i < mLen - 1)
+            printf(",\n");
+    }
+    printf("};\n");
 
-    ringct20_p->mLen = ringct20_p->M-1;
-    if(ringct20_p->mLen > 10)
-        return false;
-    ringct20_p->wLen = 3;
-    ringct20_p->kind = kind;
-    ringct20_p->POLY_RINGCT20_SIZE_PACKED = NEWHOPE_POLYBYTES;
-    ringct20_p->POLY_RINGCT20_SIZE = NEWHOPE_N*sizeof(uint16_t);
-    ringct20_p->A = malloc(ringct20_p->POLY_RINGCT20_SIZE * ringct20_p->mLen);//CRUTCH//dont forget to free
-    ringct20_p->H = malloc(ringct20_p->POLY_RINGCT20_SIZE * ringct20_p->mLen);//CRUTCH//dont forget to free
-    poly_copy(ringct20_p->A, Afixed, ringct20_p->mLen);
-    poly_copy(ringct20_p->H, Hfixed, ringct20_p->mLen);
-    ringct20_p->RINGCT20_PBK_SIZE = ringct20_p->POLY_RINGCT20_SIZE_PACKED;
-    ringct20_p->RINGCT20_PRK_SIZE = ringct20_p->mLen*ringct20_p->POLY_RINGCT20_SIZE_PACKED;
-    ringct20_p->RINGCT20_SIG_SIZE = (ringct20_p->wLen +
-                                     ringct20_p->M*ringct20_p->wLen + 1 +1)*ringct20_p->POLY_RINGCT20_SIZE_PACKED;
-
-
-    return true;
 }
-void ringct20_params_free(ringct20_param_t *ringct20_p)
-{
-    if(ringct20_p->A != NULL)
-        free(ringct20_p->A);
-    if(ringct20_p->H != NULL)
-        free(ringct20_p->H);
-    free(ringct20_p);
-}
+
 void ringct20_pack_prk(uint8_t *prk, const poly_ringct20 *S, const ringct20_param_t *rct_p)
 {
     for(int i = 0; i < rct_p->M - 1; ++i)
@@ -135,6 +137,33 @@ void ringct20_pack_sig(uint8_t *sig, const poly_ringct20 *a_list,
     packed_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
 }
 
+#define CRUTCH
+
+int get_pbk_list(poly_ringct20 *aList, const ringct20_param_t *p, const int Pi)
+{
+
+#ifndef CRUTCH
+    return -1;//Здесь должно быть обращение за списком публичных ключей
+    ringct20_public_key_t *pbk_list;
+   // pbk_list = malloc()
+#else
+    //get a list of some pbk
+    {
+        poly_ringct20 *Stmp = malloc(p->POLY_RINGCT20_SIZE*p->mLen);
+        for(int i = 0; i < p->wLen; ++i)
+        {
+            if(i == Pi)
+                continue;
+            LRCT_SampleKey(Stmp, p->mLen);
+            LRCT_KeyGen(aList + i, p->A, Stmp, p->mLen);
+        }
+        free(Stmp);
+    }
+#endif
+return 0;
+
+}
+
 int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, unsigned long long mlen, const ringct20_private_key_t *private_key)
 {
     ringct20_param_t *p = calloc(sizeof(ringct20_param_t),1);
@@ -151,19 +180,10 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
     ringct20_unpack_prk(private_key->data,S,p);
 
     LRCT_KeyGen(aList + Pi, p->A,S,p->mLen);
-    //CRUTCH
-    //get a list of some pbk
-    {
-        poly_ringct20 *Stmp = malloc(p->POLY_RINGCT20_SIZE*p->mLen);
-        for(int i = 0; i < p->wLen; ++i)
-        {
-            if(i == Pi)
-                continue;
-            LRCT_SampleKey(Stmp, p->mLen);
-            LRCT_KeyGen(aList + i, p->A, Stmp, p->mLen);
-        }
-        free(Stmp);
-    }
+
+    get_pbk_list(aList, p, Pi);
+
+
     poly_ringct20 h;
     poly_ringct20 *u = malloc(p->POLY_RINGCT20_SIZE*p->M);
     poly_ringct20 c1;
