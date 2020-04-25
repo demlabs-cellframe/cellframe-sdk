@@ -121,8 +121,6 @@ bool ringct20_params_init(ringct20_param_t *ringct20_p, DAP_RINGCT20_SIGN_SECURI
     ringct20_p->A = malloc(ringct20_p->POLY_RINGCT20_SIZE * ringct20_p->mLen);//CRUTCH//dont forget to free
     ringct20_p->H = malloc(ringct20_p->POLY_RINGCT20_SIZE * ringct20_p->mLen);//CRUTCH//dont forget to free
 
-    //poly_copy(ringct20_p->A, Afixed, ringct20_p->mLen);
-    //poly_copy(ringct20_p->H, Hfixed, ringct20_p->mLen);
     for(int i = 0; i < ringct20_p->mLen; ++i)
     {
         poly_frombytes(ringct20_p->A + i, A_bpoly + i*NEWHOPE_POLYBYTES);

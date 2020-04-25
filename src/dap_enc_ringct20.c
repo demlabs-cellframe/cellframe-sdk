@@ -13,7 +13,7 @@
 DAP_RINGCT20_SIGN_SECURITY _ringct20_type = RINGCT20_MINSEC; // by default
 //poly_ringct20 Afixed[10];
 //poly_ringct20 Hfixed[10];
-#include "ringct20/common.h"
+
 
 void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
 {
@@ -403,7 +403,7 @@ void dap_enc_sig_ringct20_key_new_generate(struct dap_enc_key * key, const void 
 
     int32_t retcode;
 
-    DAP_RINGCT20_SIGN_SECURITY ringct20_type = RINGCT20_MAXSEC;
+    DAP_RINGCT20_SIGN_SECURITY ringct20_type = RINGCT20_MINSEC;
     dap_enc_sig_ringct20_set_type(ringct20_type);
 
 

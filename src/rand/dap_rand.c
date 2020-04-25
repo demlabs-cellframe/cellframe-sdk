@@ -1,6 +1,5 @@
 #include "dap_rand.h"
 #include <stdlib.h>
-
 #if defined(_WIN32)
     #include <windows.h>
 #else
@@ -18,6 +17,12 @@ static __inline void delay(unsigned int count)
     while (count--) {}
 }
 
+uint32_t random_uint32_t(const uint32_t MAX_NUMBER)
+{
+    uint32_t ret;
+    randombytes(&ret, 4);
+    ret %= MAX_NUMBER;
+}
 
 int randombytes(void* random_array, unsigned int nbytes)
 { // Generation of "nbytes" of random values

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "ring.h"
-#include "common.h"
 #include "sha3/KeccakHash.h"
 
 void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
@@ -9,6 +8,7 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 	size_t i;
 	for ( i = 0; i < mLen; i++)
 	{
+#ifndef NEW_SAMPLE_KEY
         randombytes(seed, NEWHOPE_SYMBYTES);
 		for (size_t j = 0; j < NEWHOPE_SYMBYTES; j++)
 		{
@@ -35,7 +35,22 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 6] = (seed[j] & 0x40)>>6;
 			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 7] = (seed[j] & 0x80)>>7;
 		}
-		 
+#else
+        uint8_t stm[NEWHOPE_N*2];
+        randombytes(stm, NEWHOPE_N*2);
+        const int gamma = 8;
+        for(int j = 0; j < NEWHOPE_N; ++j)
+        {
+            uint16_t v = stm[2*j];
+            v<<= 8;
+            v ^= stm[2*j + 1];
+            v %= gamma;
+            v -= gamma/2;
+            if(v < 0)
+                v += NEWHOPE_Q;
+            r[i].coeffs[j] = v;
+        }
+#endif
 	}
 
 }

@@ -25,6 +25,7 @@
 
 #include "dap_enc_iaes.h"
 #include "dap_enc_oaes.h"
+#include "dap_enc_bf_cbc.h"
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
 #include "dap_enc_picnic.h"
@@ -94,6 +95,22 @@ struct dap_enc_key_callbacks{
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_oaes_calc_encode_size,
         .dec_out_size = dap_enc_oaes_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_BF_CBC]={
+        .name = "BF_CBC",
+        .enc = dap_enc_bf_cbc_encrypt,
+        .enc_na = NULL,//dap_enc_bf_cbc_encrypt_fast ,
+        .dec = dap_enc_bf_cbc_decrypt,
+        .dec_na = NULL,//dap_enc_bf_cbc_decrypt_fast ,
+        .new_callback = dap_enc_bf_cbc_key_new,
+        .delete_callback = dap_enc_bf_cbc_key_delete,
+        .new_generate_callback = dap_enc_bf_cbc_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = NULL,//dap_enc_bf_cbc_calc_encode_size,
+        .dec_out_size = NULL,//dap_enc_bf_cbc_calc_decode_size,
         .sign_get = NULL,
         .sign_verify = NULL
     },
