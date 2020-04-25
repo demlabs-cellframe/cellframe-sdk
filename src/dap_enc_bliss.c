@@ -181,7 +181,7 @@ uint8_t* dap_enc_sig_bliss_write_signature(bliss_signature_t* a_sign, size_t *a_
 }
 
 /* Deserialize a signature */
-bliss_signature_t* dap_enc_sig_bliss_read_signature(const byte_t *a_buf, size_t a_buflen)
+bliss_signature_t* dap_enc_sig_bliss_read_signature(const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(bliss_kind_t)))
         return NULL ;

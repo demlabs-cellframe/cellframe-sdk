@@ -25,12 +25,14 @@
 
 #include "dap_enc_iaes.h"
 #include "dap_enc_oaes.h"
+#include "dap_enc_bf_cbc.h"
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
 #include "dap_enc_picnic.h"
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
+#include "dap_enc_ringct20.h"
 
 
 #include "dap_enc_key.h"
@@ -93,6 +95,22 @@ struct dap_enc_key_callbacks{
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_oaes_calc_encode_size,
         .dec_out_size = dap_enc_oaes_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_BF_CBC]={
+        .name = "BF_CBC",
+        .enc = dap_enc_bf_cbc_encrypt,
+        .enc_na = dap_enc_bf_cbc_encrypt_fast ,
+        .dec = dap_enc_bf_cbc_decrypt,
+        .dec_na = dap_enc_bf_cbc_decrypt_fast ,
+        .new_callback = dap_enc_bf_cbc_key_new,
+        .delete_callback = dap_enc_bf_cbc_key_delete,
+        .new_generate_callback = dap_enc_bf_cbc_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = dap_enc_bf_cbc_calc_encode_size,
+        .dec_out_size = dap_enc_bf_cbc_calc_decode_size,
         .sign_get = NULL,
         .sign_verify = NULL
     },
@@ -197,6 +215,24 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_sig_dilithium_key_new,
         .delete_callback = dap_enc_sig_dilithium_key_delete,
         .new_generate_callback = dap_enc_sig_dilithium_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_SIG_RINGCT20]={
+        .name = "SIG_RINGCT20",
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = dap_enc_sig_ringct20_get_sign,
+        .dec_na = dap_enc_sig_ringct20_verify_sign,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .gen_bob_shared_key = NULL,
+        .gen_alice_shared_key = NULL,
+        .new_callback = dap_enc_sig_ringct20_key_new,
+        .delete_callback = dap_enc_sig_ringct20_key_delete,
+        .new_generate_callback = dap_enc_sig_ringct20_key_new_generate,
         .enc_out_size = NULL,
         .dec_out_size = NULL,
         .sign_get = NULL,
@@ -352,7 +388,7 @@ uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const byte_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;
@@ -414,7 +450,7 @@ int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const byte_t *a_buf, 
  * @param a_buflen_out
  * @return 0 Ok, -1 error
  */
-int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const byte_t *a_buf, size_t a_buflen)
+int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
     if(!a_key || !a_buf)
         return -1;

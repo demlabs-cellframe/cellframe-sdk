@@ -40,6 +40,7 @@ file( GLOB CRYPTO_SRCS
       src/rand/*.c
       src/iaes/*.c
       src/oaes/*.c
+      src/blowfish/*.c
       src/sha3/*.c
       src/msrln/*.c
       src/defeo_scheme/*.c
@@ -47,6 +48,7 @@ file( GLOB CRYPTO_SRCS
       src/sig_tesla/*.c
       src/sig_picnic/*.c
       src/sig_dilithium/*.c
+      src/ringct20/*.c
 )
 
 file( GLOB CRYPTO_HEADERS
@@ -54,6 +56,7 @@ file( GLOB CRYPTO_HEADERS
       src/rand/*.h
       src/iaes/*.h
       src/oaes/*.h
+      src/blowfish/*.h
       src/sha3/*.h
       src/msrln/*.h
       src/defeo_scheme/*.h
@@ -61,6 +64,7 @@ file( GLOB CRYPTO_HEADERS
       src/sig_tesla/*.h
       src/sig_picnic/*.h
       src/sig_dilithium/*.h
+      src/ringct20/*.h
       include/*.h
 )
 
@@ -277,6 +281,7 @@ endif()
 if(UNIX)
   target_link_libraries(dap_crypto dap_core m)
 endif()
+
 
 if(BUILD_CRYPTO_TESTS)
     enable_testing()
