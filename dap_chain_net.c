@@ -1312,7 +1312,8 @@ int s_net_load(const char * a_net_name)
         }
         PVT(l_net)->load_mode = true;
         l_net->pub.gdb_groups_prefix = dap_strdup (
-                    dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix","" ) );
+                    dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix",
+                                                    dap_config_get_item_str(l_cfg , "general" , "name" ) ) );
         dap_chain_global_db_add_history_group_prefix( l_net->pub.gdb_groups_prefix, GROUP_LOCAL_HISTORY);
         dap_chain_global_db_add_history_callback_notify(l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net );
 
