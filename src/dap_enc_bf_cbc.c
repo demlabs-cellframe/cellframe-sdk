@@ -26,6 +26,9 @@ size_t dap_enc_bf_cbc_decrypt(struct dap_enc_key *a_key, const void * a_in,
     size_t a_out_size = a_in_size - 8;
     return a_out_size;
 }
+
+
+
 size_t dap_enc_bf_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     //generate iv and put it in *a_out first bytes
@@ -41,7 +44,50 @@ size_t dap_enc_bf_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, siz
                    a_key->priv_key_data, iv, BF_ENCRYPT);
     size_t a_out_size = a_in_size + 8;
     return a_out_size;
+}
+
+size_t dap_enc_bf_cbc_calc_encode_size(const size_t size_in)
+{
+    return size_in + 8;
+}
+
+size_t dap_enc_bf_cbc_calc_decode_size(const size_t size_in)
+{
+    return size_in - 8;
+}
+
+size_t dap_enc_bf_cbc_decrypt_fast(struct dap_enc_key *a_key, const void * a_in,
+        size_t a_in_size, void * a_out,size_t buf_out_size) {
+    uint8_t iv[8];
+    //BF_KEY *key=a_key->priv_key_data;
+
+
+    memcpy(iv, a_in, 8);
+    BF_cbc_encrypt((unsigned char *)(a_in + 8), a_out, a_in_size - 8,
+                   a_key->priv_key_data, iv, BF_DECRYPT);
+    size_t a_out_size = a_in_size - 8;
+    return a_out_size;
+}
+
+
+
+size_t dap_enc_bf_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void * a_out,size_t buf_out_size)
+{
+    //generate iv and put it in *a_out first bytes
+    uint8_t iv[8];
+    randombytes(iv, 8);
+
+//    BF_KEY *key = a_key->priv_key_data;
+
+
+    memcpy(a_out, iv, 8);
+    BF_cbc_encrypt((unsigned char *)(a_in), a_out + 8, a_in_size,
+                   a_key->priv_key_data, iv, BF_ENCRYPT);
+    size_t a_out_size = a_in_size + 8;
+    return a_out_size;
  }
+
+
 void dap_enc_bf_cbc_key_new(struct dap_enc_key * a_key)
 {
     a_key->_inheritor = NULL;//(uint8_t *) bf_cbc_alloc();
@@ -49,8 +95,8 @@ void dap_enc_bf_cbc_key_new(struct dap_enc_key * a_key)
     a_key->type = DAP_ENC_KEY_TYPE_BF_CBC;
     a_key->enc = dap_enc_bf_cbc_encrypt;
     a_key->dec = dap_enc_bf_cbc_decrypt;
-    a_key->enc_na = NULL;//dap_enc_bf_cbc_encrypt_fast;
-    a_key->dec_na = NULL;//dap_enc_bf_cbc_decrypt_fast;
+    a_key->enc_na = dap_enc_bf_cbc_encrypt_fast;//maybe exclude it
+    a_key->dec_na = dap_enc_bf_cbc_decrypt_fast;//maybe exclude it
 }
 
 void dap_enc_bf_cbc_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
@@ -87,18 +133,6 @@ void dap_enc_bf_cbc_key_delete(struct dap_enc_key *a_key)
 
 
 
-size_t dap_enc_bf_cbc_calc_encode_size(const size_t size_in)
-{
-    size_t a_out_size = 2 * OAES_BLOCK_SIZE + size_in
-            + (size_in % OAES_BLOCK_SIZE == 0 ? 0 :
-            OAES_BLOCK_SIZE - size_in % OAES_BLOCK_SIZE);
-    return a_out_size;
-}
-
-size_t dap_enc_bf_cbc_calc_decode_size(const size_t size_in)
-{
-    return size_in - 2 * OAES_BLOCK_SIZE;
-}
 
 
 
