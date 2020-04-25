@@ -220,11 +220,10 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         return -3;
 
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
-        int l_ret = 0;
+        uint16_t l_verified_num = 0;
+        dap_chain_addr_t l_addr = { 0 };
 
-        // TODO fix verify for signs more than one
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
-            dap_chain_addr_t l_addr = { 0 };
             dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
             if ( l_sign == NULL){
                 log_it(L_WARNING, "Event is NOT signed with anything");
@@ -240,6 +239,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
             dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
 
+            /*
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
             // transaction include emission?
             bool l_is_emit = false;
@@ -254,18 +254,32 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             }
             // if emission then the wallet can be with zero balance
             if(l_is_emit)
-                return 0;
+                return 0;*/
 
+            bool l_is_enough_balance = false;
             for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
-                if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  )
-                    return 0;
+                if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  ){
+                    l_verified_num++;
+                    l_is_enough_balance = true;
+                    break;
+                }
             }
-            char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-            log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
-            DAP_DELETE(l_addr_str);
-            return -1;
+            if (! l_is_enough_balance ){
+                char *l_addr_str = dap_chain_addr_to_str(&l_addr);
+                log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
+                DAP_DELETE(l_addr_str);
+                return -1;
+            }
         }
-        return l_ret;
+
+        // Check number
+        if ( l_verified_num >= l_pos_pvt->confirmations_minimum ){
+            // Passed all checks
+            return 0;
+        }else{
+            log_it(L_WARNING, "Wrong event: only %su/%su signs are valid", l_verified_num, l_pos_pvt->confirmations_minimum );
+            return -2;
+        }
     }else
        return -2; // Wrong signatures number
 }
