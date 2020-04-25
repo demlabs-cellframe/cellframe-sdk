@@ -14,6 +14,8 @@ DAP_RINGCT20_SIGN_SECURITY _ringct20_type = RINGCT20_MINSEC; // by default
 //poly_ringct20 Afixed[10];
 //poly_ringct20 Hfixed[10];
 
+int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_key, ringct20_public_key_t *public_key, ringct20_param_t *p);
+
 
 void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
 {
@@ -56,13 +58,13 @@ void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
 
 void ringct20_pack_prk(uint8_t *prk, const poly_ringct20 *S, const ringct20_param_t *rct_p)
 {
-    for(int i = 0; i < rct_p->M - 1; ++i)
+    for(uint32_t i = 0; i < rct_p->M - 1; ++i)
         poly_tobytes(prk + i*rct_p->POLY_RINGCT20_SIZE_PACKED, S +i);
 
 }
 void ringct20_unpack_prk(const uint8_t *prk, poly_ringct20 *S, const ringct20_param_t *rct_p)
 {
-    for(int i = 0; i < rct_p->M - 1; ++i)
+    for(uint32_t i = 0; i < rct_p->M - 1; ++i)
         poly_frombytes(S +i, prk + i*rct_p->POLY_RINGCT20_SIZE_PACKED);
 
 }
@@ -88,15 +90,15 @@ void ringct20_unpack_sig(const uint8_t *sig, poly_ringct20 *a_list,
 {
     uint32_t unpacked_size = 0;
     //unpack a_list
-    for(int i = 0; i < rct_p->wLen; ++i)
+    for(uint32_t i = 0; i < rct_p->wLen; ++i)
     {
         poly_frombytes(a_list + i, sig + unpacked_size);
         unpacked_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
     }
     //unpack t[W][M]
-    for(int j = 0; j < rct_p->wLen; ++j)
+    for(uint32_t j = 0; j < rct_p->wLen; ++j)
     {
-        for(int i = 0; i < rct_p->M; ++i)
+        for(uint32_t i = 0; i < rct_p->M; ++i)
         {
             poly_frombytes(t[j] + i, sig + unpacked_size);
             unpacked_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
@@ -111,19 +113,19 @@ void ringct20_unpack_sig(const uint8_t *sig, poly_ringct20 *a_list,
 }
 
 void ringct20_pack_sig(uint8_t *sig, const poly_ringct20 *a_list,
-                         const poly_ringct20 *c1, const poly_ringct20 **t, const poly_ringct20 *h, const ringct20_param_t *rct_p)
+                         poly_ringct20 *c1,  poly_ringct20 **t, const poly_ringct20 *h, const ringct20_param_t *rct_p)
 {
     uint32_t packed_size = 0;
     //pack a_list
-    for(int i = 0; i < rct_p->wLen; ++i)
+    for(uint32_t i = 0; i < rct_p->wLen; ++i)
     {
         poly_tobytes(sig + packed_size, a_list + i);
         packed_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
     }
     //pack t[W][M]
-    for(int j = 0; j < rct_p->wLen; ++j)
+    for(uint32_t j = 0; j < rct_p->wLen; ++j)
     {
-        for(int i = 0; i < rct_p->M; ++i)
+        for(uint32_t i = 0; i < rct_p->M; ++i)
         {
             poly_tobytes(sig + packed_size,t[j] + i);
             packed_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
@@ -150,9 +152,9 @@ int get_pbk_list(poly_ringct20 *aList, const ringct20_param_t *p, const int Pi)
     //get a list of some pbk
     {
         poly_ringct20 *Stmp = malloc(p->POLY_RINGCT20_SIZE*p->mLen);
-        for(int i = 0; i < p->wLen; ++i)
+        for(uint32_t i = 0; i < p->wLen; ++i)
         {
-            if(i == Pi)
+            if(i == (uint32_t) Pi)
                 continue;
             LRCT_SampleKey(Stmp, p->mLen);
             LRCT_KeyGen(aList + i, p->A, Stmp, p->mLen);
@@ -189,21 +191,21 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
     poly_ringct20 c1;
     poly_ringct20** t;//[w][M]//TOCORRECT to *t;
     t  = malloc(p->wLen*sizeof(poly_ringct20*));
-    for(int i = 0; i < p->wLen; ++i)
+    for(uint32_t i = 0; i < p->wLen; ++i)
         t[i] = malloc(p->M*p->POLY_RINGCT20_SIZE);
 
     unsigned char *bt = malloc(NEWHOPE_POLYBYTES);
 
-    for (int i = 0; i < p->wLen; i++)
+    for (uint32_t i = 0; i < p->wLen; i++)
     {
-        for (int k = 0; k < p->M; k++)
+        for (uint32_t k = 0; k < p->M; k++)
         {
             poly_init(t[i] + k);
         }
 
     }
 
-    for (int k = 0; k < p->M; k++)
+    for (uint32_t k = 0; k < p->M; k++)
     {
         randombytes(bt, NEWHOPE_POLYBYTES);
         poly_frombytes(u + k, bt);
@@ -223,7 +225,7 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
     free(S);
     free(u);
 
-    for(int i = 0; i < p->wLen; ++i)
+    for(uint32_t i = 0; i < p->wLen; ++i)
         free(t[i]);
     free(t);
 
@@ -254,14 +256,14 @@ int ringct20_crypto_sign_open( const unsigned char * msg, const unsigned long lo
     poly_ringct20 c1;
     poly_ringct20** t;//[w][M]//TOCORRECT to *t;
     t  = malloc(p->wLen*sizeof(poly_ringct20*));
-    for(int i = 0; i < p->wLen; ++i)
+    for(uint32_t i = 0; i < p->wLen; ++i)
         t[i] = malloc(p->M*p->POLY_RINGCT20_SIZE);
     ringct20_unpack_sig(sig->sig_data,aList,&c1, t, &h, p);
     //CRUTCH ADD test pbk in aList
     int pbk_in_aList = 0;
     poly_ringct20 a_pi;
     ringct20_unpack_pbk(public_key->data, &a_pi, p);
-    for(int i = 0; i < p->wLen; ++i)
+    for(uint32_t i = 0; i < p->wLen; ++i)
     {
         if(poly_equal(&a_pi, aList + i))
         {
@@ -278,7 +280,7 @@ int ringct20_crypto_sign_open( const unsigned char * msg, const unsigned long lo
 
     free(aList);
 
-    for(int i = 0; i < p->wLen; ++i)
+    for(uint32_t i = 0; i < p->wLen; ++i)
         free(t[i]);
     free(t);
     ringct20_params_free(p);
@@ -345,6 +347,7 @@ void ringct20_private_and_public_keys_delete(ringct20_private_key_t *private_key
     free(public_key->data);
     public_key->data = NULL;
 }
+
 int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_key, ringct20_public_key_t *public_key, ringct20_param_t *p){
 
     unsigned char *f = NULL, *g = NULL;

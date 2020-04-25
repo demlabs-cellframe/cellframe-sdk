@@ -2,6 +2,7 @@
 #define POLY_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include "params.h"
 
 /* 

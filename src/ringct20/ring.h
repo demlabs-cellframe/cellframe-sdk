@@ -19,9 +19,9 @@ void LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen);
 void LRCT_KeyGen(poly_ringct20 *a, poly_ringct20 *A, poly_ringct20 *S, size_t mLen);
 void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20 *A, poly_ringct20 *H,
                  poly_ringct20 *S, poly_ringct20 *u, size_t mLen, poly_ringct20 *L, uint8_t w,
-				 uint8_t pai, unsigned char *msg, int msgLen);
+                 uint8_t pai, const unsigned char *msg, int msgLen);
 int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, poly_ringct20 *H, size_t mLen, poly_ringct20 *h, poly_ringct20 *L,
-				uint8_t w, unsigned char *msg, int msgLen);
+                uint8_t w, const unsigned char *msg, int msgLen);
 /////Single output trading scheme
 /*
 plan description:

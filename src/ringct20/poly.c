@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "poly.h"
 #include "ntt.h"
 #include "reduce.h"

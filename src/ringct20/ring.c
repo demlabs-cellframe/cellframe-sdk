@@ -77,7 +77,7 @@ void LRCT_KeyGen(poly_ringct20 *a, poly_ringct20 *A, poly_ringct20 *S, size_t mL
 	poly_serial(a);
 }
 
-void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20 *A, poly_ringct20 *H, poly_ringct20 *S, poly_ringct20 *u, size_t mLen, poly_ringct20 *L, uint8_t w, uint8_t pai, unsigned char *msg, int msgLen)
+void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20 *A, poly_ringct20 *H, poly_ringct20 *S, poly_ringct20 *u, size_t mLen, poly_ringct20 *L, uint8_t w, uint8_t pai, const unsigned char *msg, int msgLen)
 {
 	//H2q
 	size_t i, j, k;
@@ -228,7 +228,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	free(tmp2q);
 }
 int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, poly_ringct20 *H, size_t mLen, poly_ringct20 *h, poly_ringct20 *L,
-	uint8_t w, unsigned char *msg, int msgLen)
+    uint8_t w, const unsigned char *msg, int msgLen)
 {
 	size_t i,k;
 	poly_ringct20 *H2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
