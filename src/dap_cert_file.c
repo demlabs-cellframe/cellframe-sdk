@@ -98,7 +98,7 @@ uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
         log_it(L_ERROR,"No public or private key in certificate, nothing to save");
         goto lb_exit;
     }
-    log_it(L_DEBUG,"Metadata size %u",l_key->_inheritor_size);
+    log_it(L_DEBUG,"Key private data size %u",l_key->_inheritor_size);
 
     l_hdr.version = dap_cert_FILE_VERSION;
     l_hdr.data_size = l_pub_key_data_size;
