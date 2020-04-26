@@ -52,13 +52,16 @@
 /// Smart contract: EVM data section
 #define DAP_CHAIN_DATUM_EVM_DATA            0x0911
 
-/// Pub key section, with sign and address
-#define DAP_CHAIN_DATUM_PKEY                0x0c00
-
+/// CA with public key and self signed metadata
+#define DAP_CHAIN_DATUM_CA                  0x0c00
 
 /// Token
-#define DAP_CHAIN_DATUM_TOKEN_DECL                0xf000
+/// Simple token decl
+#define DAP_CHAIN_DATUM_TOKEN_DECL           0xf000
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
+
+#define DAP_CHAIN_DATUM_CUSTOM               0xffff
+
 
 extern const char * c_datum_type_str[];
 
