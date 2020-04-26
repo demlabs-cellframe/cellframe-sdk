@@ -1,5 +1,5 @@
-#ifndef _DAP_ENC_BF_CBC_H_
-#define _DAP_ENC_BF_CBC_H_
+#ifndef _DAP_ENC_BF_H_
+#define _DAP_ENC_BF_H_
 
 #include <stddef.h>
 #include "dap_enc_key.h"

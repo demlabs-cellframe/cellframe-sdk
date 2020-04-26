@@ -12,6 +12,113 @@
 #include "dap_enc.h"
 
 #define TEST_SER_FILE_NAME "keystorage.txt"
+void test_encode_decode(int count_steps, const dap_enc_key_type_t key_type, const int cipher_key_size)
+{
+    dap_print_module_name(dap_enc_get_type_name(key_type));
+
+    const int verb = 0;
+    size_t source_size = 0;
+
+    for(int i = 0; i < count_steps; i++) {
+        source_size = 1 + random_uint32_t(10000);
+//        printf("src_size = %d\n", source_size);fflush(stdout);
+        const size_t seed_size = 16;
+        uint8_t seed[seed_size];
+
+        const size_t kex_size = 32;
+        uint8_t kex[kex_size];
+
+        randombytes(seed, seed_size);
+        randombytes(kex, kex_size);
+
+        dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex, kex_size, seed, seed_size, cipher_key_size);
+
+        uint8_t *source = DAP_NEW_SIZE(uint8_t, source_size+verb);
+
+        randombase64(source, source_size);
+//        for(int i = 0; i < source_size; ++i)
+//            printf("%.2x ", source[i]);
+//        printf(" = len(%d)\n", source_size);fflush(stdout);
+
+        uint8_t * buf_encrypted = NULL;
+        uint8_t * buf_decrypted = NULL;
+
+        size_t encrypted_size = key->enc(key, source, source_size, (void**) &buf_encrypted);
+        if(verb)
+        {
+            for(int i = 0; i < 24; ++i)
+                printf("%.2x ", source[i]);
+            printf("\n");fflush(stdout);
+        }
+        size_t result_size = key->dec(key, buf_encrypted, encrypted_size, (void**) &buf_decrypted);
+        if(verb)
+        {
+            printf("pt_size = %d, decr_size = %d, encrypted_size = %d\n", source_size, result_size,encrypted_size);
+            fflush(stdout);
+            source[source_size] = 0;
+            printf("pt  = %s\n", source);
+            fflush(stdout);
+            printf("pt2 = %s\n", buf_decrypted);
+            fflush(stdout);
+        }
+        dap_assert_PIF(source_size == result_size, "Check result decode size");
+
+        dap_assert_PIF(memcmp(source, buf_decrypted, source_size) == 0,
+                "Check source and encode->decode data");
+
+        DAP_DELETE(source);
+        free(buf_encrypted);
+        free(buf_decrypted);
+        dap_enc_key_delete(key);
+    }
+
+    dap_pass_msg("Encode and decode");
+}
+
+void test_encode_decode_fast(int count_steps, const dap_enc_key_type_t key_type, const int cipher_key_size)
+{
+    const size_t buf_size = 4096;
+    char buf_encrypt_out[buf_size];
+    char buf_decrypt_out[buf_size];
+
+
+    size_t seed_size = 16;
+    uint8_t seed[seed_size];
+
+    size_t kex_size = 32;
+    uint8_t kex[kex_size];
+
+    randombytes(seed, seed_size);
+    randombytes(kex, kex_size);
+
+    dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex, kex_size, seed, seed_size, cipher_key_size);
+
+    size_t source_size = 0;
+
+    for(int i = 0; i < count_steps; i++) {
+        source_size = 1 + random_uint32_t(2000);
+
+        uint8_t *source = DAP_NEW_SIZE(uint8_t,source_size + 0);
+        randombase64(source, source_size);
+
+
+        size_t encrypted_size = key->enc_na(key, source, source_size, buf_encrypt_out, buf_size);
+
+        size_t result_size = key->dec_na(key, buf_encrypt_out, encrypted_size, buf_decrypt_out, buf_size);
+
+
+
+        dap_assert_PIF(source_size == result_size, "Check result decode size");
+
+        dap_assert_PIF(memcmp(source, buf_decrypt_out, source_size) == 0,
+                "Check source and encode->decode data");
+        DAP_DELETE(source);
+    }
+
+    dap_enc_key_delete(key);
+    dap_pass_msg("Encode and decode fast");
+}
+
 
 static void _encrypt_decrypt(enum dap_enc_key_type key_type,
                              enum dap_enc_data_type data_type,

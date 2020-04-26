@@ -26,12 +26,15 @@
 #include "dap_enc_iaes.h"
 #include "dap_enc_oaes.h"
 #include "dap_enc_bf.h"
+#include "dap_enc_GOST.h"
+
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
 #include "dap_enc_picnic.h"
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
+
 #include "dap_enc_ringct20.h"
 
 
@@ -39,7 +42,6 @@
 
 #undef LOG_TAG
 #define LOG_TAG "dap_enc_key"
-
 struct dap_enc_key_callbacks{
     const char * name;
     dap_enc_callback_dataop_t enc;
@@ -127,6 +129,22 @@ struct dap_enc_key_callbacks{
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_bf_ofb_calc_encode_size,
         .dec_out_size = dap_enc_bf_ofb_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_GOST_OFB]={
+        .name = "GOST_OFB",
+        .enc = dap_enc_gost_ofb_encrypt,
+        .enc_na = dap_enc_gost_ofb_encrypt_fast ,
+        .dec = dap_enc_gost_ofb_decrypt,
+        .dec_na = dap_enc_gost_ofb_decrypt_fast ,
+        .new_callback = dap_enc_gost_ofb_key_new,
+        .delete_callback = dap_enc_gost_key_delete,
+        .new_generate_callback = dap_enc_gost_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = dap_enc_gost_ofb_calc_encode_size,
+        .dec_out_size = dap_enc_gost_ofb_calc_decode_size,
         .sign_get = NULL,
         .sign_verify = NULL
     },
@@ -711,4 +729,14 @@ size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size)
     }
     log_it(L_ERROR, "dec_out_size not realize for current key type");
     return 0;
+}
+
+char *dap_enc_get_type_name(dap_enc_key_type_t key_type)
+{
+    if(s_callbacks[key_type].name) {
+        return s_callbacks[key_type].name;
+    }
+    log_it(L_ERROR, "name not realize for current key type");
+    return 0;
+
 }
