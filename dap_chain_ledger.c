@@ -212,27 +212,37 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     }
 
     dap_chain_ledger_token_item_t * l_token_item;
-    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->header_auth.ticker,l_token_item);
+    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->ticker,l_token_item);
 
     if ( l_token_item == NULL ){
         l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->header_auth.ticker);
-        l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
-        memcpy(l_token_item->datum_token, a_token,a_token_size);
-        l_token_item->total_supply = a_token->header_auth.total_supply;
+        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker),"%s",a_token->ticker);
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
+
+        l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
+
+        memcpy(l_token_item->datum_token, a_token,a_token_size);
         dap_hash_fast(a_token,a_token_size, &l_token_item->datum_token_hash);
 
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item) ;
-        log_it(L_NOTICE,"Token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu type=%hu )",
-               a_token->header_auth.ticker ,
-               (long double) a_token->header_auth.total_supply / DATOSHI_LD ,
-               a_token->header_auth.signs_valid,a_token->header_auth.signs_total, a_token->header_auth.type);
+        switch(a_token->type){
+            case DAP_CHAIN_DATUM_TOKEN_PRIVATE:
+                l_token_item->total_supply = a_token->header_private.total_supply;
+                log_it( L_NOTICE, "Private token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
+                        a_token->ticker, dap_chain_balance_to_coins(a_token->header_private.total_supply),
+                        a_token->header_private.signs_valid, a_token->header_private.signs_total);
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL:
+                log_it( L_NOTICE, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL )", a_token->ticker);
+            break;
+            default:
+                log_it(L_WARNING,"Unknown token declaration type 0x%04X", a_token->type );
+        }
         // Proc emissions tresholds
         s_treshold_emissions_proc( a_ledger);
     }else{
-        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->header_auth.ticker);
-        return -1;
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        return -3;
     }
     return  0;
 }
