@@ -83,6 +83,8 @@ int com_help(int argc,  char ** argv, void *arg_func, char **str_reply);
  */
 int com_token_decl ( int argc,  char ** argv, void *arg_func, char ** str_reply);
 
+int com_token_decl_update(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+
 /**
  * Token declaration add sign
  */
@@ -138,3 +140,7 @@ int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_rep
 int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 
+/**
+ * Place public CA into the mempool
+ */
+int com_mempool_add_ca( int a_argc,  char ** a_argv, void *a_arg_func, char ** a_str_reply);

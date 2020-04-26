@@ -820,12 +820,145 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
 
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, NULL, "Token declaration",
-            "token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
-            "\t Declare new token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
-            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
-            "\t Sign existent <datum hash> in mempool with <certs list>\n"
+    dap_chain_node_cli_cmd_item_create ("token_decl_update", com_token_decl_update, NULL, "Token declaration update",
+            "\nPrivate token declaration update\n"
+            "\t token_decl_update -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Update private token <token ticker> for <netname>:<chain name> with flags <Flag 1>,<Flag2>...<Flag N>"
+            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
+            "\n"
+            "==Flags=="
+            "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
+            "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
+            "\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
+            "\t ALL_UNFROZEN:\t Unfrozen permissions\n"
+            "\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
+            "\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
+            "\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
+            "\n"
+            "==Params==\n"
+            "General:\n"
+            "\t -flags_set <value>:\t Set list of flags from <value> to token declaration\n"
+            "\t -flags_unset <value>:\t Unset list of flags from <value> from token declaration\n"
+            "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
+            "\t -signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t -signs_add <value>:\t Add signature's pkey fingerprint to the list of owners\n"
+            "\t -signs_remove <value>:\t Remove signature's pkey fingerprint from the owners\n"
+            "\nDatum type allowed/blocked updates:\n"
+            "\t -datum_type_allowed_add <value>:\t Add allowed datum type(s)\n"
+            "\t -datum_type_allowed_remove <value>:\t Remove datum type(s) from allowed\n"
+            "\t -datum_type_allowed_clear:\t Remove all datum types from allowed\n"
+            "\t -datum_type_blocked_add <value>:\t Add blocked datum type(s)\n"
+            "\t -datum_type_blocked_remove <value>:\t Remove datum type(s) from blocked\n"
+            "\t -datum_type_blocked_clear:\t Remove all datum types from blocked\n"
+            "\nTx receiver addresses allowed/blocked updates:\n"
+            "\t -tx_receiver_allowed_add <value>:\t Add allowed tx receiver(s)\n"
+            "\t -tx_receiver_allowed_remove <value>:\t Remove tx receiver(s) from allowed\n"
+            "\t -tx_receiver_allowed_clear:\t Remove all tx receivers from allowed\n"
+            "\t -tx_receiver_blocked_add <value>:\t Add blocked tx receiver(s)\n"
+            "\t -tx_receiver_blocked_remove <value>:\t Remove tx receiver(s) from blocked\n"
+            "\t -tx_receiver_blocked_clear:\t Remove all tx receivers from blocked\n"
+            "\nTx sender addresses allowed/blocked updates:\n"
+            "\t -tx_sender_allowed_add <value>:\t Add allowed tx sender(s)\n"
+            "\t -tx_sender_allowed_remove <value>:\t Remove tx sender(s) from allowed\n"
+            "\t -tx_sender_allowed_clear:\t Remove all tx senders from allowed\n"
+            "\t -tx_sender_blocked_add <value>:\t Add allowed tx sender(s)\n"
+            "\t -tx_sender_blocked_remove <value>:\t Remove tx sender(s) from blocked\n"
+            "\t -tx_sender_blocked_clear:\t Remove all tx sender(s) from blocked\n"
+            "\n"
             );
+    // Token commands
+    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, NULL, "Token declaration",
+            "Simple token declaration:\n"
+            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
+            "\t\  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
+            "\nExtended private token declaration\n"
+            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>"
+            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
+            "\n"
+            "==Flags=="
+            "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
+            "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
+            "\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
+            "\t ALL_UNFROZEN:\t Unfrozen permissions\n"
+            "\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
+            "\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
+            "\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
+            "\n"
+            "==Params==\n"
+            "General:\n"
+            "\t -flags <value>:\t List of flags from <value> to token declaration\n"
+            "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
+            "\t -signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t -signs <value>:\t Signature's fingerprint list\n"
+            "\nDatum type allowed/blocked:\n"
+            "\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
+            "\t -datum_type_blocked <value>:\t Set blocked datum type(s)\n"
+            "\nTx receiver addresses allowed/blocked:\n"
+            "\t -tx_receiver_allowed <value>:\t Set allowed tx receiver(s)\n"
+            "\t -tx_receiver_blocked <value>:\t Set blocked tx receiver(s)\n"
+            "\nTx sender addresses allowed/blocked:\n"
+            "\t -tx_sender_allowed <value>:\t Set allowed tx sender(s)\n"
+            "\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
+            "\n"
+            );
+    /// -------- General tsd types ----
+    // Flags set/unsed
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS           0x0001
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS         0x0002
+
+    // Total supply limits
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0003
+
+    // Set total signs count value to set to be valid
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID   0x0004
+
+    // Add owner signature's pkey fingerprint
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD     0x0006
+
+    // Remove owner signature by pkey fingerprint
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE  0x0007
+
+
+
+    /// ------- Permissions list flags, grouped by update-remove-clear operations --------
+    // Allowed datum types list update, remove or clear
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_UPDATE       0x0010
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE       0x0011
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_CLEAR        0x0012
+
+    // Blocked datum types list update, remove or clear
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_UPDATE       0x0013
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE       0x0014
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_CLEAR        0x0015
+
+    //Allowed tx receiver addres list update, remove or clear
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_UPDATE       0x0014
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE       0x0015
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_CLEAR        0x0016
+
+    //Blocked tx receiver addres list update, remove or clear
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_UPDATE       0x0017
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE       0x0018
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_CLEAR        0x0019
+
+
+    //Allowed tx sender addres list update, remove or clear
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_UPDATE       0x0020
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE       0x0021
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_CLEAR        0x0022
+
+    //Blocked tx sender addres list update, remove or clear
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_UPDATE       0x0023
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE       0x0024
+    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR        0x0025
+
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, NULL, "Token declaration add sign",
             "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
@@ -843,6 +976,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, NULL, "Delete datum with hash <datum hash>",
             "mempool_delete -net <net name> -chain <chain name> -datum <datum hash>\n");
+
+    dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca, NULL,
+                                        "Add pubic certificate into the mempool to prepare its way to chains",
+            "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
 
 
     // Transaction commands
