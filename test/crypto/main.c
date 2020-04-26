@@ -14,7 +14,7 @@
 #include "rand/dap_rand.h"
 
 #include "dap_common.h"
-void dap_enc_bf_cbc_tests_run();
+void dap_enc_bf_tests_run();
 
 int main(void)
 {
@@ -22,7 +22,7 @@ int main(void)
     dap_log_level_set(L_CRITICAL);
    //
 
-    dap_enc_bf_cbc_tests_run();
+    dap_enc_bf_tests_run();
     //dap_enc_ringct20_tests_run(100);
     return 0;
     dap_enc_picnic_tests_run();

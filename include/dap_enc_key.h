@@ -44,11 +44,16 @@ typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
 
 
-typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
+typedef enum dap_enc_key_type{
 
+
+                           DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                            DAP_ENC_KEY_TYPE_OAES,// from https://github.com/monero-project/monero/tree/master/src/crypto
 
                            DAP_ENC_KEY_TYPE_BF_CBC,// BlowFish CBCmode
+                           DAP_ENC_KEY_TYPE_BF_OFB,//BlowFish OFBmode
+
+
 
                            DAP_ENC_KEY_TYPE_RLWE_NEWHOPE, // "NewHope": key exchange from the ring learning with errors problem
                                                 //  (Alkim, Ducas, Pöppelmann, Schwabe, USENIX Security 2016 )
