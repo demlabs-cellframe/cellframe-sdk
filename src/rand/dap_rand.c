@@ -28,10 +28,13 @@ uint32_t random_uint32_t(const uint32_t MAX_NUMBER)
 
 int randombase64(void*random_array, unsigned int size)
 {
-    int off = size - (size*6)/8;
-    int odd_signs = size - ((size*6)/8)*8;
-    randombytes(random_array + off, (size*6)/8);
-    dap_enc_base64_encode(random_array + off, (size*6)/8,random_array,DAP_ENC_DATA_TYPE_B64);
+    int off = size - (size*8/32)*24;
+    int odd_signs = size - ((size*8/32)*24)*32;
+    if(odd_signs < size)
+    {
+        randombytes(random_array + off, (size*6)/8);
+        dap_enc_base64_encode(random_array + off, (size*6)/8,random_array,DAP_ENC_DATA_TYPE_B64);
+    }
     if(odd_signs)
     {
         uint8_t tmpv[7];

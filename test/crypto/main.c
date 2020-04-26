@@ -20,6 +20,8 @@ int main(void)
 {
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
+   //
+
     dap_enc_bf_cbc_tests_run();
     //dap_enc_ringct20_tests_run(100);
     return 0;
@@ -28,6 +30,7 @@ int main(void)
     dap_enc_dilithium_tests_run();
     dap_enc_aes_tests_run();
     dap_enc_oaes_tests_run();
+
     dap_enc_base64_tests_run();
     dap_enc_base58_tests_run();
     dap_enc_msrln_tests_run();
