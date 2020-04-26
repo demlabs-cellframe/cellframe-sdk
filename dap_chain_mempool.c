@@ -85,11 +85,28 @@ int dap_datum_mempool_init(void)
  * @param a_datum
  * @return
  */
-int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum)
+int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
 {
-    // TODO
-    (void) a_datum;
-    return -1;
+    if( a_datum == NULL){
+        log_it(L_ERROR, "NULL datum trying to add in mempool");
+        return -1;
+    }
+    int ret =0;
+
+    dap_chain_hash_fast_t l_key_hash;
+    dap_hash_fast(a_datum->data , a_datum->header.data_size, &l_key_hash);
+
+    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (byte_t *) a_datum, dap_chain_datum_size(a_datum)
+            ,l_gdb_group)) {
+        log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
+    }else{
+        log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
+    }
+    DAP_DELETE(l_gdb_group);
+    DAP_DELETE(l_key_str);
+    return ret;
 }
 
 /**
@@ -207,21 +224,13 @@ int dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
-
-    dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_tx, l_tx_size, &l_key_hash);
     DAP_DELETE(l_tx);
-
-    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
-    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-            ,l_gdb_group)) {
-        log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
+    if(dap_chain_mempool_datum_add (l_datum, a_chain) == 0){
+        return 0;
+    }else{
+        DAP_DELETE( l_datum );
+        return -4;
     }
-    DAP_DELETE(l_gdb_group);
-    DAP_DELETE(l_key_str);
-
-    return 0;
 }
 
 /**
@@ -418,6 +427,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
     }
     dap_list_free_full(l_list_used_out, free);
+
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
     //return 0;

@@ -67,7 +67,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
         const dap_chain_addr_t* a_addr_to, dap_enc_key_t * l_key_tx_sign, dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size);
 
 
-int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum);
+int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain );
 int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
