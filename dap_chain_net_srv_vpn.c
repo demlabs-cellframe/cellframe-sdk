@@ -130,7 +130,7 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
 
 
 // Tunnel threads
-static void *srv_ch_sf_thread(void * arg);
+static void *srv_ch_sf_thread(void * a_arg);
 static void *srv_ch_sf_thread_raw(void *arg);
 static void s_tun_create(void);
 static void s_tun_destroy(void);
@@ -1179,8 +1179,9 @@ void srv_stream_sf_disconnect(ch_vpn_socket_proxy_t * sf_sock)
  Socket forward
  **/
 
-void * srv_ch_sf_thread(void * arg)
+void * srv_ch_sf_thread(void * a_arg)
 {
+    UNUSED(a_arg);
     struct epoll_event ev, events[SF_MAX_EVENTS] = { 0 };
     //pthread_mutex_lock(&sf_socks_mutex);
     sf_socks_epoll_fd = epoll_create(SF_MAX_EVENTS);
@@ -1266,6 +1267,7 @@ void * srv_ch_sf_thread(void * arg)
         }
         //pthread_mutex_unlock(&sf_socks_mutex);
     }
+    return NULL;
 }
 
 static volatile bool s_srv_ch_sf_thread_raw_is_exit = false;
@@ -1273,6 +1275,7 @@ static volatile bool s_srv_ch_sf_thread_raw_is_exit = false;
 /* Signal handler. */
 static void s_sig_handle (int sig)
 {
+    UNUSED(sig);
     s_srv_ch_sf_thread_raw_is_exit = true;
 }
 
@@ -1282,6 +1285,7 @@ static void s_sig_handle (int sig)
  **/
 void* srv_ch_sf_thread_raw(void *arg)
 {
+    UNUSED(arg);
     s_tun_create();
 
     if(s_raw_server->tun_fd <= 0) {
