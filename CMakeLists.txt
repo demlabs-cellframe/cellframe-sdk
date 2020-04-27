@@ -71,8 +71,8 @@ file( GLOB CRYPTO_HEADERS
 enable_language(ASM)
 
 file( GLOB XKCP_SRCS
-  src/XKCP/lib/high/Keccak/FIPS202/KeccakHash.c
-  src/XKCP/lib/high/Keccak/KeccakSpongeWidth1600.c
+  #src/XKCP/lib/high/Keccak/FIPS202/KeccakHash.c
+  #src/XKCP/lib/high/Keccak/KeccakSpongeWidth1600.c
   src/XKCP/lib/high/Keccak/SP800-185/SP800-185.c
   src/XKCP/lib/high/Keccak/FIPS202/SimpleFIPS202.c
 )
