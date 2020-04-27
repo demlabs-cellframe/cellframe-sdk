@@ -2,7 +2,7 @@
 #include "dap_common.h"
 #include "dap_enc_test.h"
 #include "dap_test.h"
-#include "dap_test_generator.h"
+#include "rand/dap_rand.h"
 #include "dap_enc_key.h"
 #include "dap_enc_base64.h"
 #include "dap_enc_bliss.h"
@@ -125,47 +125,65 @@ static void _encrypt_decrypt(enum dap_enc_key_type key_type,
                              size_t count_steps)
 {
     size_t source_size = 1;
-
+    const int MAX_SEED_SIZE = 14;
+    uint8_t seed[MAX_SEED_SIZE];
     for (size_t i = 0; i < count_steps; i++) {
-        int step = 1 + (rand() % 20);
-        source_size += (size_t)step;
+        int step = 2;// + random_uint32_t( 20);
+        source_size = (size_t)step;
 
         const char *kex_data = "123";
         size_t kex_size = strlen(kex_data);
-        const size_t seed_size = 1 + (rand() % 1000);
-        uint8_t seed[seed_size];
+        const size_t seed_size = 2;// + random_uint32_t(MAX_SEED_SIZE-1);
 
-        generate_random_byte_array(seed, seed_size);
-
+        randombytes(seed, seed_size);
+        printf("i = %d ss = %d, ss=%d\n",i, source_size,seed_size );fflush(stdout);
+        uint8_t *source = DAP_NEW_SIZE(uint8_t, source_size);
+        printf(".");fflush(stdout);
+        randombytes(source, source_size);
+        printf(".");fflush(stdout);
         dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex_data, kex_size, seed, seed_size, 0);
+        printf(".");fflush(stdout);
 
-
-        uint8_t source[source_size];
         size_t encrypt_buff_size = dap_enc_code_out_size(key, source_size, data_type);
-        uint8_t encrypt_result[encrypt_buff_size];
-
-        generate_random_byte_array(source, source_size);
-
+        uint8_t *encrypt_result = DAP_NEW_SIZE(uint8_t, encrypt_buff_size);
+        printf(".");fflush(stdout);
         size_t encrypted_size = dap_enc_code(key, source,
                                              source_size,
                                              encrypt_result,
                                              encrypt_buff_size,
                                              data_type);
-
+        printf(".");fflush(stdout);
         size_t min_decode_buff_size = dap_enc_decode_out_size(key, encrypt_buff_size, data_type);
-        uint8_t decode_result[min_decode_buff_size];
+        printf(".");fflush(stdout);
+        uint8_t *decode_result = DAP_NEW_SIZE(uint8_t, min_decode_buff_size);
+        printf(".");fflush(stdout);
         size_t out_size = dap_enc_decode(key,
                                          encrypt_result,
                                          encrypted_size,
                                          decode_result,
                                          min_decode_buff_size,
                                          data_type);
+        printf("source_size = %d, out_size = %d, min_decode_buff_size = %d, encrypt_buff_size = %d, encrypted_size = %d\n",
+               source_size, out_size,min_decode_buff_size, encrypt_buff_size, encrypted_size);
+        printf("%.2x%.2x\n", source[0], source[1]);
+        printf(".");fflush(stdout);
 
         dap_assert_PIF(source_size == out_size, "Check result decode size");
 
+        printf(".");fflush(stdout);
         dap_assert_PIF(memcmp(source, decode_result, source_size) == 0, "Check source and encode->decode data");
+        printf(".");fflush(stdout);
+#ifdef xxxxx
 
+
+
+#endif
+        DAP_DELETE(decode_result);
+        DAP_DELETE(encrypt_result);
+        DAP_DELETE(source);
+        printf(".");fflush(stdout);
         dap_enc_key_delete(key);
+        printf(".\n");fflush(stdout);
     }
 }
 
@@ -256,10 +274,10 @@ static void test_serealize_deserealize(dap_enc_key_type_t key_type)
 {
     const char *kex_data = "1234567890123456789012345678901234567890";//"123";
     size_t kex_size = strlen(kex_data);
-    const size_t seed_size = 1 + (rand() % 1000);
+    const size_t seed_size = 1 + random_uint32_t( 1000);
     uint8_t seed[seed_size];
 
-    generate_random_byte_array(seed, seed_size);
+    randombytes(seed, seed_size);
 
 //  for key_type==DAP_ENC_KEY_TYPE_OAES must be: key_size=[16|24|32] and kex_size>=key_size
     dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex_data, kex_size, seed, seed_size, 32);
@@ -331,9 +349,9 @@ static void test_serealize_deserealize_pub_priv(dap_enc_key_type_t key_type)
 {
     const char *kex_data = "1234567890123456789012345678901234567890"; //"123";
     size_t kex_size = strlen(kex_data);
-    const size_t seed_size = 1 + (rand() % 1000);
+    const size_t seed_size = 1 + random_uint32_t( 1000);
     uint8_t seed[seed_size];
-    generate_random_byte_array(seed, seed_size);
+    randombytes(seed, seed_size);
 
     // Generate key
     dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex_data, kex_size, seed, seed_size, 32);
@@ -364,11 +382,11 @@ static void test_serealize_deserealize_pub_priv(dap_enc_key_type_t key_type)
     dap_assert(key->pub_key_data_size == key2->pub_key_data_size, "Pub key data size");
     dap_pass_msg("Key serealize->deserealize");
 
-    size_t source_size = 10 + (rand() % 20);
+    size_t source_size = 10 + random_uint32_t( 20);
     uint8_t source_buf[source_size];
     size_t sig_buf_size = 0;
     uint8_t *sig_buf = NULL;
-    generate_random_byte_array(source_buf, source_size);
+    randombytes(source_buf, source_size);
 
     // encode by key
     int is_sig = 0, is_vefify = 0;
@@ -448,7 +466,7 @@ static void test_serealize_deserealize_pub_priv(dap_enc_key_type_t key_type)
 void dap_enc_tests_run() {
     dap_print_module_name("dap_enc");
     init_test_case();
-    test_encode_decode_raw(50);
+    test_encode_decode_raw(500);return;
     test_encode_decode_raw_b64(50);
     test_encode_decode_raw_b64_url_safe(50);
     test_key_transfer_msrln();

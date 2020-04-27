@@ -7,14 +7,10 @@
 
 size_t iaes_calc_block128_size(size_t length_data)
 {
-    if(length_data < IAES_BLOCK_SIZE) {
-        return IAES_BLOCK_SIZE;
-    } else if((length_data % IAES_BLOCK_SIZE) == 0) {
-        return length_data;
-    }
-
-    size_t padding = 16 - length_data % 16;
-    return length_data + padding;
+    size_t new_length_data = length_data + 1;
+    size_t padding = IAES_BLOCK_SIZE - new_length_data % IAES_BLOCK_SIZE;
+    new_length_data += padding;
+    return new_length_data;
 }
 
 size_t iaes_block128_padding(const void *data, uint8_t **data_new, size_t length_data)
