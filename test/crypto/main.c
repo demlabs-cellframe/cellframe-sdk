@@ -19,19 +19,19 @@ int main(void)
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
 
-    dap_enc_tests_run();return 0;
+    dap_enc_tests_run();
 
-    dap_enc_ringct20_tests_run(100);
-    test_encode_decode      (100, DAP_ENC_KEY_TYPE_BF_CBC,0);
-    test_encode_decode_fast (100, DAP_ENC_KEY_TYPE_BF_CBC,0);
-    test_encode_decode      (100, DAP_ENC_KEY_TYPE_BF_OFB,0);
-    test_encode_decode_fast (100, DAP_ENC_KEY_TYPE_BF_OFB,0);
-    test_encode_decode      (100, DAP_ENC_KEY_TYPE_GOST_OFB,32);
-    test_encode_decode_fast (100, DAP_ENC_KEY_TYPE_GOST_OFB,32);
-    test_encode_decode      (100, DAP_ENC_KEY_TYPE_IAES,32);
-    test_encode_decode_fast (100, DAP_ENC_KEY_TYPE_IAES,32);
-    test_encode_decode      (100, DAP_ENC_KEY_TYPE_OAES,32);
-    test_encode_decode_fast (100, DAP_ENC_KEY_TYPE_OAES,32);
+    dap_enc_ringct20_tests_run(1000);
+    test_encode_decode      (1000, DAP_ENC_KEY_TYPE_BF_CBC,0);
+    test_encode_decode_fast (1000, DAP_ENC_KEY_TYPE_BF_CBC,0);
+    test_encode_decode      (1000, DAP_ENC_KEY_TYPE_BF_OFB,0);
+    test_encode_decode_fast (1000, DAP_ENC_KEY_TYPE_BF_OFB,0);
+    test_encode_decode      (1000, DAP_ENC_KEY_TYPE_GOST_OFB,32);
+    test_encode_decode_fast (1000, DAP_ENC_KEY_TYPE_GOST_OFB,32);
+    test_encode_decode      (1000, DAP_ENC_KEY_TYPE_IAES,32);
+    test_encode_decode_fast (1000, DAP_ENC_KEY_TYPE_IAES,32);
+    test_encode_decode      (1000, DAP_ENC_KEY_TYPE_OAES,32);
+    test_encode_decode_fast (1000, DAP_ENC_KEY_TYPE_OAES,32);
 
     dap_enc_picnic_tests_run();
     dap_enc_sig_bliss_tests_run();

@@ -79,7 +79,7 @@ struct dap_enc_key_callbacks{
         .gen_key_public = NULL,
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_iaes256_calc_encode_size,
-        .dec_out_size = dap_enc_iaes256_calc_decode_size,
+        .dec_out_size = dap_enc_iaes256_calc_decode_max_size,
         .sign_get = NULL,
         .sign_verify = NULL
     },
