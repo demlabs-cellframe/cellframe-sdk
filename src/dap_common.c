@@ -718,7 +718,7 @@ size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
 /**
  * Convert string to digit
  */
-void dap_digit_from_string(const char *num_str, uint8_t *raw, size_t raw_len)
+void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len)
 {
     if(!num_str)
         return;
@@ -743,7 +743,7 @@ typedef union {
   uint64_t  addr;
 } node_addr_t;
 
-void dap_digit_from_string2(const char *num_str, uint8_t *raw, size_t raw_len)
+void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len)
 {
     if(!num_str)
         return;
