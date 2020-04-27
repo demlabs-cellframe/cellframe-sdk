@@ -745,23 +745,23 @@ int com_global_db(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply
         int res_flush = dap_chain_global_db_flush();
         switch (res_flush) {
         case 0:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Commit data base and filesystem caches to disk completed.");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Commit data base and filesystem caches to disk completed.\n\n");
             break;
         case -1:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Couldn't open db directory. Can't init cdb");
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Couldn't open db directory. Can't init cdb\n"
+                                                           "Reboot the node.\n\n");
             break;
         case -2:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't init cdb");
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't init cdb\n"
+                                                           "Reboot the node.\n\n");
             break;
         case -3:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't init sqlite");
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't init sqlite\n"
+                                                           "Reboot the node.\n\n");
             break;
         default:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't commit data base caches to disk completed.");
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Reboot the node.");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't commit data base caches to disk completed.\n"
+                                                           "Reboot the node.\n\n");
             break;
         }
         return 0;
