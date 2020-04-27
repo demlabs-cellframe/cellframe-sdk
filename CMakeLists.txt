@@ -38,8 +38,6 @@ if(NOT SUBMODULES_NO_BUILD)
   endif()
   option(BUILD_64 "Build for 64-bit? 'OFF' builds for 32-bit." ${DEFAULT_BUILD_64})
 
-  add_definitions ("-DDAP_SERVER")
-  add_definitions ("-DNODE_NETNAME=\"cellframe\"")
 
 	if(WIN32)
 
