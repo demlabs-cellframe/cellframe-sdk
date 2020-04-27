@@ -83,13 +83,13 @@ size_t dap_enc_iaes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in
 
     *a_out = (uint8_t *) malloc(a_in_size);
 
-    return IAES_256_CBC_decrypt(a_in, *a_out, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size, a_key->priv_key_data);
+    return dap_enc_iaes256_cbc_decrypt_fast(a_key, a_in, a_in_size, *a_out, a_in_size);
 }
 
 size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void * a_in,
                                         size_t a_in_size, void * buf_out, size_t buf_out_size)
 {
-    if (a_in_size % 16) {
+    if (a_in_size % IAES_BLOCK_SIZE) {
         log_it(L_ERROR, "Bad in size");
         return 0;
     } else if(buf_out_size < a_in_size) {
@@ -97,30 +97,53 @@ size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void *
         return 0;
     }
 
-    return IAES_256_CBC_decrypt(a_in, buf_out, DAP_ENC_AES_KEY(a_key)->ivec,
-                                a_in_size, a_key->priv_key_data);
+    size_t block_in32_size = IAES_BLOCK_SIZE/sizeof(uint32_t);
+    uint32_t round_decrypt_key[60];
+    uint32_t feedback[block_in32_size];
+
+    memcpy(&feedback[0], DAP_ENC_AES_KEY(a_key)->ivec, IAES_BLOCK_SIZE);
+    swap_endian((uint32_t *)a_key->priv_key_data, IAES_KEYSIZE/sizeof(uint32_t));
+    Key_Shedule_for_decrypT((uint32_t *)a_key->priv_key_data, round_decrypt_key);
+
+    void *data = buf_out;
+    const void *cdata = a_in;
+    size_t count_block, count32_word;
+    for(count_block = 0; count_block < (a_in_size/IAES_BLOCK_SIZE); count_block++){
+
+        AES256_dec_cernelT((uint32_t *)cdata + count_block*block_in32_size,
+                           (uint32_t *)data + count_block*block_in32_size, round_decrypt_key);
+
+        for (count32_word = 0; count32_word < block_in32_size; count32_word++)
+            *((uint32_t *)data + count_block * block_in32_size + count32_word) ^= feedback[count32_word];
+        memcpy(&feedback[0], (uint32_t *)cdata + count_block*block_in32_size, IAES_BLOCK_SIZE);
+    }
+//    for(int i = 0; i < 16; ++i)
+//    {printf("%.2x ", ((uint8_t*)data)[i]);}
+//    printf("\n");fflush(stdout);
+    swap_endian((uint32_t *)a_key->priv_key_data, IAES_KEYSIZE/sizeof(uint32_t));
+
+    return a_in_size - ((uint8_t *)data)[a_in_size - 1];
+
 }
 
 size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     size_t length_data_new;
-    uint8_t *data_new;
 
-    length_data_new = iaes_block128_padding(a_in, &data_new, a_in_size);
-    *a_out = (uint8_t *)malloc(length_data_new);
+    length_data_new = dap_enc_iaes256_calc_encode_size(a_in_size);
 
-    IAES_256_CBC_encrypt(data_new, *a_out, DAP_ENC_AES_KEY(a_key)->ivec, length_data_new, a_key->priv_key_data);
+     *a_out = DAP_NEW_SIZE(uint8_t, length_data_new);
 
-    free(data_new);
+    dap_enc_iaes256_cbc_encrypt_fast(a_key, a_in, a_in_size, *a_out, length_data_new);
     return length_data_new;
 }
 
 size_t dap_enc_iaes256_calc_encode_size(const size_t size_in)
 {
-    return iaes_calc_block128_size(size_in);
+    return size_in + 1 + (IAES_BLOCK_SIZE - (size_in + 1)%IAES_BLOCK_SIZE)%IAES_BLOCK_SIZE;
 }
 
-size_t dap_enc_iaes256_calc_decode_size(const size_t size_in)
+size_t dap_enc_iaes256_calc_decode_max_size(const size_t size_in)
 {
     return size_in;
 }
@@ -128,24 +151,60 @@ size_t dap_enc_iaes256_calc_decode_size(const size_t size_in)
 size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in,
                                         size_t a_in_size, void * buf_out, size_t buf_out_size)
 {
-    size_t out_size = iaes_calc_block128_size(a_in_size);
-
-    if((a_in_size % IAES_BLOCK_SIZE) == 0) {
-        IAES_256_CBC_encrypt(a_in, buf_out, DAP_ENC_AES_KEY(a_key)->ivec, out_size, a_key->priv_key_data);
-        return out_size;
-    }
-
+    size_t out_size = dap_enc_iaes256_calc_encode_size(a_in_size);
     if(buf_out_size < out_size) {
         log_it(L_ERROR, "buf_out_size less than expected encrypt out size data");
         return 0;
     }
-    uint8_t* data_in_new;
-    iaes_block128_padding(a_in, &data_in_new, a_in_size);
 
-    IAES_256_CBC_encrypt(data_in_new, buf_out, DAP_ENC_AES_KEY(a_key)->ivec,
-                         out_size, a_key->priv_key_data);
+    int last_block_from_in = a_in_size%IAES_BLOCK_SIZE;
 
-    free(data_in_new);
+    size_t block_in32_size = IAES_BLOCK_SIZE/sizeof(uint32_t);
+    uint32_t feedback[block_in32_size];
+
+    memcpy(&feedback[0], DAP_ENC_AES_KEY(a_key)->ivec, IAES_BLOCK_SIZE);
+    swap_endian((uint32_t *)a_key->priv_key_data, IAES_KEYSIZE/sizeof(uint32_t));
+
+    size_t count_block, count32_word;
+    const void *data = a_in;
+    void *cdata = buf_out;
+    for(count_block = 0; count_block < (a_in_size - last_block_from_in)/IAES_BLOCK_SIZE; count_block++)
+    {
+        for (count32_word = 0; count32_word < block_in32_size; count32_word++)
+           *((uint32_t *)cdata + count_block * block_in32_size + count32_word) =
+                *((uint32_t *)data + count_block * block_in32_size + count32_word) ^ feedback[count32_word];
+
+        AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)a_key->priv_key_data);
+
+        memcpy ((uint32_t *)cdata + count_block * block_in32_size, &feedback[0], IAES_BLOCK_SIZE);
+    }
+    uint8_t tmp_in[IAES_BLOCK_SIZE];
+    memcpy(tmp_in, a_in + a_in_size/IAES_BLOCK_SIZE*IAES_BLOCK_SIZE, last_block_from_in);
+    int padd_size = IAES_BLOCK_SIZE - last_block_from_in;
+    for(int padd_num = 0; padd_num < padd_size - 1; ++padd_num)
+        tmp_in[last_block_from_in + padd_num] = 16;
+
+    tmp_in[IAES_BLOCK_SIZE - 1] = padd_size;
+
+    for (count32_word = 0; count32_word < block_in32_size; count32_word++)
+       *((uint32_t *)cdata + count_block * block_in32_size + count32_word) =
+            *((uint32_t *)tmp_in + count32_word) ^ feedback[count32_word];
+
+    AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)a_key->priv_key_data);
+
+    memcpy ((uint32_t *)cdata + count_block * block_in32_size, &feedback[0], IAES_BLOCK_SIZE);
+    swap_endian((uint32_t *)a_key->priv_key_data,IAES_KEYSIZE/sizeof(uint32_t));
+
+
+//    IAES_256_CBC_encrypt(a_in, buf_out, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size - last_block_from_in, a_key->priv_key_data);
+//    uint8_t tmp_in[IAES_BLOCK_SIZE];
+//    memcpy(tmp_in, a_in + a_in_size/IAES_BLOCK_SIZE*IAES_BLOCK_SIZE, last_block_from_in);
+//    int padd_size = IAES_BLOCK_SIZE - last_block_from_in;
+//    for(int padd_num = 0; padd_num < padd_size; ++padd_num)
+//        tmp_in[last_block_from_in + padd_num] = 16;
+
+//    tmp_in[last_block_from_in + IAES_BLOCK_SIZE - 1] = padd_size;
+//    IAES_256_CBC_encrypt(tmp_in, buf_out + a_in_size - last_block_from_in, buf_out + a_in_size - last_block_from_in - IAES_BLOCK_SIZE, IAES_BLOCK_SIZE, a_key->priv_key_data);
 
     return out_size;
 }

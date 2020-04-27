@@ -30,9 +30,6 @@
 #include <time.h>
 #include <stdint.h>
 #include "dap_common.h"
-//#ifndef byte_t
-//    typedef uint_8_t byte_t;
-//#endif
 
 typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
@@ -44,11 +41,17 @@ typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
 
 
-typedef enum dap_enc_key_type{ DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
+typedef enum dap_enc_key_type{
 
+
+                           DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                            DAP_ENC_KEY_TYPE_OAES,// from https://github.com/monero-project/monero/tree/master/src/crypto
 
                            DAP_ENC_KEY_TYPE_BF_CBC,// BlowFish CBCmode
+                           DAP_ENC_KEY_TYPE_BF_OFB,//BlowFish OFBmode
+
+                           DAP_ENC_KEY_TYPE_GOST_OFB,//GOST28147_89
+                           DAP_ENC_KEY_TYPE_KUZN_OFB,//GOST28147_14
 
                            DAP_ENC_KEY_TYPE_RLWE_NEWHOPE, // "NewHope": key exchange from the ring learning with errors problem
                                                 //  (Alkim, Ducas, Pöppelmann, Schwabe, USENIX Security 2016 )
@@ -227,7 +230,7 @@ extern "C" {
 int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
-
+char *dap_enc_get_type_name(dap_enc_key_type_t key_type);
 size_t dap_enc_key_get_enc_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 

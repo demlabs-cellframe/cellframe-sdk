@@ -11,6 +11,7 @@
 # error If you set BF_ROUNDS to some value other than 16 or 20, you will have \
 to modify the code.
 #endif
+//#include<stdio.h>
 
 void BF_encrypt(BF_LONG *data, const BF_KEY *key)
 {
@@ -115,8 +116,24 @@ void BF_cbc_encrypt(const unsigned char *in, unsigned char *out, long length,
             l2n(tout0, out);
             l2n(tout1, out);
         }
-        if (l != -8) {
-            n2ln(in, tin0, tin1, l + 8);
+        if (1||l != -8) {
+            unsigned char tmpin[16];
+            unsigned char *ptmpin = tmpin;
+            memcpy(tmpin, in, l + 8);
+            memcpy(tmpin + l + 8, &length, 4);
+            int pad_length = (8-(l + 8 + 4 + 1)%8)%8;
+            for(int i = 0; i < pad_length; ++i)
+            {
+                tmpin[l+8+4+i]=16;//prng better
+            }
+            tmpin[l+8+4+pad_length]=pad_length;
+//            for(int i = 0; i < l + 8 + 4 +1 +pad_length; ++i)
+//            {
+//                printf("%.2x ", tmpin[i]);
+//            }
+//            printf("\n");fflush(stdout);
+            n2l(ptmpin, tin0);
+            n2l(ptmpin, tin1);
             tin0 ^= tout0;
             tin1 ^= tout1;
             tin[0] = tin0;
@@ -126,6 +143,32 @@ void BF_cbc_encrypt(const unsigned char *in, unsigned char *out, long length,
             tout1 = tin[1];
             l2n(tout0, out);
             l2n(tout1, out);
+            if(l+8+4+pad_length + 1 == 16)
+            {
+                n2l(ptmpin, tin0);
+                n2l(ptmpin, tin1);
+                tin0 ^= tout0;
+                tin1 ^= tout1;
+                tin[0] = tin0;
+                tin[1] = tin1;
+                BF_encrypt(tin, schedule);
+                tout0 = tin[0];
+                tout1 = tin[1];
+                l2n(tout0, out);
+                l2n(tout1, out);
+            }
+
+
+//            n2ln(in, tin0, tin1, l + 8);
+//            tin0 ^= tout0;
+//            tin1 ^= tout1;
+//            tin[0] = tin0;
+//            tin[1] = tin1;
+//            BF_encrypt(tin, schedule);
+//            tout0 = tin[0];
+//            tout1 = tin[1];
+//            l2n(tout0, out);
+//            l2n(tout1, out);
         }
         l2n(tout0, ivec);
         l2n(tout1, ivec);

@@ -7,26 +7,12 @@
 
 size_t iaes_calc_block128_size(size_t length_data)
 {
-    if(length_data < IAES_BLOCK_SIZE) {
-        return IAES_BLOCK_SIZE;
-    } else if((length_data % IAES_BLOCK_SIZE) == 0) {
-        return length_data;
-    }
-
-    size_t padding = 16 - length_data % 16;
-    return length_data + padding;
+    size_t new_length_data = length_data + 1;
+    size_t padding = IAES_BLOCK_SIZE - new_length_data % IAES_BLOCK_SIZE;
+    new_length_data += padding;
+    return new_length_data;
 }
 
-size_t iaes_block128_padding(const void *data, uint8_t **data_new, size_t length_data)
-{
-    size_t length_data_new = iaes_calc_block128_size(length_data);
-
-    *data_new = (uint8_t *) malloc(length_data_new);
-    memcpy(*data_new, data, length_data);
-    memset(*data_new + length_data, 0x0, length_data_new - length_data);
-
-    return length_data_new;
-}
 
 void swap_endian(uint32_t *buff, unsigned long len)
 {
@@ -214,7 +200,7 @@ void IAES_256_CBC_encrypt(const uint8_t *data, uint8_t *cdata, uint8_t *ivec, un
         AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)masterkey);
 
         memcpy ((uint32_t *)cdata + count_block * block_in32_size, &feedback[0], IAES_BLOCK_SIZE);
-       }
+    }
     swap_endian((uint32_t *)masterkey,IAES_KEYSIZE/sizeof(uint32_t));
 }
 
@@ -487,19 +473,7 @@ size_t IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *data, uint8_t *ivec, 
         memcpy(&feedback[0], (uint32_t *)cdata + count_block*block_in32_size, IAES_BLOCK_SIZE);
     }
     swap_endian((uint32_t *)masterkey, IAES_KEYSIZE/sizeof(uint32_t));
-
-    size_t i, padding = 0;
-    size_t end = length > 16 ? length - 16 : 0;
-	if(length>0)
-        for(i = length-1; i >= end; i--)
-        {
-            if(data[i] == 0)
-                padding++;
-            else
-                break;
-        }
-
-    return length - padding;
+    return length;
 }
 
 

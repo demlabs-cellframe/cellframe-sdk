@@ -6,6 +6,10 @@
 
 #define IAES_BLOCK_SIZE 16
 #define IAES_KEYSIZE 32
+void AES256_enc_cernelT(uint32_t * in, uint32_t * out, uint32_t * masterkey);
+void AES256_dec_cernelT(uint32_t * in, uint32_t * out, uint32_t * decr_key);
+void swap_endian(uint32_t *buff, unsigned long len);
+void Key_Shedule_for_decrypT(uint32_t * key, uint32_t * rounds_keys);
 
 void IAES_256_CBC_encrypt(const uint8_t *data, uint8_t *output, uint8_t * ivec, unsigned long length, uint8_t *masterkey);
 size_t IAES_256_CBC_decrypt(const uint8_t *cdata, uint8_t *output, uint8_t * ivec, unsigned long length, uint8_t *key);
