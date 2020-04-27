@@ -12,7 +12,7 @@
 #ifdef WIN32
      #define DLL_IMPORT __stdcall
 #else
-     #define DLL_IMPORT __attribute__((stdcall))
+     #define DLL_IMPORT
 #endif
 
 #endif
