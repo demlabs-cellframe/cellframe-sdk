@@ -4,8 +4,6 @@ project (dap_chain_mempool)
 file(GLOB DAP_CHAIN_MEMPOOL_SRC *.c)
 file(GLOB DAP_CHAIN_MEMPOOL_HDR *.h)
 
-add_definitions ("-DNODE_NETNAME=\"kelvin\"")
-
 if(WIN32)
   include_directories(../3rdparty/wepoll/)
   include_directories(../3rdparty/uthash/src/)
