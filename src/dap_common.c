@@ -271,7 +271,10 @@ int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename
  * @brief dap_common_deinit Deinitialise
  */
 void dap_common_deinit( ) {
+    pthread_mutex_lock(&s_log_mutex);
     s_log_term_signal = true;
+    pthread_cond_signal(&s_log_cond);
+    pthread_mutex_unlock(&s_log_mutex);
     pthread_join(s_log_thread, NULL);
     if (s_log_file)
         fclose(s_log_file);
@@ -289,29 +292,32 @@ static void *s_log_thread_proc(void *arg) {
         pthread_mutex_lock(&s_log_mutex);
         for ( ; s_log_count == 0; ) {
             pthread_cond_wait(&s_log_cond, &s_log_mutex);
-        }
-        log_str_t *elem, *tmp;
-        if(s_log_file) {
-            if(!dap_file_test(s_log_file_path)) {
-                fclose(s_log_file);
-                s_log_file = fopen(s_log_file_path, "a");
+            if (s_log_term_signal) {
+                break;
             }
         }
-        DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
-            if(s_log_file)
-                fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, s_log_file);
-            fwrite(elem->str, strlen(elem->str), 1, stdout);
+        if (s_log_count) {
+            log_str_t *elem, *tmp;
+            if(s_log_file) {
+                if(!dap_file_test(s_log_file_path)) {
+                    fclose(s_log_file);
+                    s_log_file = fopen(s_log_file_path, "a");
+                }
+            }
+            DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
+                if(s_log_file)
+                    fwrite(elem->str + elem->offset, strlen(elem->str) - elem->offset, 1, s_log_file);
+                fwrite(elem->str, strlen(elem->str), 1, stdout);
 
-            DL_DELETE(s_log_buffer, elem);
-            DAP_FREE(elem);
-            --s_log_count;
+                DL_DELETE(s_log_buffer, elem);
+                DAP_FREE(elem);
+                --s_log_count;
 
-            if(s_log_file)
-                fflush(s_log_file);
-            fflush(stdout);
+                if(s_log_file)
+                    fflush(s_log_file);
+                fflush(stdout);
+            }
         }
-
-
         pthread_mutex_unlock(&s_log_mutex);
     }
     pthread_exit(NULL);
