@@ -405,3 +405,31 @@ dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const cha
     DAP_DELETE(l_file_name);
     return l_wallet;
 }
+
+/**
+ * @brief dap_chain_wallet_get_balance
+ * @param a_wallet
+ * @param a_net_id
+ * @return
+ */
+uint64_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_addr_t *l_addr =dap_chain_wallet_get_addr(a_wallet, a_net_id);
+    uint64_t l_balance = 0;
+    if (l_net)
+    {
+        dap_ledger_t *l_ledger = l_net->pub.ledger;
+        size_t l_addr_tokens_size = 0;
+        char **l_addr_tokens = NULL;
+        dap_chain_ledger_addr_get_token_ticker_all_fast(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
+        for(size_t i = 0; i < l_addr_tokens_size; i++) {
+                if(l_addr_tokens[i]) {
+                     l_balance = l_balance + dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                }
+                DAP_DELETE(l_addr_tokens[i]);
+            }
+        DAP_DELETE(l_addr_tokens);
+        }
+    return l_balance;
+}
