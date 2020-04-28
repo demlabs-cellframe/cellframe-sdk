@@ -48,6 +48,7 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_dataop_na_t enc_na;
     dap_enc_callback_dataop_na_t dec_na;
+    dap_enc_callback_dataop_na_ext_t dec_na_ext;
 
     dap_enc_callback_sign_op_t sign_get;
     dap_enc_callback_sign_op_t sign_verify;
@@ -258,8 +259,9 @@ struct dap_enc_key_callbacks{
         .name = "SIG_RINGCT20",
         .enc = NULL,
         .dec = NULL,
-        .enc_na = dap_enc_sig_ringct20_get_sign,
+        .enc_na = dap_enc_sig_ringct20_get_sign_with_pbkList,//dap_enc_sig_ringct20_get_sign,
         .dec_na = dap_enc_sig_ringct20_verify_sign,
+        .dec_na_ext = dap_enc_sig_ringct20_verify_sign_with_pbkList,
         .gen_key_public = NULL,
         .gen_key_public_size = NULL,
         .gen_bob_shared_key = NULL,
@@ -275,7 +277,6 @@ struct dap_enc_key_callbacks{
 };
 
 const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
-
 /**
  * @brief dap_enc_key_init
  * @return

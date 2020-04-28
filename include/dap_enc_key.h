@@ -143,6 +143,8 @@ typedef size_t (*dap_enc_callback_dataop_t)(struct dap_enc_key *key, const void 
 
 typedef size_t (*dap_enc_callback_dataop_na_t)(struct dap_enc_key *key, const void *in,
                                             const size_t in_size,void * out, const size_t out_size_max);
+typedef size_t (*dap_enc_callback_dataop_na_ext_t)(struct dap_enc_key *key, const void *in,
+                                            const size_t in_size,void * out, const size_t out_size_max, const void *extra_param, const int extra_param_len);
 
 typedef int (*dap_enc_callback_sign_op_t)(struct dap_enc_key *key, const void *in,
                                             const size_t in_size,void * out, const size_t out_size_max);
@@ -180,6 +182,7 @@ typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
 typedef size_t (*dap_enc_callback_calc_out_size)(const size_t);
+typedef size_t (*dap_enc_get_allpbkList) (struct dap_enc_key *b_key, const void *allpbkList, const int allpbknum);
 
 typedef struct dap_enc_key {
     size_t priv_key_data_size;
@@ -196,12 +199,18 @@ typedef struct dap_enc_key {
     dap_enc_callback_dataop_t dec;
     dap_enc_callback_dataop_na_t enc_na;
     dap_enc_callback_dataop_na_t dec_na;
+    dap_enc_callback_dataop_na_ext_t dec_na_ext;
 
     dap_enc_callback_sign_op_t sign_get;
     dap_enc_callback_sign_op_t sign_verify;
 
     dap_enc_gen_alice_shared_key gen_alice_shared_key;
     dap_enc_gen_bob_shared_key gen_bob_shared_key;
+
+    void *pbkListdata;
+    size_t pbkListsize;
+    dap_enc_get_allpbkList getallpbkList;
+
 
     void * _inheritor; // WARNING! Inheritor must have only serealizeble/deserializeble data (copy)
     size_t _inheritor_size;

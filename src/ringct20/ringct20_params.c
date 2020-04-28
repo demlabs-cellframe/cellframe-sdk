@@ -77,7 +77,7 @@ uint8_t H_bpoly_MAXSEC[14][NEWHOPE_POLYBYTES] = {
 #error "NEWHOPE_N must be either 512 or 1024..
 #endif
 
-bool ringct20_params_init(ringct20_param_t *ringct20_p, DAP_RINGCT20_SIGN_SECURITY kind)
+bool ringct20_params_init(ringct20_param_t *ringct20_p, DAP_RINGCT20_SIGN_SECURITY kind)//, const int wLen)
 {
 //    static int first_init = 1;//CRUTCH
 //    if(first_init)
@@ -128,7 +128,7 @@ bool ringct20_params_init(ringct20_param_t *ringct20_p, DAP_RINGCT20_SIGN_SECURI
     }
     ringct20_p->RINGCT20_PBK_SIZE = ringct20_p->POLY_RINGCT20_SIZE_PACKED;
     ringct20_p->RINGCT20_PRK_SIZE = ringct20_p->mLen*ringct20_p->POLY_RINGCT20_SIZE_PACKED;
-    ringct20_p->RINGCT20_SIG_SIZE = (ringct20_p->wLen +
+    ringct20_p->RINGCT20_SIG_SIZE = sizeof(ringct20_p->wLen)+sizeof(DAP_RINGCT20_SIGN_SECURITY) + (ringct20_p->wLen +
                                      ringct20_p->M*ringct20_p->wLen + 1 +1)*ringct20_p->POLY_RINGCT20_SIZE_PACKED;
 
 
