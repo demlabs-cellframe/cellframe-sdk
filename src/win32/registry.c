@@ -1,4 +1,5 @@
 #include "registry.h"
+#include <shlobj.h>
 
 wchar_t* readRegKey(HKEY hKey, LPCWSTR regSubKey, LPCWSTR val) {
     wchar_t *wret = (wchar_t*)malloc(MAX_PATH);
@@ -130,4 +131,11 @@ wchar_t* getUserSID(LPCWSTR homePath) {
         if (tmp) free(tmp);
     }
     return NULL;
+}
+
+wchar_t* shGetUsrPath(){
+    static WCHAR path[MAX_PATH];
+    memset(path, L'\0', MAX_PATH);
+    SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, path);
+    return path;
 }
