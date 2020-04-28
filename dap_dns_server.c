@@ -310,6 +310,11 @@ void dap_dns_server_start() {
     s_dns_server = DAP_NEW(dap_dns_server_t);
     s_dns_server->hash_table = NULL;
     s_dns_server->instance = dap_udp_server_listen(DNS_LISTEN_PORT);
+    if (!s_dns_server->instance) {
+        log_it(L_ERROR, "Can't star DNS server");
+        return;
+    }
+    s_dns_server->instance->client_read_callback = dap_dns_client_read;
     s_dns_server->instance->client_read_callback = *dap_dns_client_read;
     s_dns_server->instance->client_write_callback = NULL;
     s_dns_server->instance->client_new_callback = NULL;
