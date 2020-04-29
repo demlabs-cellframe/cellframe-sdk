@@ -149,6 +149,22 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
+    [DAP_ENC_KEY_TYPE_KUZN_OFB]={
+        .name = "KUZN_OFB",
+        .enc = dap_enc_kuzn_ofb_encrypt,
+        .enc_na = dap_enc_kuzn_ofb_encrypt_fast ,
+        .dec = dap_enc_kuzn_ofb_decrypt,
+        .dec_na = dap_enc_kuzn_ofb_decrypt_fast ,
+        .new_callback = dap_enc_kuzn_ofb_key_new,
+        .delete_callback = dap_enc_gost_key_delete,
+        .new_generate_callback = dap_enc_gost_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = dap_enc_kuzn_ofb_calc_encode_size,
+        .dec_out_size = dap_enc_kuzn_ofb_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
         .enc = NULL,

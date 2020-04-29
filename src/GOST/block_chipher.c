@@ -997,7 +997,7 @@ void DLL_IMPORT free_imit(void* ctx)
 
 }
 
-int DLL_IMPORT encrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT encrypt_ecb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_ecb* context;
      unsigned char* block;
@@ -1021,7 +1021,7 @@ int DLL_IMPORT encrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outd
      return 0;
 }
 
-int DLL_IMPORT decrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT decrypt_ecb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_ecb* context;
      size_t i;
@@ -1049,7 +1049,7 @@ static void PackBlock(unsigned char* a, size_t aLen, unsigned char* b, unsigned 
      memcpy(r + aLen, b, rLen - aLen);
 }
 
-int DLL_IMPORT encrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT encrypt_cbc(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_cbc* context;
      size_t i, j;
@@ -1082,7 +1082,7 @@ int DLL_IMPORT encrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outd
      return 0;
 }
 
-int DLL_IMPORT decrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT decrypt_cbc(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_cbc* context;
      size_t i, j;
@@ -1137,7 +1137,7 @@ static void IncrementModulo(unsigned char* value, size_t size)
      }
 }
 
-int DLL_IMPORT crypt_ctr(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT crypt_ctr(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_ctr* context;
      size_t i;
@@ -1178,7 +1178,7 @@ int DLL_IMPORT crypt_ctr(void *ctx, unsigned char *indata, unsigned char *outdat
      return 0;
 }
 
-int DLL_IMPORT crypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT crypt_ofb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_ofb* context;
      size_t i, j;
@@ -1220,17 +1220,17 @@ int DLL_IMPORT crypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdat
      return 0;
 }
 
-int DLL_IMPORT encrypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT encrypt_ofb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      return crypt_ofb(ctx, indata, outdata, length);
 }
 
-int DLL_IMPORT decrypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT decrypt_ofb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      return crypt_ofb(ctx, indata, outdata, length);
 }
 
-int DLL_IMPORT encrypt_cfb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT encrypt_cfb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_cfb* context;
      size_t i, j;
@@ -1273,7 +1273,7 @@ int DLL_IMPORT encrypt_cfb(void *ctx, unsigned char *indata, unsigned char *outd
      return 0;
 }
 
-int DLL_IMPORT decrypt_cfb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length)
+int DLL_IMPORT decrypt_cfb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length)
 {
      Context_cfb* context;
      size_t i, j;

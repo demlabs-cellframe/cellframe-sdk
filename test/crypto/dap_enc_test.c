@@ -77,6 +77,7 @@ void test_encypt_decrypt(int count_steps, const dap_enc_key_type_t key_type, con
 
 void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type, const int cipher_key_size)
 {
+    dap_print_module_name(dap_enc_get_type_name(key_type));
     const size_t buf_size = 4096;
     char buf_encrypt_out[buf_size];
     char buf_decrypt_out[buf_size];
