@@ -5,6 +5,7 @@
 #include "dap_enc_key.h"
 
 
+size_t CRUTCH_gen_pbk_list(const ringct20_param_t *p, void **pbklist, const int pbknum);
 
 void dap_enc_sig_ringct20_set_type(DAP_RINGCT20_SIGN_SECURITY type);
 
@@ -13,6 +14,11 @@ void dap_enc_sig_ringct20_key_new(struct dap_enc_key *key);
 void dap_enc_sig_ringct20_key_new_generate(struct dap_enc_key * key, const void *kex_buf,
                                     size_t kex_size, const void * seed, size_t seed_size,
                                     size_t key_size);
+
+size_t dap_enc_sig_ringct20_get_sign_with_pbkList(struct dap_enc_key * key, const void * msg,
+        const size_t msg_size, void * signature, const size_t signature_size);
+size_t dap_enc_sig_ringct20_verify_sign_with_pbkList(struct dap_enc_key * key, const void * msg,
+        const size_t msg_size, void * signature, const size_t signature_size, const void *pbkList_buf, const int wpbkList);
 
 size_t dap_enc_sig_ringct20_get_sign(struct dap_enc_key * key,const void * msg,
                                   const size_t msg_size, void * signature, const size_t signature_size);

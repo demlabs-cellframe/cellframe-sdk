@@ -20,19 +20,28 @@ typedef enum  {
 }DAP_RINGCT20_SIGN_SECURITY;
 
 typedef struct {
+  DAP_RINGCT20_SIGN_SECURITY kind;                 /* the kind of ringct20       */
+  unsigned char *data;
+}ringct20_public_key_t;
+
+
+typedef struct {
   DAP_RINGCT20_SIGN_SECURITY kind;    //  the kind of Dilithium (i.e. *this* choice of parameters)
-  uint32_t M;
-  uint32_t mLen;
-  uint32_t wLen;//number of public key
-  uint32_t Pi;//number of our key//known prk
+  int M;
+  int mLen;
+  int wLen;//number of public key
+  int Pi;//number of our key//known prk
   poly_ringct20 *A;//fixed PubParams
   poly_ringct20 *H;//fixed PubParams
 
-  uint32_t POLY_RINGCT20_SIZE_PACKED;
-  uint32_t POLY_RINGCT20_SIZE;
-  uint32_t RINGCT20_PBK_SIZE;
-  uint32_t RINGCT20_PRK_SIZE;
-  uint32_t RINGCT20_SIG_SIZE;
+  ringct20_public_key_t *allpbk;
+  int allpbknum;
+
+  size_t POLY_RINGCT20_SIZE_PACKED;
+  size_t POLY_RINGCT20_SIZE;
+  size_t RINGCT20_PBK_SIZE;
+  size_t RINGCT20_PRK_SIZE;
+  size_t RINGCT20_SIG_SIZE;
 
 /*  uint32_t PARAM_K;
   uint32_t PARAM_L;
@@ -59,11 +68,6 @@ typedef struct {
   DAP_RINGCT20_SIGN_SECURITY kind;                 /* the kind of ringct20       */
   unsigned char *data;
 } ringct20_private_key_t;
-
-typedef struct {
-  DAP_RINGCT20_SIGN_SECURITY kind;                 /* the kind of ringct20       */
-  unsigned char *data;
-} ringct20_public_key_t;
 
 typedef struct {
   DAP_RINGCT20_SIGN_SECURITY kind;                      /* the kind of ringct20       */
