@@ -309,19 +309,21 @@ static void *thread_worker_function(void *arg)
                 continue;
             }
             //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", w->number_thread, w->epoll_fd,cur->socket, events[n].events,events[n].events);
-
+            int l_sock_err, l_sock_err_size;
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
-                log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(errno));
+                getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
                 //if(!(events[n].events & EPOLLIN))
                 //cur->no_close = false;
                 cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                 if(!(events[n].events & EPOLLERR))
                     cur->callbacks->error_callback(cur, NULL); // Call callback to process error event
             }
 
             if(events[n].events & EPOLLERR) {
-                log_it(L_ERROR, "Socket error: %s", strerror(errno));
+                getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
+                log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
                 cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 cur->callbacks->error_callback(cur, NULL); // Call callback to process error event
             }
@@ -405,7 +407,14 @@ static void *thread_worker_function(void *arg)
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,sa_cur->buf_out_size);
                 }
                 //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
-                cur->buf_out_size = 0;
+                pthread_mutex_lock(&cur->write_hold);
+                cur->buf_out_size -= total_sent;
+                if (cur->buf_out_size) {
+                    memcpy(cur->buf_out, &cur->buf_out[total_sent], cur->buf_out_size);
+                } else {
+                    cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
+                }
+                pthread_mutex_unlock(&cur->write_hold);
             }
 
             pthread_mutex_lock(&w->locker_on_count);
