@@ -18,15 +18,18 @@ int main(void)
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
 
-    dap_enc_ringct20_tests_run(10);return 0;
+    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
+    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
+    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    return 0;
+    dap_enc_ringct20_tests_run(10);
     dap_enc_tests_run();
 
     test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_BF_CBC,     0);
     test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_BF_CBC,     0);
     test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_BF_OFB,     0);
     test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_BF_OFB,     0);
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
     test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_IAES,       32);
     test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_IAES,       32);
     test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_OAES,       32);

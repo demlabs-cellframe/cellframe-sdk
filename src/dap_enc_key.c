@@ -27,6 +27,7 @@
 #include "dap_enc_oaes.h"
 #include "dap_enc_bf.h"
 #include "dap_enc_GOST.h"
+#include "dap_enc_salsa2012.h"
 
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
@@ -149,6 +150,23 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
+    [DAP_ENC_KEY_TYPE_KUZN_OFB]={
+        .name = "KUZN_OFB",
+        .enc = dap_enc_kuzn_ofb_encrypt,
+        .enc_na = dap_enc_kuzn_ofb_encrypt_fast ,
+        .dec = dap_enc_kuzn_ofb_decrypt,
+        .dec_na = dap_enc_kuzn_ofb_decrypt_fast ,
+        .new_callback = dap_enc_kuzn_ofb_key_new,
+        .delete_callback = dap_enc_gost_key_delete,
+        .new_generate_callback = dap_enc_gost_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = dap_enc_kuzn_ofb_calc_encode_size,
+        .dec_out_size = dap_enc_kuzn_ofb_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
+
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
         .enc = NULL,
@@ -259,9 +277,9 @@ struct dap_enc_key_callbacks{
         .name = "SIG_RINGCT20",
         .enc = NULL,
         .dec = NULL,
-        .enc_na = dap_enc_sig_ringct20_get_sign_with_pbkList,//dap_enc_sig_ringct20_get_sign,
+        .enc_na = dap_enc_sig_ringct20_get_sign_with_pb_list,//dap_enc_sig_ringct20_get_sign,
         .dec_na = dap_enc_sig_ringct20_verify_sign,
-        .dec_na_ext = dap_enc_sig_ringct20_verify_sign_with_pbkList,
+        .dec_na_ext = dap_enc_sig_ringct20_verify_sign_with_pbk_list,
         .gen_key_public = NULL,
         .gen_key_public_size = NULL,
         .gen_bob_shared_key = NULL,

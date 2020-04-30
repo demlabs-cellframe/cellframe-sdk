@@ -52,6 +52,9 @@
 /** @brief Размер блока алгоритма 28147-89 */
 #define kBlockLen89 8
 
+/** @brief Размер ключа алгоритма "кузнечик" */
+#define kKeyLen14 32
+
 /** @brief Размер ключа алгоритма 28147-89 */
 #define kKeyLen89 32
 
@@ -275,7 +278,7 @@ void DLL_IMPORT free_imit(void* ctx);
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT encrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length);
+int DLL_IMPORT encrypt_ecb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length);
 
 /** @brief Выполнение расшифрования информации в режиме простой замены для данных кратных размеру блока
  *
@@ -286,7 +289,7 @@ int DLL_IMPORT encrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT decrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length);
+int DLL_IMPORT decrypt_ecb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length);
 
 /** @brief Выполнение зашифрования информации в режиме простой замены с зацеплением для данных кратных размеру блока
  *
@@ -297,7 +300,7 @@ int DLL_IMPORT decrypt_ecb(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT encrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length);
+int DLL_IMPORT encrypt_cbc(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length);
 
 /** @brief Выполнение рсшифрования информации в режиме простой замены с зацеплением для данных кратных размеру блока
  *
@@ -308,7 +311,7 @@ int DLL_IMPORT encrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT decrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length);
+int DLL_IMPORT decrypt_cbc(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length);
 
 /** @brief Выполнение шифрования (зашифрования или расшифрования) в режиме гаммирования
  * @details неполным блоком может быть только последний блок, при попытке шифрования после передачи неполного блока возвращается ошибка
@@ -320,7 +323,7 @@ int DLL_IMPORT decrypt_cbc(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT crypt_ctr(void *ctx, unsigned char *indata, unsigned char *outdata, size_t length);
+int DLL_IMPORT crypt_ctr(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t length);
 
 /** @brief Выполнение шаговой шифрования информации в режиме гаммирования с обратной связью
  * @details неполным блоком может быть только последний блок, при попытке шифрования после передачи неполного блока возвращается ошибка
@@ -332,7 +335,7 @@ int DLL_IMPORT crypt_ctr(void *ctx, unsigned char *indata, unsigned char *outdat
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT crypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t inlength);
+int DLL_IMPORT crypt_ofb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t inlength);
 
 /** @brief Выполнение зашифрования информации в режиме гаммирования с обратной связью
  *
@@ -343,7 +346,7 @@ int DLL_IMPORT crypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdat
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT encrypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t inlength);
+int DLL_IMPORT encrypt_ofb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t inlength);
 
 /** @brief Выполнение расшифрования информации в режиме гаммирования с обратной связью
  *
@@ -354,7 +357,7 @@ int DLL_IMPORT encrypt_ofb(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT decrypt_ofb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t inlength);
+int DLL_IMPORT decrypt_ofb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t inlength);
 
 /** @brief Выполнение зашифрования информации в режиме гаммирования с обратной связью по шифртексту
  * @details неполным блоком может быть только последний блок, при попытке шифрования после передачи неполного блока возвращается ошибка
@@ -366,7 +369,7 @@ int DLL_IMPORT decrypt_ofb(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT encrypt_cfb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t inlength);
+int DLL_IMPORT encrypt_cfb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t inlength);
 
 /** @brief Выполнение расшифрования информации в режиме гаммирования с обратной связью по шифртексту
  * @details неполным блоком может быть только последний блок, при попытке шифрования после передачи неполного блока возвращается ошибка
@@ -378,7 +381,7 @@ int DLL_IMPORT encrypt_cfb(void *ctx, unsigned char *indata, unsigned char *outd
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT decrypt_cfb(void *ctx, unsigned char *indata, unsigned char *outdata, size_t inlength);
+int DLL_IMPORT decrypt_cfb(void *ctx, const unsigned char *indata, unsigned char *outdata, size_t inlength);
 
 /** @brief Выполнение вычисления имитовставки по данным кратным размеру блока
  *
