@@ -414,7 +414,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             DAP_DELETE(l_key_str);
         }
             break;
-    case STAGE_STREAM_CTL: {
+        case STAGE_STREAM_CTL: {
             log_it(L_INFO, "Go to stage STREAM_CTL: prepare the request");
 
             char *l_request = dap_strdup_printf("%d", DAP_CLIENT_PROTOCOL_VERSION);
@@ -625,7 +625,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 // Expecting that its one-shot callback
                 a_client_pvt->stage_target_done_callback = NULL;
             }
-        } else{
+        } else if (a_client_pvt->stage != STAGE_STREAM_CTL) {   // need wait for dap_client_pvt_request_enc response
             log_it(L_ERROR, "!! dap_CLIENT_STAGE_STATUS_DONE but not l_is_last_stage (cur stage=%d, target=%d)!!",a_client_pvt->stage, a_client_pvt->stage_target);
         }
         //l_is_unref = true;

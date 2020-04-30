@@ -328,10 +328,10 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
         int l_err = 0;
         if((l_err = connect(l_socket, (struct sockaddr *) &l_remote_addr, sizeof(struct sockaddr_in))) != -1) {
             //s_set_sock_nonblock(a_client_pvt->stream_socket, false);
-            log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port, socket);
+            log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port, l_socket);
         }
         else {
-            log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port);
+            log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port, l_socket);
             //l_ev_socket->no_close = false;
             dap_events_socket_kill_socket(l_ev_socket);
             //shutdown(l_ev_socket->socket, SHUT_RDWR);
