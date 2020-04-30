@@ -21,7 +21,7 @@ void dap_enc_gost_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
     a_key->last_used_timestamp = time(NULL);
 
 
-    a_key->priv_key_data_size = key_size;
+    a_key->priv_key_data_size = 32;
     a_key->priv_key_data = DAP_NEW_SIZE(uint8_t, key_size);
 
     Keccak_HashInstance Keccak_ctx;

@@ -53,6 +53,8 @@ typedef enum dap_enc_key_type{
                            DAP_ENC_KEY_TYPE_GOST_OFB,//GOST28147_89
                            DAP_ENC_KEY_TYPE_KUZN_OFB,//GOST28147_14
 
+                           DAP_ENC_KEY_TYPE_SALSA2012,//SALSA2012//http://www.ecrypt.eu.org/stream/salsa20pf.html//https://ianix.com/pub/salsa20-deployment.html
+
                            DAP_ENC_KEY_TYPE_RLWE_NEWHOPE, // "NewHope": key exchange from the ring learning with errors problem
                                                 //  (Alkim, Ducas, Pöppelmann, Schwabe, USENIX Security 2016 )
                                                 //  Using the reference C implementation of NewHope
@@ -173,7 +175,7 @@ typedef size_t (*dap_enc_gen_bob_shared_key) (struct dap_enc_key *b_key, const v
 typedef size_t (*dap_enc_gen_alice_shared_key) (struct dap_enc_key *a_key, const void *a_priv,
                                              size_t b_pub_size, unsigned char *b_pub);
 
-typedef int (*dap_enc_callback_gen_key_public_t ) (struct dap_enc_key *l_key, void * l_output);
+typedef int (*dap_enc_callback_gen_key_public_t ) (struct dap_enc_key *a_key, void * a_output);
 
 typedef void (*dap_enc_callback_ptr_t)(struct dap_enc_key *, void *);
 typedef size_t (*dap_enc_callback_pptr_r_size_t)(struct dap_enc_key *, void **);
@@ -182,7 +184,7 @@ typedef void (*dap_enc_callback_size_t)(struct dap_enc_key *, size_t);
 typedef void (*dap_enc_callback_str_t)(struct dap_enc_key *, const char*);
 typedef char* (*dap_enc_callback_r_str_t)(struct dap_enc_key *);
 typedef size_t (*dap_enc_callback_calc_out_size)(const size_t);
-typedef size_t (*dap_enc_get_allpbkList) (struct dap_enc_key *b_key, const void *allpbkList, const int allpbknum);
+typedef size_t (*dap_enc_get_allpbk_list) (struct dap_enc_key *a_key, const void *allpbk_list, const int allpbk_num);
 
 typedef struct dap_enc_key {
     size_t priv_key_data_size;
@@ -209,7 +211,7 @@ typedef struct dap_enc_key {
 
     void *pbkListdata;
     size_t pbkListsize;
-    dap_enc_get_allpbkList getallpbkList;
+    dap_enc_get_allpbk_list getallpbkList;
 
 
     void * _inheritor; // WARNING! Inheritor must have only serealizeble/deserializeble data (copy)

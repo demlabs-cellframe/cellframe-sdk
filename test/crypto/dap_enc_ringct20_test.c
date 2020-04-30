@@ -107,7 +107,7 @@ static void test_signing_verifying2(void)
     dap_enc_key_delete(key);
 }
 
-//DEBUG TO USE IT get back:dap_enc_sig_ringct20_get_sign_with_pbkList,//dap_enc_sig_ringct20_get_sign,
+//DEBUG TO USE IT get back:dap_enc_sig_ringct20_get_sign_with_pb_list,//dap_enc_sig_ringct20_get_sign,
 static void test_signing_verifying(void)
 {
 

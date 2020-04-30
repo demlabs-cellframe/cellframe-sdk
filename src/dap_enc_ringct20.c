@@ -541,7 +541,6 @@ int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_ke
     f = calloc(p->RINGCT20_PBK_SIZE, sizeof(char));
     if (f == NULL) {
         free(f);
-//        free(g);
         return -1;
     }
     public_key->kind = p->kind;
@@ -569,24 +568,24 @@ void dap_enc_sig_ringct20_key_new(struct dap_enc_key *key) {
 
     key->type = DAP_ENC_KEY_TYPE_SIG_RINGCT20;
     key->enc = NULL;
-    key->enc_na = (dap_enc_callback_dataop_na_t) dap_enc_sig_ringct20_get_sign_with_pbkList;//dap_enc_sig_ringct20_get_sign;
+    key->enc_na = (dap_enc_callback_dataop_na_t) dap_enc_sig_ringct20_get_sign_with_pb_list;//dap_enc_sig_ringct20_get_sign;
     key->dec_na = (dap_enc_callback_dataop_na_t) dap_enc_sig_ringct20_verify_sign;
-    key->dec_na_ext = (dap_enc_callback_dataop_na_ext_t) dap_enc_sig_ringct20_verify_sign_with_pbkList;//dap_enc_sig_ringct20_verify_sign;
-    key->getallpbkList = (dap_enc_get_allpbkList) dap_enc_sig_ringct20_getallpbk;
+    key->dec_na_ext = (dap_enc_callback_dataop_na_ext_t) dap_enc_sig_ringct20_verify_sign_with_pbk_list;//dap_enc_sig_ringct20_verify_sign;
+    key->getallpbkList = (dap_enc_get_allpbk_list) dap_enc_sig_ringct20_getallpbk;
     key->pbkListsize = 0;
     key->pbkListdata = NULL;
 
 }
 
-size_t dap_enc_sig_ringct20_getallpbk(dap_enc_key_t *key, const void *allpbkList, const int allpbkListsize)
+size_t dap_enc_sig_ringct20_getallpbk(dap_enc_key_t *key, const void *allpbk_list, const int allpbk_list_size)
 {
-    key->pbkListdata = DAP_NEW_SIZE(uint8_t, allpbkListsize);
-    memcpy(key->pbkListdata, allpbkList, allpbkListsize);
-    key->pbkListsize= allpbkListsize;
+    key->pbkListdata = DAP_NEW_SIZE(uint8_t, allpbk_list_size);
+    memcpy(key->pbkListdata, allpbk_list, allpbk_list_size);
+    key->pbkListsize= allpbk_list_size;
     return 0;
 }
 
-void dap_enc_sig_ringct20_key_new_generate(struct dap_enc_key * key, const void *kex_buf,
+void dap_enc_sig_ringct20_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf,
         size_t kex_size, const void * seed, size_t seed_size,
         size_t key_size)
 {
@@ -597,22 +596,22 @@ void dap_enc_sig_ringct20_key_new_generate(struct dap_enc_key * key, const void 
     dap_enc_sig_ringct20_set_type(ringct20_type);
 
 
-    key->priv_key_data_size = sizeof(ringct20_private_key_t);
-    key->pub_key_data_size = sizeof(ringct20_public_key_t);
-    key->priv_key_data = malloc(key->priv_key_data_size);
-    key->pub_key_data = malloc(key->pub_key_data_size);
+    a_key->priv_key_data_size = sizeof(ringct20_private_key_t);
+    a_key->pub_key_data_size = sizeof(ringct20_public_key_t);
+    a_key->priv_key_data = malloc(a_key->priv_key_data_size);
+    a_key->pub_key_data = malloc(a_key->pub_key_data_size);
 
-    retcode = ringct20_crypto_sign_keypair((ringct20_public_key_t *) key->pub_key_data,
-            (ringct20_private_key_t *) key->priv_key_data, _ringct20_type);
+    retcode = ringct20_crypto_sign_keypair((ringct20_public_key_t *) a_key->pub_key_data,
+            (ringct20_private_key_t *) a_key->priv_key_data, _ringct20_type);
     if(retcode != 0) {
-        ringct20_private_and_public_keys_delete((ringct20_private_key_t *) key->pub_key_data,
-                (ringct20_public_key_t *) key->pub_key_data);
+        ringct20_private_and_public_keys_delete((ringct20_private_key_t *) a_key->pub_key_data,
+                (ringct20_public_key_t *) a_key->pub_key_data);
         log_it(L_CRITICAL, "Error");
         return;
     }
 }
 
-int ringct20_crypto_sign_with_pbkList( ringct20_signature_t *sig, const unsigned char *m,
+int ringct20_crypto_sign_with_pbk_list( ringct20_signature_t *sig, const unsigned char *m,
     unsigned long long mlen, const ringct20_private_key_t *private_key, const void *allpbk_buf, const int allpbk_size)
 {
 
@@ -699,7 +698,7 @@ int ringct20_crypto_sign_with_pbkList( ringct20_signature_t *sig, const unsigned
     return 0;
 }
 
-size_t dap_enc_sig_ringct20_get_sign_with_pbkList(struct dap_enc_key * key, const void * msg,
+size_t dap_enc_sig_ringct20_get_sign_with_pb_list(struct dap_enc_key * a_key, const void * msg,
         const size_t msg_size, void * signature, const size_t signature_size)
 {
     if(signature_size < sizeof(ringct20_signature_t)) {
@@ -707,14 +706,14 @@ size_t dap_enc_sig_ringct20_get_sign_with_pbkList(struct dap_enc_key * key, cons
         return 0;
     }
 
-    if(!ringct20_crypto_sign_with_pbkList((ringct20_signature_t *) signature, (const unsigned char *) msg, msg_size, key->priv_key_data, key->pbkListdata, key->pbkListsize))
+    if(!ringct20_crypto_sign_with_pbk_list((ringct20_signature_t *) signature, (const unsigned char *) msg, msg_size, a_key->priv_key_data, a_key->pbkListdata, a_key->pbkListsize))
         return signature_size;
     else
         return 0;
 }
 
 
-size_t dap_enc_sig_ringct20_get_sign(struct dap_enc_key * key, const void * msg,
+size_t dap_enc_sig_ringct20_get_sign(struct dap_enc_key * a_key, const void * msg,
         const size_t msg_size, void * signature, const size_t signature_size)
 {
     if(signature_size < sizeof(ringct20_signature_t)) {
@@ -722,13 +721,13 @@ size_t dap_enc_sig_ringct20_get_sign(struct dap_enc_key * key, const void * msg,
         return 0;
     }
 
-    if(!ringct20_crypto_sign((ringct20_signature_t *) signature, (const unsigned char *) msg, msg_size, key->priv_key_data))
+    if(!ringct20_crypto_sign((ringct20_signature_t *) signature, (const unsigned char *) msg, msg_size, a_key->priv_key_data))
         return signature_size;
     else
         return 0;
 }
 
-size_t dap_enc_sig_ringct20_verify_sign(struct dap_enc_key * key, const void * msg,
+size_t dap_enc_sig_ringct20_verify_sign(struct dap_enc_key * a_key, const void * msg,
         const size_t msg_size, void * signature, const size_t signature_size)
 {
     if(signature_size < sizeof(ringct20_signature_t)) {
@@ -736,10 +735,10 @@ size_t dap_enc_sig_ringct20_verify_sign(struct dap_enc_key * key, const void * m
         return 1;
     }
 
-    return (ringct20_crypto_sign_open( (unsigned char *) msg, msg_size, (ringct20_signature_t *) signature, key->pub_key_data));
+    return (ringct20_crypto_sign_open( (unsigned char *) msg, msg_size, (ringct20_signature_t *) signature, a_key->pub_key_data));
 }
 
-size_t dap_enc_sig_ringct20_verify_sign_with_pbkList(struct dap_enc_key * key, const void * msg,
+size_t dap_enc_sig_ringct20_verify_sign_with_pbk_list(struct dap_enc_key * a_key, const void * msg,
         const size_t msg_size, void * signature, const size_t signature_size, const void *pbkList_buf, const int wpbkList)
 {
     if(signature_size < sizeof(ringct20_signature_t)) {
@@ -750,15 +749,15 @@ size_t dap_enc_sig_ringct20_verify_sign_with_pbkList(struct dap_enc_key * key, c
     return ringct20_crypto_sign_open_with_pbkList( (unsigned char *) msg, msg_size, (ringct20_signature_t *) signature, pbkList_buf, wpbkList);
 }
 
-void dap_enc_sig_ringct20_key_delete(struct dap_enc_key * key)
+void dap_enc_sig_ringct20_key_delete(struct dap_enc_key * a_key)
 {
-    if(key->pbkListsize)
+    if(a_key->pbkListsize)
     {
-        DAP_DELETE(key->pbkListdata);
-        key->pbkListsize = 0;
+        DAP_DELETE(a_key->pbkListdata);
+        a_key->pbkListsize = 0;
     }
-    ringct20_private_and_public_keys_delete((ringct20_private_key_t *) key->priv_key_data,
-            (ringct20_public_key_t *) key->pub_key_data);
+    ringct20_private_and_public_keys_delete((ringct20_private_key_t *) a_key->priv_key_data,
+            (ringct20_public_key_t *) a_key->pub_key_data);
 }
 
 size_t dap_enc_ringct20_calc_signature_size(void)
