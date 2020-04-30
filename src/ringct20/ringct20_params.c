@@ -74,7 +74,7 @@ uint8_t H_bpoly_MAXSEC[14][NEWHOPE_POLYBYTES] = {
 #elif (NEWHOPE_N == 1024)
 #error "NEWHOPE_N must be either 512 or 1024.. NEWHOPE_N == 1024 not implemented yet"
 #elif
-#error "NEWHOPE_N must be either 512 or 1024..
+#error "NEWHOPE_N must be either 512 or 1024.."
 #endif
 
 bool ringct20_params_init(ringct20_param_t *ringct20_p, DAP_RINGCT20_SIGN_SECURITY kind)//, const int wLen)

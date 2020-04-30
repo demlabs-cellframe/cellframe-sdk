@@ -241,7 +241,7 @@ extern "C" {
 int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
-char *dap_enc_get_type_name(dap_enc_key_type_t key_type);
+const char *dap_enc_get_type_name(dap_enc_key_type_t a_key_type);
 size_t dap_enc_key_get_enc_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 

@@ -18,8 +18,10 @@ int main(void)
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
 
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
+    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_SALSA2012,  32);
+    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_SALSA2012,  32);
+    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
+    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
     test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
     test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
     return 0;
