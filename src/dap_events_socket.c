@@ -82,8 +82,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 //  assert(a_events);
   assert(a_callbacks);
 
-  log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
-
   dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
 
   ret->socket = a_sock;
@@ -91,6 +89,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
   ret->callbacks = a_callbacks;
   ret->flags = DAP_SOCK_READY_TO_READ;
   ret->no_close = true;
+  pthread_mutex_init(&ret->write_hold, NULL);
 
   log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
@@ -223,8 +222,12 @@ void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
  */
 void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
 {
-  if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) )
+  pthread_mutex_lock(&sc->write_hold);
+
+  if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
+    pthread_mutex_unlock(&sc->write_hold);
     return;
+  }
 
   if ( is_ready )
     sc->flags |= DAP_SOCK_READY_TO_WRITE;
@@ -238,6 +241,8 @@ void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
 
   if( sc->flags & DAP_SOCK_READY_TO_WRITE )
     events |= EPOLLOUT;
+
+  pthread_mutex_unlock(&sc->write_hold);
 
   sc->ev.events = events;
 
@@ -313,7 +318,7 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
     close( a_es->socket );
 #endif
   }
-
+  pthread_mutex_destroy(&a_es->write_hold);
   free( a_es );
 }
 
@@ -355,10 +360,11 @@ void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool prese
 size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
     //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
-
+     pthread_mutex_lock(&sc->write_hold);
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
      sc->buf_out_size+=data_size;
+     pthread_mutex_unlock(&sc->write_hold);
      return data_size;
 }
 
@@ -372,6 +378,7 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
 {
     log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
 
+    pthread_mutex_lock(&sc->write_hold);
     size_t max_data_size = sizeof(sc->buf_out)-sc->buf_out_size;
     va_list ap;
     va_start(ap,format);
@@ -379,11 +386,11 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
     va_end(ap);
     if(ret>0){
         sc->buf_out_size+=ret;
-        return ret;
     }else{
         log_it(L_ERROR,"Can't write out formatted data '%s'",format);
-        return 0;
     }
+    pthread_mutex_unlock(&sc->write_hold);
+    return (ret > 0) ? ret : 0;
 }
 
 /**

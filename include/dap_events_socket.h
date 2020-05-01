@@ -29,6 +29,7 @@
 #include "uthash.h"
 #ifndef _WIN32
 #include <sys/epoll.h>
+#include <pthread.h>
 #else
 #include "wepoll.h"
 #endif
@@ -138,6 +139,7 @@ typedef struct dap_events_socket {
 
   void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
 
+  pthread_mutex_t write_hold;
 } dap_events_socket_t; // Node of bidirectional list of clients
 
 int dap_events_socket_init(); //  Init clients module
