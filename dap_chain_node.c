@@ -93,6 +93,8 @@ bool dap_chain_node_alias_register(dap_chain_net_t * a_net,const char *alias, da
 //    a_value[2 * sizeof(dap_chain_node_addr_t)] = '\0';
     bool res = dap_chain_global_db_gr_set( dap_strdup(a_key),  l_addr, sizeof(dap_chain_node_addr_t)
                                           , a_net->pub.gdb_nodes_aliases);
+    DAP_DELETE(l_addr);
+    DAP_DELETE(a_key);
     return res;
 }
 

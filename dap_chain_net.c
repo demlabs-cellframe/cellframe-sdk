@@ -461,8 +461,9 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 PVT(l_net)->links_count++;
             } else {
                 log_it(L_NOTICE, "Can't establish enough links, go to offline");
-                PVT(l_net)->state = NET_STATE_OFFLINE ;
-                PVT(l_net)->state_target = NET_STATE_OFFLINE ;
+                PVT(l_net)->state = NET_STATE_OFFLINE;
+                PVT(l_net)->state_target = NET_STATE_OFFLINE;
+                break;
             }
             log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             log_it(L_DEBUG, "Establishing connection with " NODE_ADDR_FP_STR,
