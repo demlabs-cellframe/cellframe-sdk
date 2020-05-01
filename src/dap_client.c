@@ -332,6 +332,7 @@ const char * dap_client_error_str(dap_client_error_t a_client_error)
         case ERROR_STREAM_CTL_ERROR: return "STREAM_CTL_ERROR";
         case ERROR_STREAM_CTL_ERROR_AUTH: return "STREAM_CTL_ERROR_AUTH";
         case ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT: return "STREAM_CTL_ERROR_RESPONSE_FORMAT";
+        case ERROR_NETWORK_CONNECTION_TIMEOUT: return "NETWORK_CONNECTION_TIMEOUT";
         default : return "UNDEFINED";
     }
 }
