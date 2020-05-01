@@ -263,27 +263,36 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain)
     return 0;
 }
 
-void dap_chain_node_mempool_periodic()
+void dap_chain_node_mempool_periodic(void *a_param)
 {
+    UNUSED(a_param);
     size_t l_net_count;
+    bool l_mempool_auto;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (int i = 0; i < l_net_count; i++) {
-        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
-        dap_chain_t *l_chain;
-        switch (l_role.enums) {
-        case NODE_ROLE_ROOT:
-        case NODE_ROLE_MASTER:
-        case NODE_ROLE_ROOT_MASTER:
-        case NODE_ROLE_CELL_MASTER: {
-                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                    for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
-                        if(l_chain->datum_types[i] == CHAIN_TYPE_TX)
-                            dap_chain_node_mempool_process(l_chain);
+        l_mempool_auto = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", false);
+        if (!l_mempool_auto) {
+            dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
+            switch (l_role.enums) {
+            case NODE_ROLE_ROOT:
+            case NODE_ROLE_MASTER:
+            case NODE_ROLE_ROOT_MASTER:
+            case NODE_ROLE_CELL_MASTER:
+                l_mempool_auto = true;
+                break;
+            default:
+                break;
+            }
+        }
+        if (l_mempool_auto) {
+            dap_chain_t *l_chain;
+            DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+                for (uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+                    if (l_chain->datum_types[i] == CHAIN_TYPE_TX) {
+                        dap_chain_node_mempool_process(l_chain);
                     }
                 }
-            } break;
-        default:
-            break;
+            }
         }
     }
     DAP_DELETE(l_net_list);
@@ -297,15 +306,12 @@ static void *s_mempool_timer = NULL;
  */
 int dap_chain_node_mempool_init()
 {
-    if ( dap_config_get_item_bool_default( g_config, "mempool", "auto_proc", true) ){
-        s_mempool_timer = dap_interval_timer_create(DAP_CHAIN_NODE_MEMPOOL_INTERVAL, dap_chain_node_mempool_periodic);
-        if (s_mempool_timer) {
-            return 0;
-        } else {
-            return -1;
-        }
-    }else
+    s_mempool_timer = dap_interval_timer_create(DAP_CHAIN_NODE_MEMPOOL_INTERVAL, dap_chain_node_mempool_periodic, 0);
+    if (s_mempool_timer) {
         return 0;
+    } else {
+        return -1;
+    }
 }
 
 /**
