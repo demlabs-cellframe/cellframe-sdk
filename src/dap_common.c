@@ -827,12 +827,12 @@ static int s_timer_find(void *a_timer)
 static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
 {
     UNUSED(a_always_true);
-    s_timers[(int)a_arg].callback();
+    s_timers[(int)a_arg].callback(s_timers[(int)a_arg].param);
 }
 #else
 static void s_posix_callback(union sigval a_arg)
 {
-    s_timers[a_arg.sival_int].callback();
+    s_timers[a_arg.sival_int].callback(s_timers[a_arg.sival_int].param);
 }
 #endif
 
@@ -842,7 +842,7 @@ static void s_posix_callback(union sigval a_arg)
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback)
+void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
 {
     if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
         return NULL;
@@ -876,6 +876,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
 #endif
     s_timers[s_timers_count].timer = (void *)l_timer;
     s_timers[s_timers_count].callback = a_callback;
+    s_timers[s_timers_count].param = a_param;
     s_timers_count++;
 #ifdef _WIN32
     LeaveCriticalSection(&s_timers_lock);
