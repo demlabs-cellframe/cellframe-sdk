@@ -1,0 +1,38 @@
+curl and libcurl 7.67.1
+
+ Public curl releases:         187
+ Command line options:         226
+ curl_easy_setopt() options:   269
+ Public functions in libcurl:  81
+ Contributors:                 2056
+
+This release includes the following changes:
+
+ o
+
+This release includes the following bugfixes:
+
+ o build: fix for CURL_DISABLE_DOH [2]
+ o configure: avoid unportable `==' test(1) operator [1]
+ o configure: fix typo in help text [4]
+ o ntlm: USE_WIN32_CRYPTO check removed to get USE_NTLM2SESSION set [3]
+
+This release includes the following known bugs:
+
+ o see docs/KNOWN_BUGS (https://curl.haxx.se/docs/knownbugs.html)
+
+This release would not have looked like this without help, code, reports and
+advice from friends like these:
+
+  Christian Schmitz, Daniel Stenberg, Leonardo Taccari, Massimiliano Fantuzzi,
+  Ray Satiro, Wyatt O'Day,
+  (6 contributors)
+
+        Thanks! (and sorry if I forgot to mention someone)
+
+References to bug reports and discussions on issues:
+
+ [1] = https://curl.haxx.se/bug/?i=4567
+ [2] = https://curl.haxx.se/bug/?i=4565
+ [3] = https://curl.haxx.se/bug/?i=3704
+ [4] = https://curl.haxx.se/bug/?i=4570

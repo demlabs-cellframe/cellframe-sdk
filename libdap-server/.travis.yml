@@ -1,0 +1,28 @@
+sudo: required
+language: cpp
+compiler: gcc
+dist: xenial
+notifications:
+  email: false
+
+before_install:
+    - git submodule init
+    - git submodule update
+
+script:
+    - mkdir build
+    - cd build 
+    - cmake -DBUILD_LIB_DAP_SERVER_TESTS=ON ../
+    - make
+    - ctest --verbose
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - libjson-c-dev
+    - libev-dev
+    - libmagic-dev
+
+
