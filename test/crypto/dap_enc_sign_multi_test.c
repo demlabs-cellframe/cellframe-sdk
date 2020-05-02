@@ -38,11 +38,20 @@ static void test_signing_verifying(void)
     dap_multi_sign_t *sign = dap_multi_sign_create(params, source, source_size);
     dap_assert_PIF(sign, "Signing message");
 
-    int verify = dap_multi_sign_verify(sign, source, source_size);
+    size_t serialized_size = 0;
+    uint8_t *serialized_sign = dap_multi_sign_serialize(sign, &serialized_size);
+    dap_assert_PIF(serialized_sign, "Serializing signature");
+
+    dap_multi_sign_t *deserialized_sign = dap_multi_sign_deserialize(SIG_TYPE_MULTI_CHAINED, serialized_sign, serialized_size);
+    dap_assert_PIF(deserialized_sign, "Deserializing signature");
+
+    int verify = dap_multi_sign_verify(deserialized_sign, source, source_size);
     dap_assert_PIF(verify == 1, "Verifying signature");
 
+    dap_multi_sign_delete(deserialized_sign);
     dap_multi_sign_delete(sign);
     dap_multi_sign_params_delete(params);
+    DAP_DELETE(serialized_sign);
     DAP_DELETE(source);
     for (int i = 0; i < KEYS_TOTAL_COUNT; i++) {
         dap_enc_key_delete(key[i]);
