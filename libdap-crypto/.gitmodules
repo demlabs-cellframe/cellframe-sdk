@@ -1,0 +1,7 @@
+[submodule "test/libdap-test"]
+	path = test/libdap-test
+	url = https://gitlab.demlabs.net/cellframe/libdap-test.git
+	branch = master
+[submodule "libdap"]
+	path = libdap
+	url = https://gitlab.demlabs.net/cellframe/libdap.git
