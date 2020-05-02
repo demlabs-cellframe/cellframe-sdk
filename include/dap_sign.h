@@ -67,7 +67,7 @@ typedef struct dap_sign
 #define MULTI_SIGN_MAX_COUNT 255
 
 typedef struct _dap_multi_sign_params_t {
-    dap_sign_type_enum_t type;          // Multi-signature type
+    dap_sign_type_t type;               // Multi-signature type
     uint8_t total_count;                // Total key count
     uint8_t sign_count;                 // Signatures count
     uint8_t *key_seq;                   // Signing key sequence
@@ -82,11 +82,11 @@ typedef struct _dap_multi_sign_meta_t {
 typedef struct _dap_multi_sign_keys_t {
     uint8_t num;
     dap_sign_type_t type;
-} dap_multi_sign_keys_t;
+} DAP_ALIGN_PACKED dap_multi_sign_keys_t;
 
 typedef struct _dap_multi_sign_t {
 /*** Hashed metadata ***/
-    dap_sign_type_enum_t type;          // Multi-signature type
+    dap_sign_type_t type;               // Multi-signature type
     uint8_t total_count;                // Total key count
     uint8_t sign_count;                 // Signatures count
     dap_multi_sign_keys_t *key_seq;     // Signing key sequence
@@ -128,12 +128,13 @@ dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type);
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str);
 
-
-dap_multi_sign_params_t *dap_multi_sign_params_make(dap_sign_type_enum_t type, uint8_t total_count, uint8_t sign_count, dap_enc_key_t *key1, ...);
-void dap_multi_sign_params_delete(dap_multi_sign_params_t *params);
-dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *params, const void *data, const size_t data_size);
-int dap_multi_sign_verify(dap_multi_sign_t *sign, const void *data, const size_t data_size);
-void dap_multi_sign_delete(dap_multi_sign_t *sign);
+uint8_t *dap_multi_sign_serialize(dap_multi_sign_t *a_sign, size_t *a_out_len);
+dap_multi_sign_t *dap_multi_sign_deserialize(dap_sign_type_enum_t a_type, uint8_t *a_sign, size_t a_sign_len);
+dap_multi_sign_params_t *dap_multi_sign_params_make(dap_sign_type_enum_t a_type, uint8_t a_total_count, uint8_t a_sign_count, dap_enc_key_t *a_key1, ...);
+void dap_multi_sign_params_delete(dap_multi_sign_params_t *a_params);
+dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const void *a_data, const size_t a_data_size);
+int dap_multi_sign_verify(dap_multi_sign_t *a_sign, const void *a_data, const size_t a_data_size);
+void dap_multi_sign_delete(dap_multi_sign_t *a_sign);
 
 #ifdef __cplusplus
 }
