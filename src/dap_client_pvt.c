@@ -579,8 +579,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
             // unref pvt
             //l_is_unref = true;
-        }
-        else {
+        } else if (a_client_pvt->last_error != ERROR_NETWORK_CONNECTION_TIMEOUT) {
             if(!l_is_last_attempt) {
                 // small delay before next request
                 log_it(L_INFO, "Connection attempt № %d", a_client_pvt->connect_attempt);
@@ -618,9 +617,9 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         bool l_is_last_stage = (a_client_pvt->stage == a_client_pvt->stage_target);
         if(l_is_last_stage) {
             //l_is_unref = true;
-            log_it(L_NOTICE, "Stage %s is achieved",
-                    dap_client_stage_str(a_client_pvt->stage));
             if(a_client_pvt->stage_target_done_callback) {
+                log_it(L_NOTICE, "Stage %s is achieved",
+                        dap_client_stage_str(a_client_pvt->stage));
                 a_client_pvt->stage_target_done_callback(a_client_pvt->client, NULL);
                 // Expecting that its one-shot callback
                 a_client_pvt->stage_target_done_callback = NULL;
@@ -993,8 +992,11 @@ void m_enc_init_error(dap_client_t * a_client, int a_err_code)
     }
     //dap_client_internal_t * l_client_internal = dap_CLIENT_INTERNAL(a_client);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
-
-    l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_REFUSE;
+    if (a_err_code == ETIMEDOUT) {
+        l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
+    } else {
+        l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_REFUSE;
+    }
     l_client_pvt->stage_status = STAGE_STATUS_ERROR;
     s_stage_status_after(l_client_pvt);
 }
@@ -1102,7 +1104,11 @@ void m_stream_ctl_error(dap_client_t * a_client, int a_error)
         log_it(L_ERROR, "m_stream_ctl_error: l_client_pvt is NULL!");
         return;
     }
-    l_client_pvt->last_error = ERROR_STREAM_CTL_ERROR;
+    if (a_error == ETIMEDOUT) {
+        l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
+    } else {
+        l_client_pvt->last_error = ERROR_STREAM_CTL_ERROR;
+    }
     l_client_pvt->stage_status = STAGE_STATUS_ERROR;
 
     s_stage_status_after(l_client_pvt);
@@ -1142,7 +1148,11 @@ void m_stream_error(dap_client_t * a_client, int a_error)
         log_it(L_ERROR, "m_stream_error: l_client_pvt is NULL!");
         return;
     }
-    l_client_pvt->last_error = ERROR_STREAM_RESPONSE_WRONG;
+    if (a_error == ETIMEDOUT) {
+        l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
+    } else {
+        l_client_pvt->last_error = ERROR_STREAM_RESPONSE_WRONG;
+    }
     l_client_pvt->stage_status = STAGE_STATUS_ERROR;
 
     s_stage_status_after(l_client_pvt);

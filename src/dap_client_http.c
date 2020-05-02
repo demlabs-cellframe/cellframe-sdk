@@ -218,14 +218,13 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
 static void s_http_error(dap_events_socket_t * a_es, void * arg)
 {
     log_it(L_INFO, "http client error");
-    int l_err_code = -1;
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
     if(!l_client_http_internal) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
         return;
     }
     if(l_client_http_internal->error_callback)
-        l_client_http_internal->error_callback(l_err_code, l_client_http_internal->obj);
+        l_client_http_internal->error_callback((int)arg, l_client_http_internal->obj);
 
     // close connection
     dap_events_socket_kill_socket(a_es);
