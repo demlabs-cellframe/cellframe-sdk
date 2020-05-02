@@ -225,6 +225,9 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
     if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
+      if (a_es->callbacks->error_callback) {
+          a_es->callbacks->error_callback(a_es, (void *)ETIMEDOUT);
+      }
 
       if ( epoll_ctl( dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
         log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
@@ -315,10 +318,12 @@ static void *thread_worker_function(void *arg)
                 getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
                 //if(!(events[n].events & EPOLLIN))
                 //cur->no_close = false;
-                cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
-                if(!(events[n].events & EPOLLERR))
-                    cur->callbacks->error_callback(cur, NULL); // Call callback to process error event
+                if (l_sock_err) {
+                    cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
+                    if(!(events[n].events & EPOLLERR))
+                        cur->callbacks->error_callback(cur, NULL); // Call callback to process error event
+                }
             }
 
             if(events[n].events & EPOLLERR) {
