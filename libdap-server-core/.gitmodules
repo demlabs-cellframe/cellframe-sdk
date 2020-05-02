@@ -1,0 +1,14 @@
+[submodule "libdap"]
+	path = libdap
+	url = https://gitlab.demlabs.net/cellframe/libdap
+	branch = master
+
+[submodule "libdap-crypto"]
+	path = libdap-crypto
+	url = https://gitlab.demlabs.net/cellframe/libdap-crypto
+	branch = master
+
+[submodule "test/libdap-test"]
+	path = test/libdap-test
+	url = https://gitlab.demlabs.net/cellframe/libdap-test
+	branch = master
