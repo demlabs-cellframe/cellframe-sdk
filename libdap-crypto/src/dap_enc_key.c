@@ -27,7 +27,7 @@
 #include "dap_enc_oaes.h"
 #include "dap_enc_bf.h"
 #include "dap_enc_GOST.h"
-//#include "dap_enc_salsa2012.h"
+#include "dap_enc_salsa2012.h"
 
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
