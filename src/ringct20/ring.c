@@ -2,6 +2,9 @@
 #include "ring.h"
 #include "sha3/KeccakHash.h"
 
+
+#define Keccak_HashInitialize_SHA3_KDF(hashInstance, out_bytes)        Keccak_HashInitialize(hashInstance, 1088,  512, out_bytes*8, 0x06)
+
 void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 {
 	uint8_t seed[NEWHOPE_SYMBYTES] = { 0 };
@@ -109,7 +112,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	///////////2.
 	LRCT_Lift(A2qp, A, L + pai, mLen);
     //SHA256_Init(&ctx);
-    Keccak_HashInitialize_SHA3_256(&ctx);
+    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);
 	for (i = 0; i < w; i++)
 	{
 		poly_tobytes(bpoly, L + i);
@@ -135,12 +138,13 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
     //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
     Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
     //SHA256_Final(bHash, &ctx);//C_(pai+1)
-    Keccak_HashFinal(&ctx, bHash);
+    //Keccak_HashFinal(&ctx, bHash);
+    Keccak_HashFinal(&ctx, bt);
 
     //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
-    Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
+    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
 
-	poly_frombytes(&c, bt);
+    poly_frombytes(&c, bt);
     poly_serial(&c);
     //poly_print(&c);
 	/////////////////////////////////////
@@ -153,7 +157,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		}
 		LRCT_Lift(tmp2q, A, L + j, mLen);
         //SHA256_Init(&ctx);
-        Keccak_HashInitialize_SHA3_256(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);
 
 		for (k = 0; k < w; k++)
 		{
@@ -193,12 +197,13 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
         //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
         Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
         //SHA256_Final(bHash, &ctx);//C_(pai+1)
-        Keccak_HashFinal(&ctx, bHash);
+        //Keccak_HashFinal(&ctx, bHash);
+        Keccak_HashFinal(&ctx, bt);
 //        printf("sign bHash======================%d:\n", j);
 //        BytePrint(bHash, 32);
 
         //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
-        Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
+//        Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
 		poly_frombytes(&c, bt);
 		poly_serial(&c);//C_{j+1}
         if (j == (w + pai-1)%w)
@@ -250,7 +255,7 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 	{
 		LRCT_Lift(A2qp, A, L+i, mLen);
         //SHA256_Init(&ctx);
-        Keccak_HashInitialize_SHA3_256(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);
 		for (k = 0; k < w; k++)
 		{
 			poly_tobytes(bpoly, L + k);
@@ -283,12 +288,13 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
         Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
 
         //SHA256_Final(bHash, &ctx);//C_(pai+1)
-        Keccak_HashFinal(&ctx, bHash);
+        //Keccak_HashFinal(&ctx, bHash);
+        Keccak_HashFinal(&ctx, bpoly);
 //        printf("sign bHash======================%d:\n", j);
 //        BytePrint(bHash, 32);
 
         //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
-        Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);
+        //Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);
         poly_frombytes(&c, bpoly);
 		poly_serial(&c);
 	}
@@ -371,14 +377,14 @@ void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringc
 
 	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
-	unsigned char bt[576] = { 0 };
+    unsigned char bt[NEWHOPE_POLYCOMPRESSEDBYTES] = { 0 };
 	int i;
 	int tmpTable[NEWHOPE_N] = { 0 };
 	for ( i = 0; i < NEWHOPE_N; i++)
 	{
 		tmpTable[i] = i;
 	}
-    Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYCOMPRESSEDBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 	////H(L)
 	for (i = 0; i < beta; i++)
 	{
@@ -389,9 +395,9 @@ void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringc
 		poly_tobytes(bpoly, ia + i);
         Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 	}///H_1(L||)
-    Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
-    Keccak_256KDF(bHash, 32, bt, 576);//CHECKIT//SHA256_KDF(bHash, 32, 576, bt);
-
+    //Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
+    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYCOMPRESSEDBYTES);//CHECKIT//SHA256_KDF(bHash, 32, NEWHOPE_POLYCOMPRESSEDBYTES, bt);
+    Keccak_HashFinal(&ctx, bt);
 
 }
 ////
@@ -434,7 +440,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		poly_init(u+i);
 	}
 	/////
-    Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 	////H(L)
 	for ( i = 0; i < wLen*NLen; i++)
 	{
@@ -476,8 +482,9 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		poly_tobytes(bpoly, &tmp1);
         Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
 	}
-    Keccak_HashFinal(&ctx, bHash);//Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
-    Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+    //Keccak_HashFinal(&ctx, bHash);//Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
+    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+    Keccak_HashFinal(&ctx, bt);
 	poly_frombytes(&c, bt);
 	poly_serial(&c);
 	//////////////////////
@@ -490,7 +497,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 			poly_cofcopy(c1, &ctmp);
 		}
 
-        Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 		////H_1(L||)
 		for (j = 0; j < wLen*NLen; j++)
 		{
@@ -528,8 +535,9 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 			poly_tobytes(bpoly, &tmp);
             Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
 		}
-        Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
-        Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+        //Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
+        //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+        Keccak_HashFinal(&ctx, bt);
 		poly_frombytes(&ctmp, bt);
 		poly_serial(&ctmp);//C_{index+1}
 		if (index == (pai - 2))
@@ -584,7 +592,7 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 	//////
 	for (i = 0; i < wLen; i++)
 	{
-        Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 		for (k = 0; k < wLen*NLen; k++)
 		{
 			poly_tobytes(bpoly, LList + k);
@@ -614,8 +622,9 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 			poly_tobytes(bpoly, &tmp);
             Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
 		}
-        Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
-        Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
+        //Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
+        //Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
+        Keccak_HashFinal(&ctx, bpoly);
 		poly_frombytes(&ctmp, bpoly);
 		poly_serial(&ctmp);//
 	}
