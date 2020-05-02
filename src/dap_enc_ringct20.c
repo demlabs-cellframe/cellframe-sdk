@@ -58,13 +58,13 @@ void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
 
 void ringct20_pack_prk(uint8_t *prk, const poly_ringct20 *S, const ringct20_param_t *rct_p)
 {
-    for(uint32_t i = 0; i < rct_p->M - 1; ++i)
+    for(int i = 0; i < rct_p->M - 1; ++i)
         poly_tobytes(prk + i*rct_p->POLY_RINGCT20_SIZE_PACKED, S +i);
 
 }
 void ringct20_unpack_prk(const uint8_t *prk, poly_ringct20 *S, const ringct20_param_t *rct_p)
 {
-    for(uint32_t i = 0; i < rct_p->M - 1; ++i)
+    for(int i = 0; i < rct_p->M - 1; ++i)
         poly_frombytes(S +i, prk + i*rct_p->POLY_RINGCT20_SIZE_PACKED);
 
 }
@@ -131,7 +131,7 @@ void ringct20_pack_sig(uint8_t *sig, const poly_ringct20 *a_list,
     memcpy(sig + packed_size, &(wLen), sizeof(wLen));
     packed_size += sizeof(wLen);
     //pack a_list
-    for(uint32_t i = 0; i < wLen; ++i)
+    for(int i = 0; i < wLen; ++i)
     {
         poly_tobytes(sig + packed_size, a_list + i);
         packed_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
@@ -141,9 +141,9 @@ void ringct20_pack_sig(uint8_t *sig, const poly_ringct20 *a_list,
 //    printf(" = sig\n"); fflush(stdout);
 
     //pack t[W][M]
-    for(uint32_t j = 0; j < wLen; ++j)
+    for(int j = 0; j < wLen; ++j)
     {
-        for(uint32_t i = 0; i < rct_p->M; ++i)
+        for(int i = 0; i < rct_p->M; ++i)
         {
             poly_tobytes(sig + packed_size,t[j] + i);
             packed_size += rct_p->POLY_RINGCT20_SIZE_PACKED;
@@ -281,21 +281,21 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
     poly_ringct20 c1;
     poly_ringct20** t;//[w][M]//TOCORRECT to *t;
     t  = malloc(p->wLen*sizeof(poly_ringct20*));
-    for(uint32_t i = 0; i < p->wLen; ++i)
+    for(int i = 0; i < p->wLen; ++i)
         t[i] = malloc(p->M*p->POLY_RINGCT20_SIZE);
 
     unsigned char *bt = malloc(NEWHOPE_POLYBYTES);
 
-    for (uint32_t i = 0; i < p->wLen; i++)
+    for (int i = 0; i < p->wLen; i++)
     {
-        for (uint32_t k = 0; k < p->M; k++)
+        for (int k = 0; k < p->M; k++)
         {
             poly_init(t[i] + k);
         }
 
     }
 
-    for (uint32_t k = 0; k < p->M; k++)
+    for (int k = 0; k < p->M; k++)
     {
         randombytes(bt, NEWHOPE_POLYBYTES);
         poly_frombytes(u + k, bt);

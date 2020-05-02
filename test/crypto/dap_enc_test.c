@@ -10,77 +10,64 @@
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
 #include "dap_enc.h"
+#include "dap_test.h"
 
 #define TEST_SER_FILE_NAME "keystorage.txt"
 void test_encypt_decrypt(int count_steps, const dap_enc_key_type_t key_type, const int cipher_key_size)
 {
     dap_print_module_name(dap_enc_get_type_name(key_type));
+    const int max_source_size = 10000;
+    int time_beg = get_cur_time_msec();
 
-    const int verb = 0;
-    size_t source_size = 0;
+
 
     for(int i = 0; i < count_steps; i++) {
-        source_size = 1 + random_uint32_t(10000);
-//        printf("src_size = %d\n", source_size);fflush(stdout);
+        size_t source_size = 0;
         const size_t seed_size = 16;
         uint8_t seed[seed_size];
 
         const size_t kex_size = 32;
         uint8_t kex[kex_size];
-
         randombytes(seed, seed_size);
         randombytes(kex, kex_size);
 
         dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex, kex_size, seed, seed_size, cipher_key_size);
+        source_size = 1 + random_uint32_t(max_source_size);
 
-        uint8_t *source = DAP_NEW_SIZE(uint8_t, source_size+verb);
+        uint8_t *source = DAP_NEW_SIZE(uint8_t, source_size);
 
         randombytes(source, source_size);//randombase64(source, source_size);
-//        for(int i = 0; i < source_size; ++i)
-//            printf("%.2x ", source[i]);
-//        printf(" = len(%d)\n", source_size);fflush(stdout);
-
         uint8_t * buf_encrypted = NULL;
         uint8_t * buf_decrypted = NULL;
 
+
         size_t encrypted_size = key->enc(key, source, source_size, (void**) &buf_encrypted);
-        if(verb)
-        {
-            for(int i = 0; i < 24; ++i)
-                printf("%.2x ", source[i]);
-            printf("\n");fflush(stdout);
-        }
         size_t result_size = key->dec(key, buf_encrypted, encrypted_size, (void**) &buf_decrypted);
-        if(verb)
-        {
-            printf("pt_size = %d, decr_size = %d, encrypted_size = %d\n", source_size, result_size,encrypted_size);
-            fflush(stdout);
-            source[source_size] = 0;
-            printf("pt  = %s\n", source);
-            fflush(stdout);
-            printf("pt2 = %s\n", buf_decrypted);
-            fflush(stdout);
-        }
+
         dap_assert_PIF(source_size == result_size, "Check result decode size");
 
         dap_assert_PIF(memcmp(source, buf_decrypted, source_size) == 0,
                 "Check source and encode->decode data");
 
         DAP_DELETE(source);
-        free(buf_encrypted);
-        free(buf_decrypted);
+        DAP_DELETE(buf_encrypted);
+        DAP_DELETE(buf_decrypted);
         dap_enc_key_delete(key);
     }
+    int time_end = get_cur_time_msec();
+    char pass_msg_buf[256];
+    sprintf_s(pass_msg_buf, 256, "Encode and decode      %d times T = %f (%f per once)", count_steps, (time_end - time_beg)/1000.0,(time_end - time_beg)/1000.0/count_steps);
+    dap_pass_msg(pass_msg_buf);
 
-    dap_pass_msg("Encode and decode");
 }
 
 void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type, const int cipher_key_size)
 {
+    const int max_source_size = 10000;
     dap_print_module_name(dap_enc_get_type_name(key_type));
-    const size_t buf_size = 4096;
-    char buf_encrypt_out[buf_size];
-    char buf_decrypt_out[buf_size];
+    char buf_encrypt_out[max_source_size+128];
+    char buf_decrypt_out[max_source_size];
+    int time_beg = get_cur_time_msec();
 
 
     size_t seed_size = 16;
@@ -97,15 +84,15 @@ void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type
     size_t source_size = 0;
 
     for(int i = 0; i < count_steps; i++) {
-        source_size = 1 + random_uint32_t(2000);
+        source_size = 1 + random_uint32_t(max_source_size);
 
         uint8_t *source = DAP_NEW_SIZE(uint8_t,source_size + 0);
         randombytes(source, source_size);//randombase64(source, source_size);
 
 
-        size_t encrypted_size = key->enc_na(key, source, source_size, buf_encrypt_out, buf_size);
+        size_t encrypted_size = key->enc_na(key, source, source_size, buf_encrypt_out, max_source_size+128);
 
-        size_t result_size = key->dec_na(key, buf_encrypt_out, encrypted_size, buf_decrypt_out, buf_size);
+        size_t result_size = key->dec_na(key, buf_encrypt_out, encrypted_size, buf_decrypt_out, max_source_size);
 
 
 
@@ -117,7 +104,10 @@ void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type
     }
 
     dap_enc_key_delete(key);
-    dap_pass_msg("Encode and decode fast");
+    int time_end = get_cur_time_msec();
+    char pass_msg_buf[256];
+    sprintf_s(pass_msg_buf, 256, "Encode and decode fast %d times T = %f (%f per once)", count_steps, (time_end - time_beg)/1000.0,(time_end - time_beg)/1000.0/count_steps);
+    dap_pass_msg(pass_msg_buf);
 }
 
 

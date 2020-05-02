@@ -18,22 +18,29 @@ int main(void)
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
 
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_GOST_OFB,   32);
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    const int  test_numbers = 100;
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_SALSA2012,  32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_SALSA2012,  32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_SALSA2012,  32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_BF_CBC,     0);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_BF_CBC,     0);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_BF_OFB,     0);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_BF_OFB,     0);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_IAES,       32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_IAES,       32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_OAES,       32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_OAES,       32);
+    dap_enc_ringct20_tests_run(test_numbers);
     return 0;
-    dap_enc_ringct20_tests_run(10);
     dap_enc_tests_run();
 
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_BF_CBC,     0);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_BF_CBC,     0);
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_BF_OFB,     0);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_BF_OFB,     0);
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_IAES,       32);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_IAES,       32);
-    test_encypt_decrypt      (1000, DAP_ENC_KEY_TYPE_OAES,       32);
-    test_encypt_decrypt_fast (1000, DAP_ENC_KEY_TYPE_OAES,       32);
 
     dap_enc_picnic_tests_run();
     dap_enc_sig_bliss_tests_run();

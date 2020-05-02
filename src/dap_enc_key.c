@@ -166,6 +166,22 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
+    [DAP_ENC_KEY_TYPE_SALSA2012]={
+        .name = "SALSA2012",
+        .enc = dap_enc_salsa2012_encrypt,
+        .enc_na = dap_enc_salsa2012_encrypt_fast ,
+        .dec = dap_enc_salsa2012_decrypt,
+        .dec_na = dap_enc_salsa2012_decrypt_fast ,
+        .new_callback = dap_enc_salsa2012_key_new,
+        .delete_callback = dap_enc_salsa2012_key_delete,
+        .new_generate_callback = dap_enc_salsa2012_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = dap_enc_salsa2012_calc_encode_size,
+        .dec_out_size = dap_enc_salsa2012_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
 
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
@@ -750,10 +766,10 @@ size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size)
     return 0;
 }
 
-char *dap_enc_get_type_name(dap_enc_key_type_t key_type)
+const char *dap_enc_get_type_name(dap_enc_key_type_t a_key_type)
 {
-    if(s_callbacks[key_type].name) {
-        return s_callbacks[key_type].name;
+    if(s_callbacks[a_key_type].name) {
+        return s_callbacks[a_key_type].name;
     }
     log_it(L_ERROR, "name not realize for current key type");
     return 0;

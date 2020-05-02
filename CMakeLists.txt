@@ -32,6 +32,8 @@ file( GLOB CRYPTO_SRCS
       src/oaes/*.c
       src/blowfish/*.c
       src/GOST/*.c
+      src/salsa2012/*.c
+      src/seed/*.c
       src/sha3/*.c
       src/msrln/*.c
       src/defeo_scheme/*.c
@@ -49,6 +51,8 @@ file( GLOB CRYPTO_HEADERS
       src/oaes/*.h
       src/blowfish/*.h
       src/GOST/*.h
+      src/salsa2012/*.h
+      src/seed/*.h
       src/sha3/*.h
       src/msrln/*.h
       src/defeo_scheme/*.h

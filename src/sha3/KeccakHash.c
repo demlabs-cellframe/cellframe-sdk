@@ -18,23 +18,23 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 /* ---------------------------------------------------------------- */
 
-HashReturn Keccak_KDF(void *in, const int in_byte_len, void *key_out, const int out_byte_len, unsigned int rate, unsigned int capacity, unsigned char delimitedSuffix)
-{
-    HashReturn result;
+//HashReturn Keccak_KDF(void *in, const int in_byte_len, void *key_out, const int out_byte_len, unsigned int rate, unsigned int capacity, unsigned char delimitedSuffix)
+//{
+//    HashReturn result;
 
-    Keccak_HashInstance instance;
-    result = Keccak_HashInitialize(&instance, rate, capacity, out_byte_len*8, delimitedSuffix);
-    if (result != SUCCESS)
-        return result;
+//    Keccak_HashInstance instance;
+//    result = Keccak_HashInitialize(&instance, rate, capacity, out_byte_len*8, delimitedSuffix);
+//    if (result != SUCCESS)
+//        return result;
 
-    result = Keccak_HashUpdate(&instance, in, in_byte_len*8);
-    if (result != SUCCESS)
-        return result;
+//    result = Keccak_HashUpdate(&instance, in, in_byte_len*8);
+//    if (result != SUCCESS)
+//        return result;
 
-    result = Keccak_HashFinal(&instance, key_out);
+//    result = Keccak_HashFinal(&instance, key_out);
 
-    return result;
-}
+//    return result;
+//}
 
 HashReturn Keccak_HashInitialize(Keccak_HashInstance *instance, unsigned int rate, unsigned int capacity, unsigned int hashbitlen, unsigned char delimitedSuffix)
 {

@@ -54,7 +54,7 @@ typedef struct {
 HashReturn Keccak_HashInitialize(Keccak_HashInstance *hashInstance, unsigned int rate, unsigned int capacity, unsigned int hashbitlen, unsigned char delimitedSuffix);
 
 
-#define Keccak_256KDF(in, in_byte_len, key_out, out_byte_len) Keccak_KDF(in, in_byte_len, key_out, out_byte_len, 1088,  512, 0x1F)
+//#define Keccak_256KDF(in, in_byte_len, key_out, out_byte_len) Keccak_KDF(in, in_byte_len, key_out, out_byte_len, 1088,  512, 0x1F)
 
 /** Macro to initialize a SHAKE128 instance as specified in the FIPS 202 standard.
   */
