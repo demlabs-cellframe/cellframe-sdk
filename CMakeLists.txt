@@ -2,9 +2,19 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.0-2")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.0-3")
 include(cmake/OS_Detection.cmake)
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
+
+set(DAPSDK_MODULES "")
+
+if (CELLFRAME_MODULES MATCHES "core")
+    SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
+endif()
+
+if (CELLFRAME_MODULES MATCHES "network")
+    set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
+endif()
 
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
@@ -13,14 +23,79 @@ add_subdirectory(modules/)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 
-set(CELLFRAME_LIBS dap_core dap_crypto dap_crypto dap_server_core dap_enc_server dap_udp_server dap_session
-            dap_enc_server dap_stream dap_stream_ch_chain dap_stream_ch_chain_net
-            dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_client
-            dap_chain_cs_dag dap_chain_cs_dag_poa dap_chain_cs_dag_pos
-            dap_chain_net dap_chain_net_srv
-            dap_chain_net_srv_vpn dap_chain_net_srv_app  dap_chain_net_srv_app_db
-            dap_chain_net_srv_datum  dap_chain_net_srv_datum_pool
-            dap_chain_wallet dap_chain_global_db dap_chain_mempool dap_chain_cs_none m magic pthread)
+# init libs
+set(CELLFRAME_LIBS "")
+
+# Core libs from dap-sdk
+if (CELLFRAME_MODULES MATCHES "core")
+    message("[+] Module 'core'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto m pthread)
+endif()
+
+# General chain libs
+if (CELLFRAME_MODULES MATCHES "chains")
+    message("[+] Module 'chains'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet dap_chain_crypto)
+endif()
+
+# Networking
+if (CELLFRAME_MODULES MATCHES "network")
+    message("[+] Module 'network'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_server_core dap_enc_server dap_http_server dap_udp_server dap_session 
+	dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_mempool magic)
+endif()
+
+# Chain net services
+if (CELLFRAME_MODULES MATCHES "srv-" )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv dap_stream_ch_chain_net_srv)
+endif()
+
+# DAG based consensus(es)
+if (CELLFRAME_MODULES MATCHES "cs-dag-" )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag)
+endif()
+
+# PoA consensus for DAG
+if (CELLFRAME_MODULES MATCHES "cs-dag-poa")
+    message("[+] Module 'cs-dag-poa'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag_poa)
+endif()
+
+# PoS consensus for DAG
+if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
+    message("[+] Module 'cs-dag-pos'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag_pos)
+endif()
+
+# No-consensus
+if (CELLFRAME_MODULES MATCHES "cs-none")
+    message("[+] Module 'cs-none'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_none)
+endif()
+
+# Enable service Application
+if (CELLFRAME_MODULES MATCHES "srv-app")
+    message("[+] Module 'srv-app'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_app )
+endif()
+
+# Enable service Application DB
+if (CELLFRAME_MODULES MATCHES "srv-app-db")
+    message("[+] Module 'srv-app-db'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_app_db )
+endif()
+
+# Enable service datum process
+if (CELLFRAME_MODULES MATCHES "srv-datum")
+    message("[+] Module 'srv-datum'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_datum )
+endif()
+
+# Enable service VPN
+if (CELLFRAME_MODULES MATCHES "srv-vpn")
+    message("[+] Module 'srv-vpn'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn )
+endif()
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32

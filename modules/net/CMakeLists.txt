@@ -4,7 +4,7 @@ project (dap_chain_net)
 
 file(GLOB DAP_CHAIN_NET_SRCS *.c)
 
-file(GLOB DAP_CHAIN_NET_HEADERS *.h)
+file(GLOB DAP_CHAIN_NET_HEADERS include/*.h)
 
 #if (ANDROID)
 #    set(DAP_CHAIN_NET_HEADERS ${DAP_CHAIN_NET_HEADERS}

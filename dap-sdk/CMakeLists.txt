@@ -1,12 +1,25 @@
-# Core
-add_subdirectory(core)
+# Core 
+if (DAPSDK_MODULES MATCHES "core")
+    # Core
+    add_subdirectory(core)
+endif()
+if (DAPSDK_MODULES MATCHES "crypto")
+    # Cryptography
+    add_subdirectory(crypto)
+endif()
 
-# Cryptography
-add_subdirectory(crypto)
+# Networking core
+if (DAPSDK_MODULES MATCHES "network-core")
+    add_subdirectory(net/core)
+    add_subdirectory(net/stream)
+endif()
+# Networking client
+if (DAPSDK_MODULES MATCHES "network-client")
+    add_subdirectory(net/client)
+endif()
 
-# Networking
-add_subdirectory(net/core)
-add_subdirectory(net/client)
-add_subdirectory(net/server)
-add_subdirectory(net/server-udp)
-add_subdirectory(net/stream)
+# Networking server
+if (DAPSDK_MODULES MATCHES "network-server")
+    add_subdirectory(net/server)
+    add_subdirectory(net/server-udp)
+endif()

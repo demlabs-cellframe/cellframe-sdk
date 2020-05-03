@@ -11,7 +11,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_STREAM_CH_SRCS} ${DAP_STREAM_CH_HDRS})
 
-target_link_libraries(dap_stream_ch dap_core dap_crypto dap_stream)
+target_link_libraries(dap_stream_ch dap_core dap_crypto dap_udp_server dap_stream )
 
 target_include_directories(dap_stream_ch INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
