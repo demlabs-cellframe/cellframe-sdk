@@ -26,16 +26,6 @@
 #include <stdbool.h>
 #include <pthread.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <time.h>
-#include <pthread.h>
-#endif
-
 #include "utlist.h"
 
 #include "dap_common.h"
@@ -47,11 +37,11 @@
 #include "dap_chain_global_db_driver.h"
 #include "dap_chain_net.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_gdb.h"
+#include "dap_chain_cs_none.h"
 
-#define LOG_TAG "dap_chain_gdb"
+#define LOG_TAG "dap_chain_cs_none"
 
-#define CONSENSUS_NAME "gdb"
+#define CONSENSUS_NAME "none"
 
 typedef struct dap_chain_gdb_datum_hash_item{
     char key[70];

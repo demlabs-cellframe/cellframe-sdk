@@ -2,11 +2,10 @@ cmake_minimum_required(VERSION 2.8)
 project (dap_chain_cs_no_consensus)
   
 file(GLOB DAP_CHAIN_CS_NO_CONSENSUS_SRC *.c)
-file(GLOB DAP_CHAIN_CS_NO_CONSENSUS_HDR *.h)
+file(GLOB DAP_CHAIN_CS_NO_CONSENSUS_HDR include/*.h)
 
 if(WIN32)
-  include_directories(../3rdparty/wepoll/)
-  include_directories(../3rdparty/uthash/src/)
+  include_directories(../../../3rdparty/uthash/src/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_CS_NO_CONSENSUS_SRC} ${DAP_CHAIN_CS_NO_CONSENSUS_HDR})

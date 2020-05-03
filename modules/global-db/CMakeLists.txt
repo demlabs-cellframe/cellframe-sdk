@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.1)
 project (dap_chain_global_db C)
   
 file(GLOB DAP_CHAIN_GLOBAL_DB_SRC *.c)
-file(GLOB DAP_CHAIN_GLOBAL_DB_HDR *.h)
+file(GLOB DAP_CHAIN_GLOBAL_DB_HDR include/*.h)
 
 if(WIN32)
-  include_directories(../3rdparty/wepoll/)
-  include_directories(../3rdparty/uthash/src/)
+  include_directories(../../../3rdparty/wepoll/)
+  include_directories(../../../3rdparty/uthash/src/)
 endif()
 
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GLOBAL_DB_SRC} ${DAP_CHAIN_GLOBAL_DB_HDR})
 
-add_subdirectory(libdap-cuttdb)
+add_subdirectory(../../../3rdparty/cuttdb)
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto sqlite3 dap_cuttdb json-c)
 

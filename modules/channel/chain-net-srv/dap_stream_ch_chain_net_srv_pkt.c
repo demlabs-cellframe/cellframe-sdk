@@ -30,15 +30,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stdint.h>
 #include <string.h>
 
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#endif
-
 #include <dap_common.h>
 #include <dap_stream.h>
 #include <dap_stream_pkt.h>

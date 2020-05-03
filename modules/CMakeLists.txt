@@ -5,17 +5,28 @@ add_subdirectory(crypto)
 add_subdirectory(wallet)
 add_subdirectory(mempool)
 add_subdirectory(net)
+add_subdirectory(net/srv)
 add_subdirectory(global-db)
-add_subdirectory(channel/chain-net)
+
+# Consensus types
+add_subdirectory(types/dag)
+add_subdirectory(types/block)
+add_subdirectory(types/no-consensus)
+
+# Consensuses
+add_subdirectory(consensus/block-pow)
+add_subdirectory(consensus/block-poa)
+add_subdirectory(consensus/dag-pos)
+add_subdirectory(consensus/dag-poa)
+
+# Stream channels
 add_subdirectory(channel/chain)
-add_subdirectory(service)
+add_subdirectory(channel/chain-net)
+add_subdirectory(channel/chain-net-srv)
+
+# Services 
 if(NOT (WIN32))
-  add_subdirectory(libdap-chain-net-srv-vpn)
+  add_subdirectory(service/vpn)
 endif()
 
-add_subdirectory(libdap-chain-gdb)
-add_subdirectory(libdap-stream-ch-chain-net-srv)
-add_subdirectory(libdap-chain-cs-dag)
-add_subdirectory(libdap-chain-cs-dag-poa)
-add_subdirectory(libdap-chain-cs-dag-pos)
 
