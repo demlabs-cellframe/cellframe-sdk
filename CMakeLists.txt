@@ -7,6 +7,8 @@ include(cmake/OS_Detection.cmake)
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 add_subdirectory(dap-sdk)
+add_subdirectory(3rdparty/monero_crypto)
+add_subdirectory(3rdparty/cuttdb)
 add_subdirectory(modules/)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
@@ -19,7 +21,7 @@ if(NOT (WIN32))
             dap_chain_net dap_chain_net_srv
             dap_chain_net_srv_vpn dap_chain_net_srv_app  dap_chain_net_srv_app_db
             dap_chain_net_srv_datum  dap_chain_net_srv_datum_pool
-            dap_chain_wallet dap_chain_global_db dap_chain_mempool dap_chain_gdb m magic
+            dap_chain_wallet dap_chain_global_db dap_chain_mempool dap_chain_cs_none m magic
             )
 else()
     target_link_libraries(${PROJECT_NAME}  dap_core dap_crypto dap_crypto dap_server_core dap_enc_server dap_udp_server dap_session
@@ -29,7 +31,7 @@ else()
         dap_chain_net dap_chain_net_srv
         dap_chain_net_srv_app  dap_chain_net_srv_app_db
         dap_chain_net_srv_datum  dap_chain_net_srv_datum_pool
-        dap_chain_wallet dap_chain_global_db dap_chain_mempool dap_chain_gdb
+        dap_chain_wallet dap_chain_global_db dap_chain_mempool dap_chain_cs_none
         )
 endif()
 #target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)

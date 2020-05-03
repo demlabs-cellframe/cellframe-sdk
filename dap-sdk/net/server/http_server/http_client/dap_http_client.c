@@ -38,8 +38,8 @@
 #include "dap_common.h"
 #include "dap_client_remote.h"
 
-#include "../dap_http.h"
-#include "../http_status_code.h"
+#include "dap_http.h"
+#include "http_status_code.h"
 
 #include "dap_http_header.h"
 #include "dap_http_client.h"

@@ -32,11 +32,11 @@
 #include "uthash.h"
 #include "dap_common.h"
 
-#include "../http_server/http_client/dap_http_client.h"
-#include "../http_server/http_client/dap_http_header.h"
+#include "../http_server/http_client/include/dap_http_client.h"
+#include "../http_server/http_client/include/dap_http_header.h"
 
 #include "dap_enc.h"
-#include "dap_enc_ks.h"
+#include "include/dap_enc_ks.h"
 #include "dap_enc_key.h"
 
 #define LOG_TAG "dap_enc_ks"

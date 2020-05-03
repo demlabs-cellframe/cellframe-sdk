@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_chain_cs_block_pow)
   
-set(DAP_CHAIN_BLOCK_CS_POW_SRCS *.c)
-set(DAP_CHAIN_BLOCK_CS_POW_HEADERS include/*.h)
+file(GLOB DAP_CHAIN_BLOCK_CS_POW_SRCS *.c)
+file(GLOB DAP_CHAIN_BLOCK_CS_POW_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_BLOCK_CS_POW_SRCS} ${DAP_CHAIN_BLOCK_CS_POW_HEADERS})
 

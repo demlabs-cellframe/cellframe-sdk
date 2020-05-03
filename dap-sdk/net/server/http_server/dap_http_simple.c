@@ -52,8 +52,8 @@ See more details here <http://www.gnu.org/licenses/>.
 #include "dap_http_user_agent.h"
 
 
-#include "../enc_server/dap_enc_ks.h"
-#include "../enc_server/dap_enc_http.h"
+#include "../enc_server/include/dap_enc_ks.h"
+#include "../enc_server/include/dap_enc_http.h"
 
 #include "http_status_code.h"
 

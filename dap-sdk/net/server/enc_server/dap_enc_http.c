@@ -38,18 +38,18 @@
 
 #include "dap_common.h"
 
-#include "dap_http.h"
+#include "include/dap_http.h"
 #include "dap_http_client.h"
-#include "dap_http_simple.h"
+#include "include/dap_http_simple.h"
 
 #include "dap_enc.h"
-#include "dap_enc_ks.h"
+#include "include/dap_enc_ks.h"
 #include "dap_enc_key.h"
 #include "dap_enc_iaes.h"
-#include "dap_enc_http.h"
+#include "include/dap_enc_http.h"
 #include "dap_enc_base64.h"
 #include "dap_enc_msrln.h"
-#include "http_status_code.h"
+#include "include/http_status_code.h"
 #include <json-c/json.h>
 
 

@@ -1,22 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_app_cli)
 
-set(DAP_APP_CLI_SRCS
-        src/dap_app_cli.c
-        src/dap_app_cli_net.c
-        src/dap_app_cli_shell.c
-        )
+file(GLOB DAP_APP_CLI_SRCS *.c)
 
-set(DAP_APP_CLI_HEADERS
-        include/dap_app_cli.h
-        include/dap_app_cli_net.h
-        include/dap_app_cli_shell.h
-    )
-
-
-if(WIN32)
-  #include_directories(../3rdparty/curl/include/)
-endif()
+file(GLOB DAP_APP_CLI_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_APP_CLI_SRCS} ${DAP_APP_CLI_HEADERS} )
 

@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.0)
 project (dap_chain_net)
   
 
-set(DAP_CHAIN_NET_SRCS *.c)
+file(GLOB DAP_CHAIN_NET_SRCS *.c)
 
-set(DAP_CHAIN_NET_HEADERS *.h)
+file(GLOB DAP_CHAIN_NET_HEADERS *.h)
 
 #if (ANDROID)
 #    set(DAP_CHAIN_NET_HEADERS ${DAP_CHAIN_NET_HEADERS}
@@ -50,6 +50,7 @@ if(UNIX)
 endif()
 
 target_include_directories(${PROJECT_NAME} INTERFACE . )
+target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 if (!WIN32)
     target_include_directories(${PROJECT_NAME} PUBLIC ${IPUTILS_INCLUDE_DIRS})

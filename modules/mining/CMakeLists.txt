@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_chain_crypto)
   
-set(DAP_CHAIN_CRYPTO_SRCS *.c)
+file(GLOB DAP_CHAIN_CRYPTO_SRCS *.c)
 
-set(DAP_CHAIN_CRYPTO_HEADERS include/*.h)
-
-add_subdirectory(../../../3rdparty/monero_crypto)
+file(GLOB DAP_CHAIN_CRYPTO_HEADERS include/*.h)
 
 include_directories("${monero_crypto_INCLUDE_DIRS}")
 add_definitions ("${monero_crypto_DEFINITIONS}")
@@ -13,6 +11,7 @@ add_definitions ("${monero_crypto_DEFINITIONS}")
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_CRYPTO_SRCS} ${DAP_CHAIN_CRYPTO_HEADERS})
 
 target_include_directories(dap_chain_crypto INTERFACE .)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_link_libraries(dap_chain_crypto dap_core dap_crypto dap_chain monero_crypto)
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)

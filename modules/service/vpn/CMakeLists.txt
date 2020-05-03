@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_chain_net_srv_vpn)
   
-set(DAP_CHAIN_NET_SRV_VPN_SRCS *.c)
+file(GLOB DAP_CHAIN_NET_SRV_VPN_SRCS *.c)
 
-set(DAP_CHAIN_NET_SRV_VPN_HEADERS include/*.h)
+file(GLOB DAP_CHAIN_NET_SRV_VPN_HEADERS include/*.h)
 
 if(WIN32)
   include_directories(../../../os/win32/)
@@ -15,7 +15,8 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
 

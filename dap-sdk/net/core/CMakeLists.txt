@@ -5,36 +5,24 @@ set(CMAKE_C_STANDARD 11)
 
 add_definitions ("-D_GNU_SOURCE")
 
-if(NOT SUBMODULES_NO_BUILD)
-    if ( NOT ( TARGET dap_core ) )
-        add_subdirectory(libdap)
-    endif()
-
-    if ( NOT ( TARGET dap_crypto ) )
-        add_subdirectory(libdap-crypto)
-    endif()
-
-endif()
-
 if(WIN32)
-    file(GLOB DAP_SERVER_CORE_SOURCES src/*.c ../3rdparty/wepoll/*.c)
-    file(GLOB DAP_SERVER_CORE_HEADERS include/*.h ../3rdparty/wepoll/*.h)
+    file(GLOB DAP_SERVER_CORE_SOURCES *.c ../../../3rdparty/wepoll/*.c)
+    file(GLOB DAP_SERVER_CORE_HEADERS include/*.h ../../../3rdparty/wepoll/*.h)
 else()
-    file(GLOB DAP_SERVER_CORE_SOURCES src/*.c)
+    file(GLOB DAP_SERVER_CORE_SOURCES *.c)
     file(GLOB DAP_SERVER_CORE_HEADERS include/*.h)
 endif()
 
 if(WIN32)
-  include_directories(../3rdparty/uthash/src/)
-  #include_directories(../3rdparty/curl/include/)
-  include_directories(../3rdparty/wepoll/)
+  include_directories(../../../3rdparty/uthash/src/)
+  include_directories(../../../3rdparty/wepoll/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
 if(WIN32)
   target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
-  target_include_directories(${PROJECT_NAME} INTERFACE ../3rdparty/wepoll)
+  target_include_directories(${PROJECT_NAME} INTERFACE ../../../3rdparty/wepoll)
 endif()
 
 if(UNIX)
