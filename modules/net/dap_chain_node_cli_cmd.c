@@ -2440,7 +2440,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
                         sizeof(l_datum_token_update->header_private),
                         0);
                 size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_datum_token_update = DAP_REALLOC(l_datum_token_update, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_sign_size);
+                l_datum_token_update = DAP_REALLOC(l_datum_token_update, sizeof(dap_chain_datum_token_t) +l_tsd_total_size + l_datum_data_offset + l_sign_size);
                 memcpy(l_datum_token_update->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
                 l_datum_data_offset += l_sign_size;
                 DAP_DELETE(l_sign);
@@ -2681,11 +2681,13 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
             if(l_certs_count > l_signs_total)
                 l_certs_count = l_signs_total;
 
+            log_it(L_DEBUG,"Prepeared TSD sections on %zd total size", l_tsd_total_size);
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)+l_tsd_total_size ) ;
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL;
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->header_private_decl.flags = l_flags;
+            log_it(L_DEBUG,"Token declaration '%s' initialized", l_datum_token->ticker);
 
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
@@ -2695,15 +2697,47 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                         sizeof(l_datum_token->header_private),
                         0);
                 size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_sign_size);
+                l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) +l_tsd_total_size + l_datum_data_offset + l_sign_size);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
                 l_datum_data_offset += l_sign_size;
                 DAP_DELETE(l_sign);
+                log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
             }
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
                 dap_chain_datum_token_tsd_t * l_tsd = (dap_chain_datum_token_tsd_t *) l_iter->data;
+                if (l_tsd == NULL){
+                    log_it(L_ERROR, "NULL tsd in list!");
+                    continue;
+                }
+                switch (l_tsd->type){
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
+                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %llf.20",
+                               dap_chain_balance_to_coins( dap_chain_datum_token_tsd_get_scalar(l_tsd,uint128_t) ) );
+                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+                        log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
+                                dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t) );
+                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
+                        log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: %s",
+                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
+                        log_it(L_DEBUG,"== TX_SENDER_BLOCKED_ADD: %s",
+                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+                        log_it(L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: %s",
+                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
+                        log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: %s",
+                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                    break;
+                    default: log_it(L_DEBUG, "== 0x%04X: binary data %zd size ",l_tsd->type, l_tsd->size );
+                }
                 size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_data_offset += l_tsd_size;

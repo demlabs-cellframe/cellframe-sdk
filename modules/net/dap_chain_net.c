@@ -1440,7 +1440,7 @@ int s_net_load(const char * a_net_name)
                         log_it( L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
                         struct hostent *l_he;
 
-                        if ( l_he = gethostbyname (l_seed_nodes_hostnames[i])   ){
+                        if ( (l_he = gethostbyname (l_seed_nodes_hostnames[i]) ) != NULL  ){
                             struct in_addr **l_addr_list = (struct in_addr **) l_he->h_addr_list;
                             for(int i = 0; l_addr_list[i] != NULL; i++ ) {
                                 log_it( L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i] ,

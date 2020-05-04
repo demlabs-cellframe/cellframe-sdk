@@ -347,7 +347,7 @@ static void *thread_worker_function(void *arg)
                 if(cur->type == DESCRIPTOR_TYPE_SOCKET) {
                     bytes_read = recv(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
                             sizeof(cur->buf_in) - cur->buf_in_size, 0);
-                }else if(cur->type = DESCRIPTOR_TYPE_FILE) {
+                }else if(cur->type == DESCRIPTOR_TYPE_FILE) {
                     bytes_read = read(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
                             sizeof(cur->buf_in) - cur->buf_in_size);
                 }

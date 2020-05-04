@@ -264,7 +264,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
  */
 void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
 {
-    (void *) a_arg;
+    UNUSED(a_arg);
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     if(!l_client_internal){
         log_it(L_ERROR, "FSM Op: l_client_internal is NULL!");
