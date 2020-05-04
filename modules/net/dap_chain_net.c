@@ -80,7 +80,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
+//#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #define __USE_XOPEN
 #define _GNU_SOURCE
 #include <time.h>

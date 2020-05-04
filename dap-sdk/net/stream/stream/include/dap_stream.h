@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <pthread.h>
 #include <stdbool.h>
-
+#include <pthread.h>
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
 
@@ -51,8 +51,8 @@ typedef struct dap_events_socket dap_events_socket_t;
 typedef void (*dap_stream_callback)( dap_stream_t *,void*);
 
 typedef struct dap_stream {
-
     int id;
+    pthread_rwlock_t rwlock;
     dap_stream_session_t * session;
     struct dap_client_remote * conn; // Connection
 
@@ -78,7 +78,7 @@ typedef struct dap_stream {
     uint64_t buf_defrag_size;
 
     uint8_t buf[STREAM_BUF_SIZE_MAX];
-    uint8_t buf_pkt_in[STREAM_BUF_SIZE_MAX];
+    uint8_t pkt_cache[STREAM_BUF_SIZE_MAX];
 
     dap_stream_ch_t *channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;

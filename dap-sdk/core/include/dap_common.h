@@ -252,7 +252,6 @@ extern "C" {
 #define MAX_PATH 120
 #endif
 
-#ifndef _WIN32
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
@@ -260,7 +259,6 @@ extern "C" {
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#endif
 
 extern uint16_t htoa_lut256[ 256 ];
 

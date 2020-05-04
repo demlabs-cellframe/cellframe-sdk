@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -81,7 +82,7 @@ static pthread_mutex_t s_mutex_keepalive_list;
 static void start_keepalive( dap_stream_t *sid );
 static void keepalive_cb( void );
 
-static bool bKeepaliveLoopQuitSignal = false;
+static bool s_keep_alive_loop_quit_signal = false;
 static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
@@ -91,6 +92,7 @@ static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 10
 // Start keepalive stream
 static void *stream_loop( void *arg )
 {
+    UNUSED(arg);
 //    keepalive_loop = ev_loop_new(0);
 //    ev_loop(keepalive_loop, 0);
   do {
@@ -104,7 +106,7 @@ static void *stream_loop( void *arg )
 
     keepalive_cb( );
 
-  } while ( !bKeepaliveLoopQuitSignal );
+  } while ( !s_keep_alive_loop_quit_signal );
 
   return NULL;
 }
@@ -115,21 +117,20 @@ static void *stream_loop( void *arg )
  */
 int dap_stream_init( bool a_dump_packet_headers)
 {
-  if( dap_stream_ch_init() != 0 ){
+    if( dap_stream_ch_init() != 0 ){
+        log_it(L_CRITICAL, "Can't init channel types submodule");
+        return -1;
+    }
+    s_dump_packet_headers = a_dump_packet_headers;
 
-    log_it(L_CRITICAL, "Can't init channel types submodule");
-    return -1;
-  }
-  s_dump_packet_headers = a_dump_packet_headers;
+    s_keep_alive_loop_quit_signal = false;
 
-  bKeepaliveLoopQuitSignal = false;
+    pthread_mutex_init( &s_mutex_keepalive_list, NULL );
+    //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
 
-  pthread_mutex_init( &s_mutex_keepalive_list, NULL );
-  //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
+    log_it(L_NOTICE,"Init streaming module");
 
-  log_it(L_NOTICE,"Init streaming module");
-
-  return 0;
+    return 0;
 }
 
 /**
@@ -137,12 +138,12 @@ int dap_stream_init( bool a_dump_packet_headers)
  */
 void dap_stream_deinit()
 {
-  bKeepaliveLoopQuitSignal = true;
-  pthread_join( keepalive_thread, NULL );
+    s_keep_alive_loop_quit_signal = true;
+    pthread_join( keepalive_thread, NULL );
 
-  pthread_mutex_destroy( &s_mutex_keepalive_list );
+    pthread_mutex_destroy( &s_mutex_keepalive_list );
 
-  dap_stream_ch_deinit( );
+    dap_stream_ch_deinit( );
 }
 
 /**
@@ -201,7 +202,7 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
    // int raw_size;
     unsigned int id=0;
 
-    log_it(L_DEBUG,"Prepare data stream");
+//    log_it(L_DEBUG,"Prepare data stream");
     if(cl_ht->in_query_string[0]){
         log_it(L_INFO,"Query string [%s]",cl_ht->in_query_string);
 //        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
@@ -324,6 +325,7 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
 {
     dap_stream_t * ret=(dap_stream_t*) calloc(1,sizeof(dap_stream_t));
 
+    pthread_rwlock_init( &ret->rwlock, NULL);
     ret->conn = a_sh->client;
     ret->conn_http=a_sh;
     ret->buf_defrag_size = 0;
@@ -343,8 +345,10 @@ void dap_stream_delete( dap_stream_t *a_stream )
         log_it(L_ERROR,"stream delete NULL instance");
         return;
     }
+    pthread_rwlock_destroy(&a_stream->rwlock);
     stream_dap_delete(a_stream->conn, NULL);
-    free(a_stream);
+
+    DAP_DELETE(a_stream);
 }
 
 /**
@@ -355,7 +359,7 @@ void dap_stream_delete( dap_stream_t *a_stream )
 dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es)
 {
     dap_stream_t * ret= DAP_NEW_Z(dap_stream_t);
-
+    pthread_rwlock_init( &ret->rwlock, NULL);
     ret->events_socket = a_es;
     ret->buf_defrag_size=0;
     ret->is_client_to_uplink = true;
@@ -682,26 +686,29 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
 void stream_dap_delete(dap_client_remote_t* sh, void * arg){
     if(!sh)
         return;
-    dap_stream_t * sid = DAP_STREAM(sh);
-    if(sid == NULL)
+    dap_stream_t * l_stream = DAP_STREAM(sh);
+    if(l_stream == NULL)
         return;
     (void) arg;
 
     pthread_mutex_lock(&s_mutex_keepalive_list);
     if(s_stream_keepalive_list){
-        DL_DELETE(s_stream_keepalive_list, sid);
+        DL_DELETE(s_stream_keepalive_list, l_stream);
     }
     pthread_mutex_unlock(&s_mutex_keepalive_list);
 
+    pthread_rwlock_wrlock(&l_stream->rwlock);
     size_t i;
-    for(i=0;i<sid->channel_count; i++)
-        dap_stream_ch_delete(sid->channel[i]);
-    sid->channel_count = 0;
-    if(sid->session)
-        dap_stream_session_close(sid->session->id);
-    sid->session = NULL;
+    for(i=0;i<l_stream->channel_count; i++)
+        dap_stream_ch_delete(l_stream->channel[i]);
+    l_stream->channel_count = 0;
+
+    if(l_stream->session)
+        dap_stream_session_close(l_stream->session->id);
+    l_stream->session = NULL;
+    pthread_rwlock_unlock(&l_stream->rwlock);
     //free(sid);
-    log_it(L_NOTICE,"[core] Stream connection is finished");
+    log_it(L_NOTICE,"Stream connection is over");
 }
 
 /**
@@ -715,26 +722,29 @@ void stream_dap_new(dap_client_remote_t* sh, void * arg){
 }
 
 
-static bool _detect_loose_packet(dap_stream_t * sid)
+static bool _detect_loose_packet(dap_stream_t * a_stream)
 {
-    dap_stream_ch_pkt_t * ch_pkt = (dap_stream_ch_pkt_t *) sid->buf_pkt_in;
+    dap_stream_ch_pkt_t * ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-    int count_loosed_packets = ch_pkt->hdr.seq_id - (sid->client_last_seq_id_packet + 1);
+    pthread_rwlock_wrlock (&a_stream->rwlock);
+
+    int count_loosed_packets = ch_pkt->hdr.seq_id - (a_stream->client_last_seq_id_packet + 1);
     if(count_loosed_packets > 0)
     {
         log_it(L_WARNING, "Detected loosed %d packets. "
                           "Last read seq_id packet: %d Current: %d", count_loosed_packets,
-               sid->client_last_seq_id_packet, ch_pkt->hdr.seq_id);
+               a_stream->client_last_seq_id_packet, ch_pkt->hdr.seq_id);
     } else if(count_loosed_packets < 0) {
-        if(sid->client_last_seq_id_packet != 0 && ch_pkt->hdr.seq_id != 0) {
+        if(a_stream->client_last_seq_id_packet != 0 && ch_pkt->hdr.seq_id != 0) {
         log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
                           "Last read seq_id packet: %d Current: %d", count_loosed_packets,
-               sid->client_last_seq_id_packet, ch_pkt->hdr.seq_id);
+               a_stream->client_last_seq_id_packet, ch_pkt->hdr.seq_id);
         } // else client don't support seqid functionality
     }
 //    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
 //    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
-    sid->client_last_seq_id_packet = ch_pkt->hdr.seq_id;
+    a_stream->client_last_seq_id_packet = ch_pkt->hdr.seq_id;
+    pthread_rwlock_unlock (&a_stream->rwlock);
 
     return false;
 }
@@ -746,24 +756,36 @@ static bool _detect_loose_packet(dap_stream_t * sid)
  */
 void stream_proc_pkt_in(dap_stream_t * a_stream)
 {
-    if(a_stream->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_DATA_PACKET)
-    {
-        dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->buf_pkt_in;
+    pthread_rwlock_wrlock( &a_stream->rwlock );
+    dap_stream_pkt_t * l_pkt = a_stream->pkt_buf_in;
+    size_t l_pkt_size = a_stream->pkt_buf_in_data_size;
+    a_stream->pkt_buf_in=NULL;
+    a_stream->pkt_buf_in_data_size=0;
+    a_stream->keepalive_passed = 0;
+    pthread_rwlock_unlock (&a_stream->rwlock);
 
-        if(dap_stream_pkt_read(a_stream,a_stream->pkt_buf_in, l_ch_pkt, STREAM_BUF_SIZE_MAX)==0){
-            log_it(L_WARNING, "Input: can't decode packet size=%d",a_stream->pkt_buf_in_data_size);
+    if(l_pkt->hdr.type == STREAM_PKT_TYPE_DATA_PACKET)
+    {
+        dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
+
+        if(dap_stream_pkt_read(a_stream,l_pkt, l_ch_pkt, STREAM_BUF_SIZE_MAX)==0){
+            log_it(L_WARNING, "Input: can't decode packet size=%d",l_pkt_size);
         }
 
         _detect_loose_packet(a_stream);
 
+        // Find channel
         dap_stream_ch_t * ch = NULL;
-        size_t i;
-        for(i=0;i<a_stream->channel_count;i++)
+        pthread_rwlock_rdlock (&a_stream->rwlock);
+        for(size_t i=0;i<a_stream->channel_count;i++){
             if(a_stream->channel[i]->proc){
                 if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
                     ch=a_stream->channel[i];
                 }
             }
+        }
+        pthread_rwlock_unlock (&a_stream->rwlock);
+
         if(ch){
             ch->stat.bytes_read+=l_ch_pkt->hdr.size;
             if(ch->proc)
@@ -780,24 +802,20 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
         } else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
         }
-    } else if(a_stream->pkt_buf_in->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
-        stream_srv_pkt_t * srv_pkt = (stream_srv_pkt_t *)malloc(sizeof(stream_srv_pkt_t));
-        memcpy(srv_pkt,a_stream->pkt_buf_in->data,sizeof(stream_srv_pkt_t));
+    } else if(l_pkt->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
+        stream_srv_pkt_t * srv_pkt = DAP_NEW(stream_srv_pkt_t);
+        memcpy(srv_pkt, l_pkt->data,sizeof(stream_srv_pkt_t));
         uint32_t session_id = srv_pkt->session_id;
         check_session(session_id,a_stream->conn);
-        free(srv_pkt);
+        DAP_DELETE(srv_pkt);
     } else {
         log_it(L_WARNING, "Unknown header type");
     }
 
-    a_stream->keepalive_passed = 0;
 
 //    ev_timer_again (keepalive_loop, &a_stream->keepalive_watcher);
     start_keepalive( a_stream );
-
-    free(a_stream->pkt_buf_in);
-    a_stream->pkt_buf_in=NULL;
-    a_stream->pkt_buf_in_data_size=0;
+    DAP_DELETE(l_pkt);
 }
 
 /**

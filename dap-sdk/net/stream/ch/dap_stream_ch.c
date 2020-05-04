@@ -75,19 +75,23 @@ void dap_stream_ch_deinit()
  * @param direction Direction of channel (input to the server, output to the client)
  * @return
  */
-dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* stream,uint8_t id)
+dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
 {
     stream_ch_proc_t * proc=stream_ch_proc_find(id);
     if(proc){
-        dap_stream_ch_t * ret= DAP_NEW_Z(dap_stream_ch_t);
-        ret->stream=stream;
-        ret->proc=proc;
+        dap_stream_ch_t* ret = DAP_NEW_Z(dap_stream_ch_t);
+        ret->stream = a_stream;
+        ret->proc = proc;
         ret->ready_to_read=true;
-        ret->stream->channel[ret->stream->channel_count]=ret;
-        ret->stream->channel_count++;
         pthread_mutex_init(&(ret->mutex),NULL);
         if(ret->proc->new_callback)
             ret->proc->new_callback(ret,NULL);
+
+        pthread_rwlock_wrlock(&a_stream->rwlock);
+        a_stream->channel[ret->stream->channel_count] = ret;
+        a_stream->channel_count++;
+        pthread_rwlock_unlock(&a_stream->rwlock);
+
         return ret;
     }else{
         log_it(L_WARNING, "Unknown stream processor with id %uc",id);

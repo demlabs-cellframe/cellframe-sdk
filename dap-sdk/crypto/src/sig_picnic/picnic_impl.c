@@ -33,7 +33,7 @@
 #include "hash.h"
 #include "picnic_types.h"
 
-#define MAX(a, b) ((a) > (b)) ? (a) : (b)
+//#define MAX(a, b) ((a) > (b)) ? (a) : (b)
 
 #define VIEW_OUTPUTS(i, j) viewOutputs[(i) * 3 + (j)]
 
