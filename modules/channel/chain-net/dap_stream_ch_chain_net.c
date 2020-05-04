@@ -89,8 +89,8 @@ static void session_data_del(unsigned int a_id)
     pthread_mutex_lock(&s_hash_mutex);
     HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
     if(l_sdata) {
-        DAP_DELETE(l_sdata);
         HASH_DEL(s_chain_net_data, l_sdata);
+        DAP_DELETE(l_sdata);
     }
     pthread_mutex_unlock(&s_hash_mutex);
 }
@@ -101,8 +101,8 @@ static void session_data_del_all()
     pthread_mutex_lock(&s_hash_mutex);
     HASH_ITER(hh, s_chain_net_data , l_sdata, l_sdata_tmp)
     {
-        DAP_DELETE(l_sdata);
         HASH_DEL(s_chain_net_data, l_sdata);
+        DAP_DELETE(l_sdata);
     }
     pthread_mutex_unlock(&s_hash_mutex);
 }

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -72,9 +73,11 @@ void dap_client_remote_deinit( )
 void _save_ip_and_port( dap_client_remote_t * cl )
 {
   struct sockaddr_in ip_adr_get;
-  socklen_t ip_adr_len;
+  socklen_t ip_adr_len = sizeof(ip_adr_get);
 
-  getpeername( cl->socket, (struct sockaddr * restrict)&ip_adr_get, &ip_adr_len );
+  int l_res = getpeername( cl->socket, (struct sockaddr * restrict)&ip_adr_get, &ip_adr_len );
+  if(l_res == -1)
+    log_it(L_ERROR, "%s error: %s", __PRETTY_FUNCTION__, strerror(errno));
 
   cl->port = ntohs( ip_adr_get.sin_port );
   strcpy( cl->s_ip, inet_ntoa(ip_adr_get.sin_addr) );
