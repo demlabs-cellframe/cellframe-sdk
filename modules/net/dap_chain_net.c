@@ -1259,8 +1259,9 @@ int s_net_load(const char * a_net_name)
                     char *l_group_name = l_groups->data;
                     // do not use groups with names like *.del
                     if(!strstr(l_group_name, ".del")) {
-                        const char *l_history_group = dap_chain_global_db_add_history_extra_group(l_group_name, PVT(l_net)->gdb_sync_nodes_addrs,
-                                PVT(l_net)->gdb_sync_nodes_addrs_count);
+                        const char *l_history_group = dap_chain_global_db_add_history_extra_group(l_group_name,
+                                                        PVT(l_net)->gdb_sync_nodes_addrs,
+                                                        &PVT(l_net)->gdb_sync_nodes_addrs_count);
                         dap_chain_global_db_add_history_extra_group_callback_notify(l_group_name,
                                 s_gbd_history_callback_notify, l_net);
                         // create history for group

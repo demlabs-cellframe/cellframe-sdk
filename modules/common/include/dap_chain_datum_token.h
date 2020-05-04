@@ -26,7 +26,7 @@
 #include "dap_chain_common.h"
 #include "dap_sign.h"
 
-
+#include "dap_strfuncs.h"
 
 // Token declaration
 typedef struct dap_chain_datum_token{
@@ -57,7 +57,7 @@ typedef struct dap_chain_datum_token{
             uint32_t flags;
         } DAP_ALIGN_PACKED header_public;
     };
-    byte_t data[]; // Signs or types-size-data sections if exists
+    byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 // Token declaration type
@@ -73,6 +73,8 @@ typedef struct dap_chain_datum_token{
 
 // Macros for token flags
 /// ------- Global section flags --------
+// No any flags
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                    0x0000
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_BLOCKED                             0x0001
 // Allowed all permissions if not blocked them. Be careful with this mode
@@ -81,6 +83,29 @@ typedef struct dap_chain_datum_token{
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_FROZEN                              0x0003
 // Unfrozen permissions
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_UNFROZEN                            0x0004
+
+//  Maximal flag
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     0x0004
+
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                               0xffff
+
+extern const char *c_dap_chain_datum_token_flag_str[];
+
+#define dap_chain_datum_token_flag_to_str(a) (if (a<=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX) c_dap_chain_datum_token_flag_str[a]; else "OUT_OF_RANGE")
+
+/**
+ * @brief dap_chain_datum_token_flag_from_str
+ * @param a_str
+ * @return
+ */
+static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
+{
+    for (uint16_t i = DAP_CHAIN_DATUM_TOKEN_FLAG_NONE; i <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
+        if ( strcmp( a_str, c_dap_chain_datum_token_flag_str[i]) == 0 )
+            return i;
+    }
+    return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
+}
 
 /// ------ Static configured flags
 // No token manipulations after declarations at all. Token declares staticly and can't variabed after
@@ -107,7 +132,7 @@ typedef struct dap_chain_datum_token_tsd{
     uint16_t type; /// Section type
     size_t size;   /// Data size trailing the section
     byte_t data[]; /// Section's data
-} DAP_ALIGN_PACKED dap_chain_datum_token_klv_t;
+} DAP_ALIGN_PACKED dap_chain_datum_token_tsd_t;
 
 /// -------- General tsd types ----
 // Flags set/unsed
@@ -197,3 +222,17 @@ typedef struct dap_chain_datum_token_emission{
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
 extern const char *c_dap_chain_datum_token_emission_type_str[];
+
+/// TDS op funcs
+///
+
+dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, const void * a_data, size_t a_data_size);
+#define dap_chain_datum_token_tsd_create_scalar(type,value) dap_chain_datum_token_tsd_create (type, &value, sizeof(value) )
+#define dap_chain_datum_token_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
+
+// NULL-terminated string
+#define dap_chain_datum_token_tsd_create_string(type,str) dap_chain_datum_token_tsd_create (type,str, dap_strlen(str))
+#define dap_chain_datum_token_tsd_get_string(a)  ((char*) a->data )
+#define dap_chain_datum_token_tsd_get_string_const(a)  ((const char*) a->data )
+
+#define dap_chain_datum_token_tsd_size(a) (sizeof(*a)+a->size)

@@ -26,6 +26,7 @@ bool dap_string_equal(const dap_string_t *v, const dap_string_t *v2);
 
 unsigned int dap_string_hash(const dap_string_t *str);
 
+
 dap_string_t* dap_string_assign(dap_string_t *string, const char *rval);
 
 dap_string_t* dap_string_truncate(dap_string_t *string, size_t len);

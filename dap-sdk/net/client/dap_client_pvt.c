@@ -359,7 +359,6 @@ static void* dap_client_pvt_delete_proc(void *a_arg)
  */
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
-    pthread_t l_thread = NULL;
     //pthread_create(&l_thread, NULL, dap_client_pvt_delete_proc, a_client_pvt);
     dap_client_pvt_delete_in(a_client_pvt);
 }

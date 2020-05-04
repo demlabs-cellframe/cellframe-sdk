@@ -126,7 +126,8 @@ char* dap_chain_global_db_get_history_group_by_group_name(const char * a_group_n
     HASH_FIND_STR(s_history_extra_group_items, a_group_name, l_history_extra_group_item);
     if(l_history_extra_group_item) {
         return dap_strdup(l_history_extra_group_item->group_name_for_history);
-    }
+    }else
+        return NULL;
 }
 
 /**
@@ -167,7 +168,7 @@ void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix
  * @details Add group prefix that will be tracking all changes
  * @param a_group_prefix
  */
-const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, size_t *a_nodes_count)
+const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, uint16_t *a_nodes_count)
 {
     history_extra_group_item_t* l_item = DAP_NEW_Z(history_extra_group_item_t);
     l_item->group_name = dap_strdup(a_group_name);

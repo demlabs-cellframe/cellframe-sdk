@@ -62,7 +62,7 @@ char* dap_chain_global_db_get_history_group_by_group_name(const char * a_group_n
 void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix, const char * a_group_name_for_history);
 void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix,
                                                      dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
-const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, size_t *a_nodes_count);
+const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, uint16_t *a_nodes_count);
 void dap_chain_global_db_add_history_extra_group_callback_notify(const char * a_group_prefix,
         dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
 /**
