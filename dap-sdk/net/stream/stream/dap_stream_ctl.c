@@ -141,7 +141,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
 
             ss = dap_stream_session_pure_new();
             strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
-            char *key_str = calloc(1, KEX_KEY_STR_SIZE);
+            char *key_str = calloc(1, KEX_KEY_STR_SIZE+1);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
             ss->key = dap_enc_key_new_generate( s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);

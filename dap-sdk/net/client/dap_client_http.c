@@ -89,7 +89,7 @@ static void s_http_new(dap_events_socket_t * a_es, void * arg)
     l_client_http_internal->content_length = 0;
     l_client_http_internal->response_size = 0;
     l_client_http_internal->response_size_max = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
-    l_client_http_internal->response = (uint8_t*) DAP_NEW_SIZE(uint8_t, DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX);
+    l_client_http_internal->response = (uint8_t*) DAP_NEW_Z_SIZE(uint8_t, DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX);
 }
 
 /**
