@@ -1,7 +1,6 @@
 include (src/defeo_scheme/defeo.pri)
 include (src/iaes/iaes.pri)
 include (src/oaes/oaes.pri)
-include (src/blowfish/blowfish.pri)
 include (src/GOST/GOST.pri)
 include (src/salsa2012/salsa2012.pri)
 include (src/blowfish/blowfish.pri)
@@ -31,6 +30,7 @@ HEADERS += $$PWD/include/dap_enc.h \
     $$PWD/include/dap_enc_base58.h \
     $$PWD/include/dap_enc_dilithium.h \
     $$PWD/include/dap_enc_ringct20.h \
+    $$PWD/include/dap_enc_salsa2012.h \
     $$PWD/include/dap_crypto_common.h \
     $$PWD/include/dap_cert.h \
     $$PWD/include/dap_cert_file.h \
@@ -58,6 +58,7 @@ SOURCES += $$PWD/src/dap_enc.c \
     $$PWD/src/dap_enc_base58.c \
     $$PWD/src/dap_enc_dilithium.c \
     $$PWD/src/dap_enc_ringct20.c \
+    $$PWD/src/dap_enc_salsa2012.c \
     $$PWD/src/dap_enc_ca.c \
     $$PWD/src/dap_cert.c \
     $$PWD/src/dap_cert_file.c \
