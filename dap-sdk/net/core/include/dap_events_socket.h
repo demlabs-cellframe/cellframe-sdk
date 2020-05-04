@@ -29,11 +29,10 @@
 #include "uthash.h"
 #ifndef _WIN32
 #include <sys/epoll.h>
-#include <pthread.h>
 #else
 #include "wepoll.h"
 #endif
-
+#include <pthread.h>
 struct dap_events;
 struct dap_events_socket;
 struct dap_worker;
