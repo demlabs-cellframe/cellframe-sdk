@@ -535,7 +535,7 @@ static int init_ofb_14_impl(unsigned char *key, void *ctx, size_t s, unsigned ch
      return 0;
 }
 
-int DLL_IMPORT init_ofb_14(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_ofb_14(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost14Ofb())
           return -1;

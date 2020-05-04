@@ -13,6 +13,8 @@
 #define SALSA20_KEY_SIZE 32
 #define SALSA20_NONCE_SIZE 8
 
+#define DAP_DEL_Z DAP_DELETE
+
 void dap_enc_salsa2012_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
         size_t kex_size, const void * seed, size_t seed_size, size_t key_size)
 {
