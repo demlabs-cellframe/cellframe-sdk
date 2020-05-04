@@ -208,6 +208,7 @@ void dap_client_delete(dap_client_t * a_client)
     // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
     //DAP_DELETE(a_client);
     DAP_DELETE(a_client);
+    a_client = NULL;
 }
 
 /**
