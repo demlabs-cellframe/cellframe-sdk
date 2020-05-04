@@ -30,7 +30,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <fnmatch.h>
 
 #ifdef DAP_OS_UNIX
 #include <sys/types.h>
@@ -1259,7 +1258,7 @@ int s_net_load(const char * a_net_name)
                 while(l_groups) {
                     char *l_group_name = l_groups->data;
                     // do not use groups with names like *.del
-                    if(fnmatch("*.del", l_group_name, 0)) {
+                    if(!strstr(l_group_name, ".del")) {
                         const char *l_history_group = dap_chain_global_db_add_history_extra_group(l_group_name, PVT(l_net)->gdb_sync_nodes_addrs,
                                 PVT(l_net)->gdb_sync_nodes_addrs_count);
                         dap_chain_global_db_add_history_extra_group_callback_notify(l_group_name,

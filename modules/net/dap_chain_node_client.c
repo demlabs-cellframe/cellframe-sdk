@@ -600,10 +600,11 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         if ( wait == WAIT_OBJECT_0 && (
                     a_client->state == a_waited_state ||
                     a_client->state == NODE_CLIENT_STATE_ERROR || a_client->state == NODE_CLIENT_STATE_DISCONNECTED
-          ) {
+          )) {
             ret = a_client->state == a_waited_state ? 0 : -2;
             break;
         }
+
         else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
             ret = -1;
             break;
