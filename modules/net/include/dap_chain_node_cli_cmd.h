@@ -83,7 +83,7 @@ int com_help(int argc,  char ** argv, void *arg_func, char **str_reply);
  */
 int com_token_decl ( int argc,  char ** argv, void *arg_func, char ** str_reply);
 
-int com_token_decl_update(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 
 /**
  * Token declaration add sign

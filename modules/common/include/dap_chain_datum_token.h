@@ -42,12 +42,12 @@ typedef struct dap_chain_datum_token{
         // Private token declarations, with flags, manipulations and updates
         struct {
             uint16_t flags; // Token declaration flags
-            size_t tsd_data_size; // Data size section with values in key-length-value list trailing the signs section
+            size_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
         } DAP_ALIGN_PACKED header_private_decl;
         // Private token update
         struct {
-            uint16_t flags; // Update flag - clear all before, add or etc
-            size_t klv_data_size; // Data size section with extended values in key-length-value list.
+            uint16_t padding;
+            size_t tsd_total_size; // Data size section with extended values in key-length-value list.
         } DAP_ALIGN_PACKED header_private_update;
         // Public token declaration
         struct {
@@ -100,6 +100,9 @@ extern const char *c_dap_chain_datum_token_flag_str[];
  */
 static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 {
+    if (a_str == NULL)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
+
     for (uint16_t i = DAP_CHAIN_DATUM_TOKEN_FLAG_NONE; i <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
         if ( strcmp( a_str, c_dap_chain_datum_token_flag_str[i]) == 0 )
             return i;
