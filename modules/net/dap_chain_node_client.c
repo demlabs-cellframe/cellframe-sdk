@@ -335,6 +335,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                                 l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size);
                                 if ( l_lasts){
                                     for(size_t i = 0; i < l_lasts_size; i++) {
+                                        pthread_mutex_lock(&l_node_client->wait_mutex);
                                         dap_chain_atom_item_t * l_item = NULL;
                                         dap_chain_hash_fast_t l_atom_hash;
                                         dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]), &l_atom_hash);
@@ -347,6 +348,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                                         }
                                         //else
                                         //    DAP_DELETE(l_lasts[i]);
+                                        pthread_mutex_unlock(&l_node_client->wait_mutex);
                                     }
                                     DAP_DELETE(l_lasts);
                                 }
@@ -521,7 +523,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         CloseHandle( a_client->wait_cond );
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
-        DAP_DELETE(a_client);
+        DAP_DEL_Z(a_client);
     }
 }
 
