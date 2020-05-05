@@ -273,7 +273,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
 
     switch ( PVT(l_net)->state ){
         case NET_STATE_OFFLINE:{
-            PVT(l_net)->state_target = PVT(l_net)->state_new;
+            if (PVT(l_net)->state_new != NET_STATE_UNDEFINED) {
+                PVT(l_net)->state_target = PVT(l_net)->state_new;
+                PVT(l_net)->state_new = NET_STATE_UNDEFINED;
+            }
             // reset current link
             PVT(l_net)->links_count = 0;
             // delete all links
@@ -717,7 +720,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
         break;
 
         case NET_STATE_ONLINE: {
-            PVT(l_net)->state_target = PVT(l_net)->state_new;
+            if (PVT(l_net)->state_new != NET_STATE_UNDEFINED) {
+                PVT(l_net)->state_target = PVT(l_net)->state_new;
+                PVT(l_net)->state_new = NET_STATE_UNDEFINED;
+            }
             switch ( PVT(l_net)->state_target) {
                 // disconnect
                 case NET_STATE_OFFLINE:
@@ -1960,13 +1966,21 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
             for(size_t i = 0; i < l_objs_size; i++) {
                 dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-                l_datums[i] = l_datum;
-                if(i < l_objs_size_tmp) {
-                    char buf[50];
-                    time_t l_ts_create = (time_t) l_datum->header.ts_create;
-                    log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
-                            l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
-                            ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                int l_verify_datum= dap_chain_net_verify_datum_for_add( a_net, l_datum) ;
+                if (l_verify_datum != 0){
+                    log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
+                                             l_verify_datum);
+                    dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+                    l_datums[i] = NULL;
+                }else{
+                    l_datums[i] = l_datum;
+                    if(i < l_objs_size_tmp) {
+                        char buf[50];
+                        time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                        log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
+                                l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
+                                ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                    }
                 }
             }
             size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums, l_datums_size);
@@ -1983,6 +1997,15 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
                 log_it(L_WARNING, "%s.%s: %d records not processed", a_net->pub.name, l_chain->name,
                         l_datums_size - l_objs_processed);
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+
+            // Cleanup datums array
+            if(l_datums){
+                for(size_t i = 0; i < l_objs_size; i++) {
+                    if (l_datums[i])
+                        DAP_DELETE(l_datums[i]);
+                }
+                DAP_DEL_Z(l_datums);
+            }
         }
         else {
             log_it(L_INFO, "%s.%s: No records in mempool", a_net->pub.name, l_chain ? l_chain->name : "[no chain]");
@@ -2048,4 +2071,28 @@ dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_
         }
     }
     return l_list_groups;
+}
+
+/**
+ * @brief dap_chain_net_verify_datum_for_add
+ * @param a_net
+ * @param a_datum
+ * @return
+ */
+int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum )
+{
+    if( ! a_datum)
+        return -10;
+    if( ! a_net )
+        return -11;
+
+    switch ( a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX: return dap_chain_ledger_tx_add_check( a_net->pub.ledger,
+                                                                   (dap_chain_datum_tx_t*) a_datum->data );
+        case DAP_CHAIN_DATUM_TOKEN_DECL: return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger,
+                                                                   (dap_chain_datum_token_t*) a_datum->data );
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION : return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger,
+                                                                   (dap_chain_datum_token_emission_t*) a_datum->data, a_datum->header.data_size );
+        default: return 0;
+    }
 }

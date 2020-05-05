@@ -60,7 +60,8 @@ typedef  enum dap_chain_net_state{
     NET_STATE_ADDR_REQUEST, // Waiting for address assign
     NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE
+    NET_STATE_ONLINE,
+    NET_STATE_UNDEFINED
 } dap_chain_net_state_t;
 
 typedef struct dap_chain_net{
@@ -151,3 +152,4 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
 dap_chain_net_t **dap_chain_net_list(size_t *a_size);
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr);
 
+int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );

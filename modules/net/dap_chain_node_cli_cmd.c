@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Authors:
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -86,7 +86,6 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
-//#include "dap_chain_gdb.h"
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
@@ -2116,76 +2115,63 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
         l_gdb_group_mempool_tmp = l_gdb_group_mempool;
     }
 
-    dap_string_t * l_str_tmp = dap_string_new(NULL);
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        if(!l_gdb_group_mempool) {
-            l_gdb_group_mempool_tmp = dap_chain_net_get_gdb_group_mempool(l_chain);
-        }
-        size_t l_objs_size = 0;
-        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool_tmp, &l_objs_size);
-        if(l_objs_size) {
-            dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name,
-                    l_objs_size);
-            size_t l_datums_size = l_objs_size;
-            dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
-                    sizeof(dap_chain_datum_t*) * l_datums_size);
-            size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
-            for(size_t i = 0; i < l_objs_size; i++) {
-                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-                l_datums[i] = l_datum;
-                if(i < l_objs_size_tmp) {
-                    char buf[50];
-                    time_t l_ts_create = (time_t) l_datum->header.ts_create;
-                    dap_string_append_printf(l_str_tmp, "0x%s: type_id=%s ts_create=%s data_size=%u\n",
-                            l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
-                            ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+    const char * l_datum_hash_str = NULL;
+    int ret = 0;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+    if(l_datum_hash_str) {
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        dap_string_t * l_str_tmp = dap_string_new(NULL);
+        size_t l_datum_size=0;
+        dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_datum_hash_str,
+                                                                                       &l_datum_size, l_gdb_group_mempool);
+        size_t l_datum_size2= l_datum? dap_chain_datum_size( l_datum): 0;
+        if (l_datum_size != l_datum_size2 ){
+            ret = -8;
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
+                                              l_datum_size2, l_datum_size);
+        }else{
+            if(l_datum) {
+                char buf[50];
+                time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                dap_string_append_printf(l_str_tmp, "0x%s: type_id=%s ts_create=%s data_size=%u\n",
+                        l_datum_hash_str, c_datum_type_str[l_datum->header.type_id],
+                        ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+                if (l_verify_datum != 0){
+                    dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
+                                             l_verify_datum);
+                    ret = -9;
+                }else{
+                    if (l_chain->callback_datums_pool_proc){
+                        if (l_chain->callback_datums_pool_proc(l_chain, &l_datum, 1) ==0 ){
+                            dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
+                            ret = -6;
+                        }else{
+                            dap_string_append_printf(l_str_tmp, "Datum processed well.");
+                            if (dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str), l_gdb_group_mempool)){
+                                dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
+                            }else
+                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool");
+                        }
+                    }else{
+                        dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
+                        ret = -1;
+                    }
                 }
+                dap_string_append_printf(l_str_tmp, "\n");
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                dap_string_free(l_str_tmp, true);
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+                ret = -4;
             }
-            if(l_objs_size > 15) {
-                dap_string_append_printf(l_str_tmp, "...\n");
-            }
-
-            size_t l_objs_processed = 0;
-            int * l_procecced = DAP_NEW_Z_SIZE(int,l_objs_size);
-            for(size_t i = 0; i < l_objs_size; i++) {
-                int l_is_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums + i, 1); //l_datums_size
-                l_objs_processed += l_is_processed;
-                l_procecced[i] = l_is_processed;
-            }
-            DAP_DELETE(l_datums);
-            // Delete processed objects
-            size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
-            size_t l_objs_processed_cur = 0;
-            for(size_t i = 0; i < l_datums_size; i++) {
-                if(l_procecced[i]!=1)
-                    continue;
-                dap_chain_global_db_gr_del( dap_strdup(l_objs[i].key), l_gdb_group_mempool_tmp);
-                l_objs_processed_cur++;
-                if(l_objs_processed_cur < l_objs_processed_tmp) {
-                    dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
-                            l_objs[i].key);
-                }
-            }
-            if(l_objs_processed > 15) {
-                dap_string_append_printf(l_str_tmp, "...\n");
-            }
-            if(l_objs_processed < l_datums_size)
-                dap_string_append_printf(l_str_tmp, "%s.%s: %d records not processed\n", l_net->pub.name, l_chain->name,
-                        l_datums_size - l_objs_processed);
-            dap_chain_global_db_objs_delete(l_objs, l_objs_size);
-            DAP_DELETE( l_procecced);
-        }
-        else {
-            dap_string_append_printf(l_str_tmp, "%s.%s: No records in mempool\n", l_net->pub.name, l_chain ? l_chain->name : "[no chain]");
         }
         DAP_DELETE(l_gdb_group_mempool);
-        // only one time if group defined
-        if(l_gdb_group_mempool)
-            break;
+    } else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
+        ret = -5;
     }
-    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-    dap_string_free(l_str_tmp, true);
-    return 0;
+    return  ret;
 }
 
 
@@ -2242,7 +2228,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
     int l_arg_index = 1;
 
     const char * l_type_str = NULL;
-    uint16_t l_type = DAP_CHAIN_DATUM_TOKEN_PRIVATE;
+    uint16_t l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
 
     const char * l_ticker = NULL;
 
@@ -2284,7 +2270,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
     l_arg_index=dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-type", &l_type_str);
 
     if (strcmp( l_type_str, "private") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_PRIVATE_UPDATE;
+        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE;
     }else{
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_update can't accept type \"%s\"", l_type_str);
         return -22;
@@ -2294,7 +2280,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
     size_t l_datum_data_offset = 0;
 
     switch(l_type){
-        case DAP_CHAIN_DATUM_TOKEN_PRIVATE_UPDATE:{
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
             dap_list_t *l_tsd_list = dap_list_alloc();
             size_t l_tsd_total_size = 0;
             l_arg_index++;
@@ -2431,7 +2417,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
 
             // Create new datum token
             l_datum_token_update = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)+l_tsd_total_size ) ;
-            l_datum_token_update->type = DAP_CHAIN_DATUM_TOKEN_PRIVATE_UPDATE;
+            l_datum_token_update->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE;
             dap_snprintf(l_datum_token_update->ticker, sizeof(l_datum_token_update->ticker), "%s", l_ticker);
             l_datum_token_update->header_private_update.tsd_total_size = l_tsd_total_size;
 
@@ -2466,7 +2452,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
             return -8;
     }
 
-    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_PRIVATE_UPDATE, l_datum_token_update,
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE, l_datum_token_update,
             sizeof(l_datum_token_update->header_private) + l_datum_data_offset);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
@@ -2551,7 +2537,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     int l_arg_index = 1;
 
     const char * l_type_str = NULL;
-    uint16_t l_type = DAP_CHAIN_DATUM_TOKEN_PRIVATE;
+    uint16_t l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
 
     const char * l_ticker = NULL;
 
@@ -2593,18 +2579,18 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     l_arg_index=dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-type", &l_type_str);
 
     if (strcmp( l_type_str, "private") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL;
+        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
     }else if (strcmp( l_type_str, "private_simple") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_PRIVATE;
+        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
     }else if (strcmp( l_type_str, "public_simple") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_PUBLIC;
+        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC;
     }
 
     dap_chain_datum_token_t * l_datum_token = NULL;
     size_t l_datum_data_offset = 0;
 
     switch(l_type){
-        case DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL:{
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
             dap_list_t *l_tsd_list = dap_list_alloc();
             size_t l_tsd_total_size = 0;
             uint16_t l_flags = 0;
@@ -2687,7 +2673,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
             log_it(L_DEBUG,"Prepeared TSD sections on %zd total size", l_tsd_total_size);
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)+l_tsd_total_size ) ;
-            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL;
+            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->header_private_decl.flags = l_flags;
             log_it(L_DEBUG,"Token declaration '%s' initialized", l_datum_token->ticker);
@@ -2748,7 +2734,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 
 
         }break;
-        case DAP_CHAIN_DATUM_TOKEN_PRIVATE:{
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:{
             // Total supply value
             dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-total_supply", &l_total_supply_str);
 
@@ -2823,7 +2809,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
 
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
-            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_PRIVATE;
+            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->header_private.total_supply = l_total_supply;
             l_datum_token->header_private.signs_total = l_signs_total;
