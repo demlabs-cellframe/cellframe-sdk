@@ -2146,7 +2146,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
             }
 
             size_t l_objs_processed = 0;
-            bool l_procecced[l_objs_size];
+            int * l_procecced = DAP_NEW_Z_SIZE(int,l_objs_size);
             for(size_t i = 0; i < l_objs_size; i++) {
                 int l_is_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums + i, 1); //l_datums_size
                 l_objs_processed += l_is_processed;
@@ -2173,6 +2173,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 dap_string_append_printf(l_str_tmp, "%s.%s: %d records not processed\n", l_net->pub.name, l_chain->name,
                         l_datums_size - l_objs_processed);
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+            DAP_DELETE( l_procecced);
         }
         else {
             dap_string_append_printf(l_str_tmp, "%s.%s: No records in mempool\n", l_net->pub.name, l_chain ? l_chain->name : "[no chain]");
