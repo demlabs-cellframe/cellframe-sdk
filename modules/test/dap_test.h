@@ -66,6 +66,7 @@
 
 #define dap_str_equals(str1, str2) strcmp(str1, str2) == 0
 #define dap_strn_equals(str1, str2, count) strncmp(str1, str2, count) == 0
+int get_cur_time_msec(void);
 
 /*
  How to use benchmark_xxx() functions:

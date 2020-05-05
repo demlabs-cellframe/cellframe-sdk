@@ -1,5 +1,5 @@
 /** @file 
- * @brief Объявление функций реализующих преобразования из алгоритма "Кузнечик"
+ * @brief РћР±СЉСЏРІР»РµРЅРёРµ С„СѓРЅРєС†РёР№ СЂРµР°Р»РёР·СѓСЋС‰РёС… РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ РёР· Р°Р»РіРѕСЂРёС‚РјР° "РљСѓР·РЅРµС‡РёРє"
  *
  * @copyright InfoTeCS. All rights reserved.
  */
@@ -10,7 +10,7 @@
  
 
 #ifdef WIN32
-     #define DLL_IMPORT __stdcall
+     #define DLL_IMPORT __stdcall//__fastcall//
 #else
      #define DLL_IMPORT
 #endif

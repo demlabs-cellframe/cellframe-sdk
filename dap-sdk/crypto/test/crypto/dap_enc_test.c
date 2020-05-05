@@ -66,7 +66,7 @@ void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type
     const int max_source_size = 10000;
     dap_print_module_name(dap_enc_get_type_name(key_type));
     char buf_encrypt_out[max_source_size+128];
-    char buf_decrypt_out[max_source_size];
+    char buf_decrypt_out[max_source_size+32];
     int time_beg = get_cur_time_msec();
 
 
@@ -85,6 +85,7 @@ void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type
 
     for(int i = 0; i < count_steps; i++) {
         source_size = 1 + random_uint32_t(max_source_size);
+//        printf("ss = %d\n", source_size);fflush(stdout);
 
         uint8_t *source = DAP_NEW_SIZE(uint8_t,source_size + 0);
         randombytes(source, source_size);//randombase64(source, source_size);
@@ -92,7 +93,7 @@ void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type
 
         size_t encrypted_size = key->enc_na(key, source, source_size, buf_encrypt_out, max_source_size+128);
 
-        size_t result_size = key->dec_na(key, buf_encrypt_out, encrypted_size, buf_decrypt_out, max_source_size);
+        size_t result_size = key->dec_na(key, buf_encrypt_out, encrypted_size, buf_decrypt_out, max_source_size+32);
 
 
 

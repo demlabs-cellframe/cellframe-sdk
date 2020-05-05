@@ -4,7 +4,7 @@
 
 #include "dap_enc_dilithium.h"
 #include "dap_common.h"
-#include "dap_rand.h"
+#include "rand/dap_rand.h"
 
 #define LOG_TAG "dap_enc_sig_dilithium"
 

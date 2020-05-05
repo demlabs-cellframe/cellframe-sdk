@@ -20,7 +20,7 @@ uint16_t montgomery_reduce_32_16(uint32_t a) {
 
 	u = (a * qinv);
 	u &= ((1 << rlog) - 1);
-	u *= NEWHOPE_Q;
+	u *= NEWHOPE_RINGCT20_Q;
 	a = a + u;
 	return a >> 18;
 }

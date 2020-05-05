@@ -28,6 +28,7 @@
 #include "dap_enc_bf.h"
 #include "dap_enc_GOST.h"
 #include "dap_enc_salsa2012.h"
+#include "dap_enc_SEED.h"
 
 #include "dap_enc_msrln.h"
 #include "dap_enc_defeo.h"
@@ -35,6 +36,7 @@
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
+//#include "dap_enc_newhope.h"
 
 #include "dap_enc_ringct20.h"
 
@@ -68,6 +70,7 @@ struct dap_enc_key_callbacks{
     dap_enc_callback_new_generate new_generate_callback;
     dap_enc_callback_delete delete_callback;
 } s_callbacks[]={
+    //-Symmetric ciphers----------------------
     // AES
     [DAP_ENC_KEY_TYPE_IAES]={
         .name = "IAES",
@@ -114,7 +117,7 @@ struct dap_enc_key_callbacks{
         .gen_key_public = NULL,
         .gen_key_public_size = NULL,
         .enc_out_size = dap_enc_bf_cbc_calc_encode_size,
-        .dec_out_size = dap_enc_bf_cbc_calc_decode_size,
+        .dec_out_size = dap_enc_bf_cbc_calc_decode_max_size,
         .sign_get = NULL,
         .sign_verify = NULL
     },
@@ -182,7 +185,24 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
+    [DAP_ENC_KEY_TYPE_SEED_OFB]={
+        .name = "SEED_OFB",
+        .enc = dap_enc_seed_ofb_encrypt,
+        .enc_na = dap_enc_seed_ofb_encrypt_fast ,
+        .dec = dap_enc_seed_ofb_decrypt,
+        .dec_na = dap_enc_seed_ofb_decrypt_fast ,
+        .new_callback = dap_enc_seed_ofb_key_new,
+        .delete_callback = dap_enc_seed_key_delete,
+        .new_generate_callback = dap_enc_seed_key_generate,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .enc_out_size = dap_enc_seed_ofb_calc_encode_size,
+        .dec_out_size = dap_enc_seed_ofb_calc_decode_size,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
 
+    //-KEMs(Key Exchange Mechanism)----------------------
     [DAP_ENC_KEY_TYPE_MSRLN] = {
         .name = "MSRLN",
         .enc = NULL,
@@ -216,6 +236,25 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
+//    [DAP_ENC_KEY_TYPE_RLWE_NEWHOPE_CPA_KEM]={
+//        .name = "NEWHOPE_CPA_KEM",
+//        .enc = NULL,
+//        .dec = NULL,
+//        .enc_na = NULL,
+//        .dec_na = NULL,
+//        .gen_key_public = NULL,
+//        .gen_key_public_size = NULL,
+//        .gen_bob_shared_key = dap_enc_newhope_pbk_enc,
+//        .gen_alice_shared_key = dap_enc_newhope_prk_dec,
+//        .new_callback = dap_enc_newhope_kem_key_new,
+//        .delete_callback = dap_enc_newhope_kem_key_delete,
+//        .new_generate_callback = dap_enc_newhope_kem_key_new_generate,
+//        .enc_out_size = NULL,
+//        .dec_out_size = NULL,
+//        .sign_get = NULL,
+//        .sign_verify = NULL
+//    },
+    //------Signatures---------------------------
     [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
         .name = "PICNIC",
         .enc = NULL,

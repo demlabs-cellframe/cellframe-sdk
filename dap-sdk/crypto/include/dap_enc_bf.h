@@ -5,6 +5,8 @@
 #include "dap_enc_key.h"
 #include"blowfish/blowfish.h"
 
+#define BLOWFISH_BLOCK_SIZE 8
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -14,7 +16,7 @@ void dap_enc_bf_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 //-----CBC----------
 void dap_enc_bf_cbc_key_new(struct dap_enc_key * a_key);
 
-size_t dap_enc_bf_cbc_calc_decode_size(const size_t size_in);
+size_t dap_enc_bf_cbc_calc_decode_max_size(const size_t size_in);
 size_t dap_enc_bf_cbc_calc_encode_size(const size_t size_in);
 
 size_t dap_enc_bf_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out);

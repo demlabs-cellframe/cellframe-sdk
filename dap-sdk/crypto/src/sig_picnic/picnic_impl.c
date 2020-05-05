@@ -32,8 +32,8 @@
 #include "lowmc_constants.h"
 #include "hash.h"
 #include "picnic_types.h"
+#include "dap_common.h"
 
-//#define MAX(a, b) ((a) > (b)) ? (a) : (b)
 
 #define VIEW_OUTPUTS(i, j) viewOutputs[(i) * 3 + (j)]
 
