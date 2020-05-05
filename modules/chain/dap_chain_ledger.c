@@ -336,11 +336,12 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
         log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s ): already present in cache",
                 a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         ret = -1;
-    }else if ( l_token_item || HASH_COUNT( l_ledger_priv->treshold_emissions) < s_treshold_emissions_max  ) {
+    }else if ( (! l_token_item) && ( HASH_COUNT( l_ledger_priv->treshold_emissions) < s_treshold_emissions_max  )) {
         log_it(L_WARNING,"Treshold for emissions is overfulled (%lu max)",
                s_treshold_emissions_max);
         ret = -2;
     }
+
     pthread_rwlock_unlock(l_token_item ?
                               &l_token_item->token_emissions_rwlock :
                               &l_ledger_priv->treshold_emissions_rwlock);
@@ -863,13 +864,13 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
     int l_ret_check;
     if( (l_ret_check = dap_chain_ledger_tx_cache_check(
              a_ledger, a_tx, &l_list_bound_items, &l_list_tx_out)) < 0){
-        log_it (L_WARNING, "dap_chain_ledger_tx_add() tx not passed the check: code %d ",l_ret_check);
+        log_it (L_WARNING, "dap_chain_ledger_tx_add_check() tx not passed the check: code %d ",l_ret_check);
         return -1;
     }
     dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
     char l_tx_hash_str[70];
     dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-    //log_it ( L_INFO, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
+    //log_it ( L_INFO, "dap_chain_ledger_tx_add_check() check passed for tx %s",l_tx_hash_str);
     return 0;
 }
 
