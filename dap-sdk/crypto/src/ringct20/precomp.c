@@ -73,14 +73,14 @@
  * psis_inv_montgomery = lift(vector(n, i, g^(-(i-1))/n*mont))
 */
 
-#if (NEWHOPE_N == 512)
+#if (NEWHOPE_RINGCT20_N == 512)
 /************************************************************
 * Name:        omegas_bitrev_montgomery
 *
 * Description: Contains powers of nth root of unity in Montgomery 
 *              domain with R=2^18 in bit-reversed order
 ************************************************************/
-uint16_t omegas_bitrev_montgomery[NEWHOPE_N / 2] = {
+uint16_t omegas_bitrev_montgomery[NEWHOPE_RINGCT20_N / 2] = {
     4075, 5315, 7965, 7373, 522, 10120, 9027, 5079, 2344, 1278, 1973, 5574, 1018, 6364, 11248, 8775,
     7500, 7822, 5537, 4749, 8500, 12142, 5456, 7840, 5445, 3860, 4536, 11239, 6171, 8471, 2683, 11099,
     10561, 400, 6137, 7341, 5415, 8646, 6136, 5862, 5529, 5206, 56, 9090, 8724, 11635, 1702, 10302,
@@ -105,7 +105,7 @@ uint16_t omegas_bitrev_montgomery[NEWHOPE_N / 2] = {
 * Description: Contains inverses of powers of nth root of unity 
 *              in Montgomery domain with R=2^18 in bit-reversed order
 ************************************************************/
-uint16_t omegas_inv_bitrev_montgomery[NEWHOPE_N / 2] = {
+uint16_t omegas_inv_bitrev_montgomery[NEWHOPE_RINGCT20_N / 2] = {
     4075, 6974, 4916, 4324, 7210, 3262, 2169, 11767, 3514, 1041, 5925, 11271, 6715, 10316, 11011, 9945,
     1190, 9606, 3818, 6118, 1050, 7753, 8429, 6844, 4449, 6833, 147, 3789, 7540, 6752, 4467, 4789,
     10367, 3879, 2033, 3998, 11316, 1254, 6854, 1359, 3988, 468, 11907, 11973, 8579, 6196, 5446, 6950,
@@ -130,7 +130,7 @@ uint16_t omegas_inv_bitrev_montgomery[NEWHOPE_N / 2] = {
 * Description: Contains powers of nth root of -1 in Montgomery 
 *              domain with R=2^18 in bit-reversed order
 ************************************************************/
-uint16_t psis_bitrev_montgomery[NEWHOPE_N] = {
+uint16_t psis_bitrev_montgomery[NEWHOPE_RINGCT20_N] = {
     4075, 5315, 7965, 7373, 522, 10120, 9027, 5079, 2344, 1278, 1973, 5574, 1018, 6364, 11248, 8775,
     7500, 7822, 5537, 4749, 8500, 12142, 5456, 7840, 5445, 3860, 4536, 11239, 6171, 8471, 2683, 11099,
     10561, 400, 6137, 7341, 5415, 8646, 6136, 5862, 5529, 5206, 56, 9090, 8724, 11635, 1702, 10302,
@@ -171,7 +171,7 @@ uint16_t psis_bitrev_montgomery[NEWHOPE_N] = {
 * Description: Contains inverses of powers of nth  root of -1 
 *              divided by n in Montgomery domain with R=2^18
 ************************************************************/
-uint16_t psis_inv_montgomery[NEWHOPE_N] = {
+uint16_t psis_inv_montgomery[NEWHOPE_RINGCT20_N] = {
     512, 3944, 4267, 5411, 9615, 5900, 3205, 6063, 9261, 2021, 3087, 4770, 1029, 1590, 343, 530,
     8307, 4273, 2769, 9617, 923, 7302, 4404, 2434, 1468, 9004, 8682, 11194, 2894, 11924, 5061, 8071,
     1687, 10883, 8755, 7724, 11111, 6671, 7800, 6320, 2600, 6203, 4963, 6164, 9847, 6151, 11475, 10243,
@@ -206,14 +206,14 @@ uint16_t psis_inv_montgomery[NEWHOPE_N] = {
     7954, 4050, 10844, 1350, 7711, 450, 10763, 150, 7684, 50, 10754, 4113, 7681, 1371, 10753, 457,
 };
 
-#elif (NEWHOPE_N == 1024)
+#elif (NEWHOPE_RINGCT20_N == 1024)
 /************************************************************
 * Name:        omegas_bitrev_montgomery
 *
 * Description: Contains powers of nth root of unity in Montgomery 
 *              domain with R=2^18 in bit-reversed order
 ************************************************************/
-uint16_t omegas_bitrev_montgomery[NEWHOPE_N / 2] = {
+uint16_t omegas_bitrev_montgomery[NEWHOPE_RINGCT20_N / 2] = {
     4075, 6974, 7373, 7965, 3262, 5079, 522, 2169, 6364, 1018, 1041, 8775, 2344, 11011, 5574, 1973,
     4536, 1050, 6844, 3860, 3818, 6118, 2683, 1190, 4789, 7822, 7540, 6752, 5456, 4449, 3789, 12142,
     11973, 382, 3988, 468, 6843, 5339, 6196, 3710, 11316, 1254, 5435, 10930, 3998, 10256, 10367, 3879,
@@ -253,7 +253,7 @@ uint16_t omegas_bitrev_montgomery[NEWHOPE_N / 2] = {
 * Description: Contains inverses of powers of nth root of unity 
 *              in Montgomery domain with R=2^18 in bit-reversed order
 ************************************************************/
-uint16_t omegas_inv_bitrev_montgomery[NEWHOPE_N / 2] = {
+uint16_t omegas_inv_bitrev_montgomery[NEWHOPE_RINGCT20_N / 2] = {
     4075, 5315, 4324, 4916, 10120, 11767, 7210, 9027, 10316, 6715, 1278, 9945, 3514, 11248, 11271, 5925,
     147, 8500, 7840, 6833, 5537, 4749, 4467, 7500, 11099, 9606, 6171, 8471, 8429, 5445, 11239, 7753,
     9090, 12233, 5529, 5206, 10587, 1987, 11635, 3565, 5415, 8646, 6153, 6427, 7341, 6152, 10561, 400,
@@ -293,7 +293,7 @@ uint16_t omegas_inv_bitrev_montgomery[NEWHOPE_N / 2] = {
 * Description: Contains powers of nth root of -1 in Montgomery 
 *              domain with R=2^18 in bit-reversed order
 ************************************************************/
-uint16_t psis_bitrev_montgomery[NEWHOPE_N] = {
+uint16_t psis_bitrev_montgomery[NEWHOPE_RINGCT20_N] = {
     4075, 6974, 7373, 7965, 3262, 5079, 522, 2169, 6364, 1018, 1041, 8775, 2344, 11011, 5574, 1973,
     4536, 1050, 6844, 3860, 3818, 6118, 2683, 1190, 4789, 7822, 7540, 6752, 5456, 4449, 3789, 12142,
     11973, 382, 3988, 468, 6843, 5339, 6196, 3710, 11316, 1254, 5435, 10930, 3998, 10256, 10367, 3879,
@@ -365,7 +365,7 @@ uint16_t psis_bitrev_montgomery[NEWHOPE_N] = {
 * Description: Contains inverses of powers of nth  root of -1 
 *              divided by n in Montgomery domain with R=2^18
 ************************************************************/
-uint16_t psis_inv_montgomery[NEWHOPE_N] = {
+uint16_t psis_inv_montgomery[NEWHOPE_RINGCT20_N] = {
     256, 10570, 1510, 7238, 1034, 7170, 6291, 7921, 11665, 3422, 4000, 2327, 2088, 5565, 795, 10647,
     1521, 5484, 2539, 7385, 1055, 7173, 8047, 11683, 1669, 1994, 3796, 5809, 4341, 9398, 11876, 12230,
     10525, 12037, 12253, 3506, 4012, 9351, 4847, 2448, 7372, 9831, 3160, 2207, 5582, 2553, 7387, 6322,
@@ -432,5 +432,5 @@ uint16_t psis_inv_montgomery[NEWHOPE_N] = {
     8497, 4725, 675, 1852, 10798, 12076, 10503, 3256, 9243, 3076, 2195, 10847, 12083, 10504, 12034, 10497};
 
 #else
-#error "NEWHOPE_N must be either 512 or 1024"
+#error "NEWHOPE_RINGCT20_N must be either 512 or 1024"
 #endif

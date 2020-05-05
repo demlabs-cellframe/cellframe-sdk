@@ -3,7 +3,7 @@
 #include "params.h"
 #include "reduce.h"
 
-#if (NEWHOPE_N == 512)
+#if (NEWHOPE_RINGCT20_N == 512)
 /************************************************************
 * Name:        bitrev_table
 *
@@ -28,14 +28,14 @@ static uint16_t bitrev_table[512] = {
     263, 135, 391, 71, 327, 199, 455, 39, 295, 167, 423, 103, 359, 231, 487, 23, 279, 151, 407, 87, 343, 215, 471, 55, 311, 183, 439, 119, 375, 247, 503, 15,
     271, 143, 399, 79, 335, 207, 463, 47, 303, 175, 431, 111, 367, 239, 495, 31, 287, 159, 415, 95, 351, 223, 479, 63, 319, 191, 447, 127, 383, 255, 511};
 
-#elif (NEWHOPE_N == 1024)
+#elif (NEWHOPE_RINGCT20_N == 1024)
 /************************************************************
 * Name:        bitrev_table
 *
 * Description: Contains bit-reversed 10-bit indices to be used to re-order 
 *              polynomials before number theoratic transform 
 ************************************************************/
-static uint16_t bitrev_table[NEWHOPE_N] = {
+static uint16_t bitrev_table[NEWHOPE_RINGCT20_N] = {
     0, 512, 256, 768, 128, 640, 384, 896, 64, 576, 320, 832, 192, 704, 448, 960, 32, 544, 288, 800, 160, 672, 416, 928, 96, 608, 352, 864, 224, 736, 480, 992,
     16, 528, 272, 784, 144, 656, 400, 912, 80, 592, 336, 848, 208, 720, 464, 976, 48, 560, 304, 816, 176, 688, 432, 944, 112, 624, 368, 880, 240, 752, 496, 1008,
     8, 520, 264, 776, 136, 648, 392, 904, 72, 584, 328, 840, 200, 712, 456, 968, 40, 552, 296, 808, 168, 680, 424, 936, 104, 616, 360, 872, 232, 744, 488, 1000,
@@ -70,7 +70,7 @@ static uint16_t bitrev_table[NEWHOPE_N] = {
     31, 543, 287, 799, 159, 671, 415, 927, 95, 607, 351, 863, 223, 735, 479, 991, 63, 575, 319, 831, 191, 703, 447, 959, 127, 639, 383, 895, 255, 767, 511, 1023};
 
 #else
-#error "NEWHOPE_N must be either 512 or 1024"
+#error "NEWHOPE_RINGCT20_N must be either 512 or 1024"
 #endif
 
 /*************************************************
@@ -84,7 +84,7 @@ void bitrev_vector(uint16_t *poly_ringct20) {
 	unsigned int i, r;
 	uint16_t tmp;
 
-	for (i = 0; i < NEWHOPE_N; i++) {
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++) {
 		r = bitrev_table[i];
 		if (i < r) {
             tmp = poly_ringct20[i];
@@ -106,11 +106,11 @@ void bitrev_vector(uint16_t *poly_ringct20) {
 void mul_coefficients(uint16_t *poly_ringct20, const uint16_t *factors) {
 	unsigned int i;
 
-	for (i = 0; i < NEWHOPE_N; i++)
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++)
         poly_ringct20[i] = montgomery_reduce_32_16((poly_ringct20[i] * factors[i]));
 }
 
-#if (NEWHOPE_N == 512)
+#if (NEWHOPE_RINGCT20_N == 512)
 
 /*************************************************
 * Name:        ntt_ringct20
@@ -132,11 +132,11 @@ void ntt_ringct20(uint16_t *a, const uint16_t *omega) {
 		distance = (1 << i);
 		for (start = 0; start < distance; start++) {
 			jTwiddle = 0;
-			for (j = start; j < NEWHOPE_N - 1; j += 2 * distance) {
+			for (j = start; j < NEWHOPE_RINGCT20_N - 1; j += 2 * distance) {
 				W = omega[jTwiddle++];
 				temp = a[j];
 				a[j] = (temp + a[j + distance]); // Omit reduction (be lazy)
-                a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_Q - a[j + distance])));
+                a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_RINGCT20_Q - a[j + distance])));
 			}
 		}
 		if (i + 1 < 9) {
@@ -144,18 +144,18 @@ void ntt_ringct20(uint16_t *a, const uint16_t *omega) {
 			distance <<= 1;
 			for (start = 0; start < distance; start++) {
 				jTwiddle = 0;
-				for (j = start; j < NEWHOPE_N - 1; j += 2 * distance) {
+				for (j = start; j < NEWHOPE_RINGCT20_N - 1; j += 2 * distance) {
 					W = omega[jTwiddle++];
 					temp = a[j];
-					a[j] = (temp + a[j + distance]) % NEWHOPE_Q;
-                    a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_Q - a[j + distance])));
+					a[j] = (temp + a[j + distance]) % NEWHOPE_RINGCT20_Q;
+                    a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_RINGCT20_Q - a[j + distance])));
 				}
 			}
 		}
 	}
 }
 
-#elif (NEWHOPE_N == 1024)
+#elif (NEWHOPE_RINGCT20_N == 1024)
 
 void /*************************************************
 * Name:        ntt_ringct20
@@ -177,11 +177,11 @@ void /*************************************************
 		distance = (1 << i);
 		for (start = 0; start < distance; start++) {
 			jTwiddle = 0;
-			for (j = start; j < NEWHOPE_N - 1; j += 2 * distance) {
+			for (j = start; j < NEWHOPE_RINGCT20_N - 1; j += 2 * distance) {
 				W = omega[jTwiddle++];
 				temp = a[j];
 				a[j] = (temp + a[j + distance]); // Omit reduction (be lazy)
-                a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_Q - a[j + distance])));
+                a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_RINGCT20_Q - a[j + distance])));
 			}
 		}
 
@@ -189,16 +189,16 @@ void /*************************************************
 		distance <<= 1;
 		for (start = 0; start < distance; start++) {
 			jTwiddle = 0;
-			for (j = start; j < NEWHOPE_N - 1; j += 2 * distance) {
+			for (j = start; j < NEWHOPE_RINGCT20_N - 1; j += 2 * distance) {
 				W = omega[jTwiddle++];
 				temp = a[j];
-				a[j] = (temp + a[j + distance]) % NEWHOPE_Q;
-                a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_Q - a[j + distance])));
+				a[j] = (temp + a[j + distance]) % NEWHOPE_RINGCT20_Q;
+                a[j + distance] = montgomery_reduce_32_16((W * ((uint32_t) temp + 3 * NEWHOPE_RINGCT20_Q - a[j + distance])));
 			}
 		}
 	}
 }
 
 #else
-#error "NEWHOPE_N must be either 512 or 1024"
+#error "NEWHOPE_RINGCT20_N must be either 512 or 1024"
 #endif

@@ -7,13 +7,13 @@
 
 void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 {
-	uint8_t seed[NEWHOPE_SYMBYTES] = { 0 };
+	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
 	size_t i;
 	for ( i = 0; i < mLen; i++)
 	{
 #ifndef NEW_SAMPLE_KEY
-        randombytes(seed, NEWHOPE_SYMBYTES);
-		for (size_t j = 0; j < NEWHOPE_SYMBYTES; j++)
+        randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
+		for (size_t j = 0; j < NEWHOPE_RINGCT20_SYMBYTES; j++)
 		{
 
 			r[i].coeffs[j * 8 + 0] = (seed[j] & 0x01);
@@ -25,24 +25,24 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 			r[i].coeffs[j * 8 + 6] = (seed[j] & 0x40)>>6;
 			r[i].coeffs[j * 8 + 7] = (seed[j] & 0x80)>>7;
 		}
-        randombytes(seed, NEWHOPE_SYMBYTES);
-		for (size_t j = 0; j < NEWHOPE_SYMBYTES; j++)
+        randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
+		for (size_t j = 0; j < NEWHOPE_RINGCT20_SYMBYTES; j++)
 		{
 
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 0] = (seed[j] & 0x01);
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 1] = (seed[j] & 0x02)>>1;
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 2] = (seed[j] & 0x04)>>2;
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 3] = (seed[j] & 0x08)>>3;
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 4] = (seed[j] & 0x10)>>4;
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 5] = (seed[j] & 0x20)>>5;
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 6] = (seed[j] & 0x40)>>6;
-			r[i].coeffs[NEWHOPE_SYMBYTES * 8 + j * 8 + 7] = (seed[j] & 0x80)>>7;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 0] = (seed[j] & 0x01);
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 1] = (seed[j] & 0x02)>>1;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 2] = (seed[j] & 0x04)>>2;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 3] = (seed[j] & 0x08)>>3;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 4] = (seed[j] & 0x10)>>4;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 5] = (seed[j] & 0x20)>>5;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 6] = (seed[j] & 0x40)>>6;
+			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 7] = (seed[j] & 0x80)>>7;
 		}
 #else
-        uint8_t stm[NEWHOPE_N*2];
-        randombytes(stm, NEWHOPE_N*2);
+        uint8_t stm[NEWHOPE_RINGCT20_N*2];
+        randombytes(stm, NEWHOPE_RINGCT20_N*2);
         const int gamma = 8;
-        for(int j = 0; j < NEWHOPE_N; ++j)
+        for(int j = 0; j < NEWHOPE_RINGCT20_N; ++j)
         {
             uint16_t v = stm[2*j];
             v<<= 8;
@@ -50,7 +50,7 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
             v %= gamma;
             v -= gamma/2;
             if(v < 0)
-                v += NEWHOPE_Q;
+                v += NEWHOPE_RINGCT20_Q;
             r[i].coeffs[j] = v;
         }
 #endif
@@ -60,15 +60,15 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 void LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
 {
 
-	uint8_t seed[NEWHOPE_SYMBYTES] = { 0 };
+	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
 	size_t i = 0;
 
 	for ( i = 0; i < mLen; i++)
 	{
-        randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
 		poly_uniform_ringct20(A + i, seed);
 		poly_serial(A + i);
-        randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
 		poly_uniform_ringct20(H + i, seed);
 		poly_serial(H + i);
 	}
@@ -94,8 +94,8 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
     Keccak_HashInstance ctx;
 
 	unsigned char bHash[32] = { 0 };
-	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
-	unsigned char bt[NEWHOPE_POLYBYTES] = { 0 };
+	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
+	unsigned char bt[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	uint8_t coin = 0;
 	for ( i = 0; i < (mLen+1); i++)
 	{
@@ -112,37 +112,37 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	///////////2.
 	LRCT_Lift(A2qp, A, L + pai, mLen);
     //SHA256_Init(&ctx);
-    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);
+    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYBYTES);
 	for (i = 0; i < w; i++)
 	{
 		poly_tobytes(bpoly, L + i);
-        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
     }
     for ( i = 0; i < mLen+1; i++)
     {
         poly_tobytes(bpoly, H2q + i);
-        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
     }
     //SHA256_Update(&ctx, msg, msgLen);//msg
     Keccak_HashUpdate(&ctx, msg, msgLen*8);
 
 	LRCT_MatrixMulPoly(&tmp, A2qp, u, mLen + 1);
 	poly_tobytes(bpoly, &tmp);
-    //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//A2qb*U
-    Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+    //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//A2qb*U
+    Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
 	LRCT_MatrixMulPoly(&tmp, H2q, u, mLen + 1);
 	poly_tobytes(bpoly, &tmp);
-    //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
-    Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+    //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//H2q*U
+    Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
     //SHA256_Final(bHash, &ctx);//C_(pai+1)
     //Keccak_HashFinal(&ctx, bHash);
     Keccak_HashFinal(&ctx, bt);
 
-    //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
-    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
+    //SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYBYTES, bt);
+    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_RINGCT20_POLYBYTES);
 
     poly_frombytes(&c, bt);
     poly_serial(&c);
@@ -157,21 +157,21 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		}
 		LRCT_Lift(tmp2q, A, L + j, mLen);
         //SHA256_Init(&ctx);
-        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);
 
 		for (k = 0; k < w; k++)
 		{
 			poly_tobytes(bpoly, L + k);
-            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
 
 		}
 		for (k = 0; k < mLen+1; k++)
 		{
 			poly_tobytes(bpoly, H2q + k);
-            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
         }
         //SHA256_Update(&ctx, msg, msgLen);//msg
@@ -180,30 +180,30 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 		
 		for ( k = 0; k < mLen+1; k++)
 		{
-            randombytes(bt, NEWHOPE_POLYBYTES);
+            randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
 			poly_frombytes(t[j] + k, bt);
 			poly_serial(t[j] + k);
 		}
 		LRCT_MatrixMulPoly(&tmp, tmp2q, t[j], mLen + 1);
-		poly_constmul(&tmp1, &c, NEWHOPE_Q);
+		poly_constmul(&tmp1, &c, NEWHOPE_RINGCT20_Q);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_tobytes(bpoly, &tmp);
-        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
 		LRCT_MatrixMulPoly(&tmp, H2q, t[j], mLen + 1);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_tobytes(bpoly, &tmp);
-        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//H2q*U
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
         //SHA256_Final(bHash, &ctx);//C_(pai+1)
         //Keccak_HashFinal(&ctx, bHash);
         Keccak_HashFinal(&ctx, bt);
 //        printf("sign bHash======================%d:\n", j);
 //        BytePrint(bHash, 32);
 
-        //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
-//        Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);
+        //SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYBYTES, bt);
+//        Keccak_256KDF(bHash, 32, bt, NEWHOPE_RINGCT20_POLYBYTES);
 		poly_frombytes(&c, bt);
 		poly_serial(&c);//C_{j+1}
         if (j == (w + pai-1)%w)
@@ -242,7 +242,7 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
     //SHA256_CTX ctx;
     Keccak_HashInstance ctx;
 	unsigned char bHash[32] = { 0 };
-	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
+	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	for (i = 0; i < (mLen + 1); i++)
 	{
 		poly_init(H2q + i);
@@ -255,37 +255,37 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 	{
 		LRCT_Lift(A2qp, A, L+i, mLen);
         //SHA256_Init(&ctx);
-        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);
 		for (k = 0; k < w; k++)
 		{
 			poly_tobytes(bpoly, L + k);
-            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
         }
 		for (k = 0; k < mLen+1; k++)
 		{
 			poly_tobytes(bpoly, H2q + k);
-            //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+            //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
         }
         //SHA256_Update(&ctx, msg, msgLen);//msg
         Keccak_HashUpdate(&ctx, msg, msgLen*8);
 
-		poly_constmul(&tmp1, &c, NEWHOPE_Q);
+		poly_constmul(&tmp1, &c, NEWHOPE_RINGCT20_Q);
 
 		LRCT_MatrixMulPoly(&tmp, A2qp, t[i], mLen + 1);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_tobytes(bpoly, &tmp);
-        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//A2qb*U
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//A2qb*U
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
 		LRCT_MatrixMulPoly(&tmp, H2q, t[i], mLen + 1);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 		poly_serial(&tmp);
 		poly_tobytes(bpoly, &tmp);
-        //SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);
+        //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//H2q*U
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);
 
         //SHA256_Final(bHash, &ctx);//C_(pai+1)
         //Keccak_HashFinal(&ctx, bHash);
@@ -293,8 +293,8 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 //        printf("sign bHash======================%d:\n", j);
 //        BytePrint(bHash, 32);
 
-        //SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
-        //Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);
+        //SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYBYTES, bpoly);
+        //Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
         poly_frombytes(&c, bpoly);
 		poly_serial(&c);
 	}
@@ -346,15 +346,15 @@ int LRCT_Verify(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_rin
 /////multiple
 void MIMO_LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
 {
-	uint8_t seed[NEWHOPE_SYMBYTES] = { 0 };
+	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
 	size_t i = 0;
 
 	for (i = 0; i < mLen; i++)
 	{
-        randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
 		poly_uniform_ringct20(A + i, seed);
 		poly_serial(A + i);
-        randombytes(seed, NEWHOPE_SYMBYTES);
+        randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
 		poly_uniform_ringct20(H + i, seed);
 		poly_serial(H + i);
 	}
@@ -376,27 +376,27 @@ void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringc
     Keccak_HashInstance ctx;
 
 	unsigned char bHash[32] = { 0 };
-	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
-    unsigned char bt[NEWHOPE_POLYCOMPRESSEDBYTES] = { 0 };
+	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
+    unsigned char bt[NEWHOPE_RINGCT20_POLYCOMPRESSEDBYTES] = { 0 };
 	int i;
-	int tmpTable[NEWHOPE_N] = { 0 };
-	for ( i = 0; i < NEWHOPE_N; i++)
+	int tmpTable[NEWHOPE_RINGCT20_N] = { 0 };
+	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		tmpTable[i] = i;
 	}
-    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYCOMPRESSEDBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYCOMPRESSEDBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 	////H(L)
 	for (i = 0; i < beta; i++)
 	{
 		poly_tobytes(bpoly, cn + i);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 		poly_tobytes(bpoly, a + i);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 		poly_tobytes(bpoly, ia + i);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 	}///H_1(L||)
     //Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
-    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYCOMPRESSEDBYTES);//CHECKIT//SHA256_KDF(bHash, 32, NEWHOPE_POLYCOMPRESSEDBYTES, bt);
+    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_RINGCT20_POLYCOMPRESSEDBYTES);//CHECKIT//SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYCOMPRESSEDBYTES, bt);
     Keccak_HashFinal(&ctx, bt);
 
 }
@@ -420,8 +420,8 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 	poly_ringct20 tmp, tmp1, ctmp;
 	poly_ringct20 c, cpai;
 	unsigned char bHash[32] = { 0 };
-	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
-	unsigned char bt[NEWHOPE_POLYBYTES] = { 0 };
+	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
+	unsigned char bt[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	uint8_t coin = 0;
 	int i = 0;
 	int k = 0;
@@ -440,12 +440,12 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		poly_init(u+i);
 	}
 	/////
-    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+    Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 	////H(L)
 	for ( i = 0; i < wLen*NLen; i++)
 	{
 		poly_tobytes(bpoly, LList + i);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 	}///H_1(L||)
 	///H(L||H2q..)
 	for (i = 0; i < NLen; i++)
@@ -455,7 +455,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		for (k = 0; k < mLen + 1; k++)
 		{
 			poly_tobytes(bpoly, H2q + i * (mLen + 1) + k);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 		}
 	}
 	////H(L||...||mu)
@@ -465,7 +465,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 	{
 		for (k = 0; k < mLen + 1; k++)
 		{
-            randombytes(bt, NEWHOPE_POLYBYTES);
+            randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
 			poly_frombytes(u + i * (mLen + 1) + k, bt);
 			poly_serial(u + i * (mLen + 1) + k);
 		}
@@ -478,12 +478,12 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 
 		LRCT_MatrixMulPoly(&tmp1, H2q + i * (mLen + 1), u+ i * (mLen + 1), mLen + 1);
 		poly_tobytes(bpoly, &tmp);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 		poly_tobytes(bpoly, &tmp1);
-        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+        Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 	}
     //Keccak_HashFinal(&ctx, bHash);//Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//C_(pai)
-    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+    //Keccak_256KDF(bHash, 32, bt, NEWHOPE_RINGCT20_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYBYTES, bt);
     Keccak_HashFinal(&ctx, bt);
 	poly_frombytes(&c, bt);
 	poly_serial(&c);
@@ -497,30 +497,30 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 			poly_cofcopy(c1, &ctmp);
 		}
 
-        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 		////H_1(L||)
 		for (j = 0; j < wLen*NLen; j++)
 		{
 			poly_tobytes(bpoly, LList + j);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 		}
 		for (j = 0; j < NLen; j++)
 		{
 			for (k = 0; k < mLen + 1; k++)
 			{
 				poly_tobytes(bpoly, H2q + j * (mLen + 1) + k);
-                Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+                Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 			}
 		}//H_1(L||H2q)
         Keccak_HashUpdate(&ctx, msg, msgLen*8);//SHA256_Update(&ctx, msg, msgLen);//H(L||...||mu)
 
-		poly_constmul(&tmp1, &ctmp, NEWHOPE_Q);//qC_i
+		poly_constmul(&tmp1, &ctmp, NEWHOPE_RINGCT20_Q);//qC_i
 		for (j = 0; j < NLen; j++)
 		{
 		   LRCT_Lift(tmp2q, A, LList + j * wLen + index, mLen);
 			for (k = 0; k < mLen + 1; k++)
 			{
-                randombytes(bt, NEWHOPE_POLYBYTES);
+                randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
 				poly_frombytes(tList + j * wLen*(mLen + 1) + index * (mLen + 1) + k, bt);
 				poly_serial(tList + j * wLen*(mLen + 1) + index * (mLen+1)+ k);
 			}
@@ -528,15 +528,15 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 		
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//
 			////////
 			LRCT_MatrixMulPoly(&tmp, H2q + j * (mLen + 1), tList + j * wLen*(mLen + 1) + index * (mLen + 1), mLen + 1);
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//H2q*U
 		}
         //Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
-        //Keccak_256KDF(bHash, 32, bt, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bt);
+        //Keccak_256KDF(bHash, 32, bt, NEWHOPE_RINGCT20_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYBYTES, bt);
         Keccak_HashFinal(&ctx, bt);
 		poly_frombytes(&ctmp, bt);
 		poly_serial(&ctmp);//C_{index+1}
@@ -582,7 +582,7 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
     Keccak_HashInstance ctx;
 
 	unsigned char bHash[32] = { 0 };
-	unsigned char bpoly[NEWHOPE_POLYBYTES] = { 0 };
+	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	/////////
 	poly_cofcopy(&ctmp, c1);
 	for (i = 0; i < NLen; i++)
@@ -592,38 +592,38 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 	//////
 	for (i = 0; i < wLen; i++)
 	{
-        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
+        Keccak_HashInitialize_SHA3_KDF(&ctx, NEWHOPE_RINGCT20_POLYBYTES);//Keccak_HashInitialize_SHA3_256(&ctx);//SHA256_Init(&ctx);
 		for (k = 0; k < wLen*NLen; k++)
 		{
 			poly_tobytes(bpoly, LList + k);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 		}///H_1(L||)
 		for (j = 0; j< NLen; j++)
 		{
 			for (k = 0; k < (mLen + 1); k++)
 			{
 				poly_tobytes(bpoly, H2q + j * (mLen + 1) + k);
-                Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+                Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 			}
 		}
         Keccak_HashUpdate(&ctx, msg, msgLen*8);//Keccak_HashUpdate(&ctx, msg, msgLen*8);//SHA256_Update(&ctx, msg, msgLen);//H(L||...||mu)
 
-		poly_constmul(&tmp1, &ctmp, NEWHOPE_Q);//qC_i
+		poly_constmul(&tmp1, &ctmp, NEWHOPE_RINGCT20_Q);//qC_i
 		for ( j = 0; j < NLen; j++)
 		{
 			LRCT_Lift(A2qp, A, LList + j * wLen + i , mLen);
 			LRCT_MatrixMulPoly(&tmp, A2qp, tList + j * wLen*(mLen + 1) + i * (mLen + 1), mLen + 1);
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);
 			
 			LRCT_MatrixMulPoly(&tmp, H2q + j * (mLen + 1), tList + j * wLen*(mLen + 1) + i* (mLen + 1), mLen + 1);
 			poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
 			poly_tobytes(bpoly, &tmp);
-            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_POLYBYTES);//H2q*U
+            Keccak_HashUpdate(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES*8);//SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//H2q*U
 		}
         //Keccak_HashFinal(&ctx, bHash);//SHA256_Final(bHash, &ctx);//
-        //Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_POLYBYTES, bpoly);
+        //Keccak_256KDF(bHash, 32, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//SHA256_KDF(bHash, 32, NEWHOPE_RINGCT20_POLYBYTES, bpoly);
         Keccak_HashFinal(&ctx, bpoly);
 		poly_frombytes(&ctmp, bpoly);
 		poly_serial(&ctmp);//
@@ -646,14 +646,14 @@ void LRCT_Lift(poly_ringct20 *LA, poly_ringct20 *A, poly_ringct20 *a, size_t mLe
 	int16_t tmp = 0;
 	for ( i = 0; i < mLen; i++)
 	{
-		for ( j = 0; j < NEWHOPE_N; j++)
+		for ( j = 0; j < NEWHOPE_RINGCT20_N; j++)
 		{
 			LA[i].coeffs[j] = 2 * A[i].coeffs[j];
 		}	
 	}
-	for ( j = 0; j < NEWHOPE_N; j++)
+	for ( j = 0; j < NEWHOPE_RINGCT20_N; j++)
 	{
-		LA[mLen].coeffs[j] = coeff_freeze2Q(NEWHOPE_2Q+ NEWHOPE_Q - a->coeffs[j] * 2);
+		LA[mLen].coeffs[j] = coeff_freeze2Q(NEWHOPE_RINGCT20_2Q+ NEWHOPE_RINGCT20_Q - a->coeffs[j] * 2);
 	}
 }
 
@@ -667,14 +667,14 @@ void LRCT_Com(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, size_t mLen
 	for (j = 0; j < msglen; j++)
 	{
 
-		r->coeffs[j * 8 + 0] = (tmp.coeffs[j * 8 + 0] + (bMessage[j]&0x01))%NEWHOPE_Q;
-		r->coeffs[j * 8 + 1] = (tmp.coeffs[j * 8 + 1] + ((bMessage[j] & 0x02) >> 1)) % NEWHOPE_Q;
-		r->coeffs[j * 8 + 2] = (tmp.coeffs[j * 8 + 2] + ((bMessage[j] & 0x04) >> 2)) % NEWHOPE_Q;
-		r->coeffs[j * 8 + 3] = (tmp.coeffs[j * 8 + 3] + ((bMessage[j] & 0x08) >> 3)) % NEWHOPE_Q;
-		r->coeffs[j * 8 + 4] = (tmp.coeffs[j * 8 + 4] + ((bMessage[j] & 0x10) >> 4)) % NEWHOPE_Q;
-		r->coeffs[j * 8 + 5] = (tmp.coeffs[j * 8 + 5] + ((bMessage[j] & 0x20) >> 5)) % NEWHOPE_Q;
-		r->coeffs[j * 8 + 6] = (tmp.coeffs[j * 8 + 6] + ((bMessage[j] & 0x40) >> 6)) % NEWHOPE_Q;
-		r->coeffs[j * 8 + 7] = (tmp.coeffs[j * 8 + 7] + ((bMessage[j] & 0x80) >> 7)) % NEWHOPE_Q;
+		r->coeffs[j * 8 + 0] = (tmp.coeffs[j * 8 + 0] + (bMessage[j]&0x01))%NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 1] = (tmp.coeffs[j * 8 + 1] + ((bMessage[j] & 0x02) >> 1)) % NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 2] = (tmp.coeffs[j * 8 + 2] + ((bMessage[j] & 0x04) >> 2)) % NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 3] = (tmp.coeffs[j * 8 + 3] + ((bMessage[j] & 0x08) >> 3)) % NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 4] = (tmp.coeffs[j * 8 + 4] + ((bMessage[j] & 0x10) >> 4)) % NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 5] = (tmp.coeffs[j * 8 + 5] + ((bMessage[j] & 0x20) >> 5)) % NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 6] = (tmp.coeffs[j * 8 + 6] + ((bMessage[j] & 0x40) >> 6)) % NEWHOPE_RINGCT20_Q;
+		r->coeffs[j * 8 + 7] = (tmp.coeffs[j * 8 + 7] + ((bMessage[j] & 0x80) >> 7)) % NEWHOPE_RINGCT20_Q;
 	}
 
 }
@@ -688,14 +688,14 @@ void LRCT_nttCom(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, size_t m
 	for (j = 0; j < msglen; j++)
 	{
 
-		pMess.coeffs[j * 8 + 0] =  (bMessage[j] & 0x01) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 1] = (((bMessage[j] & 0x02) >> 1)) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 2] = (((bMessage[j] & 0x04) >> 2)) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 3] = ( ((bMessage[j] & 0x08) >> 3)) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 4] = ( ((bMessage[j] & 0x10) >> 4)) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 5] = ( ((bMessage[j] & 0x20) >> 5)) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 6] = (((bMessage[j] & 0x40) >> 6)) % NEWHOPE_Q;
-		pMess.coeffs[j * 8 + 7] = ( ((bMessage[j] & 0x80) >> 7)) % NEWHOPE_Q;
+		pMess.coeffs[j * 8 + 0] =  (bMessage[j] & 0x01) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 1] = (((bMessage[j] & 0x02) >> 1)) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 2] = (((bMessage[j] & 0x04) >> 2)) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 3] = ( ((bMessage[j] & 0x08) >> 3)) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 4] = ( ((bMessage[j] & 0x10) >> 4)) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 5] = ( ((bMessage[j] & 0x20) >> 5)) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 6] = (((bMessage[j] & 0x40) >> 6)) % NEWHOPE_RINGCT20_Q;
+		pMess.coeffs[j * 8 + 7] = ( ((bMessage[j] & 0x80) >> 7)) % NEWHOPE_RINGCT20_Q;
 	}
 	poly_ntt_ringct20(&pMess);
 	poly_add_ringct20(r, &tmp, &pMess);
@@ -752,7 +752,7 @@ void LRCT_ConstMulMatrix(poly_ringct20 *r, const poly_ringct20 *A, uint16_t cof,
 	size_t i, j;
 	for (i = 0; i < mLen; i++)
 	{
-		for ( j = 0; j < NEWHOPE_N; j++)
+		for ( j = 0; j < NEWHOPE_RINGCT20_N; j++)
 		{
 			r[i].coeffs[j] = cof * A[i].coeffs[j];
 		}

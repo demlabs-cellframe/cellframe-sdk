@@ -1,5 +1,5 @@
 /** @file 
- * @brief Реализация функций тестирования алгоритмов "кузнечик" и 28147-89. А также режимов работы блочных шифров
+ * @brief Р РµР°Р»РёР·Р°С†РёСЏ С„СѓРЅРєС†РёР№ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ Р°Р»РіРѕСЂРёС‚РјРѕРІ "РєСѓР·РЅРµС‡РёРє" Рё 28147-89. Рђ С‚Р°РєР¶Рµ СЂРµР¶РёРјРѕРІ СЂР°Р±РѕС‚С‹ Р±Р»РѕС‡РЅС‹С… С€РёС„СЂРѕРІ
  *
  * @copyright InfoTeCS. All rights reserved.
  */
@@ -7,18 +7,18 @@
 #include <memory.h>
 
 #include "28147_14.h"
-#include "block_chipher.h"
+#include "block_cipher.h"
 #include "28147_89.h"
 #include "test_data.inc"
 #include "print_data.h"
 
-/** @brief размер тестовых данных для алгоритма "кузнечик" */
+/** @brief СЂР°Р·РјРµСЂ С‚РµСЃС‚РѕРІС‹С… РґР°РЅРЅС‹С… РґР»СЏ Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 #define textLen14 sizeof(kGost14PlainText)
 
-/** @brief размер тестовых данных для алгоритма "28147-89" */
+/** @brief СЂР°Р·РјРµСЂ С‚РµСЃС‚РѕРІС‹С… РґР°РЅРЅС‹С… РґР»СЏ Р°Р»РіРѕСЂРёС‚РјР° "28147-89" */
 #define textLen89 sizeof(kGost89PlaintText)
  
-/** @brief тестирование преобразования S из алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ S РёР· Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int testS()
 {
      unsigned char tmp[kBlockLen14];
@@ -45,7 +45,7 @@ int testS()
      return 0;
 }
 
-/** @brief тестирование преобразования R из алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ R РёР· Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int testR()
 {
      unsigned char tmp[kBlockLen14];
@@ -73,7 +73,7 @@ int testR()
      return 0;
 }
 
-/** @brief тестирование преобразования L из алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ L РёР· Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int testL()
 {
      unsigned char tmp[kBlockLen14];
@@ -100,7 +100,7 @@ int testL()
      return 0;
 }
 
-/** @brief тестирование разворачивания ключа из алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂР°Р·РІРѕСЂР°С‡РёРІР°РЅРёСЏ РєР»СЋС‡Р° РёР· Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int testExpandKey()
 {
      const size_t keyLen = sizeof(kMasterKeyData)/sizeof(kMasterKeyData[0]);
@@ -128,7 +128,7 @@ int testExpandKey()
      return 0;
 }
 
-/** @brief тестирование шифрования по алгоритму "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ С€РёС„СЂРѕРІР°РЅРёСЏ РїРѕ Р°Р»РіРѕСЂРёС‚РјСѓ "РєСѓР·РЅРµС‡РёРє" */
 int testEncrypt()
 {
      const size_t keyLen = sizeof(kMasterKeyData)/sizeof(kMasterKeyData[0]);
@@ -159,7 +159,7 @@ int testEncrypt()
      return 0;
 }
 
-/** @brief тестирование расшифрования по алгоритму "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂР°СЃС€РёС„СЂРѕРІР°РЅРёСЏ РїРѕ Р°Р»РіРѕСЂРёС‚РјСѓ "РєСѓР·РЅРµС‡РёРє" */
 int testDecrypt()
 {
      const size_t keyLen = sizeof(kMasterKeyData)/sizeof(kMasterKeyData[0]);
@@ -192,7 +192,7 @@ int testDecrypt()
      return 0;
 }
 
-/** @brief тестирование шифроавание в режиме ecb по алгоритму "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ С€РёС„СЂРѕР°РІР°РЅРёРµ РІ СЂРµР¶РёРјРµ ecb РїРѕ Р°Р»РіРѕСЂРёС‚РјСѓ "РєСѓР·РЅРµС‡РёРє" */
 int gost14_ECB_test()
 {
      unsigned char ctx[kEcb14ContextLen];
@@ -244,7 +244,7 @@ int gost14_ECB_test()
      return 0;
 }
 
-/** @brief тестирование режима ctr алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° ctr Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int gost14_CTR_test()
 {
      const size_t svLen = sizeof(kGost14CtrSV);
@@ -276,7 +276,7 @@ int gost14_CTR_test()
      return memcmp(outText, kGost14CtrC, textLen14);
 }
 
-/** @brief тестирование режима ofb алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° ofb Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int gost14_OFB_test()
 {
      const size_t svLen = sizeof(kGost14OfbSV);
@@ -308,7 +308,7 @@ int gost14_OFB_test()
      return memcmp(outText, kGost14OfbC, textLen14);
 }
 
-/** @brief тестирование режима cbc алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° cbc Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int gost14_CBC_test()
 {
      const size_t svLen = sizeof(kGost14CbcSV);
@@ -363,7 +363,7 @@ int gost14_CBC_test()
      return memcmp(outText, kGost14CbcC, textLen14);
 }
 
-/** @brief тестирование режима cfb алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° cfb Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int gost14_CFB_test()
 {
      const size_t svLen = sizeof(kGost14CfbSV);
@@ -421,7 +421,7 @@ int gost14_CFB_test()
      return 0;
 }
 
-/** @brief тестирование режима имитовставки алгоритма "кузнечик" */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° РёРјРёС‚РѕРІСЃС‚Р°РІРєРё Р°Р»РіРѕСЂРёС‚РјР° "РєСѓР·РЅРµС‡РёРє" */
 int gost14_imita_test()
 {
      const size_t imitLen = sizeof(kGost14ImitS);
@@ -450,7 +450,7 @@ int gost14_imita_test()
      return memcmp(outText, kGost14ImitS, imitLen);
 }
 
-/** @brief тестирование режима ecb алгоритма 28147-89 */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° ecb Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int gost89_ECB_test()
 {
      unsigned char ctx[kEcb89ContextLen];
@@ -493,7 +493,7 @@ int gost89_ECB_test()
      return 0;
 }
 
-/** @brief тестирование режима ctr алгоритма 28147-89 */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° ctr Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int gost89_CTR_test()
 {
      const size_t SvLen = sizeof(kGost89CtrSV);
@@ -525,7 +525,7 @@ int gost89_CTR_test()
      return memcmp(outText, kGost89CtrC, textLen89);
 }
 
-/** @brief тестирование режима ofb алгоритма 28147-89 */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° ofb Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int gost89_OFB_test()
 {
      const size_t SvLen = sizeof(kGost89OfbSV);
@@ -557,7 +557,7 @@ int gost89_OFB_test()
      return memcmp(outText,  kGost89OfbC, textLen89);
 }
 
-/** @brief тестирование режима cbc алгоритма 28147-89 */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° cbc Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int gost89_CBC_test()
 {
      const size_t SvLen = sizeof(kGost89CbcSV);
@@ -601,7 +601,7 @@ int gost89_CBC_test()
      return memcmp(outText, kGost89CbcC, textLen89);
 }
 
-/** @brief Тестирование криптографического преобразования алгоритма 28147-89 */
+/** @brief РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ РєСЂРёРїС‚РѕРіСЂР°С„РёС‡РµСЃРєРѕРіРѕ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int standart_89_encr_test()
 {
      const size_t textLen = sizeof(kGost89StandartPlainText);
@@ -647,7 +647,7 @@ int standart_89_encr_test()
      return 0;
 }
 
-/** @brief тестирование режима cfb алгоритма 28147-89 */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° cfb Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int gost89_CFB_test()
 {
      const size_t SvLen = sizeof(kGost89CfbSV);
@@ -694,7 +694,7 @@ int gost89_CFB_test()
      return 0;
 }
 #include<stdio.h>
-/** @brief тестирование режима имтовставки алгоритма 28147-89 */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЂРµР¶РёРјР° РёРјС‚РѕРІСЃС‚Р°РІРєРё Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int gost89_imita_test()
 {
      const size_t imitLen = sizeof(kGost89ImitS);
@@ -726,7 +726,7 @@ int gost89_imita_test()
      return memcmp(outText, kGost89ImitS, imitLen);
 }
 
-/** @brief тестирование дополнения сообщения */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ РґРѕРїРѕР»РЅРµРЅРёСЏ СЃРѕРѕР±С‰РµРЅРёСЏ */
 int testPadding()
 {
      const size_t len = sizeof(kPaddingText)/sizeof(kPaddingText[0]);
@@ -761,7 +761,7 @@ int testPadding()
      return 0;
 }
 
-/** @brief тестирование снятия дополнения сообщения */
+/** @brief С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ СЃРЅСЏС‚РёСЏ РґРѕРїРѕР»РЅРµРЅРёСЏ СЃРѕРѕР±С‰РµРЅРёСЏ */
 int testCut()
 {
      size_t rLen, rLen2;
@@ -798,7 +798,7 @@ int testCut()
      return 0;
 }
 
-/** @brief Тестирование преобразования t алгоритма 28147-89 */
+/** @brief РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ t Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int testFuncT()
 {
      int i;
@@ -822,7 +822,7 @@ int testFuncT()
      return 0;
 }
 
-/** @brief Тестирование преобразования g алгоритма 28147-89 */
+/** @brief РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ g Р°Р»РіРѕСЂРёС‚РјР° 28147-89 */
 int testG()
 {
      int i;
@@ -847,7 +847,7 @@ int testG()
      return 0;
 }
 
-/** @brief точка входа  */
+/** @brief С‚РѕС‡РєР° РІС…РѕРґР°  */
 int main_gost_test()
 {
      int testRes = 0;

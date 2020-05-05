@@ -1,5 +1,5 @@
 /** @file 
- * @brief Объявление функций вывода информации на экран
+ * @brief РћР±СЉСЏРІР»РµРЅРёРµ С„СѓРЅРєС†РёР№ РІС‹РІРѕРґР° РёРЅС„РѕСЂРјР°С†РёРё РЅР° СЌРєСЂР°РЅ
  *
  * @copyright InfoTeCS. All rights reserved.
  */
@@ -9,68 +9,68 @@
 
 #include "dll_import.h"
 
-/** @brief ширина выводимой строки в символах */
+/** @brief С€РёСЂРёРЅР° РІС‹РІРѕРґРёРјРѕР№ СЃС‚СЂРѕРєРё РІ СЃРёРјРІРѕР»Р°С… */
 #define LINE_WIDTH 60
 
-/** @brief длина табуляции в символах */
+/** @brief РґР»РёРЅР° С‚Р°Р±СѓР»СЏС†РёРё РІ СЃРёРјРІРѕР»Р°С… */
 #define TAB_WIDTH 4
 
-/** @brief Выводит результаты теста
+/** @brief Р’С‹РІРѕРґРёС‚ СЂРµР·СѓР»СЊС‚Р°С‚С‹ С‚РµСЃС‚Р°
  *
- * @param[in] caption заголовок теста
- * @param[in] result результат теста
+ * @param[in] caption Р·Р°РіРѕР»РѕРІРѕРє С‚РµСЃС‚Р°
+ * @param[in] result СЂРµР·СѓР»СЊС‚Р°С‚ С‚РµСЃС‚Р°
  */
 int PrintTest(const char* caption, int result);
 
-/** @brief Выводит символ */
+/** @brief Р’С‹РІРѕРґРёС‚ СЃРёРјРІРѕР» */
 void PrintCharSingle(char c);
 
-/** @brief Выводит повторяющий символ c count раз */
+/** @brief Р’С‹РІРѕРґРёС‚ РїРѕРІС‚РѕСЂСЏСЋС‰РёР№ СЃРёРјРІРѕР» c count СЂР°Р· */
 void PrintChar(char c, size_t count);
 
-/** @brief Выводит строку заканчивающуюся нулем */
+/** @brief Р’С‹РІРѕРґРёС‚ СЃС‚СЂРѕРєСѓ Р·Р°РєР°РЅС‡РёРІР°СЋС‰СѓСЋСЃСЏ РЅСѓР»РµРј */
 void PrintStr(const char* s);
 
-/** @brief Выводит строку заканчивающуюся нулем дополняя ее пробелами до заданнной ширины */
+/** @brief Р’С‹РІРѕРґРёС‚ СЃС‚СЂРѕРєСѓ Р·Р°РєР°РЅС‡РёРІР°СЋС‰СѓСЋСЃСЏ РЅСѓР»РµРј РґРѕРїРѕР»РЅСЏСЏ РµРµ РїСЂРѕР±РµР»Р°РјРё РґРѕ Р·Р°РґР°РЅРЅРЅРѕР№ С€РёСЂРёРЅС‹ */
 void PrintStrAlign(const char* s, size_t width);
 
-/** @brief Выводит строку заканчивающуюся нулем и переводит коретку на следующую строку */
+/** @brief Р’С‹РІРѕРґРёС‚ СЃС‚СЂРѕРєСѓ Р·Р°РєР°РЅС‡РёРІР°СЋС‰СѓСЋСЃСЏ РЅСѓР»РµРј Рё РїРµСЂРµРІРѕРґРёС‚ РєРѕСЂРµС‚РєСѓ РЅР° СЃР»РµРґСѓСЋС‰СѓСЋ СЃС‚СЂРѕРєСѓ */
 void PrintLine(const char* line);
 
-/** @brief Переводит коретку на следующую строку */
+/** @brief РџРµСЂРµРІРѕРґРёС‚ РєРѕСЂРµС‚РєСѓ РЅР° СЃР»РµРґСѓСЋС‰СѓСЋ СЃС‚СЂРѕРєСѓ */
 void PrintEmptyLine();
 
-/** @brief Выводит строку смещяя начало строки в право на заданное количество позиций */
+/** @brief Р’С‹РІРѕРґРёС‚ СЃС‚СЂРѕРєСѓ СЃРјРµС‰СЏСЏ РЅР°С‡Р°Р»Рѕ СЃС‚СЂРѕРєРё РІ РїСЂР°РІРѕ РЅР° Р·Р°РґР°РЅРЅРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ РїРѕР·РёС†РёР№ */
 void PrintLineLeft(const char* label);
 
-/** @brief Выводит строку разделитель */
+/** @brief Р’С‹РІРѕРґРёС‚ СЃС‚СЂРѕРєСѓ СЂР°Р·РґРµР»РёС‚РµР»СЊ */
 void PrintSplitLine();
 
-/** @brief Выводит разделитель, строку и переводит коретку на следующую строку  */
+/** @brief Р’С‹РІРѕРґРёС‚ СЂР°Р·РґРµР»РёС‚РµР»СЊ, СЃС‚СЂРѕРєСѓ Рё РїРµСЂРµРІРѕРґРёС‚ РєРѕСЂРµС‚РєСѓ РЅР° СЃР»РµРґСѓСЋС‰СѓСЋ СЃС‚СЂРѕРєСѓ  */
 void PrintLabel(const char* label);
 
-/** @brief Выводит один байт в HEX представлении */
+/** @brief Р’С‹РІРѕРґРёС‚ РѕРґРёРЅ Р±Р°Р№С‚ РІ HEX РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРё */
 void PrintHex(unsigned char value);
 
-/** @brief Выводит массив байт в HEX представлении */
+/** @brief Р’С‹РІРѕРґРёС‚ РјР°СЃСЃРёРІ Р±Р°Р№С‚ РІ HEX РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРё */
 void PrintHexArray(unsigned char* value, size_t size);
 
-/** @brief Выводит int32 число в HEX представлении */
+/** @brief Р’С‹РІРѕРґРёС‚ int32 С‡РёСЃР»Рѕ РІ HEX РїСЂРµРґСЃС‚Р°РІР»РµРЅРёРё */
 void PrintUInt32(unsigned int d);
 
-/** @brief Выводит блок данных */
+/** @brief Р’С‹РІРѕРґРёС‚ Р±Р»РѕРє РґР°РЅРЅС‹С… */
 void PrintBlock(const char* label, unsigned char* value, size_t valueSize, size_t blockSize);
 
-/** @brief Выводит блок данных */
+/** @brief Р’С‹РІРѕРґРёС‚ Р±Р»РѕРє РґР°РЅРЅС‹С… */
 void PrintBlockInt(const char* label, unsigned int value);
 
-/** @brief Выводит блок данных  */
+/** @brief Р’С‹РІРѕРґРёС‚ Р±Р»РѕРє РґР°РЅРЅС‹С…  */
 void PrintBlockLeft(const char* label, unsigned int value);
 
-/** @brief callback для вывода массива byte */
+/** @brief callback РґР»СЏ РІС‹РІРѕРґР° РјР°СЃСЃРёРІР° byte */
 void DLL_IMPORT print_array(const char* label, unsigned char* value, unsigned int valueSize);
 
-/** @brief callback для вывода массива unsigned int32 */
+/** @brief callback РґР»СЏ РІС‹РІРѕРґР° РјР°СЃСЃРёРІР° unsigned int32 */
 void DLL_IMPORT print_uint_array(const char* label, unsigned int* value, unsigned int valueSize);
 
 #endif
