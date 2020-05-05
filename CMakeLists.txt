@@ -97,6 +97,12 @@ if (CELLFRAME_MODULES MATCHES "srv-vpn")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn )
 endif()
 
+# Enable service eXchange
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    message("[+] Module 'srv-xchange'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_change )
+endif()
+
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
 					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
