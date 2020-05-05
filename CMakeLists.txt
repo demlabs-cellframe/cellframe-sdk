@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.0-4")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.1-0")
 include(cmake/OS_Detection.cmake)
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
