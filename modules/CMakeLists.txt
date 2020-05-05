@@ -75,3 +75,8 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-vpn")
     add_subdirectory(service/vpn)
 endif()
+
+# Unit tests
+if( BUILD_TESTS)
+    add_subdirectory(test)
+endif()
