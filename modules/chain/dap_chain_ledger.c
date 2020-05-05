@@ -198,6 +198,30 @@ static int compare_datum_items(const void * l_a, const void * l_b)
     return 1;
 }
 
+
+/**
+ * @brief dap_chain_ledger_token_check
+ * @param a_ledger
+ * @param a_token
+ * @return
+ */
+int dap_chain_ledger_token_check(dap_ledger_t * a_ledger,  dap_chain_datum_token_t *a_token)
+{
+    if ( !a_ledger){
+        log_it(L_ERROR, "NULL ledger, can't add datum with token declaration!");
+        return  -1;
+    }
+
+    dap_chain_ledger_token_item_t * l_token_item;
+    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->ticker,l_token_item);
+    if ( l_token_item != NULL ){
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        return -3;
+    }
+    // Checks passed
+    return 0;
+}
+
 /**
  * @brief dap_chain_ledger_token_add
  * @param a_token
@@ -226,13 +250,13 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
 
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item) ;
         switch(a_token->type){
-            case DAP_CHAIN_DATUM_TOKEN_PRIVATE:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
                 l_token_item->total_supply = a_token->header_private.total_supply;
                 log_it( L_NOTICE, "Private token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
                         a_token->ticker, dap_chain_balance_to_coins(a_token->header_private.total_supply),
                         a_token->header_private.signs_valid, a_token->header_private.signs_total);
             break;
-            case DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL:
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
                 log_it( L_NOTICE, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL )", a_token->ticker);
             break;
             default:
@@ -281,6 +305,48 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags)
     l_ledger_priv->check_token_emission = a_check_flags & DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
     // load ledger from mempool
     return l_ledger; //dap_chain_ledger_load(l_ledger, "kelvin-testnet", "plasma");
+}
+
+int dap_chain_ledger_token_emission_check(dap_ledger_t *a_ledger, const dap_chain_datum_token_emission_t *a_token_emission
+                                        , size_t a_token_emission_size)
+{
+    int ret = 0;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+
+    const char * c_token_ticker = a_token_emission->hdr.ticker;
+    dap_chain_ledger_token_item_t * l_token_item = NULL;
+    pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+    HASH_FIND_STR(l_ledger_priv->tokens, c_token_ticker, l_token_item);
+    pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+
+    dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
+
+    // check if such emission is already present in table
+    dap_chain_hash_fast_t l_token_emission_hash={0};
+    //dap_chain_hash_fast_t * l_token_emission_hash_ptr = &l_token_emission_hash;
+    dap_hash_fast(a_token_emission, a_token_emission_size, &l_token_emission_hash);
+    char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_token_emission_hash);
+    pthread_rwlock_rdlock( l_token_item ?
+                               &l_token_item->token_emissions_rwlock :
+                               &l_ledger_priv->treshold_emissions_rwlock
+                               );
+    HASH_FIND(hh,l_token_item ? l_token_item->token_emissions : l_ledger_priv->treshold_emissions,
+              &l_token_emission_hash, sizeof(l_token_emission_hash), l_token_emission_item);
+    if(l_token_emission_item ) {
+        log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s ): already present in cache",
+                a_token_emission->hdr.value, c_token_ticker, l_hash_str);
+        ret = -1;
+    }else if ( l_token_item || HASH_COUNT( l_ledger_priv->treshold_emissions) < s_treshold_emissions_max  ) {
+        log_it(L_WARNING,"Treshold for emissions is overfulled (%lu max)",
+               s_treshold_emissions_max);
+        ret = -2;
+    }
+    pthread_rwlock_unlock(l_token_item ?
+                              &l_token_item->token_emissions_rwlock :
+                              &l_ledger_priv->treshold_emissions_rwlock);
+    DAP_DELETE(l_hash_str);
+
+    return ret;
 }
 
 /**
@@ -778,6 +844,32 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         *a_list_tx_out = l_list_tx_out;
     else if (l_list_tx_out)
         dap_list_free(l_list_tx_out);
+    return 0;
+}
+
+/**
+ * @brief dap_chain_ledger_tx_check
+ * @param a_ledger
+ * @param a_tx
+ * @return
+ */
+int dap_chain_ledger_tx_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+{
+    if(!a_tx)
+        return -2;
+    dap_list_t *l_list_bound_items = NULL;
+    dap_list_t *l_list_tx_out = NULL;
+
+    int l_ret_check;
+    if( (l_ret_check = dap_chain_ledger_tx_cache_check(
+             a_ledger, a_tx, &l_list_bound_items, &l_list_tx_out)) < 0){
+        log_it (L_WARNING, "dap_chain_ledger_tx_add() tx not passed the check: code %d ",l_ret_check);
+        return -1;
+    }
+    dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+    char l_tx_hash_str[70];
+    dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
+    //log_it ( L_INFO, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
     return 0;
 }
 

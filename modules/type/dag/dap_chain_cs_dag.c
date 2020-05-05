@@ -390,7 +390,19 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 
     for (size_t d = 0; d <a_datums_count ; d++){
         dap_chain_datum_t * l_datum = a_datums[d];
+        if(l_datum == NULL) // Was wrong datum thats not passed checks
+            continue;
 
+        // Verify for correctness
+        dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
+        int l_verify_datum= dap_chain_net_verify_datum( l_net, l_datum) ;
+        if (l_verify_datum != 0){
+            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                     l_verify_datum);
+            continue;
+        }
+
+        // Prepare round
         if ( l_hashes_int_size && l_events_round_new_size){
             // Linking randomly with current new round set
             size_t l_rnd_steps;

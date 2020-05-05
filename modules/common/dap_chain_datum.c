@@ -61,4 +61,3 @@ dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_da
    l_datum->header.ts_create =(uint64_t) time(NULL);
    return  l_datum;
 }
-

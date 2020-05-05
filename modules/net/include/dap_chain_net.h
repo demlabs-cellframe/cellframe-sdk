@@ -151,3 +151,4 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
 dap_chain_net_t **dap_chain_net_list(size_t *a_size);
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr);
 
+int dap_chain_net_verify_datum(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
