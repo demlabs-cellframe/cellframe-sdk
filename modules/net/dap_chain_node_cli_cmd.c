@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -3317,7 +3318,7 @@ int com_stats(int argc, char ** argv, void *arg_func, char **str_reply)
         char *str_reply_prev = dap_strdup_printf("");
         char *str_delimiter;
         dap_cpu_stats_t s_cpu_stats = dap_cpu_get_stats();
-        for (int n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
+        for (uint32_t n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
             if ((n_cpu_num % 4 == 0) && (n_cpu_num != 0)) {
                 str_delimiter = dap_strdup_printf("\n");
             } else if (n_cpu_num == s_cpu_stats.cpu_cores_count - 1) {

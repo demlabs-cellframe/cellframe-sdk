@@ -24,8 +24,22 @@
 
 #pragma once
 
+#include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_order.h"
+
 #define DAP_CHAIN_NET_SRV_XCHANGE_ID 0x2
 
+typedef struct dap_chain_net_srv_xchange_price {
+    dap_chain_wallet_t *wallet;
+    dap_chain_net_t *net;
+    char token_pair[DAP_CHAIN_TICKER_SIZE_MAX * 2];
+    double rate;
+    dap_chain_net_srv_order_t *order;
+    UT_hash_handle hh;
+} dap_chain_net_srv_xchange_price_t;
+
 typedef struct dap_chain_net_srv_xchange {
+    dap_chain_net_srv_t *parent;
+    dap_chain_net_srv_xchange_price_t *pricelist;
     bool enabled;
 } dap_chain_net_srv_xchange_t;
