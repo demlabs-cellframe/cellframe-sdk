@@ -205,7 +205,7 @@ static int compare_datum_items(const void * l_a, const void * l_b)
  * @param a_token
  * @return
  */
-int dap_chain_ledger_token_check(dap_ledger_t * a_ledger,  dap_chain_datum_token_t *a_token)
+int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,  dap_chain_datum_token_t *a_token)
 {
     if ( !a_ledger){
         log_it(L_ERROR, "NULL ledger, can't add datum with token declaration!");
@@ -307,7 +307,7 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags)
     return l_ledger; //dap_chain_ledger_load(l_ledger, "kelvin-testnet", "plasma");
 }
 
-int dap_chain_ledger_token_emission_check(dap_ledger_t *a_ledger, const dap_chain_datum_token_emission_t *a_token_emission
+int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_chain_datum_token_emission_t *a_token_emission
                                         , size_t a_token_emission_size)
 {
     int ret = 0;
@@ -853,7 +853,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
  * @param a_tx
  * @return
  */
-int dap_chain_ledger_tx_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
     if(!a_tx)
         return -2;

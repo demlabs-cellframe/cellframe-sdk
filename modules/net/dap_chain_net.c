@@ -1966,7 +1966,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
             for(size_t i = 0; i < l_objs_size; i++) {
                 dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-                int l_verify_datum= dap_chain_net_verify_datum( a_net, l_datum) ;
+                int l_verify_datum= dap_chain_net_verify_datum_for_add( a_net, l_datum) ;
                 if (l_verify_datum != 0){
                     log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
                                              l_verify_datum);
@@ -2073,7 +2073,26 @@ dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_
     return l_list_groups;
 }
 
-int dap_chain_net_verify_datum(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum )
+/**
+ * @brief dap_chain_net_verify_datum_for_add
+ * @param a_net
+ * @param a_datum
+ * @return
+ */
+int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum )
 {
+    if( ! a_datum)
+        return -10;
+    if( ! a_net )
+        return -11;
 
+    switch ( a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX: return dap_chain_ledger_tx_add_check( a_net->pub.ledger,
+                                                                   (dap_chain_datum_tx_t*) a_datum->data );
+        case DAP_CHAIN_DATUM_TOKEN_DECL: return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger,
+                                                                   (dap_chain_datum_token_t*) a_datum->data );
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION : return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger,
+                                                                   (dap_chain_datum_token_emission_t*) a_datum->data, a_datum->header.data_size );
+        default: return 0;
+    }
 }

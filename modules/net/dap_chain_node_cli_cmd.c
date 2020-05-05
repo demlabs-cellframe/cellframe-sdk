@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Authors:
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -2124,7 +2124,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
         size_t l_datum_size=0;
         dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_datum_hash_str,
                                                                                        &l_datum_size, l_gdb_group_mempool);
-        size_t l_datum_size2= dap_chain_datum_size( l_datum);
+        size_t l_datum_size2= l_datum? dap_chain_datum_size( l_datum): 0;
         if (l_datum_size != l_datum_size2 ){
             ret = -8;
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
@@ -2136,7 +2136,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 dap_string_append_printf(l_str_tmp, "0x%s: type_id=%s ts_create=%s data_size=%u\n",
                         l_datum_hash_str, c_datum_type_str[l_datum->header.type_id],
                         ctime_r(&l_ts_create, buf), l_datum->header.data_size);
-                int l_verify_datum= dap_chain_net_verify_datum( l_net, l_datum) ;
+                int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
                 if (l_verify_datum != 0){
                     dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
                                              l_verify_datum);

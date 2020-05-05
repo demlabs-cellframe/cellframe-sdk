@@ -208,7 +208,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         }
     }
 
-    l_dag->is_static_genesis_event = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
+    l_dag->is_static_genesis_event = (l_static_genesis_event_hash_str != NULL) && dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
+
     l_dag->is_single_line = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_single_line",false);
     l_dag->is_celled = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_celled",false);
     l_dag->is_add_directy = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
@@ -395,7 +396,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 
         // Verify for correctness
         dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
-        int l_verify_datum= dap_chain_net_verify_datum( l_net, l_datum) ;
+        int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
         if (l_verify_datum != 0){
             log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
                                      l_verify_datum);
@@ -567,13 +568,16 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
             char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
 
             log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
+            DAP_DELETE(l_event_hash_str);
+            DAP_DELETE(l_genesis_event_hash_str);
             return -22;
         }
+        return 0;
     }
 
     int ret = l_dag->callback_cs_verify ( l_dag, l_event );
     if (ret == 0 ){
-        if ( PVT(l_dag)->events )
+        if ( PVT(l_dag)->events ){
             for (size_t i = 0; i< l_event->header.hash_count; i++) {
                 dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
                 dap_chain_cs_dag_event_item_t * l_event_search = NULL;
@@ -584,6 +588,7 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
                 }
 
             }
+        }
 
         return 0;
     }else {
