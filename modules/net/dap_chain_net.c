@@ -273,7 +273,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
 
     switch ( PVT(l_net)->state ){
         case NET_STATE_OFFLINE:{
-            PVT(l_net)->state_target = PVT(l_net)->state_new;
+            if (PVT(l_net)->state_new != NET_STATE_UNDEFINED) {
+                PVT(l_net)->state_target = PVT(l_net)->state_new;
+                PVT(l_net)->state_new = NET_STATE_UNDEFINED;
+            }
             // reset current link
             PVT(l_net)->links_count = 0;
             // delete all links
@@ -717,7 +720,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
         break;
 
         case NET_STATE_ONLINE: {
-            PVT(l_net)->state_target = PVT(l_net)->state_new;
+            if (PVT(l_net)->state_new != NET_STATE_UNDEFINED) {
+                PVT(l_net)->state_target = PVT(l_net)->state_new;
+                PVT(l_net)->state_new = NET_STATE_UNDEFINED;
+            }
             switch ( PVT(l_net)->state_target) {
                 // disconnect
                 case NET_STATE_OFFLINE:
