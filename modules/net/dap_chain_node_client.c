@@ -523,7 +523,8 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         CloseHandle( a_client->wait_cond );
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
-        DAP_DEL_Z(a_client);
+        a_client->client = NULL;
+        DAP_DELETE(a_client);
     }
 }
 
