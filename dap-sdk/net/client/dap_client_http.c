@@ -33,6 +33,7 @@
 //#include <bits/socket_type.h>
 #endif
 #include <unistd.h>
+#include <errno.h>
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -259,6 +260,52 @@ static void s_http_delete(dap_events_socket_t *a_es, void *arg)
 }
 
 /**
+ * @brief resolve_host
+ * @param a_host hostname
+ * @param ai_family AF_INET  for ipv4 or AF_INET6 for ipv6
+ * @param a_addr_out out addr (struct in_addr or struct in6_addr)
+ * @param return 0 of OK, <0 Error
+ */
+int resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out)
+{
+    struct addrinfo l_hints, *l_res;
+    void *l_cur_addr = NULL;
+
+    memset(&l_hints, 0, sizeof(l_hints));
+    l_hints.ai_family = PF_UNSPEC;
+    l_hints.ai_socktype = SOCK_STREAM;
+    l_hints.ai_flags |= AI_CANONNAME;
+
+    int errcode = getaddrinfo(a_host, NULL, &l_hints, &l_res);
+    if(errcode != 0)
+            {
+        return -2;
+    }
+    while(l_res)
+    {
+        if(ai_family == l_res->ai_family)
+            switch (l_res->ai_family)
+            {
+            case AF_INET:
+                l_cur_addr = &((struct sockaddr_in *) l_res->ai_addr)->sin_addr;
+                memcpy(a_addr_out, l_cur_addr, sizeof(struct in_addr));
+                break;
+            case AF_INET6:
+                l_cur_addr = &((struct sockaddr_in6 *) l_res->ai_addr)->sin6_addr;
+                memcpy(a_addr_out, l_cur_addr, sizeof(struct in6_addr));
+                break;
+            }
+        if(l_cur_addr) {
+            freeaddrinfo(l_res);
+            return 0;
+        }
+        l_res = l_res->ai_next;
+    }
+    freeaddrinfo(l_res);
+    return -1;
+}
+
+/**
  * @brief dap_client_http_request_custom
  * @param a_uplink_addr
  * @param a_uplink_port
@@ -309,35 +356,37 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     //l_client_http_internal->socket = l_socket;
     l_client_http_internal->obj = a_obj;
 
-    // add to dap_worker
-    dap_events_socket_create_after(l_ev_socket);
-
-    // connect
     struct sockaddr_in l_remote_addr;
     memset(&l_remote_addr, 0, sizeof(l_remote_addr));
-    l_remote_addr.sin_family = AF_INET;
-    l_remote_addr.sin_port = htons(a_uplink_port);
-    if(inet_pton(AF_INET, a_uplink_addr, &(l_remote_addr.sin_addr)) < 0) {
-        log_it(L_ERROR, "Wrong remote address '%s:%u'", a_uplink_addr, a_uplink_port);
-        //close(l_ev_socket->socket);
-        dap_events_socket_kill_socket(l_ev_socket);
-        return NULL;
-    }
-    else {
-        int l_err = 0;
-        if((l_err = connect(l_socket, (struct sockaddr *) &l_remote_addr, sizeof(struct sockaddr_in))) != -1) {
-            //s_set_sock_nonblock(a_client_pvt->stream_socket, false);
-            log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port, l_socket);
-        }
-        else {
-            log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port, l_socket);
-            //l_ev_socket->no_close = false;
+    // get struct in_addr from ip_str
+    inet_pton(AF_INET, a_uplink_addr, &(l_remote_addr.sin_addr));
+    //Resolve addr if
+    if(!l_remote_addr.sin_addr.s_addr) {
+        if(resolve_host(a_uplink_addr, AF_INET, &l_remote_addr.sin_addr) < 0) {
+            log_it(L_ERROR, "Wrong remote address '%s:%u'", a_uplink_addr, a_uplink_port);
             dap_events_socket_kill_socket(l_ev_socket);
-            //shutdown(l_ev_socket->socket, SHUT_RDWR);
-            //dap_events_socket_remove_and_delete(l_ev_socket, true);
-            //l_ev_socket->socket = 0;
             return NULL;
         }
+    }
+    // connect
+    l_remote_addr.sin_family = AF_INET;
+    l_remote_addr.sin_port = htons(a_uplink_port);
+    int l_err = 0;
+    if((l_err = connect(l_socket, (struct sockaddr *) &l_remote_addr, sizeof(struct sockaddr_in))) != -1) {
+        //s_set_sock_nonblock(a_client_pvt->stream_socket, false);
+        log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", a_uplink_addr, a_uplink_port, l_socket);
+        // add to dap_worker
+        dap_events_socket_create_after(l_ev_socket);
+    }
+    else {
+        log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d err=%d", a_uplink_addr, a_uplink_port,
+                l_socket, errno);
+        //l_ev_socket->no_close = false;
+        dap_events_socket_kill_socket(l_ev_socket);
+        //shutdown(l_ev_socket->socket, SHUT_RDWR);
+        //dap_events_socket_remove_and_delete(l_ev_socket, true);
+        //l_ev_socket->socket = 0;
+        return NULL ;
     }
 
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
@@ -370,10 +419,18 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     }
 
     // adding string for GET request
-    char *l_get_str = NULL;
     if(!dap_strcmp(a_method, "GET")) {
-        l_get_str = dap_strdup_printf("?%s", a_request);
+        char l_buf[1024];
+        dap_snprintf(l_buf, sizeof(l_buf), "User-Agent: Mozilla\r\n");
+        if(a_cookie) {
+            dap_snprintf(l_buf, sizeof(l_buf), "Cookie: %s\r\n", a_cookie);
+            l_request_headers = dap_string_append(l_request_headers, l_buf);
+        }
+
+        if(a_request)
+            l_get_str = dap_strdup_printf("?%s", a_request);
     }
+
     // send header
     dap_events_socket_write_f(l_ev_socket, "%s /%s%s HTTP/1.1\r\n"
             "Host: %s\r\n"
