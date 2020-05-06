@@ -419,6 +419,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     }
 
     // adding string for GET request
+    char *l_get_str = NULL;
     if(!dap_strcmp(a_method, "GET")) {
         char l_buf[1024];
         dap_snprintf(l_buf, sizeof(l_buf), "User-Agent: Mozilla\r\n");
