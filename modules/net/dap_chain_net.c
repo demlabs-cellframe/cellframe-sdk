@@ -788,10 +788,9 @@ static void *s_net_proc_thread ( void *a_net )
 
         // check or start sync
         s_net_states_proc( l_net );
-
+        struct timespec l_to;
 #ifndef _WIN32
         int l_ret = 0;
-        struct timespec l_to;
         // prepare for signal waiting
         clock_gettime( CLOCK_MONOTONIC, &l_to );
         int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
