@@ -584,7 +584,7 @@ static bool dap_get_contents_win32(const char *filename, char **contents, size_t
     {
         return false;
     }
-    retval = get_contents_stdio (filename, f, contents, length, error);
+    retval = get_contents_stdio (filename, f, contents, length);
     return retval;
 }
 
