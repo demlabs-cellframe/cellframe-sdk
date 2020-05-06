@@ -174,7 +174,7 @@ dap_events_socket_t *dap_events_socket_find( int sock, struct dap_events *a_even
   dap_events_socket_t *ret = NULL;
   if(!a_events)
       return NULL;
-  pthread_rwlock_rdlock( &a_events->sockets_rwlock );
+  pthread_rwlock_wrlock( &a_events->sockets_rwlock );
   if(a_events->sockets)
       HASH_FIND_INT( a_events->sockets, &sock, ret );
   pthread_rwlock_unlock( &a_events->sockets_rwlock );

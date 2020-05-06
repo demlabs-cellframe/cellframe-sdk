@@ -194,6 +194,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 dap_chain_hash_fast_t l_atom_hash;
                                 dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]),
                                         &l_atom_hash);
+                                pthread_mutex_lock(&l_ch_chain->mutex);
                                 HASH_FIND(hh, l_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash),
                                         l_item);
                                 if(l_item == NULL) { // Not found, add new lasts
@@ -203,6 +204,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                     HASH_ADD(hh, l_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash),
                                             l_item);
                                 }
+                                pthread_mutex_unlock(&l_ch_chain->mutex);
                                 //else
                                 //    DAP_DELETE(l_lasts[i]);
                             }
@@ -535,12 +537,13 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     memset(&a_ch_chain->request_last_ts, 0, sizeof(a_ch_chain->request_last_ts));
 
     dap_chain_atom_item_t *l_atom_item = NULL, *l_atom_item_tmp = NULL;
-
+    pthread_mutex_lock(&a_ch_chain->mutex);
     HASH_ITER( hh,a_ch_chain->request_atoms_lasts, l_atom_item, l_atom_item_tmp)
         HASH_DEL(a_ch_chain->request_atoms_lasts, l_atom_item);
 
     HASH_ITER( hh, a_ch_chain->request_atoms_processed, l_atom_item, l_atom_item_tmp )
         HASH_DEL(a_ch_chain->request_atoms_processed, l_atom_item);
+    pthread_mutex_unlock(&a_ch_chain->mutex);
     dap_stream_ch_set_ready_to_write(a_ch_chain->ch, false);
 
 }
@@ -702,6 +705,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 if(l_ch_chain->callback_notify_packet_out)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, l_send_pkt_type, NULL, 0, l_ch_chain->callback_notify_arg);
             }else{ // Process one chain from l_ch_chain->request_atoms_lasts
+                pthread_mutex_lock(&l_ch_chain->mutex);
                 HASH_ITER(hh,l_ch_chain->request_atoms_lasts, l_atom_item, l_atom_item_tmp) {
                     dap_chain_atom_item_t * l_atom_item_proc = NULL;
                     // Check if its processed already
@@ -756,6 +760,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                         HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
                     }
                 }
+                pthread_mutex_unlock(&l_ch_chain->mutex);
             }
             //assert(l_ch_chain->request_atoms_lasts == NULL);
             //l_ch_chain->request_atoms_lasts = l_chains_lasts_new;

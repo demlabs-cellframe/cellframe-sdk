@@ -291,7 +291,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
     else
         PVT(l_dag)->events_treshold = l_events;
     //HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
-
+    pthread_rwlock_unlock( l_events_rwlock );
     if ( l_events == PVT(l_dag)->events){
         dap_chain_cs_dag_event_item_t * l_event_last = NULL;
         // Check the events and update the lasts
@@ -300,11 +300,13 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
                   l_event->hashes_n_datum_n_signs + l_event->header.hash_count*sizeof (*l_link_hash) );
                   l_link_hash += sizeof (dap_chain_hash_fast_t ) ) {
             l_event_last = NULL;
+            pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
             HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_link_hash,sizeof(*l_link_hash), l_event_last);
             if ( l_event_last ){ // If present in unlinked - remove
                 HASH_DEL(PVT(l_dag)->events_lasts_unlinked,l_event_last);
-                DAP_DELETE(l_event_last);
+                DAP_DEL_Z(l_event_last);
             }
+            pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
 
         }
         // and then adds itself
@@ -312,8 +314,9 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         l_event_last->ts_added = l_event_item->ts_added;
         l_event_last->event = l_event;
         dap_hash_fast(l_event, dap_chain_cs_dag_event_calc_size(l_event),&l_event_last->hash );
-
+        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
         HASH_ADD(hh,PVT(l_dag)->events_lasts_unlinked,hash,sizeof (l_event_last->hash),l_event_last);
+        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     }
 
     // add datum from event to ledger
@@ -543,7 +546,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag, dap_chain_hash_fast_t * a_hash)
 {
     dap_chain_cs_dag_event_item_t* l_event_item = NULL;
-    pthread_rwlock_rdlock( &PVT(a_dag)->events_rwlock );
+    pthread_rwlock_wrlock( &PVT(a_dag)->events_rwlock );
     HASH_FIND(hh, PVT(a_dag)->events ,a_hash,sizeof(*a_hash), l_event_item);
     dap_chain_cs_dag_event_t * l_event = l_event_item->event;
     pthread_rwlock_unlock( &PVT(a_dag)->events_rwlock );
@@ -620,11 +623,13 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+        pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
         HASH_FIND(hh, PVT(a_dag)->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
             HASH_DEL(PVT(a_dag)->events_lasts_unlinked,l_event_item);
-            DAP_DELETE(l_event_item);
+            DAP_DEL_Z(l_event_item);
         }
+        pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     }
 }
 
@@ -663,7 +668,7 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
 void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
 {
     // TODO Process finish treshold. For now - easiest from possible
-    pthread_rwlock_rdlock(&PVT(a_dag)->events_rwlock);
+    pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     HASH_ITER(hh,PVT(a_dag)->events_treshold,l_event_item, l_event_item_tmp){
         dap_chain_cs_dag_event_t * l_event = l_event_item->event;
@@ -785,10 +790,12 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
 
         dap_chain_cs_dag_event_item_t * l_event_item = NULL, *l_event_item_tmp = NULL;
         size_t i = 0;
+        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
         HASH_ITER(hh,PVT(l_dag)->events_lasts_unlinked, l_event_item,l_event_item_tmp){
             l_ret[i] = l_event_item->event;
             i++;
         }
+        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
         return l_ret;
     }
     return NULL;
@@ -1155,7 +1162,9 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
 
                     }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
                         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
                         if ( l_event_item )
                             l_event = l_event_item->event;
                         else {
@@ -1166,7 +1175,9 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         }
                     }else if ( strcmp(l_from_events_str,"events") == 0){
                         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
                         if ( l_event_item )
                             l_event = l_event_item->event;
                         else {
