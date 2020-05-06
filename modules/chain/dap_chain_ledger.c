@@ -824,7 +824,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     dap_list_free_full(l_list_bound_items, free);
                 if (l_list_tx_out)
                     dap_list_free(l_list_tx_out);
-                log_it(L_ERROR, "Emission for tx_token wasn't found for ticker %s and emission hash %s",l_tx_token->header.token_emission_hash );
+                log_it(L_ERROR, "Emission for tx_token wasn't found");
                 return -6;
             }
         }
