@@ -14,6 +14,8 @@ typedef __int128 int128_t;
 #endif
 #if !defined (uint128_t)
 typedef unsigned __int128 uint128_t;
+#else
+typedef unsigned uint64_t[2] uint128_t;
 #endif
 #endif
 #endif

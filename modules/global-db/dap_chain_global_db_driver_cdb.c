@@ -29,7 +29,6 @@
 #include <sys/stat.h>
 #include <uthash.h>
 #define _GNU_SOURCE
-#include <fnmatch.h>
 
 #include "dap_common.h"
 #include "dap_hash.h"
@@ -472,9 +471,11 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
     pthread_mutex_lock(&cdb_mutex);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp)
     {
-        if(!fnmatch(a_group_mask, cur_cdb->local_group, 0))
-            if(fnmatch("*.del", cur_cdb->local_group, 0))
+        if(strstr(cur_cdb->local_group, a_group_mask)) {
+            if(!strstr(cur_cdb->local_group, ".del")) {
                 l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(cur_cdb->local_group));
+            }
+        }
     }
     pthread_mutex_unlock(&cdb_mutex);
     return l_ret_list;

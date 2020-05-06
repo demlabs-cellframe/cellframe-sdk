@@ -312,7 +312,7 @@ static void *thread_worker_function(void *arg)
                 continue;
             }
             //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", w->number_thread, w->epoll_fd,cur->socket, events[n].events,events[n].events);
-            int l_sock_err, l_sock_err_size;
+            int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
                 getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
@@ -347,7 +347,7 @@ static void *thread_worker_function(void *arg)
                 if(cur->type == DESCRIPTOR_TYPE_SOCKET) {
                     bytes_read = recv(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
                             sizeof(cur->buf_in) - cur->buf_in_size, 0);
-                }else if(cur->type = DESCRIPTOR_TYPE_FILE) {
+                }else if(cur->type == DESCRIPTOR_TYPE_FILE) {
                     bytes_read = read(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
                             sizeof(cur->buf_in) - cur->buf_in_size);
                 }

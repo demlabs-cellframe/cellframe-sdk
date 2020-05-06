@@ -83,7 +83,7 @@ int com_help(int argc,  char ** argv, void *arg_func, char **str_reply);
  */
 int com_token_decl ( int argc,  char ** argv, void *arg_func, char ** str_reply);
 
-int com_token_decl_update(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 
 /**
  * Token declaration add sign
@@ -132,6 +132,9 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply);
 int com_stats(int argc, char ** argv, void *arg_func, char **str_reply);
 
 int com_exit(int argc, char ** argv, void *arg_func, char **str_reply);
+
+// Add News for VPN clients
+int com_news(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
 
 // vpn_client command
 int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply);

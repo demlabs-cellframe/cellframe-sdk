@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.0-3")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.1-3")
 include(cmake/OS_Detection.cmake)
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
@@ -14,6 +14,16 @@ endif()
 
 if (CELLFRAME_MODULES MATCHES "network")
     set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
+endif()
+
+if (BUILD_CRYPTO_TESTS)
+    if ( NOT(DAPSDK_MODULES MATCHES "core"))
+	SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
+    endif()
+    if ( NOT(DAPSDK_MODULES MATCHES "crypto"))
+	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
+    endif()
+    set(BUILD_TESTS ON)
 endif()
 
 add_subdirectory(dap-sdk)

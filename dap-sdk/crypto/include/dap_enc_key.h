@@ -55,7 +55,9 @@ typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_SALSA2012,//SALSA2012//http://www.ecrypt.eu.org/stream/salsa20pf.html//https://ianix.com/pub/salsa20-deployment.html
 
-                           DAP_ENC_KEY_TYPE_RLWE_NEWHOPE, // "NewHope": key exchange from the ring learning with errors problem
+                           DAP_ENC_KEY_TYPE_SEED_OFB,//SEED Cipher in OFB mode
+
+                           DAP_ENC_KEY_TYPE_RLWE_NEWHOPE_CPA_KEM, // "NewHope": key exchange from the ring learning with errors problem
                                                 //  (Alkim, Ducas, Pöppelmann, Schwabe, USENIX Security 2016 )
                                                 //  Using the reference C implementation of NewHope
                                                 // from https://github.com/tpoeppelmann/newhop

@@ -1,5 +1,6 @@
 #include "blowfish.h"
 #include "bf_local.h"
+#include "memory.h"
 
 /*
  * Blowfish as implemented from 'Blowfish: Springer-Verlag paper' (From

@@ -80,3 +80,8 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
+
+# Unit tests
+if( BUILD_TESTS)
+    add_subdirectory(test)
+endif()

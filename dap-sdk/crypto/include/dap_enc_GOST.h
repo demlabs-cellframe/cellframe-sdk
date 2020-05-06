@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include "dap_enc_key.h"
-#include "GOST/block_chipher.h"
+#include "GOST/block_cipher.h"
 
 #ifdef __cplusplus
 extern "C" {

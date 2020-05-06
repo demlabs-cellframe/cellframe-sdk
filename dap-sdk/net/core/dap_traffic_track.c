@@ -97,8 +97,6 @@ void *_worker_run( void *a )
   }
 
   pthread_mutex_unlock( &_mutex );
-  pthread_exit( NULL );
-
   return NULL;
 }
 

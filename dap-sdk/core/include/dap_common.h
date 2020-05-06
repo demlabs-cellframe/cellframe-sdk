@@ -98,6 +98,8 @@ typedef uint8_t byte_t;
   #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
   #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
   #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
+  #define DAP_NEW_S( a )          DAP_CAST_REINT(a, alloca(sizeof(a)) )
+  #define DAP_NEW_S_SIZE(a, b)    DAP_CAST_REINT(a, alloca(b) )
   #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
   #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
   #define DAP_REALLOC(a, b)     realloc(a,b)
@@ -252,7 +254,6 @@ extern "C" {
 #define MAX_PATH 120
 #endif
 
-#ifndef _WIN32
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
@@ -260,7 +261,6 @@ extern "C" {
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#endif
 
 extern uint16_t htoa_lut256[ 256 ];
 

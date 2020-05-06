@@ -320,7 +320,7 @@ static void *s_log_thread_proc(void *arg) {
         }
         pthread_mutex_unlock(&s_log_mutex);
     }
-    pthread_exit(NULL);
+    return NULL;
 }
 
 /**

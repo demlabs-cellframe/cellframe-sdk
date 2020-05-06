@@ -820,23 +820,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
 
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_decl_update", com_token_decl_update, NULL, "Token declaration update",
-            "\nPrivate token declaration update\n"
-            "\t token_decl_update -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
-            "\t   Update private token <token ticker> for <netname>:<chain name> with flags <Flag 1>,<Flag2>...<Flag N>"
-            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
-            "\n"
-            "==Flags=="
-            "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
-            "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
-            "\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
-            "\t ALL_UNFROZEN:\t Unfrozen permissions\n"
-            "\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
-            "\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
-            "\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
-            "\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
-            "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
-            "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
+    dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, NULL, "Token update",
+            "\nPrivate token update\n"
+            "\t token_update -net <net name> -chain <chain name> -token <token ticker> -type private [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Update private token <token ticker> for <netname>:<chain name> with"
+            "\t   custom parameters list <Param 1>, <Param 2>...<Param N>."
             "\n"
             "==Params==\n"
             "General:\n"
@@ -867,6 +855,18 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -tx_sender_blocked_add <value>:\t Add allowed tx sender(s)\n"
             "\t -tx_sender_blocked_remove <value>:\t Remove tx sender(s) from blocked\n"
             "\t -tx_sender_blocked_clear:\t Remove all tx sender(s) from blocked\n"
+            "\n"
+            "==Flags=="
+            "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
+            "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
+            "\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
+            "\t ALL_UNFROZEN:\t Unfrozen permissions\n"
+            "\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
+            "\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
+            "\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
             "\n"
             );
     // Token commands
@@ -1011,6 +1011,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Exit
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
+
+    // News
+    dap_chain_node_cli_cmd_item_create("news", com_news, NULL, "Add News for VPN clients. Language code is a text code like \"en\", \"ru\", \"fr\"",
+            "news [-text <news text> | -file <filename with news>] -lang <language code> \n");
 
     // create thread for waiting of clients
     pthread_t l_thread_id;

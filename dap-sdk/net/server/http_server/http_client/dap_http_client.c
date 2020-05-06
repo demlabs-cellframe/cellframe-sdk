@@ -367,7 +367,7 @@ void dap_http_client_read( dap_client_remote_t *cl, void *arg )
 
       char *query_string;
 
-      if( query_string = strchr(cl_ht->url_path, '?') ) {
+      if( (query_string = strchr(cl_ht->url_path, '?')) != NULL ) {
 
         size_t len_after = strlen( query_string + 1 );
 

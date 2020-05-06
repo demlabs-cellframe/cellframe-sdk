@@ -12,6 +12,8 @@
 #include <time.h>
 #include <string.h>
 
+#include "dap_math_ops.h"
+
 #define dap_return_if_fail(expr)            {if(!(expr)) {return;}}
 #define dap_return_val_if_fail(expr,val)    {if(!(expr)) {return (val);}}
 
@@ -72,6 +74,35 @@ char* dap_strup(const char *a_str, ssize_t a_len);
 // Converts a string to lower case.
 char* dap_strdown(const char *a_str, ssize_t a_len);
 char* dap_strreverse(char *a_string);
+
+#ifdef DAP_GLOBAL_IS_INT128
+uint128_t dap_strtou128(const char *p, char **endp, int base);
+int128_t dap_strtoi128(const char *p, char **endp, int base);
+
+/**
+ * @brief atoi128
+ * @param p
+ * @return
+ */
+static inline int128_t dap_atoi128(const char *p) {
+    return dap_strtoi128(p, (char**)NULL, 10);
+}
+
+
+/**
+ * @brief atou128
+ * @param p
+ * @return
+ */
+static inline uint128_t dap_atou128(const char *p) {
+    return dap_strtou128(p, (char**)NULL, 10);
+}
+
+char *dap_utoa128(char *dest, uint128_t v, int base);
+char *dap_itoa128(char *a_str, int128_t a_value, int a_base);
+
+#endif
+
 
 #ifdef _WIN32
 #ifdef HAVE_STRNDUP

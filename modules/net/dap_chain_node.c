@@ -270,22 +270,23 @@ void dap_chain_node_mempool_periodic(void *a_param)
     UNUSED(a_param);
     size_t l_net_count;
     bool l_mempool_auto;
+    bool l_mempool_auto_default = false;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (int i = 0; i < l_net_count; i++) {
-        l_mempool_auto = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", false);
-        if (!l_mempool_auto) {
-            dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
-            switch (l_role.enums) {
+        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
+
+        switch (l_role.enums) {
             case NODE_ROLE_ROOT:
             case NODE_ROLE_MASTER:
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_CELL_MASTER:
-                l_mempool_auto = true;
+                l_mempool_auto_default = true;
                 break;
             default:
-                break;
-            }
+                l_mempool_auto_default = false;
         }
+
+        l_mempool_auto = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
         if (l_mempool_auto) {
             dap_chain_t *l_chain;
             DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {

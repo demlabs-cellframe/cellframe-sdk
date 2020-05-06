@@ -67,10 +67,10 @@ void dap_enc_oaes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 
 size_t dap_enc_oaes_calc_encode_size(const size_t size_in)
 {
-    size_t a_out_size = 2 * OAES_BLOCK_SIZE + size_in
+    size_t l_out_size = 2 * OAES_BLOCK_SIZE + size_in
             + (size_in % OAES_BLOCK_SIZE == 0 ? 0 :
             OAES_BLOCK_SIZE - size_in % OAES_BLOCK_SIZE);
-    return a_out_size;
+    return l_out_size;
 }
 
 size_t dap_enc_oaes_calc_decode_size(const size_t size_in)
@@ -83,14 +83,14 @@ size_t dap_enc_oaes_decrypt(struct dap_enc_key *a_key, const void * a_in,
     OAES_CTX *ctx = get_oaes_ctx(a_key);
     if(!ctx)
         return 0;
-    size_t a_out_size = dap_enc_oaes_calc_decode_size(a_in_size);
-    *a_out = calloc(a_out_size, 1);
-    OAES_RET ret = oaes_decrypt(ctx, a_in, a_in_size, *a_out, &a_out_size);
+    size_t l_out_size = dap_enc_oaes_calc_decode_size(a_in_size);
+    *a_out = calloc(l_out_size, 1);
+    OAES_RET ret = oaes_decrypt(ctx, a_in, a_in_size, *a_out, &l_out_size);
     if(ret != OAES_RET_SUCCESS) {
-        a_out_size = 0;
+        l_out_size = 0;
         free(*a_out);
     }
-    return a_out_size;
+    return l_out_size;
 }
 
 size_t dap_enc_oaes_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
@@ -98,14 +98,14 @@ size_t dap_enc_oaes_encrypt(struct dap_enc_key * a_key, const void * a_in, size_
     OAES_CTX *ctx = get_oaes_ctx(a_key);
     if(!ctx)
         return 0;
-    size_t a_out_size = dap_enc_oaes_calc_encode_size(a_in_size);
-    *a_out = calloc(a_out_size, 1);
-    OAES_RET ret = oaes_encrypt(ctx, a_in, a_in_size, *a_out, &a_out_size);
+    size_t l_out_size = dap_enc_oaes_calc_encode_size(a_in_size);
+    *a_out = calloc(l_out_size, 1);
+    OAES_RET ret = oaes_encrypt(ctx, a_in, a_in_size, *a_out, &l_out_size);
     if(ret != OAES_RET_SUCCESS) {
-        a_out_size = 0;
+        l_out_size = 0;
         free(*a_out);
     }
-    return a_out_size;
+    return l_out_size;
 }
 
 // Writes result ( out ) in already allocated buffer

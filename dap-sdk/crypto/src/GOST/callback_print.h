@@ -1,5 +1,5 @@
 /** @file 
- * @brief Объявление callback функций реализующих вывод информации
+ * @brief РћР±СЉСЏРІР»РµРЅРёРµ callback С„СѓРЅРєС†РёР№ СЂРµР°Р»РёР·СѓСЋС‰РёС… РІС‹РІРѕРґ РёРЅС„РѕСЂРјР°С†РёРё
  *
  * @copyright InfoTeCS. All rights reserved.
  */
@@ -9,10 +9,10 @@
 
 #include "dll_import.h"
 
-/** @brief callback для вывода массива byte */
+/** @brief callback РґР»СЏ РІС‹РІРѕРґР° РјР°СЃСЃРёРІР° byte */
 typedef void (DLL_IMPORT *printout_byte_array)(const char* text, unsigned char* value, unsigned int valueSize);
 
-/** @brief callback для вывода массива unsigned int32 */
+/** @brief callback РґР»СЏ РІС‹РІРѕРґР° РјР°СЃСЃРёРІР° unsigned int32 */
 typedef void (DLL_IMPORT *printout_uint_array)(const char* text, unsigned int* value, unsigned int valueSize);
 
 #endif

@@ -359,7 +359,6 @@ static void* dap_client_pvt_delete_proc(void *a_arg)
  */
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
-    pthread_t l_thread = NULL;
     //pthread_create(&l_thread, NULL, dap_client_pvt_delete_proc, a_client_pvt);
     dap_client_pvt_delete_in(a_client_pvt);
 }
@@ -582,7 +581,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         } else if (a_client_pvt->last_error != ERROR_NETWORK_CONNECTION_TIMEOUT) {
             if(!l_is_last_attempt) {
                 // small delay before next request
-                log_it(L_INFO, "Connection attempt № %d", a_client_pvt->connect_attempt);
+                log_it(L_INFO, "Connection attempt %d", a_client_pvt->connect_attempt);
 #ifdef _WIN32
                 Sleep(300);// 0.3 sec
 #else
@@ -596,7 +595,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             }
             else{
                 log_it(L_INFO, "Too many connection attempts. Tries are over.");
-                //a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                a_client_pvt->stage_status = STAGE_STATUS_DONE;
                 // unref pvt
                 //l_is_unref = true;
             }

@@ -5,7 +5,7 @@
 
 #include "dap_enc_bliss.h"
 #include "dap_common.h"
-#include "dap_rand.h"
+#include "rand/dap_rand.h"
 #include "SimpleFIPS202.h"
 
 #define LOG_TAG "dap_enc_sig_bliss"

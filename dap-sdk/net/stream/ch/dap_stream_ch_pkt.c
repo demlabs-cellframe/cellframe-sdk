@@ -90,8 +90,11 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
     l_hdr.size=(uint32_t) a_data_size;
     l_hdr.type=a_type;
     l_hdr.enc_type = a_ch->proc->enc_type;
+
+    pthread_rwlock_wrlock(&a_ch->stream->rwlock);
     l_hdr.seq_id=a_ch->stream->seq_id;
     a_ch->stream->seq_id++;
+    pthread_rwlock_unlock(&a_ch->stream->rwlock);
 
     if ( dap_stream_get_dump_packet_headers() ){
         log_it(L_INFO,"Outgoing channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02hhX",

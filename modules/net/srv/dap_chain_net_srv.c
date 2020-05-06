@@ -42,8 +42,10 @@
 
 #include "uthash.h"
 #include "utlist.h"
+#include "dap_common.h"
 #include "dap_list.h"
 #include "dap_string.h"
+#include "dap_file_utils.h"
 
 #include "dap_chain.h"
 #include "dap_chain_common.h"
@@ -383,7 +385,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_num);
                     size_t l_orders_size = 0;
                     for(size_t i = 0; i < l_orders_num; i++) {
-                        dap_chain_net_srv_order_t *l_order = (char*) l_orders + l_orders_size;
+                        dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
                         dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret);
                         l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                         dap_string_append(l_string_ret, "\n");

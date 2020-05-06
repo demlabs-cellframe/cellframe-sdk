@@ -325,28 +325,40 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     if(l_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN)
                     {
                         dap_chain_t * l_chain = dap_chain_find_by_id(a_pkt->hdr.net_id, a_pkt->hdr.chain_id);
-                        dap_chain_atom_iter_t* l_iter = l_chain ? l_chain->callback_atom_iter_create(l_chain) : NULL;
-                        //a_ch_chain->request_atom_iter = l_iter;
+                        if (l_chain ){
+                            dap_chain_atom_iter_t* l_iter = l_chain ? l_chain->callback_atom_iter_create(l_chain) : NULL;
+                            if ( l_iter ){
+                                //a_ch_chain->request_atom_iter = l_iter;
 
-                        dap_chain_atom_ptr_t * l_lasts = NULL;
-                        size_t l_lasts_size = 0;
-                        l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size);
-                        for(size_t i = 0; i < l_lasts_size; i++) {
-                            dap_chain_atom_item_t * l_item = NULL;
-                            dap_chain_hash_fast_t l_atom_hash;
-                            dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]), &l_atom_hash);
-                            HASH_FIND(hh, a_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash), l_item);
-                            if(l_item == NULL) { // Not found, add new lasts
-                                l_item = DAP_NEW_Z(dap_chain_atom_item_t);
-                                l_item->atom = l_lasts[i];
-                                memcpy(&l_item->atom_hash, &l_atom_hash, sizeof(l_atom_hash));
-                                HASH_ADD(hh, a_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash), l_item);
+                                dap_chain_atom_ptr_t * l_lasts = NULL;
+                                size_t l_lasts_size = 0;
+                                l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size);
+                                if ( l_lasts){
+                                    for(size_t i = 0; i < l_lasts_size; i++) {
+                                        dap_chain_atom_item_t * l_item = NULL;
+                                        dap_chain_hash_fast_t l_atom_hash;
+                                        dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]), &l_atom_hash);
+                                        pthread_mutex_lock(&a_ch_chain->mutex);
+                                        HASH_FIND(hh, a_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash), l_item);
+                                        if(l_item == NULL) { // Not found, add new lasts
+                                            l_item = DAP_NEW_Z(dap_chain_atom_item_t);
+                                            l_item->atom = l_lasts[i];
+                                            memcpy(&l_item->atom_hash, &l_atom_hash, sizeof(l_atom_hash));
+                                            HASH_ADD(hh, a_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash), l_item);
+                                        }
+                                        //else
+                                        //    DAP_DELETE(l_lasts[i]);
+                                        pthread_mutex_unlock(&a_ch_chain->mutex);
+                                    }
+                                    DAP_DELETE(l_lasts);
+                                }
+                                DAP_DELETE(l_iter);
+                            }else{
+                                log_it(L_ERROR, "Can't create iterator for chain_id 0x%016X", a_pkt->hdr.chain_id );
                             }
-                            //else
-                            //    DAP_DELETE(l_lasts[i]);
+                        }else {
+                            log_it(L_WARNING, "Can't find chain_id 0x%016X", a_pkt->hdr.chain_id );
                         }
-                        DAP_DELETE(l_lasts);
-                        DAP_DELETE(l_iter);
                     }
                     dap_chain_node_addr_t l_node_addr = { 0 };
                     dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);
@@ -511,6 +523,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         CloseHandle( a_client->wait_cond );
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
+        a_client->client = NULL;
         DAP_DELETE(a_client);
     }
 }
@@ -600,10 +613,11 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         if ( wait == WAIT_OBJECT_0 && (
                     a_client->state == a_waited_state ||
                     a_client->state == NODE_CLIENT_STATE_ERROR || a_client->state == NODE_CLIENT_STATE_DISCONNECTED
-          ) {
+          )) {
             ret = a_client->state == a_waited_state ? 0 : -2;
             break;
         }
+
         else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
             ret = -1;
             break;

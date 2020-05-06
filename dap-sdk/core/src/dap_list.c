@@ -15,13 +15,13 @@
  * dap_list_alloc:
  * Returns: a pointer to the newly-allocated DapList element
  **/
-dap_list_t *dap_list_alloc(void)
+dap_list_t *dap_list_alloc_no_z(void)
 {
     dap_list_t *list = DAP_NEW(dap_list_t);
     return list;
 }
 
-dap_list_t *dap_list_alloc0(void)
+dap_list_t *dap_list_alloc(void)
 {
     dap_list_t *list = DAP_NEW_Z(dap_list_t);
     return list;
@@ -796,7 +796,7 @@ static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap
 
     if(!list)
     {
-        new_list = dap_list_alloc0();
+        new_list = dap_list_alloc();
         new_list->data = data;
         return new_list;
     }
@@ -810,7 +810,7 @@ static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap
         cmp = ((dap_callback_compare_data_t) func)(data, tmp_list->data, user_data);
     }
 
-    new_list = dap_list_alloc0();
+    new_list = dap_list_alloc();
     new_list->data = data;
 
     if((!tmp_list->next) && (cmp > 0))

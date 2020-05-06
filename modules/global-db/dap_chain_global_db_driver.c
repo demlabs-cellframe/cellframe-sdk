@@ -461,7 +461,7 @@ static void* func_write_buf(void * arg)
             wait_data(&s_mutex_cond, &s_cond_add_end, 2000); // 2 sec
         }
     }
-    pthread_exit(0);
+    return NULL;
 }
 #endif //USE_WRITE_BUFFER
 

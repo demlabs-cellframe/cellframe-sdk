@@ -1311,8 +1311,7 @@ static void *s_list_thread_proc(void *arg)
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
     l_dap_db_log_list->is_process = false;
     pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
-    pthread_exit(0);
-    return 0;
+    return NULL;
 }
 
 /**

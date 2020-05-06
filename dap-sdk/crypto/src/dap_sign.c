@@ -67,6 +67,7 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
 dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
 {
     dap_sign_type_t l_sign_type;
+    memset(&l_sign_type, 0, sizeof(l_sign_type));
     switch (a_key_type){
         case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
