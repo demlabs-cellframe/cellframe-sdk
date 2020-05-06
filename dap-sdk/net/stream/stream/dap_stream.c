@@ -776,7 +776,7 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
 
         // Find channel
         dap_stream_ch_t * ch = NULL;
-        pthread_rwlock_rdlock (&a_stream->rwlock);
+        pthread_rwlock_wrlock (&a_stream->rwlock);
         for(size_t i=0;i<a_stream->channel_count;i++){
             if(a_stream->channel[i]->proc){
                 if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
