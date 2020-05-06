@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -3314,7 +3313,7 @@ int com_stats(int argc, char ** argv, void *arg_func, char **str_reply)
 #if (defined DAP_OS_UNIX) || (defined __WIN32)
     {
         dap_cpu_monitor_init();
-        usleep(500000);
+        dap_usleep(500000);
         char *str_reply_prev = dap_strdup_printf("");
         char *str_delimiter;
         dap_cpu_stats_t s_cpu_stats = dap_cpu_get_stats();
