@@ -10,7 +10,7 @@
 void poly_init(poly_ringct20 *r)
 {
 	size_t i;
-	for ( i = 0; i < NEWHOPE_N; i++)
+	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		r->coeffs[i] = 0;
 	}
@@ -18,7 +18,7 @@ void poly_init(poly_ringct20 *r)
 void poly_setValue(poly_ringct20 *r, uint16_t v)
 {
 	size_t i;
-	for (i = 0; i < NEWHOPE_N; i++)
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		r->coeffs[i] = v;
 	}
@@ -35,9 +35,9 @@ void poly_setValue(poly_ringct20 *r, uint16_t v)
  uint16_t coeff_freeze(uint16_t x) {
 	uint16_t m, r;
 	int16_t c;
-	r = x % NEWHOPE_Q;
+	r = x % NEWHOPE_RINGCT20_Q;
 
-	m = r - NEWHOPE_Q;
+	m = r - NEWHOPE_RINGCT20_Q;
 	c = m;
 	c >>= 15;
 	r = m ^ ((r ^ m) & c);
@@ -48,9 +48,9 @@ void poly_setValue(poly_ringct20 *r, uint16_t v)
  {
 	 uint16_t m, r;
 	 int16_t c;
-	 r = x % NEWHOPE_2Q;
+	 r = x % NEWHOPE_RINGCT20_2Q;
 
-	 m = r - NEWHOPE_2Q;
+	 m = r - NEWHOPE_RINGCT20_2Q;
 	 c = m;
 	 c >>= 15;
 	 r = m ^ ((r ^ m) & c);
@@ -71,7 +71,7 @@ static uint16_t flipabs(uint16_t x) {
 	int16_t r, m;
 	r = coeff_freeze(x);
 
-	r = r - NEWHOPE_Q / 2;
+	r = r - NEWHOPE_RINGCT20_Q / 2;
 	m = r >> 15;
 	return (r + m) ^ m;
 }
@@ -86,7 +86,7 @@ static uint16_t flipabs(uint16_t x) {
 **************************************************/
 void poly_frombytes(poly_ringct20 *r, const unsigned char *a) {
 	int i;
-	for (i = 0; i < NEWHOPE_N / 4; i++) {
+	for (i = 0; i < NEWHOPE_RINGCT20_N / 4; i++) {
 		r->coeffs[4 * i + 0] = a[7 * i + 0] | (((uint16_t) a[7 * i + 1] & 0x3f) << 8);
 		r->coeffs[4 * i + 1] = (a[7 * i + 1] >> 6) | (((uint16_t) a[7 * i + 2]) << 2) | (((uint16_t) a[7 * i + 3] & 0x0f) << 10);
 		r->coeffs[4 * i + 2] = (a[7 * i + 3] >> 4) | (((uint16_t) a[7 * i + 4]) << 4) | (((uint16_t) a[7 * i + 5] & 0x03) << 12);
@@ -105,7 +105,7 @@ void poly_frombytes(poly_ringct20 *r, const unsigned char *a) {
 void poly_tobytes(unsigned char *r, const poly_ringct20 *p) {
 	int i;
 	uint16_t t0, t1, t2, t3;
-	for (i = 0; i < NEWHOPE_N / 4; i++) {
+	for (i = 0; i < NEWHOPE_RINGCT20_N / 4; i++) {
 		t0 = coeff_freeze(p->coeffs[4 * i + 0]);
 		t1 = coeff_freeze(p->coeffs[4 * i + 1]);
 		t2 = coeff_freeze(p->coeffs[4 * i + 2]);
@@ -134,10 +134,10 @@ void poly_compress(unsigned char *r, const poly_ringct20 *p) {
 
 	uint32_t t[8];
 
-	for (i = 0; i < NEWHOPE_N; i += 8) {
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i += 8) {
 		for (j = 0; j < 8; j++) {
 			t[j] = coeff_freeze(p->coeffs[i + j]);
-			t[j] = (((t[j] << 3) + NEWHOPE_Q / 2) / NEWHOPE_Q) & 0x7;
+			t[j] = (((t[j] << 3) + NEWHOPE_RINGCT20_Q / 2) / NEWHOPE_RINGCT20_Q) & 0x7;
 		}
 
 		r[k] = t[0] | (t[1] << 3) | (t[2] << 6);
@@ -158,7 +158,7 @@ void poly_compress(unsigned char *r, const poly_ringct20 *p) {
 **************************************************/
 void poly_decompress(poly_ringct20 *r, const unsigned char *a) {
 	unsigned int i, j;
-	for (i = 0; i < NEWHOPE_N; i += 8) {
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i += 8) {
 		r->coeffs[i + 0] = a[0] & 7;
 		r->coeffs[i + 1] = (a[0] >> 3) & 7;
 		r->coeffs[i + 2] = (a[0] >> 6) | ((a[1] << 2) & 4);
@@ -169,7 +169,7 @@ void poly_decompress(poly_ringct20 *r, const unsigned char *a) {
 		r->coeffs[i + 7] = (a[2] >> 5);
 		a += 3;
 		for (j = 0; j < 8; j++)
-			r->coeffs[i + j] = ((uint32_t) r->coeffs[i + j] * NEWHOPE_Q + 4) >> 3;
+			r->coeffs[i + j] = ((uint32_t) r->coeffs[i + j] * NEWHOPE_RINGCT20_Q + 4) >> 3;
 	}
 }
 
@@ -187,11 +187,11 @@ void poly_frommsg(poly_ringct20 *r, const unsigned char *msg) {
 	{
 		for (j = 0; j < 8; j++) {
 			mask = -((msg[i] >> j) & 1);
-			r->coeffs[8 * i + j + 0] = mask & (NEWHOPE_Q / 2);
-			r->coeffs[8 * i + j + 256] = mask & (NEWHOPE_Q / 2);
-#if (NEWHOPE_N == 1024)
-			r->coeffs[8 * i + j + 512] = mask & (NEWHOPE_Q / 2);
-			r->coeffs[8 * i + j + 768] = mask & (NEWHOPE_Q / 2);
+			r->coeffs[8 * i + j + 0] = mask & (NEWHOPE_RINGCT20_Q / 2);
+			r->coeffs[8 * i + j + 256] = mask & (NEWHOPE_RINGCT20_Q / 2);
+#if (NEWHOPE_RINGCT20_N == 1024)
+			r->coeffs[8 * i + j + 512] = mask & (NEWHOPE_RINGCT20_Q / 2);
+			r->coeffs[8 * i + j + 768] = mask & (NEWHOPE_RINGCT20_Q / 2);
 #endif
 		}
 	}
@@ -215,12 +215,12 @@ void poly_tomsg(unsigned char *msg, const poly_ringct20 *x) {
 	for (i = 0; i < 256; i++) {
 		t = flipabs(x->coeffs[i + 0]);
 		t += flipabs(x->coeffs[i + 256]);
-#if (NEWHOPE_N == 1024)
+#if (NEWHOPE_RINGCT20_N == 1024)
 		t += flipabs(x->coeffs[i + 512]);
 		t += flipabs(x->coeffs[i + 768]);
-		t = ((t - NEWHOPE_Q));
+		t = ((t - NEWHOPE_RINGCT20_Q));
 #else
-		t = ((t - NEWHOPE_Q / 2));
+		t = ((t - NEWHOPE_RINGCT20_Q / 2));
 #endif
 
 		t >>= 15;
@@ -242,28 +242,28 @@ void poly_uniform_ringct20(poly_ringct20 *a, const unsigned char *seed) {
 	uint16_t val;
     uint64_t state[SHA3_STATESIZE];
     uint8_t buf[SHAKE128_RATE];
-	uint8_t extseed[NEWHOPE_SYMBYTES + 1];
+	uint8_t extseed[NEWHOPE_RINGCT20_SYMBYTES + 1];
 	int i, j, k;
 
-	for (i = 0; i < NEWHOPE_SYMBYTES; i++)
+	for (i = 0; i < NEWHOPE_RINGCT20_SYMBYTES; i++)
 		extseed[i] = seed[i];
 
     for (i = 0; i < SHA3_STATESIZE; ++i)
 		state[i] = 0;
 
-	for (i = 0; i < NEWHOPE_N / 64; i++) /* generate a in blocks of 64 coefficients */
+	for (i = 0; i < NEWHOPE_RINGCT20_N / 64; i++) /* generate a in blocks of 64 coefficients */
 	{
 		ctr = 0;
-		extseed[NEWHOPE_SYMBYTES] = i; /* domain-separate the 16 independent calls */
+		extseed[NEWHOPE_RINGCT20_SYMBYTES] = i; /* domain-separate the 16 independent calls */
         for (k = 0; k < SHA3_STATESIZE; ++k)
 			state[k] = 0;
-        shake128_absorb(state, extseed, NEWHOPE_SYMBYTES + 1);
+        shake128_absorb(state, extseed, NEWHOPE_RINGCT20_SYMBYTES + 1);
 		while (ctr < 64) /* Very unlikely to run more than once */
 		{
             shake128_squeezeblocks(buf, 1, state);
             for (j = 0; j < SHAKE128_RATE && ctr < 64; j += 2) {
 				val = (buf[j] | ((uint16_t) buf[j + 1] << 8));
-				if (val < 5 * NEWHOPE_Q) {
+				if (val < 5 * NEWHOPE_RINGCT20_Q) {
 					a->coeffs[i * 64 + ctr] = val;
 					ctr++;
 				}
@@ -298,27 +298,27 @@ static unsigned char hw(unsigned char a) {
 *              - unsigned char nonce:       one-byte input nonce
 **************************************************/
 void poly_sample(poly_ringct20 *r, const unsigned char *seed, unsigned char nonce) {
-#if NEWHOPE_K != 8
+#if NEWHOPE_RINGCT20_K != 8
 #error "poly_sample in poly_ringct20.c only supports k=8"
 #endif
 	unsigned char buf[128], a, b;
 	//  uint32_t t, d, a, b, c;
 	int i, j;
 
-	unsigned char extseed[NEWHOPE_SYMBYTES + 2];
+	unsigned char extseed[NEWHOPE_RINGCT20_SYMBYTES + 2];
 
-	for (i = 0; i < NEWHOPE_SYMBYTES; i++)
+	for (i = 0; i < NEWHOPE_RINGCT20_SYMBYTES; i++)
 		extseed[i] = seed[i];
-	extseed[NEWHOPE_SYMBYTES] = nonce;
+	extseed[NEWHOPE_RINGCT20_SYMBYTES] = nonce;
 
-	for (i = 0; i < NEWHOPE_N / 64; i++) /* Generate noise in blocks of 64 coefficients */
+	for (i = 0; i < NEWHOPE_RINGCT20_N / 64; i++) /* Generate noise in blocks of 64 coefficients */
 	{
-		extseed[NEWHOPE_SYMBYTES + 1] = i;
-        shake256(buf, 128, extseed, NEWHOPE_SYMBYTES + 2);
+		extseed[NEWHOPE_RINGCT20_SYMBYTES + 1] = i;
+        shake256(buf, 128, extseed, NEWHOPE_RINGCT20_SYMBYTES + 2);
 		for (j = 0; j < 64; j++) {
 			a = buf[2 * j];
 			b = buf[2 * j + 1];
-			r->coeffs[64 * i + j] = hw(a) + NEWHOPE_Q - hw(b);
+			r->coeffs[64 * i + j] = hw(a) + NEWHOPE_RINGCT20_Q - hw(b);
 		}
 	}
 }
@@ -336,7 +336,7 @@ void poly_mul_pointwise(poly_ringct20 *r, const poly_ringct20 *a, const poly_rin
 	int i;
 	uint16_t t;
 
-	for (i = 0; i < NEWHOPE_N; i++) {
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++) {
         t = montgomery_reduce_32_16(3186 * b->coeffs[i]);         /* t is now in Montgomery domain */
         r->coeffs[i] = montgomery_reduce_32_16(a->coeffs[i] * t); /* r->coeffs[i] is back in normal domain */
 	}
@@ -354,8 +354,8 @@ void poly_mul_pointwise(poly_ringct20 *r, const poly_ringct20 *a, const poly_rin
 **************************************************/
 void poly_add_ringct20(poly_ringct20 *r, const poly_ringct20 *a, const poly_ringct20 *b) {
 	int i;
-	for (i = 0; i < NEWHOPE_N; i++)
-		r->coeffs[i] = (a->coeffs[i] + b->coeffs[i]) % NEWHOPE_Q;
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++)
+		r->coeffs[i] = (a->coeffs[i] + b->coeffs[i]) % NEWHOPE_RINGCT20_Q;
 }
 
 /*************************************************
@@ -369,8 +369,8 @@ void poly_add_ringct20(poly_ringct20 *r, const poly_ringct20 *a, const poly_ring
 **************************************************/
 void poly_sub_ringct20(poly_ringct20 *r, const poly_ringct20 *a, const poly_ringct20 *b) {
 	int i;
-	for (i = 0; i < NEWHOPE_N; i++)
-		r->coeffs[i] = (a->coeffs[i] + 3 * NEWHOPE_Q - b->coeffs[i]) % NEWHOPE_Q;
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++)
+		r->coeffs[i] = (a->coeffs[i] + 3 * NEWHOPE_RINGCT20_Q - b->coeffs[i]) % NEWHOPE_RINGCT20_Q;
 }
 
 /*************************************************
@@ -412,7 +412,7 @@ void poly_invntt(poly_ringct20 *r) {
 void poly_print(const poly_ringct20 *r)
 {
 	size_t i = 0;
-	for ( i = 0; i < NEWHOPE_N; i++)
+	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		printf("%04X", r->coeffs[i]);
 	}
@@ -422,7 +422,7 @@ void poly_print(const poly_ringct20 *r)
 void poly_serial(poly_ringct20 *r)
 {
 	size_t i;
-	for ( i = 0; i < NEWHOPE_N; i++)
+	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		r->coeffs[i] = coeff_freeze(r->coeffs[i]);
 	}
@@ -430,7 +430,7 @@ void poly_serial(poly_ringct20 *r)
 void poly_cofcopy(poly_ringct20 *des, poly_ringct20 *sour)
 {
 	size_t i;
-	for ( i = 0; i < NEWHOPE_N; i++)
+	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		des->coeffs[i] = sour->coeffs[i];
 	}
@@ -447,7 +447,7 @@ void poly_copy(poly_ringct20 *des, poly_ringct20 *sou, size_t mLen)
 int poly_equal(const poly_ringct20 *a, const poly_ringct20 *b)
 {
 	size_t i;
-	for ( i = 0; i < NEWHOPE_N; i++)
+	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		if (a->coeffs[i] != b->coeffs[i])
 		{
@@ -461,10 +461,10 @@ void poly_constmul(poly_ringct20 *r, const poly_ringct20 *a, uint16_t cof)
 {
 	size_t i;
 	uint32_t tmp = 0;
-	for (i = 0; i < NEWHOPE_N; i++)
+	for (i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		tmp = cof * a->coeffs[i];
-		r->coeffs[i] = tmp%NEWHOPE_2Q;
+		r->coeffs[i] = tmp%NEWHOPE_RINGCT20_2Q;
 	}
 }
 //shift

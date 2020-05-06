@@ -45,7 +45,7 @@ int randombase64(void*random_array, unsigned int size)
             ((uint8_t*)random_array)[size - odd_signs + i] = tmpv[i];
         }
     }
-    return (int) size;
+    return passed;
 }
 
 

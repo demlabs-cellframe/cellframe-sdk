@@ -1,15 +1,15 @@
 /** @file 
- * @brief Реализация алгоритма 28147-89
+ * @brief Р РµР°Р»РёР·Р°С†РёСЏ Р°Р»РіРѕСЂРёС‚РјР° 28147-89
  *
  * @copyright InfoTeCS. All rights reserved.
  */
 
 #include "28147_89.h"
 
-/** @brief Конвертирует массив байт в int32
+/** @brief РљРѕРЅРІРµСЂС‚РёСЂСѓРµС‚ РјР°СЃСЃРёРІ Р±Р°Р№С‚ РІ int32
  *
- * @param[in] input массив из 4 байт
- * @return int32 число
+ * @param[in] input РјР°СЃСЃРёРІ РёР· 4 Р±Р°Р№С‚
+ * @return int32 С‡РёСЃР»Рѕ
  */
 static unsigned int uint8ToUint32(unsigned char* input)
 {
@@ -17,10 +17,10 @@ static unsigned int uint8ToUint32(unsigned char* input)
      return r;
 }
 
-/** @brief Конвертирует int32 в массив байт
+/** @brief РљРѕРЅРІРµСЂС‚РёСЂСѓРµС‚ int32 РІ РјР°СЃСЃРёРІ Р±Р°Р№С‚
  *
- * @param[in] input int32 число
- * @param[out] output массив из 4 байт
+ * @param[in] input int32 С‡РёСЃР»Рѕ
+ * @param[out] output РјР°СЃСЃРёРІ РёР· 4 Р±Р°Р№С‚
  */
 static void uint32ToUint8(unsigned int input, unsigned char* output)
 {
@@ -32,7 +32,7 @@ static void uint32ToUint8(unsigned int input, unsigned char* output)
 }
 
 
-/** @brief Таблица подстановки  id-tc26-gost-28147-param-Z OID: 1.2.643.7.1.2.5.1.1 */
+/** @brief РўР°Р±Р»РёС†Р° РїРѕРґСЃС‚Р°РЅРѕРІРєРё  id-tc26-gost-28147-param-Z OID: 1.2.643.7.1.2.5.1.1 */
 unsigned char p[8][16] =
 {
      {0xc, 0x4, 0x6, 0x2, 0xa, 0x5, 0xb, 0x9, 0xe, 0x8, 0xd, 0x7, 0x0, 0x3, 0xf, 0x1},
@@ -46,13 +46,13 @@ unsigned char p[8][16] =
 
 };
 
-/** @brief используемый байт ключа при шифровании */
+/** @brief РёСЃРїРѕР»СЊР·СѓРµРјС‹Р№ Р±Р°Р№С‚ РєР»СЋС‡Р° РїСЂРё С€РёС„СЂРѕРІР°РЅРёРё */
 unsigned char kEncRoundKey[32] = 
 {
      0, 4, 8, 12, 16, 20, 24, 28, 0, 4, 8, 12, 16, 20, 24, 28, 0, 4, 8, 12, 16, 20, 24, 28, 28, 24, 20, 16, 12, 8, 4, 0
 };
 
-/** @brief используемый байт ключа при расшифровании */
+/** @brief РёСЃРїРѕР»СЊР·СѓРµРјС‹Р№ Р±Р°Р№С‚ РєР»СЋС‡Р° РїСЂРё СЂР°СЃС€РёС„СЂРѕРІР°РЅРёРё */
 unsigned char kDecRoundKey[32] = 
 {
      0, 4, 8, 12, 16, 20, 24, 28, 28, 24, 20, 16, 12, 8, 4, 0, 28, 24, 20, 16, 12, 8, 4, 0, 28, 24, 20, 16, 12, 8, 4, 0

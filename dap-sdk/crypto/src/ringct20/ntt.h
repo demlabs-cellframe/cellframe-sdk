@@ -1,5 +1,5 @@
-#ifndef NTT_H
-#define NTT_H
+#ifndef NTT_RINGCT20_H
+#define NTT_RINGCT20_H
 
 #include "inttypes.h"
 

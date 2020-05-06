@@ -1,5 +1,5 @@
-#ifndef RING_H
-#define RING_H
+#ifndef RING_RINGCT20_H
+#define RING_RINGCT20_H
 
 
 #include "params.h"

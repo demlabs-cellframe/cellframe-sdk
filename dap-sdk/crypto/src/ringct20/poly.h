@@ -1,5 +1,5 @@
-#ifndef POLY_H
-#define POLY_H
+#ifndef POLY_RINGCT20_H
+#define POLY_RINGCT20_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -10,7 +10,7 @@
  * coeffs[0] + X*coeffs[1] + X^2*xoeffs[2] + ... + X^{n-1}*coeffs[n-1] 
  */
 typedef struct {
-	uint16_t coeffs[NEWHOPE_N];
+    uint16_t coeffs[NEWHOPE_RINGCT20_N];
 } poly_ringct20
 
 #if !defined(_WIN32)

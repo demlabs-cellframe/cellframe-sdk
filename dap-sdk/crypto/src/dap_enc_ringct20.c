@@ -4,7 +4,7 @@
 
 #include "dap_enc_ringct20.h"
 #include "dap_common.h"
-#include "dap_rand.h"
+#include "rand/dap_rand.h"
 
 
 
@@ -20,16 +20,16 @@ int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_ke
 void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
 {
     LRCT_Setup(A, H, mLen);
-    uint8_t polyb_tmp[NEWHOPE_POLYBYTES];
-    printf("A_bpoly[%d][NEWHOPE_POLYBYTES] = {\n", mLen);
+    uint8_t polyb_tmp[NEWHOPE_RINGCT20_POLYBYTES];
+    printf("A_bpoly[%d][NEWHOPE_RINGCT20_POLYBYTES] = {\n", mLen);
     for(int i = 0; i < mLen; ++i)
     {
         poly_tobytes(polyb_tmp,A + i);
         printf("{");
-        for(int j = 0; j < NEWHOPE_POLYBYTES; ++j)
+        for(int j = 0; j < NEWHOPE_RINGCT20_POLYBYTES; ++j)
         {
             printf("0x%.2x", polyb_tmp[j]);
-            if(j < NEWHOPE_POLYBYTES - 1)
+            if(j < NEWHOPE_RINGCT20_POLYBYTES - 1)
                 printf(", ");
         }
         printf("}");
@@ -37,15 +37,15 @@ void SetupPrintAH(poly_ringct20 *A, poly_ringct20 * H, const int mLen)
             printf(",\n");
     }
     printf("};\n");
-    printf("H_bpoly[%d][NEWHOPE_POLYBYTES] = {\n", mLen);
+    printf("H_bpoly[%d][NEWHOPE_RINGCT20_POLYBYTES] = {\n", mLen);
     for(int i = 0; i < mLen; ++i)
     {
         poly_tobytes(polyb_tmp,H + i);
         printf("{");
-        for(int j = 0; j < NEWHOPE_POLYBYTES; ++j)
+        for(int j = 0; j < NEWHOPE_RINGCT20_POLYBYTES; ++j)
         {
             printf("0x%.2x", polyb_tmp[j]);
-            if(j < NEWHOPE_POLYBYTES - 1)
+            if(j < NEWHOPE_RINGCT20_POLYBYTES - 1)
                 printf(", ");
         }
         printf("}");
@@ -284,7 +284,7 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
     for(int i = 0; i < p->wLen; ++i)
         t[i] = malloc(p->M*p->POLY_RINGCT20_SIZE);
 
-    unsigned char *bt = malloc(NEWHOPE_POLYBYTES);
+    unsigned char *bt = malloc(NEWHOPE_RINGCT20_POLYBYTES);
 
     for (int i = 0; i < p->wLen; i++)
     {
@@ -297,7 +297,7 @@ int ringct20_crypto_sign( ringct20_signature_t *sig, const unsigned char *m, uns
 
     for (int k = 0; k < p->M; k++)
     {
-        randombytes(bt, NEWHOPE_POLYBYTES);
+        randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
         poly_frombytes(u + k, bt);
         poly_serial(u + k);
         //poly_print(u+k);
@@ -659,7 +659,7 @@ int ringct20_crypto_sign_with_pbk_list( ringct20_signature_t *sig, const unsigne
     for(int i = 0; i < wLen; ++i)
         t[i] = malloc(p->M*p->POLY_RINGCT20_SIZE);
 
-    unsigned char *bt = malloc(NEWHOPE_POLYBYTES);
+    unsigned char *bt = malloc(NEWHOPE_RINGCT20_POLYBYTES);
 
     for (int i = 0; i < wLen; i++)
     {
@@ -672,7 +672,7 @@ int ringct20_crypto_sign_with_pbk_list( ringct20_signature_t *sig, const unsigne
 
     for (int k = 0; k < p->M; k++)
     {
-        randombytes(bt, NEWHOPE_POLYBYTES);
+        randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
         poly_frombytes(u + k, bt);
         poly_serial(u + k);
         //poly_print(u+k);

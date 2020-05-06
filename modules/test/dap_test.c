@@ -63,7 +63,7 @@ void benchmark_mgs_rate(const char *test_name, float rate)
 /**
  * @return current time in milliseconds
  */
-static int get_cur_time_msec(void)
+int get_cur_time_msec(void)
 {
     struct timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
