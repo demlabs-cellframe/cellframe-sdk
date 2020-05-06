@@ -391,8 +391,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 
     for (size_t d = 0; d <a_datums_count ; d++){
         dap_chain_datum_t * l_datum = a_datums[d];
-        if(l_datum == NULL) // Was wrong datum thats not passed checks
+        if(l_datum == NULL){ // Was wrong datum thats not passed checks
+            log_it(L_WARNING,"Datum in mempool processing comes NULL");
             continue;
+        }
 
         // Verify for correctness
         dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
@@ -444,12 +446,13 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         // Now link with ext events
         dap_chain_cs_dag_event_item_t *l_event_ext_item = NULL;
         // is_single_line - only one link inside
-        if(!l_dag->is_single_line || !l_hashes_linked)
-        if( PVT(l_dag)->events_lasts_unlinked && l_hashes_linked < l_hashes_size) { // Take then the first one if any events_lasts are present
-                l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
-                memcpy(&l_hashes[l_hashes_linked], &l_event_ext_item->hash, sizeof(l_event_ext_item->hash));
-                l_hashes_linked++;
-            }
+        if(!l_dag->is_single_line || !l_hashes_linked){
+            if( PVT(l_dag)->events_lasts_unlinked && l_hashes_linked < l_hashes_size) { // Take then the first one if any events_lasts are present
+                    l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
+                    memcpy(&l_hashes[l_hashes_linked], &l_event_ext_item->hash, sizeof(l_event_ext_item->hash));
+                    l_hashes_linked++;
+                }
+        }
 
         if (l_hashes_linked || s_seed_mode ) {
             dap_chain_cs_dag_event_t * l_event = NULL;
@@ -1120,10 +1123,22 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                                                       l_event_hash_str);
                     ret = 0;
                 }else {
-                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                      "Can't remove event 0x%s from the new forming round ",
-                                                      l_event_hash_str);
-                    ret = -1;
+                    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                    HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
+
+                    if ( l_event_item ){
+                        HASH_DELETE(hh, PVT(l_dag)->events, l_event_item);
+                        log_it(L_WARNING,"Dropped event 0x%s from chains! Hope you know what are you doing!", l_event_hash_str );
+                        dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                          "Dropped event 0x%s from chains! Hope you know what are you doing! ",
+                                                          l_event_hash_str );
+                        dap_chain_save_all(l_chain);
+                    }else {
+                        dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                          "Can't remove event 0x%s ",
+                                                          l_event_hash_str);
+                        ret = -1;
+                    }
                 }
                 DAP_DELETE( l_gdb_group_events );
                 dap_chain_net_sync_gdb(l_net);
@@ -1201,7 +1216,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
 
                     // Nested datum
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tdatum:\tdatum_size: %u\n",l_datum_size);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=%0x02X\n", l_datum->header.version_id);
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype_id:=%s\n", c_datum_type_str[l_datum->header.type_id]);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tts_create=%s\n",ctime_r( &l_datum_ts_create,buf ));
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
@@ -1227,6 +1242,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         DAP_DELETE( l_addr_str);
                         dap_enc_key_delete(l_sign_key);
                     }
+                    dap_chain_net_dump_datum(l_str_tmp, l_datum);
 
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);

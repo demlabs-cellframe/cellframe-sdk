@@ -613,8 +613,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
      */
 
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
-    if(!a_tx)
+    if(!a_tx){
+        log_it(L_DEBUG, "NULL transaction, check broken");
         return -1;
+    }
 
     dap_list_t *l_list_bound_items = NULL;
 
@@ -822,6 +824,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     dap_list_free_full(l_list_bound_items, free);
                 if (l_list_tx_out)
                     dap_list_free(l_list_tx_out);
+                log_it(L_ERROR, "Emission for tx_token wasn't found for ticker %s and emission hash %s",l_tx_token->header.token_emission_hash );
                 return -6;
             }
         }

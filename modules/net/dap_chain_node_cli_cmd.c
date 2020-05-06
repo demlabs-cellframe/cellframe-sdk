@@ -2014,13 +2014,8 @@ int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 dap_string_append_printf(l_str_tmp, "%s: type_id=%s  data_size=%u ts_create=%s", // \n included in timestamp
                         l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
                         l_datum->header.data_size, ctime_r(&l_ts_create, buf));
-                if ( l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL ){
-                    dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
-                    dap_string_append_printf(l_str_tmp,
-                         "\tDAP_CHAIN_DATUM_TOKEN_DECL: type=%u ticker=\"%s\" signs_total=%u signs_valid=%u\n",
-                                             l_datum_token->type, l_datum_token->ticker,
-                                             l_datum_token->header_private.signs_total, l_datum_token->header_private.signs_valid );
-                }
+
+                dap_chain_net_dump_datum(l_str_tmp, l_datum);
             }
             // Clean up
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
