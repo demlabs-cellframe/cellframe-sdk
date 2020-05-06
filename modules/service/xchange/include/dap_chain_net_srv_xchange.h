@@ -33,9 +33,10 @@ typedef struct dap_chain_net_srv_xchange_price {
     dap_chain_wallet_t *wallet;
     dap_chain_net_t *net_sell;
     char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint64_t datoshi_sell;
     dap_chain_net_t *net_buy;
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
-    long double rate;
+    uint64_t datoshi_buy;
     dap_chain_net_srv_order_t *order;
     char *key_ptr;
     UT_hash_handle hh;

@@ -223,6 +223,23 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,  dap_chain_da
 }
 
 /**
+ * @brief dap_chain_ledger_token_ticker_check
+ * @param a_ledger
+ * @param a_token_ticker
+ * @return
+ */
+int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker)
+{
+    if ( !a_ledger){
+        log_it(L_WARNING, "NULL ledger, can't find token ticker");
+        return  -2;
+    }
+    dap_chain_ledger_token_item_t *l_token_item;
+    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
+    return (int)l_token_item;
+}
+
+/**
  * @brief dap_chain_ledger_token_add
  * @param a_token
  * @param a_token_size
