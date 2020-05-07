@@ -1013,8 +1013,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
 #ifndef _WIN32
     // News
-    dap_chain_node_cli_cmd_item_create("news", com_news, NULL, "Add News for VPN clients. Language code is a text code like \"en\", \"ru\", \"fr\"",
-            "news [-text <news text> | -file <filename with news>] -lang <language code> \n");
+    //dap_chain_node_cli_cmd_item_create("news", com_news, NULL, "Add News for VPN clients. Language code is a text code like \"en\", \"ru\", \"fr\"",
+     //       "news [-text <news text> | -file <filename with news>] -lang <language code> \n");
 
 #endif
     // create thread for waiting of clients

@@ -2,6 +2,7 @@ QMAKE_CFLAGS_DEBUG = -std=gnu11
 QMAKE_CFLAGS_RELEASE = -std=gnu11
 unix {
     include(src/unix/unix.pri)
+    LIBS += -lrt
 }
 darwin {
     include(src/darwin/darwin.pri)
