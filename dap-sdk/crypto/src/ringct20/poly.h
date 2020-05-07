@@ -45,7 +45,7 @@ int poly_equal(const poly_ringct20 *a, const poly_ringct20 *b);
 //
 void poly_constmul(poly_ringct20 *r, const poly_ringct20 *a, uint16_t cof);
 void poly_serial(poly_ringct20 *r);
-void poly_cofcopy(poly_ringct20 *des, poly_ringct20 *sour);
-void poly_copy(poly_ringct20 *des, poly_ringct20 *sour, size_t mLen);
+void poly_cofcopy(poly_ringct20 *des, const poly_ringct20 *sour);
+void poly_copy(poly_ringct20 *des, const poly_ringct20 *sour, const int mLen);
 void poly_shift(poly_ringct20 *des, const poly_ringct20 *r, int iNumber);
 #endif

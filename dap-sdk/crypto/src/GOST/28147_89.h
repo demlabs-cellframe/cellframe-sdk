@@ -59,7 +59,7 @@ void DLL_IMPORT RoundShtrih(unsigned int *a1, unsigned int *a0, unsigned int k, 
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT CryptBlock(unsigned char* input, unsigned char* output, unsigned char* key, unsigned char* keySequence, printout_uint_array print);
+int DLL_IMPORT CryptBlock(const unsigned char* input, unsigned char* output, unsigned char* key, unsigned char* keySequence, printout_uint_array print);
 
 /** @brief Шифруем блок данных
  *
@@ -70,7 +70,7 @@ int DLL_IMPORT CryptBlock(unsigned char* input, unsigned char* output, unsigned 
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT EncryptBlock(unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print);
+int DLL_IMPORT EncryptBlock(const unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print);
 
 /** @brief Расшифровываем блок данных
  *
@@ -81,7 +81,7 @@ int DLL_IMPORT EncryptBlock(unsigned char* input, unsigned char* output, unsigne
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT DecryptBlock(unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print);
+int DLL_IMPORT DecryptBlock(const unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print);
 
 /** @brief Шифруем блок данных
  *
@@ -93,7 +93,7 @@ int DLL_IMPORT DecryptBlock(unsigned char* input, unsigned char* output, unsigne
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT Encrypt_89(unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT Encrypt_89(const unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Расшифровываем блок данных
  *
@@ -105,7 +105,7 @@ int DLL_IMPORT Encrypt_89(unsigned char* input, unsigned char* output, unsigned 
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT Decrypt_89(unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT Decrypt_89(const unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint);
 
 #ifdef __cplusplus
 }
