@@ -5,13 +5,11 @@ HEADERS += $$PWD/ntt.h \
            $$PWD/poly.h \
            $$PWD/reduce.h \
            $$PWD/ring.h \
-           $$PWD/ringct20_params.h \
-           $$PWD/verify.inc
+           $$PWD/ringct20_params.h
 
 SOURCES += $$PWD/ntt.c \
            $$PWD/poly.c \
            $$PWD/precomp.c \
            $$PWD/reduce.c \
            $$PWD/ring.c \
-           $$PWD/ringct20_params.c \
-           $$PWD/verify.c
+           $$PWD/ringct20_params.c

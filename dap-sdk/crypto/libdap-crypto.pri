@@ -31,6 +31,7 @@ HEADERS += $$PWD/include/dap_enc.h \
     $$PWD/include/dap_enc_dilithium.h \
     $$PWD/include/dap_enc_ringct20.h \
     $$PWD/include/dap_enc_salsa2012.h \
+    $$PWD/include/dap_enc_SEED.h \
     $$PWD/include/dap_crypto_common.h \
     $$PWD/include/dap_cert.h \
     $$PWD/include/dap_cert_file.h \
@@ -67,6 +68,7 @@ SOURCES += $$PWD/src/dap_enc.c \
     $$PWD/src/dap_hash.c \
     $$PWD/src/dap_hash_fusion.c \
     $$PWD/src/dap_hash_keccak.c \
+    $$PWD/src/dap_enc_SEED.c \
     $$PWD/src/XKCP/lib/high/Keccak/FIPS202/SimpleFIPS202.c \
     $$PWD/src/XKCP/lib/high/Keccak/SP800-185/SP800-185.c \
     $$PWD/src/XKCP/lib/high/Keccak/SP800-185/SP800-185.inc
