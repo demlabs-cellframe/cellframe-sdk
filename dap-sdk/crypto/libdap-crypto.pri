@@ -12,6 +12,7 @@ include (src/sig_picnic/sig_picnic.pri)
 include (src/sig_tesla/sig_tesla.pri)
 include (src/sig_dilithium/sig_dilithium.pri)
 include (src/ringct20/ringct20.pri)
+include (src/seed/seed.pri)
 
 DEFINES += KeccakP1600timesN_excluded
 
