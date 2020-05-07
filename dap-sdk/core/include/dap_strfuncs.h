@@ -108,7 +108,7 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base);
 #ifdef HAVE_STRNDUP
 #define strndup(s, l) _strndup(s, l)
 #endif
-char *_strndup(char *str, unsigned long len);
+char *_strndup(const char *str, unsigned long len);
 #endif
 
 #define DAP_USEC_PER_SEC 1000000

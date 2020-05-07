@@ -29,7 +29,7 @@ uint32_t random_uint32_t(const uint32_t MAX_NUMBER)
 int randombase64(void*random_array, unsigned int size)
 {
     int off = size - (size/4)*3;
-    int odd_signs = size - ((size/4)*4);
+    unsigned int odd_signs = size - ((size/4)*4);
     if(odd_signs < size)
     {
         randombytes(random_array + off, (size/4)*3);
@@ -39,8 +39,8 @@ int randombase64(void*random_array, unsigned int size)
     {
         uint8_t tmpv[7];
         randombytes(tmpv+4,3);
-        dap_enc_base64_encode(tmpv + 4, 3,tmpv,DAP_ENC_DATA_TYPE_B64);
-        for(int i = 0; i < odd_signs; ++i)
+        dap_enc_base64_encode(tmpv + 4, 3,(char*)tmpv,DAP_ENC_DATA_TYPE_B64);
+        for(unsigned int i = 0; i < odd_signs; ++i)
         {
             ((uint8_t*)random_array)[size - odd_signs + i] = tmpv[i];
         }

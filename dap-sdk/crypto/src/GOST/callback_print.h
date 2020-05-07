@@ -10,9 +10,9 @@
 #include "dll_import.h"
 
 /** @brief callback для вывода массива byte */
-typedef void (DLL_IMPORT *printout_byte_array)(const char* text, unsigned char* value, unsigned int valueSize);
+typedef void (DLL_IMPORT *printout_byte_array)(const char* text, const unsigned char* value, unsigned int valueSize);
 
 /** @brief callback для вывода массива unsigned int32 */
-typedef void (DLL_IMPORT *printout_uint_array)(const char* text, unsigned int* value, unsigned int valueSize);
+typedef void (DLL_IMPORT *printout_uint_array)(const char* text, const unsigned int* value, unsigned int valueSize);
 
 #endif
