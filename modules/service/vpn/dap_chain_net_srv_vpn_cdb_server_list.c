@@ -27,6 +27,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -43,6 +44,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_geoip.h"
 
 #include "dap_http.h"
 #include "dap_http_simple.h"
@@ -154,6 +156,9 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
     dap_string_t *l_reply_str = dap_string_new("[\n");
 
 
+    char *l_client_ip = a_http_simple->http->client->s_ip;//"77.222.110.44"
+    geoip_info_t *l_geoip_info = chain_net_geoip_get_ip_info(l_client_ip);
+
     log_it(L_DEBUG, "Have %zd chain networks for cdb lists", s_cdb_net_count );
 
     for ( size_t i = 0; i < s_cdb_net_count ; i++ ) {
@@ -225,21 +230,47 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                 }
             }
 
-            // random node
-            int l_count = 0;
-            while(l_orders_num > 0) {
-                // first random node
-                size_t k = rand() % l_orders_num;
-                dap_chain_net_srv_order_t *l_order = l_orders_pos[k];
-                if(!order_info_print(l_reply_str, l_net, l_order, "Auto", -1)){
-                    dap_string_append_printf(l_reply_str, ",\n");
-                    break;
-                }
-                if (l_count>20)
-                    break;
-                l_count++;
+            int8_t l_client_continent = dap_chain_net_srv_order_continent_to_num(l_geoip_info->continent);
+            // random node on client's continent
+			if (l_client_continent) {
+				int l_count = 0;
+				while (l_orders_num > 0) {
+					size_t k = rand() % l_continents_numbers[l_client_continent];
+					dap_chain_net_srv_order_t *l_order = l_orders_pos[k];
+					const char *country_code = dap_chain_net_srv_order_get_country_code(l_order);
+					if (country_code) {
+						// only for other countries
+						if (dap_strcmp(l_geoip_info->country_code, country_code)){
+							if (!order_info_print(l_reply_str, l_net, l_order, "Auto", -1)) {
+								dap_string_append_printf(l_reply_str, ",\n");
+								break;
+							}
+						}
+					}
+					if (l_count > 20)
+						break;
+					l_count++;
+				}
+
+			}
+			// random node for the whole world
+			else {
+				int l_count = 0;
+				while(l_orders_num > 0) {
+					// first random node
+					size_t k = rand() % l_orders_num;
+					dap_chain_net_srv_order_t *l_order = l_orders_pos[k];
+					if(!order_info_print(l_reply_str, l_net, l_order, "Auto", -1)){
+						dap_string_append_printf(l_reply_str, ",\n");
+						break;
+					}
+					if (l_count>20)
+						break;
+					l_count++;
+				}
             }
             // random nodes for continents
+            int l_count = 0;
             for(size_t l_c = 0; l_c < l_continents_count; l_c++) {
                 while(l_continents_numbers[l_c] > 0) {
                     // random node for continent
@@ -290,6 +321,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
             }
         }
     }
+    DAP_DELETE(l_geoip_info);
     dap_string_append_printf( l_reply_str, "]\n\n");
     dap_http_simple_reply( a_http_simple, l_reply_str->str, l_reply_str->len );
     dap_string_free(l_reply_str, true);

@@ -35,6 +35,7 @@
 #include "libmaxminddb/maxminddb.h"
 
 #define LOG_TAG "chain_net_srv_geoip"
+#define LOCALE_DEFAULT  "en"
 
 /**
  * @brief m_request_response
@@ -45,18 +46,19 @@
 static void m_request_getip_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     char *l_addr = (char *) a_obj;
-    printf("m_request_getip_response %s\n", a_response);
+    //printf("m_request_getip_response %s\n", a_response);
 }
 
 static void m_request_getip_request_error(int a_err_code, void *a_obj)
 {
     char *l_addr = (char *) a_obj;
-    printf("m_request_getip_request_error %s\n", l_addr);
+    //printf("m_request_getip_request_error %s\n", l_addr);
 }
 
 geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
 {
-    // https://geoip.maxmind.com/geoip/v2.1/insights/%s
+    // https://geoip.maxmind.com/geoip/v2.1/insights/<ip>
+	// https://geoip.maxmind.com/geoip/v2.1/city/<ip>
     char *l_path = dap_strdup_printf("/geoip/v2.1/insights/%s", a_ip_str);
     //104.16.38.47:443
     // geoip.maxmind.com
@@ -67,17 +69,105 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
     const char *user_id = "288651";
     const char *license_key = "1JGvRmd3Ux1kcBkb";
     char *l_auth = dap_strdup_printf("%s:%s", user_id, license_key);
-    size_t l_out_len = dap_enc_base64_encode(l_auth, strlen(l_auth), &l_out, DAP_ENC_DATA_TYPE_B64);
+    size_t l_out_len = dap_enc_base64_encode(l_auth, strlen(l_auth), l_out, DAP_ENC_DATA_TYPE_B64);
     char * l_custom = l_out_len > 0 ? dap_strdup_printf("Authorization: Basic %s", l_out) : NULL;
     size_t l_custom_count = 1;
-    // todo
+    // todo just need to finish up https request
     dap_client_http_request_custom("geoip.maxmind.com", 443, "GET", "application/json", l_path, NULL,
-            0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, l_custom, l_custom_count);
-    return NULL ;
+            0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, &l_custom, l_custom_count);
+    return NULL;
 }
 
-geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str)
+/*
+ * Get value from mmdb by 2 strings
+ */
+static int mmdb_get_value_double2(MMDB_lookup_result_s *a_result, const char *a_one, const char *a_two, double *a_out_double)
 {
+	if (!a_out_double || !a_result || !a_result->found_entry)
+		return -1;
+	MMDB_entry_data_s entry_data;
+	int l_status = MMDB_get_value(&a_result->entry, &entry_data, a_one, a_two, NULL);
+	if (MMDB_SUCCESS != l_status) {
+		log_it(L_DEBUG, "False get_value [%s->%s] with errcode=%d", a_one, a_two, l_status);
+		return -2;
+	}
+	if (entry_data.has_data) {
+		if (a_out_double && entry_data.type == MMDB_DATA_TYPE_DOUBLE) {
+			//memcpy(a_out_double, &entry_data.double_value, entry_data.data_size);
+			*a_out_double = entry_data.double_value;
+		} else
+			log_it(L_DEBUG,
+					"error value [%s->%s] has size=%d(>0) type=%d(%d)",
+					a_one, a_two, entry_data.data_size,
+					entry_data.type, MMDB_DATA_TYPE_DOUBLE);
+	}
+	else
+		return -3;
+	return 0;
+}
+
+/*
+ * Get value from mmdb by 2 strings
+ */
+static int mmdb_get_value_str2(MMDB_lookup_result_s *a_result, const char *a_one, const char *a_two, char *a_out_str, size_t a_out_str_size)
+{
+	if (!a_out_str || !a_result || !a_result->found_entry)
+		return -1;
+	MMDB_entry_data_s entry_data;
+	int l_status = MMDB_get_value(&a_result->entry, &entry_data, a_one, a_two, NULL);
+	if (MMDB_SUCCESS != l_status) {
+		log_it(L_DEBUG, "False get_value [%s->%s] with errcode=%d", a_one, a_two, l_status);
+		return -2;
+	}
+	if (entry_data.has_data) {
+		if (entry_data.data_size > 0 && entry_data.type == MMDB_DATA_TYPE_UTF8_STRING) {
+			size_t l_size = min(a_out_str_size-1, entry_data.data_size);
+			strncpy(a_out_str, entry_data.utf8_string, l_size);
+			a_out_str[l_size] = 0;
+		} else
+			log_it(L_DEBUG,
+					"error value [%s->%s] has size=%d(>0) type=%d(%d)",
+					a_one, a_two, entry_data.data_size,
+					entry_data.type, MMDB_DATA_TYPE_UTF8_STRING);
+	}
+	else
+		return -3;
+	return 0;
+}
+
+/*
+ * Get value from mmdb by 3 strings
+ */
+static int mmdb_get_value_str3(MMDB_lookup_result_s *a_result, const char *a_one, const char *a_two, const char *a_three, char *a_out_str, size_t a_out_str_size)
+{
+	if (!a_out_str || !a_result || !a_result->found_entry)
+		return -1;
+	MMDB_entry_data_s entry_data;
+	int l_status = MMDB_get_value(&a_result->entry, &entry_data, a_one, a_two, a_three, NULL);
+	if (MMDB_SUCCESS != l_status) {
+		log_it(L_DEBUG, "False get_value [%s->%s->%s] with errcode=%d", a_one, a_two, a_three, l_status);
+		return -2;
+	}
+	if (entry_data.has_data) {
+		if (entry_data.data_size > 0 && entry_data.type == MMDB_DATA_TYPE_UTF8_STRING) {
+			size_t l_size = min(a_out_str_size-1, entry_data.data_size);
+			strncpy(a_out_str, entry_data.utf8_string, l_size);
+			a_out_str[l_size] = 0;
+		} else
+			log_it(L_DEBUG,
+					"error value [%s->%s->%s] has size=%d(>0) type=%d(%d)",
+					a_one, a_two, a_three, entry_data.data_size,
+					entry_data.type, MMDB_DATA_TYPE_UTF8_STRING);
+	}
+	else
+		return -3;
+	return 0;
+}
+
+geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, const char *a_locale)
+{
+	// https://geoip.maxmind.com/geoip/v2.1/city/178.7.88.55
+	// https://maxmind.github.io/libmaxminddb/
     char *l_file_db_name = dap_strdup_printf("%s/share/geoip/GeoLite2-City.mmdb", g_sys_dir_path);
     if(!dap_file_test(l_file_db_name)) {
         DAP_DELETE(l_file_db_name);
@@ -91,30 +181,74 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str)
     }
     DAP_DELETE(l_file_db_name);
 
-    int gai_error, mmdb_error;
-    MMDB_lookup_result_s result =
-            MMDB_lookup_string(&mmdb, a_ip_str, &gai_error, &mmdb_error);
-    if(0 != gai_error || MMDB_SUCCESS != mmdb_error) {
-        log_it(L_WARNING, "no lookup ip=%s with errcode=%d", a_ip_str, l_status);
-    }
+	geoip_info_t *l_ret = DAP_NEW_Z(geoip_info_t);
 
-    if(result.found_entry) {
-        MMDB_entry_data_s entry_data;
-        l_status = MMDB_get_value(&result.entry, &entry_data, "names", "en", NULL);
-        if(MMDB_SUCCESS != l_status) {
-            log_it(L_DEBUG, "no get_value with errcode=%d", l_status);
-        }
-        if(entry_data.has_data) {
-            ;
-        }
-    }
+	int gai_error, mmdb_error;
+	MMDB_lookup_result_s result = MMDB_lookup_string(&mmdb, a_ip_str, &gai_error, &mmdb_error);
+	if (0 != gai_error || MMDB_SUCCESS != mmdb_error) {
+		log_it(L_WARNING, "no lookup ip=%s with errcode=%d", a_ip_str, l_status);
+	}
 
-    MMDB_close(&mmdb);
-    return NULL ;
+	// continent
+	if (mmdb_get_value_str3(&result, "continent", "names", a_locale, l_ret->continent, sizeof(l_ret->continent))) {
+		if (mmdb_get_value_str3(&result, "continent", "names", LOCALE_DEFAULT, l_ret->continent, sizeof(l_ret->continent))) {
+			MMDB_close(&mmdb);
+			DAP_FREE(l_ret);
+			return NULL;
+		}
+	}
+	// country
+	if (mmdb_get_value_str3(&result, "country", "names", a_locale, l_ret->country_name, sizeof(l_ret->country_name))) {
+		if (mmdb_get_value_str3(&result, "country", "names", LOCALE_DEFAULT, l_ret->country_name, sizeof(l_ret->country_name))) {
+			MMDB_close(&mmdb);
+			DAP_FREE(l_ret);
+			return NULL;
+		}
+	}
+	// all the country names http://download.geonames.org/export/dump/countryInfo.txt
+	if (mmdb_get_value_str2(&result, "country", "iso_code", l_ret->country_code, sizeof(l_ret->country_code))) {
+		MMDB_close(&mmdb);
+		DAP_FREE(l_ret);
+		return NULL;
+	}
+	// city
+	/*if (mmdb_get_value_str3(&result, "city", "names", a_locale, l_ret->city_name, sizeof(l_ret->city_name))) {
+		if (mmdb_get_value_str3(&result, "city", "names", LOCALE_DEFAULT, l_ret->city_name, sizeof(l_ret->city_name))) {
+			MMDB_close(&mmdb);
+			DAP_FREE(l_ret);
+			return NULL;
+		}
+	}*/
+
+	//location
+	if (mmdb_get_value_double2(&result, "location", "latitude", &l_ret->latitude)) {
+		MMDB_close(&mmdb);
+		DAP_FREE(l_ret);
+		return NULL;
+	}
+	if (mmdb_get_value_double2(&result, "location", "longitude", &l_ret->longitude)) {
+		MMDB_close(&mmdb);
+		DAP_FREE(l_ret);
+		return NULL;
+	}
+
+	// IP
+	/*if (mmdb_get_value_str2(&result, "traits", "ip_address", l_ret->ip_str, sizeof(l_ret->ip_str))) {
+		MMDB_close(&mmdb);
+		DAP_FREE(l_ret);
+		return NULL;
+	}*/
+	int a = sizeof(l_ret->ip_str);
+	size_t l_size = min(dap_strlen(a_ip_str), sizeof(l_ret->ip_str));
+	l_ret->ip_str[l_size] = 0;
+	strncpy(l_ret->ip_str, a_ip_str, l_size);
+
+	MMDB_close(&mmdb);
+	return l_ret;
 }
 
 geoip_info_t *chain_net_geoip_get_ip_info(const char *a_ip_str)
 {
-    return chain_net_geoip_get_ip_info_by_local_db(a_ip_str);
+    return chain_net_geoip_get_ip_info_by_local_db(a_ip_str, "en");
     //return chain_net_geoip_get_ip_info_by_web(a_ip_str);
 }

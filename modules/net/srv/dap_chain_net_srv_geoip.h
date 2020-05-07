@@ -24,7 +24,13 @@
 
 typedef struct geoip_info {
 
-    char *ip_str;
+    char ip_str[20];
+    char continent[60];
+    char country_name[64];
+    char country_code[3];// iso_code, all the country names http://download.geonames.org/export/dump/countryInfo.txt
+    char city_name[64];
+    double latitude;
+    double longitude;
 
 } geoip_info_t;
 
