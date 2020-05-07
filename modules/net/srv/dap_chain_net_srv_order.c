@@ -22,13 +22,28 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
+#include <strings.h>
+
 #include "dap_chain_net_srv_order.h"
 
 #include "dap_hash.h"
 #include "dap_chain_global_db.h"
+#include "dap_chain_net_srv_countries.h"
+//#include "dap_chain_net_srv_geoip.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
 
+/*
+Continent codes :
+AF : Africa			geonameId=6255146
+AS : Asia			geonameId=6255147
+EU : Europe			geonameId=6255148
+NA : North America		geonameId=6255149
+OC : Oceania			geonameId=6255151
+SA : South America		geonameId=6255150
+AN : Antarctica			geonameId=6255152
+ */
 char *s_server_continents[]={
         "None",
         "Africa",
@@ -36,7 +51,10 @@ char *s_server_continents[]={
         "North America",
         "South America",
         "Southeast Asia",
-        "Near East",
+		"Asia",
+        //"Near East",
+		"Oceania",
+		"Antarctica"
  };
 
 /**
@@ -46,6 +64,7 @@ char *s_server_continents[]={
 int dap_chain_net_srv_order_init(void)
 {
 
+	//geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
 }
 
@@ -112,8 +131,7 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
            memcpy(a_continent_num, a_order->ext + 1, sizeof(uint8_t));
         else
            a_continent_num = 0;
-    }else
-        a_continent_num = 0;
+    }
     if(a_region) {
         size_t l_size = a_order->ext_size - sizeof(uint8_t) - 1;
         if(l_size > 0) {
@@ -126,6 +144,26 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
     return true;
 }
 
+/**
+ * @brief dap_chain_net_srv_order_get_country_code
+ * @param a_order
+ */
+const char* dap_chain_net_srv_order_get_country_code(dap_chain_net_srv_order_t *a_order)
+{
+	char *l_region = NULL;
+	if (!dap_chain_net_srv_order_get_continent_region(a_order, NULL, &l_region))
+		return NULL;
+	int l_countries = sizeof(s_server_countries)/sizeof(char*);
+	for (int i = 0; i < l_countries; i+=4) {
+		if(l_region && (!strcasecmp(l_region, s_server_countries[i+1]) || !strcasecmp(l_region, s_server_countries[i+2]))){
+			const char *l_country_code = s_server_countries[i];
+			DAP_DELETE(l_region);
+			return l_country_code;
+		}
+	}
+	DAP_DELETE(l_region);
+	return NULL;
+}
 
 /**
  * @brief dap_chain_net_srv_order_continents_count
