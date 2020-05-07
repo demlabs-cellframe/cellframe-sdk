@@ -230,7 +230,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                 }
             }
 
-            int8_t l_client_continent = dap_chain_net_srv_order_continent_to_num(l_geoip_info->continent);
+            int8_t l_client_continent = l_geoip_info ? dap_chain_net_srv_order_continent_to_num(l_geoip_info->continent) : 0;
             // random node on client's continent
 			if (l_client_continent) {
 				int l_count = 0;
