@@ -3742,6 +3742,51 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
 }
 
 /**
+ * Add News for VPN clients
+ * news [-text <news text> | -file <filename with news>] -lang <language code>
+ */
+int com_news(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
+{
+    int arg_index = 1;
+    const char * l_str_lang = NULL;
+    const char * l_str_text = NULL;
+    const char * l_str_file = NULL;
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-lang", &l_str_lang);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-text", &l_str_text);
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-file", &l_str_file);
+    if(!l_str_text && !l_str_file) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "no source of news, add parameter -text or -file");
+        return -1;
+    }
+    byte_t *l_data_news;
+    size_t l_data_news_len = 0;
+    const char *l_from = NULL;
+
+    if(l_str_text) {
+        l_data_news = (byte_t*) l_str_text;
+        l_data_news_len = dap_strlen(l_str_text);
+        l_from = "text";
+    }
+    else if(l_str_file) {
+        if(dap_file_get_contents(l_str_file, &l_data_news,&l_data_news_len)) {
+            l_from = "file";
+        }
+        else{
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't read file %s", l_str_file);
+                return -2;
+            }
+    }
+
+    int l_res = dap_chain_net_news_write(l_str_lang, l_data_news, l_data_news_len);
+    if(l_res){
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error, News cannot be added from %s", l_from);
+        return -3;
+    }
+    dap_chain_node_cli_set_reply_text(a_str_reply, "News added from %s successfully", l_from);
+    return 0;
+}
+
+/**
  * vpn_client command
  *
  * VPN client control
