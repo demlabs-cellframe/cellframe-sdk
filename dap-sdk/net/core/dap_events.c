@@ -373,7 +373,8 @@ static void *thread_worker_function(void *arg)
             if(((events[n].events & EPOLLOUT) || (cur->flags & DAP_SOCK_READY_TO_WRITE))
                     && !(cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
                 ///log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
-                cur->callbacks->write_callback(cur, NULL); // Call callback to process write event
+                if(cur->callbacks->write_callback)
+                    cur->callbacks->write_callback(cur, NULL); // Call callback to process write event
 
                 if(cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
