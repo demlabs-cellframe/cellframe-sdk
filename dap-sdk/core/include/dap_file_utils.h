@@ -44,6 +44,9 @@
 
 #else
 
+#ifndef O_BINARY
+# define O_BINARY 0
+#endif
 #define DAP_DIR_SEPARATOR '/'
 #define DAP_DIR_SEPARATOR_S "/"
 #define DAP_IS_DIR_SEPARATOR(c) ((c) == DAP_DIR_SEPARATOR)
@@ -101,5 +104,11 @@ char* dap_path_get_dirname(const char *a_file_name);
  * @return dap_list_t type variable that contains a list of subdirectories.
  */
 dap_list_name_directories_t *dap_get_subs(const char *a_path_name);
+
+
+/*
+ * Reads an entire file into allocated memory, with error checking.
+ */
+bool dap_file_get_contents(const char *filename, char **contents, size_t *length);
 
 #endif // _FILE_UTILS_H_

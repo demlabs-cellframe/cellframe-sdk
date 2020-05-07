@@ -24,8 +24,10 @@
 */
 #pragma once
 #include "dap_chain_common.h"
+#include "dap_hash.h"
 #include "dap_sign.h"
 
+#include "dap_string.h"
 #include "dap_strfuncs.h"
 
 // Token declaration
@@ -148,24 +150,27 @@ typedef struct dap_chain_datum_token_tsd{
 // Set total signs count value to set to be valid
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID   0x0004
 
+// Remove owner signature by pkey fingerprint
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE  0x0005
+
 // Add owner signature's pkey fingerprint
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD     0x0006
 
-// Remove owner signature by pkey fingerprint
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE  0x0007
 
 
 
 /// ------- Permissions list flags, grouped by update-remove-clear operations --------
+// Blocked datum types list add, remove or clear
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD          0x0007
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE       0x0008
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_CLEAR        0x0009
+
+
 // Allowed datum types list add, remove or clear
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD          0x0010
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE       0x0011
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_CLEAR        0x0012
 
-// Blocked datum types list add, remove or clear
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD          0x0013
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE       0x0014
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_CLEAR        0x0015
 
 //Allowed tx receiver addres list add, remove or clear
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD          0x0014
@@ -230,12 +235,15 @@ extern const char *c_dap_chain_datum_token_emission_type_str[];
 ///
 
 dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, const void * a_data, size_t a_data_size);
+dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
+void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
+
 #define dap_chain_datum_token_tsd_create_scalar(type,value) dap_chain_datum_token_tsd_create (type, &value, sizeof(value) )
 #define dap_chain_datum_token_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
 
 // NULL-terminated string
 #define dap_chain_datum_token_tsd_create_string(type,str) dap_chain_datum_token_tsd_create (type,str, dap_strlen(str))
-#define dap_chain_datum_token_tsd_get_string(a)  ((char*) a->data )
-#define dap_chain_datum_token_tsd_get_string_const(a)  ((const char*) a->data )
+#define dap_chain_datum_token_tsd_get_string(a)  ( ((char*) a->data )[a->size-1] == '\0'? (char*) a->data  : "<CORRUPTED STRING>" )
+#define dap_chain_datum_token_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : "<CORRUPTED STRING>" )
 
 #define dap_chain_datum_token_tsd_size(a) (sizeof(*a)+a->size)

@@ -25,6 +25,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #if (OS_TARGET == OS_MACOS)
     #include <stdio.h>
 #else
@@ -404,3 +409,203 @@ dap_list_name_directories_t *dap_get_subs(const char *a_path_dir){
 #endif
     return list;
 }
+
+static bool get_contents_stdio(const char *filename, FILE *f, char **contents, size_t *length)
+{
+    char buf[4096];
+    size_t bytes; /* always <= sizeof(buf) */
+    char *str = NULL;
+    size_t total_bytes = 0;
+    size_t total_allocated = 0;
+    char *tmp;
+    assert(f != NULL);
+    while(!feof(f)) {
+        int save_errno;
+
+        bytes = fread(buf, 1, sizeof(buf), f);
+        save_errno = errno;
+
+        if(total_bytes > ULONG_MAX - bytes)
+            goto file_too_large;
+
+        /* Possibility of overflow eliminated above. */
+        while(total_bytes + bytes >= total_allocated) {
+            if(str) {
+                if(total_allocated > ULONG_MAX / 2)
+                    goto file_too_large;
+                total_allocated *= 2;
+            }
+            else {
+                total_allocated = MIN(bytes + 1, sizeof(buf));
+            }
+
+            tmp = DAP_REALLOC(str, total_allocated);
+
+            if(tmp == NULL)
+                goto error;
+
+            str = tmp;
+        }
+
+        if(ferror(f))
+            goto error;
+
+        assert(str != NULL);
+        memcpy(str + total_bytes, buf, bytes);
+        total_bytes += bytes;
+    }
+
+    fclose(f);
+
+    if(total_allocated == 0)
+            {
+        str = DAP_NEW_SIZE(char, 1);
+        total_bytes = 0;
+    }
+
+    str[total_bytes] = '\0';
+
+    if(length)
+        *length = total_bytes;
+
+    *contents = str;
+
+    return true;
+
+    file_too_large:
+    error:
+
+    DAP_DELETE(str);
+    fclose(f);
+    return false;
+}
+
+#ifndef _WIN32
+
+static bool dap_get_contents_regfile(const char *filename, struct stat *stat_buf, int fd, char **contents,
+        size_t *length)
+{
+    char *buf;
+    size_t bytes_read;
+    size_t size;
+    size_t alloc_size;
+
+    size = stat_buf->st_size;
+
+    alloc_size = size + 1;
+    buf = DAP_NEW_SIZE(char, alloc_size);
+
+    if(buf == NULL) {
+        goto error;
+    }
+
+    bytes_read = 0;
+    while(bytes_read < size) {
+        size_t rc;
+
+        rc = read(fd, buf + bytes_read, size - bytes_read);
+
+        if(rc < 0) {
+            if(errno != EINTR) {
+                DAP_DELETE(buf);
+                goto error;
+            }
+        }
+        else if(rc == 0)
+            break;
+        else
+            bytes_read += rc;
+    }
+
+    buf[bytes_read] = '\0';
+
+    if(length)
+        *length = bytes_read;
+
+    *contents = buf;
+
+    close(fd);
+
+    return true;
+
+    error:
+
+    close(fd);
+
+    return false;
+}
+
+static bool dap_get_contents_posix(const char *filename, char **contents, size_t *length)
+{
+    struct stat stat_buf;
+    int fd;
+
+    /* O_BINARY useful on Cygwin */
+    fd = open(filename, O_RDONLY | O_BINARY);
+
+    if(fd < 0)
+        return false;
+
+    /* I don't think this will ever fail, aside from ENOMEM, but. */
+    if(fstat(fd, &stat_buf) < 0) {
+        close(fd);
+        return false;
+    }
+
+    if(stat_buf.st_size > 0 && S_ISREG(stat_buf.st_mode)) {
+        bool retval = dap_get_contents_regfile(filename,
+                &stat_buf,
+                fd,
+                contents,
+                length);
+        return retval;
+    }
+    else {
+        FILE *f;
+        bool retval;
+        f = fdopen(fd, "r");
+        if(f == NULL)
+            return false;
+        retval = get_contents_stdio(filename, f, contents, length);
+        return retval;
+    }
+}
+
+#else  /* _WIN32 */
+
+static bool dap_get_contents_win32(const char *filename, char **contents, size_t *length)
+{
+    FILE *f;
+    bool retval;
+
+    f = fopen(filename, "rb");
+
+    if(f == NULL)
+    {
+        return false;
+    }
+    retval = get_contents_stdio (filename, f, contents, length);
+    return retval;
+}
+
+#endif
+
+/*
+ * Reads an entire file into allocated memory, with error checking.
+ */
+bool dap_file_get_contents(const char *filename, char **contents, size_t *length)
+{
+    dap_return_val_if_fail(filename != NULL, false);
+    dap_return_val_if_fail(contents != NULL, false);
+
+    *contents = NULL;
+    if(length)
+        *length = 0;
+
+#ifdef _WIN32
+  return dap_get_contents_win32 (filename, contents, length);
+#else
+    return dap_get_contents_posix(filename, contents, length);
+#endif
+}
+
