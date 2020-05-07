@@ -189,7 +189,7 @@ void s_net_set_go_sync(dap_chain_net_t * a_net)
 {
     if(!a_net)
         return;
-    dap_chain_net_start(a_net);
+    dap_chain_net_state_go_to(a_net, NET_STATE_SYNC_REQUESTED);
 }
 
 /**
@@ -209,10 +209,16 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
-    if (PVT(a_net)->state_target == a_new_state){
-        log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+    if (a_new_state == NET_STATE_SYNC_REQUESTED) {
+        if (PVT(a_net)->state_target != NET_STATE_OFFLINE) {
+            PVT(a_net)->state_target = NET_STATE_ONLINE;
+        }
+    } else {
+        if (PVT(a_net)->state_target == a_new_state){
+            log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+        }
+        PVT(a_net)->state_target = a_new_state;
     }
-    PVT(a_net)->state_target = a_new_state;
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond);
     // set flag for sync
     PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
