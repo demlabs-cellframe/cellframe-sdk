@@ -26,17 +26,34 @@
 
 #include "dap_sign.h"
 #include "dap_pkey.h"
-
+#include "dap_binary_tree.h"
 #include "dap_enc.h"
 #include "dap_enc_key.h"
 
 #define DAP_CERT_ITEM_NAME_MAX 40
 
+typedef enum dap_cert_metadata_type {
+    DAP_CERT_META_STRING,
+    DAP_CERT_META_BOOL,
+    DAP_CERT_META_INT,
+    DAP_CERT_META_DATETIME,
+    DAP_CERT_META_DATETIME_PERIOD,
+    DAP_CERT_META_SIGN,
+    DAP_CERT_META_CUSTOM
+} dap_cert_metadata_type_t;
+
+typedef struct dap_cert_metadata {
+    dap_binary_tree_key_t key;      // Key also may be outside the structure
+    size_t length;
+    dap_cert_metadata_type_t type : 8;
+    byte_t value[];
+} dap_cert_metadata_t;
+
 typedef struct dap_cert {
     dap_enc_key_t * enc_key;
     char name[DAP_CERT_ITEM_NAME_MAX];
     void * _pvt;
-    char * metadata;
+    dap_binary_tree_t * metadata;
 } dap_cert_t;
 
 #ifdef __cplusplus
