@@ -427,7 +427,7 @@ void poly_serial(poly_ringct20 *r)
 		r->coeffs[i] = coeff_freeze(r->coeffs[i]);
 	}
 }
-void poly_cofcopy(poly_ringct20 *des, poly_ringct20 *sour)
+void poly_cofcopy(poly_ringct20 *des, const poly_ringct20 *sour)
 {
 	size_t i;
 	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
@@ -436,18 +436,16 @@ void poly_cofcopy(poly_ringct20 *des, poly_ringct20 *sour)
 	}
 }
 
-void poly_copy(poly_ringct20 *des, poly_ringct20 *sou, size_t mLen)
+void poly_copy(poly_ringct20 *des, const poly_ringct20 *sou, const int mLen)
 {
-	size_t i;
-	for ( i = 0; i < mLen; i++)
+    for (int i = 0; i < mLen; i++)
 	{
 		poly_cofcopy(des + i, sou + i);
 	}
 }
 int poly_equal(const poly_ringct20 *a, const poly_ringct20 *b)
 {
-	size_t i;
-	for ( i = 0; i < NEWHOPE_RINGCT20_N; i++)
+    for (int i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		if (a->coeffs[i] != b->coeffs[i])
 		{
@@ -459,9 +457,8 @@ int poly_equal(const poly_ringct20 *a, const poly_ringct20 *b)
 
 void poly_constmul(poly_ringct20 *r, const poly_ringct20 *a, uint16_t cof)
 {
-	size_t i;
 	uint32_t tmp = 0;
-	for (i = 0; i < NEWHOPE_RINGCT20_N; i++)
+    for (int i = 0; i < NEWHOPE_RINGCT20_N; i++)
 	{
 		tmp = cof * a->coeffs[i];
 		r->coeffs[i] = tmp%NEWHOPE_RINGCT20_2Q;

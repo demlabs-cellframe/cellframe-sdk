@@ -92,7 +92,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} )
 
-target_include_directories(dap_crypto PRIVATE src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include)
+target_include_directories(dap_crypto PRIVATE src/seed src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include)
 target_include_directories(dap_crypto INTERFACE src/ src/sha3 include/)
 
 target_include_directories(dap_crypto PUBLIC

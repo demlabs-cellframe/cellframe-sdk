@@ -5,10 +5,10 @@
 
 #define Keccak_HashInitialize_SHA3_KDF(hashInstance, out_bytes)        Keccak_HashInitialize(hashInstance, 1088,  512, out_bytes*8, 0x06)
 
-void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
+void LRCT_SampleKey(poly_ringct20 *r, int mLen)
 {
 	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
-	size_t i;
+    int i;
 	for ( i = 0; i < mLen; i++)
 	{
 #ifndef NEW_SAMPLE_KEY
@@ -57,11 +57,11 @@ void LRCT_SampleKey(poly_ringct20 *r, size_t mLen)
 	}
 
 }
-void LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
+void LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, int mLen)
 {
 
 	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
-	size_t i = 0;
+    int i = 0;
 
 	for ( i = 0; i < mLen; i++)
 	{
@@ -74,16 +74,18 @@ void LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
 	}
 }
 
-void LRCT_KeyGen(poly_ringct20 *a, poly_ringct20 *A, poly_ringct20 *S, size_t mLen)
+void LRCT_KeyGen(poly_ringct20 *a, poly_ringct20 *A, poly_ringct20 *S, int mLen)
 {
 	LRCT_MatrixMulPoly(a, A, S,  mLen);
 	poly_serial(a);
 }
 
-void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20 *A, poly_ringct20 *H, poly_ringct20 *S, poly_ringct20 *u, size_t mLen, poly_ringct20 *L, uint8_t w, uint8_t pai, const unsigned char *msg, int msgLen)
+void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h,
+                 poly_ringct20 *A, poly_ringct20 *H, poly_ringct20 *S, poly_ringct20 *u,
+                 int  mLen, poly_ringct20 *L, int w, int pai, const unsigned char *msg, int msgLen)
 {
 	//H2q
-	size_t i, j, k;
+    int i, j, k;
 	poly_ringct20 *H2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *S2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *A2qp = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
@@ -93,7 +95,7 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
     //SHA256_CTX ctx;
     Keccak_HashInstance ctx;
 
-	unsigned char bHash[32] = { 0 };
+//	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	unsigned char bt[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	uint8_t coin = 0;
@@ -232,16 +234,16 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ri
 	free(A2qp);
 	free(tmp2q);
 }
-int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, poly_ringct20 *H, size_t mLen, poly_ringct20 *h, poly_ringct20 *L,
-    uint8_t w, const unsigned char *msg, int msgLen)
+int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, poly_ringct20 *H, int mLen, poly_ringct20 *h, poly_ringct20 *L,
+    int w, const unsigned char *msg, int msgLen)
 {
-	size_t i,k;
+    int i,k;
 	poly_ringct20 *H2q = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *A2qp = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 c, tmp, tmp1;
     //SHA256_CTX ctx;
     Keccak_HashInstance ctx;
-	unsigned char bHash[32] = { 0 };
+//	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	for (i = 0; i < (mLen + 1); i++)
 	{
@@ -307,14 +309,14 @@ int LRCT_SigVer(const poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *A, po
 	return 0;
 }
 
-void LRCT_Mint(IW *iw, poly_ringct20 *ck, poly_ringct20 *a, poly_ringct20 *A, size_t mLen, unsigned char* bMessage, size_t msglen)
+void LRCT_Mint(IW *iw, poly_ringct20 *ck, poly_ringct20 *a, poly_ringct20 *A, int mLen, unsigned char* bMessage, size_t msglen)
 {
 	LRCT_SampleKey(ck, mLen);
 	LRCT_nttCom(&(iw->cn), A, ck, mLen, bMessage, msglen);
 	poly_cofcopy(&(iw->a), a);
 }
 void LRCT_Spend(IW *iwOA, poly_ringct20 *ckOA, poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20 *L, unsigned char* bSignMess, size_t sigMsgLen, IW *iws, size_t iwsLen,
-	int PaiInd, poly_ringct20 *skPai, poly_ringct20 *ckPai, unsigned char* bVal, size_t bvalLen, poly_ringct20 *OA, poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
+    int PaiInd, poly_ringct20 *skPai, poly_ringct20 *ckPai, unsigned char* bVal, size_t bvalLen, poly_ringct20 *OA, poly_ringct20 *A, poly_ringct20 *H, int mLen)
 {
 
 	poly_ringct20 *u = (poly_ringct20 *)malloc((mLen+1)*sizeof(poly_ringct20));
@@ -336,18 +338,18 @@ void LRCT_Spend(IW *iwOA, poly_ringct20 *ckOA, poly_ringct20 *c1, poly_ringct20 
 	free(u);
 	free(S);
 }
-int LRCT_Verify(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20* A, poly_ringct20 *H, size_t mLen,
-	unsigned char* bSignMess, size_t sigMsgLen, poly_ringct20 *L, size_t iwsLen)
+int LRCT_Verify(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20* A, poly_ringct20 *H, int mLen,
+    unsigned char* bSignMess, size_t sigMsgLen, poly_ringct20 *L, int iwsLen)
 {
 	int result = 0;
 	result = LRCT_SigVer(c1, t, A, H, mLen, h, L, iwsLen, bSignMess, sigMsgLen);
 	return result;
 }
 /////multiple
-void MIMO_LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
+void MIMO_LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, int mLen)
 {
 	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
-	size_t i = 0;
+    int i = 0;
 
 	for (i = 0; i < mLen; i++)
 	{
@@ -359,23 +361,23 @@ void MIMO_LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, size_t mLen)
 		poly_serial(H + i);
 	}
 }
-void MIMO_LRCT_KeyGen(poly_ringct20 *a, poly_ringct20 *A, poly_ringct20 *S, size_t mLen)
+void MIMO_LRCT_KeyGen(poly_ringct20 *a, poly_ringct20 *A, poly_ringct20 *S, int mLen)
 {
 	LRCT_MatrixMulPoly(a, A, S, mLen);
 	poly_serial(a);
 }
-void MIMO_LRCT_Mint(IW *iw, poly_ringct20 *ck, poly_ringct20 *a, poly_ringct20 *A, size_t mLen, unsigned char* bMessage, size_t msglen)
+void MIMO_LRCT_Mint(IW *iw, poly_ringct20 *ck, poly_ringct20 *a, poly_ringct20 *A, int mLen, unsigned char* bMessage, size_t msglen)
 {
 	LRCT_SampleKey(ck, mLen);
 	LRCT_nttCom(&(iw->cn), A, ck, mLen, bMessage, msglen);
 	poly_cofcopy(&(iw->a), a);
 }
-void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringct20 *ia, int beta)
+void MIMO_LRCT_Hash(/*int *pTable, */poly_ringct20 *cn, poly_ringct20 *a, poly_ringct20 *ia, int beta)
 {
     //SHA256_CTX ctx;
     Keccak_HashInstance ctx;
 
-	unsigned char bHash[32] = { 0 };
+//	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
     unsigned char bt[NEWHOPE_RINGCT20_POLYCOMPRESSEDBYTES] = { 0 };
 	int i;
@@ -402,8 +404,8 @@ void MIMO_LRCT_Hash(int *pTable, poly_ringct20 *cn, poly_ringct20 *a, poly_ringc
 }
 ////
 
-void ZKP_OR(poly_ringct20 *ck, int bit, int betaLen)
-{}
+//void ZKP_OR(poly_ringct20 *ck, int bit, int betaLen)
+//{}
 //////
 void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hList, poly_ringct20 *SList, int NLen,
 	poly_ringct20 *A, poly_ringct20 *H, int mLen,  poly_ringct20 *LList, int wLen, uint8_t pai, unsigned char *msg, int msgLen)
@@ -419,7 +421,7 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 
 	poly_ringct20 tmp, tmp1, ctmp;
 	poly_ringct20 c, cpai;
-	unsigned char bHash[32] = { 0 };
+//	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	unsigned char bt[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	uint8_t coin = 0;
@@ -571,17 +573,17 @@ void MIMO_LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hL
 
 
 }
-int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hList, int NLen, poly_ringct20 *A, poly_ringct20 *H,
-	size_t mLen, poly_ringct20 *LList, int wLen, unsigned char *msg, int msgLen)
+int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hList, int NLen, poly_ringct20 *A,/* poly_ringct20 *H,*/
+    int mLen, poly_ringct20 *LList, int wLen, unsigned char *msg, int msgLen)
 {
-	size_t i,j, k;
+    int i,j, k;
 	poly_ringct20 *H2q = (poly_ringct20 *)malloc(NLen*(mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 *A2qp = (poly_ringct20 *)malloc((mLen + 1) * sizeof(poly_ringct20));
 	poly_ringct20 ctmp,tmp, tmp1;
     //SHA256_CTX ctx;
     Keccak_HashInstance ctx;
 
-	unsigned char bHash[32] = { 0 };
+//	unsigned char bHash[32] = { 0 };
 	unsigned char bpoly[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
 	/////////
 	poly_cofcopy(&ctmp, c1);
@@ -639,11 +641,10 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 
 
 
-void LRCT_Lift(poly_ringct20 *LA, poly_ringct20 *A, poly_ringct20 *a, size_t mLen)
+void LRCT_Lift(poly_ringct20 *LA, poly_ringct20 *A, poly_ringct20 *a, int mLen)
 {
-	size_t i = 0;
-	size_t j = 0;
-	int16_t tmp = 0;
+    int i = 0;
+    int j = 0;
 	for ( i = 0; i < mLen; i++)
 	{
 		for ( j = 0; j < NEWHOPE_RINGCT20_N; j++)
@@ -657,10 +658,10 @@ void LRCT_Lift(poly_ringct20 *LA, poly_ringct20 *A, poly_ringct20 *a, size_t mLe
 	}
 }
 
-void LRCT_Com(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, size_t mLen, unsigned char *bMessage, size_t msglen)
+void LRCT_Com(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, int mLen, unsigned char *bMessage, size_t msglen)
 {
 	poly_ringct20 tmp;
-	size_t j;
+    size_t j;
 
 	LRCT_MatrixMulPoly(&tmp, A, sk, mLen);
 	poly_cofcopy(r, &tmp);
@@ -678,7 +679,7 @@ void LRCT_Com(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, size_t mLen
 	}
 
 }
-void LRCT_nttCom(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, size_t mLen, unsigned char *bMessage, size_t msglen)
+void LRCT_nttCom(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, int mLen, unsigned char *bMessage, size_t msglen)
 {
 	poly_ringct20 tmp, pMess;
 	size_t j;
@@ -704,9 +705,9 @@ void LRCT_nttCom(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *sk, size_t m
 
 
 //N*M mul M*1  
-void LRCT_MatrixMulPoly(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *s, size_t mLen)
+void LRCT_MatrixMulPoly(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *s, int mLen)
 {
-	size_t i;
+    int i;
 	poly_ringct20 tmp, tmpA, tmps;
 	poly_init(r);
 	for ( i = 0; i < mLen; i++)
@@ -721,35 +722,32 @@ void LRCT_MatrixMulPoly(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *s, si
 	//poly_invntt(r);
 }
 //M*N  mul N*1
-void LRCT_PolyMultMatrix(poly_ringct20 *r, poly_ringct20 *p, poly_ringct20 *A, size_t mLen)
+void LRCT_PolyMultMatrix(poly_ringct20 *r, poly_ringct20 *p, poly_ringct20 *A, int mLen)
 {
-	size_t i;
-	for ( i = 0; i < mLen; i++)
+    for (int i = 0; i < mLen; i++)
 	{
 		poly_mul_pointwise(r+i, A+i, p);
 	}
 }
 
-void LRCT_MatrixAddMatrix(poly_ringct20 *R, poly_ringct20 *A, poly_ringct20 *B, size_t mLen)
+void LRCT_MatrixAddMatrix(poly_ringct20 *R, poly_ringct20 *A, poly_ringct20 *B, int mLen)
 {
-	size_t i;
-	for ( i = 0; i < mLen; i++)
+    for (int i = 0; i < mLen; i++)
 	{
 		poly_add_ringct20(R + i, A + i, B + i);
 	}
 }
-void LRCT_MatrixSubMatrix(poly_ringct20 *R, poly_ringct20 *A, poly_ringct20 *B, size_t mLen)
+void LRCT_MatrixSubMatrix(poly_ringct20 *R, poly_ringct20 *A, poly_ringct20 *B, int mLen)
 {
-	size_t i;
-	for (i = 0; i < mLen; i++)
+    for (int i = 0; i < mLen; i++)
 	{
 		poly_sub_ringct20(R + i, A + i, B + i);
 	}
 }
 
-void LRCT_ConstMulMatrix(poly_ringct20 *r, const poly_ringct20 *A, uint16_t cof, size_t mLen)
+void LRCT_ConstMulMatrix(poly_ringct20 *r, const poly_ringct20 *A, uint16_t cof, int mLen)
 {
-	size_t i, j;
+    int i, j;
 	for (i = 0; i < mLen; i++)
 	{
 		for ( j = 0; j < NEWHOPE_RINGCT20_N; j++)
@@ -760,18 +758,17 @@ void LRCT_ConstMulMatrix(poly_ringct20 *r, const poly_ringct20 *A, uint16_t cof,
 	}
 }
 ///
-void LRCT_MatrixShift(poly_ringct20 *desCK, poly_ringct20* rCK, size_t mLen, int iNumber)
+void LRCT_MatrixShift(poly_ringct20 *desCK, poly_ringct20* rCK, int mLen, int iNumber)
 {
-	size_t i;
-	for ( i = 0; i < mLen; i++)
+    for (int i = 0; i < mLen; i++)
 	{
 		poly_shift(desCK + i, rCK + i, iNumber);
 	}
 }
 
-void LRCT_GetCK0(poly_ringct20 *CK0, poly_ringct20 * CK, size_t mLen, poly_ringct20* CKi, int messBitLen)
+void LRCT_GetCK0(poly_ringct20 *CK0, poly_ringct20 * CK, int mLen, poly_ringct20* CKi, int messBitLen)
 {
-	size_t i;
+    int i;
 	poly_ringct20 *tmp = (poly_ringct20 *)malloc((mLen) * sizeof(poly_ringct20));
 	poly_ringct20 *desCK = (poly_ringct20 *)malloc((mLen) * sizeof(poly_ringct20));
 	for (i = 0; i < (mLen); i++)
