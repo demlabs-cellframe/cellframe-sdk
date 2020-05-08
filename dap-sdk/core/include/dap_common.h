@@ -33,7 +33,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-
+#ifdef __MACH__
+#include <dispatch/dispatch.h>
+#endif
 #include "portable_endian.h"
 
 typedef uint8_t byte_t;
