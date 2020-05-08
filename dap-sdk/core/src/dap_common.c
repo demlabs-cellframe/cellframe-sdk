@@ -827,7 +827,12 @@ static int s_timer_find(void *a_timer)
 static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
 {
     UNUSED(a_always_true);
-    s_timers[(int)a_arg].callback(s_timers[(int)a_arg].param);
+    s_timers[(size_t)a_arg].callback(s_timers[(size_t)a_arg].param);
+}
+#elif defined __MACH__
+static void s_bsd_callback(int a_arg)
+{
+    s_timers[a_arg].callback(s_timers[a_arg].param);
 }
 #else
 static void s_posix_callback(union sigval a_arg)
@@ -847,15 +852,25 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
         return NULL;
     }
-#ifdef _WIN32
+#ifdef WIN32
     if (s_timers_count == 0) {
         InitializeCriticalSection(&s_timers_lock);
     }
     HANDLE l_timer;
-    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)s_timers_count, a_msec, a_msec, 0)) {
+    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(size_t)s_timers_count, a_msec, a_msec, 0)) {
         return NULL;
     }
     EnterCriticalSection(&s_timers_lock);
+#elif defined __MACH__
+    if (s_timers_count == 0) {
+        pthread_mutex_init(&s_timers_lock, NULL);
+    }
+    dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
+    dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
+    dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
+    dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
+    dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
+    dispatch_resume(l_timer);
 #else
     if (s_timers_count == 0) {
         pthread_mutex_init(&s_timers_lock, NULL);
@@ -873,6 +888,8 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
     timer_settime(l_timer, 0, &l_period, NULL);
     pthread_mutex_lock(&s_timers_lock);
+#else
+    //DARWIN
 #endif
     s_timers[s_timers_count].timer = (void *)l_timer;
     s_timers[s_timers_count].callback = a_callback;
@@ -880,8 +897,10 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     s_timers_count++;
 #ifdef _WIN32
     LeaveCriticalSection(&s_timers_lock);
-#else
+#elif DAP_OS_UNIX
     pthread_mutex_unlock(&s_timers_lock);
+#else
+    //DARWIN
 #endif
     return (void *)l_timer;
 }
@@ -898,8 +917,10 @@ int dap_interval_timer_delete(void *a_timer)
     }
 #ifdef _WIN32
     EnterCriticalSection(&s_timers_lock);
-#else
+#elif DAP_OS_UNIX
     pthread_mutex_lock(&s_timers_lock);
+#else
+    //DARWIN
 #endif
     int l_timer_idx = s_timer_find(a_timer);
     if (l_timer_idx == -1) {
@@ -915,10 +936,18 @@ int dap_interval_timer_delete(void *a_timer)
         DeleteCriticalSection(&s_timers_lock);
     }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#else
+#elif DAP_OS_UNIX
+    pthread_mutex_unlock(&s_timers_lock);
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
+#ifdef __MACH__
+    dispatch_source_cancel(a_timer);
+    return 0;
+#else
     return timer_delete((timer_t)a_timer);
+#else
+   //DARWIN
+#endif
 #endif
 }

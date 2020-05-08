@@ -6,6 +6,7 @@ unix {
 }
 darwin {
     include(src/darwin/darwin.pri)
+    LIBS -= -lrt
 }
 
 win32 {

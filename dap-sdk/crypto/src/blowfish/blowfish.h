@@ -1,9 +1,10 @@
 //max using key size = (BF_ROUNDS + 2)*4 bytes = 72 bytes
 #ifndef BLOWFISH_H
-# define BLOWFISH_H
+#define BLOWFISH_H
 
 #include "inttypes.h"
 
+# define BF_BLOCK        8
 
 
 #  define BF_ENCRYPT      1
@@ -23,11 +24,10 @@ typedef struct bf_key_st {
     BF_LONG S[4 * 256];
 } BF_KEY;
 
+
 # ifdef  __cplusplus
 extern "C" {
 # endif
-# define BF_BLOCK        8
-
 void BF_set_key(BF_KEY *key, int len,
                                  const unsigned char *data);
 
@@ -54,5 +54,5 @@ const char *BF_options(void);
 # ifdef  __cplusplus
 }
 # endif
-# endif
 
+#endif
