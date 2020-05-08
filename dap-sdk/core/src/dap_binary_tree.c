@@ -24,6 +24,8 @@
 
 #include "dap_binary_tree.h"
 
+
+
 static void s_list_construct(dap_list_t *a_list, dap_binary_tree_t *a_elm)
 {
     if (a_elm != NULL) {
@@ -41,9 +43,9 @@ dap_list_t *dap_binary_tree_inorder_list(dap_binary_tree_t *a_tree_root) {
 
 static dap_binary_tree_t *s_tree_search(dap_binary_tree_t *a_elm, dap_binary_tree_key_t a_key)
 {
-    if (a_elm == NULL || a_key == a_elm->key)
+    if (a_elm == NULL || KEY_EQ(a_key, a_elm->key))
         return a_elm;
-    if (a_key < a_elm->key) {
+    if (KEY_LS(a_key, a_elm->key)) {
         return s_tree_search(a_elm->left, a_key);
     } else {
         return s_tree_search(a_elm->right, a_key);
@@ -93,21 +95,21 @@ void *dap_binary_tree_maximum(dap_binary_tree_t *a_tree_root)
 
 static dap_binary_tree_t *s_tree_insert(dap_binary_tree_t *a_elm, dap_binary_tree_key_t a_key, void *a_data)
 {
-   if (a_elm == NULL) {
-       dap_binary_tree_t* l_elm = DAP_NEW(dap_binary_tree_t);
-       l_elm->left = l_elm->right = NULL;
-       l_elm->key = a_key;
-       l_elm->data = a_data;
-       return l_elm;
-   }
-   if (a_key < a_elm->key) {
-      a_elm->left = s_tree_insert(a_elm->left, a_key, a_data);
-   } else if (a_key > a_elm->key) {
-      a_elm->right = s_tree_insert(a_elm->right, a_key, a_data);
-   } else {// if (a_key == a_elm->key
-       a_elm->data = a_data;
-   }
-   return a_elm;
+    if (a_elm == NULL) {
+        dap_binary_tree_t* l_elm = DAP_NEW(dap_binary_tree_t);
+        l_elm->left = l_elm->right = NULL;
+        l_elm->key = a_key;
+        l_elm->data = a_data;
+        return l_elm;
+    }
+    if (KEY_LS(a_key, a_elm->key)) {
+        a_elm->left = s_tree_insert(a_elm->left, a_key, a_data);
+    } else if (KEY_GT(a_key, a_elm->key)) {
+        a_elm->right = s_tree_insert(a_elm->right, a_key, a_data);
+    } else { //if KEY_EQ(a_key, a_elm->key)
+        a_elm->data = a_data;
+    }
+    return a_elm;
 }
 
 void dap_binary_tree_insert(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key, void *a_data)
@@ -120,13 +122,11 @@ static dap_binary_tree_t *s_tree_delete(dap_binary_tree_t *a_elm, dap_binary_tre
     if (a_elm == NULL) {
         return a_elm;
     }
-    if (a_key < a_elm->key) {
+    if (KEY_LS(a_key, a_elm->key)) {
         a_elm->left = s_tree_delete(a_elm->left, a_key);
-    }
-    else if (a_key > a_elm->key) {
+    } else if (KEY_GT(a_key, a_elm->key)) {
         a_elm->right = s_tree_delete(a_elm->right, a_key);
-    }
-    else if (a_elm->left && a_elm->right) {
+    } else if (a_elm->left && a_elm->right) {
         dap_binary_tree_t *l_tmp = s_tree_minimum(a_elm->right);
         a_elm->key = l_tmp->key;
         a_elm->data = l_tmp->data;

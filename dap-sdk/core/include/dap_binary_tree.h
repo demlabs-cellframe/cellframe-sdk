@@ -24,10 +24,14 @@
 
 #pragma once
 
+#include <string.h>
 #include "dap_common.h"
 #include "dap_list.h"
 
-typedef size_t dap_binary_tree_key_t;
+typedef const char *dap_binary_tree_key_t;
+#define KEY_LS(a, b) (strcmp(a, b) < 0)
+#define KEY_GT(a, b) (strcmp(a, b) > 0)
+#define KEY_EQ(a, b) (strcmp(a, b) == 0)
 
 typedef struct dap_binary_tree {
     dap_binary_tree_key_t key;

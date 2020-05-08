@@ -104,6 +104,14 @@ void dap_cert_deinit();
 void dap_cert_delete(dap_cert_t * a_cert);
 void dap_cert_delete_by_name(const char * a_cert_name);
 
+char *dap_cert_get_meta_string(dap_cert_t *a_cert, const char *a_field);
+bool dap_cert_get_meta_bool(dap_cert_t *a_cert, const char *a_field);
+int dap_cert_get_meta_int(dap_cert_t *a_cert, const char *a_field);
+time_t dap_cert_get_meta_time(dap_cert_t *a_cert, const char *a_field);
+time_t dap_cert_get_meta_period(dap_cert_t *a_cert, const char *a_field);
+dap_sign_t *dap_cert_get_meta_sign(dap_cert_t *a_cert, const char *a_field);
+void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field);
+
 #ifdef __cplusplus
 }
 #endif
