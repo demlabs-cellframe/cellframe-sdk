@@ -829,6 +829,11 @@ static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
     UNUSED(a_always_true);
     s_timers[(int)a_arg].callback(s_timers[(int)a_arg].param);
 }
+#elif defined __MACH__
+static void s_bsd_callback(int a_arg)
+{
+    s_timers[a_arg].callback(s_timers[a_arg].param);
+}
 #else
 static void s_posix_callback(union sigval a_arg)
 {
@@ -856,6 +861,16 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
         return NULL;
     }
     EnterCriticalSection(&s_timers_lock);
+#elif defined __MACH__
+    if (s_timers_count == 0) {
+        pthread_mutex_init(&s_timers_lock, NULL);
+    }
+    dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
+    dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
+    dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
+    dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
+    dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
+    dispatch_resume(l_timer);
 #else
     if (s_timers_count == 0) {
         pthread_mutex_init(&s_timers_lock, NULL);
@@ -919,6 +934,11 @@ int dap_interval_timer_delete(void *a_timer)
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
+#ifdef __MACH__
+    dispatch_source_cancel(a_timer);
+    return 0;
+#else
     return timer_delete((timer_t)a_timer);
+#endif
 #endif
 }
