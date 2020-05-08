@@ -100,7 +100,7 @@ endif()
 
 if(ANDROID)
     add_subdirectory(src/android)
-    target_link_libraries(${PROJECT_NAME} dap_core_android)
+    target_link_libraries(${PROJECT_NAME} dap_core_android rt)
 endif()
 
 if (WIN32)
