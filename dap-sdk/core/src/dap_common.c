@@ -873,7 +873,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
     timer_settime(l_timer, 0, &l_period, NULL);
     pthread_mutex_lock(&s_timers_lock);
-#esle
+#else
     //DARWIN
 #endif
     s_timers[s_timers_count].timer = (void *)l_timer;
