@@ -56,6 +56,7 @@
 #include "uthash.h"
 #include "utlist.h"
 
+
 #include "dap_string.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
@@ -64,6 +65,7 @@
 #include "dap_string.h"
 #include "dap_cert.h"
 #include "dap_cert_file.h"
+#include "dap_file_utils.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
@@ -75,6 +77,7 @@
 #include "dap_chain_net_srv.h"
 #ifndef _WIN32
 #include "dap_chain_net_vpn_client.h"
+#include "dap_chain_net_news.h"
 #endif
 #include "dap_chain_cell.h"
 
@@ -1881,7 +1884,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
                         l_datum_size += l_sign_size;
                         l_datum_token_size+= l_sign_size;
 
-                        if ( l_datum = DAP_REALLOC(l_datum, l_datum_size) ){ // add place for new signatures
+                        if ( (l_datum = DAP_REALLOC(l_datum, l_datum_size)) != NULL ){ // add place for new signatures
                             l_datum_token = (dap_chain_datum_token_t*) l_datum->data;
                             l_datum->header.data_size = l_datum_token_size;
                             memcpy(l_datum_token->data_n_tsd + l_offset, l_sign, l_sign_size);
@@ -3758,12 +3761,12 @@ int com_news(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "no source of news, add parameter -text or -file");
         return -1;
     }
-    byte_t *l_data_news;
+    char *l_data_news;
     size_t l_data_news_len = 0;
     const char *l_from = NULL;
 
     if(l_str_text) {
-        l_data_news = (byte_t*) l_str_text;
+        l_data_news = dap_strdup(l_str_text);
         l_data_news_len = dap_strlen(l_str_text);
         l_from = "text";
     }

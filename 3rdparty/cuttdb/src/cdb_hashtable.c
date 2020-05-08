@@ -496,7 +496,7 @@ CDBHTITEM *cdb_ht_iternext(CDBHASHTABLE *ht, CDBHTITEM *cur)
         CDBHTBUCKET *bucket = &(ht->buckets[i]);
         if (!bucket->rnum)
             continue;
-        for(int j = 0; j < bucket->bnum; j++)
+        for(uint32_t  j = 0; j < bucket->bnum; j++)
             if (bucket->items[j])
                 return bucket->items[j];
     }

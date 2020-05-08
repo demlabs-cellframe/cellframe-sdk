@@ -22,7 +22,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+
 #include <stdlib.h>
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -80,7 +83,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-//#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #define __USE_XOPEN
 #define _GNU_SOURCE
 #include <time.h>
@@ -246,7 +249,10 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                                                      const size_t a_value_len)
 {
     (void) a_op_code;
-
+    UNUSED(a_key);
+    UNUSED(a_value_len);
+    UNUSED(a_prefix);
+    UNUSED(a_group);
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
         s_net_set_go_sync(l_net);
@@ -685,7 +691,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 //l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_size);
                 //if( l_lasts ) {
                     l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
-                    dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
+                    dap_stream_ch_chain_sync_request_t l_request ;
+                    memset(&l_request, 0, sizeof (l_request));
                     //dap_hash_fast(l_lasts[0], l_chain->callback_atom_get_size(l_lasts[0]), &l_request.hash_from);
                     dap_stream_ch_chain_pkt_write(l_ch_chain,
                     DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id, l_chain->id,
@@ -1081,7 +1088,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 struct tm l_from_tm = {0};
 
                 const char *l_prev_sec_str = NULL;
-                time_t l_prev_sec_ts;
+                //time_t l_prev_sec_ts;
 
                 const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
 
@@ -1480,8 +1487,8 @@ int s_net_load(const char * a_net_name)
                         l_node_info->hdr.ext_port = 8079;
 
                     if ( l_seed_nodes_hostnames_len ){
-                        struct addrinfo l_hints={0}, *l_servinfo, *p;
-                        int rv;
+                        struct addrinfo l_hints={0};
+
                         l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
                         //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
 

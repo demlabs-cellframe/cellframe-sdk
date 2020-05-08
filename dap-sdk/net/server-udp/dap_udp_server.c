@@ -166,6 +166,7 @@ dap_server_t *dap_udp_server_listen( uint16_t port ) {
  */
 static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 {
+    UNUSED(revents);
   dap_udp_client_t *udp_client, *tmp;
 
 //  dap_server_t *sh = watcher->data;
@@ -251,10 +252,11 @@ int check_close( dap_client_remote_t *client )
  */
 static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 {
+    UNUSED(revents);
 //    if ( !(revents & EV_READ) ) return;
 
     struct sockaddr_in clientaddr;
-    int clientlen = sizeof(clientaddr);
+    socklen_t clientlen = sizeof(clientaddr);
 //    dap_server_t *sh = watcher->data;
 
     memset( buf, 0, BUFSIZE );

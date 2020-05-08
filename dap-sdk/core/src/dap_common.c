@@ -358,7 +358,9 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
  */
 char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
-   return NULL; // TODO
+    UNUSED(a_start_time);
+    UNUSED(a_limit);
+    return NULL; // TODO
 }
 
 /**
@@ -801,7 +803,7 @@ int exec_silent(const char * a_cmd) {
         return -1;
     }
 #else
-    return execl(".",a_cmd);
+    return execl(".","%s",a_cmd,NULL);
 #endif
 }
 
@@ -861,10 +863,12 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
         return NULL;
     }
     EnterCriticalSection(&s_timers_lock);
-#elif defined __MACH__
+#elif defined DAP_OS_DARWIN
     if (s_timers_count == 0) {
         pthread_mutex_init(&s_timers_lock, NULL);
     }
+    pthread_mutex_lock(&s_timers_lock);
+
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
     dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
     dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
@@ -888,8 +892,6 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
     timer_settime(l_timer, 0, &l_period, NULL);
     pthread_mutex_lock(&s_timers_lock);
-#else
-    //DARWIN
 #endif
     s_timers[s_timers_count].timer = (void *)l_timer;
     s_timers[s_timers_count].callback = a_callback;
@@ -899,8 +901,6 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     LeaveCriticalSection(&s_timers_lock);
 #elif DAP_OS_UNIX
     pthread_mutex_unlock(&s_timers_lock);
-#else
-    //DARWIN
 #endif
     return (void *)l_timer;
 }
@@ -919,8 +919,6 @@ int dap_interval_timer_delete(void *a_timer)
     EnterCriticalSection(&s_timers_lock);
 #elif DAP_OS_UNIX
     pthread_mutex_lock(&s_timers_lock);
-#else
-    //DARWIN
 #endif
     int l_timer_idx = s_timer_find(a_timer);
     if (l_timer_idx == -1) {
@@ -941,13 +939,11 @@ int dap_interval_timer_delete(void *a_timer)
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
-#ifdef __MACH__
+    #ifdef DAP_OS_DARWIN
     dispatch_source_cancel(a_timer);
     return 0;
-#else
-    return timer_delete((timer_t)a_timer);
-#else
-   //DARWIN
-#endif
+    #else
+        return timer_delete((timer_t)a_timer);
+    #endif
 #endif
 }

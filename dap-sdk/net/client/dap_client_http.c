@@ -80,6 +80,7 @@ typedef struct dap_http_client_internal {
  */
 static void s_http_new(dap_events_socket_t * a_es, void * arg)
 {
+    UNUSED(arg);
     log_it(L_DEBUG, "HTTP client connected");
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
     if(!l_client_http_internal) {
@@ -100,6 +101,8 @@ static void s_http_new(dap_events_socket_t * a_es, void * arg)
  */
 static void s_http_write(dap_events_socket_t * a_es, void * arg)
 {
+    UNUSED(a_es);
+    UNUSED(arg);
 //    log_it(L_DEBUG, "s_http_write ");
 //    dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
 //    if(!l_client_internal) {
@@ -242,6 +245,7 @@ static void s_http_error(dap_events_socket_t * a_es, void * arg)
  */
 static void s_http_delete(dap_events_socket_t *a_es, void *arg)
 {
+    UNUSED(arg);
     // call from dap_events_socket_delete(ev_socket, true);
     log_it(L_DEBUG, "HTTP client disconnected");
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
@@ -362,7 +366,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     inet_pton(AF_INET, a_uplink_addr, &(l_remote_addr.sin_addr));
     //Resolve addr if
     if(!l_remote_addr.sin_addr.s_addr) {
-        if(resolve_host(a_uplink_addr, AF_INET, &l_remote_addr.sin_addr) < 0) {
+        if(resolve_host(a_uplink_addr, AF_INET, (struct sockaddr*) &l_remote_addr.sin_addr) < 0) {
             log_it(L_ERROR, "Wrong remote address '%s:%u'", a_uplink_addr, a_uplink_port);
             dap_events_socket_kill_socket(l_ev_socket);
             return NULL;
@@ -403,7 +407,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
         }
 
         if(a_custom) {
-            for(int i = 0; i < a_custom_count; i++) {
+            for( size_t i = 0; i < a_custom_count; i++) {
                 l_request_headers = dap_string_append(l_request_headers, (char*) a_custom[i]);
                 l_request_headers = dap_string_append(l_request_headers, "\r\n");
             }

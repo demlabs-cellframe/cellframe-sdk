@@ -37,7 +37,7 @@ typedef struct dap_db_log_list {
     int64_t group_number; // number of group
     int64_t group_cur; // current group number, -1 for the main group, 0 ... group_count for the additional group
     size_t *group_number_items; // number of items for each group
-    int64_t *group_last_id;
+    uint64_t *group_last_id;
     dap_list_t *add_groups; // additional group for sync
     pthread_t thread;
     pthread_mutex_t list_mutex;
