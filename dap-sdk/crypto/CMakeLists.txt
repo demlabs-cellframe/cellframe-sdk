@@ -3,27 +3,6 @@ project (dap_crypto)
 
 # fix implicit declaration warnings
 add_definitions ("-D_GNU_SOURCE")
-if(NOT SUBMODULES_NO_BUILD)
-
-  # Check whether we're on a 32-bit or 64-bit system
-  if(CMAKE_SIZEOF_VOID_P EQUAL "8")
-    set(DEFAULT_BUILD_64 ON)
-  else()
-    set(DEFAULT_BUILD_64 OFF)
-  endif()
-  option(BUILD_64 "Build for 64-bit? 'OFF' builds for 32-bit." ${DEFAULT_BUILD_64})
-
-
-  set(_CCOPT "-Wall -O2 -pg -fPIC -fno-pie -no-pie")
-  set(_LOPT "-pg")
-  SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_CCOPT}")
-  set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${_LOPT}")
-
-  if (NOT (TARGET dap_core))
-    add_subdirectory(libdap)
-  endif()
-endif()
 
 file( GLOB CRYPTO_SRCS
       src/*.c
