@@ -2142,11 +2142,11 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                             dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
                             ret = -6;
                         }else{
-                            dap_string_append_printf(l_str_tmp, "Datum processed well.");
-                            if (dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str), l_gdb_group_mempool)){
+                            dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                            if (!dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str), l_gdb_group_mempool)){
                                 dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                             }else
-                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool");
+                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
                         }
                     }else{
                         dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
