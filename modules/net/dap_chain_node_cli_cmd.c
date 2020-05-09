@@ -2836,7 +2836,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     }
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL, l_datum_token,
-            sizeof(l_datum_token->header_private) + l_datum_data_offset);
+            sizeof(*l_datum_token) + l_datum_data_offset);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
     // Calc datum's hash
