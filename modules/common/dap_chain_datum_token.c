@@ -74,23 +74,19 @@ dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, 
 dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token, size_t a_token_size)
 {
     // Check if token type could have tsd section
-    size_t l_hdr_size;
+    size_t l_hdr_size = sizeof(*a_token);
     size_t l_tsd_size;
+
+    if (l_hdr_size > a_token_size){
+        log_it(L_WARNING, "Token size smaller then header, corrupted data");
+        return NULL;
+    }
+
     switch( a_token->type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-            l_hdr_size = sizeof (a_token->header_private_decl);
-            if (l_hdr_size> a_token_size){
-                log_it(L_WARNING, "Token size smaller then header, corrupted data");
-                return NULL;
-            }
             l_tsd_size = a_token->header_private_decl.tsd_total_size;
         break;
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-            l_hdr_size = sizeof(a_token->header_private_update);
-            if (l_hdr_size> a_token_size){
-                log_it(L_WARNING, "Token size smaller then header, corrupted data");
-                return NULL;
-            }
             l_tsd_size = a_token->header_private_update.tsd_total_size;
         break;
         default: return NULL;
