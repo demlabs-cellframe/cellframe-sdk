@@ -32,10 +32,12 @@
 #define NBYTES_TO_NWORDS(nbytes)    (((nbytes)+sizeof(digit_t)-1)/sizeof(digit_t))           // Conversion macro from number of bytes to number of computer words
 
 // Macro to avoid compiler warnings when detecting unreferenced parameters
+#ifndef UNREFERENCED_PARAMETER
 #define UNREFERENCED_PARAMETER(PAR) ((void)(PAR))
+#endif
 
-#define PASSED    0
-#define FAILED    1
+#define PASSED_DEFEO    0
+#define FAILED_DEFEO  1
 
 /********************** Constant-time unsigned comparisons ***********************/
 

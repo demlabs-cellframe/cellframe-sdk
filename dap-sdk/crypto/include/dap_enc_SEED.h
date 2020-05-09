@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include "dap_enc_key.h"
-#include "seed.h"
+#include "seed/seed.h"
 
 #ifdef __cplusplus
 extern "C" {
