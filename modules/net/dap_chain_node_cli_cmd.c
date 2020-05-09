@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Authors:
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -2728,6 +2728,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                 }
                 size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
+                l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
                 l_datum_data_offset += l_tsd_size;
             }
 
