@@ -2704,6 +2704,10 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
                                 dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t) );
                     break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
+                        log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
+                               dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                    break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
                         log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: %s",
                                 dap_chain_datum_token_tsd_get_string_const(l_tsd) );
