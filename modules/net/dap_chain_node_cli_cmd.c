@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Authors:
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -2145,11 +2145,11 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                             dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
                             ret = -6;
                         }else{
-                            dap_string_append_printf(l_str_tmp, "Datum processed well.");
-                            if (dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str), l_gdb_group_mempool)){
+                            dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                            if (!dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_str), l_gdb_group_mempool)){
                                 dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                             }else
-                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool");
+                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
                         }
                     }else{
                         dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
@@ -2707,6 +2707,10 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
                                 dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t) );
                     break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
+                        log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
+                               dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                    break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
                         log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: %s",
                                 dap_chain_datum_token_tsd_get_string_const(l_tsd) );
@@ -2727,6 +2731,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                 }
                 size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
+                l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
                 l_datum_data_offset += l_tsd_size;
             }
 
@@ -2834,7 +2839,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     }
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL, l_datum_token,
-            sizeof(l_datum_token->header_private) + l_datum_data_offset);
+            sizeof(*l_datum_token) + l_datum_data_offset);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
     // Calc datum's hash

@@ -242,7 +242,7 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
 #define dap_chain_datum_token_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
 
 // NULL-terminated string
-#define dap_chain_datum_token_tsd_create_string(type,str) dap_chain_datum_token_tsd_create (type,str, dap_strlen(str))
+#define dap_chain_datum_token_tsd_create_string(type,str) dap_chain_datum_token_tsd_create (type,str, dap_strlen(str)+1)
 #define dap_chain_datum_token_tsd_get_string(a)  ( ((char*) a->data )[a->size-1] == '\0'? (char*) a->data  : "<CORRUPTED STRING>" )
 #define dap_chain_datum_token_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : "<CORRUPTED STRING>" )
 
