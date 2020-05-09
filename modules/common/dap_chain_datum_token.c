@@ -128,6 +128,10 @@ dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token
  */
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags)
 {
+    if(!a_flags){
+        dap_string_append_printf(a_str_out, "<NONE>\n");
+        return;
+    }
     for ( uint16_t i = 0;  (2^i) <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
         if(   a_flags & (2^i) )
             dap_string_append_printf(a_str_out,"%s%s", c_dap_chain_datum_token_flag_str[2^i],
