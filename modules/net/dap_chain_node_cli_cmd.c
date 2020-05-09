@@ -2337,6 +2337,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
                     l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
                 }else if ( strcmp( argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
+                    l_signs_total = l_param_value;
                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
@@ -2615,6 +2616,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                     l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
                 }else if ( strcmp( argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
+                    l_signs_total = l_param_value;
                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
