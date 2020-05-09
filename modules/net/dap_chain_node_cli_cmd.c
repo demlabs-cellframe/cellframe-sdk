@@ -2702,7 +2702,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                 }
                 switch (l_tsd->type){
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %llf.20",
+                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %0.9llf",
                                dap_chain_balance_to_coins( dap_chain_datum_token_tsd_get_scalar(l_tsd,uint128_t) ) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
