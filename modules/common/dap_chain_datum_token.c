@@ -57,7 +57,7 @@ dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, 
     dap_chain_datum_token_tsd_t * l_tsd = DAP_NEW_Z_SIZE(dap_chain_datum_token_tsd_t,
                                                          sizeof(dap_chain_datum_token_tsd_t) + a_data_size );
     if ( l_tsd ){
-        memcpy(l_tsd->data,&a_data , a_data_size );
+        memcpy(l_tsd->data, a_data , a_data_size );
         l_tsd->type = a_type;
         l_tsd->size = a_data_size;
     }
