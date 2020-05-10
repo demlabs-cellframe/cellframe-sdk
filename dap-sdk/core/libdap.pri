@@ -2,19 +2,21 @@ QMAKE_CFLAGS_DEBUG = -std=gnu11
 QMAKE_CFLAGS_RELEASE = -std=gnu11
 unix {
     include(src/unix/unix.pri)
+    DEFINES += DAP_OS_UNIX
     LIBS += -lrt
 }
 darwin {
     include(src/darwin/darwin.pri)
+    DEFINES += DAP_OS_DARWIN
     LIBS -= -lrt
 }
 
 win32 {
     include(src/win32/win32.pri)
     LIBS += -lpsapi
+    DEFINES += DAP_OS_WINDOWS
 }
 
-DEFINES += DAP_LOG_MT
 HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_config.h \
     $$PWD/include/dap_math_ops.h \

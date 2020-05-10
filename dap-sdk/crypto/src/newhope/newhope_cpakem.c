@@ -1,7 +1,7 @@
 #include <string.h>
-#include "api.h"
-#include "cpapke.h"
-#include "params.h"
+#include "newhope_api.h"
+#include "newhope_cpapke.h"
+#include "newhope_params.h"
 #include "rand/dap_rand.h"
 #include "sha3/fips202.h"
 

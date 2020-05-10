@@ -1,5 +1,5 @@
-#include "reduce.h"
-#include "params.h"
+#include "newhope_reduce.h"
+#include "newhope_params.h"
 
 static const uint32_t qinv = 12287; // -inverse_mod(p,2^18)
 static const uint32_t rlog = 18;

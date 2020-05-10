@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include "api.h"
-#include "poly.h"
+#include "newhope_api.h"
+#include "newhope_poly.h"
 #include "rand/dap_rand.h"
 #include "sha3/fips202.h"
 

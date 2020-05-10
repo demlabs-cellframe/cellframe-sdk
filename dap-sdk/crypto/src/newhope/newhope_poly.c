@@ -1,6 +1,6 @@
-#include "poly.h"
-#include "ntt.h"
-#include "reduce.h"
+#include "newhope_poly.h"
+#include "newhope_ntt.h"
+#include "newhope_reduce.h"
 #include "sha3/fips202.h"
 
 /*************************************************

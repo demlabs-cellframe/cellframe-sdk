@@ -1,7 +1,29 @@
-#ifndef _DAP_ENC_NEWHOPE_H_
-#define _DAP_ENC_NEWHOPE_H_
+/*
+ * Authors:
+ * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Demlabs Limited   https://demlabs.net
+ * Sources community https://gitlab.demlabs.net/cellframe/cellframe-sdk/dap-sdk
+ * Copyright  (c) 2017-2020
+ * All rights reserved.
 
-#include "newhope/cpakem.h"
+ This file is part of DAP SDK the open source project
+
+    DAP SDK is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    DAP is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include "newhope/newhope_cpakem.h"
 #include "dap_enc_key.h"
 
 
@@ -61,4 +83,3 @@ void dap_enc_newhope_kem_key_delete(struct dap_enc_key * key);
 //newhope_private_key_t* dap_enc_newhope_read_private_key(const uint8_t *a_buf, size_t a_buflen);
 //newhope_public_key_t* dap_enc_newhope_read_public_key(const uint8_t *a_buf, size_t a_buflen);
 
-#endif

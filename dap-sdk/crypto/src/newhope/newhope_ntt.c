@@ -1,7 +1,7 @@
 #include "inttypes.h"
-#include "ntt.h"
-#include "params.h"
-#include "reduce.h"
+#include "newhope_ntt.h"
+#include "newhope_params.h"
+#include "newhope_reduce.h"
 
 #if (NEWHOPE_N == 512)
 /************************************************************

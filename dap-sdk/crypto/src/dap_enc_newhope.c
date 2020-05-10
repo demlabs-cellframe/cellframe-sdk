@@ -1,12 +1,34 @@
-#include <assert.h>
-#include <inttypes.h>
-#include <string.h>
+/*
+ * Authors:
+ * Dmitriy A. Gearasimov <naeper@demlabs.net>
+ * Demlabs Limited   https://demlabs.net
+ * Sources community https://gitlab.demlabs.net/cellframe/cellframe-sdk/dap-sdk
+ * Copyright  (c) 2017-2020
+ * All rights reserved.
+
+ This file is part of DAP SDK the open source project
+
+    DAP SDK is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    DAP is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#include <stdio.h>
 
 #include "dap_enc_newhope.h"
 #include "dap_common.h"
 #include "rand/dap_rand.h"
-#include "newhope/cpapke.h"
-#include "newhope/params.h"
+#include "newhope/newhope_cpapke.h"
+#include "newhope/newhope_params.h"
 
 
 #define LOG_TAG "dap_enc_newhope_pke"
@@ -36,7 +58,9 @@ void dap_enc_newhope_kem_key_new_generate(struct dap_enc_key * a_key, const void
         size_t kex_size, const void * seed, size_t seed_size,
         size_t key_size)
 {
-
+    UNUSED(kex_buf);
+    UNUSED(key_size);
+    UNUSED(seed);
     DAP_NEWHOPE_SIGN_SECURITY newhope_type = NEWHOPE_1024;
     dap_enc_newhope_pke_set_type(newhope_type);
 

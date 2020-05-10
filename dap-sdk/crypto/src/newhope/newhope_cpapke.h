@@ -1,5 +1,4 @@
-#ifndef INDCPA_H
-#define INDCPA_H
+#pragma once
 
 void cpapke_keypair(unsigned char *pk, 
                     unsigned char *sk);
@@ -13,4 +12,3 @@ void cpapke_dec(unsigned char *m,
                const unsigned char *c,
                const unsigned char *sk);
 
-#endif
