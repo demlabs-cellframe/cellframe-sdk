@@ -2217,7 +2217,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                                         char *l_hash_str = dap_chain_hash_fast_to_str_new(
                                                     (dap_chain_hash_fast_t*) l_tsd->data );
-                                        dap_string_append_printf(a_str_out,"total_signs_remoev: %s\n", l_hash_str );
+                                        dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
                                         dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %zd>\n", l_tsd->size);
@@ -2295,7 +2295,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                             }
                             switch( l_tsd->type){
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                                    dap_string_append_printf(a_str_out,"total_supply: %u\n",
+                                    dap_string_append_printf(a_str_out,"total_supply: %lu\n",
                                                              dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t) );
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
