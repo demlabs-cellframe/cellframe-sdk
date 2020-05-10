@@ -479,14 +479,14 @@ dap_multi_sign_t *dap_multi_sign_deserialize(dap_sign_type_enum_t a_type, uint8_
     l_mem_shift++;
     memcpy(&l_sign->sign_count, &a_sign[l_mem_shift], 1);
     l_mem_shift++;
-    l_sign->key_seq = DAP_NEW_SIZE(dap_multi_sign_keys_t, l_sign->sign_count * sizeof(dap_multi_sign_keys_t));
+    l_sign->key_seq = DAP_NEW_Z_SIZE(dap_multi_sign_keys_t, l_sign->sign_count * sizeof(dap_multi_sign_keys_t));
     for (int i = 0; i < l_sign->sign_count; i++) {
         memcpy(&l_sign->key_seq[i].num, &a_sign[l_mem_shift], 1);
         l_mem_shift++;
         memcpy(&l_sign->key_seq[i].type, &a_sign[l_mem_shift], sizeof(dap_sign_type_t));
         l_mem_shift += sizeof(dap_sign_type_t);
     }
-    l_sign->meta = DAP_NEW_SIZE(dap_multi_sign_meta_t, l_sign->sign_count * sizeof(dap_multi_sign_meta_t));
+    l_sign->meta = DAP_NEW_Z_SIZE(dap_multi_sign_meta_t, l_sign->sign_count * sizeof(dap_multi_sign_meta_t));
     size_t l_pkeys_size = 0, l_signes_size = 0;
     for (int i = 0; i < l_sign->sign_count; i++) {
         memcpy(&l_sign->meta[i].pkey_size, &a_sign[l_mem_shift], sizeof(uint32_t));
@@ -496,13 +496,13 @@ dap_multi_sign_t *dap_multi_sign_deserialize(dap_sign_type_enum_t a_type, uint8_
         l_mem_shift += sizeof(uint32_t);
         l_signes_size += l_sign->meta[i].sign_size;
     }
-    l_sign->key_hashes = DAP_NEW_SIZE(dap_chain_hash_fast_t, l_sign->total_count * sizeof(dap_chain_hash_fast_t));
+    l_sign->key_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, l_sign->total_count * sizeof(dap_chain_hash_fast_t));
     for (int i = 0; i < l_sign->total_count; i++) {
         memcpy(&l_sign->key_hashes[i], &a_sign[l_mem_shift], sizeof(dap_chain_hash_fast_t));
         l_mem_shift += sizeof(dap_chain_hash_fast_t);
     }
     uint32_t l_data_shift = 0, l_data_size = 0;
-    l_sign->pub_keys = DAP_NEW_SIZE(uint8_t, l_pkeys_size);
+    l_sign->pub_keys = DAP_NEW_Z_SIZE(uint8_t, l_pkeys_size);
     for (int i = 0; i < l_sign->sign_count; i++) {
         l_data_size = l_sign->meta[i].pkey_size;
         memcpy( &l_sign->pub_keys[l_data_shift], &a_sign[l_mem_shift],l_data_size);
@@ -510,7 +510,7 @@ dap_multi_sign_t *dap_multi_sign_deserialize(dap_sign_type_enum_t a_type, uint8_
         l_data_shift += l_data_size;
     }
     l_data_shift = l_data_size = 0;
-    l_sign->sign_data = DAP_NEW_SIZE(uint8_t, l_signes_size);
+    l_sign->sign_data = DAP_NEW_Z_SIZE(uint8_t, l_signes_size);
     for (int i = 0; i < l_sign->sign_count; i++) {
         l_data_size = l_sign->meta[i].sign_size;
         memcpy(&l_sign->sign_data[l_data_shift], &a_sign[l_mem_shift], l_data_size);
@@ -632,7 +632,7 @@ dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const
     dap_multi_sign_t *l_sign = DAP_NEW_Z(dap_multi_sign_t);
     l_sign->type = a_params->type;
     l_sign->total_count = a_params->total_count;
-    l_sign->key_hashes = DAP_NEW_SIZE(dap_chain_hash_fast_t, a_params->total_count * sizeof(dap_chain_hash_fast_t));
+    l_sign->key_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, a_params->total_count * sizeof(dap_chain_hash_fast_t));
     for (int i = 0; i < a_params->total_count; i++) {
         if (!dap_hash_fast(a_params->keys[i]->pub_key_data, a_params->keys[i]->pub_key_data_size, &l_sign->key_hashes[i])) {
             log_it (L_ERROR, "Can't create multi-signature hash");
@@ -641,8 +641,8 @@ dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const
         }
     }
     l_sign->sign_count = a_params->sign_count;
-    l_sign->key_seq = DAP_NEW_SIZE(dap_multi_sign_keys_t, a_params->sign_count * sizeof(dap_multi_sign_keys_t));
-    l_sign->meta = DAP_NEW_SIZE(dap_multi_sign_meta_t, a_params->sign_count * sizeof(dap_multi_sign_meta_t));
+    l_sign->key_seq = DAP_NEW_Z_SIZE(dap_multi_sign_keys_t, a_params->sign_count * sizeof(dap_multi_sign_keys_t));
+    l_sign->meta = DAP_NEW_Z_SIZE(dap_multi_sign_meta_t, a_params->sign_count * sizeof(dap_multi_sign_meta_t));
     for (int i = 0; i < l_sign->sign_count; i++) {
         uint8_t l_num = a_params->key_seq[i];
         l_sign->key_seq[i].num = l_num;
@@ -674,7 +674,7 @@ dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const
         uint8_t *l_pkey = dap_sign_get_pkey(l_dap_sign_step, &l_pkey_size);
         l_sign->meta[i].pkey_size = l_pkey_size;
         if (l_pkeys_mem_shift == 0) {
-            l_sign->pub_keys = DAP_NEW_SIZE(uint8_t, l_pkey_size);
+            l_sign->pub_keys = DAP_NEW_Z_SIZE(uint8_t, l_pkey_size);
         } else {
             l_sign->pub_keys = DAP_REALLOC(l_sign->pub_keys, l_pkeys_mem_shift + l_pkey_size);
         }
@@ -683,7 +683,7 @@ dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const
         uint8_t *l_sign_step = dap_sign_get_sign(l_dap_sign_step, &l_sign_size);
         l_sign->meta[i].sign_size = l_sign_size;
         if (l_signs_mem_shift == 0) {
-            l_sign->sign_data = DAP_NEW_SIZE(uint8_t, l_sign_size);
+            l_sign->sign_data = DAP_NEW_Z_SIZE(uint8_t, l_sign_size);
         } else {
             l_sign->sign_data = DAP_REALLOC(l_sign->sign_data, l_signs_mem_shift + l_sign_size);
         }
