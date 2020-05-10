@@ -2294,7 +2294,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
                              dap_chain_node_cli_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
                              return -20;
                          }
-                         l_flags |= l_flag;
+                         l_flags |= (1<<l_flag);
                          l_str_flags++;
                      }
                      // Add flags as set_flags TDS section
@@ -2605,7 +2605,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                              dap_chain_node_cli_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
                              return -20;
                          }
-                         l_flags |= l_flag;
+                         l_flags |= (1<<l_flag);
                          l_str_flags++;
                      }
                 } else if ( strcmp( argv[l_arg_index],"-total_supply" )==0){ // Total supply
