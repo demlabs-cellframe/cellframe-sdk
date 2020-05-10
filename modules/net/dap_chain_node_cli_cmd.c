@@ -2294,7 +2294,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
                              dap_chain_node_cli_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
                              return -20;
                          }
-                         l_flags |= l_flag;
+                         l_flags |= (1<<l_flag);
                          l_str_flags++;
                      }
                      // Add flags as set_flags TDS section
@@ -2337,6 +2337,7 @@ int com_token_update(int argc, char ** argv, void *arg_func, char ** a_str_reply
                     l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
                 }else if ( strcmp( argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
+                    l_signs_total = l_param_value;
                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
@@ -2604,7 +2605,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                              dap_chain_node_cli_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
                              return -20;
                          }
-                         l_flags |= l_flag;
+                         l_flags |= (1<<l_flag);
                          l_str_flags++;
                      }
                 } else if ( strcmp( argv[l_arg_index],"-total_supply" )==0){ // Total supply
@@ -2613,8 +2614,9 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
-                }else if ( strcmp( argv[l_arg_index],"-signs_valid" )==0){ // Signs valid
+                }else if ( strcmp( argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
+                    l_signs_total = l_param_value;
                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
@@ -2700,7 +2702,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
                 }
                 switch (l_tsd->type){
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %llf.20",
+                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %0.9llf",
                                dap_chain_balance_to_coins( dap_chain_datum_token_tsd_get_scalar(l_tsd,uint128_t) ) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:

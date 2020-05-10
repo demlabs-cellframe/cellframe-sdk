@@ -2217,7 +2217,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                                         char *l_hash_str = dap_chain_hash_fast_to_str_new(
                                                     (dap_chain_hash_fast_t*) l_tsd->data );
-                                        dap_string_append_printf(a_str_out,"total_signs_remoev: %s\n", l_hash_str );
+                                        dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
                                         dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %zd>\n", l_tsd->size);
@@ -2281,13 +2281,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                     dap_string_append_printf(a_str_out,"type: PRIVATE_DECL\n");
                     dap_string_append_printf(a_str_out,"flags: ");
                     dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_decl.flags);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(l_token, l_token_size);
-                    if (l_tsd == NULL)
+                    dap_chain_datum_token_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
+                    if (l_tsd_first == NULL)
                         dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
                     else{
                         size_t l_offset = 0;
                         size_t l_offset_max = l_token->header_private_decl.tsd_total_size;
                         while( l_offset< l_offset_max){
+                            dap_chain_datum_token_tsd_t * l_tsd = (void*)l_tsd_first + l_offset;
                             if ( (l_tsd->size+l_offset) >l_offset_max){
                                 log_it(L_WARNING, "<CORRUPTED TSD> too big size %zd when left maximum %zd",
                                        l_tsd->size, l_offset_max - l_offset);
@@ -2295,7 +2296,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                             }
                             switch( l_tsd->type){
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                                    dap_string_append_printf(a_str_out,"total_supply: %u\n",
+                                    dap_string_append_printf(a_str_out,"total_supply: %lu\n",
                                                              dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t) );
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
@@ -2332,6 +2333,9 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
 
                         }
                     }
+
+                    int l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
                     dap_string_append_printf(a_str_out,"type: PUBLIC\n");
