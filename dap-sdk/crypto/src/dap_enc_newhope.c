@@ -23,6 +23,9 @@
 */
 
 #include <stdio.h>
+#include <string.h>
+#include <assert.h>
+#include <inttypes.h>
 
 #include "dap_enc_newhope.h"
 #include "dap_common.h"
