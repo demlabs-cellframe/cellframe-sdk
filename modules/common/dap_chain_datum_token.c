@@ -127,7 +127,6 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
     if(!a_flags){
         dap_string_append_printf(a_str_out, "%s\n",
                 c_dap_chain_datum_token_flag_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]);
-        dap_string_append_printf(a_str_out, "<NONE>\n");
         return;
     }
     bool is_first = true;
