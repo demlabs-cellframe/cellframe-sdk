@@ -16,6 +16,7 @@ file( GLOB CRYPTO_SRCS
       src/sha3/*.c
       src/msrln/*.c
       src/defeo_scheme/*.c
+      src/newhope/*.c
       src/sig_bliss/*.c
       src/sig_tesla/*.c
       src/sig_picnic/*.c
@@ -35,6 +36,7 @@ file( GLOB CRYPTO_HEADERS
       src/sha3/*.h
       src/msrln/*.h
       src/defeo_scheme/*.h
+      src/newhope/*.h
       src/sig_bliss/*.h
       src/sig_tesla/*.h
       src/sig_picnic/*.h
