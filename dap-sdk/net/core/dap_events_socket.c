@@ -265,7 +265,7 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
   }
 
   if( !a_es->dap_worker ) {
-      log_it( L_WARNING, "%s: socket %u have no worker thread", __PRETTY_FUNCTION__, a_es->socket );
+      log_it( L_WARNING, "%s: socket %u has no worker thread", __PRETTY_FUNCTION__, a_es->socket );
       a_es->kill_signal = true;
       return 0;
   }
