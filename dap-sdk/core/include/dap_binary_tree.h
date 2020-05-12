@@ -44,7 +44,7 @@ dap_list_t *dap_binary_tree_inorder_list(dap_binary_tree_t *a_tree_root);
 void *dap_binary_tree_search(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key);
 void *dap_binary_tree_minimum(dap_binary_tree_t *a_tree_root);
 void *dap_binary_tree_maximum(dap_binary_tree_t *a_tree_root);
-void dap_binary_tree_insert(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key, void *a_data);
+dap_binary_tree_t *dap_binary_tree_insert(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key, void *a_data);
 dap_binary_tree_t *dap_binary_tree_delete(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key);
 size_t dap_binary_tree_count(dap_binary_tree_t *a_tree_root);
 void dap_binary_tree_clear(dap_binary_tree_t *a_tree_root);

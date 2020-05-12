@@ -922,3 +922,72 @@ int dap_interval_timer_delete(void *a_timer)
     return timer_delete((timer_t)a_timer);
 #endif
 }
+
+/**
+ * @brief dap_lendian_get16 Get uint16 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint16 in host endian memory
+ */
+uint16_t dap_lendian_get16(const uint8_t *a_buf)
+{
+    uint8_t u = *a_buf;
+    return (uint16_t)(*(a_buf + 1)) << 8 | u;
+}
+
+/**
+ * @brief dap_lendian_put16 Put uint16 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint16 in host endian memory
+ * @return none
+ */
+void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val)
+{
+    *(a_buf) = a_val;
+    *(a_buf + 1) = a_val >> 8;
+}
+
+/**
+ * @brief dap_lendian_get32 Get uint32 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint32 in host endian memory
+ */
+uint32_t dap_lendian_get32(const uint8_t *a_buf)
+{
+    uint16_t u = dap_lendian_get16(a_buf);
+    return (uint32_t)dap_lendian_get16(a_buf + 2) << 16 | u;
+}
+
+/**
+ * @brief dap_lendian_put32 Put uint32 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint32 in host endian memory
+ * @return none
+ */
+void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val)
+{
+    dap_lendian_put16(a_buf, a_val);
+    dap_lendian_put16(a_buf + 2, a_val >> 16);
+}
+
+/**
+ * @brief dap_lendian_get64 Get uint64 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint64 in host endian memory
+ */
+uint64_t dap_lendian_get64(const uint8_t *a_buf)
+{
+    uint32_t u = dap_lendian_get32(a_buf);
+    return (uint64_t)dap_lendian_get32(a_buf + 4) << 32 | u;
+}
+
+/**
+ * @brief dap_lendian_put64 Put uint64 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint64 in host endian memory
+ * @return none
+ */
+void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
+{
+    dap_lendian_put32(a_buf, a_val);
+    dap_lendian_put32(a_buf + 4, a_val >> 32);
+}

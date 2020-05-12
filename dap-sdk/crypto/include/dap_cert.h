@@ -43,8 +43,8 @@ typedef enum dap_cert_metadata_type {
 } dap_cert_metadata_type_t;
 
 typedef struct dap_cert_metadata {
-    dap_binary_tree_key_t key;      // Key also may be outside the structure
-    size_t length;
+    const char *key;
+    uint32_t length;
     dap_cert_metadata_type_t type : 8;
     byte_t value[];
 } dap_cert_metadata_t;
@@ -104,13 +104,24 @@ void dap_cert_deinit();
 void dap_cert_delete(dap_cert_t * a_cert);
 void dap_cert_delete_by_name(const char * a_cert_name);
 
+dap_cert_metadata_t *dap_cert_new_meta(const char *a_key, dap_cert_metadata_type_t a_type, void *a_value, size_t a_value_size);
+void dap_cert_add_meta(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, void *a_value, size_t a_value_size);
+void dap_cert_add_meta_scalar(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, uint64_t a_value, size_t a_value_size);
+#define dap_cert_add_meta_string(a_cert, a_key, a_str) dap_cert_add_meta(a_cert, a_key, DAP_CERT_META_STRING, (void *)a_str, strlen(a_str))
+#define dap_cert_add_meta_sign(a_cert, a_key, a_sign) dap_cert_add_meta(a_cert, a_key, DAP_CERT_META_SIGN, (void *)a_sign, dap_sign_get_size(a_sign))
+#define dap_cert_add_meta_custom(a_cert, a_key, a_val, a_size) dap_cert_add_meta(a_cert, a_key, DAP_CERT_META_CUSTOM, a_val, a_size)
+#define dap_cert_add_meta_bool(a_cert, a_key, a_bool) dap_cert_add_meta_scalar(a_cert, a_key, DAP_CERT_META_BOOL, a_bool, sizeof(bool))
+#define dap_cert_add_meta_int(a_cert, a_key, a_int) dap_cert_add_meta_scalar(a_cert, a_key, DAP_CERT_META_INT, a_int, sizeof(int))
+#define dap_cert_add_meta_time(a_cert, a_key, a_time) dap_cert_add_meta_scalar(a_cert, a_key, DAP_CERT_META_DATETIME, a_time, sizeof(time_t))
+#define dap_cert_add_meta_period(a_cert, a_key, a_period) dap_cert_add_meta_scalar(a_cert, a_key, DAP_CERT_META_DATETIME_PERIOD, a_period, sizeof(time_t))
+
 char *dap_cert_get_meta_string(dap_cert_t *a_cert, const char *a_field);
 bool dap_cert_get_meta_bool(dap_cert_t *a_cert, const char *a_field);
 int dap_cert_get_meta_int(dap_cert_t *a_cert, const char *a_field);
 time_t dap_cert_get_meta_time(dap_cert_t *a_cert, const char *a_field);
 time_t dap_cert_get_meta_period(dap_cert_t *a_cert, const char *a_field);
 dap_sign_t *dap_cert_get_meta_sign(dap_cert_t *a_cert, const char *a_field);
-void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field);
+void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field, size_t *a_meta_size_out);
 
 #ifdef __cplusplus
 }

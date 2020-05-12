@@ -447,8 +447,20 @@ void dap_cert_dump(dap_cert_t * a_cert)
     printf ("Signature type: %s\n", dap_sign_type_to_str( dap_sign_type_from_key_type(a_cert->enc_key->type) ) );
     printf ("Private key size: %llu\n",a_cert->enc_key->priv_key_data_size);
     printf ("Public key size: %llu\n", a_cert->enc_key->pub_key_data_size);
-    printf ("Metadata section count: %llu\n", dap_binary_tree_count(a_cert->metadata));
+    size_t l_meta_items_cnt = dap_binary_tree_count(a_cert->metadata);
+    printf ("Metadata section count: %llu\n", l_meta_items_cnt);
     printf ("Certificates signatures chain size: %llu\n",dap_cert_count_cert_sign (a_cert));
+    if (l_meta_items_cnt) {
+        printf ("Metadata section\n");
+        dap_list_t *l_meta_list = dap_binary_tree_inorder_list(a_cert->metadata);
+        dap_list_t *l_meta_list_item = dap_list_first(l_meta_list);
+        while (l_meta_list_item) {
+            dap_cert_metadata_t *l_meta_item = (dap_cert_metadata_t *)l_meta_list_item->data;
+            printf("%s\t%u\t%u\t%s", l_meta_item->key, l_meta_item->type, l_meta_item->length, l_meta_item->value);
+            l_meta_list_item = l_meta_list_item->next;
+        }
+        dap_list_free(l_meta_list);
+    }
 }
 
 /**
@@ -512,6 +524,80 @@ void dap_cert_add_folder(const char *a_folder_path)
         log_it(L_WARNING, "Can't add folder %s to cert manager",a_folder_path);
 }
 
+dap_cert_metadata_t *dap_cert_new_meta(const char *a_key, dap_cert_metadata_type_t a_type, void *a_value, size_t a_value_size)
+{
+    if (!a_key || a_type > DAP_CERT_META_CUSTOM || (!a_value && a_value_size)) {
+        log_it(L_WARNING, "Incorrect arguments for dap_cert_new_meta()");
+        return NULL;
+    }
+    size_t l_meta_item_size = sizeof(dap_cert_metadata_t) + a_value_size + strlen(a_key) + 1;
+    dap_cert_metadata_t *l_new_meta = DAP_NEW_SIZE(void, l_meta_item_size);
+    l_new_meta->length = a_value_size;
+    l_new_meta->type = a_type;
+    memcpy((void *)l_new_meta->value, a_value, a_value_size);
+    dap_stpcpy((char *)&l_new_meta->value[a_value_size], a_key);
+    l_new_meta->key = (const char *)&l_new_meta->value[a_value_size];
+    return l_new_meta;
+}
+
+/**
+ * @brief dap_cert_add_meta Add metadata to certificate
+ * @param a_cert
+ * @param a_key
+ * @param a_type
+ * @param a_value
+ * @param a_value_size
+ */
+void dap_cert_add_meta(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, void *a_value, size_t a_value_size)
+{
+    if (!a_cert) {
+        log_it(L_WARNING, "Certificate pointer to add metadata is NULL");
+        return;
+    }
+    dap_cert_metadata_t *l_new_meta = dap_cert_new_meta(a_key, a_type, a_value, a_value_size);
+    dap_binary_tree_t *l_new_root = dap_binary_tree_insert(a_cert->metadata, a_key, (void *)l_new_meta);
+    if (!a_cert->metadata) {
+        a_cert->metadata = l_new_root;
+    }
+}
+
+void dap_cert_add_meta_scalar(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, uint64_t a_value, size_t a_value_size)
+{
+    byte_t l_tmp8, *l_value;
+    uint16_t l_tmp16;
+    uint32_t l_tmp32;
+    uint64_t l_tmp64;
+    switch (a_type) {
+    case DAP_CERT_META_STRING:
+    case DAP_CERT_META_SIGN:
+    case DAP_CERT_META_CUSTOM:
+        log_it(L_WARNING, "incoorect metadata type for dap_cert_add_meta_scalar()");
+        return;
+    default:
+        switch (a_value_size) {
+        case 1:
+            l_tmp8 = a_value;
+            l_value = &l_tmp8;
+            break;
+        case 2:
+            l_tmp16 = a_value;
+            l_value = (byte_t *)&l_tmp16;
+            break;
+        case 4:
+            l_tmp32 = a_value;
+            l_value = (byte_t *)&l_tmp32;
+            break;
+        case 8:
+        default:
+            l_tmp64 = a_value;
+            l_value = (byte_t *)&l_tmp64;
+            break;
+        }
+        break;
+    }
+    dap_cert_add_meta(a_cert, a_key, a_type, (void *)&l_value, a_value_size);
+}
+
 /**
  * @brief dap_cert_get_meta
  * @param a_cert
@@ -525,19 +611,22 @@ dap_cert_metadata_t *dap_cert_get_meta(dap_cert_t *a_cert, const char *a_field)
 char *dap_cert_get_meta_string(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return NULL;
+    }
     if (l_meta->type != DAP_CERT_META_STRING) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return NULL;
     }
-    char *l_ret_str = DAP_NEW_SIZE(char, l_meta->length);
-    strncpy(l_ret_str, (char *)&l_meta->value[0], l_meta->length);
-    l_ret_str[l_meta->length] = 0;
-    return l_ret_str;
+    return strndup((char *)&l_meta->value[0], l_meta->length);
 }
 
 bool dap_cert_get_meta_bool(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return -1;
+    }
     if (l_meta->type != DAP_CERT_META_BOOL) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return -1;
@@ -551,6 +640,9 @@ bool dap_cert_get_meta_bool(dap_cert_t *a_cert, const char *a_field)
 int dap_cert_get_meta_int(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return -1;
+    }
     if (l_meta->type != DAP_CERT_META_INT) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return -1;
@@ -564,6 +656,9 @@ int dap_cert_get_meta_int(dap_cert_t *a_cert, const char *a_field)
 time_t dap_cert_get_meta_time(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return -1;
+    }
     if (l_meta->type != DAP_CERT_META_DATETIME) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return -1;
@@ -577,6 +672,9 @@ time_t dap_cert_get_meta_time(dap_cert_t *a_cert, const char *a_field)
 time_t dap_cert_get_meta_period(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return -1;
+    }
     if (l_meta->type != DAP_CERT_META_DATETIME_PERIOD) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return -1;
@@ -590,6 +688,9 @@ time_t dap_cert_get_meta_period(dap_cert_t *a_cert, const char *a_field)
 dap_sign_t *dap_cert_get_meta_sign(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return NULL;
+    }
     if (l_meta->type != DAP_CERT_META_SIGN) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return NULL;
@@ -601,12 +702,18 @@ dap_sign_t *dap_cert_get_meta_sign(dap_cert_t *a_cert, const char *a_field)
     return l_ret;
 }
 
-void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field)
+void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field, size_t *a_meta_size_out)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
+    if (!l_meta) {
+        return NULL;
+    }
     if (l_meta->type != DAP_CERT_META_CUSTOM) {
         log_it(L_DEBUG, "Requested and actual metadata types are not equal");
         return NULL;
+    }
+    if (a_meta_size_out) {
+        *a_meta_size_out = l_meta->length;
     }
     return (void *)&l_meta->value[0];
 }
