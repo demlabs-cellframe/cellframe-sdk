@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.1)
 project(dap_cuttdb C)
 
 add_definitions ("-D_GNU_SOURCE")
-set(CMAKE_C_FLAGS " -Wall -Wextra -fPIC")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 
 file(GLOB cuttdb_src src/*.c)
 file(GLOB cuttdb_h src/*.h)

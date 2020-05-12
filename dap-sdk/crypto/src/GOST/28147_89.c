@@ -11,7 +11,7 @@
  * @param[in] input массив из 4 байт
  * @return int32 число
  */
-static unsigned int uint8ToUint32(unsigned char* input)
+static unsigned int uint8ToUint32(const unsigned char* input)
 {
      unsigned int r = ( (input[3]) | (input[2]<<8) | (input[1]<<16) | (input[0]<<24));
      return r;
@@ -143,7 +143,7 @@ void DLL_IMPORT RoundShtrih(unsigned int* a1, unsigned int* a0, unsigned int k, 
      }
 }
 
-int DLL_IMPORT CryptBlock(unsigned char* input, unsigned char* output, unsigned char* key, unsigned char* keyIndex, printout_uint_array print)
+int DLL_IMPORT CryptBlock(const unsigned char* input, unsigned char* output, unsigned char* key, unsigned char* keyIndex, printout_uint_array print)
 {
      unsigned int a1 = uint8ToUint32(input);
      unsigned int a0 = uint8ToUint32(input + 4);
@@ -175,17 +175,17 @@ int DLL_IMPORT CryptBlock(unsigned char* input, unsigned char* output, unsigned 
      return 0;
 }
 
-int DLL_IMPORT EncryptBlock(unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print)
+int DLL_IMPORT EncryptBlock(const unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print)
 {
      return CryptBlock(input, output, key, kEncRoundKey, print);
 }
 
-int DLL_IMPORT DecryptBlock(unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print)
+int DLL_IMPORT DecryptBlock(const unsigned char* input, unsigned char* output, unsigned char* key, printout_uint_array print)
 {
      return CryptBlock(input, output, key, kDecRoundKey, print);
 }
 
-int DLL_IMPORT Encrypt_89(unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT Encrypt_89(const unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint)
 {
      if( !input || !output || !key )
      {
@@ -206,7 +206,7 @@ int DLL_IMPORT Encrypt_89(unsigned char* input, unsigned char* output, unsigned 
      return 0;
 }
 
-int DLL_IMPORT Decrypt_89(unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT Decrypt_89(const unsigned char* input, unsigned char* output, unsigned char* key, printout_byte_array print, printout_uint_array print_uint)
 {
      if( !input || !output || !key )
      {

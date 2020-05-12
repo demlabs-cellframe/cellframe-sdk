@@ -47,14 +47,13 @@
  * a_data_news - news data
  * a_data_news_len length of news
  */
-int dap_chain_net_news_write(char *a_lang, byte_t *a_data_news, size_t a_data_news_len)
+int dap_chain_net_news_write(const char *a_lang, char *a_data_news, size_t a_data_news_len)
 {
     if(!a_data_news || !a_data_news_len)
         return -2;
     if(!a_lang)
         a_lang = DEFAULT_LANG;
-    size_t l_data_len_out = 0;
-    if(dap_chain_global_db_gr_set(a_lang, a_data_news, a_data_news_len, GROUP_NEWS))
+    if(dap_chain_global_db_gr_set(dap_strdup(a_lang), a_data_news, a_data_news_len, GROUP_NEWS))
         return 0;
     return -1;
 }
@@ -97,12 +96,17 @@ static void news_http_proc(struct dap_http_simple *a_http_simple, void * a_arg)
     {
         size_t l_news_data_len = 0;
         // get news in the selected language
-        char *l_news_data = dap_chain_net_news_read(l_lang, &l_news_data_len);
+        byte_t *l_news_data = dap_chain_net_news_read(l_lang, &l_news_data_len);
         // get news in the default language
         if(!l_news_data && dap_strcmp(a_http_simple->http->in_query_string, "LocalNewsOnly"))
             l_news_data = dap_chain_net_news_read(DEFAULT_LANG, &l_news_data_len);
-        a_http_simple->reply = l_news_data ? l_news_data : dap_strdup("no news");
-        a_http_simple->reply_size = l_news_data_len;
+        if( l_news_data){
+            a_http_simple->reply = l_news_data ;
+            a_http_simple->reply_size = l_news_data_len;
+        }else{
+            a_http_simple->reply = dap_strdup("no news");
+            a_http_simple->reply_size = dap_strlen((char*) a_http_simple->reply) + 1;
+        }
         *return_code = Http_Status_OK;
     }
     else {

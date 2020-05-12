@@ -22,7 +22,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#define _XOPEN_SOURCE 700
+//#define _XOPEN_SOURCE 700
 
 #pragma once
 
@@ -33,7 +33,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-
+#ifdef __MACH__
+#include <dispatch/dispatch.h>
+#endif
 #include "portable_endian.h"
 
 typedef uint8_t byte_t;

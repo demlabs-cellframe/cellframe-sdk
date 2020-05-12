@@ -151,7 +151,7 @@ int DLL_IMPORT ExpandKey(unsigned char* masterKey, unsigned char* keys, printout
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT Encrypt_14(unsigned char* plainText, unsigned char* chipherText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT Encrypt_14(const unsigned char* plainText, unsigned char* chipherText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Выполение расшифрования блока
  * 
@@ -163,7 +163,7 @@ int DLL_IMPORT Encrypt_14(unsigned char* plainText, unsigned char* chipherText, 
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT Decrypt_14(unsigned char* chipherText, unsigned char* plainText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT Decrypt_14(const unsigned char* chipherText, unsigned char* plainText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
 
 #ifdef __cplusplus
 }

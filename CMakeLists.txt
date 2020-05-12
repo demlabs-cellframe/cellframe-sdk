@@ -2,8 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.1-4")
-include(cmake/OS_Detection.cmake)
+set(CELLFRAME_SDK_NATIVE_VERSION "2.3-1")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -11,6 +10,7 @@ set(DAPSDK_MODULES "")
 if (CELLFRAME_MODULES MATCHES "core")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
 endif()
+
 
 if (CELLFRAME_MODULES MATCHES "network")
     set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
@@ -24,6 +24,15 @@ if (BUILD_CRYPTO_TESTS)
 	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
     endif()
     set(BUILD_TESTS ON)
+endif()
+
+if(BUILD_TESTS)
+    include(cmake/OS_Detection.cmake)
+endif()
+
+if(DAP_TUN_NEW_WORKER)
+    message("[*] New TUN worker processor enabled")
+    add_definitions ("-DDAP_TUN_IN_WORKER")
 endif()
 
 add_subdirectory(dap-sdk)

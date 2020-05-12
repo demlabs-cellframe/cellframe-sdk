@@ -1016,7 +1016,7 @@ int cdb_set2(CDB *db, const char *key, int ksize, const char *val, int vsize, in
             if (cret < 0)
                 continue;
                 
-            if (ksize == rrec->ksize && memcmp(rrec->key, key, ksize) == 0) {
+            if ((uint32_t) ksize == rrec->ksize && memcmp(rrec->key, key, ksize) == 0) {
                 /* got its old meta info */
                 rec.osize = rrec->osize;
                 rec.ooff = rrec->ooff;
@@ -1092,7 +1092,7 @@ int cdb_is(CDB *db, const char *key, int ksize)
     FOFF *offs;
     int dupnum, ret = -3;
     uint64_t hash;
-    uint32_t now = time(NULL);
+    //uint32_t now = time(NULL);
     uint32_t lockid;
 
     if (db->rcache) {
@@ -1212,7 +1212,7 @@ int cdb_get(CDB *db, const char *key, int ksize, void **val, int *vsize)
         if (cret < 0)
             continue;
 
-        if (ksize == rec->ksize && memcmp(rec->key, key, ksize) == 0) {
+        if ((uint32_t) ksize == rec->ksize && memcmp(rec->key, key, ksize) == 0) {
             if (rec->expire && rec->expire <= now) {
                 break;
             }
@@ -1337,7 +1337,7 @@ int cdb_del(CDB *db, const char *key, int ksize)
             if (cret < 0)
                 continue;
                 
-            if (ksize == rrec->ksize && memcmp(rrec->key, key, ksize) == 0) {
+            if ((uint32_t) ksize == rrec->ksize && memcmp(rrec->key, key, ksize) == 0) {
                 /* got its old meta info */
                 rec.osize = rrec->osize;
                 rec.ooff = rrec->ooff;
@@ -1357,8 +1357,9 @@ int cdb_del(CDB *db, const char *key, int ksize)
         
         struct timespec ts;
         _cdb_timerreset(&ts);
-        if (db->vio->drec(db->vio, &rec, ooff) < 0)
-            ; // return -1;  succeed or not doesn't matter
+        db->vio->drec(db->vio, &rec, ooff);
+        //if ( < 0)
+          // return -1;  succeed or not doesn't matter
         db->wcount++;
         db->wtime += _cdb_timermicrosec(&ts);
         cdb_seterrno(db, CDB_SUCCESS, __FILE__, __LINE__);
@@ -1425,6 +1426,7 @@ int cdb_close(CDB *db)
 
 void cdb_deferrorcb(void *arg, int errno, const char *file, int line)
 {
+    (void) arg;
     fprintf(stderr, "DBERR: [%s:%d] %d - %s\n", file, line, errno, cdb_errmsg(errno));
 }
 

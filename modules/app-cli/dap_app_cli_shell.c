@@ -251,7 +251,7 @@ int parse_shell_options(char **argv, int arg_start, int arg_end)
 
         i = 1;
         on_or_off = arg_string[0];
-        while(arg_character = arg_string[i++])
+        while( (arg_character = arg_string[i++]) != 0)
         {
             switch (arg_character)
             {

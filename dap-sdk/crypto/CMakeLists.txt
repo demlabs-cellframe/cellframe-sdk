@@ -3,27 +3,6 @@ project (dap_crypto)
 
 # fix implicit declaration warnings
 add_definitions ("-D_GNU_SOURCE")
-if(NOT SUBMODULES_NO_BUILD)
-
-  # Check whether we're on a 32-bit or 64-bit system
-  if(CMAKE_SIZEOF_VOID_P EQUAL "8")
-    set(DEFAULT_BUILD_64 ON)
-  else()
-    set(DEFAULT_BUILD_64 OFF)
-  endif()
-  option(BUILD_64 "Build for 64-bit? 'OFF' builds for 32-bit." ${DEFAULT_BUILD_64})
-
-
-  set(_CCOPT "-Wall -O2 -pg -fPIC -fno-pie -no-pie")
-  set(_LOPT "-pg")
-  SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_CCOPT}")
-  set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${_LOPT}")
-
-  if (NOT (TARGET dap_core))
-    add_subdirectory(libdap)
-  endif()
-endif()
 
 file( GLOB CRYPTO_SRCS
       src/*.c
@@ -37,6 +16,7 @@ file( GLOB CRYPTO_SRCS
       src/sha3/*.c
       src/msrln/*.c
       src/defeo_scheme/*.c
+      src/newhope/*.c
       src/sig_bliss/*.c
       src/sig_tesla/*.c
       src/sig_picnic/*.c
@@ -56,6 +36,7 @@ file( GLOB CRYPTO_HEADERS
       src/sha3/*.h
       src/msrln/*.h
       src/defeo_scheme/*.h
+      src/newhope/*.h
       src/sig_bliss/*.h
       src/sig_tesla/*.h
       src/sig_picnic/*.h
@@ -92,7 +73,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} )
 
-target_include_directories(dap_crypto PRIVATE src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include)
+target_include_directories(dap_crypto PRIVATE src/seed src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include)
 target_include_directories(dap_crypto INTERFACE src/ src/sha3 include/)
 
 target_include_directories(dap_crypto PUBLIC

@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 project (dap_chain_net_srv)
 
-file(GLOB DAP_CHAIN_NET_SRV_SRCS *.c)
+file(GLOB DAP_CHAIN_NET_SRV_SRCS *.c libmaxminddb/*.c)
 
-file(GLOB DAP_CHAIN_NET_SRV_HEADERS include/*.h)
+file(GLOB DAP_CHAIN_NET_SRV_HEADERS include/*.h libmaxminddb/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV_HEADERS})
 

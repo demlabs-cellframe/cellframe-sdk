@@ -81,11 +81,11 @@ static void bugreport_http_proc(struct dap_http_simple *a_http_simple, void * a_
     log_it(L_DEBUG, "bugreport_http_proc request");
     http_status_code_t * return_code = (http_status_code_t*) a_arg;
     //if(dap_strcmp(cl_st->http->url_path, BUGREPORT_URL) == 0 )
-    if(dap_strcmp(a_http_simple->http->action, "POST") == 0)
-            {
-        a_http_simple->request_byte;
-        a_http_simple->request_size;
-        a_http_simple->http->in_content_length;
+    if(dap_strcmp(a_http_simple->http->action, "POST") == 0) {
+        //a_http_simple->request_byte;
+        //a_http_simple->request_size;
+        //a_http_simple->http->in_content_length;
+
         if(!bugreport_write_to_file(a_http_simple->request_byte, a_http_simple->request_size)) {
             a_http_simple->reply = dap_strdup_printf("Bug Report saved successfully)");
         }

@@ -57,7 +57,7 @@ dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, 
     dap_chain_datum_token_tsd_t * l_tsd = DAP_NEW_Z_SIZE(dap_chain_datum_token_tsd_t,
                                                          sizeof(dap_chain_datum_token_tsd_t) + a_data_size );
     if ( l_tsd ){
-        memcpy(l_tsd->data,&a_data , a_data_size );
+        memcpy(l_tsd->data, a_data , a_data_size );
         l_tsd->type = a_type;
         l_tsd->size = a_data_size;
     }
@@ -74,23 +74,19 @@ dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, 
 dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token, size_t a_token_size)
 {
     // Check if token type could have tsd section
-    size_t l_hdr_size;
+    size_t l_hdr_size = sizeof(*a_token);
     size_t l_tsd_size;
+
+    if (l_hdr_size > a_token_size){
+        log_it(L_WARNING, "Token size smaller then header, corrupted data");
+        return NULL;
+    }
+
     switch( a_token->type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-            l_hdr_size = sizeof (a_token->header_private_decl);
-            if (l_hdr_size> a_token_size){
-                log_it(L_WARNING, "Token size smaller then header, corrupted data");
-                return NULL;
-            }
             l_tsd_size = a_token->header_private_decl.tsd_total_size;
         break;
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-            l_hdr_size = sizeof(a_token->header_private_update);
-            if (l_hdr_size> a_token_size){
-                log_it(L_WARNING, "Token size smaller then header, corrupted data");
-                return NULL;
-            }
             l_tsd_size = a_token->header_private_update.tsd_total_size;
         break;
         default: return NULL;
@@ -128,10 +124,59 @@ dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token
  */
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags)
 {
-    for ( uint16_t i = 0;  (2^i) <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
-        if(   a_flags & (2^i) )
-            dap_string_append_printf(a_str_out,"%s%s", c_dap_chain_datum_token_flag_str[2^i],
-                    (2^i)==DAP_CHAIN_DATUM_TOKEN_FLAG_MAX?",":"\n"  );
+    if(!a_flags){
+        dap_string_append_printf(a_str_out, "%s\n",
+                c_dap_chain_datum_token_flag_str[DAP_CHAIN_DATUM_TOKEN_FLAG_NONE]);
+        return;
+    }
+    bool is_first = true;
+    for ( uint16_t i = 0;  i <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++){
+        if(   a_flags &  (1 << i) ){
+            if(is_first)
+                is_first = false;
+            else
+                dap_string_append_printf(a_str_out,", ");
+            dap_string_append_printf(a_str_out,"%s", c_dap_chain_datum_token_flag_str[i]);
+        }
+        if(i == DAP_CHAIN_DATUM_TOKEN_FLAG_MAX)
+            dap_string_append_printf(a_str_out, "\n");
     }
 }
 
+
+/**
+ * @brief dap_chain_datum_token_certs_dump
+ * @param a_str_out
+ * @param a_data_n_tsd
+ * @param a_certs_size
+ */
+void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size) {
+    dap_string_append_printf(a_str_out, "signatures: ");
+    if (!a_certs_size) {
+        dap_string_append_printf(a_str_out, "<NONE>\n");
+        return;
+    }
+
+    dap_string_append_printf(a_str_out, "\n");
+
+    size_t l_offset = 0;
+    for (int i = 1; l_offset < (a_certs_size); i++) {
+        dap_sign_t *l_sign = (dap_sign_t *) (a_data_n_tsd + l_offset);
+        l_offset += dap_sign_get_size(l_sign);
+        if (l_sign->header.sign_size == 0) {
+            dap_string_append_printf(a_str_out, "<CORRUPTED - 0 size signature>\n");
+            continue;
+        }
+
+        dap_chain_hash_fast_t l_pkey_hash = {0};
+        if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
+            dap_string_append_printf(a_str_out, "<CORRUPTED - can't calc hash>\n");
+            continue;
+        }
+
+        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+
+        dap_string_append_printf(a_str_out, "%d) %s, %s, %lu bytes\n", i, l_hash_str,
+                                 dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
+    }
+}

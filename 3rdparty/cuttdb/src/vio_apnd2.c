@@ -298,6 +298,7 @@ void vio_apnd2_init(CDBVIO *vio)
 /* the hash table used in VIOAPND2 need not rehash, just use the key id is OK */
 static uint32_t _directhash(const void *key, int size)
 {
+    (void) size;
     return *(uint32_t*)key;
 }
 
@@ -603,7 +604,7 @@ static int _vio_apnd2_readmeta(CDBVIO *vio, bool overwrite)
         return -1;
     }
 
-    for(int i = 0; i < myio->ifnum; i++) {
+    for(uint32_t i = 0; i < myio->ifnum; i++) {
         VIOAPND2FINFO finfo, *finfo2;
         finfo.fid = *(uint32_t*)(hbuf + pos);
         pos += SI4;
@@ -638,7 +639,7 @@ static int _vio_apnd2_readmeta(CDBVIO *vio, bool overwrite)
         }
     }
 
-    for(int i = 0; i < myio->dfnum; i++) {
+    for(uint32_t i = 0; i < myio->dfnum; i++) {
         VIOAPND2FINFO finfo, *finfo2;
         finfo.fid = *(uint32_t*)(hbuf + pos);
         pos += SI4;
@@ -709,8 +710,8 @@ static int _vio_apnd2_flushbuf(CDBVIO *vio, int dtype)
         /* buffer for deletion is special */
         if (myio->delbufpos == 0)
             return 0;
-        if (write(myio->dfd, myio->delbuf, sizeof(FOFF) * myio->delbufpos)
-                != sizeof(FOFF) * myio->delbufpos) {
+        if ( (size_t) write(myio->dfd, myio->delbuf, sizeof(FOFF) * (size_t) myio->delbufpos)
+                != sizeof(FOFF) * (size_t) myio->delbufpos) {
             cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
             return -1;
         }
@@ -732,9 +733,8 @@ static int _vio_apnd2_flushbuf(CDBVIO *vio, int dtype)
     /* write out if buffered */
     if (iobuf->pos > 0) {
         if (pwrite(iobuf->fd, iobuf->buf, iobuf->pos, iobuf->off) != iobuf->pos) {
-            /* to avoid compile warning */
-            if (ftruncate(iobuf->fd, iobuf->off) < 0) ;
-            cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
+            if (ftruncate(iobuf->fd, iobuf->off) < 0)
+                cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
             return -1;
         }
     }
@@ -948,8 +948,8 @@ static int _vio_apnd2_write(CDBVIO *vio, int fd, void *buf, uint32_t size, bool 
         off = OFFALIGNED(off);
     if (pwrite(fd, buf, size, off) != size) {
         /* to avoid compile warning */
-        if (ftruncate(myio->ibuf.fd, off) < 0) ;
-        cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
+        if (ftruncate(myio->ibuf.fd, off) < 0)
+            cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
         return -1;
     }
 
@@ -1160,7 +1160,7 @@ static int _vio_apnd2_loadfd(CDBVIO *vio, uint32_t fid, int dtype)
 
     /* cache the fd, close the oldest file not touched */
     cdb_ht_insert2(myio->fdcache, &vfid, SI4, &fd, sizeof(int));
-    while(myio->fdcache->num > myio->maxfds) {
+    while(myio->fdcache->num > (uint32_t) myio->maxfds) {
         CDBHTITEM *item = cdb_ht_poptail(myio->fdcache);
         close(*(int*)cdb_ht_itemval(myio->fdcache, item));
         free(item);
@@ -1217,7 +1217,7 @@ static int _vio_apnd2_readpage(CDBVIO *vio, CDBPAGE **page, FOFF off)
     }
 
     psize = PAGESIZE(*page);
-    if (ret < areadsize && ret < psize) {
+    if ((uint32_t) ret < areadsize && (uint32_t) ret < psize) {
         cdb_lock_unlock(myio->lock);
         cdb_seterrno(vio->db, CDB_DATAERRIDX, __FILE__, __LINE__);
         return ret;
@@ -1232,7 +1232,7 @@ static int _vio_apnd2_readpage(CDBVIO *vio, CDBPAGE **page, FOFF off)
 
         ret = _vio_apnd2_read(vio, fd, (char*)&(*page)->magic + areadsize,
             psize - areadsize, roff + areadsize);
-        if (ret < psize - areadsize) {
+        if ((uint32_t) ret < psize - areadsize) {
             cdb_lock_unlock(myio->lock);
             cdb_seterrno(vio->db, CDB_DATAERRIDX, __FILE__, __LINE__);
             return -1;
@@ -1302,7 +1302,7 @@ static int _vio_apnd2_readrec(CDBVIO *vio, CDBREC** rec, FOFF off, bool readval)
         (*rec)->vsize = 0;
     rsize = RECSIZE(*rec);
 
-    if (ret < areadsize && ret < rsize) {
+    if ((uint32_t) ret < areadsize && (uint32_t) ret < rsize) {
         cdb_lock_unlock(myio->lock);
         cdb_seterrno(vio->db, CDB_DATAERRDAT, __FILE__, __LINE__);
         return -1;
@@ -1316,7 +1316,7 @@ static int _vio_apnd2_readrec(CDBVIO *vio, CDBREC** rec, FOFF off, bool readval)
         }
         ret = _vio_apnd2_read(vio, fd, (char*)&(*rec)->magic + areadsize,
             rsize - areadsize, roff + areadsize);
-        if (ret != rsize - areadsize) {
+        if ((uint32_t) ret != rsize - areadsize) {
             cdb_lock_unlock(myio->lock);
             cdb_seterrno(vio->db, CDB_DATAERRDAT, __FILE__, __LINE__);
             return -1;
@@ -1578,7 +1578,7 @@ static int _vio_apnd2_writehead(CDBVIO *vio, bool wtable)
         return -1;
     }
 
-    if (wtable && pwrite(myio->hfd, db->mtable, sizeof(FOFF) * db->hsize, FILEMETASIZE)
+    if (wtable && (size_t) pwrite(myio->hfd, db->mtable, sizeof(FOFF) * db->hsize, FILEMETASIZE)
         != sizeof(FOFF) * db->hsize) {
             cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
             return -1;
@@ -1638,7 +1638,7 @@ static int _vio_apnd2_readhead(CDBVIO *vio, bool rtable)
     if (db->mtable)
         free(db->mtable);
     db->mtable = (FOFF *)malloc(sizeof(FOFF) * db->hsize);
-    if (pread(myio->hfd, db->mtable, sizeof(FOFF) * db->hsize, FILEMETASIZE) !=
+    if ( (size_t) pread(myio->hfd, db->mtable, sizeof(FOFF) * db->hsize, FILEMETASIZE) !=
         sizeof(FOFF) * db->hsize) {
             free(db->mtable);
             cdb_seterrno(db, CDB_READERR, __FILE__, __LINE__);
@@ -2088,11 +2088,11 @@ static int _vio_apnd2_recovery(CDBVIO *vio, bool force)
         lfinfo->fnext = NULL;
     lfinfo = NULL;
 
-    if (myio->ibuf.fid == -1) {
+    if (myio->ibuf.fid == (uint32_t) -1) {
         myio->ibuf.fid = 0;
         _vio_apnd2_shiftnew(vio, VIOAPND2_INDEX);
     }
-    if (myio->dbuf.fid == -1) {
+    if (myio->dbuf.fid == (uint32_t) -1) {
         myio->dbuf.fid = 0;
         _vio_apnd2_shiftnew(vio, VIOAPND2_DATA);
     }
@@ -2190,7 +2190,7 @@ static int _vio_apnd2_recovery(CDBVIO *vio, bool force)
     for(; myio->dfd > 0;) {
         int ret = read(myio->dfd, delitems, 1024 * sizeof(FOFF));
         if (ret > 0) {
-            for(int j = 0; j * sizeof(FOFF) < ret; j++) {
+            for(uint32_t j = 0; j * sizeof(FOFF) < (uint32_t) ret; j++) {
                 char sbuf[SBUFSIZE];
                 uint32_t ofid, roff;
                 CDBREC *rec = (CDBREC *)sbuf;
@@ -2326,7 +2326,7 @@ static int _vio_apnd2_iterfirst(CDBVIO *vio, VIOAPND2ITOR *it, int dtype, int64_
                 it->off += ALIGNBYTES;
                 continue;
             }
-            if (page->oid >= oid)
+            if (page->oid >= (uint64_t) oid)
                 break;
             it->off += OFFALIGNED(PAGESIZE(page));
         } else if (dtype == VIOAPND2_DATA) {
@@ -2335,7 +2335,7 @@ static int _vio_apnd2_iterfirst(CDBVIO *vio, VIOAPND2ITOR *it, int dtype, int64_
                 it->off += ALIGNBYTES;
                 continue;
             }
-            if (rec->oid >= oid)
+            if (rec->oid >= (uint64_t) oid)
                 break;
             it->off += OFFALIGNED(RECSIZE(rec));
         }

@@ -6,7 +6,11 @@
 
 #include <stdio.h>
 #include <memory.h>
+#ifdef __MACH__
+#include <sys/malloc.h>
+#else
 #include <malloc.h>
+#endif
 #include <stdlib.h>
 
 #include "28147_14.h"
@@ -28,10 +32,10 @@ const unsigned char kAlg14 = 1;
 const unsigned char kAlg89 = 2;
 
 /** @brief указатель на функцию шифрования */
-typedef int (DLL_IMPORT *pEncrypt)(unsigned char* plainText, unsigned char* chipherText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
+typedef int (DLL_IMPORT *pEncrypt)(const unsigned char* plainText, unsigned char* chipherText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief указатель на функцию расшифрования */
-typedef int (DLL_IMPORT *pDecrypt)(unsigned char* chipherText, unsigned char* plainText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
+typedef int (DLL_IMPORT *pDecrypt)(const unsigned char* chipherText, unsigned char* plainText, unsigned char* keys, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Функция самотестирования режима ECB */
 static int SelfTestGost14Ecb();
@@ -256,7 +260,7 @@ void DLL_IMPORT free_ecb(void* ctx)
      }
 }
 
-static int init_cbc_14_impl(unsigned char *key, void* ctx, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+static int init_cbc_14_impl(unsigned char *key, void* ctx, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_cbc* context;
      INFOTECS_ASSERT(sizeof(Context_cbc)<=kCbc14ContextLen);
@@ -293,14 +297,14 @@ static int init_cbc_14_impl(unsigned char *key, void* ctx, unsigned char *iv, si
      return 0;
 }
 
-int DLL_IMPORT init_cbc_14(unsigned char *key, void* ctx, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_cbc_14(unsigned char *key, void* ctx, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost14Cbc())
           return -1;
      return init_cbc_14_impl(key, ctx, iv, ivLength, print, print_uint);
 }
 
-static int init_cbc_89_impl(unsigned char *key, void* ctx, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+static int init_cbc_89_impl(unsigned char *key, void* ctx, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_cbc* context;
      INFOTECS_ASSERT(sizeof(Context_cbc)<=kCbc89ContextLen);
@@ -337,7 +341,7 @@ static int init_cbc_89_impl(unsigned char *key, void* ctx, unsigned char *iv, si
      return 0;
 }
 
-int DLL_IMPORT init_cbc_89(unsigned char *key, void* ctx, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_cbc_89(unsigned char *key, void* ctx, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost89Cbc())
           return -1;
@@ -382,7 +386,7 @@ void DLL_IMPORT free_cbc(void* ctx)
      }
 }
 
-static int init_ctr_14_impl(unsigned char* key, unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
+static int init_ctr_14_impl(unsigned char* key, const unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_ctr* context;
      INFOTECS_ASSERT(sizeof(Context_ctr)<=kCtr14ContextLen);
@@ -418,14 +422,14 @@ static int init_ctr_14_impl(unsigned char* key, unsigned char *iv, size_t s, voi
      return 0;
 }
 
-int DLL_IMPORT init_ctr_14(unsigned char* key, unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_ctr_14(unsigned char* key, const unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost14Ctr())
           return -1;
      return init_ctr_14_impl(key, iv, s, ctx, print, print_uint);
 }
 
-static int init_ctr_89_impl(unsigned char* key, unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
+static int init_ctr_89_impl(unsigned char* key, const unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_ctr* context;
      INFOTECS_ASSERT(sizeof(Context_ctr)<=kCtr89ContextLen);
@@ -460,7 +464,7 @@ static int init_ctr_89_impl(unsigned char* key, unsigned char *iv, size_t s, voi
      return 0;
 }
 
-int DLL_IMPORT init_ctr_89(unsigned char* key, unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_ctr_89(unsigned char* key, const unsigned char *iv, size_t s, void *ctx, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost89Ctr())
           return -1;
@@ -495,7 +499,7 @@ void DLL_IMPORT free_ctr(void* ctx)
      }
 }
 
-static int init_ofb_14_impl(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+static int init_ofb_14_impl(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_ofb* context;
      INFOTECS_ASSERT(sizeof(Context_ofb)<=kOfb14ContextLen);
@@ -542,7 +546,7 @@ int DLL_IMPORT init_ofb_14(unsigned char *key, void *ctx, size_t s, const unsign
      return init_ofb_14_impl(key, ctx, s, iv, ivLength, print, print_uint);
 }
 
-static int init_ofb_89_impl(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+static int init_ofb_89_impl(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_ofb* context;
      INFOTECS_ASSERT(sizeof(Context_ofb)<=kOfb89ContextLen);
@@ -580,7 +584,7 @@ static int init_ofb_89_impl(unsigned char *key, void *ctx, size_t s, unsigned ch
      return 0;
 }
 
-int DLL_IMPORT init_ofb_89(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_ofb_89(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost89Ofb())
           return -1;
@@ -622,7 +626,7 @@ void DLL_IMPORT free_ofb(void* ctx)
 
 }
 
-static int init_cfb_14_impl(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+static int init_cfb_14_impl(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_cfb* context;
      INFOTECS_ASSERT(sizeof(Context_cfb)<=kCfb14ContextLen);
@@ -661,14 +665,14 @@ static int init_cfb_14_impl(unsigned char *key, void *ctx, size_t s, unsigned ch
      return 0;
 }
 
-int DLL_IMPORT init_cfb_14(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_cfb_14(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost14Cfb())
           return -1;
      return init_cfb_14_impl(key, ctx, s, iv, ivLength, print, print_uint);
 }
 
-static int init_cfb_89_impl(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+static int init_cfb_89_impl(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      Context_cfb* context;
      INFOTECS_ASSERT(sizeof(Context_cfb)<=kCfb89ContextLen);
@@ -706,7 +710,7 @@ static int init_cfb_89_impl(unsigned char *key, void *ctx, size_t s, unsigned ch
      return 0; 
 }
 
-int DLL_IMPORT init_cfb_89(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
+int DLL_IMPORT init_cfb_89(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint)
 {
      if(SelfTestGost89Cfb())
           return -1;
@@ -1043,7 +1047,7 @@ int DLL_IMPORT decrypt_ecb(void *ctx, const unsigned char *indata, unsigned char
      return 0;
 }
 
-static void PackBlock(unsigned char* a, size_t aLen, unsigned char* b, unsigned char* r, size_t rLen)
+static void PackBlock(unsigned char* a, size_t aLen, const unsigned char* b, unsigned char* r, size_t rLen)
 {
      memcpy(r, a, aLen);
      memcpy(r + aLen, b, rLen - aLen);
