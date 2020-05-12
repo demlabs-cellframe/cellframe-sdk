@@ -2111,7 +2111,7 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr)
 {
     dap_list_t *l_list_groups = NULL;
-    if(!PVT(a_net)->gdb_sync_nodes_addrs || !a_net)
+    if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
         return NULL;
     for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
         if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {
