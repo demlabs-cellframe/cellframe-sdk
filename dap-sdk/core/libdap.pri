@@ -1,5 +1,5 @@
-QMAKE_CFLAGS_DEBUG = -std=gnu11
-QMAKE_CFLAGS_RELEASE = -std=gnu11
+QMAKE_CFLAGS_DEBUG = -std=gnu11  -fforce-enable-int128
+QMAKE_CFLAGS_RELEASE = -std=gnu11  -fforce-enable-int128
 unix {
     include(src/unix/unix.pri)
     DEFINES += DAP_OS_UNIX
