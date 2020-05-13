@@ -73,7 +73,7 @@ uint8_t H_bpoly_MAXSEC[14*NEWHOPE_RINGCT20_POLYBYTES] = {
 
 #elif (NEWHOPE_RINGCT20_N == 1024)
 #error "NEWHOPE_RINGCT20_N must be either 512 or 1024.. NEWHOPE_RINGCT20_N == 1024 not implemented yet"
-#elif
+#else
 #error "NEWHOPE_RINGCT20_N must be either 512 or 1024.."
 #endif
 
