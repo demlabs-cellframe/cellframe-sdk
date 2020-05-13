@@ -1478,7 +1478,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
  *
  * a_addr[in] wallet address, whose owner can use the service
  */
-const dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger,
+dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger,
         dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash)
 {
     if(!a_addr || !a_tx_first_hash)
@@ -1502,7 +1502,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t
         }
         // Get sign item from transaction
         int l_tx_out_cond_size = 0;
-        const dap_chain_tx_out_cond_t *l_tx_out_cond = (const dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
+        dap_chain_tx_out_cond_t *l_tx_out_cond = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
                 l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
 
         if(l_tx_out_cond) {
@@ -1553,8 +1553,7 @@ uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, da
                     *tx_out_cond = (dap_chain_tx_out_cond_t*) l_tx_out_cond;
             }
         }
-    }
-    while(l_tx_tmp);
+    } while(l_tx_tmp);
     return l_ret_value;
 }
 

@@ -66,6 +66,7 @@
 
 #include "dap_common.h"
 #include "dap_server.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "server"
 
@@ -740,8 +741,6 @@ int32_t dap_server_loop( dap_server_t *d_server )
   static uint32_t pickthread = 0;  // just for test
   pthread_t thread_listener[ DAP_MAX_THREADS ];
 
-  if ( !d_server ) return 1;
-
   for( uint32_t i = 0; i < _count_threads; ++i ) {
 
     EPOLL_HANDLE efd = epoll_create1( 0 );
@@ -767,49 +766,55 @@ int32_t dap_server_loop( dap_server_t *d_server )
   struct epoll_event  pev;
   struct epoll_event  events[ 16 ];
 
-  memset(&pev, 0, sizeof(pev));
-  pev.events = EPOLLIN | EPOLLERR;
-  pev.data.fd = d_server->socket_listener;
+  if(d_server){
+      memset(&pev, 0, sizeof(pev));
+      pev.events = EPOLLIN | EPOLLERR;
+      pev.data.fd = d_server->socket_listener;
 
-  if( epoll_ctl( efd, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
-    log_it( L_ERROR, "epoll_ctl failed 004" );
-    goto error;
+      if( epoll_ctl( efd, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
+          log_it( L_ERROR, "epoll_ctl failed 004" );
+          goto error;
+      }
   }
 
   while( !bQuitSignal ) {
+    if(d_server){
+      int32_t n = epoll_wait( efd, &events[0], 16, -1 );
 
-    int32_t n = epoll_wait( efd, &events[0], 16, -1 );
+      if ( bQuitSignal )
+        break;
 
-    if ( bQuitSignal )
-      break;
-
-    if ( n <= 0 ) {
-      if ( errno == EINTR )
-        continue;
-      log_it( L_ERROR, "Server wakeup no events / error" );
-      break;
-    }
-
-    for( int32_t i = 0; i < n; ++ i ) {
-
-      if ( events[i].events & EPOLLIN ) {
-
-        int client_fd = accept( events[i].data.fd, 0, 0 );
-
-        if ( client_fd < 0 ) {
-          log_it( L_ERROR, "accept_cb: error accept socket");
+      if ( n <= 0 ) {
+        if ( errno == EINTR )
           continue;
+        log_it( L_ERROR, "Server wakeup no events / error" );
+        break;
+      }
+
+      for( int32_t i = 0; i < n; ++ i ) {
+
+        if ( events[i].events & EPOLLIN ) {
+
+          int client_fd = accept( events[i].data.fd, 0, 0 );
+
+          if ( client_fd < 0 ) {
+            log_it( L_ERROR, "accept_cb: error accept socket");
+            continue;
+          }
+
+          set_nonblock_socket( client_fd );
+          dap_server_add_socket( client_fd, -1 );
+        }
+        else if( events[i].events & EPOLLERR ) {
+          log_it( L_ERROR, "Server socket error event" );
+          goto exit;
         }
 
-        set_nonblock_socket( client_fd );
-        dap_server_add_socket( client_fd, -1 );
-      }
-      else if( events[i].events & EPOLLERR ) {
-        log_it( L_ERROR, "Server socket error event" );
-        goto exit;
-      }
-
-    } // for
+      } // for
+    }else{
+      static const int c_dap_server_client_mode_tick_rate = 200;
+      dap_usleep(DAP_USEC_PER_SEC / c_dap_server_client_mode_tick_rate);
+    }
 
   } // while
 

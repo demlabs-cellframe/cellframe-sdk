@@ -105,7 +105,7 @@ void DLL_IMPORT free_ecb(void* ctx);
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT  init_cbc_14(unsigned char *key, void* ctx, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT  init_cbc_14(unsigned char *key, void* ctx, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Инициализация контекста шифрования в режиме CBC для алгоритма 28147-89
  *
@@ -118,7 +118,7 @@ int DLL_IMPORT  init_cbc_14(unsigned char *key, void* ctx, unsigned char *iv, si
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT init_cbc_89(unsigned char *key, void* ctx, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT init_cbc_89(unsigned char *key, void* ctx, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Удаление контекста cbc
  *
@@ -139,7 +139,7 @@ void DLL_IMPORT free_cbc(void* ctx);
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT init_ctr_14(unsigned char* key, unsigned char *iv, size_t length, void *ctx, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT init_ctr_14(unsigned char* key, const unsigned char *iv, size_t length, void *ctx, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Инициализация контекста шифрования в режиме CTR для алгоритма 28147-89
  *
@@ -152,7 +152,7 @@ int DLL_IMPORT init_ctr_14(unsigned char* key, unsigned char *iv, size_t length,
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT init_ctr_89(unsigned char* key, unsigned char *iv, size_t length, void *ctx, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT init_ctr_89(unsigned char* key, const unsigned char *iv, size_t length, void *ctx, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Удаление контекста ctr
  *
@@ -188,7 +188,7 @@ int DLL_IMPORT init_ofb_14(unsigned char *key, void *ctx, size_t s, const unsign
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT init_ofb_89(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT init_ofb_89(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Удаление контекста ofb
  *
@@ -210,7 +210,7 @@ void DLL_IMPORT free_ofb(void* ctx);
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT init_cfb_14(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT init_cfb_14(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Инициализация контекста шифрования в режиме CFB для алгоритма 28147-89
  *
@@ -224,7 +224,7 @@ int DLL_IMPORT init_cfb_14(unsigned char *key, void *ctx, size_t s, unsigned cha
  * @return 0 если все преобразование прошло успешно
  * @return -1 если произошла ошибка
  */
-int DLL_IMPORT init_cfb_89(unsigned char *key, void *ctx, size_t s, unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
+int DLL_IMPORT init_cfb_89(unsigned char *key, void *ctx, size_t s, const unsigned char *iv, size_t ivLength, printout_byte_array print, printout_uint_array print_uint);
 
 /** @brief Удаление контекста cfb
  *

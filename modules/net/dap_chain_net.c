@@ -22,7 +22,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+
 #include <stdlib.h>
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -80,7 +83,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-//#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #define __USE_XOPEN
 #define _GNU_SOURCE
 #include <time.h>
@@ -189,7 +192,7 @@ void s_net_set_go_sync(dap_chain_net_t * a_net)
 {
     if(!a_net)
         return;
-    dap_chain_net_start(a_net);
+    dap_chain_net_state_go_to(a_net, NET_STATE_SYNC_REQUESTED);
 }
 
 /**
@@ -209,10 +212,16 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
-    if (PVT(a_net)->state_target == a_new_state){
-        log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+    if (a_new_state == NET_STATE_SYNC_REQUESTED) {
+        if (PVT(a_net)->state_target != NET_STATE_OFFLINE) {
+            PVT(a_net)->state_target = NET_STATE_ONLINE;
+        }
+    } else {
+        if (PVT(a_net)->state_target == a_new_state){
+            log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+        }
+        PVT(a_net)->state_target = a_new_state;
     }
-    PVT(a_net)->state_target = a_new_state;
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond);
     // set flag for sync
     PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
@@ -240,7 +249,10 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                                                      const size_t a_value_len)
 {
     (void) a_op_code;
-
+    UNUSED(a_key);
+    UNUSED(a_value_len);
+    UNUSED(a_prefix);
+    UNUSED(a_group);
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
         s_net_set_go_sync(l_net);
@@ -679,7 +691,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 //l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_size);
                 //if( l_lasts ) {
                     l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
-                    dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
+                    dap_stream_ch_chain_sync_request_t l_request ;
+                    memset(&l_request, 0, sizeof (l_request));
                     //dap_hash_fast(l_lasts[0], l_chain->callback_atom_get_size(l_lasts[0]), &l_request.hash_from);
                     dap_stream_ch_chain_pkt_write(l_ch_chain,
                     DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id, l_chain->id,
@@ -788,10 +801,9 @@ static void *s_net_proc_thread ( void *a_net )
 
         // check or start sync
         s_net_states_proc( l_net );
-
+        struct timespec l_to;
 #ifndef _WIN32
         int l_ret = 0;
-        struct timespec l_to;
         // prepare for signal waiting
         clock_gettime( CLOCK_MONOTONIC, &l_to );
         int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
@@ -1076,7 +1088,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 struct tm l_from_tm = {0};
 
                 const char *l_prev_sec_str = NULL;
-                time_t l_prev_sec_ts;
+                //time_t l_prev_sec_ts;
 
                 const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
 
@@ -1475,8 +1487,8 @@ int s_net_load(const char * a_net_name)
                         l_node_info->hdr.ext_port = 8079;
 
                     if ( l_seed_nodes_hostnames_len ){
-                        struct addrinfo l_hints={0}, *l_servinfo, *p;
-                        int rv;
+                        struct addrinfo l_hints={0};
+
                         l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
                         //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
 
@@ -2205,7 +2217,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                                         char *l_hash_str = dap_chain_hash_fast_to_str_new(
                                                     (dap_chain_hash_fast_t*) l_tsd->data );
-                                        dap_string_append_printf(a_str_out,"total_signs_remoev: %s\n", l_hash_str );
+                                        dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
                                         dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %zd>\n", l_tsd->size);
@@ -2269,13 +2281,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                     dap_string_append_printf(a_str_out,"type: PRIVATE_DECL\n");
                     dap_string_append_printf(a_str_out,"flags: ");
                     dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_decl.flags);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(l_token, l_token_size);
-                    if (l_tsd == NULL)
+                    dap_chain_datum_token_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
+                    if (l_tsd_first == NULL)
                         dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
                     else{
                         size_t l_offset = 0;
                         size_t l_offset_max = l_token->header_private_decl.tsd_total_size;
                         while( l_offset< l_offset_max){
+                            dap_chain_datum_token_tsd_t * l_tsd = (void*)l_tsd_first + l_offset;
                             if ( (l_tsd->size+l_offset) >l_offset_max){
                                 log_it(L_WARNING, "<CORRUPTED TSD> too big size %zd when left maximum %zd",
                                        l_tsd->size, l_offset_max - l_offset);
@@ -2283,7 +2296,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                             }
                             switch( l_tsd->type){
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                                    dap_string_append_printf(a_str_out,"total_supply: %u\n",
+                                    dap_string_append_printf(a_str_out,"total_supply: %lu\n",
                                                              dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t) );
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
@@ -2320,6 +2333,9 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
 
                         }
                     }
+
+                    int l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
                     dap_string_append_printf(a_str_out,"type: PUBLIC\n");

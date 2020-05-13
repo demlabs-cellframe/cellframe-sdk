@@ -1,5 +1,6 @@
 unix {
     include(unix/unix.pri)
+    LIBS += -lrt
 }
 darwin {
     include(darwin/darwin.pri)

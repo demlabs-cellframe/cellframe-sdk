@@ -338,7 +338,9 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         l_tx_event->ts_added = l_event_item->ts_added;
         l_tx_event->event = l_event;
         memcpy(&l_tx_event->hash, &l_event_item->hash, sizeof (l_tx_event->hash) );
+        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
         HASH_ADD(hh,PVT(l_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
+        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
 
         //if ( !l_gdb_priv->is_load_mode ) // If its not load module but mempool proc
         //    l_tx->header.ts_created = time(NULL);
@@ -346,7 +348,6 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
 
         // don't save bad transactions to base
         if(dap_chain_ledger_tx_add(a_chain->ledger, l_tx) != 1) {
-            pthread_rwlock_unlock(l_events_rwlock);
             return -1;
         }
         //}else
@@ -354,11 +355,8 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
     }
         break;
     default:
-        pthread_rwlock_unlock(l_events_rwlock);
         return -1;
     }
-
-    pthread_rwlock_unlock( l_events_rwlock );
     // Now check the treshold if some events now are ready to move to the main table
     dap_chain_cs_dag_proc_treshold(l_dag);
     return 0;

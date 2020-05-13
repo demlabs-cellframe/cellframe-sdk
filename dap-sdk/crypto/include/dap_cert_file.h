@@ -53,6 +53,11 @@ typedef struct dap_cert_file{
     uint8_t data[];
 }DAP_ALIGN_PACKED dap_cert_file_t;
 
+typedef struct dap_cert_file_aux {
+    size_t *buf;
+    size_t idx;
+} dap_cert_file_aux_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

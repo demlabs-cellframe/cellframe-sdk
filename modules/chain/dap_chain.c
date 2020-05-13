@@ -100,16 +100,6 @@ void dap_chain_deinit(void)
 }
 
 /**
- * @brief dap_chain_load_net_cfg_name
- * @param a_chan_net_cfg_name
- * @return
- */
-dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
-{
-
-}
-
-/**
  * @brief dap_chain_create
  * @param a_chain_net_name
  * @param a_chain_name
@@ -213,14 +203,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
         if (l_cfg) {
             dap_chain_t * l_chain = NULL;
             dap_chain_id_t l_chain_id = {{0}};
+            uint64_t l_chain_id_u = 0;
             const char * l_chain_id_str = NULL;
             const char * l_chain_name = NULL;
 
             // Recognize chains id
-            if ( l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id") ){
-                if ( sscanf(l_chain_id_str,"0x%016llX",&l_chain_id.uint64) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%016llx",&l_chain_id.uint64) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%llu",&l_chain_id.uint64) !=1 ){
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
+                if ( sscanf(l_chain_id_str,"0x%016lX",& l_chain_id_u ) !=1 ){
+                    if ( sscanf(l_chain_id_str,"0x%016lx",&l_chain_id_u) !=1 ) {
+                        if ( sscanf(l_chain_id_str,"%lu",&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -228,6 +219,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                     }
                 }
             }
+            l_chain_id.uint64 = l_chain_id_u;
 
 
             if (l_chain_id_str ) {
@@ -385,6 +377,7 @@ int dap_chain_load_all (dap_chain_t * l_chain)
  */
 dap_chain_t * dap_chain_init_net_cfg_name(const char * a_chain_net_cfg_name)
 {
+    UNUSED( a_chain_net_cfg_name);
     return NULL;
 }
 
@@ -410,7 +403,7 @@ void dap_chain_close(dap_chain_t * a_chain)
  */
 void dap_chain_info_dump_log(dap_chain_t * a_chain)
 {
-
+    UNUSED(a_chain);
 }
 
 /**

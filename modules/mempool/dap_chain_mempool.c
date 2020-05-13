@@ -896,7 +896,6 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser
         datum_mempool->data[i] = (dap_chain_datum_t*) DAP_NEW_Z_SIZE(uint8_t, size_one);
         memcpy(datum_mempool->data[i], a_datum_mempool_ser + shift_size, size_one);
         shift_size += size_one;
-        datum_mempool->data[i];
     }
     assert(shift_size == a_datum_mempool_ser_size);
     DAP_DELETE(a_datum_mempool_ser);
@@ -1039,7 +1038,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
-                    char *str = dap_chain_global_db_gr_get( dap_strdup(a_key) , NULL,
+                    char *str = (char*) dap_chain_global_db_gr_get( dap_strdup(a_key) , NULL,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"));
                     if(str) {
                         dg->response = strdup("1");

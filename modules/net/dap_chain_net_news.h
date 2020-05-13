@@ -29,7 +29,7 @@
  * a_data_news - news data
  * a_data_news_len length of news
  */
-int dap_chain_net_news_write(char *a_lang, byte_t *a_data_news, size_t a_data_news_len);
+int dap_chain_net_news_write(const char *a_lang, char *a_data_news, size_t a_data_news_len);
 
 /* Get news in the selected language
  * a_lang - a language like "en", "ru", "fr"

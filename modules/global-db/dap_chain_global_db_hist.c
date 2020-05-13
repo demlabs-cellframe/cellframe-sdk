@@ -1104,7 +1104,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     l_store_data.key = dap_db_new_history_timestamp();
     l_store_data.value = (uint8_t*) strdup(l_str);
     l_store_data.value_len = l_str_len + 1;
-    l_store_data.group = a_group;//GROUP_LOCAL_HISTORY;
+    l_store_data.group = dap_strdup(a_group);//GROUP_LOCAL_HISTORY;
     l_store_data.timestamp = time(NULL);
     int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
@@ -1242,7 +1242,7 @@ static void *s_list_thread_proc(void *arg)
         if(!is_process)
             break;
         // calculating how many items required to read
-        int64_t l_item_count = min(10, (int64_t)l_item_last - (int64_t)l_item_start + 1);
+        uint64_t l_item_count =(uint64_t) min(10, (int64_t)l_item_last - (int64_t)l_item_start + 1);
         dap_store_obj_t *l_objs = NULL;
         // read next 1...10 items
         if(l_item_count > 0)
@@ -1340,7 +1340,7 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
     size_t *l_data_size_out_add_items = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_add_groups_num);
     uint64_t *l_group_last_id = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_add_groups_num);
     char **l_group_names = DAP_NEW_Z_SIZE(char*, sizeof(char*) * l_add_groups_num);
-    size_t l_data_size_out_add = 0;
+    size_t l_data_size_out_add_items_count = 0;
     l_add_groups_mask = a_add_groups_mask;
     while(l_add_groups_mask){
         dap_list_t *l_groups0 = dap_chain_global_db_driver_get_groups_by_mask(l_add_groups_mask->data);
@@ -1355,14 +1355,14 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
                 dap_store_obj_free(l_obj, 1);
             }
             l_data_size_out_add_items[l_group_cur] = dap_chain_global_db_driver_count(l_group_names[l_group_cur], 1);
-            l_data_size_out_add += l_data_size_out_add_items[l_group_cur];
+            l_data_size_out_add_items_count += l_data_size_out_add_items[l_group_cur];
             l_group_cur++;
             l_groups = dap_list_next(l_groups);
         }
         dap_list_free_full(l_groups0, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
-    if(!(l_data_size_out_main + l_data_size_out_add))
+    if(!(l_data_size_out_main + l_data_size_out_add_items_count))
         return NULL;
     // debug
 //    if(l_data_size_out>11)
@@ -1370,8 +1370,8 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
     l_dap_db_log_list->item_start = first_id;
     l_dap_db_log_list->item_last = first_id + l_data_size_out_main;
     l_dap_db_log_list->items_number_main = l_data_size_out_main;
-    l_dap_db_log_list->items_number_add = l_data_size_out_add;
-    l_dap_db_log_list->items_number = l_data_size_out_main + l_data_size_out_add;
+    l_dap_db_log_list->items_number_add = l_data_size_out_add_items_count;
+    l_dap_db_log_list->items_number = l_data_size_out_main + l_data_size_out_add_items_count;
     l_dap_db_log_list->items_rest = l_dap_db_log_list->items_number;
     l_dap_db_log_list->group_number = (int64_t)l_add_groups_num;
     l_dap_db_log_list->group_number_items = l_data_size_out_add_items;
@@ -1383,8 +1383,9 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
     if(0) {//l_data_size_out <= 10) {
         dap_list_t *l_list = NULL;
         // read first items
-        dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out_add_items);
-        for(size_t i = 0; i < l_data_size_out_add_items; i++) {
+        size_t l_objs_count = 0;
+        dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_objs_count);
+        for(size_t i = 0; i < l_objs_count; i++) {
             dap_store_obj_t *l_obj_cur = l_objs + i;
             dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
             l_item->id = l_obj_cur->id;
@@ -1395,7 +1396,7 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         l_dap_db_log_list->list_write = l_list;
         l_dap_db_log_list->list_read = l_list;
         //log_it(L_DEBUG, "loaded items n=%d", l_data_size_out);
-        dap_store_obj_free(l_objs, l_data_size_out_add_items);
+        dap_store_obj_free(l_objs, l_objs_count);
     }
     // start thread for items loading
     else {
@@ -1479,7 +1480,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
         pthread_mutex_unlock(&a_db_log_list->list_mutex);
         pthread_join(a_db_log_list->thread, NULL);
     }
-    for(size_t i = 0; i < a_db_log_list->group_number; i++)
+    for(int64_t i = 0; i < a_db_log_list->group_number; i++)
         DAP_DELETE(a_db_log_list->group_names[i]);
     DAP_DELETE(a_db_log_list->group_names);
     DAP_DELETE(a_db_log_list->group_last_id);

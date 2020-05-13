@@ -57,6 +57,7 @@ size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order);
 bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_order, uint8_t a_continent_num, const char *a_region);
 bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region);
 
+const char* dap_chain_net_srv_order_get_country_code(dap_chain_net_srv_order_t *a_order);
 size_t dap_chain_net_srv_order_continents_count(void);
 const char* dap_chain_net_srv_order_continent_to_str(int8_t a_num);
 int8_t dap_chain_net_srv_order_continent_to_num(const char *l_continent_str);
