@@ -445,18 +445,32 @@ void dap_cert_dump(dap_cert_t * a_cert)
 {
     printf ("Certificate name: %s\n",a_cert->name);
     printf ("Signature type: %s\n", dap_sign_type_to_str( dap_sign_type_from_key_type(a_cert->enc_key->type) ) );
-    printf ("Private key size: %llu\n",a_cert->enc_key->priv_key_data_size);
-    printf ("Public key size: %llu\n", a_cert->enc_key->pub_key_data_size);
+    printf ("Private key size: %lu\n",a_cert->enc_key->priv_key_data_size);
+    printf ("Public key size: %lu\n", a_cert->enc_key->pub_key_data_size);
     size_t l_meta_items_cnt = dap_binary_tree_count(a_cert->metadata);
-    printf ("Metadata section count: %llu\n", l_meta_items_cnt);
-    printf ("Certificates signatures chain size: %llu\n",dap_cert_count_cert_sign (a_cert));
+    printf ("Metadata section count: %lu\n", l_meta_items_cnt);
+    printf ("Certificates signatures chain size: %lu\n",dap_cert_count_cert_sign (a_cert));
     if (l_meta_items_cnt) {
-        printf ("Metadata section\n");
+        printf ("Metadata sections\n");
         dap_list_t *l_meta_list = dap_binary_tree_inorder_list(a_cert->metadata);
         dap_list_t *l_meta_list_item = dap_list_first(l_meta_list);
         while (l_meta_list_item) {
             dap_cert_metadata_t *l_meta_item = (dap_cert_metadata_t *)l_meta_list_item->data;
-            printf("%s\t%u\t%u\t%s", l_meta_item->key, l_meta_item->type, l_meta_item->length, l_meta_item->value);
+            char *l_str;
+            switch (l_meta_item->type) {
+            case DAP_CERT_META_STRING:
+                l_str = strndup((char *)l_meta_item->value, l_meta_item->length);
+                printf("%s\t%u\t%u\t%s\n", l_meta_item->key, l_meta_item->type, l_meta_item->length, l_str);
+                free(l_str);
+                break;
+            case DAP_CERT_META_INT:
+            case DAP_CERT_META_BOOL:
+                printf("%s\t%u\t%u\t%u\n", l_meta_item->key, l_meta_item->type, l_meta_item->length, *(uint32_t *)l_meta_item->value);
+                break;
+            default:
+                printf("%s\t%u\t%u\t0x%016lX\n", l_meta_item->key, l_meta_item->type, l_meta_item->length, *(uint64_t *)l_meta_item->value);
+                break;
+            }
             l_meta_list_item = l_meta_list_item->next;
         }
         dap_list_free(l_meta_list);
@@ -555,7 +569,7 @@ void dap_cert_add_meta(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_
         return;
     }
     dap_cert_metadata_t *l_new_meta = dap_cert_new_meta(a_key, a_type, a_value, a_value_size);
-    dap_binary_tree_t *l_new_root = dap_binary_tree_insert(a_cert->metadata, a_key, (void *)l_new_meta);
+    dap_binary_tree_t *l_new_root = dap_binary_tree_insert(a_cert->metadata, l_new_meta->key, (void *)l_new_meta);
     if (!a_cert->metadata) {
         a_cert->metadata = l_new_root;
     }
@@ -563,7 +577,8 @@ void dap_cert_add_meta(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_
 
 void dap_cert_add_meta_scalar(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, uint64_t a_value, size_t a_value_size)
 {
-    byte_t l_tmp8, *l_value;
+    void *l_value;
+    byte_t l_tmp8;
     uint16_t l_tmp16;
     uint32_t l_tmp32;
     uint64_t l_tmp64;
@@ -581,21 +596,21 @@ void dap_cert_add_meta_scalar(dap_cert_t *a_cert, const char *a_key, dap_cert_me
             break;
         case 2:
             l_tmp16 = a_value;
-            l_value = (byte_t *)&l_tmp16;
+            l_value = (void *)&l_tmp16;
             break;
         case 4:
             l_tmp32 = a_value;
-            l_value = (byte_t *)&l_tmp32;
+            l_value = (void *)&l_tmp32;
             break;
         case 8:
         default:
             l_tmp64 = a_value;
-            l_value = (byte_t *)&l_tmp64;
+            l_value = (void *)&l_tmp64;
             break;
         }
         break;
     }
-    dap_cert_add_meta(a_cert, a_key, a_type, (void *)&l_value, a_value_size);
+    dap_cert_add_meta(a_cert, a_key, a_type, l_value, a_value_size);
 }
 
 /**

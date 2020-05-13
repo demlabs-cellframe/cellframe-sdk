@@ -36,8 +36,14 @@ static void s_list_construct(dap_list_t *a_list, dap_binary_tree_t *a_elm)
 }
 
 dap_list_t *dap_binary_tree_inorder_list(dap_binary_tree_t *a_tree_root) {
-    dap_list_t *l_list = DAP_NEW(dap_list_t);
-    s_list_construct(l_list, a_tree_root);
+    if (!a_tree_root) {
+        return NULL;
+    }
+    dap_list_t *l_tmp = dap_list_alloc();
+    s_list_construct(l_tmp, a_tree_root);
+    dap_list_t *l_list = l_tmp->next;
+    l_list->prev = NULL;
+    dap_list_free1(l_tmp);
     return l_list;
 }
 
@@ -96,7 +102,7 @@ void *dap_binary_tree_maximum(dap_binary_tree_t *a_tree_root)
 static dap_binary_tree_t *s_tree_insert(dap_binary_tree_t *a_elm, dap_binary_tree_key_t a_key, void *a_data)
 {
     if (a_elm == NULL) {
-        dap_binary_tree_t* l_elm = DAP_NEW(dap_binary_tree_t);
+        dap_binary_tree_t* l_elm = DAP_NEW_Z(dap_binary_tree_t);
         l_elm->left = l_elm->right = NULL;
         l_elm->key = a_key;
         l_elm->data = a_data;

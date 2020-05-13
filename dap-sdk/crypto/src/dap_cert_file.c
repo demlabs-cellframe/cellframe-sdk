@@ -96,6 +96,7 @@ void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t
         l_mem_shift += sizeof(uint32_t);
         dap_cert_metadata_type_t l_meta_type = (dap_cert_metadata_type_t)a_data[l_mem_shift++];
         const uint8_t *l_value = &a_data[l_mem_shift];
+        l_mem_shift += l_value_size;
         uint16_t l_tmp16;
         uint32_t l_tmp32;
         uint64_t l_tmp64;
@@ -134,7 +135,7 @@ void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t
     }
     size_t l_reorder_arr[l_meta_items_count];
     dap_cert_file_aux_t l_reorder = {l_reorder_arr, 0};
-    s_balance_the_tree(&l_reorder, 0, l_meta_items_count);
+    s_balance_the_tree(&l_reorder, 0, l_meta_items_count - 1);
     size_t n = l_reorder_arr[0];
     a_cert->metadata = dap_binary_tree_insert(NULL, l_meta_arr[n]->key, (void *)l_meta_arr[n]);
     for (size_t i = 1; i < l_meta_items_count; i++) {
@@ -153,6 +154,9 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
         dap_cert_add_meta_custom(a_cert, s_key_inheritor, a_cert->enc_key->_inheritor, a_cert->enc_key->_inheritor_size);
     }
     dap_list_t *l_meta_list = dap_binary_tree_inorder_list(a_cert->metadata);
+    if (!l_meta_list) {
+        return NULL;
+    }
     dap_list_t *l_meta_list_item = dap_list_first(l_meta_list);
     uint8_t *l_buf = NULL;
     size_t l_mem_shift = 0;
@@ -273,8 +277,8 @@ uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
         l_data_offset += l_priv_key_data_size;
     }
 
-    if ( l_metadata_size ) {
-        memcpy(l_data +l_data_offset, l_metadata, l_metadata_size );
+    if (l_metadata_size) {
+        memcpy(l_data + l_data_offset, l_metadata, l_metadata_size);
         l_data_offset += l_metadata_size;
     }
 lb_exit:
