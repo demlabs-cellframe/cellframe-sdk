@@ -239,6 +239,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
             dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
 
+            /*
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
             // transaction include emission?
             bool l_is_emit = false;
@@ -253,7 +254,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             }
             // if emission then the wallet can be with zero balance
             if(l_is_emit)
-                return 0;
+                return 0;*/
 
             bool l_is_enough_balance = false;
             for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
