@@ -275,11 +275,11 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
     dap_tx_data_t *l_iter_current, *l_item_tmp;
     HASH_ITER(hh, l_tx_data_hash , l_iter_current, l_item_tmp)
     {
+        HASH_DEL(l_tx_data_hash, l_iter_current);
         // delete datum
         DAP_DELETE(l_iter_current->datum);
         // delete struct
         DAP_DELETE(l_iter_current);
-        HASH_DEL(l_tx_data_hash, l_iter_current);
     }
 
     // if no history
