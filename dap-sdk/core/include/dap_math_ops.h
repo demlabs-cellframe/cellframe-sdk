@@ -13,15 +13,16 @@ typedef __int128 _dap_int128_t;
 #if !defined (int128_t)
 typedef __int128 int128_t;
 #else
-typedef struct int128{ int64_t i64[2]; } DAP_ALIGIN_PACKED int128_t;
+typedef unsigned int64_t[2] int128_t;
 #endif
+
 #if !defined (uint128_t)
 typedef unsigned __int128 uint128_t;
 #else
-typedef struct uint128{ uint64_t ui64[2]; } DAP_ALIGIN_PACKED uint128_t;
-#else
 typedef unsigned uint64_t[2] uint128_t;
 #endif
+
+
 #endif
 #endif
 
