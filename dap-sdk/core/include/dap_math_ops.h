@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+
 #include "dap_common.h"
 //#include "common/int-util.h"
 
@@ -12,18 +13,21 @@ typedef __int128 _dap_int128_t;
 
 #if !defined (int128_t)
 typedef __int128 int128_t;
-#else
-typedef unsigned int64_t[2] int128_t;
 #endif
 
 #if !defined (uint128_t)
 typedef unsigned __int128 uint128_t;
-#else
-typedef unsigned uint64_t[2] uint128_t;
+#endif
+
+#endif
+
+#if __SIZEOF_INT128__ != 16
+typedef union uint128{uint64_t u64[2];} uint128_t;
+typedef union int128{int64_t i64[2];} int128_t;
+
 #endif
 
 
-#endif
 #endif
 
 typedef union dap_uint128{

@@ -210,11 +210,21 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_cha
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 
 static inline long double dap_chain_balance_to_coins( uint128_t a_balance){
-    return (long double) a_balance / DATOSHI_LD;
+#ifdef DAP_GLOBAL_IS_INT128
+        return (long double) a_balance / DATOSHI_LD;
+#else
+    return (long double)   (a_balance.u64[0] / DATOSHI_LD);
+#endif
 }
 
 static inline uint128_t dap_chain_coins_to_balance( long double a_balance){
+#ifdef DAP_GLOBAL_IS_INT128
     return (uint128_t)( a_balance * DATOSHI_LD) ;
+#else
+    uint128_t l_ret={0};
+    l_ret.u64[0]=a_balance *DATOSHI_LD;
+    return l_ret;
+#endif
 }
 
 /**
