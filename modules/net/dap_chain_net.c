@@ -2161,6 +2161,11 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             dap_chain_datum_token_t * l_token = (dap_chain_datum_token_t*) a_datum->data;
             size_t l_token_size = a_datum->header.data_size;
+            if(l_token_size < sizeof(dap_chain_datum_token_t)){
+                dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %lu, while at least %lu is expected\n",
+                                         l_token_size, sizeof(dap_chain_datum_token_t));
+                return;
+            }
             dap_string_append_printf(a_str_out,"==Datum Token Declaration\n");
             dap_string_append_printf(a_str_out, "ticker: %s\n", l_token->ticker);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_token_size);
@@ -2334,7 +2339,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                         }
                     }
 
-                    int l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
+                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
