@@ -33,7 +33,6 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
 
-#define UNUSED(x) (void)(x)
 #define LOG_TAG "dap_dns_server"
 
 static dap_dns_server_t *s_dns_server;
