@@ -912,8 +912,10 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         // delete transaction from the cache list
         //ret = dap_chain_ledger_tx_remove(a_ledger, l_tx_hash);
         // there should be no duplication
-        log_it(L_WARNING, "Transaction (hash=0x%x)  deleted from cache because there is an attempt to add it to cache",
-                l_tx_hash);
+        char * l_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
+        log_it(L_WARNING, "Transaction (hash=%s)  deleted from cache because there is an attempt to add it to cache",
+               l_hash_str);
+        DAP_DELETE(l_hash_str);
         ret = 1;
         goto FIN;
     }

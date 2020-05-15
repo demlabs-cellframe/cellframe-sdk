@@ -587,7 +587,9 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
                 dap_chain_cs_dag_event_item_t * l_event_search = NULL;
                 HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
                 if ( l_event_search == NULL ){
-                    log_it(L_DEBUG, "Hash %s wasn't in hashtable of previously parsed", l_hash);
+                    char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
+                    log_it(L_DEBUG, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
+                    DAP_DELETE(l_hash_str);
                     return 1;
                 }
 
