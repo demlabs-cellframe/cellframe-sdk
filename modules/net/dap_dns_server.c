@@ -314,7 +314,6 @@ void dap_dns_server_start() {
         return;
     }
     s_dns_server->instance->client_read_callback = dap_dns_client_read;
-    s_dns_server->instance->client_read_callback = *dap_dns_client_read;
     s_dns_server->instance->client_write_callback = NULL;
     s_dns_server->instance->client_new_callback = NULL;
     s_dns_server->instance->client_delete_callback = NULL;

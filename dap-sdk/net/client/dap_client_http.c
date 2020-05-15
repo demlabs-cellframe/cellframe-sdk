@@ -383,8 +383,8 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
         dap_events_socket_create_after(l_ev_socket);
     }
     else {
-        log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d err=%d", a_uplink_addr, a_uplink_port,
-                l_socket, errno);
+        log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d err: %s", a_uplink_addr, a_uplink_port,
+                l_socket, strerror(errno));
         //l_ev_socket->no_close = false;
         dap_events_socket_kill_socket(l_ev_socket);
         //shutdown(l_ev_socket->socket, SHUT_RDWR);

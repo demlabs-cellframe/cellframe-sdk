@@ -1145,11 +1145,10 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         // TODO add progress info to console
         res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
         if(res < 0) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
+                                            NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
             dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
-                    NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
 
