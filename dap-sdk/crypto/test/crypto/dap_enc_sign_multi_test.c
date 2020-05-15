@@ -69,5 +69,5 @@ void dap_enc_multi_sign_tests_run()
     dap_print_module_name("dap_enc_sign_multi");
     init_test_case();
 
-    benchmark_mgs_time("Signing and verifying message 1 time", benchmark_test_time(test_signing_verifying, 1));
+    benchmark_mgs_time("Signing and verifying message 1 time", benchmark_test_time(test_signing_verifying, 10));
 }

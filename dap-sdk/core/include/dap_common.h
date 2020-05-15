@@ -393,6 +393,13 @@ void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len);
 void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
 int dap_interval_timer_delete(void *a_timer);
 
+uint16_t dap_lendian_get16(const uint8_t *a_buf);
+void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val);
+uint32_t dap_lendian_get32(const uint8_t *a_buf);
+void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val);
+uint64_t dap_lendian_get64(const uint8_t *a_buf);
+void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
+
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
 #endif

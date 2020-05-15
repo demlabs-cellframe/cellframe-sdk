@@ -289,7 +289,7 @@ static void *thread_worker_function(void *arg)
 //  memset( &events, 0, sizeof(events) );
 
     size_t total_sent;
-    int bytes_sent;
+    int bytes_sent = 0;
 
     while(1) {
 
