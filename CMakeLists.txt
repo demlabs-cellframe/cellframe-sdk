@@ -30,11 +30,6 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
-if(DAP_TUN_NEW_WORKER)
-    message("[*] New TUN worker processor enabled")
-    add_definitions ("-DDAP_TUN_IN_WORKER")
-endif()
-
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
