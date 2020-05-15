@@ -301,7 +301,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
                   l_link_hash += sizeof (dap_chain_hash_fast_t ) ) {
             l_event_last = NULL;
             pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_link_hash,sizeof(*l_link_hash), l_event_last);
+            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,l_link_hash,sizeof(*l_link_hash), l_event_last);
             if ( l_event_last ){ // If present in unlinked - remove
                 HASH_DEL(PVT(l_dag)->events_lasts_unlinked,l_event_last);
                 DAP_DEL_Z(l_event_last);
