@@ -49,7 +49,7 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet dap_chain_crypto)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet)
 endif()
 
 # Networking
