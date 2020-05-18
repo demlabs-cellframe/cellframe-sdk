@@ -4,6 +4,8 @@
  * @copyright InfoTeCS. All rights reserved.
  */
 
+#include <string.h>
+#include <stdint.h>
 #include <memory.h>
 
 #include "28147_14.h"
