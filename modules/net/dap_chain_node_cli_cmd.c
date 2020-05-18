@@ -76,7 +76,6 @@
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
 #ifndef _WIN32
-#include "dap_chain_net_vpn_client.h"
 #include "dap_chain_net_news.h"
 #endif
 #include "dap_chain_cell.h"
