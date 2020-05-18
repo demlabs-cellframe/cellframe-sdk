@@ -1,6 +1,6 @@
 #ifndef crypto_stream_salsa2012_H
 #define crypto_stream_salsa2012_H
-
+#define __STDC_LIMIT_MACROS
 /*
  *  WARNING: This is just a stream cipher. It is NOT authenticated encryption.
  *  While it provides some protection against eavesdropping, it does NOT
@@ -10,10 +10,19 @@
  */
 
 #include <stddef.h>
-#include "utils.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+
+
+#define SODIUM_MIN(A, B) ((A) < (B) ? (A) : (B))
+#if defined(UINT64_MAX) && defined(SIZE_MAX)
+ #define SODIUM_SIZE_MAX SODIUM_MIN(UINT64_MAX, SIZE_MAX)
+#else
+ #define SODIUM_SIZE_MAX ((1 << 30) - 1)
 #endif
 
 #define crypto_stream_salsa2012_KEYBYTES 32U
