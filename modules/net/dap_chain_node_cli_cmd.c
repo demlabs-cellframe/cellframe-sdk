@@ -3539,7 +3539,7 @@ int com_tx_verify(int argc, char ** argv, void *arg_func, char **str_reply)
         if(str_reply)
             dap_chain_node_cli_set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
     }
-    if(str_reply)
+    else if(str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
     return -1;
 }
