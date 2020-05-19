@@ -64,6 +64,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_net_srv_vpn_cmd.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client.h"
 #include "dap_chain_ledger.h"
@@ -298,7 +299,10 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
                 break; // double break exits tokenizer loop and steps to next price item
             }
         }
-        return 0;
+
+        int retVal = dap_chain_net_srv_vpn_cmd_init();
+
+        return retVal;
     }
     return -1;
 }
