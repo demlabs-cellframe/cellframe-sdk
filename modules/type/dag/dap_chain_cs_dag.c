@@ -262,7 +262,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
 
     // verification was already in s_chain_callback_atom_verify()
     int ret_cs = l_dag->callback_cs_verify(l_dag,l_event);
-    if ( ret != 0 ){
+    if ( ret_cs != 0 ){
         log_it(L_WARNING,"Consensus can't accept the event, verification returned %d",ret_cs);
         return  -2;
     }
