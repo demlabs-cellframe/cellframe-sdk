@@ -310,7 +310,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
                         if(!order_info_print(l_reply_str, l_net, l_order, NULL, l_n)) {
                             //if(l_o != l_orders_num - 1)
                             l_num_print_nodes++;
-                            if(l_num_print_nodes < l_orders_used_num)
+                            if(l_num_print_nodes < l_orders_used_num - 1)
                                 dap_string_append_printf(l_reply_str, ",\n");
                             else
                                 dap_string_append_printf(l_reply_str, "\n");
