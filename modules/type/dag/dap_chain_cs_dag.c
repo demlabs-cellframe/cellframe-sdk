@@ -359,7 +359,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         return -1;
     }
     // Now check the treshold if some events now are ready to move to the main table
-    dap_chain_cs_dag_proc_treshold(l_dag);
+    while(dap_chain_cs_dag_proc_treshold(l_dag));
     return 0;
 }
 
@@ -692,9 +692,11 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
 /**
  * @brief dap_chain_cs_dag_proc_treshold
  * @param a_dag
+ * @returns true if some atoms were moved from threshold to events
  */
-void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
+bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
 {
+    bool res = false;
     // TODO Process finish treshold. For now - easiest from possible
     pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
@@ -706,15 +708,17 @@ void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
             pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
 
-            if(ret == DAP_THRESHOLD_OK)
-              HASH_ADD(hh, PVT(a_dag)->events, hash,sizeof (l_event_item->hash),  l_event_item);
-            else if(ret == DAP_THRESHOLD_CONFLICTING)
-              HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
+            if(ret == DAP_THRESHOLD_OK){
+                HASH_ADD(hh, PVT(a_dag)->events, hash,sizeof (l_event_item->hash),  l_event_item);
+                res = true;
+            }else if(ret == DAP_THRESHOLD_CONFLICTING)
+                HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
 
             s_dag_events_lasts_delete_linked_with_event(a_dag, l_event);
         }
     }
     pthread_rwlock_unlock(&PVT(a_dag)->events_rwlock);
+    return res;
 }
 
 
