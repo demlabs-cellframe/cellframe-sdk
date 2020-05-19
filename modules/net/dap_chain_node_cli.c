@@ -943,10 +943,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
 
-    // vpn client
-    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
-    "vpn_client [start -addr <server address> -port <server port>| stop | status]\n");
-
 
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, NULL, "Print log info",
