@@ -1569,12 +1569,18 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
             }
         }
 
-//        dap_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
-        dap_sign_type_t l_sign_type = dap_sign_type_from_str(l_sign_type_str);
-        if(l_sign_type.type == SIG_TYPE_NULL){
+        dap_sign_type_t l_sign_type;
+        if (!l_sign_type_str) {
             l_sign_type.type = SIG_TYPE_DILITHIUM;
             l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+        } else {
+            l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+            if (l_sign_type.type == SIG_TYPE_NULL){
+                dap_chain_node_cli_set_reply_text(str_reply, "Unknown signature type");
+                return -1;
+            }
         }
+
         uint8_t *l_seed = NULL;
         size_t l_seed_size = 0;
         size_t l_restore_str_size = dap_strlen(l_restore_str);
