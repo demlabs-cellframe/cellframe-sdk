@@ -359,7 +359,10 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         return -1;
     }
     // Now check the treshold if some events now are ready to move to the main table
+    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
     while(dap_chain_cs_dag_proc_treshold(l_dag));
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+
     return 0;
 }
 
@@ -698,14 +701,11 @@ bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
 {
     bool res = false;
     // TODO Process finish treshold. For now - easiest from possible
-    pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     HASH_ITER(hh,PVT(a_dag)->events_treshold,l_event_item, l_event_item_tmp){
         dap_chain_cs_dag_event_t * l_event = l_event_item->event;
         dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold (a_dag,l_event);
         if ( ret == DAP_THRESHOLD_OK || ret == DAP_THRESHOLD_CONFLICTING ){ // All its hashes are in main table, move thats one too into it
-            pthread_rwlock_unlock(&PVT(a_dag)->events_rwlock);
-            pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
 
             if(ret == DAP_THRESHOLD_OK){
@@ -717,7 +717,6 @@ bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
             s_dag_events_lasts_delete_linked_with_event(a_dag, l_event);
         }
     }
-    pthread_rwlock_unlock(&PVT(a_dag)->events_rwlock);
     return res;
 }
 
@@ -1338,6 +1337,8 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"%s.%s: Have %u events :\n",
                                              l_net->pub.name,l_chain->name,l_events_count);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
+
+                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
@@ -1346,6 +1347,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                                                  l_event_item_hash_str, ctime_r( &l_ts_create,buf ) );
                         DAP_DELETE(l_event_item_hash_str);
                     }
+                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
 
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
