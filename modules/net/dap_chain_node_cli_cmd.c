@@ -76,7 +76,6 @@
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
 #ifndef _WIN32
-#include "dap_chain_net_vpn_client.h"
 #include "dap_chain_net_news.h"
 #endif
 #include "dap_chain_cell.h"
@@ -1145,11 +1144,10 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         // TODO add progress info to console
         res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
         if(res < 0) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
+                                            NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
             dap_chain_node_client_close(l_node_client);
             DAP_DELETE(l_remote_node_info);
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
-                    NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
 
@@ -1571,12 +1569,18 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
             }
         }
 
-//        dap_sign_type_t l_sign_type = { SIG_TYPE_BLISS };
-        dap_sign_type_t l_sign_type = dap_sign_type_from_str(l_sign_type_str);
-        if(l_sign_type.type == SIG_TYPE_NULL){
+        dap_sign_type_t l_sign_type;
+        if (!l_sign_type_str) {
             l_sign_type.type = SIG_TYPE_DILITHIUM;
             l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+        } else {
+            l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+            if (l_sign_type.type == SIG_TYPE_NULL){
+                dap_chain_node_cli_set_reply_text(str_reply, "Unknown signature type");
+                return -1;
+            }
         }
+
         uint8_t *l_seed = NULL;
         size_t l_seed_size = 0;
         size_t l_restore_str_size = dap_strlen(l_restore_str);
@@ -3541,7 +3545,7 @@ int com_tx_verify(int argc, char ** argv, void *arg_func, char **str_reply)
         if(str_reply)
             dap_chain_node_cli_set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
     }
-    if(str_reply)
+    else if(str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
     return -1;
 }
@@ -3793,105 +3797,5 @@ int com_news(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
         return -3;
     }
     dap_chain_node_cli_set_reply_text(a_str_reply, "News added from %s successfully", l_from);
-    return 0;
-}
-
-/**
- * vpn_client command
- *
- * VPN client control
- */
-int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
-{
-#ifndef _WIN32
-    enum {
-        CMD_NONE, CMD_START, CMD_STOP, CMD_STATUS
-    };
-    int l_arg_index = 1;
-    // find net
-    dap_chain_net_t *l_net = NULL;
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
-        return -2;
-
-    int cmd_num = CMD_NONE;
-    if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "start", NULL)) {
-        cmd_num = CMD_START;
-    }
-    else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "stop", NULL)) {
-        cmd_num = CMD_STOP;
-    }
-    else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "status", NULL)) {
-        cmd_num = CMD_STATUS;
-    }
-    if(cmd_num == CMD_NONE) {
-        if(!a_argv[1])
-            dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
-        else
-            dap_chain_node_cli_set_reply_text(a_str_reply, "parameter %s not recognized", a_argv[1]);
-        return -1;
-    }
-
-    switch (cmd_num)
-    {
-    case CMD_START: {
-        const char * l_str_addr = NULL; // for example, "192.168.100.93"
-        const char * l_str_port = NULL; // for example, "8079"
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_str_addr);
-        if(!l_str_addr) {
-            dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "VPN server address not defined, use -addr <vpn server ipv4 address> parameter");
-            break;
-        }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_str_port);
-        int l_srv_port = (l_str_port) ? (int) strtoll(l_str_port, 0, 10) : 0;
-        if(!l_srv_port) {
-            dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "VPN server port not defined, use -port <vpn server port>  parameter");
-            break;
-        }
-        int l_res = dap_chain_net_vpn_client_start(l_net, l_str_addr, NULL, l_srv_port);
-        switch (l_res) {
-        case 0:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client started successfully");
-            break;
-        case 1:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client already started");
-            break;
-        case -2:
-        case -3:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't connect to VPN server");
-            break;
-        default:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't start VPN client");
-            break;
-        }
-        return l_res;
-    }
-        break;
-    case CMD_STOP: {
-        int res = dap_chain_net_vpn_client_stop();
-        if(!res)
-            dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client stopped successfully");
-        else
-            dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client not stopped");
-        return res;
-    }
-        //break;
-    case CMD_STATUS:
-        switch (dap_chain_net_vpn_client_status()) {
-//        switch (0){
-        case 0:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client stopped");
-            return 0;
-        case 1:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "VPN client started");
-            return 0;
-        case -1:
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get VPN state");
-            return -1;
-        }
-        break;
-    }
-#endif
     return 0;
 }

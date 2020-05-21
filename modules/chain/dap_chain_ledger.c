@@ -371,7 +371,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
         log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s ): already present in cache",
                 a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         ret = -1;
-    }else if ( (! l_token_item) && ( HASH_COUNT( l_ledger_priv->treshold_emissions) < s_treshold_emissions_max  )) {
+    }else if ( (! l_token_item) && ( HASH_COUNT( l_ledger_priv->treshold_emissions) >= s_treshold_emissions_max  )) {
         log_it(L_WARNING,"Treshold for emissions is overfulled (%lu max)",
                s_treshold_emissions_max);
         ret = -2;
@@ -984,8 +984,10 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         // delete transaction from the cache list
         //ret = dap_chain_ledger_tx_remove(a_ledger, l_tx_hash);
         // there should be no duplication
-        log_it(L_WARNING, "Transaction (hash=0x%x)  deleted from cache because there is an attempt to add it to cache",
-                l_tx_hash);
+        char * l_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
+        log_it(L_WARNING, "Transaction (hash=%s)  deleted from cache because there is an attempt to add it to cache",
+               l_hash_str);
+        DAP_DELETE(l_hash_str);
         ret = 1;
         goto FIN;
     }

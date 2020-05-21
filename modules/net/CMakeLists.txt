@@ -39,12 +39,12 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
 
 if(WIN32)
-  target_link_libraries(dap_chain_net dap_core dap_crypto dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain dap_chain_crypto dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db )
+  target_link_libraries(dap_chain_net dap_core dap_crypto dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db )
 endif()
 
 if(UNIX)
     target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain
-      dap_chain_crypto dap_chain_wallet dap_chain_net_srv dap_chain_net_srv_vpn dap_chain_mempool dap_chain_global_db
+      dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db
       resolv
       )
 endif()

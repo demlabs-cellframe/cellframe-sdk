@@ -69,6 +69,7 @@ typedef struct dap_chain_cs_dag_pvt {
 
     dap_chain_cs_dag_event_item_t * tx_events;
     dap_chain_cs_dag_event_item_t * events_treshold;
+    dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
 
 } dap_chain_cs_dag_pvt_t;
@@ -260,9 +261,9 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
 
     // verification was already in s_chain_callback_atom_verify()
-    ret = l_dag->callback_cs_verify(l_dag,l_event);
-    if ( ret != 0 ){
-        log_it(L_WARNING,"Consensus can't accept the event, verification returned %d",ret);
+    int ret_cs = l_dag->callback_cs_verify(l_dag,l_event);
+    if ( ret_cs != 0 ){
+        log_it(L_WARNING,"Consensus can't accept the event, verification returned %d",ret_cs);
         return  -2;
     }
     dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
@@ -272,7 +273,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
 
     // Put in main table or in the treshhold if not all the rest linked event are present
     dap_chain_cs_dag_event_item_t * l_event_search = NULL;
-    dap_chain_cs_dag_event_item_t * l_events =( ret==0 ? PVT(l_dag)->events : PVT(l_dag)->events_treshold );
+    dap_chain_cs_dag_event_item_t * l_events =( (ret==0 && ret_cs == 0)? PVT(l_dag)->events : PVT(l_dag)->events_treshold );
     pthread_rwlock_t * l_events_rwlock = &PVT(l_dag)->events_rwlock ;
     pthread_rwlock_wrlock( l_events_rwlock );
     HASH_FIND(hh, l_events,&l_event_item->hash,sizeof (l_event_search->hash),  l_event_search);
@@ -286,7 +287,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
     }
     HASH_ADD(hh, l_events,hash,sizeof (l_event_item->hash),  l_event_item);
     // save l_events to dag_pvt
-    if(ret==0)
+    if(ret==0 && ret_cs == 0)
         PVT(l_dag)->events = l_events;
     else
         PVT(l_dag)->events_treshold = l_events;
@@ -301,7 +302,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
                   l_link_hash += sizeof (dap_chain_hash_fast_t ) ) {
             l_event_last = NULL;
             pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_link_hash,sizeof(*l_link_hash), l_event_last);
+            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,l_link_hash,sizeof(*l_link_hash), l_event_last);
             if ( l_event_last ){ // If present in unlinked - remove
                 HASH_DEL(PVT(l_dag)->events_lasts_unlinked,l_event_last);
                 DAP_DEL_Z(l_event_last);
@@ -358,7 +359,10 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         return -1;
     }
     // Now check the treshold if some events now are ready to move to the main table
-    dap_chain_cs_dag_proc_treshold(l_dag);
+    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
+    while(dap_chain_cs_dag_proc_treshold(l_dag));
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+
     return 0;
 }
 
@@ -563,20 +567,25 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
+    if (l_event->header.hash_count == 0){
+      if(s_seed_mode && !PVT(l_dag)->events)
+        //starting a new network and this is a genesis event
+        return 0;
 
-    if (l_event->header.hash_count == 0 && l_dag->is_static_genesis_event ){
+      if (l_dag->is_static_genesis_event ){
         dap_chain_hash_fast_t l_event_hash;
         dap_chain_cs_dag_event_calc_hash(l_event,&l_event_hash);
         if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
-            char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-            char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
+          char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
+          char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
 
-            log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
-            DAP_DELETE(l_event_hash_str);
-            DAP_DELETE(l_genesis_event_hash_str);
-            return -22;
+          log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
+          DAP_DELETE(l_event_hash_str);
+          DAP_DELETE(l_genesis_event_hash_str);
+          return -22;
         }
         return 0;
+      }
     }
 
     int ret = l_dag->callback_cs_verify ( l_dag, l_event );
@@ -587,14 +596,19 @@ static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_pt
                 dap_chain_cs_dag_event_item_t * l_event_search = NULL;
                 HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
                 if ( l_event_search == NULL ){
-                    log_it(L_DEBUG, "Hash %s wasn't in hashtable of previously parsed", l_hash);
+                    char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
+                    log_it(L_DEBUG, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
+                    DAP_DELETE(l_hash_str);
                     return 1;
                 }
-
             }
+          return 0;
+        }else{
+          //event looks fine but we have no hash table yet and can't verify it's hashes
+          //so it goes into threshold
+          return 1;
         }
 
-        return 0;
     }else {
         return  ret;
     }
@@ -632,14 +646,33 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
 }
 
 
+typedef enum{
+  DAP_THRESHOLD_OK = 0,
+  DAP_THRESHOLD_NO_HASHES,
+  DAP_THRESHOLD_NO_HASHES_IN_MAIN,
+  DAP_THRESHOLD_CONFLICTING
+} dap_dag_threshold_verification_res_t;
 
 int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event)
 {
     bool l_is_events_all_hashes = true;
     bool l_is_events_main_hashes = true;
+
+    if(a_event->header.hash_count == 0){
+        //looks like an alternative genesis event
+        return DAP_THRESHOLD_CONFLICTING;
+    }
+
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_cs_dag_event_item_t * l_event_search = NULL;
+
+        HASH_FIND(hh, PVT(a_dag)->events_treshold_conflicted,l_hash ,sizeof (*l_hash),  l_event_search);
+        if ( l_event_search ){
+          //event is linked to event we consider conflicting
+          return DAP_THRESHOLD_CONFLICTING;
+        }
+
         HASH_FIND(hh, PVT(a_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
         if ( l_event_search == NULL ){ // If not found in events - search in treshhold
             l_is_events_main_hashes = false;
@@ -651,35 +684,40 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
         }
     }
     if( l_is_events_all_hashes && l_is_events_main_hashes ){
-        return  0;
+        return  DAP_THRESHOLD_OK;
     }else if ( ! l_is_events_all_hashes) {
-        return  -1;
+        return  DAP_THRESHOLD_NO_HASHES;
     }else {
-        return  1;
+        return  DAP_THRESHOLD_NO_HASHES_IN_MAIN;
     }
 }
 
 /**
  * @brief dap_chain_cs_dag_proc_treshold
  * @param a_dag
+ * @returns true if some atoms were moved from threshold to events
  */
-void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
+bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
 {
+    bool res = false;
     // TODO Process finish treshold. For now - easiest from possible
-    pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     HASH_ITER(hh,PVT(a_dag)->events_treshold,l_event_item, l_event_item_tmp){
         dap_chain_cs_dag_event_t * l_event = l_event_item->event;
-        int ret = dap_chain_cs_dag_event_verify_hashes_with_treshold (a_dag,l_event);
-        if ( ret == 0){ // All its hashes are in main table, move thats one too into it
-            pthread_rwlock_unlock(&PVT(a_dag)->events_rwlock);
-            pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
+        dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold (a_dag,l_event);
+        if ( ret == DAP_THRESHOLD_OK || ret == DAP_THRESHOLD_CONFLICTING ){ // All its hashes are in main table, move thats one too into it
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
-            HASH_ADD(hh, PVT(a_dag)->events, hash,sizeof (l_event_item->hash),  l_event_item);
+
+            if(ret == DAP_THRESHOLD_OK){
+                HASH_ADD(hh, PVT(a_dag)->events, hash,sizeof (l_event_item->hash),  l_event_item);
+                res = true;
+            }else if(ret == DAP_THRESHOLD_CONFLICTING)
+                HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
+
             s_dag_events_lasts_delete_linked_with_event(a_dag, l_event);
         }
     }
-    pthread_rwlock_unlock(&PVT(a_dag)->events_rwlock);
+    return res;
 }
 
 
@@ -1299,6 +1337,8 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"%s.%s: Have %u events :\n",
                                              l_net->pub.name,l_chain->name,l_events_count);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
+
+                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
@@ -1307,6 +1347,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                                                  l_event_item_hash_str, ctime_r( &l_ts_create,buf ) );
                         DAP_DELETE(l_event_item_hash_str);
                     }
+                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
 
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);

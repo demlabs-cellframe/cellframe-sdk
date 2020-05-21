@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.3-3")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.3-4")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -30,11 +30,6 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
-if(DAP_TUN_NEW_WORKER)
-    message("[*] New TUN worker processor enabled")
-    add_definitions ("-DDAP_TUN_IN_WORKER")
-endif()
-
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
@@ -54,7 +49,7 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet dap_chain_crypto)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet)
 endif()
 
 # Networking

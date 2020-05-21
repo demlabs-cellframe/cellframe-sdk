@@ -20,12 +20,13 @@ int main(void)
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
     const int  test_numbers = 100;
+    dap_enc_ringct20_tests_run(test_numbers);//return 0;
     dap_enc_multi_sign_tests_run();
     dap_enc_newhope_tests_run(test_numbers);
-    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_SEED_OFB,  32);
-    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_SEED_OFB,  32);
     test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_SALSA2012, 32);
     test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_SALSA2012, 32);
+    test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_SEED_OFB,  32);
+    test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_SEED_OFB,  32);
     test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
     test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_GOST_OFB,  32);
     test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_KUZN_OFB,  32);
@@ -38,7 +39,6 @@ int main(void)
     test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_IAES,      32);
     test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_OAES,      32);
     test_encypt_decrypt_fast (test_numbers, DAP_ENC_KEY_TYPE_OAES,      32);
-    dap_enc_ringct20_tests_run(test_numbers);
    // return 0;
     dap_enc_tests_run();
 

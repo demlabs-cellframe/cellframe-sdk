@@ -2117,7 +2117,7 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr)
 {
     dap_list_t *l_list_groups = NULL;
-    if(!PVT(a_net)->gdb_sync_nodes_addrs || !a_net)
+    if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
         return NULL;
     for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
         if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {
@@ -2167,6 +2167,11 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             dap_chain_datum_token_t * l_token = (dap_chain_datum_token_t*) a_datum->data;
             size_t l_token_size = a_datum->header.data_size;
+            if(l_token_size < sizeof(dap_chain_datum_token_t)){
+                dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %lu, while at least %lu is expected\n",
+                                         l_token_size, sizeof(dap_chain_datum_token_t));
+                return;
+            }
             dap_string_append_printf(a_str_out,"==Datum Token Declaration\n");
             dap_string_append_printf(a_str_out, "ticker: %s\n", l_token->ticker);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_token_size);
@@ -2340,7 +2345,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                         }
                     }
 
-                    int l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
+                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
