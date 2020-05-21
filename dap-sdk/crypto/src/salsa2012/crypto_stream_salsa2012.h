@@ -10,7 +10,6 @@
  */
 
 #include <stddef.h>
-#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
