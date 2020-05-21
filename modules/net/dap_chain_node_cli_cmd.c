@@ -2581,12 +2581,14 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     // Token type
     l_arg_index=dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-type", &l_type_str);
 
-    if (strcmp( l_type_str, "private") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
-    }else if (strcmp( l_type_str, "private_simple") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
-    }else if (strcmp( l_type_str, "public_simple") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC;
+    if (l_type_str) {
+        if (strcmp( l_type_str, "private") == 0){
+            l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
+        }else if (strcmp( l_type_str, "private_simple") == 0){
+            l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+        }else if (strcmp( l_type_str, "public_simple") == 0){
+            l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC;
+        }
     }
 
     dap_chain_datum_token_t * l_datum_token = NULL;
@@ -2862,6 +2864,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
 
     }
+
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token %s is placed in datum pool ", l_key_str,
                 l_ticker);

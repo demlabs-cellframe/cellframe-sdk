@@ -1691,8 +1691,8 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
     l_new_verificator = DAP_NEW(dap_chain_ledger_verificator_t);
     l_new_verificator->subtype = (int)a_subtype;
     l_new_verificator->callback = a_callback;
-    pthread_rwlock_wrlock(s_verificators_rwlock);
+    pthread_rwlock_wrlock(&s_verificators_rwlock);
     HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
-    pthread_rwlock_unlock(s_verificators_rwlock);
+    pthread_rwlock_unlock(&s_verificators_rwlock);
     return 0;
 }
