@@ -268,11 +268,11 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain)
 void dap_chain_node_mempool_periodic(void *a_param)
 {
     UNUSED(a_param);
-    size_t l_net_count;
+    uint16_t l_net_count;
     bool l_mempool_auto;
     bool l_mempool_auto_default = false;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    for (int i = 0; i < l_net_count; i++) {
+    for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
 
         switch (l_role.enums) {

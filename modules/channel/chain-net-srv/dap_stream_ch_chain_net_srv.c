@@ -202,9 +202,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     }
 
                     // Check cond output if it equesl or not to request
-                    if ( l_tx_out_cond->subtype.srv_pay.header.srv_uid.uint64 != l_request->hdr.srv_uid.uint64 ){
+                    if ( l_tx_out_cond->subtype.srv_pay.srv_uid.uint64 != l_request->hdr.srv_uid.uint64 ){
                         log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016lX",
-                                l_tx_out_cond->subtype.srv_pay.header.srv_uid );
+                                l_tx_out_cond->subtype.srv_pay.srv_uid );
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
@@ -244,7 +244,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     DL_FOREACH(l_srv->pricelist, l_price_tmp) {
                         if (l_price_tmp->net->pub.id.uint64                 == l_request->hdr.net_id.uint64
                             && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                            && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.header.unit.enm
+                            && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
                             )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
                         {
                             l_price = l_price_tmp;
@@ -386,7 +386,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_sign_get_pkey_hash( l_receipt_sign, &l_pkey_hash);
 
 
-                    if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.header.pkey_hash.raw , sizeof(l_pkey_hash) ) != 0 ){
+                    if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.pkey_hash.raw , sizeof(l_pkey_hash) ) != 0 ){
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)

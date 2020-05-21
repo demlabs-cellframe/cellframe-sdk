@@ -468,7 +468,10 @@ void dap_cert_dump(dap_cert_t * a_cert)
                 printf("%s\t%u\t%u\t%u\n", l_meta_item->key, l_meta_item->type, l_meta_item->length, *(uint32_t *)l_meta_item->value);
                 break;
             default:
-                printf("%s\t%u\t%u\t0x%016lX\n", l_meta_item->key, l_meta_item->type, l_meta_item->length, *(uint64_t *)l_meta_item->value);
+                l_str = l_meta_item->length ? DAP_NEW_Z_SIZE(char, l_meta_item->length * 2 + 1) : NULL;
+                dap_bin2hex(l_str, l_meta_item->value, l_meta_item->length);
+                printf("%s\t%u\t%u\t%s\n", l_meta_item->key, l_meta_item->type, l_meta_item->length, l_str);
+                DAP_DELETE(l_str);
                 break;
             }
             l_meta_list_item = l_meta_list_item->next;

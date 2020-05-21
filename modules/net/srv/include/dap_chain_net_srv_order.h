@@ -45,7 +45,7 @@ typedef struct dap_chain_net_srv_order
     //uint8_t continent;
     //char region[32];
     uint32_t ext_size;
-    char ext[];
+    uint8_t ext[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
 // Init/deinit should be call only if private
@@ -71,6 +71,7 @@ DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_ha
         dap_chain_hash_fast_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
         return  dap_chain_net_srv_order_find_by_hash_str(a_net, l_hash_str );
     }
+    return NULL;
 }
 
 int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_net_srv_order_direction_t a_direction, const dap_chain_net_srv_uid_t a_srv_uid,
@@ -91,8 +92,7 @@ DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a
     return dap_chain_net_srv_order_delete_by_hash_str ( a_net, l_hash_str);
 }
 
-char* dap_chain_net_srv_order_create(
-        dap_chain_net_t * a_net,
+char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
@@ -101,7 +101,8 @@ char* dap_chain_net_srv_order_create(
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
-        const char *a_ext,
+        const uint8_t *a_ext,
+        uint32_t a_ext_size,
         const char *a_region,
         int8_t a_continent_num
         );

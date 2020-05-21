@@ -274,6 +274,8 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
  */
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id)
 {
+    UNUSED(a_chain);
+    UNUSED(a_id);
     if(!a_arg)
         return;
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
@@ -801,6 +803,9 @@ static void *s_net_proc_thread ( void *a_net )
 
         // check or start sync
         s_net_states_proc( l_net );
+        if (F_DAP_CHAIN_NET_GO_SYNC) {
+            continue;
+        }
         struct timespec l_to;
 #ifndef _WIN32
         int l_ret = 0;
@@ -1721,6 +1726,7 @@ int s_net_load(const char * a_net_name)
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
         }
         PVT(l_net)->load_mode = false;
+        PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);
@@ -1737,7 +1743,7 @@ void dap_chain_net_deinit()
 {
 }
 
-dap_chain_net_t **dap_chain_net_list(size_t *a_size)
+dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 {
     *a_size = HASH_COUNT(s_net_items);
     dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));

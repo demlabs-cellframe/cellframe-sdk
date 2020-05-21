@@ -124,7 +124,7 @@ bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_
  */
 bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region)
 {
-    if(!a_order || !a_order->ext_size || !a_order->ext || a_order->ext[0]!=0x52)
+    if(!a_order || !a_order->ext_size || a_order->ext[0]!=0x52)
         return false;
     if(a_continent_num) {
        if((uint8_t)a_order->ext[1]!=0xff)
@@ -205,7 +205,7 @@ int8_t dap_chain_net_srv_order_continent_to_num(const char *a_continent_str)
     return -1;
 }
 
-char* dap_chain_net_srv_order_create(
+char * dap_chain_net_srv_order_create(
         dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
@@ -215,23 +215,30 @@ char* dap_chain_net_srv_order_create(
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
-        const char *a_ext,
+        const uint8_t *a_ext,
+        uint32_t a_ext_size,
         const char *a_region,
         int8_t a_continent_num
         )
 {
+    UNUSED(a_expires);
     if (a_net) {
-        dap_chain_net_srv_order_t *l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
-        dap_chain_hash_fast_t* l_order_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
+        dap_chain_net_srv_order_t *l_order;
+        if (a_ext_size) {
+            l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
+            memcpy(l_order->ext, a_ext, a_ext_size);
+        }
+        else {
+            l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
+            dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
+        }
+
+        dap_chain_hash_fast_t l_order_hash;
         l_order->version = 1;
         l_order->srv_uid = a_srv_uid;
         l_order->direction = a_direction;
         l_order->ts_created = (dap_chain_time_t) time(NULL);
 
-        if(a_ext)
-            strncpy(l_order->ext, a_ext, strlen(l_order->ext) + 1);
-        else
-            dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
 
         if ( a_node_addr.uint64)
             l_order->node_addr.uint64 = a_node_addr.uint64;
@@ -244,18 +251,14 @@ char* dap_chain_net_srv_order_create(
             strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
 
         size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
-        dap_hash_fast( l_order, l_order_size, l_order_hash );
-        char * l_order_hash_str = dap_chain_hash_fast_to_str_new( l_order_hash );
+        dap_hash_fast( l_order, l_order_size, &l_order_hash );
+        char * l_order_hash_str = dap_chain_hash_fast_to_str_new( &l_order_hash );
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
         if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), l_order, l_order_size, l_gdb_group_str ) ){
             DAP_DELETE( l_order );
-            DAP_DELETE( l_order_hash );
-            DAP_DELETE( l_order_hash_str );
             DAP_DELETE( l_gdb_group_str );
             return NULL;
         }
-        DAP_DELETE( l_order_hash );
-        //DAP_DELETE(l_order_hash_str );
         DAP_DELETE( l_gdb_group_str );
         return  l_order_hash_str;
     }else

@@ -119,7 +119,7 @@ endif()
 # Enable service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     message("[+] Module 'srv-xchange'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_change )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange )
 endif()
 
 if (WIN32)

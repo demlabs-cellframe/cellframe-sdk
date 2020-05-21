@@ -46,6 +46,7 @@ static size_t dap_chain_tx_in_get_size(const dap_chain_tx_in_t *a_item)
 
 static size_t dap_chain_tx_in_cond_get_size(const dap_chain_tx_in_cond_t *a_item)
 {
+    UNUSED(a_item);
     size_t size = sizeof(dap_chain_tx_in_cond_t);
     return size;
 }
@@ -59,12 +60,7 @@ static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
 
 static size_t dap_chain_tx_out_cond_get_size(const dap_chain_tx_out_cond_t *a_item)
 {
-    switch (a_item->header.subtype) {
-        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
-            return sizeof (a_item->header) + sizeof (a_item->subtype.srv_pay.header) + a_item->subtype.srv_pay.header.params_size;
-        default:
-                return 0;
-    }
+    return sizeof (a_item->header) + sizeof (a_item->subtype) + a_item->params_size;
 }
 
 static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
@@ -186,7 +182,7 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
     if(!a_tx_prev_hash )
         return NULL;
     dap_chain_tx_in_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_in_cond_t);
-    l_item->header.type = TX_ITEM_TYPE_IN;
+    l_item->header.type = TX_ITEM_TYPE_IN_COND;
     l_item->header.receipt_idx = a_receipt_idx;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
     memcpy(&l_item->header.tx_prev_hash, a_tx_prev_hash,sizeof(l_item->header.tx_prev_hash) );
@@ -198,7 +194,7 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value)
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value, const char *a_token)
 {
     if(!a_addr)
         return NULL;
@@ -206,6 +202,9 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
     memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
+    if (a_token) {
+        strcpy(l_item->token, a_token);
+    }
     return l_item;
 }
 
@@ -225,19 +224,41 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc
 
 
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t,
-            sizeof(l_item->header)+sizeof (l_item->subtype.srv_pay.header) + a_params_size);
+            sizeof(l_item->header) + sizeof (l_item->subtype) + a_params_size);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY; // By default creatre cond for service pay. Rework with smth more flexible
-    l_item->subtype.srv_pay.header.srv_uid = a_srv_uid;
-    l_item->subtype.srv_pay.header.params_size = (uint32_t) a_params_size;
-    l_item->subtype.srv_pay.header.unit = a_unit;
-    l_item->subtype.srv_pay.header.unit_price_max_datoshi = a_value_max_per_unit;
-    dap_hash_fast( l_pub_key, l_pub_key_size, & l_item->subtype.srv_pay.header.pkey_hash);
-    memcpy(l_item->subtype.srv_pay.params, a_params, a_params_size);
+    l_item->subtype.srv_pay.srv_uid = a_srv_uid;
+    l_item->subtype.srv_pay.unit = a_unit;
+    l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
+    dap_hash_fast( l_pub_key, l_pub_key_size, & l_item->subtype.srv_pay.pkey_hash);
+    l_item->params_size = (uint32_t)a_params_size;
+    memcpy(l_item->params, a_params, a_params_size);
     return l_item;
 }
 
+
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_net_id,
+                                                                             const char *a_token, uint64_t a_value,
+                                                                             const void *a_params, size_t a_params_size)
+{
+    if (!a_token) {
+        return NULL;
+    }
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t,
+            sizeof(l_item->header) + sizeof (l_item->subtype) + a_params_size);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
+    l_item->subtype.srv_xchange.srv_uid = a_srv_uid;
+    l_item->subtype.srv_xchange.net_id = a_net_id;
+    strcpy(l_item->subtype.srv_xchange.token, a_token);
+    l_item->params_size = (uint32_t)a_params_size;
+    if (a_params_size) {
+        memcpy(l_item->params, a_params, a_params_size);
+    }
+    return l_item;
+}
 
 /**
  * Create item dap_chain_tx_sig_t
