@@ -801,6 +801,9 @@ static void *s_net_proc_thread ( void *a_net )
 
         // check or start sync
         s_net_states_proc( l_net );
+        if (F_DAP_CHAIN_NET_GO_SYNC) {
+            continue;
+        }
         struct timespec l_to;
 #ifndef _WIN32
         int l_ret = 0;
@@ -1721,6 +1724,7 @@ int s_net_load(const char * a_net_name)
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
         }
         PVT(l_net)->load_mode = false;
+        PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);
