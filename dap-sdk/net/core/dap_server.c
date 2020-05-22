@@ -180,7 +180,6 @@ err:;
 
 void dap_server_loop_stop( void ){
     bQuitSignal = true;
-    dap_server_deinit();
 }
 
 /*
