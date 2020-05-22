@@ -85,6 +85,7 @@ static struct epoll_event  *threads_epoll_events = NULL;
 static dap_server_t *_current_run_server = NULL;
 
 static void read_write_cb( dap_client_remote_t *dap_cur, int32_t revents );
+void  *thread_loop( void *arg );
 
 dap_server_thread_t dap_server_threads[ DAP_MAX_THREADS ];
 
@@ -178,8 +179,8 @@ int32_t dap_server_init( uint32_t count_threads )
 
     EPOLL_HANDLE efd = epoll_create1( 0 );
     if ( (intptr_t)efd == -1 ) {
-      log_it( L_ERROR, "Server wakeup no events / error" );
-        goto error;
+      log_it( L_ERROR, "Can't create epoll instance" );
+      goto err;
     }
     dap_server_threads[ i ].epoll_fd = efd;
     dap_server_threads[ i ].thread_num = i;
@@ -767,7 +768,7 @@ int32_t dap_server_loop( dap_server_t *d_server )
 {
   int errCode = 0;
 
-  if(d_server){
+  if(d_server == NULL){
     log_it(L_ERROR, "Server is NULL");
     return -1;
   }
