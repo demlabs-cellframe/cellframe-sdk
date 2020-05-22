@@ -252,7 +252,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
         switch(a_token->type){
             case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
                 l_token_item->total_supply = a_token->header_private.total_supply;
-                log_it( L_NOTICE, "Private token %s added (total_supply = %.1llf total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
+                log_it( L_NOTICE, "Private token %s added (total_supply = %.1llf signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
                         a_token->ticker, dap_chain_balance_to_coins(a_token->header_private.total_supply),
                         a_token->header_private.signs_valid, a_token->header_private.signs_total);
             break;
@@ -333,7 +333,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
     HASH_FIND(hh,l_token_item ? l_token_item->token_emissions : l_ledger_priv->treshold_emissions,
               &l_token_emission_hash, sizeof(l_token_emission_hash), l_token_emission_item);
     if(l_token_emission_item ) {
-        log_it(L_ERROR, "Can't add token emission datum of %llu %s ( %s ): already present in cache",
+        log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s ): already present in cache",
                 a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         ret = -1;
     }else if ( (! l_token_item) && ( HASH_COUNT( l_ledger_priv->treshold_emissions) >= s_treshold_emissions_max  )) {
@@ -412,7 +412,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
             ret = -2;
         }
     } else {
-        log_it(L_ERROR, "Can't add token emission datum of %llu %s ( %s )",
+        log_it(L_ERROR, "Can't add token emission datum of %llu %s ( 0x%s )",
                 a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         ret = -1;
     }
