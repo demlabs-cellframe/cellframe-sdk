@@ -227,6 +227,7 @@ char * dap_chain_net_srv_order_create(
         if (a_ext_size) {
             l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
             memcpy(l_order->ext, a_ext, a_ext_size);
+            l_order->ext_size = a_ext_size;
         }
         else {
             l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);

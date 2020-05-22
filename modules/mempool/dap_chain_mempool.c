@@ -343,9 +343,10 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 }
 
 dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net,dap_chain_hash_fast_t *a_tx_prev_hash,
-
-        const dap_chain_addr_t* a_addr_to, dap_enc_key_t *l_key_tx_sign, dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size)
+                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *l_key_tx_sign,
+                                                              dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size)
 {
+    UNUSED(l_receipt_size);
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     if ( ! a_net || ! l_ledger || ! a_addr_to )
         return NULL;
@@ -360,9 +361,12 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     uint16_t pos=0;
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*) l_receipt);
     pos++;
+
     // add 'in_cond' items
-    // expected only one 'cond out' item, so it idx always should be zero
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx,a_tx_prev_hash,0,pos-1) != 0 ){
+    int l_prev_cond_idx = 0;
+    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);
+    dap_chain_datum_tx_item_get(l_cond_tx, &l_prev_cond_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, l_prev_cond_idx, pos-1) != 0 ){
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx cond input");
         return NULL;

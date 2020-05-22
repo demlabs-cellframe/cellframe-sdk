@@ -94,7 +94,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc
  */
 dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid,
                                                                              dap_chain_net_id_t a_net_id, const char *a_token, uint64_t a_value,
-                                                                             const void *a_params, size_t a_params_size);
+                                                                             const void *a_params, uint32_t a_params_size);
 /**
  * Create item dap_chain_tx_sig_t
  *

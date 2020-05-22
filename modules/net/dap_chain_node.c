@@ -251,7 +251,9 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain)
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX &&
+                l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_EMISSION &&
+                l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL) {
                 continue;
             }
             if (a_chain->callback_datums_pool_proc(a_chain, &l_datum, 1) != 1) {
