@@ -276,6 +276,7 @@ int dap_chain_add_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger,
     default:
       return -1;
   }
+  return 0;
 }
 
 /**
