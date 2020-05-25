@@ -84,8 +84,7 @@ typedef  enum dap_chain_type
     CHAIN_TYPE_TOKEN,
     CHAIN_TYPE_EMISSION,
     CHAIN_TYPE_TX,
-    CHAIN_TYPE_LAST,
-    CHAIN_TYPE_UNKNOWN
+    CHAIN_TYPE_LAST
 } dap_chain_type_t;
 
 typedef struct dap_chain{
@@ -102,7 +101,7 @@ typedef struct dap_chain{
     uint16_t datum_types_count;
     dap_chain_type_t *datum_types;
     uint16_t autoproc_datum_types_count;
-    dap_chain_type_t *autoproc_datum_types;
+    uint16_t *autoproc_datum_types;
 
     // To hold it in double-linked lists
     struct dap_chain * next;
@@ -166,5 +165,3 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chai
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
-
-dap_chain_type_t dap_chain_type_from_str(const char *a_type_str);

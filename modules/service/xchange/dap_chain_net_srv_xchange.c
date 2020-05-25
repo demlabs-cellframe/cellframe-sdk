@@ -136,7 +136,7 @@ static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_x
 
 static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
 {
-    if (!a_price || !a_price->net_sell || !a_price->net_buy || !*a_price->token_sell || !*a_price->token_buy || a_wallet) {
+    if (!a_price || !a_price->net_sell || !a_price->net_buy || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
         return NULL;
     }
 
@@ -357,10 +357,11 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0);
 
     // add 'out' item
-#ifndef NDEBUG
     const dap_chain_addr_t *l_buyer_addr = (dap_chain_addr_t *)l_tx_out_cond->params;
-    assert(l_buyer_addr == l_seller_addr);
-#endif
+    if (memcmp(l_seller_addr->data.hash, l_buyer_addr->data.hash, sizeof(dap_chain_hash_fast_t))) {
+        log_it(L_WARNING, "Only owner can invalidate exchange transaction");
+        return false;
+    }
     if (dap_chain_datum_tx_add_out_item(&l_tx, l_seller_addr, l_tx_out_cond->header.value)) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_seller_addr);
@@ -742,7 +743,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
                 dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW(dap_chain_net_srv_xchange_price_t);
                 l_price->net_sell = l_net;
                 strcpy(l_price->token_sell, l_order->price_ticker);
-                l_price->datoshi_buy = l_order->price;
+                l_price->datoshi_sell = l_order->price;
                 dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)l_order->ext;
                 dap_chain_net_id_t l_net_buy_id = { .uint64 = dap_lendian_get64((uint8_t *)&l_ext->net_sell_id) };
                 l_price->net_buy = dap_chain_net_by_id(l_net_buy_id);
@@ -750,11 +751,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
                 strcpy(l_price->token_buy, l_ext->token_sell);
                 // Create conditional transaction
                 dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, &l_order->tx_cond_hash, l_wallet);
-                if (l_tx) {
-                    s_xchange_tx_put(l_tx, l_net);
+                if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
+                    // TODO send request to seller to delete order & price
+                    dap_chain_net_srv_order_delete_by_hash_str(l_price->net_buy, l_order_hash_str);
                 }
                 DAP_DELETE(l_price);
-                 dap_chain_net_srv_order_delete_by_hash_str(l_price->net_buy, l_order_hash_str);
                 DAP_DELETE(l_order);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_tx ? "Exchange transaction has done" :
                                                                       "Exchange transaction error");

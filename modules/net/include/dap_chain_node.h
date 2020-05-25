@@ -141,6 +141,6 @@ inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *addre
     return a_key;
 }
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain);
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role);
 int dap_chain_node_mempool_init();
 void dap_chain_node_mempool_deinit();

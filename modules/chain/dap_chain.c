@@ -159,7 +159,9 @@ void dap_chain_delete(dap_chain_t * a_chain)
        log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
     a_chain->datum_types_count = 0;
-    DAP_DELETE (a_chain->datum_types);
+    DAP_DELETE(a_chain->datum_types);
+    a_chain->autoproc_datum_types_count = 0;
+    DAP_DELETE(a_chain->autoproc_datum_types);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
@@ -187,7 +189,7 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
         return NULL;
 }
 
-dap_chain_type_t dap_chain_type_from_str(const char *a_type_str)
+static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
 {
     if(!dap_strcmp(a_type_str, "token")) {
         return CHAIN_TYPE_TOKEN;
@@ -198,7 +200,35 @@ dap_chain_type_t dap_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "transaction")) {
         return CHAIN_TYPE_TX;
     }
-    return CHAIN_TYPE_UNKNOWN;
+    return CHAIN_TYPE_LAST;
+}
+
+static uint16_t s_datum_type_from_str(const char *a_type_str)
+{
+    if(!dap_strcmp(a_type_str, "token")) {
+        return DAP_CHAIN_DATUM_TOKEN_DECL;
+    }
+    if(!dap_strcmp(a_type_str, "emission")) {
+        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    }
+    if(!dap_strcmp(a_type_str, "transaction")) {
+        return DAP_CHAIN_DATUM_TX;
+    }
+    return DAP_CHAIN_DATUM_CUSTOM;
+}
+
+static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
+{
+    switch (a_type) {
+    case CHAIN_TYPE_TOKEN:
+        return DAP_CHAIN_DATUM_TOKEN_DECL;
+    case CHAIN_TYPE_EMISSION:
+        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    case CHAIN_TYPE_TX:
+        return DAP_CHAIN_DATUM_TX;
+    default:
+        return DAP_CHAIN_DATUM_CUSTOM;
+    }
 }
 
 /**
@@ -289,8 +319,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    dap_chain_type_t l_chain_type = dap_chain_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != CHAIN_TYPE_UNKNOWN) {
+                    dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
+                    if (l_chain_type != CHAIN_TYPE_LAST) {
                         l_chain->datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
                     }
@@ -302,11 +332,19 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             // add datum types
             if(l_chain && l_datum_types_count) {
-                l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
+                l_chain->autoproc_datum_types = DAP_NEW_SIZE(uint16_t, l_datum_types_count * sizeof(uint16_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    dap_chain_type_t l_chain_type = dap_chain_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != CHAIN_TYPE_UNKNOWN) {
+                    if (!strcmp(l_datum_types[i], "all")) {
+                        l_chain->autoproc_datum_types = DAP_REALLOC(l_chain->autoproc_datum_types, l_chain->datum_types_count * sizeof(uint16_t));
+                        for (int j = 0; j < l_chain->datum_types_count; j++) {
+                            l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
+                        }
+                        l_count_recognized = l_chain->datum_types_count;
+                        break;
+                    }
+                    uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
+                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM) {
                         l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
                     }
