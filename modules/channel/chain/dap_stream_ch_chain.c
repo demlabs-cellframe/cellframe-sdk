@@ -334,7 +334,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(l_chain) {
                     // Expect atom element in
                     if(l_chain_pkt_data_size > 0) {
-                        if(l_chain->callback_atom_add(l_chain, l_chain_pkt->data) == 0 &&
+                        dap_chain_atom_ptr_t l_atom_copy = DAP_CALLOC(1, l_chain_pkt_data_size);
+                        memcpy(l_atom_copy, l_chain_pkt->data, l_chain_pkt_data_size);
+                        if(l_chain->callback_atom_add(l_chain, l_atom_copy) == 0 &&
                                 dap_chain_has_file_store(l_chain)) {
                             // append to file
                             dap_chain_cell_id_t l_cell_id;

@@ -94,7 +94,6 @@ void dap_chain_deinit(void)
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(s_chain_items->chain);
-          DAP_DELETE(l_item);
         }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
