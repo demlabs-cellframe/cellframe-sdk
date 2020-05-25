@@ -188,6 +188,20 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
         return NULL;
 }
 
+dap_chain_type_t dap_chain_type_from_str(const char *a_type_str)
+{
+    if(!dap_strcmp(a_type_str, "token")) {
+        return CHAIN_TYPE_TOKEN;
+    }
+    if(!dap_strcmp(a_type_str, "emission")) {
+        return CHAIN_TYPE_EMISSION;
+    }
+    if(!dap_strcmp(a_type_str, "transaction")) {
+        return CHAIN_TYPE_TX;
+    }
+    return CHAIN_TYPE_UNKNOWN;
+}
+
 /**
  * @brief dap_chain_load_from_cfg
  * @param a_chain_net_name
@@ -277,16 +291,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    if(!dap_strcmp(l_datum_types[i], "token")) {
-                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_TOKEN;
-                        l_count_recognized++;
-                    }
-                    else if(!dap_strcmp(l_datum_types[i], "emission")) {
-                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_EMISSION;
-                        l_count_recognized++;
-                    }
-                    else if(!dap_strcmp(l_datum_types[i], "transaction")) {
-                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_TX;
+                    dap_chain_type_t l_chain_type = dap_chain_type_from_str(l_datum_types[i]);
+                    if (l_chain_type != CHAIN_TYPE_UNKNOWN) {
+                        l_chain->datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
                     }
                 }

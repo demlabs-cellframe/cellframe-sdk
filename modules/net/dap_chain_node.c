@@ -239,7 +239,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, char **a_datum_types, uint16_t a_datum_types_count)
 {
     char *l_gdb_group_mempool = NULL;
     if (!a_chain) {
@@ -251,10 +251,27 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain)
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX &&
-                l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_EMISSION &&
-                l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL) {
+            bool b_need_process = false;
+            for (uint16_t j = 0; j < a_datum_types_count; j++) {
+                if (l_datum->header.type_id == dap_chain_type_from_str(a_datum_types[j]) ||
+                    !strcmp(a_datum_types[j], "all")) {
+                    b_need_process = true;
+                    break;
+                }
+            }
+            if (!b_need_process)
                 continue;
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
+                // Is it a base transaction?
+                if (dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
+                    dap_chain_tx_token_t *l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+                    if (l_tx_token && !dap_chain_ledger_token_emission_find(a_chain->ledger, l_tx_token->header.ticker,
+                                                                            &l_tx_token->header.token_emission_hash)) {
+                        continue;
+                    }
+                }
             }
             if (a_chain->callback_datums_pool_proc(a_chain, &l_datum, 1) != 1) {
                 continue;
@@ -292,10 +309,12 @@ void dap_chain_node_mempool_periodic(void *a_param)
         if (l_mempool_auto) {
             dap_chain_t *l_chain;
             DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                for (uint16_t i = 0; i < l_chain->datum_types_count; i++) {
-                    if (l_chain->datum_types[i] == CHAIN_TYPE_TX) {
-                        dap_chain_node_mempool_process(l_chain);
-                    }
+                // Read chain datum types
+                char** l_datum_types = NULL;
+                uint16_t l_datum_types_count = 0;
+                l_datum_types = dap_config_get_array_str(g_config, "chain", "mempool_auto_types", &l_datum_types_count);
+                if (l_datum_types_count) {
+                    dap_chain_node_mempool_process(l_chain, l_datum_types, l_datum_types_count);
                 }
             }
         }

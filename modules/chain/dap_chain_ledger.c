@@ -1340,7 +1340,7 @@ uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_a
         const char *a_token_ticker)
 {
     uint64_t l_ret = 0;
-    dap_ledger_wallet_balance_t *l_balance_item = NULL ,* l_balance_item_tmp = NULL;
+    dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
     char *l_addr = dap_chain_addr_to_str(a_addr);
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
 
