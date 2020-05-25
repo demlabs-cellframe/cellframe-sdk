@@ -251,15 +251,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            // Read chain datum types
-            char** l_datum_types = NULL;
-            uint16_t l_datum_types_count = 0;
-            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
-                //dap_config_close(l_cfg);
-                //return NULL;
-            }
-
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
                 log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
@@ -286,6 +277,14 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 dap_chain_delete(l_chain);
                 l_chain = NULL;
             }
+            // Read chain datum types
+            char** l_datum_types = NULL;
+            uint16_t l_datum_types_count = 0;
+            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
+                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
+                //dap_config_close(l_cfg);
+                //return NULL;
+            }
             // add datum types
             if(l_chain && l_datum_types_count > 0) {
                 l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
@@ -299,7 +298,22 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 }
                 l_chain->datum_types_count = l_count_recognized;
             }
-
+            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
+                log_it(L_WARNING, "Can't read chain mempool auto types ", l_chain_id_str);
+            }
+            // add datum types
+            if(l_chain && l_datum_types_count) {
+                l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
+                uint16_t l_count_recognized = 0;
+                for(uint16_t i = 0; i < l_datum_types_count; i++) {
+                    dap_chain_type_t l_chain_type = dap_chain_type_from_str(l_datum_types[i]);
+                    if (l_chain_type != CHAIN_TYPE_UNKNOWN) {
+                        l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
+                        l_count_recognized++;
+                    }
+                }
+                l_chain->autoproc_datum_types_count = l_count_recognized;
+            }
             dap_config_close(l_cfg);
             return l_chain;
         }else

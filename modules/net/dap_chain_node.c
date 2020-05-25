@@ -239,7 +239,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain, char **a_datum_types, uint16_t a_datum_types_count)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain)
 {
     char *l_gdb_group_mempool = NULL;
     if (!a_chain) {
@@ -252,9 +252,8 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, char **a_datum_types, u
         for (size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             bool b_need_process = false;
-            for (uint16_t j = 0; j < a_datum_types_count; j++) {
-                if (l_datum->header.type_id == dap_chain_type_from_str(a_datum_types[j]) ||
-                    !strcmp(a_datum_types[j], "all")) {
+            for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
+                if (l_datum->header.type_id == a_chain->autoproc_datum_types[j]) {
                     b_need_process = true;
                     break;
                 }
@@ -309,13 +308,7 @@ void dap_chain_node_mempool_periodic(void *a_param)
         if (l_mempool_auto) {
             dap_chain_t *l_chain;
             DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                // Read chain datum types
-                char** l_datum_types = NULL;
-                uint16_t l_datum_types_count = 0;
-                l_datum_types = dap_config_get_array_str(g_config, "chain", "mempool_auto_types", &l_datum_types_count);
-                if (l_datum_types_count) {
-                    dap_chain_node_mempool_process(l_chain, l_datum_types, l_datum_types_count);
-                }
+                dap_chain_node_mempool_process(l_chain);
             }
         }
     }

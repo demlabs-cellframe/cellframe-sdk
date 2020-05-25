@@ -30,7 +30,7 @@
 #define DAP_CHAIN_NET_SRV_XCHANGE_ID 0x2
 
 typedef struct dap_chain_net_srv_xchange_price {
-    dap_chain_wallet_t *wallet;
+    char *wallet_str;
     dap_chain_net_t *net_sell;
     char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
     uint64_t datoshi_sell;
@@ -42,6 +42,12 @@ typedef struct dap_chain_net_srv_xchange_price {
     char *key_ptr;
     UT_hash_handle hh;
 } dap_chain_net_srv_xchange_price_t;
+
+typedef struct dap_srv_xchange_order_ext {
+    uint64_t net_sell_id;
+    uint64_t datoshi_sell;
+    char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
+} dap_srv_xchange_order_ext_t;
 
 typedef struct dap_chain_net_srv_xchange {
     dap_chain_net_srv_t *parent;
