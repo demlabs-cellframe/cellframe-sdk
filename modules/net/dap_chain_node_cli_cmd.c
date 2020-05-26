@@ -1707,10 +1707,7 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
         break;
     }
 
-    char *l_str_ret_tmp = dap_string_free(l_string_ret, false);
-    char *str_ret = dap_strdup(l_str_ret_tmp);
-    dap_chain_node_cli_set_reply_text(str_reply, str_ret);
-    DAP_DELETE(l_str_ret_tmp);
+    *str_reply = dap_string_free(l_string_ret, false);
     return 0;
 }
 
