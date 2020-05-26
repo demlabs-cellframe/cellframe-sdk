@@ -239,7 +239,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role)
 {
     char *l_gdb_group_mempool = NULL;
     if (!a_chain) {
@@ -251,8 +251,28 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain)
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+            bool l_need_process = false;
+            for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
+                if (l_datum->header.type_id == a_chain->autoproc_datum_types[j]) {
+                    l_need_process = true;
+                    break;
+                }
+            }
+            if (!l_need_process)
                 continue;
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
+                // Is it a base transaction?
+                if (dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
+                    dap_chain_tx_token_t *l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+                    if (l_tx_token && !dap_chain_ledger_token_emission_find(a_chain->ledger, l_tx_token->header.ticker,
+                                                                            &l_tx_token->header.token_emission_hash)) {
+                        continue;
+                    }
+                } else if (a_role.enums == NODE_ROLE_ROOT) {
+                        continue;
+                }
             }
             if (a_chain->callback_datums_pool_proc(a_chain, &l_datum, 1) != 1) {
                 continue;
@@ -268,11 +288,11 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain)
 void dap_chain_node_mempool_periodic(void *a_param)
 {
     UNUSED(a_param);
-    size_t l_net_count;
+    uint16_t l_net_count;
     bool l_mempool_auto;
     bool l_mempool_auto_default = false;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    for (int i = 0; i < l_net_count; i++) {
+    for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
 
         switch (l_role.enums) {
@@ -290,11 +310,7 @@ void dap_chain_node_mempool_periodic(void *a_param)
         if (l_mempool_auto) {
             dap_chain_t *l_chain;
             DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                for (uint16_t i = 0; i < l_chain->datum_types_count; i++) {
-                    if (l_chain->datum_types[i] == CHAIN_TYPE_TX) {
-                        dap_chain_node_mempool_process(l_chain);
-                    }
-                }
+                dap_chain_node_mempool_process(l_chain, l_role);
             }
         }
     }
