@@ -80,6 +80,7 @@ dap_events_t* dap_events_new( );
 void dap_events_delete( dap_events_t * sh );
 
 int32_t dap_events_start( dap_events_t *sh );
+void dap_events_stop();
 int32_t dap_events_wait( dap_events_t *sh );
 
 uint32_t dap_worker_get_index_min( );
