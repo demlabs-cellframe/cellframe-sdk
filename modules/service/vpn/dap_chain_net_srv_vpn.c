@@ -449,6 +449,7 @@ static void s_tun_create(void)
             log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ", strerror(errno));
             close(s_raw_server->tun_ctl_fd);
             s_raw_server->tun_ctl_fd = -1;
+            s_raw_server->tun_fd = -1;
         } else {
             char buf[256];
             log_it(L_NOTICE, "Bringed up %s virtual network interface (%s/%s)", s_raw_server->ifr.ifr_name,

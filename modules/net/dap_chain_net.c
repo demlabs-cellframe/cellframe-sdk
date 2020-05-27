@@ -1661,6 +1661,12 @@ int s_net_load(const char * a_net_name)
             }
             dap_list_free(l_prior_list);
 
+            const char* l_default_chain_name = dap_config_get_item_str(l_cfg , "general" , "default_chain");
+            if(l_default_chain_name)
+                l_net->pub.default_chain = dap_chain_net_get_chain_by_name(l_net, l_default_chain_name);
+            else
+                l_net->pub.default_chain = NULL;
+
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
             PVT(l_net)->load_mode = false;
