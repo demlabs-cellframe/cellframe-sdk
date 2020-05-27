@@ -75,7 +75,7 @@ typedef struct dap_chain_net{
         char * gdb_nodes;
 
         dap_chain_t * chains; // double-linked list of chains
-        dap_chain_t * default_tx_chain;
+        dap_chain_t * default_chain;
         dap_ledger_t  *ledger;
     } pub;
     uint8_t pvt[];
