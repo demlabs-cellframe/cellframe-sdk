@@ -506,7 +506,12 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
         dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
 
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    dap_chain_t *l_chain = NULL;
+    if(a_net->pub.default_chain)
+        l_chain = a_net->pub.default_chain;
+    else
+        dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+
     if(!l_chain)
             return NULL;
     // Make transfer transaction

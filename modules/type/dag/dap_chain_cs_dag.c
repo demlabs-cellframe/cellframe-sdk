@@ -114,6 +114,7 @@ static dap_chain_datum_t* s_chain_callback_datum_iter_get_next( dap_chain_datum_
 */
 
 static int s_cli_dag(int argc, char ** argv, void *arg_func, char **str_reply);
+void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static bool s_seed_mode = false;
 /**
@@ -244,7 +245,7 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_pvt);
 }
 
-int dap_chain_add_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item){
+static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item){
 
   dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event);
   switch (l_datum->header.type_id) {
@@ -277,6 +278,18 @@ int dap_chain_add_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger,
       return -1;
   }
   return 0;
+}
+
+static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item ){
+    HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
+    s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
+
+    int res = a_dag->callback_cs_verify(a_dag,a_event_item->event);
+
+    if(res == 0)
+        res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+
+    return res;
 }
 
 /**
@@ -318,62 +331,18 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         DAP_DELETE(l_hash_str);
         return -3;
     }
-    HASH_ADD(hh, l_events,hash,sizeof (l_event_item->hash),  l_event_item);
-    // save l_events to dag_pvt
-    if(l_add_to_threshold)
-        PVT(l_dag)->events_treshold = l_events;
-    else
-        PVT(l_dag)->events = l_events;
 
-    //HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
-    pthread_rwlock_unlock( l_events_rwlock );
-    if ( l_events == PVT(l_dag)->events){
-        dap_chain_cs_dag_event_item_t * l_event_last = NULL;
-        // Check the events and update the lasts
-        for ( dap_chain_hash_fast_t * l_link_hash = (dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs ;
-                  l_link_hash < ( dap_chain_hash_fast_t *) (
-                  l_event->hashes_n_datum_n_signs + l_event->header.hash_count*sizeof (*l_link_hash) );
-                  l_link_hash += sizeof (dap_chain_hash_fast_t ) ) {
-            l_event_last = NULL;
-            pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-            HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,l_link_hash,sizeof(*l_link_hash), l_event_last);
-            if ( l_event_last ){ // If present in unlinked - remove
-                HASH_DEL(PVT(l_dag)->events_lasts_unlinked,l_event_last);
-                DAP_DEL_Z(l_event_last);
-            }
-            pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-
-        }
-        // and then adds itself
-        l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-        l_event_last->ts_added = l_event_item->ts_added;
-        l_event_last->event = l_event;
-        dap_hash_fast(l_event, dap_chain_cs_dag_event_calc_size(l_event),&l_event_last->hash );
-        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-        HASH_ADD(hh,PVT(l_dag)->events_lasts_unlinked,hash,sizeof (l_event_last->hash),l_event_last);
-        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    int res = 0;
+    if(l_add_to_threshold){
+        HASH_ADD(hh, PVT(l_dag)->events_treshold,hash,sizeof (l_event_item->hash),  l_event_item);
+    }else{
+        res = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
     }
 
-    if(!l_add_to_threshold){
-      int ret_cs = l_dag->callback_cs_verify(l_dag,l_event);
-      if ( ret_cs != 0 ){
-        log_it(L_WARNING,"Consensus can't accept the event, verification returned %d",ret_cs);
-        return  -2;
-      }
-      pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-      int res_ledger = dap_chain_add_to_ledger(l_dag, a_chain->ledger, l_event_item);
-      pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-
-      if(res_ledger < 0)
-        return res_ledger;
-    }
-
-    // Now check the treshold if some events now are ready to move to the main table
-    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
     while(dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger));
-    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    pthread_rwlock_unlock( l_events_rwlock );
 
-    return 0;
+    return res;
 }
 
 /**
@@ -645,14 +614,24 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-        pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
         HASH_FIND(hh, PVT(a_dag)->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
             HASH_DEL(PVT(a_dag)->events_lasts_unlinked,l_event_item);
             DAP_DEL_Z(l_event_item);
         }
-        pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     }
+}
+
+void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item){
+    //delete linked with event
+    s_dag_events_lasts_delete_linked_with_event(a_dag, a_event_item->event);
+
+    //add self
+    dap_chain_cs_dag_event_item_t * l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    l_event_last->ts_added = a_event_item->ts_added;
+    l_event_last->event = a_event_item->event;
+    dap_hash_fast(l_event_last->event, dap_chain_cs_dag_event_calc_size(l_event_last->event),&l_event_last->hash );
+    HASH_ADD(hh,PVT(a_dag)->events_lasts_unlinked,hash, sizeof(l_event_last->hash),l_event_last);
 }
 
 
@@ -719,13 +698,11 @@ bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
 
             if(ret == DAP_THRESHOLD_OK){
-                HASH_ADD(hh, PVT(a_dag)->events, hash,sizeof (l_event_item->hash),  l_event_item);
-                int l_ledger_ret = dap_chain_add_to_ledger(a_dag, a_ledger, l_event_item);
+                s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 res = true;
             }else if(ret == DAP_THRESHOLD_CONFLICTING)
                 HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
 
-            s_dag_events_lasts_delete_linked_with_event(a_dag, l_event);
         }
     }
     return res;
