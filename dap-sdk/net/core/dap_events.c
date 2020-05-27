@@ -83,6 +83,7 @@
 static uint32_t s_threads_count = 1;
 static size_t   s_connection_timeout = 6000;
 static struct epoll_event *g_epoll_events = NULL;
+static volatile bool bEventsAreActive = true;
 
 bool s_workers_init = false;
 dap_worker_t *s_workers = NULL;
@@ -291,13 +292,14 @@ static void *thread_worker_function(void *arg)
     size_t total_sent;
     int bytes_sent = 0;
 
-    while(1) {
+    while(bEventsAreActive) {
 
         int selected_sockets = epoll_wait(w->epoll_fd, events, DAP_MAX_EPOLL_EVENTS, 1000);
 
         if(selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
+            log_it(L_ERROR, "Worker thread %d got errno: %d", w->number_thread, errno);
             break;
         }
 
@@ -558,6 +560,11 @@ int dap_events_start( dap_events_t *a_events )
   }
 
   return 0;
+}
+
+void dap_events_stop()
+{
+  bEventsAreActive = false;
 }
 
 /**
