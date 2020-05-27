@@ -1331,7 +1331,8 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                                                      l_objs[i].key, ctime_r( &l_ts_create,buf ) );
 
                         }
-                        DAP_DELETE( l_gdb_group_events);
+                        // bugs-3932
+                        //DAP_DELETE( l_gdb_group_events);
                         if (l_objs && l_objs_count )
                             dap_chain_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
