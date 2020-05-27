@@ -245,7 +245,7 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_pvt);
 }
 
-int dap_chain_add_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item){
+static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item){
 
   dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event);
   switch (l_datum->header.type_id) {
@@ -278,6 +278,18 @@ int dap_chain_add_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger,
       return -1;
   }
   return 0;
+}
+
+static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item ){
+    HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
+    s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
+
+    int res = a_dag->callback_cs_verify(a_dag,a_event_item->event);
+
+    if(res == 0)
+        res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+
+    return res;
 }
 
 /**
@@ -319,37 +331,18 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         DAP_DELETE(l_hash_str);
         return -3;
     }
-    HASH_ADD(hh, l_events,hash,sizeof (l_event_item->hash),  l_event_item);
-    // save l_events to dag_pvt
-    if(l_add_to_threshold)
-        PVT(l_dag)->events_treshold = l_events;
-    else
-        PVT(l_dag)->events = l_events;
 
-    pthread_rwlock_unlock( l_events_rwlock );
-
-    if(!l_add_to_threshold){
-      int ret_cs = l_dag->callback_cs_verify(l_dag,l_event);
-      if ( ret_cs != 0 ){
-        log_it(L_WARNING,"Consensus can't accept the event, verification returned %d",ret_cs);
-        return  -2;
-      }
-      pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-      int res_ledger = dap_chain_add_to_ledger(l_dag, a_chain->ledger, l_event_item);
-      if(res_ledger >= 0)
-        s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-      pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-
-      if(res_ledger < 0)
-        return res_ledger;
+    int res = 0;
+    if(l_add_to_threshold){
+        HASH_ADD(hh, PVT(l_dag)->events_treshold,hash,sizeof (l_event_item->hash),  l_event_item);
+    }else{
+        res = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
     }
 
-    // Now check the treshold if some events now are ready to move to the main table
-    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
     while(dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger));
-    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    pthread_rwlock_unlock( l_events_rwlock );
 
-    return 0;
+    return res;
 }
 
 /**
@@ -705,9 +698,7 @@ bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
 
             if(ret == DAP_THRESHOLD_OK){
-                HASH_ADD(hh, PVT(a_dag)->events, hash,sizeof (l_event_item->hash),  l_event_item);
-                int l_ledger_ret = dap_chain_add_to_ledger(a_dag, a_ledger, l_event_item);
-                s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
+                s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 res = true;
             }else if(ret == DAP_THRESHOLD_CONFLICTING)
                 HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
