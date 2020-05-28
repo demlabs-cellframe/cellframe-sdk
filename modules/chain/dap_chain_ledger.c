@@ -816,7 +816,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_list_t *l_list_tmp = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_COND, NULL);
     // accumalate value ​from all 'out' & 'out_cond' transactions
     if (l_list_tmp) {
-        l_list_out = dap_list_append(l_list_out, l_list_tmp);
+        l_list_out = dap_list_append(l_list_out, l_list_tmp->data);
     }
     for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
         if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT) {
