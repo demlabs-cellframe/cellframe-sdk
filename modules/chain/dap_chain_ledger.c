@@ -816,7 +816,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_list_t *l_list_tmp = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_COND, NULL);
     // accumalate value ​from all 'out' & 'out_cond' transactions
     if (l_list_tmp) {
-        l_list_out = dap_list_append(l_list_out, l_list_tmp);
+        l_list_out = dap_list_append(l_list_out, l_list_tmp->data);
     }
     for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
         if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT) {
@@ -860,7 +860,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
             if (!l_res || l_res->sum != l_value_cur->sum) {
                 log_it(L_ERROR, "Sum of values in out items of current tx (%llu) is not equal outs from previous tx (%llu) for token %s",
-                       l_values_from_cur_tx, l_values_from_prev_tx, l_value_cur->token_ticker);
+                       l_res ? l_res->sum : 0, l_value_cur->sum, l_value_cur->token_ticker);
                 l_err_num = -12;
                 break;
             }
