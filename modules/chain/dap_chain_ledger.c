@@ -785,7 +785,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         int l_res_sign = dap_chain_datum_tx_verify_sign(l_tx_prev);
 
         // 2. Check if out in previous transaction has spent
-        if (dap_chain_ledger_item_is_used_out(l_item_out, l_tx_in->header.tx_out_prev_idx)) {
+        int l_idx = (l_cond_type == TX_ITEM_TYPE_IN) ? l_tx_in->header.tx_out_prev_idx : l_tx_in_cond->header.tx_out_prev_idx;
+        if (dap_chain_ledger_item_is_used_out(l_item_out, l_idx)) {
             l_err_num = -6;
             break;
         }
@@ -801,12 +802,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
         DAP_DELETE(l_hash_prev);
         uint64_t l_value;
+        // Get list of all 'out' items from previous transaction
+        dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, NULL);
         if (l_cond_type == TX_ITEM_TYPE_IN) {
-            // Get list of all 'out' items from previous transaction
-            dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT, NULL);
             // Get one 'out' item in previous transaction bound with current 'in' item
             dap_chain_tx_out_t *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_tx_in->header.tx_out_prev_idx);
-            if(!l_tx_prev_out) {
+            if(!l_tx_prev_out || *(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT) {
                 l_err_num = -8;
                 break;
             }
@@ -837,13 +838,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_value = l_tx_prev_out->header.value;
             l_token = l_tx_prev_out->token;
         } else { // TX_ITEM_TYPE_IN_COND
-            // Get list of all 'out_cond' items from previous transaction
-            dap_list_t *l_list_prev_out_cond = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT_COND, NULL);
-            if (!l_list_prev_out_cond || dap_list_length(l_list_prev_out_cond) != 1) {
-                l_err_num = -8;    // expected one and only one conditional output
+            dap_chain_tx_out_cond_t *l_tx_prev_out_cond = dap_list_nth_data(l_list_prev_out, l_tx_in_cond->header.tx_out_prev_idx);
+            if(!l_tx_prev_out_cond || *(uint8_t *)l_tx_prev_out_cond != TX_ITEM_TYPE_OUT_COND) {
+                l_err_num = -8;
                 break;
             }
-            dap_chain_tx_out_cond_t *l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_list_prev_out_cond->data;
             dap_chain_ledger_verificator_t *l_verificator;
             int l_tmp = (int)l_tx_prev_out_cond->header.subtype;
             HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
@@ -906,12 +905,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_list_t *l_list_tx_out = NULL;
     bool emission_flag = !l_is_first_transaction || (l_is_first_transaction && l_ledger_priv->check_token_emission);
     // find 'out' items
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT, NULL);
-    l_list_tmp = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_COND, NULL);
-    // accumalate value ​from all 'out' & 'out_cond' transactions
-    if (l_list_tmp) {
-        l_list_out = dap_list_append(l_list_out, l_list_tmp);
-    }
+    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint64_t l_value;
     for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
         if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT) {
@@ -954,7 +948,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     }
     if ( l_list_out )
         dap_list_free(l_list_out);
-    l_value_cur = NULL;
 
     // Additional check whether the transaction is first
     while (l_is_first_transaction && !l_err_num) {
@@ -1057,7 +1050,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     //log_it ( L_INFO, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
 
 
-    char *l_token_ticker = NULL;
+    char *l_token_ticker = NULL, *l_token_ticker_old = NULL;
     dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
     pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
     HASH_FIND(hh, l_ledger_priv->ledger_items, l_tx_hash, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash already in the hash?
@@ -1090,20 +1083,21 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         } else { // Previous multichannel transaction
             l_token_ticker = bound_item->tx_prev_out->token;
         }
+        if (l_token_ticker_old && strcmp(l_token_ticker, l_token_ticker_old)) {
+            l_multichannel = true;
+        }
+        l_token_ticker_old = l_token_ticker;
         dap_chain_hash_fast_t *l_tx_prev_hash;
         if (l_cond == TX_ITEM_TYPE_IN) {
             dap_chain_tx_in_t *l_tx_in = bound_item->tx_cur_in;
             // Update balance: deducts
-            dap_ledger_wallet_balance_t *wallet_balance = NULL, *l_balance_tmp = NULL;
+            dap_ledger_wallet_balance_t *wallet_balance = NULL;
             char *l_addr_str = dap_chain_addr_to_str(&bound_item->tx_prev_out->addr);
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_token_ticker, (char*)NULL);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             if (wallet_balance) {
                 //log_it(L_DEBUG,"SPEND %lu from addr: %s", bound_item->tx_prev_out->header.value, l_wallet_balance_key);
                 wallet_balance->balance -= bound_item->tx_prev_out->header.value;
-                if (l_balance_tmp && l_balance_tmp != wallet_balance) {
-                    l_multichannel = true;
-                }
             } else {
                 log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_token_ticker);
             }
@@ -1701,12 +1695,13 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
         if(!l_tx)
             break;
         // Get all item from transaction by type
-        int l_item_count = 0;
-        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx, TX_ITEM_TYPE_OUT,
-                &l_item_count);
-        dap_list_t *l_list_tmp = l_list_out_items;
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+
         uint32_t l_out_idx_tmp = 0; // current index of 'out' item
-        while(l_list_tmp) {
+        for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_out_idx_tmp++) {
+            if (*(uint8_t *)l_list_tmp->data != TX_ITEM_TYPE_OUT) {
+                continue;
+            }
             dap_chain_tx_out_t *out_item = l_list_tmp->data;
             // if 'out' item has addr = a_addr_from
             if(out_item && out_item->header.value && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
@@ -1724,9 +1719,6 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                     }
                 }
             }
-            // go to the next 'out' item in l_tx transaction
-            l_out_idx_tmp++;
-            l_list_tmp = dap_list_next(l_list_tmp);
         }
         dap_list_free(l_list_out_items);
     }

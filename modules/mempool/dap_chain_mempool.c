@@ -363,9 +363,9 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     pos++;
 
     // add 'in_cond' items
-    int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);
-    dap_chain_datum_tx_item_get(l_cond_tx, &l_prev_cond_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    int l_prev_cond_idx;
+    dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, l_prev_cond_idx, pos-1) != 0 ){
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx cond input");

@@ -238,16 +238,14 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     // add 'in' item to buy from conditional transaction
-    int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_cond_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
     }
-    dap_chain_tx_out_cond_t *l_tx_out_cond  = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(
-                                               l_cond_tx, &l_prev_cond_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    int l_prev_cond_idx;
+    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_cond_hash, l_prev_cond_idx, 0);
-
     // add 'out' items
     {
         // transfer selling coins
@@ -360,14 +358,13 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
     DAP_DELETE(l_receipt);
 
     // add 'in' item to buy from conditional transaction
-    int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &a_price->tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return false;
-    }
-    dap_chain_tx_out_cond_t *l_tx_out_cond  = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(
-                                               l_cond_tx, &l_prev_cond_idx, TX_ITEM_TYPE_OUT_COND, NULL);
+    }   
+    int l_prev_cond_idx;
+    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         return false;

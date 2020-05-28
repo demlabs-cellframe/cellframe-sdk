@@ -317,7 +317,10 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
         // check index
         if(!a_item_idx_start || l_item_idx >= *a_item_idx_start) {
             // check type
-            if(a_type == TX_ITEM_TYPE_ANY || a_type == dap_chain_datum_tx_item_get_type(l_item)) {
+            dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
+            if (a_type == TX_ITEM_TYPE_ANY || a_type == l_type ||
+                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT) ||
+                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND)) {
                 if(a_item_idx_start)
                     *a_item_idx_start = l_item_idx;
                 if(a_item_out_size)
@@ -357,3 +360,22 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
         *a_item_count = l_items_count;
     return items_list;
 }
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, int *a_out_num)
+{
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+    int l_prev_cond_idx = l_list_out_items ? 0 : -1;
+    dap_chain_tx_out_cond_t *l_res = NULL;
+    for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_prev_cond_idx++) {
+        if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT_COND) {
+            l_res = l_list_tmp->data;
+            break;
+        }
+    }
+    dap_list_free(l_list_out_items);
+    if (a_out_num) {
+        *a_out_num = l_prev_cond_idx;
+    }
+    return l_res;
+}
+
