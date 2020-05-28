@@ -977,7 +977,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
             if (!l_res || l_res->sum != l_value_cur->sum) {
                 log_it(L_ERROR, "Sum of values in out items of current tx (%llu) is not equal outs from previous tx (%llu) for token %s",
-                       l_values_from_cur_tx, l_values_from_prev_tx, l_value_cur->token_ticker);
+                       l_res ? l_res->sum : 0, l_value_cur->sum, l_value_cur->token_ticker);
                 l_err_num = -12;
                 break;
             }
