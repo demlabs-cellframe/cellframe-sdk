@@ -274,6 +274,8 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
  */
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id)
 {
+    UNUSED(a_chain);
+    UNUSED(a_id);
     if(!a_arg)
         return;
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
@@ -1747,7 +1749,7 @@ void dap_chain_net_deinit()
 {
 }
 
-dap_chain_net_t **dap_chain_net_list(size_t *a_size)
+dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 {
     *a_size = HASH_COUNT(s_net_items);
     dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
@@ -1883,7 +1885,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
  */
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
-    return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: PVT(l_net)->node_addr;
+    return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.address : PVT(l_net)->node_addr;
 }
 
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)

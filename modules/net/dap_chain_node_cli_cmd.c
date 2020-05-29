@@ -1707,10 +1707,7 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
         break;
     }
 
-    char *l_str_ret_tmp = dap_string_free(l_string_ret, false);
-    char *str_ret = dap_strdup(l_str_ret_tmp);
-    dap_chain_node_cli_set_reply_text(str_reply, str_ret);
-    DAP_DELETE(l_str_ret_tmp);
+    *str_reply = dap_string_free(l_string_ret, false);
     return 0;
 }
 
@@ -2581,12 +2578,14 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     // Token type
     l_arg_index=dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-type", &l_type_str);
 
-    if (strcmp( l_type_str, "private") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
-    }else if (strcmp( l_type_str, "private_simple") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
-    }else if (strcmp( l_type_str, "public_simple") == 0){
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC;
+    if (l_type_str) {
+        if (strcmp( l_type_str, "private") == 0){
+            l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
+        }else if (strcmp( l_type_str, "private_simple") == 0){
+            l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+        }else if (strcmp( l_type_str, "public_simple") == 0){
+            l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC;
+        }
     }
 
     dap_chain_datum_token_t * l_datum_token = NULL;
@@ -2862,6 +2861,7 @@ int com_token_decl(int argc, char ** argv, void *arg_func, char ** a_str_reply)
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
 
     }
+
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token %s is placed in datum pool ", l_key_str,
                 l_ticker);
@@ -3681,11 +3681,11 @@ int com_stats(int argc, char ** argv, void *arg_func, char **str_reply)
 #if (defined DAP_OS_UNIX) || (defined __WIN32)
     {
         dap_cpu_monitor_init();
-        usleep(500000);
+        dap_usleep(500000);
         char *str_reply_prev = dap_strdup_printf("");
         char *str_delimiter;
         dap_cpu_stats_t s_cpu_stats = dap_cpu_get_stats();
-        for (int n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
+        for (uint32_t n_cpu_num = 0; n_cpu_num < s_cpu_stats.cpu_cores_count; n_cpu_num++) {
             if ((n_cpu_num % 4 == 0) && (n_cpu_num != 0)) {
                 str_delimiter = dap_strdup_printf("\n");
             } else if (n_cpu_num == s_cpu_stats.cpu_cores_count - 1) {
