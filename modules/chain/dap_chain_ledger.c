@@ -804,7 +804,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         // Get list of all 'out' items from previous transaction
         dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, NULL);
         // Get one 'out' item in previous transaction bound with current 'in' item
-        void *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_tx_in->header.tx_out_prev_idx);
+        void *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_idx);
         dap_list_free(l_list_prev_out);
         if(!l_tx_prev_out) {
             l_err_num = -8;
@@ -1092,10 +1092,12 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     // Mark 'out' items in cache if they were used & delete previous transactions from cache if it need
     // find all bound pairs 'in' and 'out'
     dap_list_t *l_list_tmp = l_list_bound_items;
-//    int l_list_tmp_num = 0;
+
+    // Update balance: deducts
     while(l_list_tmp) {
         dap_chain_ledger_tx_bound_t *bound_item = l_list_tmp->data;
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)&bound_item->in;
+        void *l_item_in = *(void **)&bound_item->in;
+        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_item_in;
         dap_chain_ledger_tx_item_t *l_prev_item_out = bound_item->item_out;
         if (*l_prev_item_out->token_tiker) {
             l_token_ticker = l_prev_item_out->token_tiker;
@@ -1109,9 +1111,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         dap_chain_hash_fast_t *l_tx_prev_hash;
         if (l_type == TX_ITEM_TYPE_IN) {
             dap_chain_tx_in_t *l_tx_in = bound_item->in.tx_cur_in;
-            // Update balance: deducts
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
-            dap_chain_tx_item_type_t l_out_type = *(uint8_t *)&bound_item->out;
+            void *l_item_out = *(void **)&bound_item->out;
+            dap_chain_tx_item_type_t l_out_type = *(uint8_t *)l_item_out;
             dap_chain_addr_t *l_addr = (l_out_type == TX_ITEM_TYPE_OUT) ?
                                         &bound_item->out.tx_prev_out->addr :
                                         &bound_item->out.tx_prev_out_ext->addr;
@@ -1119,10 +1121,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_token_ticker, (char*)NULL);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             if (wallet_balance) {
-                //log_it(L_DEBUG,"SPEND %lu from addr: %s", bound_item->tx_prev_out->header.value, l_wallet_balance_key);
-                wallet_balance->balance -= (l_out_type == TX_ITEM_TYPE_OUT) ?
-                                            bound_item->out.tx_prev_out->header.value :
-                                            bound_item->out.tx_prev_out_ext->header.value;
+                uint64_t l_value = (l_out_type == TX_ITEM_TYPE_OUT) ?
+                                    bound_item->out.tx_prev_out->header.value :
+                                    bound_item->out.tx_prev_out_ext->header.value;
+                log_it(L_DEBUG,"SPEND %lu from addr: %s", l_value, l_wallet_balance_key);
+                wallet_balance->balance -= l_value;
             } else {
                 log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_token_ticker);
             }
@@ -1213,8 +1216,8 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
                 l_token_ticker = l_out_item_ext->token;
             }
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_token_ticker, (char*)NULL);
-            //log_it (L_DEBUG,"\t\tAddr: %s token: %s", l_addr_str, l_token_ticker);
             uint64_t l_value =  (l_type == TX_ITEM_TYPE_OUT) ? l_out_item->header.value : l_out_item_ext->header.value;
+            log_it (L_DEBUG,"GOT %lu to addr: %s", l_value, l_wallet_balance_key);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             if (wallet_balance) {
                 //log_it(L_DEBUG, "Balance item is present in cache");
@@ -1778,7 +1781,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
             } else { // TX_ITEM_TYPE_OUT_EXT
                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
                 if (!l_out_ext->header.value || memcmp(a_addr_from, &l_out_ext->addr, sizeof(dap_chain_addr_t)) ||
-                        strcpy((char *)a_token_ticker, l_out_ext->token)) {
+                        strcmp((char *)a_token_ticker, l_out_ext->token)) {
                     continue;
                 }
                 l_value =  l_out_ext->header.value;
