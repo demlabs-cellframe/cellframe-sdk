@@ -1194,7 +1194,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         else {
                             ret = -23;
                             dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                              "Can't find events %s in events_last table\n");
+                                                              "Can't find events in events_last table\n");
                             break;
                         }
                     }else if ( strcmp(l_from_events_str,"events") == 0){
@@ -1207,14 +1207,14 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         else {
                             ret = -24;
                             dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                              "Can't find events %s in events table\n");
+                                                              "Can't find events in events table\n");
                             break;
                         }
 
                     }else {
                         ret = -22;
                         dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                          "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, round.0x0123456789ABCDEF");
+                                                          "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, round.0x0123456789ABCDEF", l_from_events_str);
                         break;
 
                     }
