@@ -34,6 +34,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_out_ext.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"
@@ -77,7 +78,14 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value, const char *a_token);
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value);
+
+/**
+ * Create item dap_chain_tx_out_ext_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint64_t a_value, const char *a_token);
 
 /**
  * Create item dap_chain_tx_out_cond_t

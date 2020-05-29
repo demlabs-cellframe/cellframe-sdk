@@ -101,11 +101,11 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
         // it's the condition owner, let the transaction to be performed
         return true;
     } else {
-        dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, NULL);
+        dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_EXT, NULL);
 
         uint64_t l_out_val = 0;
         for (dap_list_t *l_list_tmp = l_list_out;l_list_tmp;  l_list_tmp = l_list_tmp->next) {
-            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
+            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
             if (memcmp(&l_tx_out->addr, &a_cond->params, sizeof(dap_chain_addr_t)) ||
                     strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.token)) {
                 continue;
@@ -250,11 +250,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     {
         // transfer selling coins
         const dap_chain_addr_t *l_buyer_addr = (dap_chain_addr_t *)l_tx_out_cond->params;
-        dap_chain_tx_out_t *l_tx_out = dap_chain_datum_tx_item_out_create(l_buyer_addr, a_price->datoshi_sell, a_price->token_sell);
-        if (l_tx_out) {
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
-            DAP_DELETE(l_tx_out);
-        } else {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, a_price->datoshi_sell, a_price->token_sell) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
             log_it(L_ERROR, "Can't add selling coins output");
@@ -263,11 +259,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         // coin back
         uint64_t l_value_back = l_value_sell - a_price->datoshi_sell;
         if (l_value_back) {
-            l_tx_out = dap_chain_datum_tx_item_out_create(l_seller_addr, l_value_back, a_price->token_sell);
-            if (l_tx_out) {
-                dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
-                DAP_DELETE(l_tx_out);
-            } else {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_value_back, a_price->token_sell) == -1) {
                 dap_chain_datum_tx_delete(l_tx);
                 DAP_DELETE(l_seller_addr);
                 log_it(L_ERROR, "Can't add selling coins back output");
@@ -275,11 +267,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             }
         }
         //transfer buying coins
-        l_tx_out = dap_chain_datum_tx_item_out_create(l_seller_addr, a_price->datoshi_buy, a_price->token_buy);
-        if (l_tx_out) {
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
-            DAP_DELETE(l_tx_out);
-        } else {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, a_price->datoshi_buy, a_price->token_buy) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
             log_it(L_ERROR, "Cant add buying coins output");
@@ -290,12 +278,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         uint64_t l_buying_value = l_tx_out_cond->header.value;
         l_value_back = l_buying_value - a_price->datoshi_buy;
         if (l_value_back) {
-            /*l_tx_out = dap_chain_datum_tx_item_out_create(l_buyer_addr, l_value_back, a_price->token_buy);
-            if (l_tx_out) {
-                dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
-                DAP_DELETE(l_tx_out);
-            } else {
-                dap_chain_datum_tx_delete(l_tx);*/
+            //if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_value_back, a_price->token_buy) == -1) {
                 log_it(L_WARNING, "Partial exchange not allowed");
                 return NULL;
             //}

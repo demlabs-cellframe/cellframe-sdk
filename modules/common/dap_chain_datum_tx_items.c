@@ -58,6 +58,13 @@ static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
     return size;
 }
 
+static size_t dap_chain_tx_out_ext_get_size(const dap_chain_tx_out_ext_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_out_ext_t);
+    return size;
+}
+
 static size_t dap_chain_tx_out_cond_get_size(const dap_chain_tx_out_cond_t *a_item)
 {
     return sizeof(dap_chain_tx_out_cond_t) + a_item->params_size;
@@ -109,6 +116,9 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
         break;
     case TX_ITEM_TYPE_OUT: // Transaction outputs
         size = dap_chain_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
+        break;
+    case TX_ITEM_TYPE_OUT_EXT:
+        size = dap_chain_tx_out_ext_get_size((const dap_chain_tx_out_ext_t*) a_item);
         break;
     case TX_ITEM_TYPE_RECEIPT: // Receipt
         size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t*) a_item);
@@ -194,7 +204,7 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value, const char *a_token)
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint64_t a_value)
 {
     if(!a_addr)
         return NULL;
@@ -202,9 +212,18 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
     memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
-    if (a_token) {
-        strcpy(l_item->token, a_token);
-    }
+    return l_item;
+}
+
+dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint64_t a_value, const char *a_token)
+{
+    if (!a_addr || !a_token)
+        return NULL;
+    dap_chain_tx_out_ext_t *l_item = DAP_NEW_Z(dap_chain_tx_out_ext_t);
+    l_item->header.type = TX_ITEM_TYPE_OUT_EXT;
+    l_item->header.value = a_value;
+    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
+    strcpy(l_item->token, a_token);
     return l_item;
 }
 
@@ -320,7 +339,8 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
             dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
             if (a_type == TX_ITEM_TYPE_ANY || a_type == l_type ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND)) {
+                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND) ||
+                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT)) {
                 if(a_item_idx_start)
                     *a_item_idx_start = l_item_idx;
                 if(a_item_out_size)
