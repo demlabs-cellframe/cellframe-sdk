@@ -1672,15 +1672,17 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
  * a_addr[in] wallet address, whose owner can use the service
  */
 dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger,
-        dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash)
+        dap_chain_hash_fast_t *a_tx_first_hash, dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx)
 {
-    if(!a_addr || !a_tx_first_hash)
+    if (!a_tx_first_hash)
         return NULL;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     dap_chain_datum_tx_t *l_cur_tx = NULL;
     bool is_null_hash = dap_hash_fast_is_blank(a_tx_first_hash);
     bool is_search_enable = is_null_hash;
     dap_chain_ledger_tx_item_t *l_iter_current, *l_item_tmp;
+    dap_chain_tx_out_cond_t *l_tx_out_cond;
+    int l_tx_out_cond_idx;
     pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
     HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp)
     {
@@ -1692,10 +1694,8 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
                 is_search_enable = true;
             continue;
         }
-        // Get sign item from transaction
-        int l_tx_out_cond_size = 0;
-        dap_chain_tx_out_cond_t *l_tx_out_cond = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(
-                l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
+        // Get out_cond item from transaction
+        l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_tmp, &l_tx_out_cond_idx);
 
         if(l_tx_out_cond) {
             l_cur_tx = l_tx_tmp;
@@ -1704,6 +1704,12 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
         }
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    if (a_out_cond) {
+        *a_out_cond = l_tx_out_cond;
+    }
+    if (a_out_cond_idx) {
+        *a_out_cond_idx = l_tx_out_cond_idx;
+    }
     return l_cur_tx;
 }
 
@@ -1727,22 +1733,21 @@ uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, da
     //memcpy(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));
     /* size_t l_pub_key_size = a_key_from->pub_key_data_size;
      uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key_from, &l_pub_key_size);*/
-
+    dap_chain_tx_out_cond_t *l_tx_out_cond;
     // Find all transactions
     do {
-        l_tx_tmp = dap_chain_ledger_tx_cache_find_out_cond(a_ledger, a_addr, &l_tx_first_hash);
+
+        l_tx_tmp = dap_chain_ledger_tx_cache_find_out_cond(a_ledger, &l_tx_first_hash, &l_tx_out_cond, NULL);
 
         // Get out_cond item from transaction
         if(l_tx_tmp) {
-           dap_chain_tx_out_cond_t *l_tx_out_cond  =(dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(
-                     l_tx_tmp, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
-
+            UNUSED(a_addr);
             // TODO check relations a_addr with cond_data and public key
 
             if(l_tx_out_cond) {
                 l_ret_value += l_tx_out_cond->header.value;
                 if(tx_out_cond)
-                    *tx_out_cond = (dap_chain_tx_out_cond_t*) l_tx_out_cond;
+                    *tx_out_cond = l_tx_out_cond;
             }
         }
     } while(l_tx_tmp);
