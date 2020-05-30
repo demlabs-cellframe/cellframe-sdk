@@ -175,8 +175,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
         char *a_public_key, size_t a_public_key_size, dap_chain_hash_fast_t *a_tx_first_hash);
 
 // Get the transaction in the cache with the out_cond item
-dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger,
-        dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash);
+dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_first_hash, dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_used);
 
 // Get the value from all transactions in the cache with out_cond item
 uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr,
