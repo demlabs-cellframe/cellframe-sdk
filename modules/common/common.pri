@@ -8,6 +8,7 @@ HEADERS +=  $$PWD/include/dap_chain_common.h                 \
 	    $$PWD/include/dap_chain_datum_tx_items.h         \
 	    $$PWD/include/dap_chain_datum_tx_out_cond.h      \
 	    $$PWD/include/dap_chain_datum_tx_out.h           \
+            $$PWD/include/dap_chain_datum_tx_out_ext.h       \
 	    $$PWD/include/dap_chain_datum_tx_pkey.h          \
 	    $$PWD/include/dap_chain_datum_tx_receipt.h       \
 	    $$PWD/include/dap_chain_datum_tx_sig.h           \
@@ -19,7 +20,6 @@ SOURCES +=  $$PWD/dap_chain_common.c                     \
 	    $$PWD/dap_chain_datum_token.c                \
 	    $$PWD/dap_chain_datum_tx.c                   \
 	    $$PWD/dap_chain_datum_tx_items.c             \
-	    $$PWD/dap_chain_datum_tx_out_cond.c          \
 	    $$PWD/dap_chain_datum_tx_receipt.c           \
 	    $$PWD/dap_chain_datum_tx_token.c 
 
