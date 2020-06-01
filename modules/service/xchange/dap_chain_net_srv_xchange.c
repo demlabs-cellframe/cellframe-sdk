@@ -247,6 +247,10 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     }
     int l_prev_cond_idx;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
+        log_it(L_WARNING, "Requested conditional transaction is already used out");
+        return false;
+    }
     dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_cond_hash, l_prev_cond_idx, 0);
     // add 'out' items
     {
@@ -401,13 +405,18 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     return l_order_hash_str;
 }
 
-void s_xchange_price_print(dap_string_t *a_reply_str, dap_chain_net_srv_xchange_price_t *a_price, char *a_str)
+dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order)
 {
-    char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_price->order_hash);
-    dap_string_append_printf(a_reply_str, "%s\t%s\t%s\t%s\t%s\t%lu\t%lu\t%s\n", l_order_hash_str, a_price->token_sell, a_price->net_sell->pub.name,
-                             a_price->token_buy, a_price->net_buy->pub.name, a_price->datoshi_sell,
-                             a_price->datoshi_buy, a_str);
-    DAP_DELETE(l_order_hash_str);
+    dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
+    l_price->net_sell = a_net;
+    strcpy(l_price->token_sell, a_order->price_ticker);
+    l_price->datoshi_sell = a_order->price;
+    dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext;
+    dap_chain_net_id_t l_net_buy_id = { .uint64 = dap_lendian_get64((uint8_t *)&l_ext->net_sell_id) };
+    l_price->net_buy = dap_chain_net_by_id(l_net_buy_id);
+    l_price->datoshi_buy = dap_lendian_get64((uint8_t *)&l_ext->datoshi_sell);
+    strcpy(l_price->token_buy, l_ext->token_sell);
+    return l_price;
 }
 
 static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
@@ -689,7 +698,12 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             dap_chain_net_srv_xchange_price_t *l_price = NULL, *l_tmp;
             dap_string_t *l_reply_str = dap_string_new("");
             HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
-                s_xcjhange_price_print(l_reply_str, l_price, l_price->wallet_str);
+                char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
+                long double l_rate = (long double)l_price->datoshi_sell / l_price->datoshi_buy;
+                dap_string_append_printf(l_reply_str, "%s\t%s\t%s\t%s\t%s\t%lu\t%ld\t%s\n", l_order_hash_str, l_price->token_sell,
+                                         l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
+                                         l_price->datoshi_sell, l_rate, l_price->wallet_str);
+                DAP_DELETE(l_order_hash_str);
             }
             if (!l_reply_str->len) {
                 dap_string_append(l_reply_str, "Pricelist is empty");
@@ -746,16 +760,26 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
+            dap_chain_net_srv_xchange_price_t *l_price;
+            dap_string_t *l_reply_str = dap_string_new("");
             for (size_t i = 0; i < l_orders_count; i++) {
                 dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID)
                     continue;
                 // TODO add filters to list (tokens, network, etc.)
-
-
+                l_price = s_xchange_price_from_order(l_net, l_order);
+                long double l_rate = (long double)l_price->datoshi_buy / l_price->datoshi_sell;
+                dap_string_append_printf(l_reply_str, "%s\t%s\t%s\t%s\t%s\t%lu\t%ld\t%s\n", l_orders[i].key, l_price->token_buy,
+                                         l_price->net_buy->pub.name, l_price->token_sell, l_price->net_sell->pub.name,
+                                         l_price->datoshi_buy, l_rate);
+                DAP_DELETE(l_price);
             }
             dap_chain_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE( l_gdb_group_str);
+            if (!l_reply_str->len) {
+                dap_string_append(l_reply_str, "Pricelist is empty");
+            }
+            *a_str_reply = dap_string_free(l_reply_str, false);
         } break;
         case CMD_PURCHASE: {
             const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL;
@@ -787,15 +811,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
             }
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
-                dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW(dap_chain_net_srv_xchange_price_t);
-                l_price->net_sell = l_net;
-                strcpy(l_price->token_sell, l_order->price_ticker);
-                l_price->datoshi_sell = l_order->price;
-                dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)l_order->ext;
-                dap_chain_net_id_t l_net_buy_id = { .uint64 = dap_lendian_get64((uint8_t *)&l_ext->net_sell_id) };
-                l_price->net_buy = dap_chain_net_by_id(l_net_buy_id);
-                l_price->datoshi_buy = dap_lendian_get64((uint8_t *)&l_ext->datoshi_sell);
-                strcpy(l_price->token_buy, l_ext->token_sell);
+                dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
                 // Create conditional transaction
                 dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, &l_order->tx_cond_hash, l_wallet);
                 if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
