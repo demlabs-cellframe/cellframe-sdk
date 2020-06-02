@@ -37,6 +37,9 @@
 #define LOG_TAG "chain_net_srv_geoip"
 #define LOCALE_DEFAULT  "en"
 
+
+static char *s_geoip_db_file_path = NULL; // share/geoip/GeoLite2-City.mmdb
+
 /**
  * @brief m_request_response
  * @param a_response
@@ -168,18 +171,18 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 {
 	// https://geoip.maxmind.com/geoip/v2.1/city/178.7.88.55
 	// https://maxmind.github.io/libmaxminddb/
-    char *l_file_db_name = dap_strdup_printf("%s/share/geoip/GeoLite2-City.mmdb", g_sys_dir_path);
-    if(!dap_file_test(l_file_db_name)) {
-        DAP_DELETE(l_file_db_name);
+    //char *l_file_db_name = dap_strdup_printf("%s/share/geoip/GeoLite2-City.mmdb", g_sys_dir_path);
+    if(!dap_file_test(s_geoip_db_file_path)) {
+        //DAP_DELETE(l_file_db_name);
         return NULL ;
     }
     MMDB_s mmdb;
-    int l_status = MMDB_open(l_file_db_name, MMDB_MODE_MMAP, &mmdb);
+    int l_status = MMDB_open(s_geoip_db_file_path, MMDB_MODE_MMAP, &mmdb);
     if(MMDB_SUCCESS != l_status) {
-        log_it(L_WARNING, "geoip file %s opened with errcode=%d", l_file_db_name, l_status);
+        log_it(L_WARNING, "geoip file %s opened with errcode=%d", s_geoip_db_file_path, l_status);
         return NULL ;
     }
-    DAP_DELETE(l_file_db_name);
+    //DAP_DELETE(l_file_db_name);
 
 	geoip_info_t *l_ret = DAP_NEW_Z(geoip_info_t);
 
@@ -251,4 +254,26 @@ geoip_info_t *chain_net_geoip_get_ip_info(const char *a_ip_str)
 {
     return chain_net_geoip_get_ip_info_by_local_db(a_ip_str, "en");
     //return chain_net_geoip_get_ip_info_by_web(a_ip_str);
+}
+
+
+int chain_net_geoip_init(dap_config_t *a_config)
+{
+    s_geoip_db_file_path = dap_strdup_printf("%s/%s", g_sys_dir_path,
+            dap_config_get_item_str(g_config, "resources", "geoip_db_path"));
+    if(!dap_file_test(s_geoip_db_file_path)) {
+        log_it(L_ERROR, "No exists geoip db file %s", s_geoip_db_file_path);
+        DAP_DELETE(s_geoip_db_file_path);
+        s_geoip_db_file_path = NULL;
+        return -1;
+    }
+    MMDB_s mmdb;
+    int l_status = MMDB_open(s_geoip_db_file_path, MMDB_MODE_MMAP, &mmdb);
+    if(MMDB_SUCCESS != l_status) {
+        log_it(L_WARNING, "geoip file %s opened with errcode=%d", s_geoip_db_file_path, l_status);
+        DAP_DELETE(s_geoip_db_file_path);
+        s_geoip_db_file_path = NULL;
+        return -2;
+    }
+    return 0;
 }

@@ -78,6 +78,7 @@ static int bugreport_write_to_file(byte_t *a_request_byte, size_t a_request_size
 static void bugreport_http_proc(struct dap_http_simple *a_http_simple, void * a_arg)
 {
     // data:text/html,<form action=http://192.168.100.92:8079/bugreport/ method=post><input name=a></form>
+    // data:text/html,<form action=http://cdb.klvn.io/bugreport/ method=post><input name=a></form>
     log_it(L_DEBUG, "bugreport_http_proc request");
     http_status_code_t * return_code = (http_status_code_t*) a_arg;
     //if(dap_strcmp(cl_st->http->url_path, BUGREPORT_URL) == 0 )
