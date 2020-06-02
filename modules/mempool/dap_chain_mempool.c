@@ -435,7 +435,13 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     DAP_DELETE( l_tx );
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+
+    char * l_gdb_group;
+    if(a_net->pub.default_chain)
+        l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_net->pub.default_chain);
+    else
+        l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+
     if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
                                    , l_gdb_group ) ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
