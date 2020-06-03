@@ -529,6 +529,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             char * l_last_name = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_last_name);
                             char * l_email = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_email);
                             dap_chain_time_t * l_ts_last_logined= (dap_chain_time_t*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_ts_last_login);
+                            dap_chain_time_t *l_ts_active_till = (dap_chain_time_t*) dap_chain_global_db_gr_get(l_login, &l_tmp_size, s_group_ts_active_till);
 
                             enc_http_reply_f(a_delegate,
                                              "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
@@ -543,6 +544,8 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                                 enc_http_reply_f(a_delegate,"\t<email>%s</email>\n",l_email);
                             if ( l_ts_last_logined )
                                 enc_http_reply_f(a_delegate,"\t<ts_prev_login>%llu</ts_prev_login>\n",(long long unsigned)*l_ts_last_logined);
+                            if ( l_ts_active_till )
+                                enc_http_reply_f(a_delegate,"\t<ts_active_till>%llu</ts_acyive_till>\n",(long long unsigned)*l_ts_active_till);
 
                             if ( a_delegate->cookie )
                                 enc_http_reply_f(a_delegate,"\t<cookie>%s</cookie>\n",a_delegate->cookie);
@@ -555,6 +558,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             DAP_DELETE(l_last_name);
                             DAP_DELETE(l_email);
                             DAP_DELETE(l_ts_last_logined);
+                            DAP_DELETE(l_ts_active_till);
 
                             // Update last logined
                             l_ts_last_logined = DAP_NEW_Z(dap_chain_time_t);
