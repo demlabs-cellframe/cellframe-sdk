@@ -361,22 +361,63 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     uint16_t pos=0;
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*) l_receipt);
     pos++;
+    uint64_t l_value_send = l_receipt->receipt_info.value_datoshi;
 
     // add 'in_cond' items
-    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);
+    dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);
     int l_prev_cond_idx;
-    dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, &l_prev_cond_idx);
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_prev_hash, l_prev_cond_idx)) {
+        dap_chain_datum_tx_t *l_tx_tmp;
+        dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
+        dap_chain_tx_out_cond_t *l_tmp_cond;
+        uint64_t l_value_cond = 0;
+        int l_tmp_cond_idx;
+        // Find all transactions
+        while (l_value_cond < l_value_send) {
+            l_tx_tmp = dap_chain_ledger_tx_cache_find_out_cond(l_ledger, &l_tx_cur_hash, &l_tmp_cond, &l_tmp_cond_idx);
+            if (!l_tx_tmp) {
+                break;
+            }
+            if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_cur_hash, l_tmp_cond_idx))
+                continue;
+            if (l_tmp_cond->header.subtype != l_out_cond->header.subtype)
+                continue;
+            if (l_tmp_cond->subtype.srv_pay.srv_uid.uint64 != l_out_cond->subtype.srv_pay.srv_uid.uint64)
+                continue;
+            if (l_tmp_cond->subtype.srv_pay.unit.uint32 != l_out_cond->subtype.srv_pay.unit.uint32)
+                continue;
+            if (l_tmp_cond->subtype.srv_pay.unit_price_max_datoshi != l_out_cond->subtype.srv_pay.unit_price_max_datoshi)
+                continue;
+            if (memcmp(&l_tmp_cond->subtype.srv_pay.pkey_hash, &l_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t)))
+                continue;
+            l_value_cond = l_tmp_cond->header.value;
+        }
+        if (l_value_cond < l_value_send) {
+            log_it(L_WARNING, "Requested conditional transaction is already used out");
+            return NULL;
+        }
+    }
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, l_prev_cond_idx, pos-1) != 0 ){
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx cond input");
         return NULL;
     }
 
-    if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_receipt->receipt_info.value_datoshi) != 1) {
+    // add 'out' item
+    if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_send) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx output");
         return NULL;
     }
+
+    //add 'out_cond' item
+    size_t l_size = dap_chain_datum_item_tx_get_size((uint8_t *)l_out_cond);
+    dap_chain_tx_out_cond_t *l_out_cond_new = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, l_size);
+    memcpy(l_out_cond_new, l_out_cond, l_size);
+    l_out_cond_new->header.value -= l_value_send;
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond_new);
+    DAP_DELETE(l_out_cond_new);
 
     // add 'sign' items
     if (l_key_tx_sign){
@@ -394,7 +435,13 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     DAP_DELETE( l_tx );
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+
+    char * l_gdb_group;
+    if(a_net->pub.default_chain)
+        l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_net->pub.default_chain);
+    else
+        l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+
     if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
                                    , l_gdb_group ) ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
@@ -874,7 +921,6 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
             {
                 dap_datum_mempool_free(datum_mempool);
                 char *a_key = calc_datum_hash(request_str, (size_t) request_size);
-                char *a_value;
                 switch (action)
                 {
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
