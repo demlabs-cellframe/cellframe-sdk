@@ -263,15 +263,11 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                 dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
-                // Is it a base transaction?
-                if (dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
-                    dap_chain_tx_token_t *l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
-                    if (l_tx_token && !dap_chain_ledger_token_emission_find(a_chain->ledger, l_tx_token->header.ticker,
-                                                                            &l_tx_token->header.token_emission_hash)) {
+                // Is not it a base transaction?
+                if (l_tx_in && !dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
+                    if (a_role.enums == NODE_ROLE_ROOT) {
                         continue;
                     }
-                } else if (a_role.enums == NODE_ROLE_ROOT) {
-                        continue;
                 }
             }
             if (a_chain->callback_datums_pool_proc(a_chain, &l_datum, 1) != 1) {

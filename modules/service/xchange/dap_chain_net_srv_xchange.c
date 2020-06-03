@@ -90,6 +90,7 @@ void dap_chain_net_srv_xchange_deinit()
     dap_chain_net_srv_xchange_price_t *l_price = NULL, *l_tmp;
     HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
         HASH_DEL(s_srv_xchange->pricelist, l_price);
+        DAP_DELETE(l_price->wallet_str);
         DAP_DELETE(l_price->key_ptr);
         DAP_DELETE(l_price);
     }
@@ -334,8 +335,7 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
         return false;
     }
     // Processing will be made according to autoprocess policy
-    size_t l_datums_number = dap_chain_mempool_datum_add(l_datum, l_chain);
-    if (!l_datums_number) {
+    if (dap_chain_mempool_datum_add(l_datum, l_chain)) {
         DAP_DELETE(l_datum);
         return false;
     }
@@ -450,7 +450,7 @@ static dap_chain_net_srv_xchange_price_t *s_xchange_db_load(char *a_key, uint8_t
 {
     dap_chain_net_srv_xchange_db_item_t *l_item = (dap_chain_net_srv_xchange_db_item_t *)a_item;
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
-    strcpy(l_price->key_ptr, a_key);
+    l_price->key_ptr = dap_strdup(a_key);
     strcpy(l_price->token_sell, l_item->token_sell);
     strcpy(l_price->token_buy, l_item->token_buy);
     dap_chain_net_id_t l_id = { .uint64 = l_item->net_sell_id};
@@ -461,7 +461,7 @@ static dap_chain_net_srv_xchange_price_t *s_xchange_db_load(char *a_key, uint8_t
     l_price->rate = l_item->rate;
     memcpy(&l_price->tx_hash, &l_item->tx_hash, sizeof(dap_chain_hash_fast_t));
     memcpy(&l_price->order_hash, &l_item->order_hash, sizeof(dap_chain_hash_fast_t));
-    strcpy(l_price->wallet_str, l_item->wallet_str);
+    l_price->wallet_str = dap_strdup(l_item->wallet_str);
     return l_price;
 }
 
@@ -597,6 +597,8 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             dap_chain_wallet_close(l_wallet);
             if (!l_tx) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the conditional transaction");
+                DAP_DELETE(l_price->key_ptr);
+                DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 return -14;
             }
@@ -608,12 +610,18 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
                     dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
+                    DAP_DELETE(l_price->key_ptr);
+                    DAP_DELETE(l_price->wallet_str);
+                    DAP_DELETE(l_price);
                     return -15;
                 }
                 if (!s_xchange_db_add(l_price)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save price in database");
                     dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
+                    DAP_DELETE(l_price->key_ptr);
+                    DAP_DELETE(l_price->wallet_str);
+                    DAP_DELETE(l_price);
                     return -16;
                 }
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
@@ -623,7 +631,9 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the order");
                 DAP_DELETE(l_price->key_ptr);
+                DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
+                return -18;
             }
         } break;
         case CMD_REMOVE:
@@ -652,6 +662,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 DAP_DELETE(l_order_hash_str);
                 DAP_DELETE(l_price->wallet_str);
+                DAP_DELETE(l_price->key_ptr);
                 DAP_DELETE(l_price);
                 if (!l_str_reply->len) {
                     dap_string_append(l_str_reply, "Price successfully removed");
@@ -745,6 +756,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     DAP_DELETE(l_order_hash_str);
                 } else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the order");
+                    DAP_DELETE(l_price->wallet_str);
                     DAP_DELETE(l_price->key_ptr);
                     DAP_DELETE(l_price);
                     return -18;
@@ -758,7 +770,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             dap_string_t *l_reply_str = dap_string_new("");
             HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-                dap_string_append_printf(l_reply_str, "%s\t%s\t%s\t%s\t%s\t%lu\t%ld\t%s\n", l_order_hash_str, l_price->token_sell,
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %lu %llf %s\n", l_order_hash_str, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
                                          l_price->datoshi_sell, l_price->rate, l_price->wallet_str);
                 DAP_DELETE(l_order_hash_str);
@@ -826,7 +838,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
                     continue;
                 // TODO add filters to list (tokens, network, etc.)
                 l_price = s_xchange_price_from_order(l_net, l_order);
-                dap_string_append_printf(l_reply_str, "%s\t%s\t%s\t%s\t%s\t%lu\t%ld\n", l_orders[i].key, l_price->token_sell,
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %lu %llf\n", l_orders[i].key, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
                                          l_price->datoshi_sell, l_price->rate);
                 DAP_DELETE(l_price);
@@ -868,7 +880,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
             if (!l_val_sell_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -coins");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -coins");
                 return -8;
             }
             uint64_t l_datoshi_sell = strtoull(l_val_sell_str, NULL, 10);
