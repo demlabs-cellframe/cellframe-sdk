@@ -724,7 +724,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         }
                         break;
                     default:
-                        log_it(L_INFO, "sync of chain '%s' error %d", l_chain->name,l_res);
+                        log_it(L_ERROR, "sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                     if (l_res) {
                         l_sync_errors++;
@@ -758,7 +758,6 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NET_STATE_ONLINE:
                 case NET_STATE_SYNC_GDB:
                 case NET_STATE_SYNC_CHAINS:
-                    // if flag set then go to SYNC_GDB
                     l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                     break;
                 default: break;
@@ -803,7 +802,7 @@ static void *s_net_proc_thread ( void *a_net )
 
         // check or start sync
         s_net_states_proc( l_net );
-        if (F_DAP_CHAIN_NET_GO_SYNC) {
+        if (p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) {
             continue;
         }
         struct timespec l_to;

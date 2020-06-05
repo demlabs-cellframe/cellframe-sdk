@@ -290,11 +290,8 @@ static void *s_log_thread_proc(void *arg) {
     (void) arg;
     for ( ; !s_log_term_signal; ) {
         pthread_mutex_lock(&s_log_mutex);
-        for ( ; s_log_count == 0; ) {
+        for ( ; s_log_count == 0 && !s_log_term_signal; ) {
             pthread_cond_wait(&s_log_cond, &s_log_mutex);
-            if (s_log_term_signal) {
-                break;
-            }
         }
         if (s_log_count) {
             log_str_t *elem, *tmp;
