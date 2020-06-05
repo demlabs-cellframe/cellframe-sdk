@@ -230,14 +230,12 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -4;
             }
 
-            dap_enc_key_t * l_key = dap_sign_to_enc_key( l_sign);
-            if ( l_key == NULL){
+            dap_chain_hash_fast_t l_pkey_hash;
+            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event's sign has no any key");
                 return -5;
             }
-
-            dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
-            dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, &a_dag->chain->net_id);
 
             /*
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);

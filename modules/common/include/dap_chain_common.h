@@ -207,7 +207,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
-void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id);
+void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t *a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 
