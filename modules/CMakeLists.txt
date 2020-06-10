@@ -81,6 +81,11 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
 
+# Service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    add_subdirectory(service/stake)
+endif()
+
 # Unit tests
 if( BUILD_TESTS)
     add_subdirectory(test)

@@ -117,6 +117,12 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange )
 endif()
 
+# Enable service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    message("[+] Module 'srv-stake'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
+endif()
+
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
 					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 

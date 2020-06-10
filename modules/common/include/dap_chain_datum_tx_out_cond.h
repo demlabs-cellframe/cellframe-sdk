@@ -31,7 +31,8 @@
 
 typedef enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE = 0x03
 } dap_chain_tx_out_cond_subtype_t;
 
 /**
@@ -71,6 +72,14 @@ typedef struct dap_chain_tx_out_cond {
             // Total amount of datoshi to change to
             uint64_t value;
         } srv_xchange;
+        struct {
+            // Service uid that only could be used for this outout
+            dap_chain_net_srv_uid_t srv_uid;
+            // Fee address
+            dap_chain_addr_t fee_addr;
+            // Fee value in percent
+            long double fee_value;
+        } srv_stake;
     } subtype;
     uint32_t params_size; // Condition parameters size
     uint8_t params[]; // condition parameters, pkey, hash or smth like this

@@ -672,8 +672,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
      3. hash(tx1) == tx2.dap_chain_datump_tx_in.tx_prev_hash
      &&
      4. tx1.dap_chain_datum_tx_out.addr.data.key == tx2.dap_chain_datum_tx_sig.pkey for unconditional output
-     &&
-     5. tx1.dap_chain_datum_tx_out.condition == verify_svc_type(tx2) for conditional ouput
+     \\
+     5a. tx1.dap_chain_datum_tx_sig.pkey == tx1.dap_chain_datum_tx_sig.pkey for conditional owner
+     \\
+     5b. tx1.dap_chain_datum_tx_out.condition == verify_svc_type(tx2) for conditional output
      &&
      6. sum(  find (tx2.input.tx_prev_hash).output[tx2.input_tx_prev_idx].value )  ==  sum (tx2.outputs.value) per token
      */
@@ -854,19 +856,31 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -8;
                 break;
             }
-            dap_chain_tx_out_cond_t * l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
-            dap_chain_ledger_verificator_t *l_verificator;
-            int l_tmp = (int)l_tx_prev_out_cond->header.subtype;
-            HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
-            if (!l_verificator || !l_verificator->callback) {
-                log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
-                l_err_num = -13;
-                break;
-            }
-            // 5. Call verificator for conditional output
-            if (l_verificator->callback(l_tx_prev_out_cond, a_tx) == false) {
-                l_err_num = -14;
-                break;
+            // 5a. Check for condition owner
+            dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
+            size_t l_prev_pkey_ser_size = 0;
+            const uint8_t *l_prev_pkey_ser = dap_sign_get_pkey(l_prev_sign, &l_prev_pkey_ser_size);
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+            size_t l_pkey_ser_size = 0;
+            const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
+            dap_chain_tx_out_cond_t *l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
+            if (l_pkey_ser_size != l_prev_pkey_ser_size ||
+                    memcmp(l_prev_pkey_ser, l_pkey_ser, l_prev_pkey_ser_size)) {
+                // 5b. Call verificator for conditional output
+                dap_chain_ledger_verificator_t *l_verificator;
+                int l_tmp = (int)l_tx_prev_out_cond->header.subtype;
+                HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
+                if (!l_verificator || !l_verificator->callback) {
+                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
+                    l_err_num = -13;
+                    break;
+                }
+                if (l_verificator->callback(l_tx_prev_out_cond, a_tx) == false) {
+                    l_err_num = -14;
+                    break;
+                }
             }
             bound_item->out.tx_prev_out_cond = l_tx_prev_out_cond;
             // calculate sum of values from previous transactions
@@ -1672,7 +1686,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
  * a_addr[in] wallet address, whose owner can use the service
  */
 dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger,
-        dap_chain_hash_fast_t *a_tx_first_hash, dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx)
+        dap_chain_hash_fast_t *a_tx_first_hash, dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx, char *a_token_ticker)
 {
     if (!a_tx_first_hash)
         return NULL;
@@ -1700,6 +1714,9 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
         if(l_tx_out_cond) {
             l_cur_tx = l_tx_tmp;
             memcpy(a_tx_first_hash, l_tx_hash_tmp, sizeof(dap_chain_hash_fast_t));
+            if (a_token_ticker) {
+                strcpy(a_token_ticker, l_iter_current->token_tiker);
+            }
             break;
         }
     }
@@ -1800,7 +1817,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                 l_list_used_out = dap_list_append(l_list_used_out, item);
                 l_value_transfer += item->value;
                 // already accumulated the required value, finish the search for 'out' items
-                if(l_value_transfer >= a_value_need) {
+                if (l_value_transfer >= a_value_need) {
                     break;
                 }
             }
