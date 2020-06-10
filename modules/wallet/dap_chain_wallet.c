@@ -205,8 +205,19 @@ dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_c
  */
 dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
 {
+    dap_sign_type_t l_type = dap_sign_type_from_key_type(a_cert->enc_key->type);
+    size_t l_pub_key_data_size;
+    uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_cert->enc_key, &l_pub_key_data_size);
+    if (!l_pub_key_data) {
+        log_it(L_ERROR,"Can't fill address from key, its empty");
+        return NULL;
+    }
+    dap_chain_hash_fast_t l_hash_public_key;
+    // serialized key -> key hash
+    dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key);
     dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
-    dap_chain_addr_fill(l_addr, a_cert->enc_key, &a_net_id);
+    dap_chain_addr_fill(l_addr, l_type, &l_hash_public_key, &a_net_id);
+    DAP_DELETE(l_pub_key_data);
     return l_addr;
 }
 

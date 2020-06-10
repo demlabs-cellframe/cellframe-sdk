@@ -401,7 +401,7 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     uint64_t l_datoshi_buy = ceill(a_price->datoshi_sell / a_price->rate);
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net_buy, SERV_DIR_SELL, l_uid, *l_node_addr,
                                                             l_tx_hash, l_datoshi_buy, l_unit, a_price->token_buy, 0,
-                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0);
+                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, NULL);
     return l_order_hash_str;
 }
 

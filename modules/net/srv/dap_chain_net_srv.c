@@ -457,7 +457,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
-                            l_price_token, l_expires, (uint8_t *)l_ext, strlen(l_ext) + 1, l_region_str, l_continent_num);
+                            l_price_token, l_expires, (uint8_t *)l_ext, strlen(l_ext) + 1, l_region_str, l_continent_num, NULL);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{
