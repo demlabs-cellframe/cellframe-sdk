@@ -49,40 +49,40 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
  */
 int dap_chain_net_srv_xchange_init()
 {
-        dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, NULL, "eXchange service commands",
-        "srv_xchange price create -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
-                                            "-wallet <name> -coins <value> -rate <value>\n"
-            "\tCreate a new price with specified amount of datoshi to exchange with specified rate (sell : buy)\n"
-        "srv_xchange price remove -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>\n"
-             "\tRemove price with specified tickers within specified net names\n"
-        "srv_xchange price list\n"
-             "\tList all active prices\n"
-        "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
-                                            "{-coins <value> | rate <value> | -wallet <name>}\n"
-             "\tUpdate price with specified tickers within specified net names\n"
-        "srv_xchange orders -net <net name>\n"
-             "\tGet the exchange orders list within specified net name\n"
-        "srv_xchange purchase -order <order hash> -net <net name> -wallet <wallet_name> -coins <value>\n"
-             "\tExchange tokens with specified order within specified net name. Specify how datoshies to buy\n"
-        "srv_xchange enable\n"
-             "\tEnable eXchange service\n"
-        "srv_xchange disable\n"
-             "\tDisable eXchange service\n"
-        );
-        dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-        dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, s_callback_requested, s_callback_response_success,
-                                                           s_callback_response_error, s_callback_receipt_next_success);
-        s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
-        l_srv->_inhertor = s_srv_xchange;
-        s_srv_xchange->enabled = false;
-        size_t l_prices_count = 0;
-        dap_global_db_obj_t *l_prices = dap_chain_global_db_gr_load(GROUP_LOCAL_XCHANGE, &l_prices_count);
-        for (size_t i = 0; i < l_prices_count; i++) {
-            dap_chain_net_srv_xchange_price_t *l_price = s_xchange_db_load(l_prices[i].key, l_prices[i].value);
-            HASH_ADD_KEYPTR(hh, s_srv_xchange->pricelist, l_price->key_ptr, strlen(l_price->key_ptr), l_price);
-        }
-        dap_chain_global_db_objs_delete(l_prices, l_prices_count);
-        return 0;
+    dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, NULL, "eXchange service commands",
+    "srv_xchange price create -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
+                                        "-wallet <name> -coins <value> -rate <value>\n"
+        "\tCreate a new price with specified amount of datoshi to exchange with specified rate (sell : buy)\n"
+    "srv_xchange price remove -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>\n"
+         "\tRemove price with specified tickers within specified net names\n"
+    "srv_xchange price list\n"
+         "\tList all active prices\n"
+    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
+                                        "{-coins <value> | rate <value> | -wallet <name>}\n"
+         "\tUpdate price with specified tickers within specified net names\n"
+    "srv_xchange orders -net <net name>\n"
+         "\tGet the exchange orders list within specified net name\n"
+    "srv_xchange purchase -order <order hash> -net <net name> -wallet <wallet_name> -coins <value>\n"
+         "\tExchange tokens with specified order within specified net name. Specify how datoshies to buy\n"
+    "srv_xchange enable\n"
+         "\tEnable eXchange service\n"
+    "srv_xchange disable\n"
+         "\tDisable eXchange service\n"
+    );
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
+    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, s_callback_requested, s_callback_response_success,
+                                                       s_callback_response_error, s_callback_receipt_next_success);
+    s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
+    l_srv->_inhertor = s_srv_xchange;
+    s_srv_xchange->enabled = false;
+    size_t l_prices_count = 0;
+    dap_global_db_obj_t *l_prices = dap_chain_global_db_gr_load(GROUP_LOCAL_XCHANGE, &l_prices_count);
+    for (size_t i = 0; i < l_prices_count; i++) {
+        dap_chain_net_srv_xchange_price_t *l_price = s_xchange_db_load(l_prices[i].key, l_prices[i].value);
+        HASH_ADD_KEYPTR(hh, s_srv_xchange->pricelist, l_price->key_ptr, strlen(l_price->key_ptr), l_price);
+    }
+    dap_chain_global_db_objs_delete(l_prices, l_prices_count);
+    return 0;
 }
 
 void dap_chain_net_srv_xchange_deinit()
@@ -100,42 +100,31 @@ void dap_chain_net_srv_xchange_deinit()
 
 bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx)
 {
-    /* Check only one of following conditions for verification success
-     * 1. addr(a_cond.params).data.key == a_tx.sign.pkey -- for condition owner
-     * 2. a_cond.srv_xchange.(value && token && addr) == a_tx.out.(value && token && addr) -- for exchange
+    /* Check the condition for verification success
+     * a_cond.srv_xchange.rate >= a_tx.out.rate
      */
-    dap_chain_addr_t *l_seller_addr = (dap_chain_addr_t *)a_cond->params;
-    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-    size_t l_pkey_ser_size = 0;
-    const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
-    if (!memcmp(l_seller_addr->data.key, l_pkey_ser, l_pkey_ser_size)) {
-        // it's the condition owner, let the transaction to be performed
-        return true;
-    } else {
-        dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_EXT, NULL);
-        long double l_seller_rate = (long double)a_cond->header.value / a_cond->subtype.srv_xchange.value;
-        uint64_t l_out_val = 0, l_back_val = 0;
-        char *l_ticker_ctrl = NULL;
-        for (dap_list_t *l_list_tmp = l_list_out; l_list_tmp;  l_list_tmp = l_list_tmp->next) {
-            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-            if (memcmp(&l_tx_out->addr, &a_cond->params, sizeof(dap_chain_addr_t))) {
-                continue;
-            }
-            if (strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.token)) {
-                if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_out->token)) {
-                    return false;   // too many tokens
-                }
-                l_ticker_ctrl = l_tx_out->token;
-                l_back_val += l_tx_out->header.value;
-            } else {                // buying token
-                l_out_val += l_tx_out->header.value;
-            }
+    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_EXT, NULL);
+    long double l_seller_rate = (long double)a_cond->header.value / a_cond->subtype.srv_xchange.value;
+    uint64_t l_out_val = 0, l_back_val = 0;
+    char *l_ticker_ctrl = NULL;
+    for (dap_list_t *l_list_tmp = l_list_out; l_list_tmp;  l_list_tmp = l_list_tmp->next) {
+        dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
+        if (memcmp(&l_tx_out->addr, &a_cond->params, sizeof(dap_chain_addr_t))) {
+            continue;
         }
-        long double l_buyer_rate = (a_cond->header.value - l_back_val) / (long double)l_out_val;
-        if (l_seller_rate < l_buyer_rate) {
-            return false;           // wrong changing rate
+        if (strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.token)) {
+            if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_out->token)) {
+                return false;   // too many tokens
+            }
+            l_ticker_ctrl = l_tx_out->token;
+            l_back_val += l_tx_out->header.value;
+        } else {                // buying token
+            l_out_val += l_tx_out->header.value;
         }
+    }
+    long double l_buyer_rate = (a_cond->header.value - l_back_val) / (long double)l_out_val;
+    if (l_seller_rate < l_buyer_rate) {
+        return false;           // wrong changing rate
     }
     return true;
 }
@@ -412,7 +401,7 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     uint64_t l_datoshi_buy = ceill(a_price->datoshi_sell / a_price->rate);
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net_buy, SERV_DIR_SELL, l_uid, *l_node_addr,
                                                             l_tx_hash, l_datoshi_buy, l_unit, a_price->token_buy, 0,
-                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0);
+                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, NULL);
     return l_order_hash_str;
 }
 

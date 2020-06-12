@@ -104,7 +104,8 @@ char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
         const uint8_t *a_ext,
         uint32_t a_ext_size,
         const char *a_region,
-        int8_t a_continent_num
+        int8_t a_continent_num,
+        dap_enc_key_t *a_key
         );
 
 int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_order_t *a_order);

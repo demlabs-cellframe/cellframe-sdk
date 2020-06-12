@@ -62,6 +62,7 @@
 #include "dap_cert.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -249,10 +250,8 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                                                      const size_t a_value_len)
 {
     (void) a_op_code;
-    UNUSED(a_key);
-    UNUSED(a_value_len);
     UNUSED(a_prefix);
-    UNUSED(a_group);
+    UNUSED(a_value_len);
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
         s_net_set_go_sync(l_net);
@@ -263,6 +262,31 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                 pthread_mutex_unlock( &PVT (l_net)->state_mutex);
             }
         }*/
+    }
+    if (!dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+        return;
+    }
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+    if (strcmp(a_group, l_gdb_group_str)) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
+        if (l_order->version == 1) {
+            dap_chain_global_db_gr_del((char *)a_key, a_group);
+        } else {
+            dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
+            dap_chain_hash_fast_t l_pkey_hash;
+            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                return;
+            }
+            dap_chain_addr_t l_addr = {0};
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, &l_net->pub.id);
+            uint64_t l_solvency = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
+            if (l_solvency < l_order->price) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+            }
+            // TODO check for delegated key
+        }
+        DAP_DELETE(l_gdb_group_str);
     }
 }
 
