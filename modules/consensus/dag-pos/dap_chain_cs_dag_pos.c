@@ -30,7 +30,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
-
+#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_dag_pos"
@@ -224,7 +224,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         dap_chain_addr_t l_addr = { 0 };
 
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
-            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0);
             if ( l_sign == NULL){
                 log_it(L_WARNING, "Event is NOT signed with anything");
                 return -4;
@@ -237,6 +237,15 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             }
             dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, &a_dag->chain->net_id);
 
+            if (l_sig_pos == 0) {
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
+                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
+                        return -6;
+                    }
+                }
+            }
             /*
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
             // transaction include emission?

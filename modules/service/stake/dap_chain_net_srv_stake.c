@@ -123,19 +123,10 @@ bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_ch
     return false;
 }
 
-bool dap_chain_net_srv_stake_validator(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx)
+bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx)
 {
-    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL,
-            TX_ITEM_TYPE_SIG, NULL);
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-    dap_chain_hash_fast_t l_pkey_hash;
-    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {    // invalid tx
-        return false;
-    }
-    dap_chain_addr_t l_addr_to;
-    dap_chain_addr_fill(&l_addr_to, l_sign->header.type, &l_pkey_hash, &a_net->pub.id);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    HASH_FIND(hh, s_srv_stake->itemlist, &l_addr_to, sizeof(dap_chain_addr_t), l_stake);
+    HASH_FIND(hh, s_srv_stake->itemlist, a_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake == NULL) { // public key not delegated for this network
         return true;
     }
