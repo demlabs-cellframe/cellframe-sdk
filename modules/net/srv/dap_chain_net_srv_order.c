@@ -78,12 +78,14 @@ void dap_chain_net_srv_order_deinit()
 
 size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
 {
+    if (!a_order)
+        return 0;
     size_t l_sign_size = 0;
     if (a_order->version > 1) {
         dap_sign_t *l_sign = (dap_sign_t *)&a_order->ext[a_order->ext_size];
         l_sign_size = dap_sign_get_size(l_sign);
     }
-    return a_order ? sizeof(dap_chain_net_srv_order_t) + a_order->ext_size + l_sign_size : 0;
+    return sizeof(dap_chain_net_srv_order_t) + a_order->ext_size + l_sign_size;
 }
 
 /**

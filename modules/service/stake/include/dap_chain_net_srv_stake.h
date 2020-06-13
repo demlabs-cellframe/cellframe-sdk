@@ -42,19 +42,6 @@ typedef struct dap_chain_net_srv_stake_item {
     UT_hash_handle hh;
 } dap_chain_net_srv_stake_item_t;
 
-/*typedef struct dap_chain_net_srv_xchange_db_item {
-    char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
-    char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint8_t padding[4];
-    uint64_t net_sell_id;
-    uint64_t net_buy_id;
-    uint64_t datoshi_sell;
-    long double rate;
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_hash_fast_t order_hash;
-    char wallet_str[];
-} DAP_ALIGN_PACKED dap_chain_net_srv_xchange_db_item_t;*/
-
 typedef struct dap_srv_stake_order_ext {
     dap_chain_addr_t addr_from;
     dap_chain_addr_t addr_to;
@@ -62,9 +49,11 @@ typedef struct dap_srv_stake_order_ext {
 } dap_srv_stake_order_ext_t;
 
 typedef struct dap_chain_net_srv_stake {
+    bool initialized;
     dap_chain_net_srv_stake_item_t *itemlist;
 } dap_chain_net_srv_stake_t;
 
-int dap_chain_net_srv_xchange_init();
-void dap_chain_net_srv_xchange_deinit();
-bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
+int dap_chain_net_srv_stake_init();
+void dap_chain_net_srv_stake_deinit();
+bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
+bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx);

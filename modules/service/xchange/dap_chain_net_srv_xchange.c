@@ -82,7 +82,7 @@ int dap_chain_net_srv_xchange_init()
         HASH_ADD_KEYPTR(hh, s_srv_xchange->pricelist, l_price->key_ptr, strlen(l_price->key_ptr), l_price);
     }
     dap_chain_global_db_objs_delete(l_prices, l_prices_count);
-    return 0;
+    return 1;
 }
 
 void dap_chain_net_srv_xchange_deinit()

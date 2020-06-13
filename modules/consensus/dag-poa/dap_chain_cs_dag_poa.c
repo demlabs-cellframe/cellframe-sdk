@@ -324,7 +324,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                     return -5;
                 }
                 dap_chain_addr_t l_addr = {};
-                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, &a_dag->chain->net_id);
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
                 dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;

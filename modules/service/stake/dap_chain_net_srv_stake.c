@@ -45,22 +45,22 @@ static dap_chain_net_srv_stake_t *s_srv_stake;
 int dap_chain_net_srv_stake_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, NULL, "Delegated stake service commands",
-    "srv_stake order create -net <net name> -from_addr <addr> -token <ticker> -coins <value> -to_addr <addr> -fee_percent <value>\n"
+    "srv_stake order create -net <net name> -from_addr <addr> -token <ticker> -coins <value> -wallet <name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate it to the specified address."
         "The fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
     "srv_stake order remove -net <net name> -order <order hash>\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net name> -order <order hash> {-from_addr <addr> | -token <ticker> -coins <value> | "
-                                                                "-to_addr <addr> | -fee_percent <value>}\n"
+    "srv_stake order update -net <net name> -order <order hash> -wallet <name>"
+                            "{-from_addr <addr> | -token <ticker> -coins <value> | -fee_percent <value>}\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net name>\n"
          "\tGet the stake orders list within specified net name\n"
     "srv_stake delegate -order <order hash> -net <net name> -wallet <wallet_name> -fee_addr <addr>\n"
          "\tDelegate tokens with specified order within specified net name. Specify fee address\n"
-    "srv_stake transactions -net <net name> {-addr <addr from>}"
-         "\tShow the list of active stake transactions (optional delegated from addr)"
-    "srv_stake invalidate -net <net name> -tx <transaction hash> -wallet <wallet name>"
-         "\tInvalidate stake transaction by hash within net name and return stake to specified wallet"
+    "srv_stake transactions -net <net name> {-addr <addr from>}\n"
+         "\tShow the list of active stake transactions (optional delegated from addr)\n"
+    "srv_stake invalidate -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
+         "\tInvalidate stake transaction by hash within net name and return stake to specified wallet\n"
     );
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
     uint16_t l_net_count;
@@ -72,7 +72,7 @@ int dap_chain_net_srv_stake_init()
         dap_chain_tx_out_cond_t *l_out_cond;
         int l_out_cond_idx;
         char l_token[DAP_CHAIN_TICKER_SIZE_MAX];
-        // Find all transactions
+        // Find all stake transactions
         do {
             l_tx_tmp = dap_chain_ledger_tx_cache_find_out_cond(l_ledger, &l_tx_cur_hash, &l_out_cond, &l_out_cond_idx, l_token);
             if (!l_tx_tmp) {
@@ -94,7 +94,7 @@ int dap_chain_net_srv_stake_init()
             if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
                 continue;
             }
-            dap_chain_addr_fill(&l_stake->addr_from, l_sign->header.type, &l_pkey_hash, &l_net_list[i]->pub.id);
+            dap_chain_addr_fill(&l_stake->addr_from, l_sign->header.type, &l_pkey_hash, l_net_list[i]->pub.id);
             memcpy(&l_stake->addr_to, l_out_cond->params, sizeof(dap_chain_addr_t));
             memcpy(&l_stake->addr_fee, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t));
             l_stake->fee_value = l_out_cond->subtype.srv_stake.fee_value;
@@ -103,6 +103,7 @@ int dap_chain_net_srv_stake_init()
         } while (l_tx_tmp);
     }
     DAP_DELETE(l_net_list);
+    s_srv_stake->initialized = true;
     return 0;
 }
 
@@ -125,6 +126,14 @@ bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_ch
 
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx)
 {
+    if (!s_srv_stake) {
+        return true;
+    }
+    while (!s_srv_stake->initialized);
+
+    if (!a_addr || !a_tx) {
+        return false;
+    }
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, s_srv_stake->itemlist, a_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake == NULL) { // public key not delegated for this network
@@ -175,7 +184,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_srv_stake_item_t *a
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_stake->net->pub.name);
     dap_chain_addr_t *l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_stake->net->pub.id);
     if (memcmp(l_owner_addr, &a_stake->addr_from, sizeof(dap_chain_addr_t))) {
-        log_it(L_WARNING, "Odree and wallet address do not match");
+        log_it(L_WARNING, "Odrer and wallet address do not match");
         return NULL;
     }
     dap_enc_key_t *l_owner_key = dap_chain_wallet_get_key(a_wallet, 0);
@@ -185,7 +194,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_srv_stake_item_t *a
     if(!l_list_used_out) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_owner_addr);
-        log_it(L_WARNING, "Nothing to change (not enough funds)");
+        log_it(L_WARNING, "Nothing to delegate (not enough funds)");
         return NULL;
     }
 
@@ -305,7 +314,7 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
     return true;
 }
 
-char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item)
+char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item, dap_enc_key_t *l_key)
 {
     dap_chain_hash_fast_t l_tx_hash = {};
     dap_srv_stake_order_ext_t l_ext;
@@ -318,7 +327,7 @@ char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item)
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_ID };
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_item->net, SERV_DIR_BUY, l_uid, *l_node_addr,
                                                             l_tx_hash, a_item->value, l_unit, a_item->token, 0,
-                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, NULL);
+                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, l_key);
     return l_order_hash_str;
 }
 
@@ -357,7 +366,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
     switch (l_cmd_num) {
         case CMD_CREATE: {
             const char *l_net_str = NULL, *l_token_str = NULL, *l_coins_str = NULL;
-            const char *l_addr_from_str = NULL, *l_addr_to_str = NULL, *l_fee_str = NULL;
+            const char *l_addr_from_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
             dap_chain_net_t *l_net = NULL;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
@@ -398,14 +407,14 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Wrong address format");
                 return -10;
             }
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr_to", &l_addr_to_str);
-            if (!l_addr_to_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order create' required parameter -addr_to");
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+            if (!l_wallet_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order create' required parameter -wallet");
                 return -9;
             }
-            dap_chain_addr_t *l_addr_to = dap_chain_addr_from_str(l_addr_to_str);
-            if (!l_addr_to) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Wrong address format");
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            if (!l_wallet) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open wallet %s", l_wallet_str);
                 return -10;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-fee_percent", &l_fee_str);
@@ -424,12 +433,15 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             dap_stpcpy(l_stake->token, l_token_str);
             l_stake->value = l_value;
             memcpy(&l_stake->addr_from, l_addr_from, sizeof(dap_chain_addr_t));
+            dap_chain_addr_t *l_addr_to = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             memcpy(&l_stake->addr_to, l_addr_to, sizeof(dap_chain_addr_t));
             DAP_DELETE(l_addr_from);
             DAP_DELETE(l_addr_to);
             l_stake->fee_value = l_fee;
+            dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, 0);
             // Create the order & put it to GDB
-            char *l_order_hash_str = s_stake_order_create(l_stake);
+            char *l_order_hash_str = s_stake_order_create(l_stake, l_key);
+            dap_chain_wallet_close(l_wallet);
             if (l_order_hash_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
@@ -466,7 +478,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
         } break;
         case CMD_UPDATE: {
             const char *l_net_str = NULL, *l_token_str = NULL, *l_coins_str = NULL;
-            const char *l_addr_from_str = NULL, *l_addr_to_str = NULL, *l_fee_str = NULL;
+            const char *l_addr_from_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
             char *l_order_hash_str = NULL;
             dap_chain_net_t *l_net = NULL;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
@@ -488,6 +500,16 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_str);
                 return -14;
             }
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+            if (!l_wallet_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order update' required parameter -wallet");
+                return -9;
+            }
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
+            if (!l_wallet) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open wallet %s", l_wallet_str);
+                return -10;
+            }
             dap_chain_net_srv_stake_item_t *l_stake = s_stake_item_from_order(l_net, l_order);
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_str);
             if (l_token_str) {
@@ -506,24 +528,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 }
                 l_stake->value = l_value;
             }
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr_from", &l_addr_from_str);
-            if (l_addr_from_str) {
-                dap_chain_addr_t *l_addr_from = dap_chain_addr_from_str(l_addr_from_str);
-                if (!l_addr_from) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Wrong address format");
-                    return -10;
-                }
-                memcpy(&l_stake->addr_from, l_addr_from, sizeof(dap_chain_addr_t));
-            }
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr_to", &l_addr_to_str);
-            if (l_addr_to_str) {
-                dap_chain_addr_t *l_addr_to = dap_chain_addr_from_str(l_addr_to_str);
-                if (!l_addr_to) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Wrong address format");
-                    return -10;
-                }
-                memcpy(&l_stake->addr_to, l_addr_to, sizeof(dap_chain_addr_t));
-            }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-fee_percent", &l_fee_str);
             if (l_fee_str) {
                 long double l_fee = strtold(l_fee_str, NULL);
@@ -532,13 +536,18 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                     return -12;
                 }
             }
-            if (!l_token_str && !l_coins_str && !l_addr_from_str && !l_addr_to_str && !l_fee_str) {
+            if (!l_token_str && !l_coins_str && !l_addr_from_str && !l_fee_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
                 return -16;
             }
+            dap_chain_addr_t *l_addr_to = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+            memcpy(&l_stake->addr_to, l_addr_to, sizeof(dap_chain_addr_t));
+            DAP_DELETE(l_addr_to);
+            dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, 0);
             // Create the order & put it to GDB
             dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
-            l_order_hash_str = s_stake_order_create(l_stake);
+            l_order_hash_str = s_stake_order_create(l_stake, l_key);
+            dap_chain_wallet_close(l_wallet);
             if (l_order_hash_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
@@ -607,6 +616,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
     else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "delegate", NULL)) {
         l_cmd_num = CMD_DELEGATE;
     }
+    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "transactions", NULL)) {
+        l_cmd_num = CMD_TX;
+    }
+    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "invalidate", NULL)) {
+        l_cmd_num = CMD_INVALIDATE;
+    }
     switch (l_cmd_num) {
         case CMD_ORDER:
             return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply);
@@ -656,9 +671,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
                 // Create conditional transaction
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_stake, l_wallet);
                 dap_chain_wallet_close(l_wallet);
-                if (l_tx && s_stake_tx_put(l_tx, l_net)) {
-                    // TODO send request to order owner to delete it
-                    dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                if (l_tx) {
+                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);
+                    if (s_stake_tx_put(l_tx, l_net)) {
+                        // TODO send request to order owner to delete it
+                        dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                    }
                 }
                 DAP_DELETE(l_order);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_tx ? "Stake transaction has done" :
@@ -706,7 +724,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
                 DAP_DELETE(l_addr_fee_str);
             }
             if (!l_reply_str->len) {
-                dap_string_append(l_reply_str, "Pricelist is empty");
+                dap_string_append(l_reply_str, "No transaction found");
             }
             *a_str_reply = dap_string_free(l_reply_str, false);
         } break;

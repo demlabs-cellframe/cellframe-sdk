@@ -279,7 +279,7 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                 return;
             }
             dap_chain_addr_t l_addr = {0};
-            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, &l_net->pub.id);
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
             uint64_t l_solvency = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
             if (l_solvency < l_order->price) {
                 dap_chain_global_db_gr_del((char *)a_key, a_group);
