@@ -206,7 +206,7 @@ dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_c
 dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
 {
     dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
-    dap_chain_addr_fill(l_addr, a_cert->enc_key, &a_net_id);
+    dap_chain_addr_fill_from_key(l_addr, a_cert->enc_key, a_net_id);
     return l_addr;
 }
 

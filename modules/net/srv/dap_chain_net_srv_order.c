@@ -78,7 +78,14 @@ void dap_chain_net_srv_order_deinit()
 
 size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
 {
-    return a_order ? sizeof(dap_chain_net_srv_order_t) + a_order->ext_size : 0;
+    if (!a_order)
+        return 0;
+    size_t l_sign_size = 0;
+    if (a_order->version > 1) {
+        dap_sign_t *l_sign = (dap_sign_t *)&a_order->ext[a_order->ext_size];
+        l_sign_size = dap_sign_get_size(l_sign);
+    }
+    return sizeof(dap_chain_net_srv_order_t) + a_order->ext_size + l_sign_size;
 }
 
 /**
@@ -218,7 +225,8 @@ char * dap_chain_net_srv_order_create(
         const uint8_t *a_ext,
         uint32_t a_ext_size,
         const char *a_region,
-        int8_t a_continent_num
+        int8_t a_continent_num,
+        dap_enc_key_t *a_key
         )
 {
     UNUSED(a_expires);
@@ -235,7 +243,7 @@ char * dap_chain_net_srv_order_create(
         }
 
         dap_chain_hash_fast_t l_order_hash;
-        l_order->version = 1;
+        l_order->version = a_key ? 2 : 1;
         l_order->srv_uid = a_srv_uid;
         l_order->direction = a_direction;
         l_order->ts_created = (dap_chain_time_t) time(NULL);
@@ -250,7 +258,16 @@ char * dap_chain_net_srv_order_create(
 
         if ( a_price_ticker)
             strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
-
+        if (a_key) {
+            dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
+            if (!l_sign) {
+                return NULL;
+            }
+            size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
+            l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
+            memcpy(&l_order->ext[l_order->ext_size], l_sign, l_sign_size);
+            DAP_DELETE(l_sign);
+        }
         size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
         dap_hash_fast( l_order, l_order_size, &l_order_hash );
         char * l_order_hash_str = dap_chain_hash_fast_to_str_new( &l_order_hash );

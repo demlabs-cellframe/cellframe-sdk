@@ -43,6 +43,7 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
 #include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_net_srv_stake.h"
 
 #include "dap_cert.h"
 
@@ -306,12 +307,33 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
     if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
         size_t l_verified = 0;
-        for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ){
-            for ( uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++){
-                if( dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j],
-                            dap_chain_cs_dag_event_get_sign(a_dag_event,i) ) == 0 )
+        for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ) {
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0);
+            if ( l_sign == NULL){
+                log_it(L_WARNING, "Event is NOT signed with anything");
+                return -4;
+            }
+            for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
+                if (dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j], l_sign) == 0)
                     l_verified++;
             }
+            if (i == 0) {
+                dap_chain_hash_fast_t l_pkey_hash;
+                if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                    log_it(L_WARNING, "Event's sign has no any key");
+                    return -5;
+                }
+                dap_chain_addr_t l_addr = {};
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
+                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
+                        return -6;
+                    }
+                }
+            }
+
         }
         return l_verified >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
     }else

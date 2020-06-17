@@ -1,4 +1,5 @@
 #include <dap_chain_node_cli.h>
+#include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
 #include "dap_chain_net_vpn_client.h"
 

@@ -222,33 +222,43 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_u
 
 
 /**
- * @brief dap_chain_addr_fill
+ * @brief dap_chain_addr_fill_from_key
  * @param a_addr
  * @param a_key
  * @param a_net_id
  * @return
  */
-void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id)
-{
-    if(!a_addr || !a_key || !a_net_id)
-        return;
-    a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
-    a_addr->net_id.uint64 = a_net_id->uint64;
-    a_addr->sig_type.raw = dap_sign_type_from_key_type(a_key->type).raw;
-    // key -> serialized key
-    dap_chain_hash_fast_t l_hash_public_key;
+void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id) {
+    dap_sign_type_t l_type = dap_sign_type_from_key_type(a_key->type);
     size_t l_pub_key_data_size;
     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
-    if ( l_pub_key_data == NULL ){
+    if (!l_pub_key_data) {
         log_it(L_ERROR,"Can't fill address from key, its empty");
         return;
     }
-
+    dap_chain_hash_fast_t l_hash_public_key;
     // serialized key -> key hash
-
-    if(dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key))
-        memcpy(a_addr->data.hash, l_hash_public_key.raw, sizeof(l_hash_public_key.raw));
+    dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key);
+    dap_chain_addr_fill(a_addr, l_type, &l_hash_public_key, a_net_id);
     DAP_DELETE(l_pub_key_data);
+}
+
+/**
+ * @brief dap_chain_addr_fill
+ * @param a_addr
+ * @param a_type
+ * @param a_pkey_hash
+ * @param a_net_id
+ * @return
+ */
+void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id)
+{
+    if(!a_addr || !a_pkey_hash)
+        return;
+    a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
+    a_addr->net_id.uint64 = a_net_id.uint64;
+    a_addr->sig_type.raw = a_type.raw;
+    memcpy(a_addr->data.hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t));
     // calc checksum
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
 }
