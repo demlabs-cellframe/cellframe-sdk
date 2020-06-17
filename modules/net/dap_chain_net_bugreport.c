@@ -33,6 +33,7 @@
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_config.h"
+#include "rand/dap_rand.h"
 
 #include "http_status_code.h"
 #include "dap_http_simple.h"
@@ -43,9 +44,9 @@
 
 #define BUGREPORT_URL "/bugreport"
 
-static int bugreport_write_to_file(byte_t *a_request_byte, size_t a_request_size)
+static int64_t bugreport_write_to_file(byte_t *a_request_byte, size_t a_request_size)
 {
-    int l_ret = -2;
+    int64_t l_report_number = -2;
     if(!a_request_byte || !a_request_size)
         return -1;
     char *l_dir_str = dap_strdup_printf("%s/var/bugreport", g_sys_dir_path);
@@ -54,20 +55,30 @@ static int bugreport_write_to_file(byte_t *a_request_byte, size_t a_request_size
     const time_t l_timer = time(NULL);
     struct tm l_tm;
     localtime_r(&l_timer, &l_tm);
-    char *l_filename_str = dap_strdup_printf("%s/%02d-%02d-%02d_%02d:%02d:%02d.brt", l_dir_str,
+    randombytes(&l_report_number, sizeof(int64_t));
+    if(l_report_number<0)
+        l_report_number = -l_report_number;
+    // create unique number for bugreport
+    l_report_number -= l_report_number%1000000000000ll;
+    l_report_number+=(int64_t)(l_tm.tm_year - 100)*10000000000;
+    l_report_number+=(int64_t)(l_tm.tm_mon)*100000000;
+    l_report_number+=(int64_t)(l_tm.tm_mday)*1000000;
+    l_report_number+=(int64_t)(l_tm.tm_hour)*10000;
+    l_report_number+=(int64_t)(l_tm.tm_min)*100;
+    l_report_number+=(int64_t)(l_tm.tm_sec);
+    char *l_filename_str = dap_strdup_printf("%s/%02d-%02d-%02d_%02d:%02d:%02d_%08lld.brt", l_dir_str,
             l_tm.tm_year - 100, l_tm.tm_mon, l_tm.tm_mday,
-            l_tm.tm_hour, l_tm.tm_min, l_tm.tm_sec);
+            l_tm.tm_hour, l_tm.tm_min, l_tm.tm_sec,
+            l_report_number);
     FILE *l_fp;
     if((l_fp = fopen(l_filename_str, "wb")) != NULL) {
-        if(fwrite(a_request_byte, 1, a_request_size, l_fp) == a_request_size)
-            l_ret = 0;
-        else
-            l_ret = -3;
+        if(fwrite(a_request_byte, 1, a_request_size, l_fp) != a_request_size)
+            l_report_number = -3;
         fclose(l_fp);
     }
     DAP_DELETE(l_filename_str);
     DAP_DELETE(l_dir_str);
-    return l_ret;
+    return l_report_number;
 }
 
 /**
@@ -82,16 +93,29 @@ static void bugreport_http_proc(struct dap_http_simple *a_http_simple, void * a_
     log_it(L_DEBUG, "bugreport_http_proc request");
     http_status_code_t * return_code = (http_status_code_t*) a_arg;
     //if(dap_strcmp(cl_st->http->url_path, BUGREPORT_URL) == 0 )
+    if(dap_strcmp(a_http_simple->http->action, "GET") == 0) {
+        size_t l_url_len = dap_strlen(a_http_simple->http->url_path);
+        if(!l_url_len) {
+                    a_http_simple->reply = dap_strdup_printf("Unique Bug Report number required)");
+                    *return_code = Http_Status_NotFound;
+                }
+        else{
+            *return_code = Http_Status_OK;
+        }
+        a_http_simple->reply_size = strlen(a_http_simple->reply);
+        *return_code = Http_Status_NotFound;
+    }
     if(dap_strcmp(a_http_simple->http->action, "POST") == 0) {
         //a_http_simple->request_byte;
         //a_http_simple->request_size;
         //a_http_simple->http->in_content_length;
 
-        if(!bugreport_write_to_file(a_http_simple->request_byte, a_http_simple->request_size)) {
-            a_http_simple->reply = dap_strdup_printf("Bug Report saved successfully)");
+        int64_t l_bugreport_number = bugreport_write_to_file(a_http_simple->request_byte, a_http_simple->request_size);
+        if(l_bugreport_number >= 0) {
+            a_http_simple->reply = dap_strdup_printf("Bug Report #%020lld saved successfully)", l_bugreport_number);
         }
         else {
-            a_http_simple->reply = dap_strdup_printf("Bug Report not saved(");
+            a_http_simple->reply = dap_strdup_printf("Bug Report not saved( code=%lld", l_bugreport_number);
         }
         a_http_simple->reply_size = strlen(a_http_simple->reply);
         *return_code = Http_Status_OK;
