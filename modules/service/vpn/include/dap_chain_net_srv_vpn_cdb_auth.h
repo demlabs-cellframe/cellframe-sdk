@@ -27,11 +27,28 @@
 #include "dap_http.h"
 #include "dap_enc_http.h"
 
-int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, bool a_is_registration_open);
+typedef struct dap_serial_key {
+    struct {
+        char serial[20];
+        time_t activated; // if set, then serial is activated
+        time_t expired; // if zero then time no expired
+        int32_t os;// operating system. if zero then any operating system
+        size_t ext_size;
+    }DAP_ALIGN_PACKED header;
+    uint8_t ext[];
+}DAP_ALIGN_PACKED dap_serial_key_t;
+
+size_t dap_serial_key_len(dap_serial_key_t *a_serial_key);
+dap_serial_key_t* dap_chain_net_srv_vpn_cdb_auth_get_serial_param(const char *a_serial_str, const char **a_group_out);
+
+int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, const char * a_mode, bool a_is_registration_open);
 void dap_chain_net_srv_vpn_cdb_auth_deinit();
 
 void dap_chain_net_srv_vpn_cdb_auth_add_proc(dap_http_t * a_http, const char * a_url);
 void dap_chain_net_srv_vpn_cdb_auth_set_callback(dap_enc_http_callback_t a_callback_success);
-int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply);
+int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_user_str, int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply);
+int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(const char *a_user_str, int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply);
 
-int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_password);
+int dap_chain_net_srv_vpn_cdb_auth_check_login(const char * a_login, const char * a_password);
+int dap_chain_net_srv_vpn_cdb_auth_activate_serial(const char * a_serial_raw, const char * a_serial, const char * a_sign, const char * a_pkey);
+int dap_chain_net_srv_vpn_cdb_auth_check_serial(const char * a_serial, const char * a_pkey);

@@ -103,7 +103,7 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
         "[--acive_days <Setup active day thats left for user >]\n"
             "\tCreate user with login, password and some more optional fields\n\n"
         "vpn_cdb user update --login <Login> [--password <Password>] [--first_name <First Name] [--last_name <Last Name>] [--email <Email>]"
-                             "[--active_days <Setup active day thats left for user >]\n"
+                             "[--active_days <Setup active days that left for user >]\n"
             "\tUpdate existent user\n"
         "vpn_cdb user delete --login <Login>\n"
             "\tDelete user by login\n"
@@ -113,6 +113,12 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
             "\tCompare <Password> with stored in GDB for <Login>\n"
         "vpn_cdb user list\n"
             "\tShow all users\n"
+        "vpn_cdb serial generate -n <number of serial keys>] [-acive_days <active days that left for serial>]\n"
+            "\tGenerate new serial keys\n"
+        "vpn_cdb serial list [-n <How many show serial keys>] [-shift <How many skip serial keys>] [-nototal]\n"
+            "\tShow serial keys\n"
+        "vpn_cdb serial update -serial <serial keys> -acive_days <active days that left for serial>\n"
+            "\tEdit serial key\n"
                                         );
 
     // Load all chain networks
@@ -124,11 +130,12 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
     }
     if (dap_config_get_item_bool_default( g_config,"cdb_auth","enabled",false) ){
 
-        dap_chain_net_srv_vpn_cdb_auth_init(  dap_config_get_item_str_default(g_config,"cdb_auth","domain","cdb"),
-                                              dap_config_get_item_bool_default(g_config,"cdb_auth","registration_open",false)
-                                              );
+        ret = dap_chain_net_srv_vpn_cdb_auth_init(  dap_config_get_item_str_default(g_config,"cdb_auth","domain","cdb"),
+                                              dap_config_get_item_str_default(g_config,"cdb_auth","mode","passwd"),
+                                              dap_config_get_item_bool_default(g_config,"cdb_auth","registration_open",false));
+        if(ret<0)
+            return ret;
         dap_chain_net_srv_vpn_cdb_auth_add_proc( a_http , DB_URL );
-
 
         // Produce transaction for authorized users
         if (dap_config_get_item_bool_default( g_config,
@@ -216,19 +223,32 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
     return ret;
 }
 
-
 static int s_cli_vpn_cdb(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 {
     const char *l_user_str = NULL;
+    const char *l_serial_add_param_str = NULL;
     int l_arg_index = 1;
-    int l_ret = 0;
+    int l_ret = -1;
 
-    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "user", &l_user_str);
+    int l_user_pos = dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "user", &l_user_str);
+    int l_serial_pos = dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "serial", &l_serial_add_param_str);
 
 
     // Selected 'user' subcoummand
     if ( l_user_str ){
-        return dap_chain_net_srv_vpn_cdb_auth_cli_cmd(l_user_str,l_arg_index,  a_argc,  a_argv,a_str_reply);
+        l_ret = 0;
+        return dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(l_user_str,l_arg_index,  a_argc,  a_argv,a_str_reply);
+    }
+    // Selected 'serial' subcoummand
+    else if(l_serial_add_param_str) {
+        l_ret = 0;
+        return dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(l_serial_add_param_str, l_arg_index, a_argc, a_argv, a_str_reply);
+    }
+    else {
+        if(l_user_pos || l_user_pos)
+            dap_chain_node_cli_set_reply_text(a_str_reply, "require additional subcommand, see 'help vpn_cdb'");
+        else
+            dap_chain_node_cli_set_reply_text(a_str_reply, "unknown subcommand, use 'user' or 'serial'", l_user_str);
     }
     return l_ret;
 }
