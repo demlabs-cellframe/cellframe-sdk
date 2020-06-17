@@ -67,6 +67,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_srv_stake.h"
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
@@ -263,28 +264,34 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
             }
         }*/
     }
-    if (!dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+    if (!a_value || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
-    if (strcmp(a_group, l_gdb_group_str)) {
+    if (!strcmp(a_group, l_gdb_group_str)) {
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
         if (l_order->version == 1) {
             dap_chain_global_db_gr_del((char *)a_key, a_group);
         } else {
             dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
-            dap_chain_hash_fast_t l_pkey_hash;
-            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+            if (!dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+                DAP_DELETE(l_gdb_group_str);
                 return;
             }
-            dap_chain_addr_t l_addr = {0};
+            dap_chain_hash_fast_t l_pkey_hash;
+            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+                DAP_DELETE(l_gdb_group_str);
+                return;
+            }
+            dap_chain_addr_t l_addr = {};
             dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
             uint64_t l_solvency = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
-            if (l_solvency < l_order->price) {
+            if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
                 dap_chain_global_db_gr_del((char *)a_key, a_group);
             }
-            // TODO check for delegated key
         }
         DAP_DELETE(l_gdb_group_str);
     }

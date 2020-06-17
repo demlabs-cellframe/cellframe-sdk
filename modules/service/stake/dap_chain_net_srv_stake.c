@@ -124,6 +124,24 @@ bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_ch
     return false;
 }
 
+bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr)
+{
+    if (!s_srv_stake) {
+        return true;
+    }
+    while (!s_srv_stake->initialized);
+
+    if (!a_addr) {
+        return false;
+    }
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    HASH_FIND(hh, s_srv_stake->itemlist, a_addr, sizeof(dap_chain_addr_t), l_stake);
+    if (l_stake) { // public key delegated for this network
+        return true;
+    }
+    return false;
+}
+
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx)
 {
     if (!s_srv_stake) {
@@ -139,33 +157,36 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     if (l_stake == NULL) { // public key not delegated for this network
         return true;
     }
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+    dap_chain_hash_fast_t l_pkey_hash = {};
+    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+    dap_chain_addr_t l_owner_addr = {};
+    dap_chain_addr_fill(&l_owner_addr, l_sign->header.type, &l_pkey_hash, a_addr->net_id);
     uint64_t l_outs_sum = 0, l_fee_sum = 0;
     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint32_t l_out_idx_tmp = 0; // current index of 'out' item
     for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_out_idx_tmp++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
-        if (l_type == TX_ITEM_TYPE_OUT_COND) {
-            dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
-            l_outs_sum += l_out_cond->header.value;
-        }
         if (l_type == TX_ITEM_TYPE_OUT) {
             dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_list_tmp->data;
-            if (memcmp(&l_stake->addr_fee, &l_out->addr, sizeof(dap_chain_addr_t))) {
+            if (!memcmp(&l_stake->addr_fee, &l_out->addr, sizeof(dap_chain_addr_t))) {
                 l_fee_sum += l_out->header.value;
-            } else {
+            } else if (memcmp(&l_owner_addr, &l_out->addr, sizeof(dap_chain_addr_t))) {
                 l_outs_sum += l_out->header.value;
             }
-        } else { // TX_ITEM_TYPE_OUT_EXT
+        }
+        if (l_type == TX_ITEM_TYPE_OUT_EXT) {
             dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-            if (memcmp(&l_stake->addr_fee, &l_out_ext->addr, sizeof(dap_chain_addr_t))) {
+            if (!memcmp(&l_stake->addr_fee, &l_out_ext->addr, sizeof(dap_chain_addr_t))) {
                 l_fee_sum += l_out_ext->header.value;
-            } else {
+            } else if (memcmp(&l_owner_addr, &l_out_ext->addr, sizeof(dap_chain_addr_t))) {
                 l_outs_sum += l_out_ext->header.value;
             }
         }
     }
     dap_list_free(l_list_out_items);
-    if (l_outs_sum * l_stake->fee_value / 100.0 < l_fee_sum) {
+    if (l_fee_sum < l_outs_sum * l_stake->fee_value / 100.0) {
         return false;
     }
     return true;
@@ -440,7 +461,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             l_stake->fee_value = l_fee;
             // Create the order & put it to GDB
             char *l_order_hash_str = s_stake_order_create(l_stake, l_cert->enc_key);
-            dap_cert_delete(l_cert);
             if (l_order_hash_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
@@ -545,7 +565,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             // Create the order & put it to GDB
             dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
             l_order_hash_str = s_stake_order_create(l_stake, l_cert->enc_key);
-            dap_cert_delete(l_cert);
             if (l_order_hash_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);

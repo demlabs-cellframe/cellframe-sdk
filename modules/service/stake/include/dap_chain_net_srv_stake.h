@@ -57,3 +57,4 @@ int dap_chain_net_srv_stake_init();
 void dap_chain_net_srv_stake_deinit();
 bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx);
+bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
