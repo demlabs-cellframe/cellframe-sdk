@@ -118,10 +118,11 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_info_t * node_info; // Current node's info
 
     dap_chain_node_client_t * links;
-    size_t links_count;
 
     dap_chain_node_addr_t *links_addrs;
+    size_t links_count;
     size_t links_addrs_count;
+    size_t links_success;
 
     size_t addr_request_attempts;
     bool load_mode;
@@ -393,7 +394,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                 l_links_addrs_count * sizeof(dap_chain_node_addr_t));
 
                         // add linked nodes for connect
-                        for(uint16_t i = 0; i < min(4, l_cur_node_info->hdr.links_number); i++) {
+                        for(uint16_t i = 0; i < min(s_max_links_count, l_cur_node_info->hdr.links_number); i++) {
                             dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
                             //dap_chain_node_addr_t link_addr = l_cur_node_info->links[i];
                             dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
@@ -411,8 +412,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     }
                     // if no links then add root nodes for connect
                     if(!l_pvt_net->links_addrs_count){
-                        // use no more then 4 root node
-                        int l_use_root_nodes = min(4, l_pvt_net->seed_aliases_count);
+                        // use no more then s_max_links_count root node
+                        int l_use_root_nodes = min(s_max_links_count, l_pvt_net->seed_aliases_count);
                         l_pvt_net->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                                 l_use_root_nodes * sizeof(dap_chain_node_addr_t));
 
@@ -453,13 +454,18 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 log_it(L_WARNING,"Target state is NET_STATE_LINKS_PREPARE? Realy?");
                 l_pvt_net->state = NET_STATE_OFFLINE;
             }
+            l_pvt_net->links_success = 0;
         }
         break;
 
         case NET_STATE_LINKS_CONNECTING:{
             size_t l_links_count = l_pvt_net->links_count;
-            if(l_links_count >= s_required_links_count || (l_links_count + 1) >= s_max_links_count) {
-                // TODO what if other failed and we want more?
+            if (l_pvt_net->links_success >= s_required_links_count) {
+                log_it(L_INFO, "Synchronization done");
+                l_pvt_net->links_count = 0;
+                l_pvt_net->links_success = 0;
+                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
+                l_pvt_net->state = NET_STATE_ONLINE;
             }
             if (l_links_count < l_pvt_net->links_addrs_count) {
                 l_pvt_net->links_count++;
@@ -490,7 +496,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 }else {
                     log_it(L_DEBUG, "Cant establish link %u", l_links_count);
                     dap_chain_node_client_close(l_node_client);
-                    l_node_client = NULL;
+                    l_pvt_net->links = NULL;
                 }
             }
         }
@@ -578,7 +584,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if (res == 0) {
                 log_it(L_WARNING,"Can't send NODE_ADDR_REQUEST packet");
                 dap_chain_node_client_close(l_node_client);
-                l_node_client = NULL;
+                l_pvt_net->links = NULL;
                 l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                 break; // try with another link
             }
@@ -644,7 +650,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if (l_res == 0) {
                 log_it(L_WARNING, "Can't send GDB sync request");
                 dap_chain_node_client_close(l_node_client);
-                l_node_client = NULL;
+                l_pvt_net->links = NULL;
                 l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                 break;  //try another link
             }
@@ -669,8 +675,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if(l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
                 l_pvt_net->state = NET_STATE_SYNC_CHAINS;
             } else {
-                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-                l_pvt_net->state = NET_STATE_ONLINE;
+                l_pvt_net->links_success++;
+                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
             }
         }
         break;
@@ -734,15 +740,12 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 //DAP_DELETE( l_atom_iter );
             }
             dap_chain_node_client_close(l_node_client);
-            l_node_client = NULL;
-            if (l_sync_errors) {
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                break;
+            l_pvt_net->links = NULL;
+            if (!l_sync_errors) {
+                l_pvt_net->links_success++;
             }
-            log_it(L_INFO, "Synchronization done");
-            l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-            l_pvt_net->state = NET_STATE_ONLINE;
-            l_pvt_net->links_count = 0;
+            l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
+            break;
         }
         break;
 
