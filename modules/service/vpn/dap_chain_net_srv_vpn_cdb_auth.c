@@ -59,16 +59,20 @@
 #define LOG_TAG "dap_chain_net_srv_vpn_cdb_auth"
 
 #define OP_CODE_LOGIN_INCORRECT_PSWD "0xf2"
+#define OP_CODE_LOGIN_INCORRECT_SIGN "0xf2"
 #define OP_CODE_NOT_FOUND_LOGIN_IN_DB "0xf3"
 #define OP_CODE_SUBSCRIBE_EXPIRIED "0xf4"
 #define OP_CODE_INCORRECT_SYMOLS "0xf6"
 #define OP_CODE_LOGIN_INACTIVE  "0xf7"
+#define OP_CODE_SERIAL_ACTIVED  "0xf8"
 
 
 dap_enc_http_callback_t s_callback_success = NULL;
 
 static char * s_domain = NULL;
 static char * s_group_users = NULL;
+static char * s_group_serials = NULL;
+static char * s_group_serials_activated = NULL;
 
 static char * s_group_password = NULL;
 static char * s_group_first_name = NULL;
@@ -83,16 +87,18 @@ static char * s_group_ts_active_till = NULL;
 static char * s_salt_str = "Ijg24GAS56h3hg7hj245b";
 
 static bool s_is_registration_open = false;
+static bool s_mode_passwd = true;
 
 static int s_input_validation(const char * str);
 static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg);
+static void s_http_enc_proc_key(enc_http_delegate_t *a_delegate, void * a_arg);
 static void s_http_proc(dap_http_simple_t *a_http_simple, void * arg );
 /**
  * @brief dap_chain_net_srv_vpn_cdb_auth_init
  * @param a_domain
  * @return
  */
-int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, bool a_is_registration_open)
+int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, const char * a_mode, bool a_is_registration_open)
 {
     s_is_registration_open = a_is_registration_open;
 
@@ -100,9 +106,21 @@ int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, bool a_is_regist
 
     // Prefix for gdb groups
     s_group_users = dap_strdup_printf("cdb.%s.users",s_domain);
+    s_group_serials = dap_strdup_printf("cdb.%s.serials",s_domain);
+    s_group_serials_activated = dap_strdup_printf("cdb.%s.serials_activated",s_domain);
 
     // Cookie -> login
     s_group_cookies = dap_strdup_printf("cdb.%s.cookies",s_domain);
+
+    // mode: passwd or serial
+    if(!dap_strcmp(a_mode, "serial"))
+        s_mode_passwd = false;
+    else if(!dap_strcmp(a_mode, "passwd"))
+        s_mode_passwd = true;
+    else{
+        log_it( L_ERROR, "Unknown cdb mode=%s", a_mode);
+        return -1;
+    }
 
     // Login -> Password, First Name, Last Name, Email, Cookie,Timestamp Last Update, Timestamp Last Login
     s_group_password = dap_strdup_printf("%s.password",s_group_users);
@@ -133,13 +151,28 @@ void dap_chain_net_srv_vpn_cdb_auth_set_callback(dap_enc_http_callback_t a_callb
     s_callback_success = a_callback_success;
 }
 
+/*
+ * Convert XXXXXXXXXXXXXXXX -> XXXX-XXXX-XXXX-XXXX
+ */
+static char* make_fullserial(const char * a_serial)
+{
+    if(dap_strlen(a_serial)!=16)
+        return dap_strdup(a_serial);
+    return dap_strdup_printf("%c%c%c%c-%c%c%c%c-%c%c%c%c-%c%c%c%c",
+            a_serial[0], a_serial[1], a_serial[2], a_serial[3],
+            a_serial[4], a_serial[5], a_serial[6], a_serial[7],
+            a_serial[8], a_serial[9], a_serial[10], a_serial[11],
+            a_serial[12], a_serial[13], a_serial[14], a_serial[15]
+            );
+}
+
 /**
  * @brief dap_chain_net_srv_vpn_cdb_auth_check_password
  * @param a_login
  * @param a_password
  * @return
  */
-int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_password)
+int dap_chain_net_srv_vpn_cdb_auth_check_login(const char * a_login, const char * a_password)
 {
     int l_ret;
 
@@ -172,6 +205,104 @@ int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_pa
 }
 
 /**
+ * @brief dap_chain_net_srv_vpn_cdb_auth_activate_serial
+ * @param a_login
+ * @param a_password
+ * @return
+ */
+int dap_chain_net_srv_vpn_cdb_auth_activate_serial(const char * a_serial_raw, const char * a_serial, const char * a_sign, const char * a_pkey)
+{
+    int l_ret = -1;
+    if(!a_sign || !a_pkey)
+        return -2;//OP_CODE_LOGIN_INCORRECT_SIGN
+    dap_serial_key_t *l_serial_key = dap_chain_net_srv_vpn_cdb_auth_get_serial_param(a_serial, NULL);
+    // not found
+    if(!l_serial_key)
+        return -1;//OP_CODE_NOT_FOUND_LOGIN_IN_DB
+    // already activated
+    if(l_serial_key->header.activated) {
+        l_ret = 0;// OK
+    }
+    else {
+        // check sign
+        int l_res = 0;
+        byte_t *l_pkey_raw = NULL;
+        size_t l_pkey_raw_size = 0;
+        {
+            // deserealize pkey
+            dap_enc_key_t *l_client_key = NULL;
+            size_t l_pkey_length = dap_strlen(a_pkey);
+            l_pkey_raw = DAP_NEW_Z_SIZE(byte_t, l_pkey_length);
+            memset(l_pkey_raw, 0, l_pkey_length);
+            l_pkey_raw_size = dap_enc_base64_decode(a_pkey, l_pkey_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+            l_client_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_SIG_TESLA);
+            l_res = dap_enc_key_deserealize_pub_key(l_client_key, l_pkey_raw, l_pkey_raw_size);
+            // verify sign
+            if(!l_res) {
+                byte_t *l_sign_raw = NULL;
+                size_t l_sign_length = dap_strlen(a_sign);
+                l_sign_raw = DAP_NEW_Z_SIZE(byte_t, l_sign_length*2);
+                size_t l_sign_raw_size = dap_enc_base64_decode(a_sign, l_sign_length, l_sign_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                dap_sign_t *l_sign = (dap_sign_t*)l_sign_raw;//dap_sign_pack(l_client_key, l_sign_raw, l_sign_raw_size, l_pkey_raw, l_pkey_length);
+                size_t as = dap_sign_get_size(l_sign);
+                size_t l_serial_len = dap_strlen(a_serial_raw);
+                l_res = dap_sign_verify(l_sign, a_serial_raw, l_serial_len);
+                DAP_DELETE(l_sign_raw);
+            }
+            //dap_enc_key_deserealize_sign
+        }
+
+        // activate serial key
+        if(l_res==1) {
+            // added pkey to serial
+            l_serial_key->header.ext_size = l_pkey_raw_size;
+            l_serial_key = DAP_REALLOC(l_serial_key,dap_serial_key_len(l_serial_key));
+            l_serial_key->header.activated = time(NULL);
+            memcpy(l_serial_key->ext, l_pkey_raw, l_pkey_raw_size);
+            // save updated serial
+            if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key,
+                    dap_serial_key_len(l_serial_key),
+                    s_group_serials_activated)) {
+                dap_chain_global_db_gr_del(l_serial_key->header.serial, s_group_serials);
+                l_ret = 0;// OK
+            }
+        }
+        else{
+            return -2;//OP_CODE_LOGIN_INCORRECT_SIGN
+        }
+        DAP_DELETE(l_pkey_raw);
+    }
+    DAP_DELETE(l_serial_key);
+    return l_ret;
+}
+
+/**
+ * @brief dap_chain_net_srv_vpn_cdb_auth_check_password
+ * @param a_login
+ * @param a_password
+ * @return
+ */
+int dap_chain_net_srv_vpn_cdb_auth_check_serial(const char * a_serial, const char * a_pkey_b64)
+{
+    int l_ret = 0;
+    dap_serial_key_t *l_serial_key = dap_chain_net_srv_vpn_cdb_auth_get_serial_param(a_serial, NULL);
+    // not found
+    if(!l_serial_key)
+        return -1;
+    // inactive serial key
+    if(!l_serial_key->header.activated) {
+        l_ret = -3;
+    }
+    // check time expired
+    else if(l_serial_key->header.expired) {
+        if((l_serial_key->header.activated + l_serial_key->header.expired) < time(NULL))
+            l_ret = -4;
+    }
+    DAP_DELETE(l_serial_key);
+    return l_ret;
+}
+
+/**
  * @brief s_input_validation
  * @param str
  * @return
@@ -183,12 +314,14 @@ static int s_input_validation(const char * str)
         static const char *nospecial="0123456789"
                 "abcdefghijklmnopqrstuvwxyz"
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                ".=@?_!#$%-";
+                ".=@?_!#$%-";// /+
         while(*str) // Loop until (*url) == 0.  (*url) is about equivalent to url[0].
         {
                 // Can we find the character at *url in the string 'nospecial'?
                 // If not, it's a special character and we should return 0.
-                if(strchr(nospecial, *str) == NULL) return(0);
+                if(strchr(nospecial, *str) == NULL){
+                    return(0);
+                }
                 str++; // Jump to the next character.  Adding one to a pointer moves it ahead one element.
         }
 
@@ -196,7 +329,83 @@ static int s_input_validation(const char * str)
 }
 
 /**
- * @brief dap_chain_net_srv_vpn_cdb_auth_cli_cmd
+ * Generate serial number like xxx-xxx-xxx
+ * without symbols 0,1,L,I,O
+ * a_group_sepa may be NULL
+ */
+static char* generate_serial(int a_group_count, int a_group_len, const char *a_group_sepa)
+{
+    size_t l_group_sepa_len = a_group_sepa ? strlen(a_group_sepa) : 0;
+    char *l_serial = DAP_NEW_Z_SIZE(char, a_group_count * (a_group_len + l_group_sepa_len));
+    int l_serial_pos = 0;
+    for(int l_group_count = 0; l_group_count < a_group_count; l_group_count++) {
+        for(int l_group_len = 0; l_group_len < a_group_len; l_group_len++) {
+            uint32_t l_max_len = 'Z' - 'A' + 5; //['Z' - 'A' - 3]alpha + [10 - 2]digit
+            uint32_t l_value = random_uint32_t(l_max_len);
+            char l_sym;
+            if(l_value < 8)
+                l_sym = '2' + l_value;
+            // replace unused characters I,O,L
+            else if(l_value == 'I' - 'A' + 8)
+                l_sym = 'X';
+            else if(l_value == 'L' - 'A' + 8)
+                l_sym = 'Y';
+            else if(l_value == 'O' - 'A' + 8)
+                l_sym = 'Z';
+            else
+                l_sym = 'A' + l_value - 8;
+            l_serial[l_serial_pos] = l_sym;
+            l_serial_pos++;
+        }
+        // copy separator to serial
+        if(l_group_sepa_len && l_group_count < a_group_count - 1) {
+            dap_stpcpy(l_serial + l_serial_pos, a_group_sepa);
+            l_serial_pos += l_group_sepa_len;
+        }
+    }
+    return l_serial;
+}
+
+
+size_t dap_serial_key_len(dap_serial_key_t *a_serial_key)
+{
+    if(!a_serial_key)
+        return 0;
+    return sizeof(dap_serial_key_t) + a_serial_key->header.ext_size;
+}
+
+/**
+ * @brief dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial
+ * @param a_user_str
+ * @param a_arg_index
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @param a_group_out
+ * @return
+ */
+dap_serial_key_t* dap_chain_net_srv_vpn_cdb_auth_get_serial_param(const char *a_serial_str, const char **a_group_out)
+{
+    const char *l_group_out = s_group_serials_activated;
+    if(!a_serial_str)
+        return NULL;
+    size_t l_serial_data_len = 0;
+    dap_serial_key_t *l_serial_key = (dap_serial_key_t*)dap_chain_global_db_gr_get(a_serial_str, &l_serial_data_len, s_group_serials_activated);
+    if(!l_serial_key){
+        l_serial_key = (dap_serial_key_t*)dap_chain_global_db_gr_get(a_serial_str, &l_serial_data_len, s_group_serials);
+        l_group_out = s_group_serials;
+    }
+    if(l_serial_data_len>=sizeof(dap_serial_key_t)){
+        if(a_group_out)
+            *a_group_out = l_group_out;
+        return l_serial_key;
+    }
+    DAP_DELETE(l_serial_key);
+    return NULL;
+}
+
+/**
+ * @brief dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial
  * @param a_user_str
  * @param a_arg_index
  * @param a_argc
@@ -204,7 +413,141 @@ static int s_input_validation(const char * str)
  * @param a_str_reply
  * @return
  */
-int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply)
+int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply)
+{
+    int l_ret = 0;
+    // Command 'serial list'
+    if(!dap_strcmp(a_serial_str, "list")) {
+        const char * l_serial_count_str = NULL;
+        const char * l_serial_shift_str = NULL;
+        int l_serial_nototal = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-nototal", NULL);
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-n", &l_serial_count_str);
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-shift", &l_serial_shift_str);
+        size_t l_serial_count = l_serial_count_str ? strtoll(l_serial_count_str, NULL, 10) : 0;
+        size_t l_serial_shift = l_serial_shift_str ? strtoll(l_serial_shift_str, NULL, 10)+1 : 1;
+        size_t l_total = dap_chain_global_db_driver_count(s_group_serials, l_serial_shift);
+        l_serial_count = l_serial_count ? min(l_serial_count, l_total - l_serial_shift) : l_total;
+        dap_store_obj_t *l_obj = dap_chain_global_db_driver_cond_read(s_group_serials, l_serial_shift, &l_serial_count);
+        if(l_serial_count > 0) {
+            dap_string_t *l_keys = l_serial_count > 1 ? dap_string_new("serial keys:\n") : dap_string_new("serial key: ");
+            for(size_t i = 0; i < l_serial_count; i++) {
+                if((l_obj + i)->value_len < sizeof(dap_serial_key_t))
+                    continue;
+                dap_serial_key_t *l_serial = (dap_serial_key_t*) (l_obj + i)->value;
+                dap_string_append(l_keys, l_serial->header.serial);
+                //if(i < l_serial_count - 1)
+                    dap_string_append(l_keys, "\n");
+            }
+            if(!l_serial_nototal){
+                char *l_total_str = dap_strdup_printf("total %u keys", l_total);
+                dap_string_append(l_keys, l_total_str);
+                DAP_DELETE(l_total_str);
+                //dap_chain_node_cli_set_reply_text(a_str_reply, "\ntotal %u keys", l_total);
+                //return 0;
+            }
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s", l_keys->str);
+            dap_string_free(l_keys, true);
+            dap_store_obj_free(l_obj, l_serial_count);
+        }
+        else
+            dap_chain_node_cli_set_reply_text(a_str_reply, "keys not found");
+        return 0;
+    }
+    else
+    // Command 'serial generate'
+    if(!dap_strcmp(a_serial_str, "generate")) {
+        const char * l_serial_count_str = NULL;
+        const char * l_active_days_str = NULL;
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-n", &l_serial_count_str);
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-active_days", &l_active_days_str);
+        uint32_t l_serial_count = l_serial_count_str ? strtoll(l_serial_count_str, NULL, 10) : 1;
+        size_t l_active_days = l_active_days_str ? strtoll(l_active_days_str, NULL, 10) : 0;
+        if(l_serial_count < 1)
+            l_serial_count = 1;
+        dap_string_t *l_keys = l_serial_count > 1 ? dap_string_new("serial keys:\n") : dap_string_new("serial key: ");
+        for(uint32_t i = 0; i < l_serial_count; i++) {
+            dap_serial_key_t l_serial;
+            memset(&l_serial, 0, sizeof(dap_serial_key_t));
+            while(1) {
+                char *l_serial_str = generate_serial(4, 4, "-");
+                uint8_t *l_serial_str_prev = dap_chain_global_db_gr_get(l_serial_str, NULL, s_group_serials);
+                if(l_serial_str_prev)
+                    DAP_DELETE(l_serial_str_prev);
+                else{
+                    strncpy(l_serial.header.serial, l_serial_str, sizeof(l_serial.header.serial));
+                    if(l_active_days)
+                        l_serial.header.expired = l_active_days * 86400;// days to sec
+                    break;
+                }
+            };
+            l_serial.header.ext_size = 0;
+
+            if(dap_chain_global_db_gr_set(dap_strdup(l_serial.header.serial), &l_serial, sizeof(l_serial), s_group_serials)) {
+                dap_string_append(l_keys, l_serial.header.serial);
+                if(i < l_serial_count - 1)
+                    dap_string_append(l_keys, "\n");
+            }
+        }
+        dap_chain_node_cli_set_reply_text(a_str_reply, "generated new %s", l_keys->str);
+        dap_string_free(l_keys, true);
+        // save gdb
+        dap_chain_global_db_flush();
+        return 0;
+    }
+    else
+    // Command 'serial update'
+    if(!dap_strcmp(a_serial_str, "update")) {
+        const char * l_serial_number_str = NULL;
+        const char * l_active_days_str = NULL;
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-serial", &l_serial_number_str);
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-active_days", &l_active_days_str);
+        size_t l_active_days = l_active_days_str ? strtoll(l_active_days_str, NULL, 10) : 0;
+        if(!l_serial_number_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "option '-serial XXXX-XXXX-XXXX-XXXX' is not defined");
+        }
+        else if(!l_active_days_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "option '-active_days <active days that left for serial after activation>' is not defined");
+        }
+        else {
+            const char *l_group;
+            dap_serial_key_t *l_serial_key = dap_chain_net_srv_vpn_cdb_auth_get_serial_param(l_serial_number_str, &l_group);
+            if(l_serial_key){
+                l_serial_key->header.expired = l_active_days;
+                // save updated serial
+                if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key, dap_serial_key_len(l_serial_key), l_group)) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' successfully updated", l_serial_key->header.serial);
+                    DAP_DELETE(l_serial_key);
+                    // save gdb
+                    dap_chain_global_db_flush();
+                    return 0;
+                }
+                else{
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' can't updated", l_serial_key->header.serial);
+                }
+                DAP_DELETE(l_serial_key);
+            }
+            else{
+                dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' not found", l_serial_number_str);
+            }
+            return 0;
+        }
+    }
+    else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "unknown subcommand %s, use 'generate', 'list' or 'update'", a_serial_str);
+    }
+    return -1;
+}
+
+/**
+ * @brief dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user
+ * @param a_user_str
+ * @param a_arg_index
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return
+ */
+int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(const char *a_user_str, int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply)
 {
     int l_ret = 0;
     dap_string_t * l_ret_str = dap_string_new("");
@@ -319,7 +662,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
         const char * l_password_str = NULL;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--password", &l_password_str);
         if ( l_login_str && l_password_str) {
-            int l_check = dap_chain_net_srv_vpn_cdb_auth_check (l_login_str, l_password_str);
+            int l_check = dap_chain_net_srv_vpn_cdb_auth_check_login (l_login_str, l_password_str);
             if ( l_check == 0){
                 dap_string_append_printf(l_ret_str,"OK: Passed password check for '%s'\n",l_login_str );
                 l_ret = 0;
@@ -438,9 +781,13 @@ static void s_http_proc(dap_http_simple_t *a_http_simple, void * arg )
 
     l_delegate = enc_http_request_decode(a_http_simple);
     if(l_delegate){
-        if(strcmp(l_delegate->url_path,"auth")==0){
+        if(strcmp(l_delegate->url_path, "auth") == 0) {
             s_http_enc_proc(l_delegate, arg);
-        } else {
+        }
+        else if(strcmp(l_delegate->url_path, "auth_key") == 0) {
+            s_http_enc_proc_key(l_delegate, arg);
+        }
+        else {
 
             if(l_delegate->url_path)
                 log_it(L_ERROR,"Wrong auth request %s",l_delegate->url_path);
@@ -489,7 +836,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                     *l_return_code = Http_Status_OK;
                 }
 
-            }else if(strcmp(a_delegate->in_query,"login")==0 ){
+            }else if(strcmp(a_delegate->in_query,"login")==0 || strcmp(a_delegate->in_query,"serial")==0 ){
                 char l_login[128]={0};
                 char l_password[256]={0};
                 char l_pkey[6001]={0};//char l_pkey[4096]={0};
@@ -498,60 +845,67 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
 
                 //log_it(L_DEBUG, "request_size=%d request_str='%s'\n",a_delegate->request_size, a_delegate->request_str);
 
-                if( sscanf(a_delegate->request_str,"%127s %255s %63s %6000s %63s",l_login,l_password,l_domain, l_pkey, l_domain2) >=4 ||
-                    sscanf(a_delegate->request_str,"%127s %255s %6000s ",l_login,l_password,l_pkey) >=3){
-                    log_it(L_INFO, "Trying to login with username '%s'",l_login);
+                // password mode
+                if(s_mode_passwd) {
+                    if(sscanf(a_delegate->request_str, "%127s %255s %63s %6000s %63s", l_login, l_password, l_domain,
+                            l_pkey, l_domain2) >= 4 ||
+                            sscanf(a_delegate->request_str, "%127s %255s %6000s ", l_login, l_password, l_pkey) >= 3) {
+                        log_it(L_INFO, "Trying to login with username '%s'", l_login);
 
-                    if(s_input_validation(l_login)==0){
-                        log_it(L_WARNING,"Wrong symbols in username");
-                        enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
-                        *l_return_code = Http_Status_BadRequest;
-                        return;
-                    }
-                    if(s_input_validation(l_password)==0){
-                        log_it(L_WARNING,"Wrong symbols in password");
-                        enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
-                        *l_return_code = Http_Status_BadRequest;
-                        return;
-                    }
-                    if(s_input_validation(l_pkey)==0){
-                        log_it(L_WARNING,"Wrong symbols in base64 pkey string");
-                        enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
-                        *l_return_code = Http_Status_BadRequest;
-                        return;
-                    }
+                        if(s_input_validation(l_login) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in username");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            return;
+                        }
+                        if(s_input_validation(l_password) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in password");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            return;
+                        }
+                        if(s_input_validation(l_pkey) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in base64 pkey string");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            return;
+                        }
 
-                    int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check( l_login, l_password );
-                    switch (l_login_result) {
-                        case 0:{
+                        int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_login(l_login, l_password);
+                        switch (l_login_result) {
+                        case 0: {
                             size_t l_tmp_size;
-                            char * l_first_name = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_first_name);
-                            char * l_last_name = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_last_name);
-                            char * l_email = (char*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_email);
-                            dap_chain_time_t * l_ts_last_logined= (dap_chain_time_t*) dap_chain_global_db_gr_get( l_login , &l_tmp_size,s_group_ts_last_login);
-                            dap_chain_time_t *l_ts_active_till = (dap_chain_time_t*) dap_chain_global_db_gr_get(l_login, &l_tmp_size, s_group_ts_active_till);
+                            char * l_first_name = (char*) dap_chain_global_db_gr_get(l_login, &l_tmp_size,
+                                    s_group_first_name);
+                            char * l_last_name = (char*) dap_chain_global_db_gr_get(l_login, &l_tmp_size,
+                                    s_group_last_name);
+                            char * l_email = (char*) dap_chain_global_db_gr_get(l_login, &l_tmp_size, s_group_email);
+                            dap_chain_time_t * l_ts_last_logined = (dap_chain_time_t*) dap_chain_global_db_gr_get(
+                                    l_login, &l_tmp_size, s_group_ts_last_login);
+                            dap_chain_time_t *l_ts_active_till = (dap_chain_time_t*) dap_chain_global_db_gr_get(l_login,
+                                    &l_tmp_size, s_group_ts_active_till);
 
                             enc_http_reply_f(a_delegate,
-                                             "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
-                                             "<auth_info>\n"
-                                             );
-                            enc_http_reply_f(a_delegate,"\t<login>%s</login>\n",l_login);
-                            if ( l_first_name )
-                                enc_http_reply_f(a_delegate,"\t<first_name>%s</first_name>\n",l_first_name);
-                            if( l_last_name )
-                                enc_http_reply_f(a_delegate,"\t<last_name>%s</last_name>\n",l_last_name);
-                            if( l_email )
-                                enc_http_reply_f(a_delegate,"\t<email>%s</email>\n",l_email);
-                            if ( l_ts_last_logined )
-                                enc_http_reply_f(a_delegate,"\t<ts_prev_login>%llu</ts_prev_login>\n",(long long unsigned)*l_ts_last_logined);
-                            if ( l_ts_active_till )
-                                enc_http_reply_f(a_delegate,"\t<ts_active_till>%llu</ts_acyive_till>\n",(long long unsigned)*l_ts_active_till);
+                                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
+                                            "<auth_info>\n"
+                                    );
+                            enc_http_reply_f(a_delegate, "\t<login>%s</login>\n", l_login);
+                            if(l_first_name)
+                                enc_http_reply_f(a_delegate, "\t<first_name>%s</first_name>\n", l_first_name);
+                            if(l_last_name)
+                                enc_http_reply_f(a_delegate, "\t<last_name>%s</last_name>\n", l_last_name);
+                            if(l_email)
+                                enc_http_reply_f(a_delegate, "\t<email>%s</email>\n", l_email);
+                            if(l_ts_last_logined)
+                                enc_http_reply_f(a_delegate, "\t<ts_prev_login>%llu</ts_prev_login>\n", (long long unsigned) *l_ts_last_logined);
+                            if(l_ts_active_till)
+                                enc_http_reply_f(a_delegate, "\t<ts_active_till>%llu</ts_acyive_till>\n", (long long unsigned) *l_ts_active_till);
 
-                            if ( a_delegate->cookie )
-                                enc_http_reply_f(a_delegate,"\t<cookie>%s</cookie>\n",a_delegate->cookie);
-                            dap_chain_net_srv_vpn_cdb_auth_after (a_delegate, l_login, l_pkey ) ; // Here if smbd want to add smth to the output
-                            enc_http_reply_f(a_delegate,"</auth_info>");
-                            log_it(L_INFO, "Login: Successfuly logined user %s",l_login);
+                            if(a_delegate->cookie)
+                                enc_http_reply_f(a_delegate, "\t<cookie>%s</cookie>\n", a_delegate->cookie);
+                            dap_chain_net_srv_vpn_cdb_auth_after(a_delegate, l_login, l_pkey); // Here if smbd want to add smth to the output
+                            enc_http_reply_f(a_delegate, "</auth_info>");
+                            log_it(L_INFO, "Login: Successfuly logined user %s", l_login);
                             *l_return_code = Http_Status_OK;
                             //log_it(L_DEBUG, "response_size='%d'",a_delegate->response_size);
                             DAP_DELETE(l_first_name);
@@ -563,33 +917,122 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             // Update last logined
                             l_ts_last_logined = DAP_NEW_Z(dap_chain_time_t);
                             *l_ts_last_logined = dap_chain_time_now();
-
-                            dap_chain_global_db_gr_set( dap_strdup( l_login), l_ts_last_logined, sizeof (time_t), s_group_ts_last_login );
-                        }break;
+                            dap_chain_global_db_gr_set(dap_strdup(l_login), l_ts_last_logined, sizeof(time_t), s_group_ts_last_login);
+                            DAP_DELETE(l_ts_last_logined);
+                        }
+                            break;
                         case -1:
-                            enc_http_reply_f( a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
+                            enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
                             *l_return_code = Http_Status_OK;
                             break;
                         case -2:
-                            enc_http_reply_f( a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
+                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
                             *l_return_code = Http_Status_OK;
                             break;
                         case -3:
-                            enc_http_reply_f( a_delegate, OP_CODE_LOGIN_INACTIVE );
+                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INACTIVE);
                             *l_return_code = Http_Status_OK;
-                        break;
+                            break;
                         case -4:
-                            enc_http_reply_f( a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED );
+                            enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
                             *l_return_code = Http_Status_PaymentRequired;
                             break;
                         default:
-                            log_it(L_WARNING, "Login: Unknown authorize error for login '%s'",l_login);
+                            log_it(L_WARNING, "Login: Unknown authorize error for login '%s'", l_login);
                             *l_return_code = Http_Status_BadRequest;
                             break;
+                        }
+                    } else {
+                        log_it(L_DEBUG, "Login: wrong auth's request body ");
+                        *l_return_code = Http_Status_BadRequest;
                     }
-                }else{
-                    log_it(L_DEBUG, "Login: wrong auth's request body ");
-                    *l_return_code = Http_Status_BadRequest;
+                }
+                // serial mode
+                else
+                {
+                    char l_serial_tmp[64]={0};
+                    if(sscanf(a_delegate->request_str, "%63s %63s %6000s", l_serial_tmp, l_domain, l_pkey) >= 3) {
+                        char *l_serial = make_fullserial(l_serial_tmp);
+                        log_it(L_INFO, "Trying to login with serial '%s'", l_serial);
+                        if(s_input_validation(l_serial) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in serial");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            DAP_DELETE(l_serial);
+                            return;
+                        }
+                        if(s_input_validation(l_domain) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in l_domain");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            DAP_DELETE(l_serial);
+                            return;
+                        }
+                        if(s_input_validation(l_pkey) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in base64 pkey string");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            DAP_DELETE(l_serial);
+                            return;
+                        }
+                        int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_serial(l_serial, l_pkey);
+                        log_it(L_INFO, "Check serial '%s' with code %d (Ok=0)", l_serial, l_login_result);
+                        switch (l_login_result) {
+                        case 0: {
+                            size_t l_tmp_size;
+                            enc_http_reply_f(a_delegate,
+                                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
+                                            "<auth_info>\n"
+                                    );
+                            enc_http_reply_f(a_delegate, "\t<serial>%s</serial>\n", l_serial);
+
+                            dap_chain_time_t * l_ts_last_logined = (dap_chain_time_t*) dap_chain_global_db_gr_get(l_serial, &l_tmp_size, s_group_ts_last_login);
+                            dap_chain_time_t *l_ts_active_till = (dap_chain_time_t*) dap_chain_global_db_gr_get(l_serial, &l_tmp_size, s_group_ts_active_till);
+                            if(l_ts_last_logined)
+                                enc_http_reply_f(a_delegate, "\t<ts_prev_login>%llu</ts_prev_login>\n", (long long unsigned) *l_ts_last_logined);
+                            if(l_ts_active_till)
+                                enc_http_reply_f(a_delegate, "\t<ts_active_till>%llu</ts_acyive_till>\n", (long long unsigned) *l_ts_active_till);
+                            if(a_delegate->cookie)
+                                enc_http_reply_f(a_delegate, "\t<cookie>%s</cookie>\n", a_delegate->cookie);
+                            dap_chain_net_srv_vpn_cdb_auth_after(a_delegate, l_serial, l_pkey); // Here if smbd want to add smth to the output
+                            enc_http_reply_f(a_delegate, "</auth_info>");
+                            log_it(L_INFO, "Login: Successfuly logined user %s", l_login);
+                            *l_return_code = Http_Status_OK;
+                            //log_it(L_DEBUG, "response_size='%d'",a_delegate->response_size);
+
+                            DAP_DELETE(l_ts_last_logined);
+                            DAP_DELETE(l_ts_active_till);
+
+                            // Update last logined
+                            l_ts_last_logined = DAP_NEW_Z(dap_chain_time_t);
+                            *l_ts_last_logined = dap_chain_time_now();
+                            dap_chain_global_db_gr_set(dap_strdup(l_serial), l_ts_last_logined, sizeof(time_t),s_group_ts_last_login);
+                            DAP_DELETE(l_ts_last_logined);
+                        }
+                            break;
+                        case -1:
+                            enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
+                            *l_return_code = Http_Status_OK;
+                            break;
+                        /*case -2:
+                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
+                            *l_return_code = Http_Status_OK;
+                            break;*/
+                        case -3:
+                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INACTIVE);
+                            *l_return_code = Http_Status_OK;
+                            break;
+                        case -4:
+                            enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
+                            *l_return_code = Http_Status_PaymentRequired;
+                            break;
+                        default:
+                            log_it(L_WARNING, "Login: Unknown authorize error for login '%s'", l_login);
+                            *l_return_code = Http_Status_BadRequest;
+                            break;
+                        }
+                        DAP_DELETE(l_serial);
+                    }
                 }
             }else if (s_is_registration_open && strcmp(a_delegate->in_query,"register")==0){
                 char l_login[128];
@@ -679,9 +1122,99 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
     }
 }
 
+/**
+ * @brief s_http_enc_proc Auth http interface
+ * @param a_delegate HTTP Simple client instance
+ * @param a_arg Pointer to bool with okay status (true if everything is ok, by default)
+ */
+static void s_http_enc_proc_key(enc_http_delegate_t *a_delegate, void * a_arg)
+{
+    http_status_code_t * l_return_code = (http_status_code_t*) a_arg;
 
+    if((a_delegate->request) && (strcmp(a_delegate->action, "POST") == 0)) {
+        if(a_delegate->in_query == NULL) {
+            log_it(L_WARNING, "Empty auth action");
+            *l_return_code = Http_Status_BadRequest;
+            return;
+        } else {
+            if(strcmp(a_delegate->in_query, "serial") == 0) {
+                char l_serial_raw[64] = { 0 };
+                char l_serial_sign[12000] = { 0 };
+                char l_pkey[6001] = { 0 };
 
-
-
-
-
+                // only for serial mode
+                if(!s_mode_passwd)
+                {
+                    char l_domain[64];
+                    if(sscanf(a_delegate->request_str, "%63s %12000s %63s %6000s", l_serial_raw, l_serial_sign, l_domain, l_pkey) >= 4) {
+                        char *l_serial = make_fullserial(l_serial_raw);
+                        /*size_t a1 = dap_strlen(l_serial);
+                        size_t a2 = dap_strlen(l_serial_sign);
+                        size_t a3 = dap_strlen(l_pkey);*/
+                        log_it(L_INFO, "Trying to activate with serial '%s'", l_serial);
+                        if(s_input_validation(l_serial) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in serial");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            DAP_DELETE(l_serial);
+                            return;
+                        }
+                        if(s_input_validation(l_pkey) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in base64 pkey string");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            DAP_DELETE(l_serial);
+                            return;
+                        }
+                        if(s_input_validation(l_serial_sign) == 0) {
+                            log_it(L_WARNING, "Wrong symbols in base64 serial sign");
+                            enc_http_reply_f(a_delegate, OP_CODE_INCORRECT_SYMOLS);
+                            *l_return_code = Http_Status_BadRequest;
+                            DAP_DELETE(l_serial);
+                            return;
+                        }
+                        int l_activate_result = dap_chain_net_srv_vpn_cdb_auth_activate_serial(l_serial_raw, l_serial, l_serial_sign, l_pkey);
+                        log_it(L_INFO, "Serial '%s' activated with code %d (Ok=0)", l_serial, l_activate_result);
+                        switch (l_activate_result) {
+                        case 0:
+                            enc_http_reply_f(a_delegate, OP_CODE_SERIAL_ACTIVED);
+                            *l_return_code = Http_Status_OK;
+                            break;
+                        case -1:
+                            enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
+                            *l_return_code = Http_Status_OK;
+                            break;
+                        case -2:
+                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_SIGN);
+                            *l_return_code = Http_Status_OK;
+                            break;
+                            /*case -3:
+                             enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INACTIVE);
+                             *l_return_code = Http_Status_OK;
+                             break;*/
+                        case -4:
+                            enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
+                            *l_return_code = Http_Status_PaymentRequired;
+                            break;
+                        default:
+                            log_it(L_WARNING, "Login: Unknown authorize error for activate serial '%s'", l_serial);
+                            *l_return_code = Http_Status_BadRequest;
+                            break;
+                        }
+                        DAP_DELETE(l_serial);
+                    }
+                    else {
+                        log_it(L_ERROR, "Registration: Wrong auth_key's request body ");
+                        *l_return_code = Http_Status_BadRequest;
+                    }
+                }
+            } else {
+                log_it(L_ERROR, "Unknown auth command was selected (query_string='%s')", a_delegate->in_query);
+                *l_return_code = Http_Status_BadRequest;
+            }
+        }
+    } else {
+        log_it(L_ERROR, "Wrong auth request action '%s'", a_delegate->action);
+        *l_return_code = Http_Status_BadRequest;
+    }
+}

@@ -684,6 +684,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
 {
     int arg_index = arg_start;
     const char *arg_string;
+    int l_ret_pos = 0;
 
     while(arg_index < arg_end)
     {
@@ -698,6 +699,9 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
                     *opt_value = arg_string;
                     return arg_index;
                 }
+                // for case if opt_name exist without value
+                else
+                    l_ret_pos = arg_index;
             }
             else
                 // need only opt_name
@@ -705,7 +709,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
         }
         arg_index++;
     }
-    return 0;
+    return l_ret_pos;
 }
 
 /**

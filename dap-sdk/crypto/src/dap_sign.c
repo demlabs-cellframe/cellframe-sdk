@@ -243,6 +243,27 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
     }
     return NULL;
 }
+/**
+ * @brief dap_sign_pack
+ * @param a_key
+ * @param a_sign_ser
+ * @param a_sign_ser_size
+ * @param a_pkey
+ * @param a_pub_key_size
+ * @return dap_sign_t*
+ */
+dap_sign_t * dap_sign_pack(dap_enc_key_t *a_key, const void * a_sign_ser, const size_t a_sign_ser_size, const void * a_pkey, const size_t a_pub_key_size)
+{
+    dap_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_sign_t, sizeof(dap_sign_hdr_t) + a_sign_ser_size + a_pub_key_size);
+    // write serialized public key to dap_sign_t
+    memcpy(l_ret->pkey_n_sign, a_pkey, a_pub_key_size);
+    l_ret->header.type = dap_sign_type_from_key_type(a_key->type);
+    // write serialized signature to dap_sign_t
+    memcpy(l_ret->pkey_n_sign + a_pub_key_size, a_sign_ser, a_sign_ser_size);
+    l_ret->header.sign_pkey_size = (uint32_t) a_pub_key_size;
+    l_ret->header.sign_size = (uint32_t) a_sign_ser_size;
+    return l_ret;
+}
 
 /**
  * @brief dap_sign_get_sign

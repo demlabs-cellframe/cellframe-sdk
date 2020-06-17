@@ -110,6 +110,8 @@ int dap_sign_verify (dap_sign_t * a_chain_sign, const void * a_data, const size_
 
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size
                                          ,  size_t a_output_wish_size );
+dap_sign_t * dap_sign_pack(dap_enc_key_t *a_key, const void * a_sign_ser, const size_t a_sign_ser_size, const void * a_pkey, const size_t a_pub_key_size);
+
 size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key,size_t a_output_wish_size );
 //int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size
 //                                 , void * a_output, size_t a_output_size );
