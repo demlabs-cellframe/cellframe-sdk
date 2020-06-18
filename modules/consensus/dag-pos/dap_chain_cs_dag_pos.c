@@ -30,7 +30,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
-
+#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_dag_pos"
@@ -224,21 +224,28 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         dap_chain_addr_t l_addr = { 0 };
 
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
-            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,0);
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0);
             if ( l_sign == NULL){
                 log_it(L_WARNING, "Event is NOT signed with anything");
                 return -4;
             }
 
-            dap_enc_key_t * l_key = dap_sign_to_enc_key( l_sign);
-            if ( l_key == NULL){
+            dap_chain_hash_fast_t l_pkey_hash;
+            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event's sign has no any key");
                 return -5;
             }
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
 
-            dap_chain_addr_fill (&l_addr,l_key,&a_dag->chain->net_id );
-            dap_enc_key_delete (l_key); // TODO cache all this operations to prevent useless memory copy ops
-
+            if (l_sig_pos == 0) {
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
+                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
+                        return -6;
+                    }
+                }
+            }
             /*
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
             // transaction include emission?
@@ -268,7 +275,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 char *l_addr_str = dap_chain_addr_to_str(&l_addr);
                 log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
                 DAP_DELETE(l_addr_str);
-                return -1;
+                return 0; //-1;
             }
         }
 

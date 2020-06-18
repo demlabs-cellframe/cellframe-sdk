@@ -684,6 +684,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
 {
     int arg_index = arg_start;
     const char *arg_string;
+    int l_ret_pos = 0;
 
     while(arg_index < arg_end)
     {
@@ -698,6 +699,9 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
                     *opt_value = arg_string;
                     return arg_index;
                 }
+                // for case if opt_name exist without value
+                else
+                    l_ret_pos = arg_index;
             }
             else
                 // need only opt_name
@@ -705,7 +709,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
         }
         arg_index++;
     }
-    return 0;
+    return l_ret_pos;
 }
 
 /**
@@ -831,7 +835,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -flags_set <value>:\t Set list of flags from <value> to token declaration\n"
             "\t -flags_unset <value>:\t Unset list of flags from <value> from token declaration\n"
             "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
-            "\t -signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
             "\t -signs_add <value>:\t Add signature's pkey fingerprint to the list of owners\n"
             "\t -signs_remove <value>:\t Remove signature's pkey fingerprint from the owners\n"
             "\nDatum type allowed/blocked updates:\n"
@@ -873,7 +877,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, NULL, "Token declaration",
             "Simple token declaration:\n"
             "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
-            "\t\  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
+            "\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
             "\nExtended private token declaration\n"
             "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>"
@@ -895,7 +899,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "General:\n"
             "\t -flags <value>:\t List of flags from <value> to token declaration\n"
             "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
-            "\t -signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
             "\t -signs <value>:\t Signature's fingerprint list\n"
             "\nDatum type allowed/blocked:\n"
             "\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
@@ -908,57 +912,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
             "\n"
             );
-    /// -------- General tsd types ----
-    // Flags set/unsed
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS           0x0001
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS         0x0002
-
-    // Total supply limits
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0003
-
-    // Set total signs count value to set to be valid
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID   0x0004
-
-    // Add owner signature's pkey fingerprint
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD     0x0006
-
-    // Remove owner signature by pkey fingerprint
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE  0x0007
-
-
-
-    /// ------- Permissions list flags, grouped by update-remove-clear operations --------
-    // Allowed datum types list update, remove or clear
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_UPDATE       0x0010
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE       0x0011
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_CLEAR        0x0012
-
-    // Blocked datum types list update, remove or clear
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_UPDATE       0x0013
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE       0x0014
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_CLEAR        0x0015
-
-    //Allowed tx receiver addres list update, remove or clear
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_UPDATE       0x0014
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE       0x0015
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_CLEAR        0x0016
-
-    //Blocked tx receiver addres list update, remove or clear
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_UPDATE       0x0017
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE       0x0018
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_CLEAR        0x0019
-
-
-    //Allowed tx sender addres list update, remove or clear
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_UPDATE       0x0020
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE       0x0021
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_CLEAR        0x0022
-
-    //Blocked tx sender addres list update, remove or clear
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_UPDATE       0x0023
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE       0x0024
-    #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR        0x0025
-
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, NULL, "Token declaration add sign",
             "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
@@ -986,7 +939,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, NULL, "Make transaction",
             "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
-            "tx_cond_create todo\n" );
+            "tx_cond_create -net <net name> -token <token_ticker> -wallet_f <wallet_from> -wallet_t <wallet_to>"
+                                        "-value <value_datoshi> -unit <mb|kb|b|sec|day> -service <vpn>\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, NULL, "Verifing transaction",
             "tx_verify  -wallet <wallet name> \n" );
 
@@ -1011,11 +965,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
 
-#ifndef _WIN32
+//#ifndef _WIN32
     // News
-    //dap_chain_node_cli_cmd_item_create("news", com_news, NULL, "Add News for VPN clients. Language code is a text code like \"en\", \"ru\", \"fr\"",
-    //        "news [-text <news text> | -file <filename with news>] -lang <language code> \n");
-#endif
+    dap_chain_node_cli_cmd_item_create("news", com_news, NULL, "Add News for VPN clients. Language code is a text code like \"en\", \"ru\", \"fr\"",
+            "news [-text <news text> | -file <filename with news>] -lang <language code> \n");
+//#endif
     // create thread for waiting of clients
     pthread_t l_thread_id;
 

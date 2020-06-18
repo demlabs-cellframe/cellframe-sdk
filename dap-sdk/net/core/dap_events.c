@@ -83,6 +83,7 @@
 static uint32_t s_threads_count = 1;
 static size_t   s_connection_timeout = 6000;
 static struct epoll_event *g_epoll_events = NULL;
+static volatile bool bEventsAreActive = true;
 
 bool s_workers_init = false;
 dap_worker_t *s_workers = NULL;
@@ -222,6 +223,9 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
   pthread_mutex_lock( &dap_worker->locker_on_count );
   DL_FOREACH_SAFE( d_ev->dlsockets, a_es, tmp ) {
 
+    if ( a_es->type == DESCRIPTOR_TYPE_FILE)
+      continue;
+
     if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
@@ -289,15 +293,16 @@ static void *thread_worker_function(void *arg)
 //  memset( &events, 0, sizeof(events) );
 
     size_t total_sent;
-    int bytes_sent;
+    int bytes_sent = 0;
 
-    while(1) {
+    while(bEventsAreActive) {
 
         int selected_sockets = epoll_wait(w->epoll_fd, events, DAP_MAX_EPOLL_EVENTS, 1000);
 
         if(selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
+            log_it(L_ERROR, "Worker thread %d got errno: %d", w->number_thread, errno);
             break;
         }
 
@@ -558,6 +563,11 @@ int dap_events_start( dap_events_t *a_events )
   }
 
   return 0;
+}
+
+void dap_events_stop()
+{
+  bEventsAreActive = false;
 }
 
 /**

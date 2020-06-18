@@ -291,11 +291,8 @@ static void *s_log_thread_proc(void *arg) {
     (void) arg;
     for ( ; !s_log_term_signal; ) {
         pthread_mutex_lock(&s_log_mutex);
-        for ( ; s_log_count == 0; ) {
+        for ( ; s_log_count == 0 && !s_log_term_signal; ) {
             pthread_cond_wait(&s_log_cond, &s_log_mutex);
-            if (s_log_term_signal) {
-                break;
-            }
         }
         if (s_log_count) {
             log_str_t *elem, *tmp;
@@ -359,7 +356,9 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
  */
 char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
-   return NULL; // TODO
+    UNUSED(a_start_time);
+    UNUSED(a_limit);
+    return NULL; // TODO
 }
 
 /**
@@ -802,7 +801,7 @@ int exec_silent(const char * a_cmd) {
         return -1;
     }
 #else
-    return execl(".",a_cmd);
+    return execl(".","%s",a_cmd,NULL);
 #endif
 }
 
@@ -828,7 +827,12 @@ static int s_timer_find(void *a_timer)
 static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
 {
     UNUSED(a_always_true);
-    s_timers[(int)a_arg].callback(s_timers[(int)a_arg].param);
+    s_timers[(size_t)a_arg].callback(s_timers[(size_t)a_arg].param);
+}
+#elif defined __MACH__
+static void s_bsd_callback(int a_arg)
+{
+    s_timers[a_arg].callback(s_timers[a_arg].param);
 }
 #else
 static void s_posix_callback(union sigval a_arg)
@@ -848,15 +852,27 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
         return NULL;
     }
-#ifdef _WIN32
+#ifdef WIN32
     if (s_timers_count == 0) {
         InitializeCriticalSection(&s_timers_lock);
     }
     HANDLE l_timer;
-    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)s_timers_count, a_msec, a_msec, 0)) {
+    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(size_t)s_timers_count, a_msec, a_msec, 0)) {
         return NULL;
     }
     EnterCriticalSection(&s_timers_lock);
+#elif defined DAP_OS_DARWIN
+    if (s_timers_count == 0) {
+        pthread_mutex_init(&s_timers_lock, NULL);
+    }
+    pthread_mutex_lock(&s_timers_lock);
+
+    dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
+    dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
+    dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
+    dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
+    dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
+    dispatch_resume(l_timer);
 #else
     if (s_timers_count == 0) {
         pthread_mutex_init(&s_timers_lock, NULL);
@@ -881,7 +897,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     s_timers_count++;
 #ifdef _WIN32
     LeaveCriticalSection(&s_timers_lock);
-#else
+#elif DAP_OS_UNIX
     pthread_mutex_unlock(&s_timers_lock);
 #endif
     return (void *)l_timer;
@@ -899,7 +915,7 @@ int dap_interval_timer_delete(void *a_timer)
     }
 #ifdef _WIN32
     EnterCriticalSection(&s_timers_lock);
-#else
+#elif DAP_OS_UNIX
     pthread_mutex_lock(&s_timers_lock);
 #endif
     int l_timer_idx = s_timer_find(a_timer);
@@ -916,10 +932,85 @@ int dap_interval_timer_delete(void *a_timer)
         DeleteCriticalSection(&s_timers_lock);
     }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#else
+#elif DAP_OS_UNIX
+    pthread_mutex_unlock(&s_timers_lock);
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
-    return timer_delete((timer_t)a_timer);
+    #ifdef DAP_OS_DARWIN
+    dispatch_source_cancel(a_timer);
+    return 0;
+    #else
+        return timer_delete((timer_t)a_timer);
+    #endif
 #endif
+}
+
+/**
+ * @brief dap_lendian_get16 Get uint16 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint16 in host endian memory
+ */
+uint16_t dap_lendian_get16(const uint8_t *a_buf)
+{
+    uint8_t u = *a_buf;
+    return (uint16_t)(*(a_buf + 1)) << 8 | u;
+}
+
+/**
+ * @brief dap_lendian_put16 Put uint16 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint16 in host endian memory
+ * @return none
+ */
+void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val)
+{
+    *(a_buf) = a_val;
+    *(a_buf + 1) = a_val >> 8;
+}
+
+/**
+ * @brief dap_lendian_get32 Get uint32 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint32 in host endian memory
+ */
+uint32_t dap_lendian_get32(const uint8_t *a_buf)
+{
+    uint16_t u = dap_lendian_get16(a_buf);
+    return (uint32_t)dap_lendian_get16(a_buf + 2) << 16 | u;
+}
+
+/**
+ * @brief dap_lendian_put32 Put uint32 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint32 in host endian memory
+ * @return none
+ */
+void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val)
+{
+    dap_lendian_put16(a_buf, a_val);
+    dap_lendian_put16(a_buf + 2, a_val >> 16);
+}
+
+/**
+ * @brief dap_lendian_get64 Get uint64 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint64 in host endian memory
+ */
+uint64_t dap_lendian_get64(const uint8_t *a_buf)
+{
+    uint32_t u = dap_lendian_get32(a_buf);
+    return (uint64_t)dap_lendian_get32(a_buf + 4) << 32 | u;
+}
+
+/**
+ * @brief dap_lendian_put64 Put uint64 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint64 in host endian memory
+ * @return none
+ */
+void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
+{
+    dap_lendian_put32(a_buf, a_val);
+    dap_lendian_put32(a_buf + 4, a_val >> 32);
 }

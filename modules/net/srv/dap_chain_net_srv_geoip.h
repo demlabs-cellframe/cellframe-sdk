@@ -22,6 +22,8 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_config.h"
+
 typedef struct geoip_info {
 
     char ip_str[20];
@@ -35,3 +37,5 @@ typedef struct geoip_info {
 } geoip_info_t;
 
 geoip_info_t *chain_net_geoip_get_ip_info(const char *a_ip_str);
+
+int chain_net_geoip_init(dap_config_t *a_config);

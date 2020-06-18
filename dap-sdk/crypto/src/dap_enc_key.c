@@ -36,7 +36,7 @@
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
-//#include "dap_enc_newhope.h"
+#include "dap_enc_newhope.h"
 
 #include "dap_enc_ringct20.h"
 
@@ -236,24 +236,24 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
-//    [DAP_ENC_KEY_TYPE_RLWE_NEWHOPE_CPA_KEM]={
-//        .name = "NEWHOPE_CPA_KEM",
-//        .enc = NULL,
-//        .dec = NULL,
-//        .enc_na = NULL,
-//        .dec_na = NULL,
-//        .gen_key_public = NULL,
-//        .gen_key_public_size = NULL,
-//        .gen_bob_shared_key = dap_enc_newhope_pbk_enc,
-//        .gen_alice_shared_key = dap_enc_newhope_prk_dec,
-//        .new_callback = dap_enc_newhope_kem_key_new,
-//        .delete_callback = dap_enc_newhope_kem_key_delete,
-//        .new_generate_callback = dap_enc_newhope_kem_key_new_generate,
-//        .enc_out_size = NULL,
-//        .dec_out_size = NULL,
-//        .sign_get = NULL,
-//        .sign_verify = NULL
-//    },
+    [DAP_ENC_KEY_TYPE_RLWE_NEWHOPE_CPA_KEM]={
+        .name = "NEWHOPE_CPA_KEM",
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = NULL,
+        .dec_na = NULL,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .gen_bob_shared_key = dap_enc_newhope_pbk_enc,
+        .gen_alice_shared_key = dap_enc_newhope_prk_dec,
+        .new_callback = dap_enc_newhope_kem_key_new,
+        .delete_callback = dap_enc_newhope_kem_key_delete,
+        .new_generate_callback = dap_enc_newhope_kem_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
     //------Signatures---------------------------
     [DAP_ENC_KEY_TYPE_SIG_PICNIC]={
         .name = "PICNIC",

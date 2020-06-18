@@ -214,9 +214,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     }
 
                     // Check cond output if it equesl or not to request
-                    if ( l_tx_out_cond->subtype.srv_pay.header.srv_uid.uint64 != l_request->hdr.srv_uid.uint64 ){
+                    if ( l_tx_out_cond->subtype.srv_pay.srv_uid.uint64 != l_request->hdr.srv_uid.uint64 ){
                         log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016lX",
-                                l_tx_out_cond->subtype.srv_pay.header.srv_uid );
+                                l_tx_out_cond->subtype.srv_pay.srv_uid );
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_srv->callback_response_error)
@@ -256,7 +256,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     DL_FOREACH(l_srv->pricelist, l_price_tmp) {
                         if (l_price_tmp->net->pub.id.uint64                 == l_request->hdr.net_id.uint64
                             && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                            && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.header.unit.enm
+                            && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
                             )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
                         {
                             l_price = l_price_tmp;
@@ -423,7 +423,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_sign_get_pkey_hash( l_receipt_sign, &l_pkey_hash);
 
 
-                    if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.header.pkey_hash.raw , sizeof(l_pkey_hash) ) != 0 ){
+                    if( memcmp ( l_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.pkey_hash.raw , sizeof(l_pkey_hash) ) != 0 ){
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
                         dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                         if (l_usage->service->callback_response_error)
@@ -469,27 +469,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         char * l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
                         log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
 
-
-                        // We could put transaction directly to chains
+                        /* We could put transaction directly to chains
                         if ( dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_MASTER ||
                               dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_CELL_MASTER ||
                              dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_ROOT ||
                              dap_chain_net_get_role( l_usage->net  ).enums == NODE_ROLE_ROOT_MASTER ){
                             dap_chain_net_proc_mempool( l_usage->net);
-                        }
+                        }*/
                         DAP_DELETE(l_tx_in_hash_str);
                     }else
                         log_it(L_ERROR, "Can't create input tx cond transaction!");
-                    if (l_tx_in_hash)
-                        DAP_DELETE(l_tx_in_hash);
 
-                    size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+                    size_t l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + sizeof(dap_chain_hash_fast_t);
                     dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                                           l_success_size);
                     l_success->hdr.usage_id = l_usage->id;
                     l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
                     l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
-
+                    if (l_tx_in_hash) {
+                        memcpy(l_success->custom_data, l_tx_in_hash, sizeof(dap_chain_hash_fast_t));
+                        DAP_DELETE(l_tx_in_hash);
+                    }
                     dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
                                                  l_success, l_success_size);
                     DAP_DELETE(l_success);

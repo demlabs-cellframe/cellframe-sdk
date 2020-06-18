@@ -173,6 +173,7 @@ typedef union {
 typedef enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
     TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
+    TX_ITEM_TYPE_OUT_EXT = 0x11,
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
     TX_ITEM_TYPE_TOKEN = 0x40,
@@ -181,7 +182,8 @@ typedef enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
     TX_ITEM_TYPE_RECEIPT = 0x70,
 
-    TX_ITEM_TYPE_ANY = 0xff,
+    TX_ITEM_TYPE_OUT_ALL = 0xfe,
+    TX_ITEM_TYPE_ANY = 0xff
 } dap_chain_tx_item_type_t;
 
 
@@ -205,16 +207,27 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
-void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t *a_net_id);
+void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
+void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 
 static inline long double dap_chain_balance_to_coins( uint128_t a_balance){
-    return (long double) a_balance / DATOSHI_LD;
+#ifdef DAP_GLOBAL_IS_INT128
+        return (long double) a_balance / DATOSHI_LD;
+#else
+    return (long double)   (a_balance.u64[0] / DATOSHI_LD);
+#endif
 }
 
 static inline uint128_t dap_chain_coins_to_balance( long double a_balance){
+#ifdef DAP_GLOBAL_IS_INT128
     return (uint128_t)( a_balance * DATOSHI_LD) ;
+#else
+    uint128_t l_ret={0};
+    l_ret.u64[0]=a_balance *DATOSHI_LD;
+    return l_ret;
+#endif
 }
 
 /**

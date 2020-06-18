@@ -66,6 +66,7 @@
 
 #include "dap_common.h"
 #include "dap_server.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "server"
 
@@ -84,6 +85,7 @@ static struct epoll_event  *threads_epoll_events = NULL;
 static dap_server_t *_current_run_server = NULL;
 
 static void read_write_cb( dap_client_remote_t *dap_cur, int32_t revents );
+void  *thread_loop( void *arg );
 
 dap_server_thread_t dap_server_threads[ DAP_MAX_THREADS ];
 
@@ -169,6 +171,26 @@ int32_t dap_server_init( uint32_t count_threads )
   log_it( L_NOTICE, "Initialized socket server module" );
 
   dap_client_remote_init( );
+
+
+  pthread_t thread_listener[ DAP_MAX_THREADS ];
+
+  for( uint32_t i = 0; i < _count_threads; ++i ) {
+
+    EPOLL_HANDLE efd = epoll_create1( 0 );
+    if ( (intptr_t)efd == -1 ) {
+      log_it( L_ERROR, "Can't create epoll instance" );
+      goto err;
+    }
+    dap_server_threads[ i ].epoll_fd = efd;
+    dap_server_threads[ i ].thread_num = i;
+  }
+
+  for( uint32_t i = 0; i < _count_threads; ++i ) {
+    pthread_create( &thread_listener[i], NULL, thread_loop, &dap_server_threads[i] );
+  }
+
+
   return 0;
 
 err:;
@@ -179,7 +201,6 @@ err:;
 
 void dap_server_loop_stop( void ){
     bQuitSignal = true;
-    dap_server_deinit();
 }
 
 /*
@@ -207,6 +228,14 @@ void  dap_server_deinit( void )
 
           pthread_mutex_destroy( &dap_server_threads[i].mutex_on_hash );
           pthread_mutex_destroy( &dap_server_threads[i].mutex_dlist_add_remove );
+
+          if ( (intptr_t)dap_server_threads[ i ].epoll_fd != -1 ) {
+            #ifndef _WIN32
+              close( dap_server_threads[ i ].epoll_fd );
+            #else
+              epoll_close( dap_server_threads[ i ].epoll_fd );
+            #endif
+          }
         }
       }
       moduleInit = false;
@@ -737,32 +766,19 @@ void  *thread_loop( void *arg )
 */
 int32_t dap_server_loop( dap_server_t *d_server )
 {
-  static uint32_t pickthread = 0;  // just for test
-  pthread_t thread_listener[ DAP_MAX_THREADS ];
+  int errCode = 0;
 
-  if ( !d_server ) return 1;
-
-  for( uint32_t i = 0; i < _count_threads; ++i ) {
-
-    EPOLL_HANDLE efd = epoll_create1( 0 );
-//    log_it( L_ERROR, "EPOLL_HANDLE efd %u for thread %u created", efd, i );
-    if ( (intptr_t)efd == -1 ) {
-      log_it( L_ERROR, "Server wakeup no events / error" );
-        goto error;
-    }
-    dap_server_threads[ i ].epoll_fd = efd;
-    dap_server_threads[ i ].thread_num = i;
-  }
-
-  for( uint32_t i = 0; i < _count_threads; ++i ) {
-    pthread_create( &thread_listener[i], NULL, thread_loop, &dap_server_threads[i] );
+  if(d_server == NULL){
+    log_it(L_ERROR, "Server is NULL");
+    return -1;
   }
 
   _current_run_server = d_server;
 
   EPOLL_HANDLE efd = epoll_create1( 0 );
-  if ( (intptr_t)efd == -1 )
-    goto error;
+  if ( (intptr_t)efd == -1 ) {
+    return -10;
+  }
 
   struct epoll_event  pev;
   struct epoll_event  events[ 16 ];
@@ -772,28 +788,26 @@ int32_t dap_server_loop( dap_server_t *d_server )
   pev.data.fd = d_server->socket_listener;
 
   if( epoll_ctl( efd, EPOLL_CTL_ADD, d_server->socket_listener, &pev) != 0 ) {
-    log_it( L_ERROR, "epoll_ctl failed 004" );
-    goto error;
+      log_it( L_ERROR, "epoll_ctl failed 004" );
+      return -20;
   }
 
-  while( !bQuitSignal ) {
-
-    int32_t n = epoll_wait( efd, &events[0], 16, -1 );
+  while( !bQuitSignal && errCode == 0 ) {
+    int32_t n = epoll_wait( efd, &events[0], 16, 1000 );
 
     if ( bQuitSignal )
       break;
 
-    if ( n <= 0 ) {
+    if ( n < 0 ) {
       if ( errno == EINTR )
         continue;
-      log_it( L_ERROR, "Server wakeup no events / error" );
-      break;
+      log_it( L_ERROR, "Server wakeup on error: %i", errno );
+      errCode = -30;
     }
 
-    for( int32_t i = 0; i < n; ++ i ) {
+    for( int32_t i = 0; i < n && errCode == 0; ++i ) {
 
       if ( events[i].events & EPOLLIN ) {
-
         int client_fd = accept( events[i].data.fd, 0, 0 );
 
         if ( client_fd < 0 ) {
@@ -806,33 +820,19 @@ int32_t dap_server_loop( dap_server_t *d_server )
       }
       else if( events[i].events & EPOLLERR ) {
         log_it( L_ERROR, "Server socket error event" );
-        goto exit;
+        errCode = -40;
       }
 
     } // for
-
   } // while
 
-exit:;
-
-  #ifndef _WIN32
-    close( efd );
-  #else
-    epoll_close( efd );
-  #endif
-error:;
-
-  bQuitSignal = true;
-
-  for( uint32_t i = 0; i < _count_threads; ++i ) {
-    if ( (intptr_t)dap_server_threads[ i ].epoll_fd != -1 ) {
-      #ifndef _WIN32
-        close( dap_server_threads[ i ].epoll_fd );
-      #else
-        epoll_close( dap_server_threads[ i ].epoll_fd );
-      #endif
-    }
+  if (efd != -1) {
+    #ifndef _WIN32
+      close( efd );
+    #else
+      epoll_close( efd );
+    #endif
   }
 
-  return 0;
+  return errCode;
 }

@@ -53,12 +53,12 @@ static int s_status;
 //callback function to receive http data
 static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_cmd)
 {
-    size_t l_recv_len = recv(*socket, &l_cmd->cmd_res[l_cmd->cmd_res_cur], DAP_CLI_HTTP_RESPONSE_SIZE_MAX, 0);
+    ssize_t l_recv_len = recv(*socket, &l_cmd->cmd_res[l_cmd->cmd_res_cur], DAP_CLI_HTTP_RESPONSE_SIZE_MAX, 0);
     if (l_recv_len == -1) {
         s_status = DAP_CLI_ERROR_SOCKET;
         return;
     }
-    l_cmd->cmd_res_cur += l_recv_len;
+    l_cmd->cmd_res_cur +=(size_t) l_recv_len;
     switch (s_status) {
         case 1: {   // Find content length
             const char *l_cont_len_str = "Content-Length: ";
@@ -80,7 +80,7 @@ static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_c
             if (l_str_ptr) {
                 l_str_ptr += strlen(l_head_end_str);
                 size_t l_head_size = l_str_ptr - l_cmd->cmd_res;
-                strncpy(l_cmd->cmd_res, l_str_ptr, l_cmd->cmd_res_cur - l_head_size);
+                memmove(l_cmd->cmd_res, l_str_ptr, l_cmd->cmd_res_cur - l_head_size);
                 l_cmd->cmd_res_cur -= l_head_size;
                 s_status++;
             } else {
@@ -201,7 +201,7 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
         int l_cnt = dap_str_countv(l_str);
         char *l_str_reply = NULL;
         if (l_cnt == 2) {
-            long l_err_code = strtol(l_str[0], NULL, 10);
+            //long l_err_code = strtol(l_str[0], NULL, 10);
             l_str_reply = l_str[1];
         }
         printf("%s\n", (l_str_reply) ? l_str_reply : "no response");
@@ -217,4 +217,5 @@ int dap_app_cli_disconnect(dap_app_cli_connect_param_t *a_socket)
 {
     closesocket(*a_socket);
     DAP_DELETE(a_socket);
+    return 0;
 }

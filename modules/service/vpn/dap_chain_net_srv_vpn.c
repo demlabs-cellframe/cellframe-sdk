@@ -443,7 +443,10 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
                 break; // double break exits tokenizer loop and steps to next price item
             }
         }
-        return 0;
+
+        int retVal = dap_chain_net_srv_vpn_cmd_init();
+
+        return retVal;
     }
     return -1;
 }
@@ -590,6 +593,7 @@ static void s_tun_create(void)
             log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ", strerror(errno));
             close(s_raw_server->tun_ctl_fd);
             s_raw_server->tun_ctl_fd = -1;
+            s_raw_server->tun_fd = -1;
         } else {
             char buf[256];
             log_it(L_NOTICE, "Bringed up %s virtual network interface (%s/%s)", s_raw_server->ifr.ifr_name,

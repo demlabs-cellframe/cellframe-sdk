@@ -94,19 +94,8 @@ void dap_chain_deinit(void)
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(s_chain_items->chain);
-          DAP_DELETE(l_item);
         }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
-}
-
-/**
- * @brief dap_chain_load_net_cfg_name
- * @param a_chan_net_cfg_name
- * @return
- */
-dap_chain_t * dap_chain_load_net_cfg_name(const char * a_chan_net_cfg_name)
-{
-
 }
 
 /**
@@ -170,7 +159,9 @@ void dap_chain_delete(dap_chain_t * a_chain)
        log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
     a_chain->datum_types_count = 0;
-    DAP_DELETE (a_chain->datum_types);
+    DAP_DELETE(a_chain->datum_types);
+    a_chain->autoproc_datum_types_count = 0;
+    DAP_DELETE(a_chain->autoproc_datum_types);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
@@ -198,6 +189,48 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
         return NULL;
 }
 
+static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
+{
+    if(!dap_strcmp(a_type_str, "token")) {
+        return CHAIN_TYPE_TOKEN;
+    }
+    if(!dap_strcmp(a_type_str, "emission")) {
+        return CHAIN_TYPE_EMISSION;
+    }
+    if(!dap_strcmp(a_type_str, "transaction")) {
+        return CHAIN_TYPE_TX;
+    }
+    return CHAIN_TYPE_LAST;
+}
+
+static uint16_t s_datum_type_from_str(const char *a_type_str)
+{
+    if(!dap_strcmp(a_type_str, "token")) {
+        return DAP_CHAIN_DATUM_TOKEN_DECL;
+    }
+    if(!dap_strcmp(a_type_str, "emission")) {
+        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    }
+    if(!dap_strcmp(a_type_str, "transaction")) {
+        return DAP_CHAIN_DATUM_TX;
+    }
+    return DAP_CHAIN_DATUM_CUSTOM;
+}
+
+static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
+{
+    switch (a_type) {
+    case CHAIN_TYPE_TOKEN:
+        return DAP_CHAIN_DATUM_TOKEN_DECL;
+    case CHAIN_TYPE_EMISSION:
+        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    case CHAIN_TYPE_TX:
+        return DAP_CHAIN_DATUM_TX;
+    default:
+        return DAP_CHAIN_DATUM_CUSTOM;
+    }
+}
+
 /**
  * @brief dap_chain_load_from_cfg
  * @param a_chain_net_name
@@ -213,14 +246,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
         if (l_cfg) {
             dap_chain_t * l_chain = NULL;
             dap_chain_id_t l_chain_id = {{0}};
+            uint64_t l_chain_id_u = 0;
             const char * l_chain_id_str = NULL;
             const char * l_chain_name = NULL;
 
             // Recognize chains id
-            if ( l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id") ){
-                if ( sscanf(l_chain_id_str,"0x%016llX",&l_chain_id.uint64) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%016llx",&l_chain_id.uint64) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%llu",&l_chain_id.uint64) !=1 ){
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
+                if ( sscanf(l_chain_id_str,"0x%016lX",& l_chain_id_u ) !=1 ){
+                    if ( sscanf(l_chain_id_str,"0x%016lx",&l_chain_id_u) !=1 ) {
+                        if ( sscanf(l_chain_id_str,"%lu",&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -228,6 +262,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                     }
                 }
             }
+            l_chain_id.uint64 = l_chain_id_u;
 
 
             if (l_chain_id_str ) {
@@ -243,15 +278,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 log_it (L_ERROR,"Can't read chain net name ",l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
-            }
-
-            // Read chain datum types
-            char** l_datum_types = NULL;
-            uint16_t l_datum_types_count = 0;
-            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
-                //dap_config_close(l_cfg);
-                //return NULL;
             }
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
@@ -280,27 +306,51 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 dap_chain_delete(l_chain);
                 l_chain = NULL;
             }
+            // Read chain datum types
+            char** l_datum_types = NULL;
+            uint16_t l_datum_types_count = 0;
+            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
+                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
+                //dap_config_close(l_cfg);
+                //return NULL;
+            }
             // add datum types
             if(l_chain && l_datum_types_count > 0) {
                 l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    if(!dap_strcmp(l_datum_types[i], "token")) {
-                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_TOKEN;
-                        l_count_recognized++;
-                    }
-                    else if(!dap_strcmp(l_datum_types[i], "emission")) {
-                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_EMISSION;
-                        l_count_recognized++;
-                    }
-                    else if(!dap_strcmp(l_datum_types[i], "transaction")) {
-                        l_chain->datum_types[l_count_recognized] = CHAIN_TYPE_TX;
+                    dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
+                    if (l_chain_type != CHAIN_TYPE_LAST) {
+                        l_chain->datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
                     }
                 }
                 l_chain->datum_types_count = l_count_recognized;
             }
-
+            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
+                log_it(L_WARNING, "Can't read chain mempool auto types ", l_chain_id_str);
+            }
+            // add datum types
+            if(l_chain && l_datum_types_count) {
+                l_chain->autoproc_datum_types = DAP_NEW_SIZE(uint16_t, l_datum_types_count * sizeof(uint16_t));
+                uint16_t l_count_recognized = 0;
+                for(uint16_t i = 0; i < l_datum_types_count; i++) {
+                    if (!strcmp(l_datum_types[i], "all")) {
+                        l_chain->autoproc_datum_types = DAP_REALLOC(l_chain->autoproc_datum_types, l_chain->datum_types_count * sizeof(uint16_t));
+                        for (int j = 0; j < l_chain->datum_types_count; j++) {
+                            l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
+                        }
+                        l_count_recognized = l_chain->datum_types_count;
+                        break;
+                    }
+                    uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
+                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM) {
+                        l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
+                        l_count_recognized++;
+                    }
+                }
+                l_chain->autoproc_datum_types_count = l_count_recognized;
+            }
             dap_config_close(l_cfg);
             return l_chain;
         }else
@@ -385,6 +435,7 @@ int dap_chain_load_all (dap_chain_t * l_chain)
  */
 dap_chain_t * dap_chain_init_net_cfg_name(const char * a_chain_net_cfg_name)
 {
+    UNUSED( a_chain_net_cfg_name);
     return NULL;
 }
 
@@ -410,7 +461,7 @@ void dap_chain_close(dap_chain_t * a_chain)
  */
 void dap_chain_info_dump_log(dap_chain_t * a_chain)
 {
-
+    UNUSED(a_chain);
 }
 
 /**

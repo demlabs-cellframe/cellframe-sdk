@@ -8,6 +8,6 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_BLOCK_CS_POA_SRCS} ${DAP_CHAIN_BL
 add_definitions ("-DDAP_CHAIN_BLOCK_CS_POA")
 
 
-target_link_libraries(dap_chain_cs_block_poa dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_cs_block )
+target_link_libraries(dap_chain_cs_block_poa dap_core dap_crypto dap_chain dap_chain_cs_block )
 target_include_directories(dap_chain_cs_block_poa INTERFACE .)
 

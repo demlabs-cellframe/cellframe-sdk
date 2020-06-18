@@ -264,10 +264,12 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
     return -1;
   }
 
-  dap_worker_t *w = a_es->dap_worker;
-  // worker not initialized yet
-  if(!w)
-	  return -2;
+  if( !a_es->dap_worker ) {
+      log_it( L_WARNING, "%s: socket %u has no worker thread", __PRETTY_FUNCTION__, a_es->socket );
+      a_es->kill_signal = true;
+      return 0;
+  }
+
   uint32_t tn = a_es->dap_worker->number_thread;
 
   //dap_events_t *d_ev = w->events;

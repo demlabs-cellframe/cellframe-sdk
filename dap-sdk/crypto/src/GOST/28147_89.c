@@ -4,6 +4,9 @@
  * @copyright InfoTeCS. All rights reserved.
  */
 
+#include <string.h>
+#include <stdint.h>
+
 #include "28147_89.h"
 
 /** @brief Конвертирует массив байт в int32

@@ -65,7 +65,7 @@ void dap_chain_cs_dag_deinit(void);
 int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);
 
-void dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag);
+bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
 void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag,

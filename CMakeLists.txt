@@ -2,8 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.1-4")
-include(cmake/OS_Detection.cmake)
+set(CELLFRAME_SDK_NATIVE_VERSION "2.3-4")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -11,6 +10,7 @@ set(DAPSDK_MODULES "")
 if (CELLFRAME_MODULES MATCHES "core")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
 endif()
+
 
 if (CELLFRAME_MODULES MATCHES "network")
     set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
@@ -24,6 +24,10 @@ if (BUILD_CRYPTO_TESTS)
 	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
     endif()
     set(BUILD_TESTS ON)
+endif()
+
+if(BUILD_TESTS)
+    include(cmake/OS_Detection.cmake)
 endif()
 
 add_subdirectory(dap-sdk)
@@ -45,7 +49,7 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet dap_chain_crypto)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet)
 endif()
 
 # Networking
@@ -105,6 +109,18 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-vpn")
     message("[+] Module 'srv-vpn'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn )
+endif()
+
+# Enable service eXchange
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    message("[+] Module 'srv-xchange'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange )
+endif()
+
+# Enable service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    message("[+] Module 'srv-stake'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
 endif()
 
 if (WIN32)

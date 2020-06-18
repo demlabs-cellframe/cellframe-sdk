@@ -23,6 +23,7 @@
 */
 #pragma once
 
+#include "dap_list.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
@@ -73,6 +74,12 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
  */
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_item);
 
+/**
+ * Create 'in' items from list and insert to transaction
+ *
+ * return summary value from inserted items
+ */
+uint64_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out);
 
 /**
  * Create 'in' item and insert to transaction
@@ -98,6 +105,14 @@ int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_h
  * return 1 Ok, -1 Error
  */
 int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint64_t a_value);
+
+/**
+ * Create 'out'_ext item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr,
+                                        uint64_t a_value, const char *a_token);
 
 /**
  * Create 'out_cond' item and insert to transaction

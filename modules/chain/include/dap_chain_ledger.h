@@ -41,6 +41,8 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
+
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION    0x0001
 
@@ -81,6 +83,13 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 
 int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+
+/**
+ * Check token ticker existance
+ *
+ */
+
+int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker);
 
 /**
  * Add new token datum
@@ -166,9 +175,16 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
         char *a_public_key, size_t a_public_key_size, dap_chain_hash_fast_t *a_tx_first_hash);
 
 // Get the transaction in the cache with the out_cond item
-const dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger,
-        dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash);
+dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_first_hash,
+                                                              dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx, char *a_token_ticker);
 
 // Get the value from all transactions in the cache with out_cond item
 uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr,
         dap_chain_tx_out_cond_t **tx_out_cond);
+
+// Get the list of 'out' items from previous transactions with summary value >= than a_value_need
+// Put this summary value to a_value_transfer
+dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                                       uint64_t a_value_need, uint64_t *a_value_transfer);
+// Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback);

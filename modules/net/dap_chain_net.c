@@ -22,7 +22,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+
 #include <stdlib.h>
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -59,10 +62,12 @@
 #include "dap_cert.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_srv_stake.h"
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
@@ -80,7 +85,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-//#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
 #define __USE_XOPEN
 #define _GNU_SOURCE
 #include <time.h>
@@ -115,10 +120,11 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_info_t * node_info; // Current node's info
 
     dap_chain_node_client_t * links;
-    size_t links_count;
 
     dap_chain_node_addr_t *links_addrs;
+    size_t links_count;
     size_t links_addrs_count;
+    size_t links_success;
 
     size_t addr_request_attempts;
     bool load_mode;
@@ -246,7 +252,8 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                                                      const size_t a_value_len)
 {
     (void) a_op_code;
-
+    UNUSED(a_prefix);
+    UNUSED(a_value_len);
     if (a_arg) {
         dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
         s_net_set_go_sync(l_net);
@@ -258,6 +265,37 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
             }
         }*/
     }
+    if (!a_value || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+        return;
+    }
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+    if (!strcmp(a_group, l_gdb_group_str)) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
+        if (l_order->version == 1) {
+            dap_chain_global_db_gr_del((char *)a_key, a_group);
+        } else {
+            dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
+            if (!dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+                DAP_DELETE(l_gdb_group_str);
+                return;
+            }
+            dap_chain_hash_fast_t l_pkey_hash;
+            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+                DAP_DELETE(l_gdb_group_str);
+                return;
+            }
+            dap_chain_addr_t l_addr = {};
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+            uint64_t l_solvency = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
+            if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+            }
+        }
+        DAP_DELETE(l_gdb_group_str);
+    }
 }
 
 /**
@@ -268,6 +306,8 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
  */
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id)
 {
+    UNUSED(a_chain);
+    UNUSED(a_id);
     if(!a_arg)
         return;
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
@@ -385,7 +425,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                 l_links_addrs_count * sizeof(dap_chain_node_addr_t));
 
                         // add linked nodes for connect
-                        for(uint16_t i = 0; i < min(4, l_cur_node_info->hdr.links_number); i++) {
+                        for(uint16_t i = 0; i < min(s_max_links_count, l_cur_node_info->hdr.links_number); i++) {
                             dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
                             //dap_chain_node_addr_t link_addr = l_cur_node_info->links[i];
                             dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
@@ -403,8 +443,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     }
                     // if no links then add root nodes for connect
                     if(!l_pvt_net->links_addrs_count){
-                        // use no more then 4 root node
-                        int l_use_root_nodes = min(4, l_pvt_net->seed_aliases_count);
+                        // use no more then s_max_links_count root node
+                        int l_use_root_nodes = min(s_max_links_count, l_pvt_net->seed_aliases_count);
                         l_pvt_net->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                                 l_use_root_nodes * sizeof(dap_chain_node_addr_t));
 
@@ -445,13 +485,18 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 log_it(L_WARNING,"Target state is NET_STATE_LINKS_PREPARE? Realy?");
                 l_pvt_net->state = NET_STATE_OFFLINE;
             }
+            l_pvt_net->links_success = 0;
         }
         break;
 
         case NET_STATE_LINKS_CONNECTING:{
             size_t l_links_count = l_pvt_net->links_count;
-            if(l_links_count >= s_required_links_count || (l_links_count + 1) >= s_max_links_count) {
-                // TODO what if other failed and we want more?
+            if (l_pvt_net->links_success >= s_required_links_count) {
+                log_it(L_INFO, "Synchronization done");
+                l_pvt_net->links_count = 0;
+                l_pvt_net->links_success = 0;
+                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
+                l_pvt_net->state = NET_STATE_ONLINE;
             }
             if (l_links_count < l_pvt_net->links_addrs_count) {
                 l_pvt_net->links_count++;
@@ -482,7 +527,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 }else {
                     log_it(L_DEBUG, "Cant establish link %u", l_links_count);
                     dap_chain_node_client_close(l_node_client);
-                    l_node_client = NULL;
+                    l_pvt_net->links = NULL;
                 }
             }
         }
@@ -570,7 +615,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if (res == 0) {
                 log_it(L_WARNING,"Can't send NODE_ADDR_REQUEST packet");
                 dap_chain_node_client_close(l_node_client);
-                l_node_client = NULL;
+                l_pvt_net->links = NULL;
                 l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                 break; // try with another link
             }
@@ -636,7 +681,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if (l_res == 0) {
                 log_it(L_WARNING, "Can't send GDB sync request");
                 dap_chain_node_client_close(l_node_client);
-                l_node_client = NULL;
+                l_pvt_net->links = NULL;
                 l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                 break;  //try another link
             }
@@ -661,8 +706,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if(l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
                 l_pvt_net->state = NET_STATE_SYNC_CHAINS;
             } else {
-                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-                l_pvt_net->state = NET_STATE_ONLINE;
+                l_pvt_net->links_success++;
+                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
             }
         }
         break;
@@ -685,7 +730,8 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 //l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_size);
                 //if( l_lasts ) {
                     l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
-                    dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
+                    dap_stream_ch_chain_sync_request_t l_request ;
+                    memset(&l_request, 0, sizeof (l_request));
                     //dap_hash_fast(l_lasts[0], l_chain->callback_atom_get_size(l_lasts[0]), &l_request.hash_from);
                     dap_stream_ch_chain_pkt_write(l_ch_chain,
                     DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id, l_chain->id,
@@ -715,7 +761,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         }
                         break;
                     default:
-                        log_it(L_INFO, "sync of chain '%s' error %d", l_chain->name,l_res);
+                        log_it(L_ERROR, "sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                     if (l_res) {
                         l_sync_errors++;
@@ -725,15 +771,12 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 //DAP_DELETE( l_atom_iter );
             }
             dap_chain_node_client_close(l_node_client);
-            l_node_client = NULL;
-            if (l_sync_errors) {
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                break;
+            l_pvt_net->links = NULL;
+            if (!l_sync_errors) {
+                l_pvt_net->links_success++;
             }
-            log_it(L_INFO, "Synchronization done");
-            l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-            l_pvt_net->state = NET_STATE_ONLINE;
-            l_pvt_net->links_count = 0;
+            l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
+            break;
         }
         break;
 
@@ -749,7 +792,6 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NET_STATE_ONLINE:
                 case NET_STATE_SYNC_GDB:
                 case NET_STATE_SYNC_CHAINS:
-                    // if flag set then go to SYNC_GDB
                     l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                     break;
                 default: break;
@@ -794,6 +836,9 @@ static void *s_net_proc_thread ( void *a_net )
 
         // check or start sync
         s_net_states_proc( l_net );
+        if (p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) {
+            continue;
+        }
         struct timespec l_to;
 #ifndef _WIN32
         int l_ret = 0;
@@ -1081,7 +1126,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 struct tm l_from_tm = {0};
 
                 const char *l_prev_sec_str = NULL;
-                time_t l_prev_sec_ts;
+                //time_t l_prev_sec_ts;
 
                 const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
 
@@ -1480,8 +1525,8 @@ int s_net_load(const char * a_net_name)
                         l_node_info->hdr.ext_port = 8079;
 
                     if ( l_seed_nodes_hostnames_len ){
-                        struct addrinfo l_hints={0}, *l_servinfo, *p;
-                        int rv;
+                        struct addrinfo l_hints={0};
+
                         l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
                         //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
 
@@ -1651,6 +1696,12 @@ int s_net_load(const char * a_net_name)
             }
             dap_list_free(l_prior_list);
 
+            const char* l_default_chain_name = dap_config_get_item_str(l_cfg , "general" , "default_chain");
+            if(l_default_chain_name)
+                l_net->pub.default_chain = dap_chain_net_get_chain_by_name(l_net, l_default_chain_name);
+            else
+                l_net->pub.default_chain = NULL;
+
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
             PVT(l_net)->load_mode = false;
@@ -1714,6 +1765,7 @@ int s_net_load(const char * a_net_name)
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
         }
         PVT(l_net)->load_mode = false;
+        PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 
         // Start the proc thread
         s_net_proc_thread_start(l_net);
@@ -1730,7 +1782,7 @@ void dap_chain_net_deinit()
 {
 }
 
-dap_chain_net_t **dap_chain_net_list(size_t *a_size)
+dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 {
     *a_size = HASH_COUNT(s_net_items);
     dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
@@ -1866,7 +1918,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
  */
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
-    return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.address: PVT(l_net)->node_addr;
+    return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.address : PVT(l_net)->node_addr;
 }
 
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
@@ -2104,7 +2156,7 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr)
 {
     dap_list_t *l_list_groups = NULL;
-    if(!PVT(a_net)->gdb_sync_nodes_addrs || !a_net)
+    if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
         return NULL;
     for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
         if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {
@@ -2154,6 +2206,11 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             dap_chain_datum_token_t * l_token = (dap_chain_datum_token_t*) a_datum->data;
             size_t l_token_size = a_datum->header.data_size;
+            if(l_token_size < sizeof(dap_chain_datum_token_t)){
+                dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %lu, while at least %lu is expected\n",
+                                         l_token_size, sizeof(dap_chain_datum_token_t));
+                return;
+            }
             dap_string_append_printf(a_str_out,"==Datum Token Declaration\n");
             dap_string_append_printf(a_str_out, "ticker: %s\n", l_token->ticker);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_token_size);
@@ -2210,7 +2267,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                                         char *l_hash_str = dap_chain_hash_fast_to_str_new(
                                                     (dap_chain_hash_fast_t*) l_tsd->data );
-                                        dap_string_append_printf(a_str_out,"total_signs_remoev: %s\n", l_hash_str );
+                                        dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
                                         dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %zd>\n", l_tsd->size);
@@ -2274,13 +2331,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                     dap_string_append_printf(a_str_out,"type: PRIVATE_DECL\n");
                     dap_string_append_printf(a_str_out,"flags: ");
                     dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_decl.flags);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(l_token, l_token_size);
-                    if (l_tsd == NULL)
+                    dap_chain_datum_token_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
+                    if (l_tsd_first == NULL)
                         dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
                     else{
                         size_t l_offset = 0;
                         size_t l_offset_max = l_token->header_private_decl.tsd_total_size;
                         while( l_offset< l_offset_max){
+                            dap_chain_datum_token_tsd_t * l_tsd = (void*)l_tsd_first + l_offset;
                             if ( (l_tsd->size+l_offset) >l_offset_max){
                                 log_it(L_WARNING, "<CORRUPTED TSD> too big size %zd when left maximum %zd",
                                        l_tsd->size, l_offset_max - l_offset);
@@ -2288,7 +2346,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                             }
                             switch( l_tsd->type){
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                                    dap_string_append_printf(a_str_out,"total_supply: %u\n",
+                                    dap_string_append_printf(a_str_out,"total_supply: %lu\n",
                                                              dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t) );
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
@@ -2325,6 +2383,9 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
 
                         }
                     }
+
+                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
                     dap_string_append_printf(a_str_out,"type: PUBLIC\n");

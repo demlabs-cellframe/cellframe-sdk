@@ -32,7 +32,7 @@ void test_encypt_decrypt(int count_steps, const dap_enc_key_type_t key_type, con
         randombytes(kex, kex_size);
 
         dap_enc_key_t* key = dap_enc_key_new_generate(key_type, kex, kex_size, seed, seed_size, cipher_key_size);
-        source_size = 1 + random_uint32_t(max_source_size);
+        source_size = 256;//1 + random_uint32_t(max_source_size);
 
         uint8_t *source = DAP_NEW_SIZE(uint8_t, source_size);
 

@@ -43,3 +43,11 @@ typedef struct dap_chain_tx_in{
 //    uint32_t seq_no; /// Sequence number, out of the header so could be changed during reorganization
 //    uint8_t sig[]; /// @param sig @brief raw signatura dat
 } DAP_ALIGN_PACKED dap_chain_tx_in_t;
+
+typedef struct list_used_item {
+    dap_chain_hash_fast_t tx_hash_fast;
+    uint32_t num_idx_out;
+    uint8_t padding[4];
+    uint64_t value;
+//dap_chain_tx_out_t *tx_out;
+} list_used_item_t;

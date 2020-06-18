@@ -27,7 +27,7 @@
 #include "dap_app_cli.h"
 #include "dap_events_socket.h"
 
-#define DAP_CLI_HTTP_RESPONSE_SIZE_MAX 8192
+#define DAP_CLI_HTTP_RESPONSE_SIZE_MAX 65536
 #define DAP_CLI_HTTP_TIMEOUT 10  // seconds
 #define DAP_CLI_ERROR_FORMAT    -1
 #define DAP_CLI_ERROR_TIMEOUT   -2
