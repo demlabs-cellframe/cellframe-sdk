@@ -77,6 +77,7 @@
 #include "dap_chain_net_srv.h"
 #ifndef _WIN32
 #include "dap_chain_net_news.h"
+#include "dap_chain_net_vpn_client.h"
 #endif
 #include "dap_chain_cell.h"
 

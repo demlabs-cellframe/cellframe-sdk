@@ -444,9 +444,9 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
             }
         }
 
-        int retVal = dap_chain_net_srv_vpn_cmd_init();
-
-        return retVal;
+        return 0;
+        //int retVal = dap_chain_net_srv_vpn_cmd_init();
+        //return retVal;
     }
     return -1;
 }
