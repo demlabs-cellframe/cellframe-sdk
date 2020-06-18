@@ -264,9 +264,12 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
     return -1;
   }
 
+  dap_worker_t *w = a_es->dap_worker;
+  // worker not initialized yet
+  if(!w)
+	  return -2;
   uint32_t tn = a_es->dap_worker->number_thread;
 
-  dap_worker_t *w = a_es->dap_worker;
   //dap_events_t *d_ev = w->events;
 
   pthread_mutex_lock( &w->locker_on_count );

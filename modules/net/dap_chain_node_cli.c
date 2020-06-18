@@ -996,7 +996,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // vpn client
     dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
-    "vpn_client [start -addr <server address> -port <server port>| stop | status]\n");
+    "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net name>\n");
 
 
     // Log

@@ -139,7 +139,7 @@ void dap_chain_net_srv_vpn_cdb_auth_set_callback(dap_enc_http_callback_t a_callb
  * @param a_password
  * @return
  */
-int dap_chain_net_srv_vpn_cdb_auth_check(const char * a_login, const char * a_password)
+int dap_chain_net_srv_vpn_cdb_auth_check_login(const char * a_login, const char * a_password)
 {
     int l_ret;
 
@@ -204,7 +204,7 @@ static int s_input_validation(const char * str)
  * @param a_str_reply
  * @return
  */
-int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply)
+int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user (    const char *a_user_str,int a_arg_index, int a_argc, char ** a_argv, char **a_str_reply)
 {
     int l_ret = 0;
     dap_string_t * l_ret_str = dap_string_new("");
@@ -319,7 +319,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd (    const char *a_user_str,int a_arg
         const char * l_password_str = NULL;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "--password", &l_password_str);
         if ( l_login_str && l_password_str) {
-            int l_check = dap_chain_net_srv_vpn_cdb_auth_check (l_login_str, l_password_str);
+            int l_check = dap_chain_net_srv_vpn_cdb_auth_check_login (l_login_str, l_password_str);
             if ( l_check == 0){
                 dap_string_append_printf(l_ret_str,"OK: Passed password check for '%s'\n",l_login_str );
                 l_ret = 0;
@@ -521,7 +521,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         return;
                     }
 
-                    int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check( l_login, l_password );
+                    int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_login( l_login, l_password );
                     switch (l_login_result) {
                         case 0:{
                             size_t l_tmp_size;

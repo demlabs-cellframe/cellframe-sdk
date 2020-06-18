@@ -226,9 +226,9 @@ static int s_cli_vpn_cdb(int a_argc, char ** a_argv, void *arg_func, char **a_st
     dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "user", &l_user_str);
 
 
-    // Selected 'user' subcoummand
+    // Selected 'user' subcommand
     if ( l_user_str ){
-        return dap_chain_net_srv_vpn_cdb_auth_cli_cmd(l_user_str,l_arg_index,  a_argc,  a_argv,a_str_reply);
+        return dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(l_user_str,l_arg_index,  a_argc,  a_argv,a_str_reply);
     }
     return l_ret;
 }

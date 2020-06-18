@@ -29,11 +29,22 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_vpn.h"
 
+typedef enum dap_chain_net_vpn_client_status_enum{
+    VPN_CLIENT_STATUS_NOT_STARTED=0,
+    VPN_CLIENT_STATUS_STARTED,
+    VPN_CLIENT_STATUS_STOPPED,
+    VPN_CLIENT_STATUS_CONN_LOST,
+} dap_chain_net_vpn_client_status_t;
+
+
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void);
+
+int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet_name, const char *a_str_token, uint64_t a_value_datoshi);
+int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wallet_name, char **a_str_token, uint64_t *a_value_datoshi);
 
 int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port);
 int dap_chain_net_vpn_client_stop(void);
-int dap_chain_net_vpn_client_status(void);
+dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void);
 
 int dap_chain_net_vpn_client_init(dap_config_t * g_config);
 void dap_chain_net_vpn_client_deinit();

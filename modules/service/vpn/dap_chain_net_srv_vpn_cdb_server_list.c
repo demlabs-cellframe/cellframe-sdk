@@ -156,7 +156,7 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
     dap_string_t *l_reply_str = dap_string_new("[\n");
 
 
-    char *l_client_ip = a_http_simple->http->client->s_ip;//"77.222.110.44"
+    char *l_client_ip = a_http_simple->http->client->s_ip;//"134.209.97.195"
     geoip_info_t *l_geoip_info = chain_net_geoip_get_ip_info(l_client_ip);
 
     log_it(L_DEBUG, "Have %zd chain networks for cdb lists", s_cdb_net_count );
@@ -232,11 +232,22 @@ static void s_http_simple_proc(dap_http_simple_t *a_http_simple, void *a_arg)
 
             int8_t l_client_continent = l_geoip_info ? dap_chain_net_srv_order_continent_to_num(l_geoip_info->continent) : 0;
             // random node on client's continent
-			if (l_client_continent) {
+			if (l_client_continent>0 && l_continents_numbers[l_client_continent]>1) {
 				int l_count = 0;
 				while (l_orders_num > 0) {
 					size_t k = rand() % l_continents_numbers[l_client_continent];
-					dap_chain_net_srv_order_t *l_order = l_orders_pos[k];
+					size_t l_node_pos = -1;
+                    for(size_t j2 = 0; j2 <= l_orders_num; j2++) {
+                        if(k == l_node_numbering[l_client_continent][j2]) {
+                            l_node_pos = j2;
+                            break;
+                        }
+                    }
+                    if(l_node_pos == -1){
+                        // random node for the whole world
+                        l_node_pos = rand() % l_orders_num;
+                    }
+                    dap_chain_net_srv_order_t *l_order = l_orders_pos[l_node_pos];
 					const char *country_code = dap_chain_net_srv_order_get_country_code(l_order);
 					if (country_code) {
 						// only for other countries
