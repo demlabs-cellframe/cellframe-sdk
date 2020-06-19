@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -42,19 +43,30 @@
 #include "dap_chain_node_client.h"
 
 #include "dap_stream_ch_proc.h"
+//#include "dap_stream_ch_chain_net_srv.h"
 
+#include "dap_chain_common.h"
+#include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_net_srv_vpn_cdb.h" // for DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX
 #include "dap_chain_net_vpn_client.h"
 
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_chain_net_srv.h"
+//#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_net_vpn_client_tun.h"
+//#include "dap_chain_net_vpn_client_data.h"
 
-typedef enum dap_http_client_state {
-    DAP_HTTP_CLIENT_STATE_NONE = 0,
-    DAP_HTTP_CLIENT_STATE_START = 1,
-    DAP_HTTP_CLIENT_STATE_HEADERS = 2,
-    DAP_HTTP_CLIENT_STATE_DATA = 3
-} dap_http_client_state_t;
+/*
+ #if !defined( dap_http_client_state_t )
+ typedef enum dap_http_client_state {
+ DAP_HTTP_CLIENT_STATE_NONE = 0,
+ DAP_HTTP_CLIENT_STATE_START = 1,
+ DAP_HTTP_CLIENT_STATE_HEADERS = 2,
+ DAP_HTTP_CLIENT_STATE_DATA = 3
+ } dap_http_client_state_t;
+ #endif
+ */
 
 #define LOG_TAG "vpn_client"
 
@@ -72,44 +84,223 @@ dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
     if(!s_vpn_client)
         return NULL;
-    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN );
+    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN);
     return l_stream;
 }
 
-
-
 /// TODO convert below callback to processor of stage
 /*
-void s_stage_callback()
+ void s_stage_callback()
+ {
+ char* l_full_path = NULL;
+ const char * l_path = "stream";
+ const char *l_suburl = "globaldb";
+ int l_full_path_size = snprintf(l_full_path, 0, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
+ dap_client_get_stream_id(a_client_pvt->client));
+ l_full_path = DAP_NEW_Z_SIZE(char, l_full_path_size + 1);
+ snprintf(l_full_path, l_full_path_size + 1, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
+ dap_client_get_stream_id(a_client_pvt->client));
+
+ //dap_client_request(a_client_pvt->client, l_full_path, "12345", 0, m_stream_response, m_stream_error);
+
+ const char *l_add_str = "";
+ // if connect to vpn server
+ const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
+ if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
+ l_add_str = "\r\nService-Key: test";
+
+ {
+ char *l_message = dap_strdup_printf("GET /%s HTTP/1.1\r\nHost: %s:%d%s\r\n\r\n",
+ l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
+ size_t l_message_size = dap_strlen(l_message);
+ int count = send(a_client_pvt->stream_socket, l_message, l_message_size, 0);
+ DAP_DELETE(l_message);
+ }
+ DAP_DELETE(l_full_path);
+
+ }*/
+
+/**
+ * Get tx_cond_hash
+ *
+ * return: 0 Ok, 1 Already started, <0 Error
+ */
+static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_net_t *a_net,
+        dap_chain_wallet_t *a_wallet, const char *a_token_ticker, uint64_t a_value_datoshi)
 {
-    char* l_full_path = NULL;
-    const char * l_path = "stream";
-    const char *l_suburl = "globaldb";
-    int l_full_path_size = snprintf(l_full_path, 0, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
-            dap_client_get_stream_id(a_client_pvt->client));
-    l_full_path = DAP_NEW_Z_SIZE(char, l_full_path_size + 1);
-    snprintf(l_full_path, l_full_path_size + 1, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
-            dap_client_get_stream_id(a_client_pvt->client));
+    uint8_t *l_pkey_b64 = NULL;
+    size_t l_pkey_b64_size = 0;
 
-    //dap_client_request(a_client_pvt->client, l_full_path, "12345", 0, m_stream_response, m_stream_error);
+    // Try to load from gdb
+    size_t l_gdb_group_size = 0;
+    char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+    dap_chain_hash_fast_t *l_tx_cond_hash = (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(
+            dap_strdup("client_tx_cond_hash"), &l_gdb_group_size, l_gdb_group);
 
-    const char *l_add_str = "";
-    // if connect to vpn server
-    const char l_active_vpn_channels[] = { VPN_CLIENT_ID, 0 };
-    if(!dap_strcmp(a_client_pvt->active_channels, l_active_vpn_channels))
-        l_add_str = "\r\nService-Key: test";
-
-    {
-        char *l_message = dap_strdup_printf("GET /%s HTTP/1.1\r\nHost: %s:%d%s\r\n\r\n",
-                l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
-        size_t l_message_size = dap_strlen(l_message);
-        int count = send(a_client_pvt->stream_socket, l_message, l_message_size, 0);
-        DAP_DELETE(l_message);
+    time_t l_tx_cond_ts = 0;
+    // Check for entry size
+    if(l_tx_cond_hash && l_gdb_group_size && l_gdb_group_size != sizeof(dap_chain_hash_fast_t)) {
+        log_it(L_ERROR, "Wrong size of tx condition on database (%zd but expected %zd), may be old entry",
+                l_gdb_group_size, sizeof(dap_chain_hash_fast_t));
+        l_tx_cond_hash = NULL;
     }
-    DAP_DELETE(l_full_path);
+    // If loaded lets check is it spent or not
+    if(l_tx_cond_hash) {
+        log_it(L_DEBUG, "2791: Search for unspent tx, net %s", a_net);
+        dap_chain_datum_tx_t *l_tx = dap_chain_net_get_tx_by_hash(a_net, l_tx_cond_hash, TX_SEARCH_TYPE_NET_UNSPENT);
+        if(!l_tx) { // If not found - all outs are used. Create new one
+            // pass all chains
+            l_tx = dap_chain_net_get_tx_by_hash(a_net, l_tx_cond_hash, TX_SEARCH_TYPE_NET);
+            DAP_DELETE(l_tx_cond_hash);
+            l_tx_cond_hash = NULL;
+            if(l_tx) {
+                l_tx_cond_ts = (time_t) l_tx->header.ts_created;
+                log_it(L_DEBUG, "2791: got some tx, created %d", l_tx->header.ts_created);
+            }
+        }
+    }
+    if(l_tx_cond_hash)
+        return l_tx_cond_hash;
 
-}*/
+    //l_pkey_b64 = (char*) dap_chain_global_db_gr_get(dap_strdup("client_pkey"), &l_gdb_group_size, l_gdb_group);
+    dap_enc_key_t *l_enc_key = NULL;
+    if(a_wallet) {
+        l_enc_key = dap_chain_wallet_get_key(a_wallet, 0);
+    }
+    // use default pkey
+    else {
 
+    }
+    /*
+     // generate new pub key
+     if(!l_pkey_b64){
+     //if(!l_pub_key_data || !l_pub_key_data_size){
+     char *l_certs_name_str = dap_strdup_printf("client.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+     dap_cert_t ** l_certs = NULL;
+     size_t l_certs_size = 0;
+     dap_cert_t * l_cert = NULL;
+     // Load certs or create if not found
+     if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) { // Load certs
+     const char *l_cert_folder = dap_cert_get_folder(0);
+     // create new cert
+     if(l_cert_folder) {
+     char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
+     l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
+     DAP_DELETE(l_cert_path);
+     }
+     }
+     if(l_certs_size > 0)
+     l_cert = l_certs[0];
+     if(l_cert) {
+     size_t l_pub_key_data_size = 0;
+     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+     // save pub key
+     if(l_pub_key_data && l_pub_key_data_size > 0){
+     if(dap_chain_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
+     l_gdb_group)){
+     l_pkey_b64 = l_pub_key_data;
+     l_pkey_b64_size = l_pub_key_data_size;
+     }
+     else
+     DAP_DELETE(l_pub_key_data);
+     }
+     }
+     DAP_DELETE(l_certs_name_str);
+     }*/
+
+    if(!l_enc_key)
+        return NULL;
+
+    // Try to create condition
+    if(!l_tx_cond_hash) {
+        dap_chain_wallet_t *l_wallet_from = a_wallet;
+        log_it(L_DEBUG, "Create tx from wallet %s", l_wallet_from->name);
+        dap_enc_key_t *l_key_from = l_enc_key; //dap_chain_wallet_get_key(l_wallet_from, 0);
+        dap_enc_key_t *l_client_key = l_enc_key;
+        //dap_chain_cell_id_t *xccell = dap_chain_net_get_cur_cell(l_tpl->net);
+        //uint64_t uint64 =dap_chain_net_get_cur_cell(l_tpl->net)->uint64;
+
+        size_t l_pub_key_data_size = 0;
+        uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_enc_key, &l_pub_key_data_size);
+        // where to take coins for service
+        dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, a_net->pub.id);
+        dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
+        dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+        l_tx_cond_hash = dap_chain_proc_tx_create_cond(a_net, l_key_from, l_client_key, l_addr_from,
+                a_token_ticker, a_value_datoshi, 0, l_price_unit, l_srv_uid, 0, l_pub_key_data, l_pub_key_data_size);
+        //char *l_addr_from_str = dap_chain_addr_to_str(l_addr_from);
+        DAP_DELETE(l_addr_from);
+        if(!l_tx_cond_hash) {
+            log_it(L_ERROR, "Can't create condition for user");
+        } else {
+            // save transaction for login
+            dap_chain_global_db_gr_set("client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t),
+                    l_gdb_group);
+        }
+        //DAP_DELETE(l_addr_from_str);
+        DAP_DELETE(l_pub_key_data);
+    }
+    DAP_DELETE(l_tx_cond_hash);
+    dap_enc_key_delete(l_enc_key);
+    DAP_DELETE(l_gdb_group);
+    return l_tx_cond_hash;
+}
+
+/**
+ * Init VPN client
+ *
+ * return: 0 Ok, 1 Ok, <0 Error
+ */
+
+int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet_name, const char *a_str_token,
+        uint64_t a_value_datoshi)
+{
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, dap_chain_wallet_get_path(g_config));
+    if(!l_wallet) {
+        return -1;
+    }
+    size_t l_gdb_group_size = 0;
+    char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+    if(!dap_chain_global_db_gr_set(dap_strdup("wallet_name"), (void*) a_wallet_name, dap_strlen(a_wallet_name) + 1,
+            l_gdb_group))
+        return -2;
+    if(!dap_chain_global_db_gr_set(dap_strdup("token_name"), (void*) a_str_token, dap_strlen(a_str_token) + 1,
+            l_gdb_group))
+        return -2;
+    if(!dap_chain_global_db_gr_set(dap_strdup("value_datoshi"), &a_value_datoshi, sizeof(a_value_datoshi), l_gdb_group))
+        return -2;
+    DAP_DELETE(l_gdb_group);
+    dap_chain_hash_fast_t *l_hash = dap_chain_net_vpn_client_tx_cond_hash(a_net, l_wallet, a_str_token,
+            a_value_datoshi);
+    dap_chain_wallet_close(l_wallet);
+    if(!l_hash)
+        return -3;
+    DAP_DELETE(l_hash);
+    return 0;
+}
+
+/**
+ * Init VPN client
+ *
+ * return: 0 Ok, 1 Ok, <0 Error
+ */
+
+int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wallet_name, char **a_str_token,
+        uint64_t *a_value_datoshi)
+{
+    size_t l_gdb_group_size = 0;
+    char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+    if(a_wallet_name)
+        *a_wallet_name = (char*) dap_chain_global_db_gr_get("wallet_name", NULL, l_gdb_group);
+    if(a_str_token)
+        *a_str_token = (char*) dap_chain_global_db_gr_get("token_name", NULL, l_gdb_group);
+    if(a_value_datoshi) {
+        uint64_t *l_value_datoshi = (uint64_t*) dap_chain_global_db_gr_get("value_datoshi", NULL, l_gdb_group);
+        *a_value_datoshi = l_value_datoshi ? *l_value_datoshi : 0;
+        DAP_DELETE(l_value_datoshi);
+    }
+    return 0;
+}
 
 /**
  * Start VPN client
@@ -121,28 +312,16 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     int l_ret = 0;
     if(!a_ipv4_str) // && !a_ipv6_str)
         return -1;
-    /*
-     dap_client_t *l_client = DAP_NEW_Z(dap_client_t);
-     dap_events_t *l_events = NULL; //dap_events_new();
-     l_client = dap_client_new(l_events, s_stage_status_callback, s_stage_status_error_callback);
-     char l_channels[2] = { VPN_CLIENT_ID, 0 };
-     dap_client_set_active_channels(l_client, l_channels);
-     dap_client_set_uplink(l_client, strdup(a_ip_v4), a_port);
-     dap_client_go_stage(l_client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
-     */
-
     if(!s_node_info)
         s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     s_node_info->hdr.ext_port = a_port;
 
     dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
-    const char l_active_channels[] = { DAP_STREAM_CH_ID_NET_SRV_VPN , 0 };
+    const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), DAP_STREAM_CH_ID_NET_SRV_VPN, 0 }; //R, S
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
-
-
 
     s_vpn_client = dap_chain_client_connect(s_node_info, l_stage_target, l_active_channels);
     if(!s_vpn_client) {
@@ -154,7 +333,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
         return -2;
     }
     // wait connected
-    int timeout_ms = 500000; //5 sec = 5000 ms
+    int timeout_ms = 5000; //5 sec = 5000 ms
     int res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
     if(res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
@@ -168,69 +347,28 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
 
     // send first packet to server
-//    if(0)
     {
-        dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
-        if(l_ch) { // Is present in hash table such destination address
-            size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
-            ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
-
-            pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST;
-            //pkt_out->header.sock_id = l_stream->stream->events_socket->socket;
-            //pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
-            //pkt_out->header.op_connect.port = a_port;
-            //memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
-            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                    pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        if(l_ch) {
+            dap_stream_ch_chain_net_srv_pkt_request_t l_request;
+            memset(&l_request, 0, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+            l_request.hdr.net_id.uint64 = a_net->pub.id.uint64;
+            l_request.hdr.srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
+            dap_chain_hash_fast_t *l_tx_cond = dap_chain_net_vpn_client_tx_cond_hash(a_net, NULL, NULL, 0);
+            if(l_tx_cond) {
+                memcpy(&l_request.hdr.tx_cond, l_tx_cond, sizeof(dap_chain_hash_fast_t));
+                DAP_DELETE(l_tx_cond);
+            }
+            // set srv id
+            dap_stream_ch_chain_net_srv_set_srv_uid(l_ch, l_request.hdr.srv_uid);
+            //dap_chain_hash_fast_t l_request
+            //.hdr.tx_cond = a_txCond.value();
+//    	    strncpy(l_request->hdr.token, a_token.toLatin1().constData(),sizeof (l_request->hdr.token)-1);
+            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST, &l_request, sizeof(l_request));
             dap_stream_ch_set_ready_to_write(l_ch, true);
-            DAP_DELETE(pkt_out);
         }
     }
-
-    /*    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, VPN_CLIENT_ID);//dap_stream_ch_chain_get_id());
-     size_t l_res = dap_stream_ch_chain_pkt_write(l_stream,
-     VPN_PACKET_OP_CODE_CONNECT, a_net->pub.id, (dap_chain_id_t ) { { 0 } },
-     a_net->pub.cell_id, NULL, 0);*/
-
-    //return l_ret;
-    // send connect packet to server
-    /*    {
-     dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
-     if(l_stream) { // Is present in hash table such destination address
-     size_t l_ipv4_str_len = dap_strlen(a_ipv4_str);
-     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
-
-     pkt_out->header.op_code = VPN_PACKET_OP_CODE_CONNECT;
-     pkt_out->header.sock_id = l_stream->stream->events_socket->socket;
-     pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
-     pkt_out->header.op_connect.port = a_port;
-     memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
-
-     //            pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
-     //            pkt_out->header.sock_id = 123;
-     //            pkt_out->header.op_data.data_size = 0;
-     //memcpy(pkt_out->data, 0, 0);
-     dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
-     pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-     dap_stream_ch_set_ready_to_write(l_stream, true);
-     DAP_DELETE(pkt_out);
-     }
-     }*/
-
-    //l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
-    /*    {
-     dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream();
-     if(l_stream) { // Is present in hash table such destination address
-     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + 0);
-     pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
-     pkt_out->header.sock_id = 123;
-     pkt_out->header.op_data.data_size = 0;
-     //memcpy(pkt_out->data, 0, 0);
-     dap_stream_ch_pkt_write(l_stream, DATA_CHANNEL_ID, pkt_out,
-     pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-     dap_stream_ch_set_ready_to_write(l_stream, true);
-     }
-     }*/
 
     return l_ret;
 }
@@ -238,7 +376,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
 int dap_chain_net_vpn_client_stop(void)
 {
     // delete connection with VPN server
-    if(!s_vpn_client) {
+    if(s_vpn_client) {
         dap_chain_node_client_close(s_vpn_client);
         s_vpn_client = NULL;
     }
@@ -249,12 +387,20 @@ int dap_chain_net_vpn_client_stop(void)
     return l_ret;
 }
 
-int dap_chain_net_vpn_client_status(void)
+dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void)
 {
+    if(s_vpn_client) {
+        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        if(!l_ch)
+            return VPN_CLIENT_STATUS_CONN_LOST;
+    }
+    else
+        return VPN_CLIENT_STATUS_NOT_STARTED;
     if(!dap_chain_net_vpn_client_tun_status())
         // VPN client started
-        return 1;
-    return 0;
+        return VPN_CLIENT_STATUS_STARTED;
+    return VPN_CLIENT_STATUS_STOPPED;
 }
 
 static void vpn_socket_delete(ch_vpn_socket_proxy_t * sf)
@@ -263,18 +409,6 @@ static void vpn_socket_delete(ch_vpn_socket_proxy_t * sf)
     pthread_mutex_destroy(&(sf->mutex));
     if(sf)
         free(sf);
-}
-
-static void send_pong_pkt(dap_stream_ch_t* a_ch)
-{
-//    log_it(L_DEBUG,"---------------------------------- PONG!");
-    ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
-    pkt_out->header.op_code = VPN_PACKET_OP_CODE_PONG;
-
-    dap_stream_ch_pkt_write(a_ch, 'd', pkt_out,
-            pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-    dap_stream_ch_set_ready_to_write(a_ch, true);
-    free(pkt_out);
 }
 
 /**
@@ -301,30 +435,32 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
 //           ,remote_sock_id, l_sf_pkt->header.op_code, l_sf_pkt_data_size );
     if(l_sf_pkt->header.op_code >= 0xb0) { // Raw packets
         switch (l_sf_pkt->header.op_code) {
-        case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
-            if(ch_sf_tun_addr_leased(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size) < 0) {
-                log_it(L_WARNING, "Can't create tun");
-            }
-        }
-            break;
-        case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: // Client request after L3 connection the new IP address
-            log_it(L_WARNING, "Got VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST packet with id %d, it's very strange' ",
-                    remote_sock_id);
-            break;
-        case VPN_PACKET_OP_CODE_VPN_SEND:
-            log_it(L_WARNING, "Got VPN_PACKET_OP_CODE_VPN_SEND packet with id %d, it's very strange' ", remote_sock_id);
+        /*        case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
+         if(ch_sf_tun_addr_leased(CH_VPN(a_ch), l_sf_pkt, l_sf_pkt_data_size) < 0) {
+         log_it(L_WARNING, "Can't create tun");
+         }
+         }
+         break;
+         case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: // Client request after L3 connection the new IP address
+         log_it(L_WARNING, "Got VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST packet with id %d, it's very strange' ",
+         remote_sock_id);
+         break;
+         case VPN_PACKET_OP_CODE_VPN_SEND:
+         log_it(L_WARNING, "Got VPN_PACKET_OP_CODE_VPN_SEND packet with id %d, it's very strange' ", remote_sock_id);
 
-        case VPN_PACKET_OP_CODE_VPN_RECV:
-            a_ch->stream->events_socket->last_ping_request = time(NULL); // not ping, but better  ;-)
-            ch_sf_tun_send(CH_VPN(a_ch), l_sf_pkt->data, l_sf_pkt->header.op_data.data_size);
-            break;
-        case VPN_PACKET_OP_CODE_PING:
-            a_ch->stream->events_socket->last_ping_request = time(NULL);
-            send_pong_pkt(a_ch);
-            break;
-        case VPN_PACKET_OP_CODE_PONG:
-            a_ch->stream->events_socket->last_ping_request = time(NULL);
-            break;
+         case VPN_PACKET_OP_CODE_VPN_RECV:
+         a_ch->stream->events_socket->last_ping_request = time(NULL); // not ping, but better  ;-)
+         ch_sf_tun_send(CH_VPN(a_ch), l_sf_pkt->data, l_sf_pkt->header.op_data.data_size);
+         break;*/
+        /*
+         case VPN_PACKET_OP_CODE_PING:
+         a_ch->stream->events_socket->last_ping_request = time(NULL);
+         send_pong_pkt(a_ch);
+         break;
+         case VPN_PACKET_OP_CODE_PONG:
+         a_ch->stream->events_socket->last_ping_request = time(NULL);
+         break;
+         */
         default:
             log_it(L_WARNING, "Can't process SF type 0x%02x", l_sf_pkt->header.op_code);
         }
@@ -540,7 +676,8 @@ void dap_chain_net_vpn_client_pkt_out(dap_stream_ch_t* a_ch)
             for(i = 0; i < l_cur->pkt_out_size; i++) {
                 ch_vpn_pkt_t * pout = l_cur->pkt_out[i];
                 if(pout) {
-                    if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout, pout->header.op_data.data_size + sizeof(pout->header))) {
+                    if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout,
+                            pout->header.op_data.data_size + sizeof(pout->header))) {
                         l_is_smth_out = true;
                         if(pout)
                             free(pout);
@@ -587,8 +724,7 @@ void dap_chain_net_vpn_client_pkt_out(dap_stream_ch_t* a_ch)
 int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 {
     pthread_mutex_init(&sf_socks_mutex, NULL);
-
-    return 0;
+    return dap_chain_net_srv_client_vpn_init(g_config);
 }
 
 void dap_chain_net_vpn_client_deinit()

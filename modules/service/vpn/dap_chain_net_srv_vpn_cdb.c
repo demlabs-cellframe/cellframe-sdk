@@ -234,7 +234,7 @@ static int s_cli_vpn_cdb(int a_argc, char ** a_argv, void *arg_func, char **a_st
     int l_serial_pos = dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "serial", &l_serial_add_param_str);
 
 
-    // Selected 'user' subcoummand
+    // Selected 'user' subcommand
     if ( l_user_str ){
         l_ret = 0;
         return dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(l_user_str,l_arg_index,  a_argc,  a_argv,a_str_reply);

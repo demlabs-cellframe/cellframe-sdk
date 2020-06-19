@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include "dap_chain_common.h"
+
 int dap_stream_ch_chain_net_srv_init(void);
 void dap_stream_ch_chain_net_srv_deinit(void);
 
+void dap_stream_ch_chain_net_srv_set_srv_uid(dap_stream_ch_t* a_ch, dap_chain_net_srv_uid_t a_srv_uid);

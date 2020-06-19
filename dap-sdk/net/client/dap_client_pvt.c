@@ -408,8 +408,12 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     l_key_str, DAP_ENC_DATA_TYPE_B64);
 
             log_it(L_DEBUG, "ENC request size %u", l_key_str_enc_size);
-            dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
+            int l_res = dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
                     l_key_str, l_key_str_enc_size, m_enc_init_response, m_enc_init_error);
+            // bad request
+            if(l_res<0){
+            	a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+            }
             DAP_DELETE(l_key_str);
         }
             break;
@@ -668,7 +672,7 @@ void dap_client_pvt_stage_transaction_begin(dap_client_pvt_t * a_client_internal
  * @param a_request_size
  * @param a_response_proc
  */
-void dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_path, void * a_request,
+int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_path, void * a_request,
         size_t a_request_size, dap_client_callback_data_size_t a_response_proc,
         dap_client_callback_int_t a_response_error)
 {
@@ -689,11 +693,14 @@ void dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a
 //        l_url = DAP_NEW_Z_SIZE(char, l_url_size_max);
 //        snprintf(l_url, l_url_size_max, "http://%s:%u", a_client_internal->uplink_addr, a_client_internal->uplink_port);
 //    }
-    dap_client_http_request(a_client_internal->uplink_addr,a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text", a_path, a_request,
+    void *l_ret = dap_client_http_request(a_client_internal->uplink_addr,a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text", a_path, a_request,
             a_request_size, NULL, m_request_response, m_request_error, a_client_internal, NULL);
 //    a_client_internal->curl = dap_http_client_simple_request(l_url, a_request ? "POST" : "GET", "text/text", a_request,
 //            a_request_size, NULL, m_request_response, m_request_error, &a_client_internal->curl_sockfd, a_client_internal, NULL);
 //    DAP_DELETE(l_url);
+    if(l_ret)
+    	return 0;
+    return -1;
 }
 
 /**

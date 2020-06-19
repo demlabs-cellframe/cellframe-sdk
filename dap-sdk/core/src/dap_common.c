@@ -166,8 +166,9 @@ static char* s_appname = NULL;
 
 DAP_STATIC_INLINE void s_update_log_time(char *a_datetime_str) {
     time_t t = time(NULL);
-    struct tm *tmptime = localtime(&t);
-    strftime(a_datetime_str, 32, "[%x-%X]", tmptime);
+    struct tm tmptime;
+    if(localtime_r(&t, &tmptime))
+        strftime(a_datetime_str, 32, "[%x-%X]", &tmptime);
 }
 
 /**

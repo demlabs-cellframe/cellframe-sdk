@@ -73,6 +73,7 @@ static char *s_last_used_connection_name = NULL, *s_last_used_connection_device 
 
 static pthread_t s_thread_read_tun_id;
 static pthread_mutex_t s_clients_mutex;
+static dap_events_socket_t * s_tun_events_socket = NULL;
 
 //list_addr_element * list_addr_head = NULL;
 //ch_sf_tun_server_t * m_tun_server = NULL;
@@ -146,13 +147,20 @@ static char* get_def_gateway(void)
  *
  * return: connection name or NULL
  */
-static char* get_connection(const char *a_conn_name)
+static char* get_connection(const char *a_conn_name, char **a_connection_dev)
 {
     if(!a_conn_name)
         return NULL;
+    // NAME                UUID                                  TYPE      DEVICE
+    //nodeVPNClient       a2b4cbc4-b8d2-4dd9-ac7f-81d9bf6fa276  tun       --
     char *l_cmd = dap_strdup_printf("nmcli connection show | grep %s | awk '{print $1}'", a_conn_name);
     char* l_connection_name = run_bash_cmd(l_cmd);
     DAP_DELETE(l_cmd);
+    if(a_connection_dev) {
+        l_cmd = dap_strdup_printf("nmcli connection show | grep %s | awk '{print $4}'", a_conn_name);
+        *a_connection_dev = run_bash_cmd(l_cmd);
+        DAP_DELETE(l_cmd);
+    }
     return l_connection_name;
 }
 
@@ -363,6 +371,71 @@ int dap_chain_net_vpn_client_tun_init(const char *a_ipv4_server_str)
     return 0;
 }
 
+
+static void m_client_tun_delete(dap_events_socket_t * a_es, void * arg)
+{
+  log_it(L_DEBUG, __PRETTY_FUNCTION__);
+  //dap_chain_net_vpn_client_tun_delete();
+  log_it(L_NOTICE, "Raw sockets listen thread is stopped");
+}
+
+static void m_client_tun_write(dap_events_socket_t * a_es, void * arg)
+{
+//    log_it(L_WARNING, __PRETTY_FUNCTION__);
+}
+
+static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
+{
+    const static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
+    uint8_t l_tmp_buf[tun_MTU];
+
+    size_t l_read_ret;
+    log_it(L_WARNING, __PRETTY_FUNCTION__);
+
+    do{
+        l_read_ret = dap_events_socket_read(a_es, l_tmp_buf, sizeof(l_tmp_buf));
+
+        if(l_read_ret > 0) {
+            struct iphdr *iph = (struct iphdr*) l_tmp_buf;
+            struct in_addr in_daddr, in_saddr;
+            in_daddr.s_addr = iph->daddr;
+            in_saddr.s_addr = iph->saddr;
+            char str_daddr[42], str_saddr[42];
+            dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
+            dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
+
+            dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream_ch();
+            if(l_stream) {
+                // form packet to vpn-server
+                ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_read_ret);
+                pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND; //VPN_PACKET_OP_CODE_VPN_RECV
+                pkt_out->header.sock_id = s_fd_tun;
+                pkt_out->header.op_data.data_size = l_read_ret;
+                memcpy(pkt_out->data, l_tmp_buf, l_read_ret);
+
+                pthread_mutex_lock(&s_clients_mutex);
+                // sent packet to vpn server
+                dap_stream_ch_pkt_write(l_stream, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                        pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+                dap_stream_ch_set_ready_to_write(l_stream, true);
+                pthread_mutex_unlock(&s_clients_mutex);
+
+                DAP_DELETE(pkt_out);
+            }
+            else {
+                log_it(L_DEBUG, "No remote client for income IP packet with addr %s", inet_ntoa(in_daddr));
+            }
+        }
+    }while(l_read_ret > 0);
+
+    dap_events_socket_set_readable(a_es, true);
+}
+
+static void m_client_tun_error(dap_events_socket_t * a_es, void * arg)
+{
+  log_it(L_DEBUG, __PRETTY_FUNCTION__);
+}
+
 int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char *a_ipv4_gw_str)
 {
     //    char dev[IFNAMSIZ] = { 0 };
@@ -382,9 +455,11 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     char *l_cmd_del_gw = dap_strdup_printf("ip route del default via %s", s_cur_gw);
     char *l_cmd_ret = run_bash_cmd(l_cmd_del_gw);
     DAP_DELETE(l_cmd_del_gw);
-    if(!l_cmd_del_gw) {
-        log_it(L_ERROR, "Can't delete dafault gateway %s)", s_cur_gw);
-        DAP_DELETE(s_cur_gw);
+    // check gateway
+    char *s_cur_gw_tmp = get_def_gateway();
+    if(s_cur_gw_tmp) {
+        log_it(L_ERROR, "Can't delete default gateway %s)", s_cur_gw);
+        DAP_DELETE(s_cur_gw_tmp);
         return -3;
     }
     DAP_DELETE(l_cmd_ret);
@@ -397,8 +472,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     disableIPV6(s_last_used_connection_device);
 
     // add new default gateway for vpn-server address
-    if(!is_local_address(s_cur_ipv4_server))
-            {
+    if(!is_local_address(s_cur_ipv4_server)) {
         // This route don't need if address is local
         char *l_str_cmd = dap_strdup_printf("route add -host %s gw %s metric 10", s_cur_ipv4_server, s_cur_gw);
         char *l_cmd_ret = run_bash_cmd(l_str_cmd);
@@ -407,7 +481,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     }
 
     // check and delete present connection
-    char *l_conn_present = get_connection(s_conn_name);
+    char *l_conn_present = get_connection(s_conn_name, NULL);
     if(!dap_strcmp(l_conn_present, s_conn_name)) {
         char *l_str_cmd = dap_strdup_printf("nmcli c delete %s", s_conn_name);
         exe_bash_cmd(l_str_cmd);
@@ -422,7 +496,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
                 "nmcli connection add type tun con-name %s autoconnect false ifname %s mode tun ip4 %s gw4 %s",
                 s_conn_name, s_dev, a_ipv4_addr_str, a_ipv4_gw_str);
         char *l_cmd_ret = run_bash_cmd(l_cmd_add_con);
-        l_conn_present = get_connection(s_conn_name);
+        l_conn_present = get_connection(s_conn_name, NULL);
         if(dap_strcmp(l_conn_present, s_conn_name))
             l_ret = -1;
         DAP_DELETE(l_cmd_ret);
@@ -468,7 +542,28 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     }
 
     pthread_mutex_init(&s_clients_mutex, NULL);
-    pthread_create(&s_thread_read_tun_id, NULL, thread_read_tun, NULL);
+
+    if(is_dap_tun_in_worker()) {
+
+        static dap_events_socket_callbacks_t l_s_callbacks = {
+                .read_callback = m_client_tun_read,// for server
+                .write_callback = m_client_tun_write,// for client
+                .error_callback = m_client_tun_error,
+                .delete_callback = m_client_tun_delete
+        };
+
+        s_tun_events_socket = dap_events_socket_wrap_no_add(NULL, s_fd_tun, &l_s_callbacks);
+        s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
+        dap_events_socket_create_after(s_tun_events_socket);
+        s_tun_events_socket->_inheritor = NULL;
+
+        return 0;
+    }
+    else {
+        pthread_create(&s_thread_read_tun_id, NULL, thread_read_tun, NULL);
+    }
+
+
     //m_tunDeviceName = dev;
     //m_tunSocket = fd;
     return l_ret;
@@ -476,6 +571,14 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
 
 int dap_chain_net_vpn_client_tun_delete(void)
 {
+    if(is_dap_tun_in_worker())
+    {
+        pthread_mutex_lock(&s_clients_mutex);
+        dap_events_socket_kill_socket(s_tun_events_socket);
+        s_tun_events_socket = NULL;
+        pthread_mutex_unlock(&s_clients_mutex);
+    }
+
     // restore previous routing
     if(!s_conn_name || !s_last_used_connection_name)
         return -1;
@@ -518,27 +621,31 @@ int dap_chain_net_vpn_client_tun_delete(void)
 
 int dap_chain_net_vpn_client_tun_status(void)
 {
-    char *l_str_cmd = get_connection(s_conn_name);
+    char *l_conn_dev = NULL;
+    char *l_str_cmd = get_connection(s_conn_name, &l_conn_dev);
     if(!l_str_cmd)
-        return 0;
+        return -1;
     // connection must be present
-    if(dap_strcmp(l_str_cmd, s_conn_name)) {
+    if(dap_strcmp(l_str_cmd, s_conn_name) || dap_strcmp(l_conn_dev, s_dev)) {
         DAP_DELETE(l_str_cmd);
-        return 0;
+        DAP_DELETE(l_conn_dev);
+        return -2;
     }
     DAP_DELETE(l_str_cmd);
+    DAP_DELETE(l_conn_dev);
 
+    /* alternative method
     char *l_used_connection_name = NULL;
     char *l_used_connection_device = NULL;
     save_current_connection_interface_data(&l_used_connection_name, &l_used_connection_device);
     // connection must be upped
-    if(dap_strcmp(l_used_connection_name, s_conn_name) || dap_strcmp(l_used_connection_device, s_dev)) {
+    if(!s_dev || dap_strcmp(l_used_connection_name, s_conn_name) || dap_strcmp(l_used_connection_device, s_dev)) {
         DAP_DELETE(l_used_connection_name);
         DAP_DELETE(l_used_connection_device);
         return -1;
     }
     DAP_DELETE(l_used_connection_name);
-    DAP_DELETE(l_used_connection_device);
+    DAP_DELETE(l_used_connection_device);*/
 
     // VPN client started
     return 0;

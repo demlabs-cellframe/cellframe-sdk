@@ -60,6 +60,11 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
     dap_chain_net_srv_callback_ch_t      callback_stream_ch_closed;
 
+    // Client have to start service
+    dap_chain_net_srv_callback_data_t callback_client_success;
+    // Client have to sign receipt
+    dap_chain_net_srv_callback_data_t callback_client_sign_request;
+
     // Pointer to inheritor object
     void * _inhertor;
 } dap_chain_net_srv_t;
@@ -96,3 +101,12 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                 dap_chain_net_srv_price_t * a_price, const void * a_ext, size_t a_ext_size
                 );
 
+
+int dap_chain_net_srv_client_init(dap_chain_net_srv_uid_t a_uid,
+        dap_chain_net_srv_callback_data_t a_callback_request,
+        dap_chain_net_srv_callback_data_t a_callback_response_success,
+        dap_chain_net_srv_callback_data_t a_callback_response_error,
+        dap_chain_net_srv_callback_data_t a_callback_receipt_next_success,
+        dap_chain_net_srv_callback_data_t a_callback_client_success,
+        dap_chain_net_srv_callback_data_t a_callback_client_sign_request,
+        void *a_inhertor);

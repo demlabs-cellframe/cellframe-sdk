@@ -33,6 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_mempool.h"
 
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_srv_stream_session.h"
 
 
@@ -48,6 +49,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 typedef struct dap_stream_ch_chain_net_srv {
     pthread_mutex_t mutex;
+    dap_chain_net_srv_uid_t srv_uid;
 } dap_stream_ch_chain_net_srv_t;
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_stream_ch_chain_net_srv_t *) ((a)->internal) )
@@ -57,7 +59,6 @@ static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
-
 /**
  * @brief dap_stream_ch_chain_net_init
  * @return
@@ -65,7 +66,7 @@ static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 int dap_stream_ch_chain_net_srv_init(void)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
-    dap_stream_ch_proc_add('R',s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_stream_ch_proc_add(dap_stream_ch_chain_net_srv_get_id(),s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
 
     return 0;
 }
@@ -76,6 +77,16 @@ int dap_stream_ch_chain_net_srv_init(void)
 void dap_stream_ch_chain_net_srv_deinit(void)
 {
 
+}
+
+/**
+ * @brief Set srv uid - for client
+ */
+void dap_stream_ch_chain_net_srv_set_srv_uid(dap_stream_ch_t* a_ch, dap_chain_net_srv_uid_t a_srv_uid)
+{
+    // save srv id
+    dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
+    l_ch_chain_net_srv->srv_uid.uint64 = a_srv_uid.uint64;
 }
 
 /**
@@ -135,6 +146,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
     if(l_ch_pkt ) {
         switch (l_ch_pkt->hdr.type) {
+        	// only for server
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
                 if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
                     log_it( L_WARNING, "Wrong request size, less than minimum");
@@ -312,10 +324,35 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 //if(l_receipt)
                 //    DAP_DELETE(l_receipt);
             } break;
+            // only for client
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST:{
                 log_it( L_NOTICE, "Requested smth to sign");
+                dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
+                size_t l_receipt_size = l_ch_pkt->hdr.size;
+                // create receipt copy, because l_receipt may be reallocated inside dap_chain_datum_tx_receipt_create()!
+                dap_chain_datum_tx_receipt_t *l_receipt_new = dap_chain_datum_tx_receipt_create(l_receipt->receipt_info.srv_uid,
+                        l_receipt->receipt_info.units_type,
+                        l_receipt->receipt_info.units,
+                        l_receipt->receipt_info.value_datoshi,
+                        l_receipt->exts_n_signs, l_receipt->exts_size);
+
+
+                //l_srv_session->usages
+                ///l_usage->service->uid.uint64;
+                //dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find( l_srv_session, l_pkt->hdr.usage_id );
+                dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_ch_chain_net_srv->srv_uid);
+            if(l_srv && l_srv->callback_client_sign_request) {
+                // Sign receipt
+                l_srv->callback_client_sign_request(l_srv, 0, NULL, &l_receipt_new, l_receipt_size);
+                if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE,
+                        l_receipt_new, l_receipt_new->size)) {
+                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                }
+            }
+                DAP_DELETE(l_receipt_new);
                 // TODO sign smth
             } break;
+            // only for server
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:{
                 if ( l_ch_pkt->hdr.size > sizeof(dap_chain_receipt_info_t)+1 ){
                     dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
@@ -485,6 +522,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS:{
                 log_it( L_NOTICE, "Responsed with success");
                 // TODO code for service client mode
+                dap_stream_ch_chain_net_srv_pkt_success_t * l_success = (dap_stream_ch_chain_net_srv_pkt_success_t*)l_ch_pkt->data;
+                size_t l_success_size = l_ch_pkt->hdr.size;
+                dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_success->hdr.srv_uid);
+                if ( l_srv && l_srv->callback_client_success){
+                    // Create client for client)
+                    dap_chain_net_srv_client_t *l_clients = DAP_NEW_Z( dap_chain_net_srv_client_t);
+                    l_clients->ch = a_ch;
+                    l_clients->ts_created = time(NULL);
+                    l_srv->callback_client_success(l_srv, l_success->hdr.usage_id,  l_clients, l_success, l_success_size );
+                    //l_success->hdr.net_id, l_success->hdr.srv_uid, l_success->hdr.usage_id
+                }
             } break;
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA:{
                 if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_data_hdr_t) ){
