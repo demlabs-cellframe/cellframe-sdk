@@ -55,6 +55,7 @@
 #include "dap_stream_ch_chain_net_srv.h"
 //#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_net_vpn_client_tun.h"
+#include "dap_chain_net_srv_vpn_cmd.h"
 //#include "dap_chain_net_vpn_client_data.h"
 
 /*
@@ -724,6 +725,12 @@ void dap_chain_net_vpn_client_pkt_out(dap_stream_ch_t* a_ch)
 int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 {
     pthread_mutex_init(&sf_socks_mutex, NULL);
+
+    // vpn client command
+    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
+    "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net name>\n");
+
+
     return dap_chain_net_srv_client_vpn_init(g_config);
 }
 
