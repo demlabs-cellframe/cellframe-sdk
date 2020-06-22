@@ -35,6 +35,7 @@
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
+#include "dap_file_utils.h"
 #include "dap_client_remote.h"
 
 #include "dap_http.h"
@@ -89,10 +90,51 @@ static char * s_salt_str = "Ijg24GAS56h3hg7hj245b";
 static bool s_is_registration_open = false;
 static bool s_mode_passwd = true;
 
+// hook paths
+static char *s_hook_user_create = NULL;
+static char *s_hook_user_login = NULL;
+static char *s_hook_user_update = NULL;
+static char *s_hook_user_delete = NULL;
+
+static char *s_hook_serial_generate = NULL;
+static char *s_hook_serial_login = NULL;
+static char *s_hook_serial_activate = NULL;
+static char *s_hook_serial_update = NULL;
+static char *s_hook_serial_delete = NULL;
+
 static int s_input_validation(const char * str);
 static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg);
 static void s_http_enc_proc_key(enc_http_delegate_t *a_delegate, void * a_arg);
 static void s_http_proc(dap_http_simple_t *a_http_simple, void * arg );
+
+static char *register_hook(const char *a_cfg_name)
+{
+    char *l_hook_path_ret = NULL;
+    const char *l_hook_path = dap_config_get_item_str(g_config, "cdb_auth", a_cfg_name);
+    if(dap_file_test(l_hook_path))
+        l_hook_path_ret = dap_strdup(l_hook_path);
+    else if(l_hook_path) {
+        log_it(L_WARNING, "file for %s = %s not found", a_cfg_name, l_hook_path);
+    }
+    return l_hook_path_ret;
+}
+
+static int run_hook(char *a_hook_path, char *a_format, ...)
+{
+    if(!a_hook_path)
+        return -1;
+    char *l_params = NULL;
+    va_list l_args;
+    va_start(l_args, a_hook_path);
+    l_params = dap_strdup_vprintf(a_format, l_args);
+    va_end(l_args);
+    char *l_cmd = dap_strdup_printf("%s %s", a_hook_path, l_params);
+    int l_ret = system(l_cmd);
+    DAP_DELETE(l_params);
+    DAP_DELETE(l_cmd);
+    return l_ret;
+}
+
 /**
  * @brief dap_chain_net_srv_vpn_cdb_auth_init
  * @param a_domain
@@ -132,7 +174,19 @@ int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, const char * a_m
     s_group_ts_last_login = dap_strdup_printf("%s.ts_last_login",s_group_users);
     s_group_ts_active_till = dap_strdup_printf("%s.ts_active_till",s_group_users);
 
-    return 0;
+    // load hook paths
+    s_hook_user_create = register_hook("hook_user_create");
+    s_hook_user_login = register_hook("hook_user_login");
+    s_hook_user_update = register_hook("hook_user_update");
+    s_hook_user_delete = register_hook("hook_user_delete");
+
+    s_hook_serial_generate = register_hook("hook_serial_generate");
+    s_hook_serial_login = register_hook("hook_serial_login");
+    s_hook_serial_activate = register_hook("hook_serial_activate");
+    s_hook_serial_update = register_hook("hook_serial_update");
+    s_hook_serial_delete = register_hook("s_hook_serial_delete");
+    //run_hook(s_hook_serial_update, "serial=%s active_days=%lld", l_serial.header.serial, l_active_days);
+
 }
 
 /**
@@ -487,6 +541,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                 if(i < l_serial_count - 1)
                     dap_string_append(l_keys, "\n");
             }
+            run_hook(s_hook_serial_generate, "serial=%s active_days=%lld", l_serial.header.serial, l_active_days);
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, "generated new %s", l_keys->str);
         dap_string_free(l_keys, true);
@@ -519,6 +574,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                     DAP_DELETE(l_serial_key);
                     // save gdb
                     dap_chain_global_db_flush();
+                    run_hook(s_hook_serial_update, "serial=%s active_days=%lld", l_serial_key->header.serial, l_serial_key->header.activated ? "activated" : "inative", l_active_days);
                     return 0;
                 }
                 else{
@@ -531,6 +587,15 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
             }
             return 0;
         }
+    }
+    else
+    // Command 'serial info'
+    if(!dap_strcmp(a_serial_str, "info")) {
+
+    }
+    // Command 'serial delete'
+    if(!dap_strcmp(a_serial_str, "delete")) {
+
     }
     else {
         dap_chain_node_cli_set_reply_text(a_str_reply, "unknown subcommand %s, use 'generate', 'list' or 'update'", a_serial_str);
@@ -594,8 +659,9 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(const char *a_user_str, int a_ar
             dap_chain_global_db_gr_set(dap_strdup(l_login_str), l_time,sizeof (*l_time),s_group_ts_updated );
             l_time = NULL; // to prevent usage uleased memory that could be free in any moment
 
+            uint64_t l_active_days = 0;
             if ( l_active_days_str ){
-                uint64_t l_active_days = strtoull(l_active_days_str,NULL,10);
+                l_active_days = strtoull(l_active_days_str,NULL,10);
                 if ( l_active_days ){
                     l_time = DAP_NEW_Z(dap_chain_time_t);
                     *l_time = dap_chain_time_now() + (dap_chain_time_t) l_active_days*86400ull;
@@ -605,9 +671,17 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(const char *a_user_str, int a_ar
             }
 
             if (l_is_user_create){
+                run_hook(s_hook_user_create, "login=%s pass=%s active_days=%lld first_name=%s last_name=%s email=%s", l_login_str, l_password_str, l_active_days,
+                        l_first_name_str ? l_first_name_str : "-",
+                        l_last_name_str ? l_last_name_str : "-",
+                        l_email_str ? l_email_str : "-");
                 dap_string_append_printf(l_ret_str,"OK: Created user '%s'\n",l_login_str );
                 l_ret = 0;
             }else if (l_is_user_update){
+                run_hook(s_hook_user_update, "login=%s pass=%s active_days=%lld first_name=%s last_name=%s email=%s", l_login_str, l_password_str, l_active_days,
+                                        l_first_name_str ? l_first_name_str : "-",
+                                        l_last_name_str ? l_last_name_str : "-",
+                                        l_email_str ? l_email_str : "-");
                 dap_string_append_printf(l_ret_str,"OK: Updated user '%s'\n",l_login_str );
                 l_ret = 0;
             }else{
@@ -647,6 +721,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_user(const char *a_user_str, int a_ar
                 }
 
                 dap_string_append_printf(l_ret_str,"OK: Deleted user '%s'\n",l_login_str );
+                run_hook(s_hook_user_delete, "login=%s", l_login_str);
                 l_ret = 0;
             }else{
                 l_ret = -6;
@@ -872,6 +947,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         }
 
                         int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_login(l_login, l_password);
+                        run_hook(s_hook_user_login, "login=%s pass=%s result=%d", l_login, l_password, l_login_result);
                         switch (l_login_result) {
                         case 0: {
                             size_t l_tmp_size;
@@ -977,6 +1053,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         }
                         int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_serial(l_serial, l_pkey);
                         log_it(L_INFO, "Check serial '%s' with code %d (Ok=0)", l_serial, l_login_result);
+                        run_hook(s_hook_serial_login, "serial=%s result=%d", l_serial, l_login_result);
                         switch (l_login_result) {
                         case 0: {
                             size_t l_tmp_size;
@@ -1174,6 +1251,7 @@ static void s_http_enc_proc_key(enc_http_delegate_t *a_delegate, void * a_arg)
                             return;
                         }
                         int l_activate_result = dap_chain_net_srv_vpn_cdb_auth_activate_serial(l_serial_raw, l_serial, l_serial_sign, l_pkey);
+                        run_hook(s_hook_serial_activate, "serial=%s result=%d", l_serial, l_activate_result);
                         log_it(L_INFO, "Serial '%s' activated with code %d (Ok=0)", l_serial, l_activate_result);
                         switch (l_activate_result) {
                         case 0:
