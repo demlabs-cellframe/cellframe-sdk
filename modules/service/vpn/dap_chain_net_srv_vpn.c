@@ -929,7 +929,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     //if ( pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT )
     //    dap_chain_net_vpn_client_pkt_in( a_ch, l_pkt);
-    if(l_pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
+    if(l_pkt->hdr.type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT) {
         static bool client_connected = false;
         ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
         size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);
