@@ -282,46 +282,56 @@ int dap_chain_net_srv_vpn_cdb_auth_activate_serial(const char * a_serial_raw, co
         int l_res = 0;
         byte_t *l_pkey_raw = NULL;
         size_t l_pkey_raw_size = 0;
+        dap_enc_key_type_t l_key_type;
         {
-            // deserealize pkey
+            // verify sign
+            byte_t *l_sign_raw = NULL;
+            size_t l_sign_length = dap_strlen(a_sign);
+            l_sign_raw = DAP_NEW_Z_SIZE(byte_t, l_sign_length * 2);
+            size_t l_sign_raw_size = dap_enc_base64_decode(a_sign, l_sign_length, l_sign_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+            dap_sign_t *l_sign = (dap_sign_t*) l_sign_raw; //dap_sign_pack(l_client_key, l_sign_raw, l_sign_raw_size, l_pkey_raw, l_pkey_length);
+            //get key type for pkey
+            dap_sign_type_t l_chain_sign_type;
+            l_chain_sign_type.raw = l_sign_raw_size > 0 ? l_sign->header.type.raw : SIG_TYPE_NULL;
+            l_key_type =  dap_sign_type_to_key_type(l_chain_sign_type);
+            size_t l_serial_len = dap_strlen(a_serial_raw);
+            l_res = dap_sign_verify(l_sign, a_serial_raw, l_serial_len);
+            if(!l_res){
+                DAP_DELETE(l_sign_raw);
+                return -2;//OP_CODE_LOGIN_INCORRECT_SIGN
+            }
+
+            // deserialize pkey
             dap_enc_key_t *l_client_key = NULL;
             size_t l_pkey_length = dap_strlen(a_pkey);
             l_pkey_raw = DAP_NEW_Z_SIZE(byte_t, l_pkey_length);
             memset(l_pkey_raw, 0, l_pkey_length);
             l_pkey_raw_size = dap_enc_base64_decode(a_pkey, l_pkey_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-            l_client_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_SIG_TESLA);
+            l_client_key = dap_enc_key_new(l_key_type); //DAP_ENC_KEY_TYPE_SIG_TESLA
             l_res = dap_enc_key_deserealize_pub_key(l_client_key, l_pkey_raw, l_pkey_raw_size);
-            // verify sign
-            if(!l_res) {
-                byte_t *l_sign_raw = NULL;
-                size_t l_sign_length = dap_strlen(a_sign);
-                l_sign_raw = DAP_NEW_Z_SIZE(byte_t, l_sign_length*2);
-                size_t l_sign_raw_size = dap_enc_base64_decode(a_sign, l_sign_length, l_sign_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-                dap_sign_t *l_sign = (dap_sign_t*)l_sign_raw;//dap_sign_pack(l_client_key, l_sign_raw, l_sign_raw_size, l_pkey_raw, l_pkey_length);
-                size_t l_serial_len = dap_strlen(a_serial_raw);
-                l_res = dap_sign_verify(l_sign, a_serial_raw, l_serial_len);
-                DAP_DELETE(l_sign_raw);
+            // pkey from sign
+            size_t l_pkey_sign_size = 0;
+            uint8_t *l_pkey_sign = dap_sign_get_pkey(l_sign, &l_pkey_sign_size);
+            // activate serial key
+            if(l_pkey_sign_size == l_pkey_raw_size && !memcmp(l_pkey_sign, l_pkey_raw, l_pkey_sign_size)) {
+                // added pkey to serial
+                l_serial_key->header.ext_size = l_pkey_raw_size;
+                l_serial_key = DAP_REALLOC(l_serial_key, dap_serial_key_len(l_serial_key));
+                l_serial_key->header.activated = time(NULL);
+                l_serial_key->header.os = l_key_type;
+                memcpy(l_serial_key->ext, l_pkey_raw, l_pkey_raw_size);
+                // save updated serial
+                if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key,
+                        dap_serial_key_len(l_serial_key),
+                        s_group_serials_activated)) {
+                    dap_chain_global_db_gr_del(l_serial_key->header.serial, s_group_serials);
+                    l_ret = 0; // OK
+                }
             }
-            //dap_enc_key_deserealize_sign
-        }
-
-        // activate serial key
-        if(l_res==1) {
-            // added pkey to serial
-            l_serial_key->header.ext_size = l_pkey_raw_size;
-            l_serial_key = DAP_REALLOC(l_serial_key,dap_serial_key_len(l_serial_key));
-            l_serial_key->header.activated = time(NULL);
-            memcpy(l_serial_key->ext, l_pkey_raw, l_pkey_raw_size);
-            // save updated serial
-            if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key,
-                    dap_serial_key_len(l_serial_key),
-                    s_group_serials_activated)) {
-                dap_chain_global_db_gr_del(l_serial_key->header.serial, s_group_serials);
-                l_ret = 0;// OK
-            }
-        }
-        else{
-            return -2;//OP_CODE_LOGIN_INCORRECT_SIGN
+            // bad pkey
+            else
+                l_ret = -2;//OP_CODE_LOGIN_INCORRECT_SIGN
+            DAP_DELETE(l_sign_raw);
         }
         DAP_DELETE(l_pkey_raw);
     }
@@ -351,7 +361,20 @@ int dap_chain_net_srv_vpn_cdb_auth_check_serial(const char * a_serial, const cha
         if((l_serial_key->header.activated + l_serial_key->header.expired) < time(NULL))
             l_ret = -4;
     }
-    DAP_DELETE(l_serial_key);
+    // check pkey
+    dap_enc_key_t *l_client_key = NULL;
+    size_t l_pkey_length = dap_strlen(a_pkey_b64);
+    byte_t *l_pkey_raw = DAP_NEW_Z_SIZE(byte_t, l_pkey_length);
+    memset(l_pkey_raw, 0, l_pkey_length);
+    size_t l_pkey_raw_size = dap_enc_base64_decode(a_pkey_b64, l_pkey_length, l_pkey_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+    // pkey from sign
+    size_t l_pkey_sign_size = l_serial_key->header.ext_size;
+    uint8_t *l_pkey_sign = l_serial_key->ext;
+    // compare pkeys
+    if(l_pkey_sign_size != l_pkey_raw_size || memcmp(l_pkey_sign, l_pkey_raw, l_pkey_sign_size)) {
+        l_ret = -2;
+    }
+    DAP_DELETE(l_pkey_raw);
     return l_ret;
 }
 
@@ -1090,10 +1113,10 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
                             *l_return_code = Http_Status_OK;
                             break;
-                        /*case -2:
-                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
+                        case -2:
+                            enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_SIGN);// incorrect pkey
                             *l_return_code = Http_Status_OK;
-                            break;*/
+                            break;
                         case -3:
                             enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INACTIVE);
                             *l_return_code = Http_Status_OK;
