@@ -15,4 +15,4 @@ cellframe-sdk-analyze:
     artifacts:
       paths:
       - report/issues.txt
-      when: on_failure
+      when: always
