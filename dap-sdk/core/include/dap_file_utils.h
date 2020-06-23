@@ -66,6 +66,10 @@ typedef struct dap_list_name_directories{
  * @dir_path directory pathname
  * @return true, if the directory path contains only ASCII symbols
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool dap_valid_ascii_symbols(const char *a_dir_path);
 
 /**
@@ -110,5 +114,9 @@ dap_list_name_directories_t *dap_get_subs(const char *a_path_name);
  * Reads an entire file into allocated memory, with error checking.
  */
 bool dap_file_get_contents(const char *filename, char **contents, size_t *length);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _FILE_UTILS_H_

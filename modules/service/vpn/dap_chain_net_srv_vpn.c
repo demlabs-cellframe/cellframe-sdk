@@ -686,7 +686,7 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
  */
 void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
 {
-    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->conn->hostaddr);
+    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->conn->s_ip);
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
     pthread_mutex_lock(&(l_ch_vpn->mutex));
@@ -929,7 +929,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     //if ( pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT )
     //    dap_chain_net_vpn_client_pkt_in( a_ch, l_pkt);
-    if(l_pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
+    if(l_pkt->hdr.type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT) {
         static bool client_connected = false;
         ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
         size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);

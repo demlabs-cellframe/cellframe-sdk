@@ -497,6 +497,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 l_pvt_net->links_success = 0;
                 l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
                 l_pvt_net->state = NET_STATE_ONLINE;
+                break;
             }
             if (l_links_count < l_pvt_net->links_addrs_count) {
                 l_pvt_net->links_count++;
