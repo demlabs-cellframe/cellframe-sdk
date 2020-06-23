@@ -14,5 +14,5 @@ cellframe-sdk-analyze:
     script: ~/production/integration/PVS-studio/analyze.sh 
     artifacts:
       paths:
-      - ~/reports/cellframe-sdk/static_report.log
+      - report/issues.report
 
