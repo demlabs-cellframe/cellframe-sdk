@@ -10,5 +10,5 @@ variables:
 cellframe-sdk-analyze:
     stage: analyze
     tags:
-    - cellframe-sdk-analyze
+    - cellframe-sdk
     script: ~/production/integration/PVS-studio/analyze.sh 
