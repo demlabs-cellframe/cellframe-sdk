@@ -298,7 +298,6 @@ int dap_chain_net_srv_vpn_cdb_auth_activate_serial(const char * a_serial_raw, co
                 l_sign_raw = DAP_NEW_Z_SIZE(byte_t, l_sign_length*2);
                 size_t l_sign_raw_size = dap_enc_base64_decode(a_sign, l_sign_length, l_sign_raw, DAP_ENC_DATA_TYPE_B64_URLSAFE);
                 dap_sign_t *l_sign = (dap_sign_t*)l_sign_raw;//dap_sign_pack(l_client_key, l_sign_raw, l_sign_raw_size, l_pkey_raw, l_pkey_length);
-                size_t as = dap_sign_get_size(l_sign);
                 size_t l_serial_len = dap_strlen(a_serial_raw);
                 l_res = dap_sign_verify(l_sign, a_serial_raw, l_serial_len);
                 DAP_DELETE(l_sign_raw);
