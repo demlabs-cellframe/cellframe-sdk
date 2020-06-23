@@ -14,5 +14,5 @@ cellframe-sdk-analyze:
     script: ~/production/integration/PVS-studio/analyze.sh 
     artifacts:
       paths:
-      - report/issues.report
+      - report/issues.txt
       when: on_failure
