@@ -720,7 +720,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         , dap_client_callback_data_size_t a_response_proc
         , dap_client_callback_int_t a_response_error)
 {
-    bool is_query_enc = false; // it true, then encode a_query string
+    bool is_query_enc = true; // if true, then encode a_query string  [Why do we even need this?]
     log_it(L_DEBUG, "Encrypted request: sub_url '%s' query '%s'", a_sub_url ? a_sub_url : "NULL",
             a_query ? a_query : "NULL");
     size_t l_sub_url_size = a_sub_url ? strlen(a_sub_url) : 0;
