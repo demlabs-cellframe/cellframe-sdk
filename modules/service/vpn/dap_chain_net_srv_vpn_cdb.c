@@ -119,6 +119,12 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
             "\tShow serial keys\n"
         "vpn_cdb serial update -serial <serial keys> -acive_days <active days that left for serial>\n"
             "\tEdit serial key\n"
+        "vpn_cdb serial info -serial <serial keys>\n"
+            "\tInformation about serial key\n"
+        "vpn_cdb serial delete -serial <serial keys>\n"
+            "\tDelete serial key\n"
+        "vpn_cdb serial deactivate -serial <serial keys>\n"
+            "\tDeactivate serial key\n"
                                         );
 
     // Load all chain networks
