@@ -32,10 +32,10 @@ typedef struct dap_serial_key {
         char serial[20];
         time_t activated; // if set, then serial is activated
         time_t expired; // if zero then time no expired
-        int32_t os;// operating system. if zero then any operating system
+        int32_t pkey_type;// dap_enc_key_type_t pkey type
         size_t ext_size;
     }DAP_ALIGN_PACKED header;
-    uint8_t ext[];
+    uint8_t ext[];// pkey here
 }DAP_ALIGN_PACKED dap_serial_key_t;
 
 size_t dap_serial_key_len(dap_serial_key_t *a_serial_key);
