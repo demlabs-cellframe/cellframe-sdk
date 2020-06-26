@@ -126,7 +126,7 @@ static int run_hook(char *a_hook_path, char *a_format, ...)
         return -1;
     char *l_params = NULL;
     va_list l_args;
-    va_start(l_args, a_hook_path);
+    va_start(l_args, a_format);
     l_params = dap_strdup_vprintf(a_format, l_args);
     va_end(l_args);
     char *l_cmd = dap_strdup_printf("%s %s", a_hook_path, l_params);
@@ -188,7 +188,7 @@ int dap_chain_net_srv_vpn_cdb_auth_init (const char * a_domain, const char * a_m
     s_hook_serial_delete = register_hook("hook_serial_delete");
     s_hook_serial_deactivate = register_hook("hook_serial_deactivate");
     //run_hook(s_hook_serial_update, "serial=%s active_days=%lld", l_serial.header.serial, l_active_days);
-
+    return 0;
 }
 
 /**
@@ -596,14 +596,14 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
             const char *l_group;
             dap_serial_key_t *l_serial_key = dap_chain_net_srv_vpn_cdb_auth_get_serial_param(l_serial_number_str, &l_group);
             if(l_serial_key){
-                l_serial_key->header.expired = l_active_days;
+                l_serial_key->header.expired = l_serial_key->header.activated + l_active_days * 86400; // 24*3600 = days to sec;
                 // save updated serial
                 if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key, dap_serial_key_len(l_serial_key), l_group)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' successfully updated", l_serial_key->header.serial);
-                    DAP_DELETE(l_serial_key);
                     // save gdb
                     dap_chain_global_db_flush();
-                    run_hook(s_hook_serial_update, "serial=%s active_days=%lld", l_serial_key->header.serial, l_serial_key->header.activated ? "activated" : "inactive", l_active_days);
+                    run_hook(s_hook_serial_update, "serial=%s status=%s active_days=%lld", l_serial_key->header.serial, l_serial_key->header.activated ? "activated" : "inactive", l_active_days);
+                    DAP_DELETE(l_serial_key);
                     return 0;
                 }
                 else{
@@ -698,6 +698,8 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                 if(dap_chain_global_db_gr_del(l_serial_key->header.serial, l_group)){
                     dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' deleted", l_serial_key->header.serial);
                     run_hook(s_hook_serial_delete, "serial=%s", l_serial_key->header.serial);
+                    // save gdb
+                    dap_chain_global_db_flush();
                 }
                 else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' not deleted", l_serial_key->header.serial);
@@ -739,11 +741,16 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                     // save updated serial
                     if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key, dap_serial_key_len(l_serial_key), s_group_serials)) {
                         dap_chain_global_db_gr_del(l_serial_key->header.serial, s_group_serials_activated);
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' deactivated successfully", l_serial_number_str);
                         run_hook(s_hook_serial_deactivate, "serial=%s", l_serial_key->header.serial);
                         l_ret = 0; // OK
+                        // save gdb
+                        dap_chain_global_db_flush();
                     }
-                    else
+                    else{
                         l_ret = -5;
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' not deactivated", l_serial_number_str);
+                    }
                 }
             }
             else {
@@ -1105,9 +1112,9 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         }
 
                         int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_login(l_login, l_password);
-                        run_hook(s_hook_user_login, "login=%s pass=%s result=%d", l_login, l_password, l_login_result);
                         switch (l_login_result) {
                         case 0: {
+                            run_hook(s_hook_user_login, "login=%s pass=%s result=true", l_login, l_password);
                             size_t l_tmp_size;
                             char * l_first_name = (char*) dap_chain_global_db_gr_get(l_login, &l_tmp_size,
                                     s_group_first_name);
@@ -1156,10 +1163,12 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         }
                             break;
                         case -1:
+                            run_hook(s_hook_user_login, "login=%s pass=%s result=false error=user_no_found", l_login, l_password);
                             enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
                             *l_return_code = Http_Status_OK;
                             break;
                         case -2:
+                            run_hook(s_hook_user_login, "login=%s pass=%s result=false error=passwd_not_correct", l_login, l_password);
                             enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_PSWD);
                             *l_return_code = Http_Status_OK;
                             break;
@@ -1168,6 +1177,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             *l_return_code = Http_Status_OK;
                             break;
                         case -4:
+                            run_hook(s_hook_user_login, "login=%s pass=%s result=false error=expired", l_login, l_password);
                             enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
                             *l_return_code = Http_Status_PaymentRequired;
                             break;
@@ -1211,9 +1221,9 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         }
                         int l_login_result = dap_chain_net_srv_vpn_cdb_auth_check_serial(l_serial, l_pkey);
                         log_it(L_INFO, "Check serial '%s' with code %d (Ok=0)", l_serial, l_login_result);
-                        run_hook(s_hook_serial_login, "serial=%s result=%d", l_serial, l_login_result);
                         switch (l_login_result) {
                         case 0: {
+                            run_hook(s_hook_serial_login, "serial=%s result=true", l_serial);
                             size_t l_tmp_size;
                             enc_http_reply_f(a_delegate,
                                     "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n"
@@ -1246,10 +1256,12 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                         }
                             break;
                         case -1:
+                            run_hook(s_hook_serial_login, "serial=%s result=false error=serial_no_found", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
                             *l_return_code = Http_Status_OK;
                             break;
                         case -2:
+                            run_hook(s_hook_serial_login, "serial=%s result=false error=other_device", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_SIGN);// incorrect pkey
                             *l_return_code = Http_Status_OK;
                             break;
@@ -1258,6 +1270,7 @@ static void s_http_enc_proc(enc_http_delegate_t *a_delegate, void * a_arg)
                             *l_return_code = Http_Status_OK;
                             break;
                         case -4:
+                            run_hook(s_hook_serial_login, "serial=%s result=false error=expired", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
                             *l_return_code = Http_Status_PaymentRequired;
                             break;
@@ -1409,18 +1422,20 @@ static void s_http_enc_proc_key(enc_http_delegate_t *a_delegate, void * a_arg)
                             return;
                         }
                         int l_activate_result = dap_chain_net_srv_vpn_cdb_auth_activate_serial(l_serial_raw, l_serial, l_serial_sign, l_pkey);
-                        run_hook(s_hook_serial_activate, "serial=%s result=%d", l_serial, l_activate_result);
                         log_it(L_INFO, "Serial '%s' activated with code %d (Ok=0)", l_serial, l_activate_result);
                         switch (l_activate_result) {
                         case 0:
+                            run_hook(s_hook_serial_activate, "serial=%s result=true", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_SERIAL_ACTIVED);
                             *l_return_code = Http_Status_OK;
                             break;
                         case -1:
+                            run_hook(s_hook_serial_activate, "serial=%s result=false error=serial_no_found", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_NOT_FOUND_LOGIN_IN_DB);
                             *l_return_code = Http_Status_OK;
                             break;
                         case -2:
+                            run_hook(s_hook_serial_activate, "serial=%s result=false error=sign_incorrect", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_LOGIN_INCORRECT_SIGN);
                             *l_return_code = Http_Status_OK;
                             break;
@@ -1429,6 +1444,7 @@ static void s_http_enc_proc_key(enc_http_delegate_t *a_delegate, void * a_arg)
                              *l_return_code = Http_Status_OK;
                              break;*/
                         case -4:
+                            run_hook(s_hook_serial_activate, "serial=%s result=false error=expired", l_serial);
                             enc_http_reply_f(a_delegate, OP_CODE_SUBSCRIBE_EXPIRIED);
                             *l_return_code = Http_Status_PaymentRequired;
                             break;
