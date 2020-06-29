@@ -58,34 +58,11 @@ dap_stream_ch_t* dap_stream_ch_new( dap_stream_t * dap_stream,uint8_t id);
 void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * ch,bool is_ready);
 void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready);
 
-/**
- * @brief dap_stream_ch_get_ready_to_read
- * @param a_ch
- * @return
- */
-static inline bool dap_stream_ch_get_ready_to_read(dap_stream_ch_t * a_ch)
-{
-    bool l_ret;
-    pthread_mutex_lock(&a_ch->mutex);
-    l_ret = a_ch->ready_to_read;
-    pthread_mutex_unlock(&a_ch->mutex);
-    return l_ret;
-}
+bool dap_stream_ch_get_ready_to_read(dap_stream_ch_t *a_ch);
+bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t *a_ch);
 
-/**
- * @brief dap_stream_ch_get_ready_to_write
- * @param a_ch
- * @return
- */
-static inline bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t * a_ch)
-{
-    bool l_ret;
-    pthread_mutex_lock(&a_ch->mutex);
-    l_ret = a_ch->ready_to_write;
-    pthread_mutex_unlock(&a_ch->mutex);
-    return l_ret;
-}
+void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
 
-void dap_stream_ch_delete(dap_stream_ch_t*ch);
+bool dap_stream_ch_valid(dap_stream_ch_t *a_ch);
 
 #endif

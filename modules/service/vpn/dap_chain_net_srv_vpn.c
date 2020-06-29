@@ -510,7 +510,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     pthread_rwlock_init(&l_usage_client->rwlock,NULL);
 
     memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
-
     pthread_rwlock_wrlock(&s_clients_rwlock);
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
 
@@ -703,7 +702,6 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
             l_is_unleased = true;
         pthread_rwlock_unlock(& s_raw_server_rwlock);
     }
-
     pthread_rwlock_wrlock(&s_clients_rwlock);
     if(s_ch_vpn_addrs) {
         HASH_DEL(s_ch_vpn_addrs, l_ch_vpn);
@@ -720,7 +718,6 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
     HASH_FIND(hh,s_clients, &l_ch_vpn->usage_id,sizeof(l_ch_vpn->usage_id),l_usage_client );
     if (l_usage_client){
         pthread_rwlock_wrlock(&l_usage_client->rwlock);
-
         l_usage_client->ch_vpn = NULL; // NULL the channel, nobody uses that indicates
         pthread_rwlock_unlock(&l_usage_client->rwlock);
     }
@@ -1611,7 +1608,7 @@ void* srv_ch_sf_thread_raw(void *arg)
                             s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_read_ret);
                         }
                     }
-                    pthread_rwlock_unlock(&s_clients_rwlock);
+                    pthread_rwlock_unlock(&s_clients_rwlock);\
                 }
             }/*else {
              log_it(L_CRITICAL,"select() has no tun handler in the returned set");
