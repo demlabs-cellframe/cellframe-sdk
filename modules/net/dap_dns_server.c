@@ -22,6 +22,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <sys/poll.h>
+#include <errno.h>
 #include "dap_dns_server.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
@@ -36,6 +38,7 @@
 #define LOG_TAG "dap_dns_server"
 
 static dap_dns_server_t *s_dns_server;
+static pthread_mutex_t s_list_mutex;
 static char s_root_alias[] = "dnsroot";
 
 /**
@@ -331,4 +334,90 @@ void dap_dns_server_stop() {
     // TODO add code to stop udp_thread
     dap_udp_server_delete(s_dns_server->instance);
     DAP_DELETE(s_dns_server);
+}
+
+int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
+{
+    const size_t l_buf_size = 1024;
+    uint8_t l_buf[l_buf_size];
+    dap_dns_buf_t l_dns_request = {};
+    l_dns_request.data = (char *)l_buf;
+    dap_dns_buf_put_uint16(&l_dns_request, rand() % 0xFFFF);    // ID
+    dap_dns_message_flags_t l_flags = {};
+    dap_dns_buf_put_uint16(&l_dns_request, l_flags.val);
+    dap_dns_buf_put_uint16(&l_dns_request, 1);                  // we have only 1 question
+    dap_dns_buf_put_uint16(&l_dns_request, 0);
+    dap_dns_buf_put_uint16(&l_dns_request, 0);
+    dap_dns_buf_put_uint16(&l_dns_request, 0);
+    int l_ptr = 0;
+    uint8_t *l_cur = l_buf + l_dns_request.ptr;
+    for (int i = 0; i <= strlen(a_name); i++)
+    {
+        if (a_name[i] == '.' || a_name[i] == 0)
+        {
+            *l_cur++ = i - l_ptr;
+            for( ; l_ptr < i; l_ptr++)
+            {
+                *l_cur++ = a_name[l_ptr];
+            }
+            l_ptr++;
+        }
+    }
+    *l_cur++='\0';
+    l_dns_request.ptr = l_cur - l_buf;
+    dap_dns_buf_put_uint16(&l_dns_request, DNS_RECORD_TYPE_A);
+    dap_dns_buf_put_uint16(&l_dns_request, DNS_CLASS_TYPE_IN);
+    int32_t l_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (l_sock < 0 ) {
+      log_it ( L_ERROR, "Socket error %s", strerror(errno));
+      return -1;
+    }
+    struct sockaddr_in l_addr;
+    l_addr.sin_family = AF_INET;
+    l_addr.sin_port = DNS_LISTEN_PORT;
+    l_addr.sin_addr.s_addr = a_addr;
+    size_t l_portion = 0, l_len = l_dns_request.ptr;
+    for(size_t l_sent = 0; l_sent < l_len; l_sent += l_portion) {
+        l_portion = sendto(l_sock, l_buf + l_sent, l_len - l_sent, 0, (struct sockaddr *)&a_addr, sizeof(a_addr));
+        if (l_portion < 0 ) {
+          log_it(L_ERROR, "Some error occured in send() function");
+          break;
+        }
+    }
+    struct pollfd l_pfd = {};
+    l_pfd.fd = l_sock;
+    l_pfd.events = POLLIN;
+    int l_triggered = poll(&l_pfd, 1, 5000);    // timeout 5 sec
+    if (!l_triggered || !l_pfd.revents & POLLIN) {
+        log_it(L_DEBUG, "poll() timeout");
+        return -2;
+    }
+    struct sockaddr_in l_clientaddr;
+    socklen_t l_clientlen = sizeof(l_clientaddr);
+    size_t l_recieved = recvfrom(l_sock, l_buf, l_buf_size, 0, (struct sockaddr *)&l_clientaddr, &l_clientlen);
+    int l_addr_point = DNS_HEADER_SIZE + 4 * sizeof(uint16_t) + strlen(a_name) + 1 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
+    if (l_recieved < l_addr_point) {
+        log_it(L_WARNING, "DNS answer incomplete");
+        return -4;
+    }
+    l_cur = l_buf + DNS_HEADER_SIZE + sizeof(uint16_t);
+    int l_answers_count = ntohs(*(uint16_t *)l_cur);
+    if (l_answers_count != 1) {
+        log_it(L_WARNING, "Incorrect DNS answer format");
+        return -4;
+    }
+    l_cur = l_buf + l_addr_point;
+    if (a_result) {
+        *a_result = ntohl(*(uint32_t *)l_cur);
+    }
+    return 0;
+}
+
+uint32_t dap_dns_client_get_addr(uint32_t a_dns_addr)
+{
+    uint32_t l_res;
+    if (s_dns_get_ip(a_dns_addr, "kelvin.sync", &l_res)) {
+        return 0;
+    }
+    return l_res;
 }

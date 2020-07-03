@@ -123,3 +123,4 @@ void dap_dns_server_start();
 void dap_dns_server_stop();
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback);
 int dap_dns_zone_unregister(char *zone);
+uint32_t dap_dns_client_get_addr(uint32_t a_dns_addr);

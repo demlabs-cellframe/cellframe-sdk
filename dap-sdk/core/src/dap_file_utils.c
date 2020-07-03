@@ -120,14 +120,15 @@ bool dap_dir_test(const char * a_dir_path)
  */
 int dap_mkdir_with_parents(const char *a_dir_path)
 {
-
-    char *path, *p;
     // validation of a pointer
     if(a_dir_path == NULL || a_dir_path[0] == '\0') {
         errno = EINVAL;
         return -1;
     }
-    path = strdup(a_dir_path);
+    char path[strlen(a_dir_path) + 1];
+    memset(path, '\0', strlen(a_dir_path) + 1);
+    memcpy(path, a_dir_path, strlen(a_dir_path));
+    char *p;
     // skip the root component if it is present, i.e. the "/" in Unix or "C:\" in Windows
 #ifdef _WIN32
     if(((path[0] >= 'a' && path[0] <= 'z') || (path[0] >= 'A' && path[0] <= 'Z'))
@@ -158,7 +159,6 @@ int dap_mkdir_with_parents(const char *a_dir_path)
             int result = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 #endif
             if(result == -1) {
-                free(path);
                 errno = ENOTDIR;
                 return -1;
             }
@@ -169,8 +169,6 @@ int dap_mkdir_with_parents(const char *a_dir_path)
                 p++;
         }
     } while(p);
-
-    free(path);
     return 0;
 }
 

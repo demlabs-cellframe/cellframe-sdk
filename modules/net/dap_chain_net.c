@@ -79,6 +79,7 @@
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_dns_server.h"
 
 #include "dap_module.h"
 
@@ -407,6 +408,14 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NODE_ROLE_FULL:
                 case NODE_ROLE_MASTER:
                 case NODE_ROLE_LIGHT:{
+                    struct in_addr l_dns_addr, l_link_addr;
+                    inet_aton("192.168.10.35", &l_dns_addr);
+                    uint32_t l_addr = dap_dns_client_get_addr(l_dns_addr.s_addr);
+                    l_link_addr.s_addr = l_addr;
+                    log_it(L_DEBUG, "Root DNS returned %s", inet_ntoa(l_link_addr));
+                    l_pvt_net->state = NET_STATE_OFFLINE;
+                    l_pvt_net->state_target = NET_STATE_OFFLINE;
+                    break;
                     // If we haven't any assigned shard - connect to root-0
                     if(1) { //if(l_net->pub.cell_id.uint64 == 0) {
 
