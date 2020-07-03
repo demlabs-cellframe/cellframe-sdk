@@ -60,6 +60,7 @@
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_cert.h"
+#include "dap_cert_file.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
@@ -1014,9 +1015,15 @@ int dap_chain_net_init()
         "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> sync < all | gdb | chains >\n"
-            "\tSyncronyze gdb, chains or everything\n\n"
+            "\tSyncronyze gdb, chains or everything\n"
         "net -net <chain net name> link < list | add | del | info | establish >\n"
-            "\tList,add,del, dump or establish links\n\n"
+            "\tList, add, del, dump or establish links\n"
+        "net -net <chain net name> ca add -cert <cert name>\n"
+            "\tAdd certificate to list of authority cetificates in GDB group\n"
+        "net -net <chain net name> ca list\n"
+            "\tPrint list of authority cetificates from GDB group\n"
+        "net -net <chain net name> ca del -hash <cert hash>\n"
+            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
                                         );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_global_db_add_history_group_prefix("global", GROUP_LOCAL_HISTORY);
@@ -1112,11 +1119,13 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
         const char *l_go_str = NULL;
         const char *l_get_str = NULL;
         const char *l_stats_str = NULL;
+        const char *l_ca_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "go", &l_go_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "get", &l_get_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "ca", &l_ca_str);
 
         if ( l_stats_str ){
             if ( strcmp(l_stats_str,"tx") == 0 ) {
@@ -1267,6 +1276,36 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand \"sync\" requires one of parameter: all,gdb,chains\n");
                 ret = -2;
+            }
+        } else if (l_ca_str) {
+            if (strcmp(l_ca_str, "add") == 0 ) {
+                const char *l_cert_string = NULL;
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_cert_string);
+                dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_string);
+                if (l_cert == NULL) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_string);
+                    return -6;
+                }
+                if (l_cert->enc_key == NULL) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_string );
+                    return -7;
+                }
+                // Serialize certificate key into memory
+                uint32_t l_cert_serialized_size = 0;
+                byte_t *l_cert_serialized = dap_cert_mem_save(l_cert, &l_cert_serialized_size);
+                if (l_cert_serialized == NULL) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't serialize in memory certificate \"%s\"", l_cert_string);
+                    return -7;
+                }
+
+            } else if (strcmp(l_ca_str, "list") == 0 ) {
+
+            } else if (strcmp(l_ca_str, "del") == 0 ) {
+
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "Subcommand \"ca\" requires one of parameter: add, list, del\n");
+                ret = -5;
             }
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,"Command requires one of subcomand: sync, links\n");
