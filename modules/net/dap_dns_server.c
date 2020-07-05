@@ -22,7 +22,6 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <sys/poll.h>
 #include <errno.h>
 #include "dap_dns_server.h"
 #include "dap_udp_server.h"
@@ -38,7 +37,6 @@
 #define LOG_TAG "dap_dns_server"
 
 static dap_dns_server_t *s_dns_server;
-static pthread_mutex_t s_list_mutex;
 static char s_root_alias[] = "dnsroot";
 
 /**
@@ -97,10 +95,10 @@ uint32_t dap_dns_resolve_hostname(char *str) {
         return 0;
     size_t l_node_num = rand() % l_nodes_count;
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[l_node_num].value;
-    uint32_t addr = l_node_info->hdr.ext_addr_v4.s_addr;
+    struct in_addr addr = l_node_info->hdr.ext_addr_v4;
     dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
-    log_it(L_DEBUG, "DNS resolver find ip %d.%d.%d.%d", addr & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
-    return addr;
+    log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(addr));
+    return addr.s_addr;
 }
 
 /**
@@ -349,9 +347,9 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     dap_dns_buf_put_uint16(&l_dns_request, 0);
     dap_dns_buf_put_uint16(&l_dns_request, 0);
     dap_dns_buf_put_uint16(&l_dns_request, 0);
-    int l_ptr = 0;
+    size_t l_ptr = 0;
     uint8_t *l_cur = l_buf + l_dns_request.ptr;
-    for (int i = 0; i <= strlen(a_name); i++)
+    for (size_t i = 0; i <= strlen(a_name); i++)
     {
         if (a_name[i] == '.' || a_name[i] == 0)
         {
@@ -367,44 +365,57 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     l_dns_request.ptr = l_cur - l_buf;
     dap_dns_buf_put_uint16(&l_dns_request, DNS_RECORD_TYPE_A);
     dap_dns_buf_put_uint16(&l_dns_request, DNS_CLASS_TYPE_IN);
-    int32_t l_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (l_sock < 0 ) {
-      log_it ( L_ERROR, "Socket error %s", strerror(errno));
+    SOCKET l_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (l_sock == INVALID_SOCKET) {
+      log_it (L_ERROR, "Socket error %s", strerror(errno));
       return -1;
     }
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;
-    l_addr.sin_port = DNS_LISTEN_PORT;
+    l_addr.sin_port = htons(DNS_LISTEN_PORT);
     l_addr.sin_addr.s_addr = a_addr;
-    size_t l_portion = 0, l_len = l_dns_request.ptr;
-    for(size_t l_sent = 0; l_sent < l_len; l_sent += l_portion) {
-        l_portion = sendto(l_sock, l_buf + l_sent, l_len - l_sent, 0, (struct sockaddr *)&a_addr, sizeof(a_addr));
-        if (l_portion < 0 ) {
-          log_it(L_ERROR, "Some error occured in send() function");
-          break;
+    int l_portion = 0, l_len = l_dns_request.ptr;
+    for (int l_sent = 0; l_sent < l_len; l_sent += l_portion) {
+        l_portion = sendto(l_sock, (const char *)(l_buf + l_sent), l_len - l_sent, 0, (SOCKADDR *)&l_addr, sizeof(l_addr));
+        if (l_portion < 0) {
+          log_it(L_ERROR, "send() function error %d", WSAGetLastError());
+          return -2;
         }
     }
-    struct pollfd l_pfd = {};
-    l_pfd.fd = l_sock;
-    l_pfd.events = POLLIN;
-    int l_triggered = poll(&l_pfd, 1, 5000);    // timeout 5 sec
-    if (!l_triggered || !l_pfd.revents & POLLIN) {
-        log_it(L_DEBUG, "poll() timeout");
-        return -2;
+    fd_set fd;
+    FD_ZERO(&fd);
+    FD_SET(l_sock, &fd);
+    struct timeval tv;
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+#ifdef WIN32
+    int l_selected = select(1, NULL, &fd, NULL, &tv);
+#else
+    int l_selected = select(l_sock + 1, NULL, &fd, NULL, &tv);
+#endif
+    if (l_selected < 0)
+    {
+        log_it(L_WARNING, "select() error");
+        return -3;
+    }
+    if (l_selected == 0)
+    {
+        log_it(L_DEBUG, "select() timeout");
+        return -4;
     }
     struct sockaddr_in l_clientaddr;
     socklen_t l_clientlen = sizeof(l_clientaddr);
-    size_t l_recieved = recvfrom(l_sock, l_buf, l_buf_size, 0, (struct sockaddr *)&l_clientaddr, &l_clientlen);
-    int l_addr_point = DNS_HEADER_SIZE + 4 * sizeof(uint16_t) + strlen(a_name) + 1 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
-    if (l_recieved < l_addr_point) {
+    size_t l_recieved = recvfrom(l_sock, (char *)l_buf, l_buf_size, 0, (struct sockaddr *)&l_clientaddr, &l_clientlen);
+    size_t l_addr_point = DNS_HEADER_SIZE + strlen(a_name) + 2 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
+    if (l_recieved < l_addr_point + sizeof(uint32_t)) {
         log_it(L_WARNING, "DNS answer incomplete");
-        return -4;
+        return -5;
     }
-    l_cur = l_buf + DNS_HEADER_SIZE + sizeof(uint16_t);
+    l_cur = l_buf + 3 * sizeof(uint16_t);
     int l_answers_count = ntohs(*(uint16_t *)l_cur);
     if (l_answers_count != 1) {
         log_it(L_WARNING, "Incorrect DNS answer format");
-        return -4;
+        return -6;
     }
     l_cur = l_buf + l_addr_point;
     if (a_result) {
