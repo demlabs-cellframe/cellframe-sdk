@@ -1968,6 +1968,35 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
     }
 }
 
+void s_com_mempool_list_print_for_chain(const dap_chain_net_t * a_net, const dap_chain_t * a_chain, dap_string_t * a_str_tmp){
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
+    if(!l_gdb_group_mempool){
+        dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
+    }else{
+        size_t l_objs_size = 0;
+        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+        if(l_objs_size > 0)
+            dap_string_append_printf(a_str_tmp, "%s.%s: Found %u records :\n", a_net->pub.name, a_chain->name,
+                    l_objs_size);
+        else
+            dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
+        for(size_t i = 0; i < l_objs_size; i++) {
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
+            char buf[50];
+            time_t l_ts_create = (time_t) l_datum->header.ts_create;
+            dap_string_append_printf(a_str_tmp, "%s: type_id=%s  data_size=%u ts_create=%s", // \n included in timestamp
+                    l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
+                    l_datum->header.data_size, ctime_r(&l_ts_create, buf));
+
+            dap_chain_net_dump_datum(a_str_tmp, l_datum);
+        }
+
+        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    }
+
+    DAP_DELETE(l_gdb_group_mempool);
+}
+
 /**
  * @brief com_token_decl_list
  * @param argc
@@ -1993,43 +2022,14 @@ int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply
     }
 
     if(l_net) {
-        char * l_gdb_group_mempool = NULL, *l_gdb_group_mempool_tmp;
-        if(l_chain) {
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-            l_gdb_group_mempool_tmp = l_gdb_group_mempool;
-        }
         dap_string_t * l_str_tmp = dap_string_new(NULL);
 
-        DL_FOREACH(l_net->pub.chains, l_chain) {
-            if(!l_gdb_group_mempool) {
-                l_gdb_group_mempool_tmp = dap_chain_net_get_gdb_group_mempool(l_chain);
-            }
-            size_t l_objs_size = 0;
-            dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool_tmp, &l_objs_size);
-            if(l_objs_size > 0)
-                dap_string_append_printf(l_str_tmp, "%s.%s: Found %u records :\n", l_net->pub.name, l_chain->name,
-                        l_objs_size);
-            else
-                dap_string_append_printf(l_str_tmp, "%s.%s: Not found records\n", l_net->pub.name, l_chain->name);
-            for(size_t i = 0; i < l_objs_size; i++) {
-                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-                char buf[50];
-                time_t l_ts_create = (time_t) l_datum->header.ts_create;
-                dap_string_append_printf(l_str_tmp, "%s: type_id=%s  data_size=%u ts_create=%s", // \n included in timestamp
-                        l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
-                        l_datum->header.data_size, ctime_r(&l_ts_create, buf));
+        if(l_chain)
+            s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp);
+        else
+            DL_FOREACH(l_net->pub.chains, l_chain)
+                    s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp);
 
-                dap_chain_net_dump_datum(l_str_tmp, l_datum);
-            }
-            // Clean up
-            dap_chain_global_db_objs_delete(l_objs, l_objs_size);
-            if (l_gdb_group_mempool_tmp)
-                DAP_DELETE(l_gdb_group_mempool_tmp);
-            // only one time if group defined
-            if(l_gdb_group_mempool) {
-                break;
-            }
-        }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
         dap_string_free(l_str_tmp, false);
 
