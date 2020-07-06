@@ -324,7 +324,7 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
 #endif
   }
   pthread_mutex_destroy(&a_es->write_hold);
-  free( a_es );
+  DAP_DELETE( a_es );
 }
 
 /**

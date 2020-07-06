@@ -1255,7 +1255,7 @@ static void *s_list_thread_proc(void *arg)
             while(l_dap_db_log_list->group_cur < l_dap_db_log_list->group_number) {
                 l_dap_db_log_list->group_cur++;
                 // check for empty group
-                if(l_dap_db_log_list->group_number_items[l_dap_db_log_list->group_cur] < 1) {
+                if( !(l_dap_db_log_list->group_number) || (l_dap_db_log_list->group_number_items[l_dap_db_log_list->group_cur] < 1)) {
                     continue;
                 }
                 break;
