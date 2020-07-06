@@ -458,12 +458,8 @@ size_t dap_serial_key_len(dap_serial_key_t *a_serial_key)
 }
 
 /**
- * @brief dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial
- * @param a_user_str
- * @param a_arg_index
- * @param a_argc
- * @param a_argv
- * @param a_str_reply
+ * @brief dap_chain_net_srv_vpn_cdb_auth_get_serial_param
+ * @param a_serial_str
  * @param a_group_out
  * @return
  */
@@ -489,7 +485,7 @@ dap_serial_key_t* dap_chain_net_srv_vpn_cdb_auth_get_serial_param(const char *a_
 
 /**
  * @brief dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial
- * @param a_user_str
+ * @param a_serial_str
  * @param a_arg_index
  * @param a_argc
  * @param a_argv
@@ -504,25 +500,66 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
         const char * l_serial_count_str = NULL;
         const char * l_serial_shift_str = NULL;
         int l_serial_nototal = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-nototal", NULL);
+        int l_serial_show_activated_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-activated_only", NULL);
+        int l_serial_show_inactive_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-inactive_only", NULL);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-n", &l_serial_count_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-shift", &l_serial_shift_str);
-        size_t l_serial_count = l_serial_count_str ? strtoll(l_serial_count_str, NULL, 10) : 0;
-        size_t l_serial_shift = l_serial_shift_str ? strtoll(l_serial_shift_str, NULL, 10)+1 : 1;
-        size_t l_total = dap_chain_global_db_driver_count(s_group_serials, l_serial_shift);
-        l_serial_count = l_serial_count ? min(l_serial_count, l_total - l_serial_shift) : l_total;
-        dap_store_obj_t *l_obj = dap_chain_global_db_driver_cond_read(s_group_serials, l_serial_shift, &l_serial_count);
+
+        if(l_serial_show_activated_only && l_serial_show_inactive_only){
+            dap_chain_node_cli_set_reply_text(a_str_reply, "use onle one option '-activated_only' or '-inactive_only'");
+            return -1;
+        }
+        long long l_serial_count_tmp = l_serial_count_str ? strtoll(l_serial_count_str, NULL, 10) : 0;
+        long long l_serial_shift_tmp = l_serial_shift_str ? strtoll(l_serial_shift_str, NULL, 10) : 0;
+        size_t l_serial_count = l_serial_count_tmp > 0 ? l_serial_count_tmp : 0;
+        size_t l_serial_shift = l_serial_shift_tmp > 0 ? l_serial_shift_tmp : 0;
+        //size_t l_serial_shift = l_serial_shift_str ? strtoll(l_serial_shift_str, NULL, 10)+1 : 1;
+        //size_t l_total = dap_chain_global_db_driver_count(s_group_serials, l_serial_shift);
+        //l_serial_count = l_serial_count ? min(l_serial_count, l_total - l_serial_shift) : l_total;
+        size_t l_serial_count_noactivated = 0;
+        size_t l_serial_count_activated = 0;
+        // read inactive serials
+        dap_store_obj_t *l_obj = l_serial_show_inactive_only ? dap_chain_global_db_driver_cond_read(s_group_serials, 0, &l_serial_count_noactivated) : NULL;
+        // read activated serials
+        dap_store_obj_t *l_obj_activated = l_serial_show_activated_only ? dap_chain_global_db_driver_cond_read(s_group_serials_activated, 0, &l_serial_count_activated) : 0;
+        size_t l_total = l_serial_count_noactivated + l_serial_count_activated;
         if(l_serial_count > 0) {
             dap_string_t *l_keys = l_serial_count > 1 ? dap_string_new("serial keys:\n") : dap_string_new("serial key: ");
-            for(size_t i = 0; i < l_serial_count; i++) {
+            size_t l_total_actual = 0;
+            for(size_t i = 0; i < l_serial_count_noactivated; i++) {
                 if((l_obj + i)->value_len < sizeof(dap_serial_key_t))
                     continue;
+                if(l_serial_count > 0 && l_total_actual >= l_serial_count)
+                    break;
                 dap_serial_key_t *l_serial = (dap_serial_key_t*) (l_obj + i)->value;
-                dap_string_append(l_keys, l_serial->header.serial);
-                //if(i < l_serial_count - 1)
+                if(l_serial_shift > 0)
+                    l_serial_shift--;
+                else {
+                    dap_string_append(l_keys, l_serial->header.serial);
+                    dap_string_append(l_keys, " inactive");
+                    //if(i < l_serial_count - 1)
                     dap_string_append(l_keys, "\n");
+                    l_total_actual++;
+                }
+            }
+            for(size_t i = 0; i < l_serial_count_activated; i++) {
+                if((l_obj_activated + i)->value_len < sizeof(dap_serial_key_t))
+                    continue;
+                dap_serial_key_t *l_serial = (dap_serial_key_t*) (l_obj_activated + i)->value;
+                if(l_serial_count > 0 && l_total_actual >= l_serial_count)
+                    break;
+                if(l_serial_shift > 0)
+                    l_serial_shift--;
+                else {
+                    dap_string_append(l_keys, l_serial->header.serial);
+                    dap_string_append(l_keys, " activated");
+                    //if(i < l_serial_count - 1)
+                    dap_string_append(l_keys, "\n");
+                    l_total_actual++;
+                }
             }
             if(!l_serial_nototal){
-                char *l_total_str = dap_strdup_printf("total %u keys", l_total);
+                char *l_total_str = dap_strdup_printf("total %u keys", l_total_actual);
                 dap_string_append(l_keys, l_total_str);
                 DAP_DELETE(l_total_str);
                 //dap_chain_node_cli_set_reply_text(a_str_reply, "\ntotal %u keys", l_total);
@@ -530,7 +567,8 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
             }
             dap_chain_node_cli_set_reply_text(a_str_reply, "%s", l_keys->str);
             dap_string_free(l_keys, true);
-            dap_store_obj_free(l_obj, l_serial_count);
+            dap_store_obj_free(l_obj, l_serial_count_noactivated);
+            dap_store_obj_free(l_obj_activated, l_serial_count_activated);
         }
         else
             dap_chain_node_cli_set_reply_text(a_str_reply, "keys not found");
