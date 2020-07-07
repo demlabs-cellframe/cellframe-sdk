@@ -557,7 +557,7 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
     if(a_net->pub.default_chain)
         l_chain = a_net->pub.default_chain;
     else
-        dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
 
     if(!l_chain)
             return NULL;
