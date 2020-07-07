@@ -401,9 +401,9 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     tv.tv_sec = 5;
     tv.tv_usec = 0;
 #ifdef WIN32
-    int l_selected = select(1, NULL, &fd, NULL, &tv);
+    int l_selected = select(1, &fd, NULL, NULL, &tv);
 #else
-    int l_selected = select(l_sock + 1, NULL, &fd, NULL, &tv);
+    int l_selected = select(l_sock + 1, &fd, NULL, NULL, &tv);
 #endif
     if (l_selected < 0)
     {
