@@ -36,6 +36,12 @@
 
 #define LOG_TAG "dap_dns_server"
 
+#ifndef _WIN32
+#include <unistd.h> // for close
+#define closesocket close
+#define INVALID_SOCKET -1
+#endif
+
 static dap_dns_server_t *s_dns_server;
 static char s_root_alias[] = "dnsroot";
 
@@ -365,9 +371,14 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     l_dns_request.ptr = l_cur - l_buf;
     dap_dns_buf_put_uint16(&l_dns_request, DNS_RECORD_TYPE_A);
     dap_dns_buf_put_uint16(&l_dns_request, DNS_CLASS_TYPE_IN);
-    SOCKET l_sock = socket(AF_INET, SOCK_DGRAM, 0);
+#ifdef WIN32
+    SOCKET l_sock;
+#else
+    int l_sock;
+#endif
+    l_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (l_sock == INVALID_SOCKET) {
-      log_it (L_ERROR, "Socket error %s", strerror(errno));
+      log_it(L_ERROR, "Socket error");
       return -1;
     }
     struct sockaddr_in l_addr;
@@ -376,9 +387,10 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     l_addr.sin_addr.s_addr = a_addr;
     int l_portion = 0, l_len = l_dns_request.ptr;
     for (int l_sent = 0; l_sent < l_len; l_sent += l_portion) {
-        l_portion = sendto(l_sock, (const char *)(l_buf + l_sent), l_len - l_sent, 0, (SOCKADDR *)&l_addr, sizeof(l_addr));
+        l_portion = sendto(l_sock, (const char *)(l_buf + l_sent), l_len - l_sent, 0, (struct sockaddr *)&l_addr, sizeof(l_addr));
         if (l_portion < 0) {
-          log_it(L_ERROR, "send() function error %d", WSAGetLastError());
+          log_it(L_ERROR, "send() function error");
+          closesocket(l_sock);
           return -2;
         }
     }
@@ -396,11 +408,13 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     if (l_selected < 0)
     {
         log_it(L_WARNING, "select() error");
+        closesocket(l_sock);
         return -3;
     }
     if (l_selected == 0)
     {
         log_it(L_DEBUG, "select() timeout");
+        closesocket(l_sock);
         return -4;
     }
     struct sockaddr_in l_clientaddr;
@@ -409,18 +423,21 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     size_t l_addr_point = DNS_HEADER_SIZE + strlen(a_name) + 2 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
     if (l_recieved < l_addr_point + sizeof(uint32_t)) {
         log_it(L_WARNING, "DNS answer incomplete");
+        closesocket(l_sock);
         return -5;
     }
     l_cur = l_buf + 3 * sizeof(uint16_t);
     int l_answers_count = ntohs(*(uint16_t *)l_cur);
     if (l_answers_count != 1) {
         log_it(L_WARNING, "Incorrect DNS answer format");
+        closesocket(l_sock);
         return -6;
     }
     l_cur = l_buf + l_addr_point;
     if (a_result) {
         *a_result = ntohl(*(uint32_t *)l_cur);
     }
+    closesocket(l_sock);
     return 0;
 }
 
