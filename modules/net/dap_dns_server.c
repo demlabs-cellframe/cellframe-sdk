@@ -322,6 +322,9 @@ void dap_dns_server_start() {
 }
 
 void dap_dns_server_stop() {
+    if(!s_dns_server)
+        return;
+
     dap_dns_zone_hash_t *current_zone, *tmp;
     HASH_ITER(hh, s_dns_server->hash_table, current_zone, tmp) {
         HASH_DEL(s_dns_server->hash_table, current_zone);

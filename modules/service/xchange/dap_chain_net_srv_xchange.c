@@ -87,6 +87,8 @@ int dap_chain_net_srv_xchange_init()
 
 void dap_chain_net_srv_xchange_deinit()
 {
+    if(!s_srv_xchange)
+        return;
     dap_chain_net_srv_xchange_price_t *l_price = NULL, *l_tmp;
     HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
         HASH_DEL(s_srv_xchange->pricelist, l_price);
