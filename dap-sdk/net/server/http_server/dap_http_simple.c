@@ -412,10 +412,7 @@ static void s_headers_read( dap_http_client_t *a_http_client, void *a_arg )
     DAP_HTTP_SIMPLE(a_http_client)->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
 
     if( a_http_client->in_content_length ) {
-        if( a_http_client->in_content_length < DAP_HTTP_SIMPLE_REQUEST_MAX )
-            DAP_HTTP_SIMPLE(a_http_client)->request = calloc( 1, a_http_client->in_content_length + 1 );
-        else
-            log_it( L_ERROR, "Too big content-length %u in request", a_http_client->in_content_length );
+        DAP_HTTP_SIMPLE(a_http_client)->request = calloc( 1, a_http_client->in_content_length + 1 );
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
         queue_http_request_put( DAP_HTTP_SIMPLE(a_http_client) );
