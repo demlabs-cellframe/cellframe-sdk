@@ -19,6 +19,8 @@ win32 {
     DEFINES += DAP_OS_WINDOWS
 }
 
+include(zip/zip.pri)
+
 HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_binary_tree.h \
     $$PWD/include/dap_config.h \

@@ -61,3 +61,13 @@ if(BUILD_DAP_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+if (ZLIB)
+    add_subdirectory(zip/zlib)
+    target_link_libraries(${PROJECT_NAME} dap_core_zlib)
+endif()
+
+if (QUAZIP)
+    add_subdirectory(zip/quazip)
+    target_link_libraries(${PROJECT_NAME} dap_core_quazip)
+endif()
