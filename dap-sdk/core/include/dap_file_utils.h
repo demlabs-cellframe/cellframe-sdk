@@ -30,7 +30,7 @@
 
 #ifdef _WIN32
 
-#include <Windows.h>
+#include <windows.h>
 
 /* On Win32, the canonical directory separator is the backslash, and
  * the search path separator is the semicolon. Note that also the
