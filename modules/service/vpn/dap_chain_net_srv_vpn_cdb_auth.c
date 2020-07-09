@@ -504,6 +504,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
         int l_serial_nototal = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-nototal", NULL);
         int l_serial_show_activated_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-activated_only", NULL);
         int l_serial_show_inactive_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-inactive_only", NULL);
+        bool l_serial_show_all =  !l_serial_show_activated_only && !l_serial_show_inactive_only ? true : false;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-n", &l_serial_count_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-shift", &l_serial_shift_str);
 
@@ -513,18 +514,18 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
         }
         long long l_serial_count_tmp = l_serial_count_str ? strtoll(l_serial_count_str, NULL, 10) : 0;
         long long l_serial_shift_tmp = l_serial_shift_str ? strtoll(l_serial_shift_str, NULL, 10) : 0;
-        size_t l_serial_count = l_serial_count_tmp > 0 ? l_serial_count_tmp : 0;
-        size_t l_serial_shift = l_serial_shift_tmp > 0 ? l_serial_shift_tmp : 0;
         //size_t l_serial_shift = l_serial_shift_str ? strtoll(l_serial_shift_str, NULL, 10)+1 : 1;
         //size_t l_total = dap_chain_global_db_driver_count(s_group_serials, l_serial_shift);
         //l_serial_count = l_serial_count ? min(l_serial_count, l_total - l_serial_shift) : l_total;
         size_t l_serial_count_noactivated = 0;
         size_t l_serial_count_activated = 0;
         // read inactive serials
-        dap_store_obj_t *l_obj = l_serial_show_inactive_only ? dap_chain_global_db_driver_cond_read(s_group_serials, 0, &l_serial_count_noactivated) : NULL;
+        dap_store_obj_t *l_obj = l_serial_show_inactive_only || l_serial_show_all ? dap_chain_global_db_driver_cond_read(s_group_serials, 0, &l_serial_count_noactivated) : NULL;
         // read activated serials
-        dap_store_obj_t *l_obj_activated = l_serial_show_activated_only ? dap_chain_global_db_driver_cond_read(s_group_serials_activated, 0, &l_serial_count_activated) : 0;
+        dap_store_obj_t *l_obj_activated = l_serial_show_activated_only || l_serial_show_all ? dap_chain_global_db_driver_cond_read(s_group_serials_activated, 0, &l_serial_count_activated) : NULL;
         size_t l_total = l_serial_count_noactivated + l_serial_count_activated;
+        size_t l_serial_count = l_serial_count_tmp > 0 ? l_serial_count_tmp : (!l_serial_count_tmp ? l_total : 0);
+        size_t l_serial_shift = l_serial_shift_tmp > 0 ? l_serial_shift_tmp : 0;
         if(l_serial_count > 0) {
             dap_string_t *l_keys = l_serial_count > 1 ? dap_string_new("serial keys:\n") : dap_string_new("serial key: ");
             size_t l_total_actual = 0;
