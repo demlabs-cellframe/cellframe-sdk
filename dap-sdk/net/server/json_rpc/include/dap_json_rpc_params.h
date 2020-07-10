@@ -1,6 +1,7 @@
 #pragma once
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "json-c/json.h"
 
 typedef enum dap_json_rpc_type_param{
     TYPE_PARAM_NULL,
@@ -40,6 +41,9 @@ void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index);
 dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params_t *a_params, uint32_t index);
 
 void dap_json_rpc_param_remove(dap_json_rpc_param_t *param);
+
+dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list);
+char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params);
 
 
 

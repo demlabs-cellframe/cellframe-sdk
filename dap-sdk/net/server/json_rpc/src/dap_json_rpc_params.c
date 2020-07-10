@@ -86,3 +86,60 @@ void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
     //DAP_FREE(param->name_param);
     DAP_FREE(param);
 }
+
+dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list){
+    dap_json_rpc_params_t *l_params = dap_json_rpc_params_create();
+    int l_lenght = json_object_array_length(a_array_list);
+    for (int i = 0; i < l_lenght; i++){
+        json_object *l_jobj = json_object_array_get_idx(a_array_list, i);
+        json_type l_jobj_type = json_object_get_type(l_jobj);
+        switch (l_jobj_type) {
+        case json_type_string:
+            dap_json_rpc_params_add_data(l_params, json_object_get_string(l_jobj), TYPE_PARAM_STRING);
+            break;
+        case json_type_boolean:
+//            dap_json_rpc_params_add_data(l_params, json_object_get_boolean(l_jobj), TYPE_PARAM_BOOLEAN);
+            break;
+        case json_type_int:
+            dap_json_rpc_params_add_data(l_params, (void*)json_object_get_int64(l_jobj), TYPE_PARAM_INTEGER);
+            break;
+        case json_type_double:
+//            dap_json_rpc_params_add_data(l_params, (void*)json_object_get_double(l_jobj), TYPE_PARAM_DOUBLE);
+            break;
+        default:
+            dap_json_rpc_params_add_data(l_params, NULL, TYPE_PARAM_NULL);
+        }
+    }
+}
+
+char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){
+    char *l_str = "[";
+    uint32_t l_pre_lenght = a_params->lenght - 1;
+    for (uint32_t i = 0; i <= l_pre_lenght;i++){
+        switch (a_params->params[i]->type){
+        case TYPE_PARAM_DOUBLE:
+            //l_str = dap_strjoin(NULL, l_str, (double)a_params->params[i]->value_param);
+            break;
+        case TYPE_PARAM_INTEGER:
+            l_str = dap_strjoin(NULL, l_str, (int64_t)a_params->params[i]->value_param);
+            break;
+         case TYPE_PARAM_BOOLEAN:
+            if((bool)a_params->params[i]->value_param){
+                l_str = dap_strjoin(NULL, l_str, "true");
+            }else{
+                l_str = dap_strjoin(NULL, l_str, "false");
+            }
+            break;
+        case TYPE_PARAM_STRING:
+            l_str = dap_strjoin(NULL, l_str, (char*)a_params->params[i]->value_param);
+            break;
+        default:
+            l_str = dap_strjoin(NULL, l_str, "null");
+        }
+        if (i != l_pre_lenght){
+            l_str = dap_strjoin(NULL, l_str, ",");
+        }
+    }
+    l_str = dap_strjoin(NULL, l_str, "]");
+    return l_str;
+}
