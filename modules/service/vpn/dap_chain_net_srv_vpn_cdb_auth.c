@@ -319,8 +319,8 @@ int dap_chain_net_srv_vpn_cdb_auth_activate_serial(const char * a_serial_raw, co
                 l_serial_key->header.ext_size = l_pkey_raw_size;
                 l_serial_key = DAP_REALLOC(l_serial_key, dap_serial_key_len(l_serial_key));
                 l_serial_key->header.activated = time(NULL);
-                if(l_serial_key->header.expired)
-                    l_serial_key->header.expired = l_serial_key->header.activated + l_serial_key->header.expired;
+                if(l_serial_key->header.license_length)
+                    l_serial_key->header.expired = l_serial_key->header.activated + l_serial_key->header.license_length;
                 l_serial_key->header.pkey_type = l_key_type;
                 memcpy(l_serial_key->ext, l_pkey_raw, l_pkey_raw_size);
                 // save updated serial
@@ -361,9 +361,9 @@ int dap_chain_net_srv_vpn_cdb_auth_check_serial(const char * a_serial, const cha
     if(!l_serial_key->header.activated) {
         l_ret = -3;
     }
-    // check time expired
+    // check time expired, if expired=0, then the time never expires
     else if(l_serial_key->header.expired) {
-        if((l_serial_key->header.activated + l_serial_key->header.expired) < time(NULL))
+        if((l_serial_key->header.expired) < time(NULL))
             l_ret = -4;
     }
     if(!l_ret) {
@@ -502,14 +502,19 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
         const char * l_serial_count_str = NULL;
         const char * l_serial_shift_str = NULL;
         int l_serial_nototal = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-nototal", NULL);
+        int l_serial_total_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-total_only", NULL);
         int l_serial_show_activated_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-activated_only", NULL);
         int l_serial_show_inactive_only = dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-inactive_only", NULL);
         bool l_serial_show_all =  !l_serial_show_activated_only && !l_serial_show_inactive_only ? true : false;
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-n", &l_serial_count_str);
         dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-shift", &l_serial_shift_str);
 
+        if(l_serial_nototal && l_serial_total_only){
+            dap_chain_node_cli_set_reply_text(a_str_reply, "use only one option '-nototal' or '-total_only'");
+            return -1;
+        }
         if(l_serial_show_activated_only && l_serial_show_inactive_only){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "use onle one option '-activated_only' or '-inactive_only'");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "use only one option '-activated_only' or '-inactive_only'");
             return -1;
         }
         long long l_serial_count_tmp = l_serial_count_str ? strtoll(l_serial_count_str, NULL, 10) : 0;
@@ -527,7 +532,10 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
         size_t l_serial_count = l_serial_count_tmp > 0 ? l_serial_count_tmp : (!l_serial_count_tmp ? l_total : 0);
         size_t l_serial_shift = l_serial_shift_tmp > 0 ? l_serial_shift_tmp : 0;
         if(l_serial_count > 0) {
-            dap_string_t *l_keys = l_serial_count > 1 ? dap_string_new("serial keys:\n") : dap_string_new("serial key: ");
+            dap_string_t *l_keys = dap_string_new("");
+            if(!l_serial_total_only) {
+                l_keys =  l_serial_count > 1 ? dap_string_append(l_keys, "serial keys:\n") : dap_string_append(l_keys, "serial key: ");
+            }
             size_t l_total_actual = 0;
             for(size_t i = 0; i < l_serial_count_noactivated; i++) {
                 if((l_obj + i)->value_len < sizeof(dap_serial_key_t))
@@ -538,10 +546,12 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                 if(l_serial_shift > 0)
                     l_serial_shift--;
                 else {
-                    dap_string_append(l_keys, l_serial->header.serial);
-                    dap_string_append(l_keys, " inactive");
-                    //if(i < l_serial_count - 1)
-                    dap_string_append(l_keys, "\n");
+                    if(!l_serial_total_only) {
+                        dap_string_append(l_keys, l_serial->header.serial);
+                        dap_string_append(l_keys, " inactive");
+                        //if(i < l_serial_count - 1)
+                        dap_string_append(l_keys, "\n");
+                    }
                     l_total_actual++;
                 }
             }
@@ -554,19 +564,19 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                 if(l_serial_shift > 0)
                     l_serial_shift--;
                 else {
-                    dap_string_append(l_keys, l_serial->header.serial);
-                    dap_string_append(l_keys, " activated");
-                    //if(i < l_serial_count - 1)
-                    dap_string_append(l_keys, "\n");
+                    if(!l_serial_total_only) {
+                        dap_string_append(l_keys, l_serial->header.serial);
+                        dap_string_append(l_keys, " activated");
+                        //if(i < l_serial_count - 1)
+                        dap_string_append(l_keys, "\n");
+                    }
                     l_total_actual++;
                 }
             }
             if(!l_serial_nototal){
-                char *l_total_str = dap_strdup_printf("total %u keys", l_total_actual);
+                char *l_total_str = l_total_actual == 1 ? dap_strdup_printf("total 1 key") : dap_strdup_printf("total %u keys", l_total_actual);
                 dap_string_append(l_keys, l_total_str);
                 DAP_DELETE(l_total_str);
-                //dap_chain_node_cli_set_reply_text(a_str_reply, "\ntotal %u keys", l_total);
-                //return 0;
             }
             dap_chain_node_cli_set_reply_text(a_str_reply, "%s", l_keys->str);
             dap_string_free(l_keys, true);
@@ -600,7 +610,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                 else{
                     strncpy(l_serial.header.serial, l_serial_str, sizeof(l_serial.header.serial));
                     if(l_active_days)
-                        l_serial.header.expired = l_active_days * 86400;// days to sec
+                        l_serial.header.license_length = l_active_days * 86400;// days to sec
                     break;
                 }
             };
@@ -637,7 +647,13 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
             const char *l_group;
             dap_serial_key_t *l_serial_key = dap_chain_net_srv_vpn_cdb_auth_get_serial_param(l_serial_number_str, &l_group);
             if(l_serial_key){
-                l_serial_key->header.expired = l_serial_key->header.activated + l_active_days * 86400; // 24*3600 = days to sec;
+                // if serial inactive, then header.activated=0
+                if(l_serial_key->header.activated){
+                    if(l_active_days > 0)
+                        l_serial_key->header.expired = l_serial_key->header.activated + l_active_days * 86400; // 24*3600 = days to sec;
+                }
+                else
+                    l_serial_key->header.license_length = l_active_days * 86400; // 24*3600 = days to sec;
                 // save updated serial
                 if(dap_chain_global_db_gr_set(dap_strdup(l_serial_key->header.serial), l_serial_key, dap_serial_key_len(l_serial_key), l_group)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "serial '%s' successfully updated", l_serial_key->header.serial);
@@ -681,7 +697,7 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                         char *l_expired_txt = NULL;
                         if(l_serial_key->header.expired) {
                             time_t l_expired_sec = l_serial_key->header.expired - time(NULL);
-                            if(l_expired_sec < 0)
+                            if(l_expired_sec <= 0)
                                 l_expired_txt = dap_strdup("0 days");
                             else
                                 l_expired_txt = dap_strdup_printf("%lld days", l_expired_sec/(24*3600));
@@ -700,12 +716,12 @@ int dap_chain_net_srv_vpn_cdb_auth_cli_cmd_serial(const char *a_serial_str, int 
                 else {
                     // form expired time string
                     char *l_expired_txt = NULL;
-                    if(l_serial_key->header.expired) {
-                        l_expired_txt = dap_strdup_printf("%lld days", l_serial_key->header.expired/(24*3600));
+                    if(l_serial_key->header.license_length) {
+                        l_expired_txt = dap_strdup_printf("%lld days", l_serial_key->header.license_length/(24*3600));
                     }
                     else
                         l_expired_txt = dap_strdup("no time limit");
-                    l_str_message = dap_strdup_printf("serial %s not actitated\nexpired: %s", l_serial_key->header.serial, l_expired_txt);
+                    l_str_message = dap_strdup_printf("serial %s not activated\nlicense length: %s", l_serial_key->header.serial, l_expired_txt);
                     DAP_DELETE(l_expired_txt);
                 }
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_str_message);

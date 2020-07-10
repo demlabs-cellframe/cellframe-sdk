@@ -31,7 +31,11 @@ typedef struct dap_serial_key {
     struct {
         char serial[20];
         time_t activated; // if set, then serial is activated
-        time_t expired; // if zero then time no expired
+        // if zero then time no expired
+        union{
+            time_t expired;
+            int64_t license_length;// in sec
+        };
         int32_t pkey_type;// dap_enc_key_type_t pkey type
         size_t ext_size;
     }DAP_ALIGN_PACKED header;
