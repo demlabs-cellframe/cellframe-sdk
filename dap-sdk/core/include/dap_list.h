@@ -5,6 +5,12 @@
 #ifndef __DAP_LIST_H__
 #define __DAP_LIST_H__
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 typedef void (*dap_callback_destroyed_t)(void* data);
 typedef void (*dap_callback_t)(void* data, void* user_data);
 typedef void* (*dap_callback_copy_t)(const void * src, void* data);
@@ -60,3 +66,8 @@ void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 #define dap_list_next(list)	        ((list) ? (((dap_list_t *)(list))->next) : NULL)
 
 #endif /* __DAP_LIST_H__ */
+
+
+#ifdef __cplusplus
+}
+#endif
