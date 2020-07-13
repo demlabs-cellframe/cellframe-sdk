@@ -60,6 +60,7 @@
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_cert.h"
+#include "dap_cert_file.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
@@ -185,6 +186,22 @@ static int s_cli_net(int argc, char ** argv, void *arg_func, char **str_reply);
 
 static bool s_seed_mode = false;
 
+
+char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
+{
+    if (a_net) {
+        const char l_path[] = "network/";
+        char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
+        strcpy(l_cfg_path, l_path);
+        strcat(l_cfg_path, a_net->pub.name);
+        dap_config_t *l_cfg = dap_config_open(l_cfg_path);
+        const char *l_auth_gdb = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_gdb");
+        if (l_auth_gdb) {
+            return dap_strdup_printf("%s.%s", a_net->pub.gdb_groups_prefix, l_auth_gdb);
+        }
+    }
+    return NULL;
+}
 
 /**
  * @brief s_net_set_go_sync
@@ -1014,9 +1031,15 @@ int dap_chain_net_init()
         "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> sync < all | gdb | chains >\n"
-            "\tSyncronyze gdb, chains or everything\n\n"
+            "\tSyncronyze gdb, chains or everything\n"
         "net -net <chain net name> link < list | add | del | info | establish >\n"
-            "\tList,add,del, dump or establish links\n\n"
+            "\tList, add, del, dump or establish links\n"
+        "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
+            "\tAdd certificate to list of authority cetificates in GDB group\n"
+        "net -net <chain net name> ca list\n"
+            "\tPrint list of authority cetificates from GDB group\n"
+        "net -net <chain net name> ca del -hash <cert hash>\n"
+            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
                                         );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_global_db_add_history_group_prefix("global", GROUP_LOCAL_HISTORY);
@@ -1112,11 +1135,13 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
         const char *l_go_str = NULL;
         const char *l_get_str = NULL;
         const char *l_stats_str = NULL;
+        const char *l_ca_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "go", &l_go_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "get", &l_get_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "ca", &l_ca_str);
 
         if ( l_stats_str ){
             if ( strcmp(l_stats_str,"tx") == 0 ) {
@@ -1267,6 +1292,91 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand \"sync\" requires one of parameter: all,gdb,chains\n");
                 ret = -2;
+            }
+        } else if (l_ca_str) {
+            if (strcmp(l_ca_str, "add") == 0 ) {
+                const char *l_cert_string = NULL, *l_hash_string = NULL;
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_cert_string);
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
+                if (!l_cert_string && !l_hash_string) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "One of -cert or -hash parameters is mandatory");
+                    return -6;
+                }
+                if (l_cert_string) {
+                    dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_string);
+                    if (l_cert == NULL) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_string);
+                        return -7;
+                    }
+                    if (l_cert->enc_key == NULL) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_string );
+                        return -8;
+                    }
+                    // Get publivc key hash
+                    size_t l_pub_key_size = 0;
+                    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_size);;
+                    if (l_pub_key == NULL) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_string);
+                        return -9;
+                    }
+                    dap_chain_hash_fast_t l_pkey_hash;
+                    dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    l_hash_string = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                }
+                const char c = '1';
+                char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
+                if (!l_gdb_group_str) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
+                    return -11;
+                }
+                ret = dap_chain_global_db_gr_set(dap_strdup(l_hash_string), (void *)&c, 1, dap_chain_net_get_gdb_group_acl(l_net));
+                DAP_DELETE(l_gdb_group_str);
+                if (!ret) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save public key hash in database");
+                    return -10;
+                }
+                return 0;
+            } else if (strcmp(l_ca_str, "list") == 0 ) {
+                char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
+                if (!l_gdb_group_str) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
+                    return -11;
+                }
+                size_t l_objs_count;
+                dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_str, &l_objs_count);
+                DAP_DELETE(l_gdb_group_str);
+                dap_string_t *l_reply = dap_string_new("");
+                for (size_t i = 0; i < l_objs_count; i++) {
+                    dap_string_append(l_reply, l_objs[i].key);
+                    dap_string_append(l_reply, "\n");
+                }
+                dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+                *a_str_reply = l_reply->len ? l_reply->str : dap_strdup("No entries found");
+                dap_string_free(l_reply, false);
+                return 0;
+            } else if (strcmp(l_ca_str, "del") == 0 ) {
+                const char *l_hash_string = NULL;
+                dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
+                if (!l_hash_string) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Format should be 'net ca del -hash <hash string>");
+                    return -6;
+                }
+                char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
+                if (!l_gdb_group_str) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
+                    return -11;
+                }
+                ret = dap_chain_global_db_gr_del((char *)l_hash_string, l_gdb_group_str);
+                DAP_DELETE(l_gdb_group_str);
+                if (!ret) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
+                    return -10;
+                }
+                return 0;
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "Subcommand \"ca\" requires one of parameter: add, list, del\n");
+                ret = -5;
             }
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,"Command requires one of subcomand: sync, links\n");

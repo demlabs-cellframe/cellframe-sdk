@@ -37,6 +37,7 @@
 
 
 #include "dap_common.h"
+#include "dap_sign.h"
 
 #include "include/dap_http.h"
 #include "dap_http_client.h"
@@ -93,16 +94,27 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 
         uint8_t alice_msg[cl_st->request_size];
         size_t decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
-        if(decode_len != MSRLN_PKA_BYTES) {
+        dap_chain_hash_fast_t l_sign_hash = {};
+        if (decode_len < MSRLN_PKA_BYTES) {
             log_it(L_WARNING, "Wrong http_enc request. Key not equal MSRLN_PKA_BYTES");
             *return_code = Http_Status_BadRequest;
             return;
+        } else if (decode_len > MSRLN_PKA_BYTES) {
+            dap_sign_t *l_sign = (dap_sign_t *)&alice_msg[MSRLN_PKA_BYTES];
+            if (dap_sign_verify(l_sign, alice_msg, MSRLN_PKA_BYTES) != 1) {
+                *return_code = Http_Status_Unauthorized;
+                return;
+            }
+            dap_sign_get_pkey_hash(l_sign, &l_sign_hash);
         }
 
         dap_enc_key_t* msrln_key = dap_enc_key_new(DAP_ENC_KEY_TYPE_MSRLN);
         msrln_key->gen_bob_shared_key(msrln_key, alice_msg, MSRLN_PKA_BYTES, (void**)&msrln_key->pub_key_data);
 
         dap_enc_ks_key_t * key_ks = dap_enc_ks_new();
+        if (!dap_hash_fast_is_blank(&l_sign_hash)) {
+            memcpy(&key_ks->auth_hash, &l_sign_hash, sizeof(dap_chain_hash_fast_t));
+        }
 
         char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(msrln_key->pub_key_data_size) + 1];
         size_t encrypt_msg_size = dap_enc_base64_encode(msrln_key->pub_key_data, msrln_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
@@ -124,6 +136,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_key_delete(msrln_key);
 
         *return_code = Http_Status_OK;
+
     } else{
         log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http->url_path);
         *return_code = Http_Status_NotFound;
