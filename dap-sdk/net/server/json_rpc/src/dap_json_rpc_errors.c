@@ -7,7 +7,16 @@ int dap_json_rpc_error_init(void){
     s_errors = NULL;
     return  0;
 }
-void dap_json_rpc_error_deinit(void){}
+void dap_json_rpc_error_deinit(void){
+    dap_json_rpc_error_t *err, *tmp;
+    if (s_errors != NULL){
+        LL_FOREACH_SAFE(s_errors, err, tmp){
+            LL_DELETE(s_errors, err);
+            DAP_FREE(err->msg);
+            DAP_FREE(err);
+        }
+    }
+}
 
 int dap_json_rpc_error_add(int a_code_error, const char *a_msg){
     dap_json_rpc_error_t *l_el_search =dap_json_rpc_error_search_by_code(a_code_error);
