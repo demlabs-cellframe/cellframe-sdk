@@ -56,6 +56,7 @@
 #include "dap_enc.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_cert.h"
 
 //#include "dap_http_client_simple.h"
 #include "dap_client_http.h"
@@ -396,25 +397,26 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
     case STAGE_STATUS_IN_PROGRESS: {
         switch (a_client_pvt->stage) {
         case STAGE_ENC_INIT: {
-            log_it(L_INFO, "Go to stage ENC: prepare the request");
-
+            log_it(L_INFO, "Go to stage ENC: prepare the request");         
             a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
-
-            size_t l_key_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(a_client_pvt->session_key_open->pub_key_data_size);
-            char *l_key_str = DAP_NEW_Z_SIZE(char, l_key_str_size_max + 1);
+            dap_cert_t *l_cert = dap_cert_find_by_name("auth");     // TODO provide certificate choice
+            size_t l_key_size = a_client_pvt->session_key_open->pub_key_data_size;
+            dap_sign_t *l_sign = dap_sign_create(l_cert->enc_key, a_client_pvt->session_key_open->pub_key_data, l_key_size, 0);
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            uint8_t l_data[l_key_size + l_sign_size];
+            memcpy(l_data, a_client_pvt->session_key_open->pub_key_data, l_key_size);
+            memcpy(l_data + l_key_size, l_sign, l_sign_size);
+            size_t l_data_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(l_key_size + l_sign_size);
+            char l_data_str[l_data_str_size_max + 1];
             // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
-            size_t l_key_str_enc_size = dap_enc_base64_encode(a_client_pvt->session_key_open->pub_key_data,
-                    a_client_pvt->session_key_open->pub_key_data_size,
-                    l_key_str, DAP_ENC_DATA_TYPE_B64);
-
-            log_it(L_DEBUG, "ENC request size %u", l_key_str_enc_size);
+            size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
+            log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
             int l_res = dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
-                    l_key_str, l_key_str_enc_size, m_enc_init_response, m_enc_init_error);
+                    l_data_str, l_data_str_enc_size, m_enc_init_response, m_enc_init_error);
             // bad request
             if(l_res<0){
             	a_client_pvt->stage_status = STAGE_STATUS_ERROR;
             }
-            DAP_DELETE(l_key_str);
         }
             break;
         case STAGE_STREAM_CTL: {

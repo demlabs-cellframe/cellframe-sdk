@@ -15,7 +15,6 @@
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"
-#define GROUP_LOCAL_ACL "local.acl.%s"
 
 typedef struct dap_global_db_obj {
     uint64_t id;
