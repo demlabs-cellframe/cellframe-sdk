@@ -1,6 +1,8 @@
 #pragma once
 #include "dap_http.h"
 #include "dap_strfuncs.h"
+#include "dap_json_rpc_request.h"
+#include "dap_json_rpc_request_handler.h"
 
 typedef enum dap_json_rpc_version{
     RPC_VERSION_1

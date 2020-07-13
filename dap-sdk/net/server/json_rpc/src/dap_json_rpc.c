@@ -49,7 +49,13 @@ void _dap_json_rpc_http_headers_write_callback(dap_http_client_t *a_http_client,
         dap_client_remote_ready_to_read(a_http_client->client,true);
     }
 }
-void _dap_json_rpc_http_data_read_callback(dap_http_client_t *a_http_client, void *a_args){}
+void _dap_json_rpc_http_data_read_callback(dap_http_client_t *a_http_client, void *a_args){
+    (void) a_args;
+    char *l_reading_data = DAP_NEW_SIZE(char, a_http_client->in_content_length);
+    memcpy(l_reading_data, a_http_client->client->buf_in, a_http_client->in_content_length);
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_from_json(l_reading_data);
+    dap_json_rpc_request_handler(l_request, a_http_client->client);
+}
 void _dap_json_rpc_http_data_write_callback(dap_http_client_t *a_http_client, void *a_args){
 
 }
