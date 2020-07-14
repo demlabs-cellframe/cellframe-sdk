@@ -115,7 +115,7 @@ int dap_chain_net_srv_vpn_cdb_init(dap_http_t * a_http)
             "\tShow all users\n"
         "vpn_cdb serial generate -n <number of serial keys>] [-acive_days <active days that left for serial>]\n"
             "\tGenerate new serial keys\n"
-        "vpn_cdb serial list [-n <How many show serial keys>] [-shift <How many skip serial keys>] [-nototal]\n"
+        "vpn_cdb serial list [-n <How many show serial keys>] [-shift <How many skip serial keys>] [-activated_only|-inactive_only] [-nototal|-total_only]\n"
             "\tShow serial keys\n"
         "vpn_cdb serial update -serial <serial keys> -acive_days <active days that left for serial>\n"
             "\tEdit serial key\n"

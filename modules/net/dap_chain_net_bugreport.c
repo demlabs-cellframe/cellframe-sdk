@@ -55,10 +55,14 @@ static int64_t bugreport_write_to_file(byte_t *a_request_byte, size_t a_request_
     const time_t l_timer = time(NULL);
     struct tm l_tm;
     localtime_r(&l_timer, &l_tm);
-    randombytes(&l_report_number, sizeof(int64_t));
-    if(l_report_number<0)
-        l_report_number = -l_report_number;
     // create unique number for bugreport
+    randombytes(&l_report_number, sizeof(int64_t));
+    if(l_report_number < 0)
+        l_report_number = -l_report_number;
+    //l_report_number 5 characters long
+    l_report_number %= 100000ll;
+    /*
+    // l_report_number 20 characters long
     l_report_number -= l_report_number%1000000000000ll;
     l_report_number+=(int64_t)(l_tm.tm_year - 100)*10000000000;
     l_report_number+=(int64_t)(l_tm.tm_mon)*100000000;
@@ -66,7 +70,8 @@ static int64_t bugreport_write_to_file(byte_t *a_request_byte, size_t a_request_
     l_report_number+=(int64_t)(l_tm.tm_hour)*10000;
     l_report_number+=(int64_t)(l_tm.tm_min)*100;
     l_report_number+=(int64_t)(l_tm.tm_sec);
-    char *l_filename_str = dap_strdup_printf("%s/%02d-%02d-%02d_%02d:%02d:%02d_%08lld.brt", l_dir_str,
+    */
+    char *l_filename_str = dap_strdup_printf("%s/%02d-%02d-%02d_%02d:%02d:%02d_%05lld.brt", l_dir_str,
             l_tm.tm_year - 100, l_tm.tm_mon, l_tm.tm_mday,
             l_tm.tm_hour, l_tm.tm_min, l_tm.tm_sec,
             l_report_number);
@@ -112,7 +117,10 @@ static void bugreport_http_proc(struct dap_http_simple *a_http_simple, void * a_
 
         int64_t l_bugreport_number = bugreport_write_to_file(a_http_simple->request_byte, a_http_simple->request_size);
         if(l_bugreport_number >= 0) {
-            a_http_simple->reply = dap_strdup_printf("Bug Report #%020lld saved successfully)", l_bugreport_number);
+            //l_report_number 5 characters long
+            a_http_simple->reply = dap_strdup_printf("Bug Report #%05lld saved successfully)", l_bugreport_number);
+            //l_report_number 20 characters long
+            //a_http_simple->reply = dap_strdup_printf("Bug Report #%020lld saved successfully)", l_bugreport_number);
         }
         else {
             a_http_simple->reply = dap_strdup_printf("Bug Report not saved( code=%lld", l_bugreport_number);

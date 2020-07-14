@@ -1096,6 +1096,35 @@ void dap_chain_net_load_all()
     DAP_DELETE (l_net_dir_str);
 }
 
+void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
+    const char* l_node_address_text_block = NULL;
+    dap_chain_node_addr_t l_cur_node_addr = { 0 };
+    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(a_net) ? dap_chain_net_get_cur_addr(a_net)->uint64 : dap_db_get_cur_node_addr(a_net->pub.name);
+    if(!l_cur_node_addr.uint64)
+        l_node_address_text_block = dap_strdup_printf(", cur node address not defined");
+    else
+        l_node_address_text_block = dap_strdup_printf(", cur node address " NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_cur_node_addr));
+
+    const char* l_sync_current_link_text_block = NULL;
+    if(PVT(a_net)->state == NET_STATE_LINKS_PREPARE ||
+       PVT(a_net)->state == NET_STATE_LINKS_CONNECTING ||
+       PVT(a_net)->state == NET_STATE_SYNC_GDB ||
+       PVT(a_net)->state == NET_STATE_SYNC_CHAINS)
+        l_sync_current_link_text_block = dap_strdup_printf(", processing link %u from %u",
+                                                           PVT(a_net)->links_count, PVT(a_net)->links_addrs_count);
+
+    dap_chain_node_cli_set_reply_text(a_str_reply,
+                                      "Network \"%s\" has state %s (target state %s)%s%s",
+                                      a_net->pub.name, c_net_states[PVT(a_net)->state],
+            c_net_states[PVT(a_net)->state_target],
+            (l_sync_current_link_text_block)? l_sync_current_link_text_block: "",
+            l_node_address_text_block
+            );
+
+    DAP_DELETE(l_sync_current_link_text_block);
+    DAP_DELETE(l_node_address_text_block);
+}
+
 /**
  * @brief s_cli_net
  * @param argc
@@ -1237,26 +1266,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
 
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                // get current node address
-                dap_chain_node_addr_t l_cur_node_addr = { 0 };
-                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 : dap_db_get_cur_node_addr(l_net->pub.name);
-                if(!l_cur_node_addr.uint64) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                            "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address not defined",
-                            l_net->pub.name, c_net_states[PVT(l_net)->state],
-                            c_net_states[PVT(l_net)->state_target], PVT(l_net)->links_count,
-                            PVT(l_net)->links_addrs_count
-                            );
-                }
-                else {
-                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                            "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address " NODE_ADDR_FP_STR,
-                            l_net->pub.name, c_net_states[PVT(l_net)->state],
-                            c_net_states[PVT(l_net)->state_target], PVT(l_net)->links_count,
-                            PVT(l_net)->links_addrs_count,
-                            NODE_ADDR_FP_ARGS_S(l_cur_node_addr)
-                            );
-                }
+                s_set_reply_text_node_status(a_str_reply, l_net);
                 ret = 0;
             }
         } else if ( l_links_str ){
