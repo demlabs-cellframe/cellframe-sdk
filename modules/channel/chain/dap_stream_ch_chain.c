@@ -138,7 +138,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             strcpy(l_err_str, "ERROR_NET_INVALID_ID");
             l_error = true;
         }
-        if (!l_error && !a_ch->stream->session->acl[l_acl_idx]) {   // Access denied
+        if (!l_error && a_ch->stream->session->acl && !a_ch->stream->session->acl[l_acl_idx]) {
             log_it(L_WARNING, "Unauthorized request attempt to network %s",
                    dap_chain_net_by_id(l_chain_pkt->hdr.net_id)->pub.name);
             strcpy(l_err_str, "ERROR_NET_NOT_AUTHORIZED");

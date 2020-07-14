@@ -305,7 +305,7 @@ dap_list_t *dap_cert_get_all_mem()
     dap_list_t *l_ret = NULL;
     dap_cert_item_t *l_cert_item = NULL, *l_cert_tmp;
     HASH_ITER(hh, s_certs, l_cert_item, l_cert_tmp) {
-        l_ret = dap_list_append(l_ret, l_cert_item);
+        l_ret = dap_list_append(l_ret, l_cert_item->cert);
     }
     return l_ret;
 }

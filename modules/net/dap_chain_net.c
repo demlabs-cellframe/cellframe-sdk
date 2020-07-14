@@ -2542,7 +2542,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
     const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
     bool l_authorized = true;
-    if (!strcmp(l_auth_type, "ca")) {
+    if (l_auth_type && !strcmp(l_auth_type, "ca")) {
         if (dap_hash_fast_is_blank(a_pkey_hash)) {
             return false;
         }
@@ -2572,7 +2572,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
         }
         if (!l_authorized) {
             const char *l_acl_chains = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_chains");
-            if (!strcmp(l_acl_chains, "all")) {
+            if (l_acl_chains && !strcmp(l_acl_chains, "all")) {
                 dap_list_t *l_certs = dap_cert_get_all_mem();
                 for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                     dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
