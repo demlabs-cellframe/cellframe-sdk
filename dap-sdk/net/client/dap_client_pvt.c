@@ -399,13 +399,19 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         case STAGE_ENC_INIT: {
             log_it(L_INFO, "Go to stage ENC: prepare the request");         
             a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
-            dap_cert_t *l_cert = dap_cert_find_by_name("auth");     // TODO provide certificate choice
             size_t l_key_size = a_client_pvt->session_key_open->pub_key_data_size;
-            dap_sign_t *l_sign = dap_sign_create(l_cert->enc_key, a_client_pvt->session_key_open->pub_key_data, l_key_size, 0);
-            size_t l_sign_size = dap_sign_get_size(l_sign);
+            dap_cert_t *l_cert = a_client_pvt->auth_cert;
+            dap_sign_t *l_sign = NULL;
+            size_t l_sign_size = 0;
+            if (l_cert) {
+                l_sign = dap_sign_create(l_cert->enc_key, a_client_pvt->session_key_open->pub_key_data, l_key_size, 0);
+                l_sign_size = dap_sign_get_size(l_sign);
+            }
             uint8_t l_data[l_key_size + l_sign_size];
             memcpy(l_data, a_client_pvt->session_key_open->pub_key_data, l_key_size);
-            memcpy(l_data + l_key_size, l_sign, l_sign_size);
+            if (l_sign) {
+                memcpy(l_data + l_key_size, l_sign, l_sign_size);
+            }
             size_t l_data_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(l_key_size + l_sign_size);
             char l_data_str[l_data_str_size_max + 1];
             // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request

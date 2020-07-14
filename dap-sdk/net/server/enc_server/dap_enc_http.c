@@ -56,6 +56,8 @@
 
 #define LOG_TAG "dap_enc_http"
 
+static dap_enc_acl_callback_t s_acl_callback = NULL;
+
 int enc_http_init()
 {
     return 0;
@@ -80,6 +82,12 @@ static void _enc_http_write_reply(struct dap_http_simple *cl_st,
 }
 
 void dap_enc_http_json_response_format_enable(bool);
+
+void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
+{
+    s_acl_callback = a_callback;
+}
+
 /**
  * @brief enc_http_proc Enc http interface
  * @param cl_st HTTP Simple client instance
@@ -112,8 +120,14 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         msrln_key->gen_bob_shared_key(msrln_key, alice_msg, MSRLN_PKA_BYTES, (void**)&msrln_key->pub_key_data);
 
         dap_enc_ks_key_t * key_ks = dap_enc_ks_new();
-        if (!dap_hash_fast_is_blank(&l_sign_hash)) {
-            memcpy(&key_ks->auth_hash, &l_sign_hash, sizeof(dap_chain_hash_fast_t));
+        if (s_acl_callback) {
+            key_ks->acl_list = s_acl_callback(&l_sign_hash);
+            if (!key_ks->acl_list) {
+                *return_code = Http_Status_Unauthorized;
+                return;
+            }
+        } else {
+            log_it(L_WARNING, "Callback for ACL is not set, pass anauthorized");
         }
 
         char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(msrln_key->pub_key_data_size) + 1];

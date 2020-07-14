@@ -102,6 +102,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
+uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 

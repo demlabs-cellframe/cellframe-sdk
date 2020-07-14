@@ -149,7 +149,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http->in_headers, "KeyID");
             if (l_hdr_key_id) {
                 dap_enc_ks_key_t *l_ks_key = dap_enc_ks_find(l_hdr_key_id->value);
-                memcpy(&ss->auth_hash, &l_ks_key->auth_hash, sizeof(dap_chain_hash_fast_t));
+                ss->acl = l_ks_key->acl_list;
             }
             enc_http_reply_f(l_dg,"%u %s",ss->id,key_str);
             *return_code = Http_Status_OK;

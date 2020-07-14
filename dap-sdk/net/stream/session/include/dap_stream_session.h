@@ -57,7 +57,7 @@ struct dap_stream_session {
 
     stream_session_connection_type_t conn_type;
     stream_session_type_t type;
-    dap_chain_hash_fast_t auth_hash;
+    uint8_t *acl;
     UT_hash_handle hh;
     struct in_addr tun_client_addr;
 
