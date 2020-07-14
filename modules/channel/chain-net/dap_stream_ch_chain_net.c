@@ -193,8 +193,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         pthread_mutex_lock(&l_ch_chain_net->mutex);
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *) l_ch_pkt->data;
-        size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
-        if(l_ch_chain_net_pkt) {
+        uint8_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_ch_chain_net_pkt->hdr.net_id);
+        bool l_error = false;
+        char l_err_str[64];
+        if (l_acl_idx == (uint8_t)-1) {
+            log_it(L_ERROR, "Invalid net id in packet");
+            strcpy(l_err_str, "ERROR_NET_INVALID_ID");
+            l_error = true;
+        }
+        if (!l_error && !a_ch->stream->session->acl[l_acl_idx]) {   // Access denied
+            log_it(L_WARNING, "Unauthorized request attempt to network %s",
+                   dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id)->pub.name);
+            strcpy(l_err_str, "ERROR_NET_NOT_AUTHORIZED");
+            l_error = true;
+        }
+        if (l_error) {
+            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
+                                              l_ch_chain_net_pkt->hdr.net_id, l_err_str, strlen(l_err_str) + 1);
+            dap_stream_ch_set_ready_to_write(a_ch, true);
+        }
+        //size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
+        if (!l_error && l_ch_chain_net_pkt) {
             size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
             switch (l_ch_pkt->hdr.type) {
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG: {
@@ -240,7 +259,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str,sizeof (l_err_str));
                             dap_stream_ch_set_ready_to_write(a_ch, true);
-                            log_it(L_WARNING,"Invalid net id in packet");
+                            log_it(L_ERROR, "Invalid net id in packet");
                         } else {
                             if (dap_db_set_cur_node_addr_exp( l_addr->uint64, l_net->pub.name ))
                                 log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
@@ -276,77 +295,15 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                           l_err_str,sizeof (l_err_str));
                         dap_stream_ch_set_ready_to_write(a_ch, true);
                     } else {
-                        const char l_path[] = "network/";
-                        char l_cfg_path[strlen(l_net->pub.name) + strlen(l_path) + 1];
-                        strcpy(l_cfg_path, l_path);
-                        strcat(l_cfg_path, l_net->pub.name);
-                        dap_config_t *l_cfg = dap_config_open(l_cfg_path);
-                        const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
-                        bool l_authorized = true;
-                        if (!strcmp(l_auth_type, "ca")) {
-                            l_authorized = false;
-                            const char *l_auth_hash_str = dap_chain_hash_fast_to_str_new(&a_ch->stream->session->auth_hash);
-                            uint16_t l_acl_list_len = 0;
-                            char **l_acl_list = dap_config_get_array_str(l_cfg, "auth", "acl_accept_ca_list", &l_acl_list_len);
-                            for (uint16_t i = 0; i < l_acl_list_len; i++) {
-                                if (!strcmp(l_acl_list[i], l_auth_hash_str)) {
-                                    l_authorized = true;
-                                    break;
-                                }
-                            }
-                            if (!l_authorized) {
-                                const char *l_acl_gdb = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_gdb");
-                                if (l_acl_gdb) {
-                                    size_t l_objs_count;
-                                    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_acl_gdb, &l_objs_count);
-                                    for (size_t i = 0; i < l_objs_count; i++) {
-                                        if (!strcmp(l_objs[i].key, l_auth_hash_str)) {
-                                            l_authorized = true;
-                                            break;
-                                        }
-                                    }
-                                    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
-                                }
-                            }
-                            if (!l_authorized) {
-                                const char *l_acl_chains = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_chains");
-                                if (!strcmp(l_acl_chains, "all")) {
-                                    dap_list_t *l_certs = dap_cert_get_all_mem();
-                                    for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
-                                        dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
-                                        size_t l_pkey_size;
-                                        uint8_t *l_pkey_ser = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pkey_size);
-                                        dap_chain_hash_fast_t l_cert_hash;
-                                        dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
-                                        DAP_DELETE(l_pkey_ser);
-                                        char *l_pkey_str = dap_chain_hash_fast_to_str_new(&l_cert_hash);
-                                        if (!strcmp(l_pkey_str, l_auth_hash_str)) {
-                                            l_authorized = true;
-                                            DAP_DELETE(l_pkey_str);
-                                            break;
-                                        }
-                                        DAP_DELETE(l_pkey_str);
-                                    }
-                                }
-                            }
-                        }
-                        if (l_authorized) {
-                            dap_chain_node_addr_t *l_addr_new = dap_chain_node_gen_addr(l_net, &l_net->pub.cell_id );
-                            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE ,
-                                                             l_ch_chain_net_pkt->hdr.net_id, l_addr_new, sizeof (*l_addr_new));
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
-                            memcpy( &l_session_data->addr_remote,l_addr_new,sizeof (*l_addr_new) );
-                            DAP_DELETE(l_addr_new);
-                        } else {
-                            char l_err_str[]="ERROR_NET_NOT_AUTHORIZED";
-                            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR , l_net->pub.id,
-                                                              l_err_str,sizeof (l_err_str));
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
-                        }
+                        dap_chain_node_addr_t *l_addr_new = dap_chain_node_gen_addr(l_net, &l_net->pub.cell_id );
+                        dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE ,
+                                                         l_ch_chain_net_pkt->hdr.net_id, l_addr_new, sizeof (*l_addr_new));
+                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                        memcpy( &l_session_data->addr_remote,l_addr_new,sizeof (*l_addr_new) );
+                        DAP_DELETE(l_addr_new);
                     }
                 }
                 break;
-
             }
             if(l_ch_chain_net->notify_callback)
                 l_ch_chain_net->notify_callback(l_ch_chain_net,l_ch_pkt->hdr.type, l_ch_chain_net_pkt,

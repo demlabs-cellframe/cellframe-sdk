@@ -61,6 +61,7 @@
 #include "dap_hash.h"
 #include "dap_cert.h"
 #include "dap_cert_file.h"
+#include "dap_enc_http.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
@@ -142,6 +143,7 @@ typedef struct dap_chain_net_pvt{
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
+    uint16_t acl_idx;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -175,7 +177,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net);
 static void * s_net_proc_thread ( void * a_net);
 static void s_net_proc_thread_start( dap_chain_net_t * a_net );
 static void s_net_proc_kill( dap_chain_net_t * a_net );
-int s_net_load(const char * a_net_name);
+int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
 
 static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
@@ -186,6 +188,7 @@ static int s_cli_net(int argc, char ** argv, void *arg_func, char **str_reply);
 
 static bool s_seed_mode = false;
 
+static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 
 char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 {
@@ -1052,6 +1055,8 @@ int dap_chain_net_init()
     s_required_links_count = dap_config_get_item_int32_default(g_config, "general", "require_links", s_required_links_count);
 
     dap_chain_net_load_all();
+
+    dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
     return 0;
 }
 
@@ -1061,6 +1066,7 @@ void dap_chain_net_load_all()
     DIR * l_net_dir = opendir( l_net_dir_str);
     if ( l_net_dir ){
         struct dirent * l_dir_entry;
+        uint16_t l_acl_idx = 0;
         while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
             if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
                 continue;
@@ -1083,7 +1089,7 @@ void dap_chain_net_load_all()
             char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
             if ( l_dot_pos )
                 *l_dot_pos = '\0';
-            s_net_load(l_dir_entry->d_name );
+            s_net_load(l_dir_entry->d_name, l_acl_idx++);
         }
         closedir(l_net_dir);
     }
@@ -1100,6 +1106,7 @@ void dap_chain_net_load_all()
  */
 static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
 {
+    UNUSED(arg_func);
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -1409,7 +1416,7 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
  * @param a_net_name
  * @return
  */
-int s_net_load(const char * a_net_name)
+int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 {
     dap_config_t *l_cfg=NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
@@ -1431,6 +1438,7 @@ int s_net_load(const char * a_net_name)
             return -1;
         }
         PVT(l_net)->load_mode = true;
+        PVT(l_net)->acl_idx = a_acl_idx;
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix",
                                                     dap_config_get_item_str(l_cfg , "general" , "name" ) ) );
@@ -1947,6 +1955,22 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
         return l_net_item->chain_net;
     else
         return NULL;
+
+}
+
+/**
+ * @brief dap_chain_net_by_id
+ * @param a_id
+ * @return
+ */
+uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
+{
+    dap_chain_net_item_t * l_net_item = NULL;
+    HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
+    if (l_net_item)
+        return PVT(l_net_item->chain_net)->acl_idx;
+    else
+        return -1;
 
 }
 
@@ -2507,4 +2531,86 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
 
         }break;
     }
+}
+
+static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pkey_hash)
+{
+    const char l_path[] = "network/";
+    char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
+    strcpy(l_cfg_path, l_path);
+    strcat(l_cfg_path, a_net->pub.name);
+    dap_config_t *l_cfg = dap_config_open(l_cfg_path);
+    const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
+    bool l_authorized = true;
+    if (!strcmp(l_auth_type, "ca")) {
+        if (dap_hash_fast_is_blank(a_pkey_hash)) {
+            return false;
+        }
+        l_authorized = false;
+        const char *l_auth_hash_str = dap_chain_hash_fast_to_str_new(a_pkey_hash);
+        uint16_t l_acl_list_len = 0;
+        char **l_acl_list = dap_config_get_array_str(l_cfg, "auth", "acl_accept_ca_list", &l_acl_list_len);
+        for (uint16_t i = 0; i < l_acl_list_len; i++) {
+            if (!strcmp(l_acl_list[i], l_auth_hash_str)) {
+                l_authorized = true;
+                break;
+            }
+        }
+        if (!l_authorized) {
+            const char *l_acl_gdb = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_gdb");
+            if (l_acl_gdb) {
+                size_t l_objs_count;
+                dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_acl_gdb, &l_objs_count);
+                for (size_t i = 0; i < l_objs_count; i++) {
+                    if (!strcmp(l_objs[i].key, l_auth_hash_str)) {
+                        l_authorized = true;
+                        break;
+                    }
+                }
+                dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+            }
+        }
+        if (!l_authorized) {
+            const char *l_acl_chains = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_chains");
+            if (!strcmp(l_acl_chains, "all")) {
+                dap_list_t *l_certs = dap_cert_get_all_mem();
+                for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                    dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
+                    size_t l_pkey_size;
+                    uint8_t *l_pkey_ser = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pkey_size);
+                    dap_chain_hash_fast_t l_cert_hash;
+                    dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
+                    if (!memcmp(l_pkey_ser, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
+                        l_authorized = true;
+                        DAP_DELETE(l_pkey_ser);
+                        break;
+                    }
+                    DAP_DELETE(l_pkey_ser);
+                }
+            }
+        }
+    }
+    return l_authorized;
+}
+
+static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
+{
+    uint16_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    bool l_accessible = false;
+    if (l_net_count) {
+        uint8_t *l_ret = DAP_NEW_SIZE(uint8_t, l_net_count);
+        for (uint16_t i = 0; i < l_net_count; i++) {
+            l_ret[i] = s_net_check_acl(l_net_list[i], a_pkey_hash);
+            if (l_ret[i]) {
+                l_accessible = true;
+            }
+        }
+        if (!l_accessible) {    // No one network can be accessed with this key
+            DAP_DELETE(l_ret);
+            l_ret = NULL;
+        }
+        return l_ret;
+    }
+    return NULL;
 }
