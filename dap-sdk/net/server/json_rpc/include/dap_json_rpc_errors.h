@@ -50,6 +50,8 @@ char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error);
 
 dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json);
 
+void dap_json_rpc_add_standart_erros(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -58,3 +58,8 @@ dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json){
     l_error->msg = dap_strdup(json_object_get_string(l_obj_msg));
     return l_error;
 }
+
+void dap_json_rpc_add_standart_erros(void){
+    dap_json_rpc_error_add(0, "Unknown error");
+    dap_json_rpc_error_add(1, "Not found handler for this request");
+}
