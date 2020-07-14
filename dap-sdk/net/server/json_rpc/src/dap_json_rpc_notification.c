@@ -25,7 +25,7 @@ void dap_json_rpc_notification_unregistration(const char *a_method){
     }
 }
 
-void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_params_t a_params){
+void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_params_t *a_params){
     dap_json_rpc_notification_handler_t *l_handler = NULL;
     HASH_FIND_STR(s_handler_notifications, a_name_method, l_handler);
     if (l_handler != NULL){
