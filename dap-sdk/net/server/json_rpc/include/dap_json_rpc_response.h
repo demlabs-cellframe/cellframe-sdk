@@ -33,7 +33,7 @@ extern "C"{
 #endif
 
 typedef enum dap_json_rpc_response_type_result{
-//    TYPE_RESPONSE_NULL,
+    TYPE_RESPONSE_NULL,
     TYPE_RESPONSE_STRING,
     TYPE_RESPONSE_INTEGER,
     TYPE_RESPONSE_DOUBLE,
@@ -47,13 +47,15 @@ typedef struct dap_json_rpc_response{
     double result_double;
     bool result_boolean;
     dap_json_rpc_error_t* error;
-    int id;
+    int64_t id;
 }dap_json_rpc_response_t;
 
 //dap_json_rpc_response_t *dap_json_rpc_response_create(void *a_result);
 void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response);
 
 void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_remote_t *a_client_remote);
+
+dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json);
 
 #ifdef __cplusplus
 }
