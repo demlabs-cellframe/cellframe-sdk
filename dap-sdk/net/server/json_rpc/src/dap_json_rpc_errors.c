@@ -45,7 +45,18 @@ dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error){
 }
 
 char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error){
-    char *l_json_str = dap_strjoin(NULL, "error: {", "code: ", a_error->code_error, ",", "message:\"", a_error->msg, "\"}");
+    json_object *l_jobj_code = json_object_new_int64(a_error->code_error);
+    json_object *l_jobj_msg = json_object_new_string(a_error->msg);
+    json_object *l_jobj = json_object_new_object();
+    json_object_object_add(l_jobj, "code", l_jobj_code);
+    json_object_object_add(l_jobj, "message", l_jobj_msg);
+    json_object *l_jobj_err = json_object_new_object();
+    json_object_object_add(l_jobj_err, "error", l_jobj);
+    char *l_json_str = dap_strdup(json_object_to_json_string(l_jobj_err));
+    json_object_put(l_jobj_err);
+    json_object_put(l_jobj_code);
+    json_object_put(l_jobj_msg);
+    json_object_put(l_jobj);
     return l_json_str;
 }
 
