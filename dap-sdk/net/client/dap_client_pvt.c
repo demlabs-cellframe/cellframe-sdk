@@ -399,6 +399,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         case STAGE_ENC_INIT: {
             log_it(L_INFO, "Go to stage ENC: prepare the request");         
             a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
+            if (!a_client_pvt->session_key_open) {
+                log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
+                a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                break;
+            }
             size_t l_key_size = a_client_pvt->session_key_open->pub_key_data_size;
             dap_cert_t *l_cert = a_client_pvt->auth_cert;
             dap_sign_t *l_sign = NULL;

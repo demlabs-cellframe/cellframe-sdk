@@ -149,6 +149,11 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http->in_headers, "KeyID");
             if (l_hdr_key_id) {
                 dap_enc_ks_key_t *l_ks_key = dap_enc_ks_find(l_hdr_key_id->value);
+                if (!l_ks_key) {
+                    log_it(L_WARNING, "Key with ID %s not found", l_hdr_key_id->value);
+                    *return_code = Http_Status_BadRequest;
+                    return;
+                }
                 ss->acl = l_ks_key->acl_list;
             }
             enc_http_reply_f(l_dg,"%u %s",ss->id,key_str);
@@ -160,6 +165,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         }else{
             log_it(L_ERROR,"Wrong request: \"%s\"",l_dg->in_query);
             *return_code = Http_Status_BadRequest;
+            return;
         }
 
         unsigned int conn_t = 0;

@@ -2607,18 +2607,10 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    bool l_accessible = false;
     if (l_net_count) {
         uint8_t *l_ret = DAP_NEW_SIZE(uint8_t, l_net_count);
         for (uint16_t i = 0; i < l_net_count; i++) {
             l_ret[i] = s_net_check_acl(l_net_list[i], a_pkey_hash);
-            if (l_ret[i]) {
-                l_accessible = true;
-            }
-        }
-        if (!l_accessible) {    // No one network can be accessed with this key
-            DAP_DELETE(l_ret);
-            l_ret = NULL;
         }
         return l_ret;
     }

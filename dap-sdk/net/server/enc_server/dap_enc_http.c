@@ -122,10 +122,6 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_ks_key_t * key_ks = dap_enc_ks_new();
         if (s_acl_callback) {
             key_ks->acl_list = s_acl_callback(&l_sign_hash);
-            if (!key_ks->acl_list) {
-                *return_code = Http_Status_Unauthorized;
-                return;
-            }
         } else {
             log_it(L_WARNING, "Callback for ACL is not set, pass anauthorized");
         }
