@@ -318,6 +318,7 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
         dap_dns_buf_put_uint16(dns_reply, val);
         dap_dns_buf_put_uint16(dns_reply, l_node_info->hdr.ext_port);
         dap_dns_buf_put_uint64(dns_reply, l_node_info->hdr.address.uint64);
+        DAP_DELETE(l_node_info);
     } else if (flags->rcode == DNS_ERROR_NONE) {
         flags->rcode = DNS_ERROR_NAME;
     }
