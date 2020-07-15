@@ -89,10 +89,25 @@ void dap_dns_buf_put_uint32(dap_dns_buf_t *buf, uint32_t val) {
     dap_dns_buf_put_uint16(buf, val);
 }
 
-uint32_t dap_dns_resolve_hostname(char *str) {
+/**
+ * @brief dap_dns_buf_put_uint64 Put uint64 to network order
+ * @param buf DNS buffer structure
+ * @param val uint64 in host order
+ * @return none
+ */
+void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val) {
+    dap_dns_buf_put_uint32(buf, val >> 32);
+    dap_dns_buf_put_uint32(buf, val);
+}
+
+dap_chain_node_info_t *dap_dns_resolve_hostname(char *str) {
     log_it(L_DEBUG, "DNS parser retrieve hostname %s", str);
     uint16_t l_nets_count;
     dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
+    if (!l_nets_count) {
+        log_it(L_WARNING, "No chain network present");
+        return 0;
+    }
     dap_chain_net_t *l_net = l_nets[rand() % l_nets_count];
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
@@ -102,11 +117,11 @@ uint32_t dap_dns_resolve_hostname(char *str) {
     if(!l_nodes_count || !l_objs)
         return 0;
     size_t l_node_num = rand() % l_nodes_count;
-    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[l_node_num].value;
-    struct in_addr addr = l_node_info->hdr.ext_addr_v4;
+    dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+    memcpy(l_node_info, l_objs[l_node_num].value, sizeof(dap_chain_node_info_t));
     dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
-    log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(addr));
-    return addr.s_addr;
+    log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(l_node_info->hdr.ext_addr_v4));
+    return l_node_info;
 }
 
 /**
@@ -222,7 +237,7 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
     if (val) {                                          // No other sections should present
         goto cleanup;
     }
-    dap_dns_buf_put_uint16(dns_reply, val);
+    dap_dns_buf_put_uint16(dns_reply, 1);               // 1 aditional section
     int dot_count = 0;
     dap_string_t *dns_hostname = dap_string_new("");
     for (int i = 0; i < qdcount; i++) {
@@ -271,16 +286,16 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
         }
     }
     // Find ip addr
-    uint32_t ip_addr = 0;
+    dap_chain_node_info_t *l_node_info = NULL;
     if (flags->rcode == DNS_ERROR_NONE) {
         dap_dns_zone_callback_t callback = dap_dns_zone_find(dns_hostname->str);
         if (callback) {
-            ip_addr = callback(dns_hostname->str);
+            l_node_info = callback(dns_hostname->str);
         }
     }
-    if (ip_addr) {
+    if (l_node_info) {
     // Compose DNS answer
-        block_len = DNS_ANSWER_SIZE;
+        block_len = DNS_ANSWER_SIZE * 2;
         dns_reply->data = DAP_REALLOC(dns_reply->data, dns_reply->ptr + block_len);
         val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
         dap_dns_buf_put_uint16(dns_reply, val);
@@ -289,10 +304,20 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
         val = DNS_CLASS_TYPE_IN;
         dap_dns_buf_put_uint16(dns_reply, val);
         uint32_t ttl = DNS_TIME_TO_LIVE;
-        dap_dns_buf_put_uint32(dns_reply, ttl);
-        val = 4;                                        // RD len for ipv4
+        dap_dns_buf_put_uint32(dns_reply, ttl);                                    
+        dap_dns_buf_put_uint16(dns_reply, 4);           // RD len for ipv4
+        dap_dns_buf_put_uint32(dns_reply, l_node_info->hdr.ext_addr_v4.s_addr);
+        val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
         dap_dns_buf_put_uint16(dns_reply, val);
-        dap_dns_buf_put_uint32(dns_reply, ip_addr);
+        val = DNS_RECORD_TYPE_TXT;
+        dap_dns_buf_put_uint16(dns_reply, val);
+        val = DNS_CLASS_TYPE_IN;
+        dap_dns_buf_put_uint16(dns_reply, val);
+        dap_dns_buf_put_uint32(dns_reply, ttl);
+        val = sizeof(uint16_t) + sizeof(uint64_t);
+        dap_dns_buf_put_uint16(dns_reply, val);
+        dap_dns_buf_put_uint16(dns_reply, l_node_info->hdr.ext_port);
+        dap_dns_buf_put_uint64(dns_reply, l_node_info->hdr.address.uint64);
     } else if (flags->rcode == DNS_ERROR_NONE) {
         flags->rcode = DNS_ERROR_NAME;
     }

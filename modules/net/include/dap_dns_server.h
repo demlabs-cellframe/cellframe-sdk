@@ -29,6 +29,7 @@
 #endif
 #include "dap_server.h"
 #include "uthash.h"
+#include "dap_chain_node.h"
 
 #define DNS_LISTEN_PORT 53      // UDP
 #define DNS_TIME_TO_LIVE 600    // Seconds
@@ -63,7 +64,7 @@ typedef enum _dap_dns_record_type_t {
     DNS_RECORD_TYPE_MG,     // Mail group member (experimental)
     DNS_RECORD_TYPE_MR,     // Mail rename domain name (experimental)
     DNS_RECORD_TYPE_NULL,   // NULL resource record (experimental)
-    DNS_RECORD_TYPE_WKS,    // Well known server description
+    DNS_RECORD_TYPE_WKS,    // Well known services description
     DNS_RECORD_TYPE_PTR,    // Domain name pointer
     DNS_RECORD_TYPE_HINFO,  // Host information
     DNS_RECORD_TYPE_MINFO,  // Mail box or list information
@@ -95,7 +96,7 @@ typedef struct _dap_dns_message_flags_bits_t {
     int qr : 1;             // 0 - query, 1 - response
 } dap_dns_message_flags_bits_t;
 
-typedef uint32_t (*dap_dns_zone_callback_t) (char *hostname); // Callback for DNS zone operations
+typedef dap_chain_node_info_t *(*dap_dns_zone_callback_t) (char *hostname); // Callback for DNS zone operations
 
 typedef union _dap_dns_message_flags_t {
     dap_dns_message_flags_bits_t flags;
