@@ -22,6 +22,7 @@
 #define _ENC_HTTP_H_
 #include <stddef.h>
 #include <stdbool.h>
+#include "dap_hash.h"
 
 struct dap_http;
 struct dap_http_client;
@@ -63,6 +64,7 @@ typedef struct enc_http_delegate{
 } enc_http_delegate_t;
 
 typedef void (*dap_enc_http_callback_t) (enc_http_delegate_t *,void *); // Callback for specific client operations
+typedef uint8_t *(* dap_enc_acl_callback_t) (dap_chain_hash_fast_t *);   // Callback for access list for private chain networks
 
 int enc_http_init(void);
 void enc_http_deinit(void);
@@ -70,6 +72,7 @@ void enc_http_deinit(void);
 size_t enc_http_reply(enc_http_delegate_t * dg, void * data, size_t data_size);
 size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...);
 
+void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback);
 
 enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simple);
 

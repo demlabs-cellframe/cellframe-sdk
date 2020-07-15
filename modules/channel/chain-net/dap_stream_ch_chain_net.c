@@ -43,6 +43,7 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_cert.h"
 #include "uthash.h"
 #include "dap_http_client.h"
 #include "dap_chain_global_db.h"
@@ -192,8 +193,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         pthread_mutex_lock(&l_ch_chain_net->mutex);
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *) l_ch_pkt->data;
-        size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
-        if(l_ch_chain_net_pkt) {
+        uint8_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_ch_chain_net_pkt->hdr.net_id);
+        bool l_error = false;
+        char l_err_str[64];
+        if (l_acl_idx == (uint8_t)-1) {
+            log_it(L_ERROR, "Invalid net id in packet");
+            strcpy(l_err_str, "ERROR_NET_INVALID_ID");
+            l_error = true;
+        }
+        if (!l_error && a_ch->stream->session->acl && !a_ch->stream->session->acl[l_acl_idx]) {
+            log_it(L_WARNING, "Unauthorized request attempt to network %s",
+                   dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id)->pub.name);
+            strcpy(l_err_str, "ERROR_NET_NOT_AUTHORIZED");
+            l_error = true;
+        }
+        if (l_error) {
+            dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
+                                              l_ch_chain_net_pkt->hdr.net_id, l_err_str, strlen(l_err_str) + 1);
+            dap_stream_ch_set_ready_to_write(a_ch, true);
+        }
+        //size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
+        if (!l_error && l_ch_chain_net_pkt) {
             size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
             switch (l_ch_pkt->hdr.type) {
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG: {
@@ -239,7 +259,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str,sizeof (l_err_str));
                             dap_stream_ch_set_ready_to_write(a_ch, true);
-                            log_it(L_WARNING,"Invalid net id in packet");
+                            log_it(L_ERROR, "Invalid net id in packet");
                         } else {
                             if (dap_db_set_cur_node_addr_exp( l_addr->uint64, l_net->pub.name ))
                                 log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
@@ -284,7 +304,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     }
                 }
                 break;
-
             }
             if(l_ch_chain_net->notify_callback)
                 l_ch_chain_net->notify_callback(l_ch_chain_net,l_ch_pkt->hdr.type, l_ch_chain_net_pkt,

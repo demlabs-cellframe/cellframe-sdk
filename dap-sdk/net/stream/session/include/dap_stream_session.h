@@ -30,6 +30,7 @@
 
 #include "uthash.h"
 #include "dap_enc_key.h"
+#include "dap_hash.h"
 
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYPE_VPN} stream_session_type_t;
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;
@@ -56,6 +57,7 @@ struct dap_stream_session {
 
     stream_session_connection_type_t conn_type;
     stream_session_type_t type;
+    uint8_t *acl;
     UT_hash_handle hh;
     struct in_addr tun_client_addr;
 
