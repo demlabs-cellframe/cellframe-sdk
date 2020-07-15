@@ -22,7 +22,8 @@ dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data){
 
 }
 char *dap_json_rpc_request_to_json(const dap_json_rpc_request_t *a_request){
-    char *l_str = dap_strjoin(NULL, "{method:\"", a_request->method, "\"", "params:",
-                              dap_json_rpc_params_get_string_json(a_request->params), ", id: ", a_request->id, "}", NULL);
+//    json_object *l_jobj = json_object_new_object();
+    char *l_str = dap_strjoin(NULL, "{\"method=\":", "\"", a_request->method, "\"", "\"", "\"params\":",
+                              dap_json_rpc_params_get_string_json(a_request->params), ", \"id\": ", a_request->id, "}", NULL);
     return l_str;
 }
