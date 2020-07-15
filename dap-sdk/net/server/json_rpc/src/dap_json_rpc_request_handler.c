@@ -37,7 +37,7 @@ void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_client_
         if (l_handler == NULL){
             dap_json_rpc_error_t *l_err = dap_json_rpc_error_search_by_code(1);
             l_response->id = a_request->id;
-            l_response->result = NULL;
+            l_response->type_result = TYPE_RESPONSE_NULL;
             l_response->error = l_err;
         } else {
             l_handler->func(a_request->params, l_response);
