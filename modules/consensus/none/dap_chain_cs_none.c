@@ -69,7 +69,7 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
 
 // Atomic element organization callbacks
 static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Accept new event in gdb
-static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Verify new event in gdb
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Verify new event in gdb
 static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_ptr_t); //    Get gdb event size
 static size_t s_chain_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
@@ -370,11 +370,11 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
  * @param a_atom
  * @return
  */
-static int s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
 {
     (void) a_chain;
     (void) a_atom;
-    return 0;
+    return ATOM_ACCEPT;
 }
 
 /**
