@@ -1,5 +1,12 @@
 #include "dap_json_rpc_response.h"
 
+void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response){
+    DAP_FREE(a_response->error);
+    if (a_response->type_result == TYPE_RESPONSE_STRING){
+        DAP_FREE(a_response->result_string);
+    }
+    DAP_FREE(a_response);
+}
 
 void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_remote_t *a_client_remote){
     char *str_response = NULL;
@@ -34,4 +41,5 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_
     str_response = strdup(json_object_get_string(l_jobj));
     a_client_remote->buf_out_size = strlen(str_response);
     memcpy(a_client_remote->buf_out, str_response, a_client_remote->buf_out_size);
+    DAP_FREE(str_response);
 }
