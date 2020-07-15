@@ -50,16 +50,24 @@ char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error){
 }
 
 dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json){
-    json_object *l_jobj = json_object_new_string(a_json);
-    json_object *l_jobj_code_eror = json_object_object_get(l_jobj, "code");
-    json_object *l_obj_msg = json_object_object_get(l_jobj, "message");
-    dap_json_rpc_error_t *l_error = DAP_NEW(dap_json_rpc_error_t);
-    l_error->code_error = json_object_get_int(l_jobj_code_eror);
-    l_error->msg = dap_strdup(json_object_get_string(l_obj_msg));
+    json_object *l_jobj = json_tokener_parse(a_json);
+    dap_json_rpc_error_t *l_error = dap_json_rpc_create_from_json_object(l_jobj);
+    json_object_put(l_jobj);
     return l_error;
 }
 
 void dap_json_rpc_add_standart_erros(void){
     dap_json_rpc_error_add(0, "Unknown error");
     dap_json_rpc_error_add(1, "Not found handler for this request");
+}
+
+dap_json_rpc_error_t *dap_json_rpc_create_from_json_object(json_object *a_jobj){
+    dap_json_rpc_error_t *l_error = DAP_NEW(dap_json_rpc_error_t);
+    json_object *l_jobj_code_eror = json_object_object_get(a_jobj, "code");
+    json_object *l_jobj_msg = json_object_object_get(a_jobj, "message");
+    l_error->code_error = json_object_get_int64(l_jobj_code_eror);
+    l_error->msg = dap_strdup(json_object_get_string(l_jobj_msg));
+    json_object_put(l_jobj_code_eror);
+    json_object_put(l_jobj_msg);
+    return l_error;
 }
