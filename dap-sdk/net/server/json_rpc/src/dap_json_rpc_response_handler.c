@@ -1,8 +1,9 @@
 #include "dap_json_rpc_response_handler.h"
 
 static dap_json_rpc_response_handler_t *s_response_handlers = NULL;
+static uint64_t s_delta = 0;
 
-int dap_json_rpc_response_registration(int64_t a_id, dap_json_rpc_response_handler_func *func){
+int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_response_handler_func_t *func){
     dap_json_rpc_response_handler_t *l_handler = NULL;
 //    HASH_FIND(hh, s_response_handlers, )
     HASH_FIND_INT(s_response_handlers, (void*)a_id, l_handler);
@@ -15,7 +16,16 @@ int dap_json_rpc_response_registration(int64_t a_id, dap_json_rpc_response_handl
     }
     return 1;
 }
-void dap_json_rpc_response_unregistration(int64_t a_id){
+uint64_t dap_json_rpc_response_registration(dap_json_rpc_response_handler_func_t *func){
+    uint64_t l_ret = dap_json_rpc_response_get_new_id();
+    dap_json_rpc_response_handler_t *l_handler = NULL;
+    l_handler = DAP_NEW(dap_json_rpc_response_handler_t);
+    l_handler->id = l_ret;
+    l_handler->func = func;
+    HASH_ADD_INT(s_response_handlers, id, l_handler);
+    return 0;
+}
+void dap_json_rpc_response_unregistration(uint64_t a_id){
     dap_json_rpc_response_handler_t *l_handler = NULL;
     HASH_FIND_INT(s_response_handlers, (void*)a_id, l_handler);
     if (l_handler != NULL){
@@ -24,11 +34,27 @@ void dap_json_rpc_response_unregistration(int64_t a_id){
     }
 }
 
-void dap_json_rpc_response_handler(int64_t a_id, dap_json_rpc_response_t *a_response){
+void dap_json_rpc_response_handler(dap_json_rpc_response_t *a_response){
     dap_json_rpc_response_handler_t *l_handler = NULL;
-    HASH_FIND_INT(s_response_handlers, (void*)a_id, l_handler);
+    HASH_FIND_INT(s_response_handlers, (void*)a_response->id, l_handler);
     if (l_handler != NULL){
         l_handler->func(a_response);
-        dap_json_rpc_response_unregistration(a_id);
+        dap_json_rpc_response_unregistration(a_response->id);
     }
+}
+
+uint64_t dap_json_rpc_response_get_new_id(void){
+    uint64_t l_ret = s_delta;
+    s_delta++;
+    return l_ret;
+}
+
+void dap_json_rpc_response_accepted(void *a_data, size_t a_size_data, void *a_obj){
+    (void) a_obj;
+    char *l_str = DAP_NEW_SIZE(char, a_size_data);
+    memcpy(l_str, a_data, a_size_data);
+    dap_json_rpc_response_t *l_response = dap_json_rpc_response_from_json(l_str);
+    DAP_FREE(l_str);
+    dap_json_rpc_response_handler(l_response);
+    dap_json_rpc_response_free(l_response);
 }
