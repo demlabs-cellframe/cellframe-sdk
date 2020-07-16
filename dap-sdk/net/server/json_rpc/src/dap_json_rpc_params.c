@@ -69,11 +69,11 @@ uint32_t dap_json_rpc_params_lenght(dap_json_rpc_params_t *a_params){
     return a_params->lenght;
 }
 
-void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index){
-    if (a_params->lenght > index)
-        return a_params->params[index]->value_param;
-    return NULL;
-}
+//void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index){
+//    if (a_params->lenght > index)
+//        return a_params->params[index]->value_param;
+//    return NULL;
+//}
 
 dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params_t *a_params, uint32_t index){
     if (a_params->lenght > index)
@@ -81,11 +81,11 @@ dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params
     return TYPE_PARAM_NULL;
 }
 
-void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
-    DAP_FREE(param->value_param);
-    //DAP_FREE(param->name_param);
-    DAP_FREE(param);
-}
+//void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
+//    DAP_FREE(param->value_param);
+//    //DAP_FREE(param->name_param);
+//    DAP_FREE(param);
+//}
 
 dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list){
     dap_json_rpc_params_t *l_params = dap_json_rpc_params_create();
@@ -113,7 +113,33 @@ dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *
 }
 
 char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){
-    char *l_str = "[";
+    json_object *l_jobj_array = json_object_new_array();
+    for (uint32_t i = 0; i <= a_params->lenght; i++){
+        json_object *l_jobj_tmp = NULL;
+        switch (a_params->params[i]->type) {
+        case TYPE_PARAM_NULL:
+            l_jobj_tmp = json_object_new_object();
+            break;
+        case TYPE_PARAM_STRING:
+            l_jobj_tmp = json_object_new_string((char*)a_params->params[i]->value_param);
+            break;
+        case TYPE_PARAM_INTEGER:
+            l_jobj_tmp = json_object_new_int64(*((int64_t*)a_params->params[i]->value_param));
+            break;
+        case TYPE_PARAM_DOUBLE:
+            l_jobj_tmp = json_object_new_double(*((double*)a_params->params[i]->value_param));
+            break;
+        case TYPE_PARAM_BOOLEAN:
+            l_jobj_tmp = json_object_new_boolean(*((bool*)a_params->params[i]->value_param));
+            break;
+        }
+        json_object_array_add(l_jobj_array, l_jobj_tmp);
+        json_object_put(l_jobj_tmp);
+    };
+    char *l_str = dap_strjoin(NULL, "\"params\":", json_object_to_json_string(l_jobj_array), NULL);
+    json_object_put(l_jobj_array);
+    return l_str;
+    /*char *l_str = "[";
     uint32_t l_pre_lenght = a_params->lenght - 1;
     for (uint32_t i = 0; i <= l_pre_lenght;i++){
         switch (a_params->params[i]->type){
@@ -141,5 +167,5 @@ char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){
         }
     }
     l_str = dap_strjoin(NULL, l_str, "]");
-    return l_str;
+    return l_str;*/
 }
