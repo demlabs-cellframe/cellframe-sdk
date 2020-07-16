@@ -5,7 +5,9 @@ project(core_test)
 set(CMAKE_C_STANDARD 11)
 file(GLOB SRCS *.c)
 
-add_subdirectory(libdap-test)
+if (NOT BUILD_CELLFRAME_SDK_TESTS)
+    add_subdirectory(libdap-test)
+endif()
 
 if(UNIX)
     file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)
@@ -14,13 +16,18 @@ endif()
 add_executable(${PROJECT_NAME} ${SRCS} ${PLATROFM_DEP_SRC})  
 target_link_libraries(core_test dap_test dap_core pthread)
 
-add_executable(rpmalloc_test
-  rpmalloc/test/main.c 
+add_executable(rpmalloc
+  rpmalloc/test/main.c
   rpmalloc/test/thread.c
   rpmalloc/test/timer.c
 )
-target_link_libraries(rpmalloc_test dap_core pthread)
-target_include_directories(rpmalloc_test PRIVATE rpmalloc/test/)
+target_link_libraries(rpmalloc dap_core pthread)
+if (LINUX)
+    message("[+] Comman UNIX")
+    add_definitions("-DDAP_TEST_CORE_LINUX")
+    target_link_libraries(${PROJECT_NAME} dap_core_unix )
+endif()
+target_include_directories(rpmalloc PRIVATE rpmalloc/test/)
 
 add_executable(rpmalloc_bench
   rpmalloc/benchmark/main.c 
