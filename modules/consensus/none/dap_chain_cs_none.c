@@ -68,7 +68,7 @@ typedef struct dap_chain_gdb_private
 static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net);
 
 // Atomic element organization callbacks
-static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Accept new event in gdb
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Accept new event in gdb
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Verify new event in gdb
 static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_ptr_t); //    Get gdb event size
 static size_t s_chain_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
@@ -322,7 +322,7 @@ static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain
  * @param a_datums
  * @param a_datums_size
  */
-static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
 {
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
@@ -344,11 +344,11 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
 
             // don't save bad transactions to base
             if(dap_chain_ledger_tx_add(a_chain->ledger, l_tx) != 1)
-                return -1;
+                return ATOM_REJECT;
             //}else
             //    return -2;
         }break;
-        default: return -1;
+        default: return ATOM_REJECT;
     }
 
     dap_chain_gdb_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_chain_gdb_datum_hash_item_t);
@@ -361,7 +361,7 @@ static int s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t
         log_it(L_DEBUG,"Load mode, doesnt save item %s:%s", l_hash_item->key, l_gdb_priv->group_datums);
 
     DL_APPEND(l_gdb_priv->hash_items, l_hash_item);
-    return 0;
+    return ATOM_ACCEPT;
 }
 
 /**
