@@ -512,11 +512,13 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             log_it(L_DEBUG, "Establishing connection with " NODE_ADDR_FP_STR,
                    NODE_ADDR_FP_ARGS_S( l_pvt_net->links_addrs[l_links_count]) );
-            dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_pvt_net->links_addrs[l_links_count]);
-            if ( l_link_node_info ) {
-                dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_link_node_info);
+            dap_chain_node_info_t l_link_node_info;
+            int res = dap_dns_client_get_addr(inet_addr("192.168.10.10"), l_net->pub.name, &l_link_node_info);
+                   // = dap_chain_node_info_read(l_net, &l_pvt_net->links_addrs[l_links_count]);
+            if (res) {
+                dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(&l_link_node_info);
                 if(!l_node_client) {
-                    DAP_DELETE(l_link_node_info);
+                    //DAP_DELETE(l_link_node_info);
                     ret = -1;
                     break;
                 }

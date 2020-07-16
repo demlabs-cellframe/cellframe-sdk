@@ -102,13 +102,16 @@ void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val) {
 
 dap_chain_node_info_t *dap_dns_resolve_hostname(char *str) {
     log_it(L_DEBUG, "DNS parser retrieve hostname %s", str);
-    uint16_t l_nets_count;
-    dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
-    if (!l_nets_count) {
-        log_it(L_WARNING, "No chain network present");
-        return 0;
+    dap_chain_net_t *l_net = dap_chain_net_by_name(str);
+    if (l_net == NULL) {
+        uint16_t l_nets_count;
+        dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
+        if (!l_nets_count) {
+            log_it(L_WARNING, "No chain network present");
+            return 0;
+        }
+        l_net = l_nets[rand() % l_nets_count];
     }
-    dap_chain_net_t *l_net = l_nets[rand() % l_nets_count];
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
@@ -368,7 +371,7 @@ void dap_dns_server_stop() {
     DAP_DELETE(s_dns_server);
 }
 
-int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
+int dap_dns_client_get_addr(uint32_t a_addr, char *a_name, dap_chain_node_info_t *a_result)
 {
     const size_t l_buf_size = 1024;
     uint8_t l_buf[l_buf_size];
@@ -463,17 +466,20 @@ int s_dns_get_ip(uint32_t a_addr, char *a_name, uint32_t *a_result)
     }
     l_cur = l_buf + l_addr_point;
     if (a_result) {
-        *a_result = ntohl(*(uint32_t *)l_cur);
+        a_result->hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
+    }
+    l_cur = l_buf + 5 * sizeof(uint16_t);
+    int l_additions_count = ntohs(*(uint16_t *)l_cur);
+    if (l_additions_count == 1) {
+        l_cur = l_buf + l_addr_point + DNS_ANSWER_SIZE;
+        if (a_result) {
+            a_result->hdr.ext_port = ntohs(*(uint16_t *)l_cur);
+        }
+        l_cur += sizeof(uint16_t);
+        if (a_result) {
+           a_result->hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
+        }
     }
     closesocket(l_sock);
     return 0;
-}
-
-uint32_t dap_dns_client_get_addr(uint32_t a_dns_addr)
-{
-    uint32_t l_res;
-    if (s_dns_get_ip(a_dns_addr, "kelvin.sync", &l_res)) {
-        return 0;
-    }
-    return l_res;
 }
