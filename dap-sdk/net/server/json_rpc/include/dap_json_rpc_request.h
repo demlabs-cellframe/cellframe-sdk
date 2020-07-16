@@ -26,7 +26,9 @@
 #include "dap_common.h"
 #include "dap_json_rpc_params.h"
 #include "json-c/json.h"
+#include "dap_json_rpc_response_handler.h"
 #include "dap_string.h"
+#include "dap_client_http.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -35,13 +37,16 @@ extern "C"{
 typedef struct dap_json_rpc_request{
     char* method;
     dap_json_rpc_params_t *params;
-    int64_t id;
+    uint64_t id;
 }dap_json_rpc_request_t;
 
 dap_json_rpc_request_t *dap_json_rpc_request_creation(const char *a_method, dap_json_rpc_params_t *a_params, int64_t a_id);
 
 dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data);
 char *dap_json_rpc_request_to_json(const dap_json_rpc_request_t *a_request);
+
+void dap_json_rpc_request_send(dap_json_rpc_request_t *a_request, dap_json_rpc_response_handler_func_t *response_handler,
+                               dap_client_http_callback_error_t func_error);
 
 #ifdef __cplusplus
 }
