@@ -17,13 +17,9 @@ int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_respo
     return 1;
 }
 uint64_t dap_json_rpc_response_registration(dap_json_rpc_response_handler_func_t *func){
-    uint64_t l_ret = dap_json_rpc_response_get_new_id();
-    dap_json_rpc_response_handler_t *l_handler = NULL;
-    l_handler = DAP_NEW(dap_json_rpc_response_handler_t);
-    l_handler->id = l_ret;
-    l_handler->func = func;
-    HASH_ADD_INT(s_response_handlers, id, l_handler);
-    return 0;
+    uint64_t l_id_registration_response = dap_json_rpc_response_get_new_id();
+    int res = dap_json_rpc_response_registration_with_id(l_id_registration_response, func);
+    return res;
 }
 void dap_json_rpc_response_unregistration(uint64_t a_id){
     dap_json_rpc_response_handler_t *l_handler = NULL;
