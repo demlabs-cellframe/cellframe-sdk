@@ -13,5 +13,5 @@ add_library(${PROJECT_NAME} STATIC ${JSON_RPC_HEADERS} ${JSON_RPC_SRCS})
 target_include_directories(${PROJECT_NAME} INTERFACE . include/)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server json-c )
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server dap_client json-c )
 #target_link_libraries(${PROJECT_NAME} dap_core)# dap_http_server json-c)
