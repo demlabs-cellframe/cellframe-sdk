@@ -297,8 +297,8 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
         }
     }
     if (l_node_info) {
-    // Compose DNS answer
-        block_len = DNS_ANSWER_SIZE * 2;
+        // Compose DNS answer
+        block_len = DNS_ANSWER_SIZE * 2 - sizeof(uint16_t) + sizeof(uint64_t);
         dns_reply->data = DAP_REALLOC(dns_reply->data, dns_reply->ptr + block_len);
         val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
         dap_dns_buf_put_uint16(dns_reply, val);
