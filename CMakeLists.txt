@@ -7,6 +7,13 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
 
+if (${BUILD_CELLFRAME_SDK_TESTS} MATCHES ON)
+    set(DAPSDK_MODULES "core crypto")
+    set(BUILD_TESTS ON)
+#    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-dag-pos cs-none srv-app srv-app-db srv-datum
+#        srv-xchange srv-stake srv-vpn")
+endif()
+
 if (CELLFRAME_MODULES MATCHES "core")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
 endif()
@@ -130,6 +137,16 @@ if (WIN32)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+if (${BUILD_CELLFRAME_SDK_TESTS} MATCHES ON)
+    message("[!] Active unit tests")
+    enable_testing()
+    message("[+] Module test core")
+    add_subdirectory(dap-sdk/core/test)
+    message("[+] Module test crypto")
+    add_subdirectory(dap-sdk/crypto/test)
+    add_subdirectory(tests)
+endif()
+
 #if(BUILD_DAP_TESTS)
 #    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
 #            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
