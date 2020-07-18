@@ -119,18 +119,12 @@ typedef struct dap_chain_net_pvt{
     time_t    last_sync;
 
     dap_chain_node_addr_t * node_addr;
-    dap_chain_node_info_t * node_info; // Current node's info
+    dap_chain_node_info_t * node_info;  // Current node's info
 
-    dap_chain_node_client_t * links;
+    dap_list_t *links;                  // Links list
+    dap_list_t *links_info;             // Links info list
 
-    dap_chain_node_addr_t *links_addrs;
-    size_t links_count;
-    size_t links_addrs_count;
-    size_t links_success;
-
-    size_t addr_request_attempts;
     bool load_mode;
-    uint8_t padding2[7];
     char ** seed_aliases;
 
     uint16_t gdb_sync_groups_count;
@@ -138,7 +132,6 @@ typedef struct dap_chain_net_pvt{
     char **gdb_sync_groups;
     dap_chain_node_addr_t *gdb_sync_nodes_addrs;
 
-    uint8_t padding3[6];
     uint16_t seed_aliases_count;
 
     dap_chain_net_state_t state;
@@ -328,18 +321,19 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
 
     int ret=0;
 
-    switch ( l_pvt_net->state ){
-        case NET_STATE_OFFLINE:{
-            // reset current link
-            l_pvt_net->links_count = 0;
+    switch (l_pvt_net->state) {
+        case NET_STATE_OFFLINE: {
             // delete all links
-            dap_chain_node_client_close(l_pvt_net->links);
+            dap_list_t *l_tmp = l_pvt_net->links;
+            while (l_tmp) {
+                dap_list_t *l_next =l_tmp->next;
+                dap_chain_node_client_close(l_tmp->data);
+                DAP_DELETE(l_tmp);
+                l_tmp = l_next;
+            }
             l_pvt_net->links = NULL;
-            l_pvt_net->links_addrs_count = 0;
-            if ( l_pvt_net->links_addrs )
-                DAP_DELETE(l_pvt_net->links_addrs);
-            l_pvt_net->links_addrs = NULL;
-
+            dap_list_free_full(l_pvt_net->links_info, free);
+            l_pvt_net->links_info = NULL;
             if ( l_pvt_net->state_target != NET_STATE_OFFLINE ){
                 l_pvt_net->state = NET_STATE_LINKS_PREPARE;
                 break;
@@ -348,371 +342,151 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
             l_pvt_net->last_sync = 0;
         } break;
-        case NET_STATE_LINKS_PREPARE:{
+
+        case NET_STATE_LINKS_PREPARE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE",l_net->pub.name);
+            if (l_pvt_net->node_info) {
+                for (size_t i = 0; i < l_pvt_net->node_info->hdr.links_number; i++) {
+                    dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_pvt_net->node_info->links[i]);
+                    if (l_link_node_info->hdr.address.uint64 == l_pvt_net->node_info->hdr.address.uint64) {
+                        continue;   // Do not link with self
+                    }
+                    l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                }
+            } else {
+                log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, find nearest 3 links and fill global_db");
+            }
             switch (l_pvt_net->node_role.enums) {
                 case NODE_ROLE_ROOT:
                 case NODE_ROLE_ROOT_MASTER:
                 case NODE_ROLE_ARCHIVE:
-                case NODE_ROLE_CELL_MASTER:{
-                    // This roles load predefined links from global_db
-                    if ( l_pvt_net->node_info ) {
-                        if (l_pvt_net->links_addrs )
-                            DAP_DELETE(l_pvt_net->links_addrs);
-                        l_pvt_net->links_addrs_count = l_pvt_net->node_info->hdr.links_number;
-                        l_pvt_net->links_addrs = DAP_NEW_Z_SIZE( dap_chain_node_addr_t,
-                                                                  l_pvt_net->links_addrs_count * sizeof(dap_chain_node_addr_t));
-                        for (size_t i =0 ; i < l_pvt_net->node_info->hdr.links_number; i++ ){
-                            l_pvt_net->links_addrs[i].uint64 = l_pvt_net->node_info->links[i].uint64;
-                        }
-                    }else {
-                        log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, find nearest 3 links and fill global_db");
+                case NODE_ROLE_CELL_MASTER: {
+                    // Add other root nodes as synchronization links
+                    while (dap_list_length(l_pvt_net->links_info) <= s_max_links_count) {
+                        int i = rand() % l_pvt_net->seed_aliases_count;
+                        dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
+                        dap_chain_node_info_read(l_net, l_link_addr);
                     }
-
-                    // add other root nodes for connect
-                    //if(!l_pvt_net->links_addrs_count)
-                    {
-                        // use no more then 4 root node
-                        int l_use_root_nodes = min(4, l_pvt_net->seed_aliases_count);
-                        if(!l_pvt_net->links_addrs_count) {
-                            l_pvt_net->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                                    l_use_root_nodes * sizeof(dap_chain_node_addr_t));
-                        }
-                        else{
-                            l_pvt_net->links_addrs = DAP_REALLOC(l_pvt_net->links_addrs,
-                                    (l_pvt_net->links_addrs_count+l_use_root_nodes) * sizeof(dap_chain_node_addr_t));
-                            memset(l_pvt_net->links_addrs + l_pvt_net->links_addrs_count, 0,
-                                    l_use_root_nodes * sizeof(dap_chain_node_addr_t));
-                        }
-
-                        for(uint16_t i = 0; i < l_use_root_nodes; i++) {
-                            dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                            if(l_node_addr) {
-                                l_pvt_net->links_addrs[l_pvt_net->links_addrs_count].uint64 = l_node_addr->uint64;
-                                l_pvt_net->links_addrs_count++;
-                            }
-                        }
-                    }
-                    // shuffle the order of the nodes
-                    for(size_t i = 0; i < l_pvt_net->links_addrs_count; i++) {
-                        unsigned int l_new_node_pos = rand() % (l_pvt_net->links_addrs_count);
-                        if(i == l_new_node_pos)
-                            continue;
-                        uint64_t l_tmp_uint64 = l_pvt_net->links_addrs[i].uint64;
-                        l_pvt_net->links_addrs[i].uint64 = l_pvt_net->links_addrs[l_new_node_pos].uint64;
-                        l_pvt_net->links_addrs[l_new_node_pos].uint64 = l_tmp_uint64;
-                    }
-
-
                 } break;
                 case NODE_ROLE_FULL:
                 case NODE_ROLE_MASTER:
-                case NODE_ROLE_LIGHT:{
-                    // If we haven't any assigned shard - connect to root-0
-                    if(1) { //if(l_net->pub.cell_id.uint64 == 0) {
-
-                    //dap_chain_net_pvt_t *pvt_debug = l_pvt_net;
-                    // get current node address
-                    dap_chain_node_addr_t l_address;
-                    l_address.uint64 = dap_chain_net_get_cur_addr(l_net) ?
-                                         dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                         dap_db_get_cur_node_addr(l_net->pub.name);
-
-                    // get current node info
-                    dap_chain_node_info_t *l_cur_node_info = dap_chain_node_info_read(l_net, &l_address);
-
-                    if ( l_cur_node_info ) {
-                        uint16_t l_links_addrs_count = l_cur_node_info->hdr.links_number + l_pvt_net->seed_aliases_count;
-                        l_pvt_net->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                                l_links_addrs_count * sizeof(dap_chain_node_addr_t));
-
-                        // add linked nodes for connect
-                        for(uint16_t i = 0; i < min(s_max_links_count, l_cur_node_info->hdr.links_number); i++) {
-                            dap_chain_node_addr_t *l_addr = l_cur_node_info->links + i;
-                            //dap_chain_node_addr_t link_addr = l_cur_node_info->links[i];
-                            dap_chain_node_info_t *l_remore_node_info = dap_chain_node_info_read(l_net, l_addr);
-                            if(l_remore_node_info) {
-                                // if only nodes from the same cell of cell=0
-                                if(!l_cur_node_info->hdr.cell_id.uint64 ||
-                                    l_cur_node_info->hdr.cell_id.uint64 == l_remore_node_info->hdr.cell_id.uint64) {
-                                    l_pvt_net->links_addrs[l_pvt_net->links_addrs_count].uint64 =
-                                            l_remore_node_info->hdr.address.uint64;
-                                    l_pvt_net->links_addrs_count++;
-                                }
-                                DAP_DELETE(l_remore_node_info);
-                            }
+                case NODE_ROLE_LIGHT:
+                default: {
+                    // Get DNS request result from root nodes as synchronization links
+                    while (dap_list_length(l_pvt_net->links_info) <= s_max_links_count) {
+                        int i = rand() % l_pvt_net->seed_aliases_count;
+                        dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
+                        dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
+                        dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                        int res = dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                        DAP_DELETE(l_remote_node_info);
+                        if (res) {
+                            DAP_DELETE(l_link_node_info);
+                        } else {
+                            l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                         }
-                    }
-                    // if no links then add root nodes for connect
-                    if(!l_pvt_net->links_addrs_count){
-                        // use no more then s_max_links_count root node
-                        int l_use_root_nodes = min(s_max_links_count, l_pvt_net->seed_aliases_count);
-                        l_pvt_net->links_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
-                                l_use_root_nodes * sizeof(dap_chain_node_addr_t));
-
-                        for(uint16_t i = 0; i < l_use_root_nodes; i++) {
-                            dap_chain_node_addr_t * l_node_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                            if(l_node_addr) {
-                                l_pvt_net->links_addrs[l_pvt_net->links_addrs_count].uint64 = l_node_addr->uint64;
-                                l_pvt_net->links_addrs_count++;
-                            }
-                        }
-                    }
-                    // shuffle the order of the nodes
-                    for(size_t i = 0; i < l_pvt_net->links_addrs_count; i++) {
-                        unsigned int l_new_node_pos = rand() % (l_pvt_net->links_addrs_count);
-                        if(i==l_new_node_pos)
-                            continue;
-                        uint64_t l_tmp_uint64 = l_pvt_net->links_addrs[i].uint64;
-                        l_pvt_net->links_addrs[i].uint64 = l_pvt_net->links_addrs[l_new_node_pos].uint64;
-                        l_pvt_net->links_addrs[l_new_node_pos].uint64 = l_tmp_uint64;
-                    }
-                    DAP_DELETE(l_cur_node_info);
-                }else {
-                        // TODO read cell's nodelist and populate array with it
                     }
                 } break;
             }
-            if ( l_pvt_net->state_target > NET_STATE_LINKS_PREPARE ){
-                if ( l_pvt_net->links_addrs_count>0 ) { // If links are present
+            if (l_pvt_net->state_target > NET_STATE_LINKS_PREPARE) {
+                if (l_pvt_net->links_info) { // If links are present
                     l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                    log_it(L_DEBUG,"Prepared %u links, start to establish them", l_pvt_net->links_addrs_count );
+                    log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_pvt_net->links_info));
                 } else {
-                    log_it(L_WARNING,"No links for connecting, return back to OFFLINE state");
-                    l_pvt_net->state = NET_STATE_OFFLINE;
-                    // remove looping
-                    l_pvt_net->state_target = NET_STATE_OFFLINE;
+                    log_it(L_WARNING, "No links for connecting, try again to find it");
+                    struct timespec l_sleep = {3, 0};
+                    nanosleep(&l_sleep, NULL);
                 }
             }else {
-                log_it(L_WARNING,"Target state is NET_STATE_LINKS_PREPARE? Realy?");
-                l_pvt_net->state = NET_STATE_OFFLINE;
-            }
-            l_pvt_net->links_success = 0;
-        }
-        break;
-
-        case NET_STATE_LINKS_CONNECTING:{
-            size_t l_links_count = l_pvt_net->links_count;
-            if (l_pvt_net->links_success >= s_required_links_count) {
-                log_it(L_INFO, "Synchronization done");
-                l_pvt_net->links_count = 0;
-                l_pvt_net->links_success = 0;
-                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-                l_pvt_net->state = NET_STATE_ONLINE;
-                break;
-            }
-            if (l_links_count < l_pvt_net->links_addrs_count) {
-                l_pvt_net->links_count++;
-            } else {
-                log_it(L_NOTICE, "Can't establish enough links, go to offline");
-                l_pvt_net->state = NET_STATE_OFFLINE;
-                l_pvt_net->state_target = NET_STATE_OFFLINE;
-                break;
-            }
-            log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
-            log_it(L_DEBUG, "Establishing connection with " NODE_ADDR_FP_STR,
-                   NODE_ADDR_FP_ARGS_S( l_pvt_net->links_addrs[l_links_count]) );
-            dap_chain_node_info_t l_link_node_info;
-            int res = dap_dns_client_get_addr(inet_addr("192.168.10.10"), l_net->pub.name, &l_link_node_info);
-                   // = dap_chain_node_info_read(l_net, &l_pvt_net->links_addrs[l_links_count]);
-            if (res) {
-                dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(&l_link_node_info);
-                if(!l_node_client) {
-                    //DAP_DELETE(l_link_node_info);
-                    ret = -1;
-                    break;
-                }
-                // wait connected
-                int timeout_ms = 5000; //5 sec = 5000 ms
-                int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
-                if (res == 0 ){
-                    log_it(L_DEBUG, "Connected link %u", l_links_count);
-                    l_pvt_net->links = l_node_client;
-                    l_pvt_net->state = NET_STATE_LINKS_ESTABLISHED;
-                }else {
-                    log_it(L_DEBUG, "Cant establish link %u", l_links_count);
-                    dap_chain_node_client_close(l_node_client);
-                    l_pvt_net->links = NULL;
-                }
-            }
-        }
-        break;
-
-        case NET_STATE_LINKS_ESTABLISHED:{
-            log_it(L_DEBUG,"%s.state: NET_STATE_LINKS_ESTABLISHED",l_net->pub.name);
-            switch (l_pvt_net->state_target) {
-                case NET_STATE_ONLINE:{ // Online
-                    switch ( l_pvt_net->node_role.enums ){
-                        case NODE_ROLE_ROOT_MASTER:
-                        case NODE_ROLE_ROOT:{
-                            /*dap_chain_node_client_t * l_node_client = NULL, *l_node_client_tmp = NULL;
-
-                            // Send everybody your address when linked
-                            HASH_ITER(hh,l_pvt_net->links,l_node_client,l_node_client_tmp){
-                                dap_stream_ch_chain_net_pkt_write(dap_client_get_stream_ch(
-                                                  l_node_client->client, dap_stream_ch_chain_net_get_id()),
-                                                   DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR, l_net->pub.id,
-                                                   dap_chain_net_get_cur_addr(l_net),
-                                                   sizeof (dap_chain_node_addr_t) );
-                            }*/
-                            l_pvt_net->state = NET_STATE_SYNC_GDB;
-                        }break;
-                        case NODE_ROLE_CELL_MASTER:
-                        case NODE_ROLE_MASTER:{
-                            l_pvt_net->state = NET_STATE_SYNC_GDB;//NET_STATE_ADDR_REQUEST;
-                        } break;
-                       default:{
-                        // get addr for current node if it absent
-                        if(!dap_chain_net_get_cur_addr_int(l_net))
-                            l_pvt_net->state = NET_STATE_ADDR_REQUEST;
-                        else
-                            PVT( l_net)->state = NET_STATE_SYNC_GDB;
-                       }
-                    }
-                }
-                break;
-
-                case NET_STATE_SYNC_GDB: // we need only to sync gdb
-                    l_pvt_net->state = NET_STATE_SYNC_GDB ;
-                    if ( l_pvt_net->addr_request_attempts >=10 && l_pvt_net->state == NET_STATE_ADDR_REQUEST){
-                        l_pvt_net->addr_request_attempts = 0;
-                        switch( l_pvt_net->state_target){
-                            case NET_STATE_ONLINE:
-                            case NET_STATE_SYNC_GDB:
-                                l_pvt_net->state = NET_STATE_SYNC_GDB;
-                                break;
-
-                            case NET_STATE_SYNC_CHAINS:
-                                l_pvt_net->state = NET_STATE_SYNC_CHAINS;
-                                break;
-                            default: {
-                                l_pvt_net->state = NET_STATE_OFFLINE;
-                                l_pvt_net->state_target = NET_STATE_OFFLINE;
-                            }
-                        }
-                    }
-                    break;
-
-                case NET_STATE_SYNC_CHAINS:
-                    l_pvt_net->state = (l_pvt_net->node_info && l_pvt_net->node_info->hdr.address.uint64)?
-                                NET_STATE_SYNC_CHAINS : NET_STATE_ADDR_REQUEST;
-                    break;
-
-                case NET_STATE_ADDR_REQUEST :
-                    l_pvt_net->state = NET_STATE_ADDR_REQUEST;
-                    break;
-                default: break;
+                log_it(L_WARNING, "Target state is NET_STATE_LINKS_PREPARE? Realy?");
+                l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
             }
         } break;
-        // get addr for remote node
-        case NET_STATE_ADDR_REQUEST: {
-            int l_is_addr_leased = 0;
-            dap_chain_node_client_t *l_node_client = l_pvt_net->links;
-            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id(); // Channel id for chain net request
-            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
-            // set callback for l_ch_id
-            dap_chain_node_client_set_callbacks(l_node_client->client, l_ch_id);
-            // send request for new address
-            size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
-                    DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,
-                    //DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
-                    l_net->pub.id, NULL, 0);
-            if (res == 0) {
-                log_it(L_WARNING,"Can't send NODE_ADDR_REQUEST packet");
-                dap_chain_node_client_close(l_node_client);
-                l_pvt_net->links = NULL;
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                break; // try with another link
-            }
-            // wait for finishing of request
-            int timeout_ms = 5000; // 5 sec = 5 000 ms
-            // TODO add progress info to console
-            l_pvt_net->addr_request_attempts++;
-            int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
-            switch (l_res) {
-                case -1:
-                    log_it(L_WARNING,"Timeout with addr leasing");
-                    // try again 3 times
-                    if (l_pvt_net->addr_request_attempts < 3) {
-                        break;
+
+        case NET_STATE_LINKS_CONNECTING: {
+            log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
+            for (dap_list_t *l_tmp = l_pvt_net->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
+                dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_link_info);
+                if (l_node_client) {
+                    // wait connected
+                    int timeout_ms = 5000; //5 sec = 5000 ms
+                    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+                    if (res == 0 ) {
+                        log_it(L_DEBUG, "Established connection with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
+                        l_pvt_net->links = dap_list_append(l_pvt_net->links, l_node_client);
+                    } else {
+                        dap_chain_node_client_close(l_node_client);
+                        l_node_client = NULL;
                     }
-                    l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                    break; // try with another link
+                }
+                if (!l_node_client) {
+                    log_it(L_DEBUG, "Can't establish link with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
+                }
+                if (dap_list_length(l_pvt_net->links) >= s_required_links_count) {
+                    break;
+                }
+            }
+            if (l_pvt_net->links) { // We have at least one working link
+                l_pvt_net->state = NET_STATE_LINKS_ESTABLISHED;
+            } else { // Try to find another links
+                l_pvt_net->state = NET_STATE_OFFLINE;
+            }
+        } break;
+
+        case NET_STATE_SYNC_GDB:{
+            for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
+                dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
+                // Get last timestamp in log
+                l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_node_client->remote_node_addr.uint64);
+                // no limit
+                l_sync_gdb.id_end = (uint64_t)0;
+
+                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
+                                                  dap_chain_net_get_cur_addr(l_net)->uint64 :
+                                                  dap_db_get_cur_node_addr(l_net->pub.name);
+
+                dap_chain_id_t l_chain_id_null = {};
+                dap_chain_cell_id_t l_chain_cell_id_null = {};
+                l_chain_id_null.uint64 = l_net->pub.id.uint64;
+                l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
+
+                log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end);
+                // find dap_chain_id_t
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+                dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {};
+
+                size_t l_res = dap_stream_ch_chain_pkt_write(dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id()),
+                                                            DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id, l_chain_id,
+                                                            l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
+                if (l_res == 0) {
+                    log_it(L_WARNING, "Can't send GDB sync request");
+                    continue;
+                }
+
+                // wait for finishing of request
+                int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
+                // TODO add progress info to console
+                l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+                switch (l_res) {
+                case -1:
+                    log_it(L_WARNING,"Timeout with link sync");
+                    break;
                 case 0:
-                    log_it(L_INFO, "Node address leased");
-                    l_is_addr_leased++;
-                    l_pvt_net->addr_request_attempts = 0;
+                    log_it(L_INFO, "Node sync completed");
                     break;
                 default:
-                    if (l_node_client->last_error[0]) {
-                        log_it(L_INFO, "Node address request error %d: \"%s\"", l_res, l_node_client->last_error);
-                        l_node_client->last_error[0] = '\0';
-                    }
-                    log_it(L_INFO, "Node address request error %d", l_res);
-                    l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                    break;
+                    log_it(L_INFO, "Node sync error %d",l_res);
+                }
+                l_res = dap_stream_ch_chain_pkt_write(dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id()),
+                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, l_net->pub.id, l_chain_id,
+                                                      l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
             }
-            if (l_is_addr_leased > 0) {
-                l_pvt_net->state = NET_STATE_SYNC_GDB;
-            }
-        }
-        break;
-        case NET_STATE_SYNC_GDB:{
-            // send request
-            dap_chain_node_client_t *l_node_client = l_pvt_net->links;
-            dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
-            // Get last timestamp in log
-            l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_node_client->remote_node_addr.uint64);
-            // no limit
-            l_sync_gdb.id_end = (uint64_t)0;
-
-            l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
-                                              dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                              dap_db_get_cur_node_addr(l_net->pub.name);
-
-            dap_chain_id_t l_chain_id_null = {};
-            dap_chain_cell_id_t l_chain_cell_id_null = {};
-            l_chain_id_null.uint64 = l_net->pub.id.uint64;
-            l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
-
-            log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end);
-            // find dap_chain_id_t
-            dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
-            dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {};
-
-            size_t l_res = dap_stream_ch_chain_pkt_write(dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id()),
-                                                        DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id, l_chain_id,
-                                                        l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
-            if (l_res == 0) {
-                log_it(L_WARNING, "Can't send GDB sync request");
-                dap_chain_node_client_close(l_node_client);
-                l_pvt_net->links = NULL;
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                break;  //try another link
-            }
-
-            // wait for finishing of request
-            int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
-            // TODO add progress info to console
-            l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
-            switch (l_res) {
-            case -1:
-                log_it(L_WARNING,"Timeout with link sync");
-                break;
-            case 0:
-                log_it(L_INFO, "Node sync completed");
-                break;
-            default:
-                log_it(L_INFO, "Node sync error %d",l_res);
-            }
-            if (l_res) { // try another link
-                break;
-            }
-            if(l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
+            if (l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
                 l_pvt_net->state = NET_STATE_SYNC_CHAINS;
-            } else {
-                l_pvt_net->links_success++;
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
+            } else {    // Synchronization done, go offline
+                l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
             }
         }
         break;
