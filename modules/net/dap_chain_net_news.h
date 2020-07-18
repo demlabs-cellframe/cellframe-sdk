@@ -24,16 +24,4 @@
 
 #include "dap_http.h"
 
-/* Set news in the selected language
- * a_lang - a language like "en", "ru", "fr"
- * a_data_news - news data
- * a_data_news_len length of news
- */
-int dap_chain_net_news_write(const char *a_lang, char *a_data_news, size_t a_data_news_len);
-
-/* Get news in the selected language
- * a_lang - a language like "en", "ru", "fr"
- */
-byte_t* dap_chain_net_news_read(const char *a_lang, size_t *a_news_len);
-
-void dap_chain_net_news_add_proc(struct dap_http * sh);
+int dap_chain_net_news_init(dap_http_t * a_http);
