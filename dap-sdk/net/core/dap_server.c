@@ -523,8 +523,6 @@ static void read_write_cb( dap_client_remote_t *dap_cur, int32_t revents )
                     log_it( L_ERROR, "epoll_ctl failed..." );
                     dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     break;
-                } else {
-                    log_it( L_INFO, "wait for available space in buff..." );
                 }
             } else {
                 log_it(L_ERROR,"[THREAD %u] Error occured in send() function %s", dap_cur->tn, strerror(errno) );
