@@ -34,6 +34,7 @@ add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
 add_subdirectory(modules/)
+add_subdirectory(modules_dynamic)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 
@@ -121,6 +122,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
+endif()
+
+# Enable service for dynamic modules
+if (CELLFRAME_MODULES MATCHES "modules-dynamic")
+    message("[+] Module 'dap_modules_dynamic_cdb'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb )
 endif()
 
 if (WIN32)
