@@ -1139,7 +1139,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             HASH_DELETE(hh2, sf_socks, sf_sock);
                             HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
 
-                            struct epoll_event ev;
+                            struct epoll_event ev = {0, {0}};
                             ev.data.fd = sf_sock->sock;
                             ev.events = EPOLLIN;
                             if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
@@ -1170,7 +1170,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         pthread_mutex_lock(&s_sf_socks_mutex);
                         HASH_DELETE(hh2, sf_socks, sf_sock);
                         HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
-                        struct epoll_event ev;
+                        struct epoll_event ev  = {0, {0}};;
                         ev.data.fd = sf_sock->sock;
                         ev.events = EPOLLIN;
                         if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
@@ -1244,7 +1244,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 pthread_mutex_unlock(&s_sf_socks_mutex);
                                 pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
 
-                                struct epoll_event ev;
+                                struct epoll_event ev = {0, {0}};
                                 ev.data.fd = s;
                                 ev.events = EPOLLIN | EPOLLERR;
 
@@ -1380,7 +1380,7 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
  */
 void srv_stream_sf_disconnect(ch_vpn_socket_proxy_t * sf_sock)
 {
-    struct epoll_event ev;
+    struct epoll_event ev = {0, {0}};
     ev.data.fd = sf_sock->sock;
     ev.events = EPOLLIN | EPOLLERR;
     if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) == -1) {
@@ -1409,7 +1409,7 @@ void srv_stream_sf_disconnect(ch_vpn_socket_proxy_t * sf_sock)
 void * srv_ch_sf_thread(void * a_arg)
 {
     UNUSED(a_arg);
-    struct epoll_event ev, events[SF_MAX_EVENTS] = { 0 };
+    struct epoll_event ev = {0, {0}}, events[SF_MAX_EVENTS] = { {0, {0}} };
     //pthread_mutex_lock(&sf_socks_mutex);
     sf_socks_epoll_fd = epoll_create(SF_MAX_EVENTS);
     sigset_t sf_sigmask;
