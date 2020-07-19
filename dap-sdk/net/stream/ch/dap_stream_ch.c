@@ -103,6 +103,7 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         pthread_rwlock_unlock(&a_stream->rwlock);
 
         struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
+        l_new_ch->ch = ret;
         pthread_mutex_lock(&s_ch_table_lock);
         HASH_ADD_PTR(s_ch_table, ch, l_new_ch);
         pthread_mutex_unlock(&s_ch_table_lock);
