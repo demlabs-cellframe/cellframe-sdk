@@ -12,7 +12,7 @@ int dap_json_rpc_registration_request_handler(const char *a_name, handler_func *
         l_handler->name = dap_strdup(a_name);
         l_handler->func = a_func;
         HASH_ADD_STR(s_handler_hash_table, name, l_handler);
-        log_it(L_NOTICE, "Registration handler for request name: %s", a_name)
+        log_it(L_NOTICE, "Registration handler for request name: %s", a_name);
         return 0;
     }
     return 1;
@@ -44,9 +44,11 @@ void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_client_
             l_response->id = a_request->id;
             l_response->type_result = TYPE_RESPONSE_NULL;
             l_response->error = l_err;
-            log_it(L_NOTICE, "Can't processing the request. Handler %s not registration", a_request->method);
+            log_it(L_NOTICE, "Can't processing the request. Handler %s not registration. "
+                             "Request sending from client ip %s", a_request->method, a_client_remote->s_ip);
         } else {
             l_handler->func(a_request->params, l_response);
+            log_it(L_NOTICE, "Calling handler request name: %s", a_request->method);
         }
         dap_json_rpc_response_send(l_response, a_client_remote);
     }
