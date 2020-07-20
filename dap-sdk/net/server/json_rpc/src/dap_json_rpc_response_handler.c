@@ -1,11 +1,12 @@
 #include "dap_json_rpc_response_handler.h"
 
+#define LOG_TAG "dap_json_rpc_response_handler"
+
 static dap_json_rpc_response_handler_t *s_response_handlers = NULL;
 static uint64_t s_delta = 0;
 
 int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_response_handler_func_t *func){
     dap_json_rpc_response_handler_t *l_handler = NULL;
-//    HASH_FIND(hh, s_response_handlers, )
     HASH_FIND_INT(s_response_handlers, (void*)a_id, l_handler);
     if (l_handler == NULL){
         l_handler = DAP_NEW(dap_json_rpc_response_handler_t);
