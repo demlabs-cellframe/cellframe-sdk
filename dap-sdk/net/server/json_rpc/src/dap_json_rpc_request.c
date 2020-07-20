@@ -1,5 +1,7 @@
 #include "dap_json_rpc_request.h"
 
+#define LOG_TAG "dap_json_rpc_request"
+
 static char *s_uplink_addr;
 static uint16_t s_uplink_port;
 static char *s_url_service;
