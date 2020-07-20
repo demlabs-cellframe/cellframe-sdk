@@ -146,6 +146,26 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
     if(l_ch_pkt ) {
         switch (l_ch_pkt->hdr.type) {
+            // for send test data
+            /*todo l_receipt_new
+             * case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST:{
+                // send response
+                if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE,
+                                        l_receipt_new, l_receipt_new->size)) {
+                                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                                }
+            }
+            break;
+            // for receive test data.
+            case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
+                // send response
+                if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE,
+                        l_receipt_new, l_receipt_new->size)) {
+                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                }
+            }
+            break;*/
+
         	// only for server
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
                 if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){

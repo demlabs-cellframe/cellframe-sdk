@@ -304,6 +304,89 @@ int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wa
 }
 
 /**
+ * Check  VPN server
+ *
+ * return: 0 Ok, <0 Error
+ */
+int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port, int a_rate_out)
+{
+    int l_ret = 0;
+    if(!a_ipv4_str) // && !a_ipv6_str)
+        return -1;
+    if(!s_node_info)
+        s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+    s_node_info->hdr.ext_port = a_port;
+
+    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
+    const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), 0 }; //only R, without S
+    if(a_ipv4_str)
+        inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
+    if(a_ipv6_str)
+        inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
+
+    s_vpn_client = dap_chain_client_connect(s_node_info, l_stage_target, l_active_channels);
+    if(!s_vpn_client) {
+        log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
+        // clean client struct
+        dap_chain_node_client_close(s_vpn_client);
+        DAP_DELETE(s_node_info);
+        s_node_info = NULL;
+        return -2;
+    }
+    // wait connected
+    int timeout_ms = 5000; //5 sec = 5000 ms
+    int l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+    if(l_res) {
+        log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
+        // clean client struct
+        dap_chain_node_client_close(s_vpn_client);
+        DAP_DELETE(s_node_info);
+        s_node_info = NULL;
+        return -3;
+    }
+
+    l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
+
+    // send first packet to server
+    {
+        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        if(l_ch) {
+            dap_stream_ch_chain_net_srv_pkt_request_t l_request;
+            memset(&l_request, 0, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+            l_request.hdr.net_id.uint64 = a_net->pub.id.uint64;
+            l_request.hdr.srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
+            dap_chain_hash_fast_t *l_tx_cond = dap_chain_net_vpn_client_tx_cond_hash(a_net, NULL, NULL, 0);
+            if(l_tx_cond) {
+                memcpy(&l_request.hdr.tx_cond, l_tx_cond, sizeof(dap_chain_hash_fast_t));
+                DAP_DELETE(l_tx_cond);
+            }
+            // set srv id
+            dap_stream_ch_chain_net_srv_set_srv_uid(l_ch, l_request.hdr.srv_uid);
+            //dap_chain_hash_fast_t l_request
+            //.hdr.tx_cond = a_txCond.value();
+//          strncpy(l_request->hdr.token, a_token.toLatin1().constData(),sizeof (l_request->hdr.token)-1);
+            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, &l_request, sizeof(l_request));
+            dap_stream_ch_set_ready_to_write(l_ch, true);
+        }
+    }
+    // wait testing
+    int timeout__ms = 10000000; //10 sec = 10000 ms
+    l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+    if(l_res) {
+        log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
+        // clean client struct
+        dap_chain_node_client_close(s_vpn_client);
+        DAP_DELETE(s_node_info);
+        s_node_info = NULL;
+        return -3;
+    }
+
+    return l_ret;
+}
+
+
+/**
  * Start VPN client
  *
  * return: 0 Ok, 1 Already started, <0 Error
