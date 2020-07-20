@@ -1,5 +1,7 @@
 #include "dap_json_rpc_request_handler.h"
 
+#define LOG_TAG "dap_json_rpc_request_handler"
+
 static dap_json_rpc_request_handler_t *s_handler_hash_table = NULL;
 
 int dap_json_rpc_registration_request_handler(const char *a_name, handler_func *a_func){
@@ -10,6 +12,7 @@ int dap_json_rpc_registration_request_handler(const char *a_name, handler_func *
         l_handler->name = dap_strdup(a_name);
         l_handler->func = a_func;
         HASH_ADD_STR(s_handler_hash_table, name, l_handler);
+        log_it(L_NOTICE, "Registration handler for request name: %s", a_name)
         return 0;
     }
     return 1;
@@ -20,6 +23,7 @@ int dap_json_rpc_unregistration_request_handler(const char *a_name){
     if (l_handler == NULL){
         return 1;
     } else {
+    	log_it(L_NOTICE, "Unregistration for handler request name: %s", a_name);
         HASH_DEL(s_handler_hash_table, l_handler);
         DAP_FREE(l_handler->name);
         DAP_FREE(l_handler);
@@ -28,6 +32,7 @@ int dap_json_rpc_unregistration_request_handler(const char *a_name){
 }
 
 void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_client_remote_t *a_client_remote){
+	log_it(L_DEBUG, "Processing request");
     if (a_request->id == 0){
         dap_json_rpc_notification_handler(a_request->method, a_request->params);
     } else {
@@ -39,6 +44,7 @@ void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_client_
             l_response->id = a_request->id;
             l_response->type_result = TYPE_RESPONSE_NULL;
             l_response->error = l_err;
+            log_it(L_NOTICE, "Can't processing the request. Handler %s not registration", a_request->method);
         } else {
             l_handler->func(a_request->params, l_response);
         }

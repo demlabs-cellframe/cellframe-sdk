@@ -1,5 +1,7 @@
 #include "dap_json_rpc_response.h"
 
+#define LOG_TAG "dap_json_rpc_response"
+
 void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response){
     DAP_FREE(a_response->error);
     if (a_response->type_result == TYPE_RESPONSE_STRING){

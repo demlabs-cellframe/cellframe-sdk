@@ -1,5 +1,7 @@
 #include "dap_json_rpc.h"
 
+#define LOG_TAG "dap_json_rpc_rpc"
+
 static bool init_module = false;
 
 //void _dap_json_rpc_http_new_callback(dap_http_t *a_http, void *s_args);

@@ -1,5 +1,7 @@
 #include "dap_json_rpc_errors.h"
 
+#define LOG_TAG "dap_json_rpc_errors"
+
 static dap_json_rpc_error_t *s_errors;
 int _dap_json_rpc_error_cmp_by_code(dap_json_rpc_error_t *a_error, int a_code_error);
 
@@ -26,6 +28,7 @@ int dap_json_rpc_error_add(int a_code_error, const char *a_msg){
     l_error->code_error = a_code_error;
     l_error->msg = dap_strdup(a_msg);
     LL_APPEND(s_errors, l_error);
+    log_it(L_NOTICE, "Registration error. Code error: %d message: %s", a_code_error, a_msg);
     return 0;
 }
 

@@ -1,5 +1,7 @@
 #include "dap_json_rpc_response_handler.h"
 
+#define LOG_TAG "dap_json_rpc_response_handler"
+
 static dap_json_rpc_response_handler_t *s_response_handlers = NULL;
 static uint64_t s_delta = 0;
 

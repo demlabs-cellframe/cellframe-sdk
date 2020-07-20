@@ -1,5 +1,7 @@
 #include "dap_json_rpc_params.h"
 
+#define LOG_TAG "dap_json_rpc_params"
+
 dap_json_rpc_params_t* dap_json_rpc_params_create(void){
     dap_json_rpc_params_t *l_params = DAP_NEW(dap_json_rpc_params_t);
     l_params->lenght = 0;
