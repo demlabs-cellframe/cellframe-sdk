@@ -1,0 +1,18 @@
+stages:
+    - prepare
+    - analyze
+    - build
+    - test
+
+variables:
+    GIT_SUBMODULE_STRATEGY: normal
+
+cellframe-sdk-analyze:
+    stage: analyze
+    tags:
+    - cellframe-sdk
+    script: ~/production/integration/PVS-studio/analyze.sh 
+    artifacts:
+      paths:
+      - report/issues.txt
+      when: always

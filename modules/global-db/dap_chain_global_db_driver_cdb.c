@@ -32,7 +32,7 @@
 
 #include "dap_common.h"
 #include "dap_hash.h"
-#include "dap_strfuncs.h"
+#include "dap_strfuncs.h" // #include <dap_fnmatch.h>
 #include "dap_chain_global_db_driver_cdb.h"
 #include "dap_file_utils.h"
 
@@ -471,11 +471,9 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
     pthread_mutex_lock(&cdb_mutex);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp)
     {
-        if(strstr(cur_cdb->local_group, a_group_mask)) {
-            if(!strstr(cur_cdb->local_group, ".del")) {
+        if(!dap_fnmatch(a_group_mask, cur_cdb->local_group, 0))
+            if(dap_fnmatch("*.del", cur_cdb->local_group, 0))
                 l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(cur_cdb->local_group));
-            }
-        }
     }
     pthread_mutex_unlock(&cdb_mutex);
     return l_ret_list;

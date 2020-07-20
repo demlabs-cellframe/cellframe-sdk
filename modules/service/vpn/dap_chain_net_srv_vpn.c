@@ -510,7 +510,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     pthread_rwlock_init(&l_usage_client->rwlock,NULL);
 
     memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
-
     pthread_rwlock_wrlock(&s_clients_rwlock);
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
 
@@ -686,7 +685,7 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
  */
 void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
 {
-    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->conn->hostaddr);
+    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->conn->s_ip);
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
     pthread_mutex_lock(&(l_ch_vpn->mutex));
@@ -703,7 +702,6 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
             l_is_unleased = true;
         pthread_rwlock_unlock(& s_raw_server_rwlock);
     }
-
     pthread_rwlock_wrlock(&s_clients_rwlock);
     if(s_ch_vpn_addrs) {
         HASH_DEL(s_ch_vpn_addrs, l_ch_vpn);
@@ -720,7 +718,6 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
     HASH_FIND(hh,s_clients, &l_ch_vpn->usage_id,sizeof(l_ch_vpn->usage_id),l_usage_client );
     if (l_usage_client){
         pthread_rwlock_wrlock(&l_usage_client->rwlock);
-
         l_usage_client->ch_vpn = NULL; // NULL the channel, nobody uses that indicates
         pthread_rwlock_unlock(&l_usage_client->rwlock);
     }
@@ -929,7 +926,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     //if ( pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT )
     //    dap_chain_net_vpn_client_pkt_in( a_ch, l_pkt);
-    if(l_pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
+    if(l_pkt->hdr.type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT) {
         static bool client_connected = false;
         ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
         size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);
@@ -1611,7 +1608,7 @@ void* srv_ch_sf_thread_raw(void *arg)
                             s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_read_ret);
                         }
                     }
-                    pthread_rwlock_unlock(&s_clients_rwlock);
+                    pthread_rwlock_unlock(&s_clients_rwlock);\
                 }
             }/*else {
              log_it(L_CRITICAL,"select() has no tun handler in the returned set");

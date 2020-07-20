@@ -517,9 +517,18 @@ static void read_write_cb( dap_client_remote_t *dap_cur, int32_t revents )
                                    dap_cur->buf_out_size - total_sent,
                                    MSG_DONTWAIT | MSG_NOSIGNAL );
         if( bytes_sent < 0 ) {
-          log_it(L_ERROR,"[THREAD %u] Error occured in send() function %s", dap_cur->tn, strerror(errno) );
-          dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-          break;
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                dap_cur->pevent.events = EPOLLOUT | EPOLLERR;
+                if( epoll_ctl(dap_cur->efd, EPOLL_CTL_MOD, dap_cur->socket, &dap_cur->pevent) != 0 ) {
+                    log_it( L_ERROR, "epoll_ctl failed..." );
+                    dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    break;
+                }
+            } else {
+                log_it(L_ERROR,"[THREAD %u] Error occured in send() function %s", dap_cur->tn, strerror(errno) );
+                dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                break;
+            }
         }
 
         total_sent += (size_t)bytes_sent;
@@ -684,9 +693,7 @@ void  *thread_loop( void *arg )
           log_it( L_ERROR,"Socket error: %u, remove it" , dap_cur->socket );
           dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
       }
-#ifdef _WIN32
-      set_nonblock_socket(dap_cur->socket); // pconst: for winsock2 has no appropriate MSG attributes
-#endif
+      set_nonblock_socket(dap_cur->socket);
       if ( !(dap_cur->flags & DAP_SOCK_SIGNAL_CLOSE) || dap_cur->no_close )
         read_write_cb( dap_cur, events[i].events );
 

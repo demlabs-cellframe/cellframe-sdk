@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "dap_math_ops.h"
+#include "dap_fnmatch.h"
 
 #define dap_return_if_fail(expr)            {if(!(expr)) {return;}}
 #define dap_return_val_if_fail(expr,val)    {if(!(expr)) {return (val);}}

@@ -56,6 +56,7 @@
 #include "dap_enc.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_cert.h"
 
 //#include "dap_http_client_simple.h"
 #include "dap_client_http.h"
@@ -396,25 +397,37 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
     case STAGE_STATUS_IN_PROGRESS: {
         switch (a_client_pvt->stage) {
         case STAGE_ENC_INIT: {
-            log_it(L_INFO, "Go to stage ENC: prepare the request");
-
+            log_it(L_INFO, "Go to stage ENC: prepare the request");         
             a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
-
-            size_t l_key_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(a_client_pvt->session_key_open->pub_key_data_size);
-            char *l_key_str = DAP_NEW_Z_SIZE(char, l_key_str_size_max + 1);
+            if (!a_client_pvt->session_key_open) {
+                log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
+                a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                break;
+            }
+            size_t l_key_size = a_client_pvt->session_key_open->pub_key_data_size;
+            dap_cert_t *l_cert = a_client_pvt->auth_cert;
+            dap_sign_t *l_sign = NULL;
+            size_t l_sign_size = 0;
+            if (l_cert) {
+                l_sign = dap_sign_create(l_cert->enc_key, a_client_pvt->session_key_open->pub_key_data, l_key_size, 0);
+                l_sign_size = dap_sign_get_size(l_sign);
+            }
+            uint8_t l_data[l_key_size + l_sign_size];
+            memcpy(l_data, a_client_pvt->session_key_open->pub_key_data, l_key_size);
+            if (l_sign) {
+                memcpy(l_data + l_key_size, l_sign, l_sign_size);
+            }
+            size_t l_data_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(l_key_size + l_sign_size);
+            char l_data_str[l_data_str_size_max + 1];
             // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
-            size_t l_key_str_enc_size = dap_enc_base64_encode(a_client_pvt->session_key_open->pub_key_data,
-                    a_client_pvt->session_key_open->pub_key_data_size,
-                    l_key_str, DAP_ENC_DATA_TYPE_B64);
-
-            log_it(L_DEBUG, "ENC request size %u", l_key_str_enc_size);
+            size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
+            log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
             int l_res = dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
-                    l_key_str, l_key_str_enc_size, m_enc_init_response, m_enc_init_error);
+                    l_data_str, l_data_str_enc_size, m_enc_init_response, m_enc_init_error);
             // bad request
             if(l_res<0){
             	a_client_pvt->stage_status = STAGE_STATUS_ERROR;
             }
-            DAP_DELETE(l_key_str);
         }
             break;
         case STAGE_STREAM_CTL: {
@@ -720,7 +733,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         , dap_client_callback_data_size_t a_response_proc
         , dap_client_callback_int_t a_response_error)
 {
-    bool is_query_enc = false; // it true, then encode a_query string
+    bool is_query_enc = true; // if true, then encode a_query string  [Why do we even need this?]
     log_it(L_DEBUG, "Encrypted request: sub_url '%s' query '%s'", a_sub_url ? a_sub_url : "NULL",
             a_query ? a_query : "NULL");
     size_t l_sub_url_size = a_sub_url ? strlen(a_sub_url) : 0;

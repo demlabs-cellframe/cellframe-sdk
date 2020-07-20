@@ -40,9 +40,7 @@ void dap_enc_sig_tesla_key_new_generate(struct dap_enc_key * key, const void *ke
 
     int32_t retcode;
 
-    int tesla_type = (seed && seed_size >= sizeof(uint8_t)) ? ((uint8_t*)seed)[0] % (PROVABLY_MAX_SECURITY + 1) :
-                                                              HEURISTIC_MAX_SECURITY_AND_MAX_SPEED;
-    dap_enc_sig_tesla_set_type(tesla_type);
+    dap_enc_sig_tesla_set_type(HEURISTIC_MAX_SECURITY_AND_MAX_SPEED);
 
     /* type is a param of sign-security
      * type = 0 - Heuristic qTESLA, NIST's security category 1
