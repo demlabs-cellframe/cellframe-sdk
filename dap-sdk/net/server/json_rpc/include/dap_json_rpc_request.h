@@ -46,6 +46,7 @@ dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data);
 char *dap_json_rpc_request_to_json(const dap_json_rpc_request_t *a_request);
 
 void dap_json_rpc_request_send(dap_json_rpc_request_t *a_request, dap_json_rpc_response_handler_func_t *response_handler,
+                               const char *a_uplink_addr, const uint16_t a_uplink_port,
                                dap_client_http_callback_error_t func_error);
 
 #ifdef __cplusplus
