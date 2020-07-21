@@ -11,6 +11,7 @@ dap_json_rpc_params_t* dap_json_rpc_params_create(void){
 
 void dap_json_rpc_params_add_data(dap_json_rpc_params_t *a_params, const void *a_value,
                                   dap_json_rpc_type_param_t a_type){
+    log_it(L_DEBUG, "Add data in params");
     dap_json_rpc_param_t *l_param = DAP_NEW(dap_json_rpc_param_t);
     //l_param->name_param = dap_strdup(a_name);
     l_param->type = a_type;
@@ -55,6 +56,7 @@ void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc
 }
 
 void dap_json_rpc_params_remove_all(dap_json_rpc_params_t *a_params){
+    log_it(L_DEBUG, "Clean params");
     for (uint32_t i=0 ; i < a_params->lenght; i++){
         dap_json_rpc_param_remove(a_params->params[i]);
     }
@@ -90,6 +92,7 @@ dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params
 //}
 
 dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list){
+    log_it(L_NOTICE, "Translation json_object to dap_json_rpc_params");
     dap_json_rpc_params_t *l_params = dap_json_rpc_params_create();
     int l_lenght = json_object_array_length(a_array_list);
     for (int i = 0; i < l_lenght; i++){
@@ -124,6 +127,7 @@ dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *
 }
 
 char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){
+    log_it(L_NOTICE, "Translation struct params to JSON string");
     json_object *l_jobj_array = json_object_new_array();
     for (uint32_t i = 0; i <= a_params->lenght; i++){
         json_object *l_jobj_tmp = NULL;
