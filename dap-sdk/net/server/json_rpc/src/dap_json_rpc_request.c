@@ -2,7 +2,15 @@
 
 #define LOG_TAG "dap_json_rpc_request"
 
-static char *s_url_service;
+static char *s_url_service = NULL;
+
+int dap_json_rpc_request_init(const char *a_url_service){
+    if (s_url_service == NULL){
+        s_url_service = dap_strdup(a_url_service);
+        return  0;
+    }
+    return 1;
+}
 
 dap_json_rpc_request_t *dap_json_rpc_request_creation(const char *a_method, dap_json_rpc_params_t *a_params, int64_t a_id){
     dap_json_rpc_request_t *l_request = DAP_NEW(dap_json_rpc_request_t);

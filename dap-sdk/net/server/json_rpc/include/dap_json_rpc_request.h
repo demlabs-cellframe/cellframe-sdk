@@ -40,6 +40,8 @@ typedef struct dap_json_rpc_request{
     uint64_t id;
 }dap_json_rpc_request_t;
 
+int dap_json_rpc_request_init(const char *a_url_service);
+
 dap_json_rpc_request_t *dap_json_rpc_request_creation(const char *a_method, dap_json_rpc_params_t *a_params, int64_t a_id);
 
 dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data);
