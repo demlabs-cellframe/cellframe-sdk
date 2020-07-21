@@ -95,18 +95,27 @@ dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *
     for (int i = 0; i < l_lenght; i++){
         json_object *l_jobj = json_object_array_get_idx(a_array_list, i);
         json_type l_jobj_type = json_object_get_type(l_jobj);
+        char *l_str_tmp = NULL;
+        bool l_bool_tmp;
+        int64_t l_int_tmp;
+        double l_double_tmp;
         switch (l_jobj_type) {
         case json_type_string:
-            dap_json_rpc_params_add_data(l_params, json_object_get_string(l_jobj), TYPE_PARAM_STRING);
+            l_str_tmp = dap_strdup(json_object_get_string(l_jobj));
+            dap_json_rpc_params_add_data(l_params, l_str_tmp, TYPE_PARAM_STRING);
+            DAP_FREE(l_str_tmp);
             break;
         case json_type_boolean:
-//            dap_json_rpc_params_add_data(l_params, json_object_get_boolean(l_jobj), TYPE_PARAM_BOOLEAN);
+            l_bool_tmp = json_object_get_boolean(l_jobj);
+            dap_json_rpc_params_add_data(l_params, &l_bool_tmp, TYPE_PARAM_BOOLEAN);
             break;
         case json_type_int:
-            dap_json_rpc_params_add_data(l_params, (void*)json_object_get_int64(l_jobj), TYPE_PARAM_INTEGER);
+            l_int_tmp = json_object_get_int64(l_jobj);
+            dap_json_rpc_params_add_data(l_params, &l_int_tmp, TYPE_PARAM_INTEGER);
             break;
         case json_type_double:
-//            dap_json_rpc_params_add_data(l_params, (void*)json_object_get_double(l_jobj), TYPE_PARAM_DOUBLE);
+            l_double_tmp = json_object_get_double(l_jobj);
+            dap_json_rpc_params_add_data(l_params, &l_double_tmp, TYPE_PARAM_DOUBLE);
             break;
         default:
             dap_json_rpc_params_add_data(l_params, NULL, TYPE_PARAM_NULL);
