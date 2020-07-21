@@ -28,7 +28,7 @@ int dap_json_rpc_error_add(int a_code_error, const char *a_msg){
     l_error->code_error = a_code_error;
     l_error->msg = dap_strdup(a_msg);
     LL_APPEND(s_errors, l_error);
-    log_it(L_NOTICE, "Registration error. Code error: %d message: %s", a_code_error, a_msg);
+    log_it(L_NOTICE, "Registration type error. Code error: %d message: %s", a_code_error, a_msg);
     return 0;
 }
 
@@ -48,6 +48,7 @@ dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error){
 }
 
 char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error){
+    log_it(L_NOTICE, "Translation JSON string to struct dap_json_rpc_error");
     json_object *l_jobj_code = json_object_new_int64(a_error->code_error);
     json_object *l_jobj_msg = json_object_new_string(a_error->msg);
     json_object *l_jobj = json_object_new_object();
@@ -64,6 +65,7 @@ char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error){
 }
 
 dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json){
+    log_it(L_NOTICE, "Translation struct dap_json_rpc_error to JSON string");
     json_object *l_jobj = json_tokener_parse(a_json);
     dap_json_rpc_error_t *l_error = dap_json_rpc_create_from_json_object(l_jobj);
     json_object_put(l_jobj);
@@ -71,6 +73,7 @@ dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json){
 }
 
 void dap_json_rpc_add_standart_erros(void){
+    log_it(L_DEBUG, "Registration standart type erros");
     dap_json_rpc_error_add(0, "Unknown error");
     dap_json_rpc_error_add(1, "Not found handler for this request");
 }
