@@ -58,19 +58,19 @@ dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json){
         switch(json_object_get_type(l_jobj_result)){
         case json_type_int:
             l_response->type_result = TYPE_RESPONSE_INTEGER;
-            l_response->result = json_object_get_int64(l_jobj_result);
+            l_response->result_int = json_object_get_int64(l_jobj_result);
             break;
         case json_type_double:
             l_response->type_result = TYPE_RESPONSE_DOUBLE;
-            l_response->result = json_object_get_double(l_jobj_result);
+            l_response->result_double = json_object_get_double(l_jobj_result);
             break;
         case json_type_boolean:
             l_response->type_result = TYPE_RESPONSE_BOOLEAN;
-            l_response->result = json_object_get_boolean(l_jobj_result);
+            l_response->result_boolean = json_object_get_boolean(l_jobj_result);
             break;
         case json_type_string:
             l_response->type_result = TYPE_RESPONSE_STRING;
-            l_response->result = dap_strdup(json_object_get_string(l_jobj_result));
+            l_response->result_string = dap_strdup(json_object_get_string(l_jobj_result));
             break;
         default:
             l_response->type_result = TYPE_RESPONSE_NULL;
