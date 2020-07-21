@@ -4,20 +4,10 @@
 
 static bool init_module = false;
 
-//void _dap_json_rpc_http_new_callback(dap_http_t *a_http, void *s_args);
-//void _dap_json_rpc_http_delete_callback(dap_http_t *a_http, void *s_args);
 void _dap_json_rpc_http_headers_read_callback(dap_http_client_t *a_http_client, void *a_args);
 void _dap_json_rpc_http_headers_write_callback(dap_http_client_t *a_http_client, void *a_args);
 void _dap_json_rpc_http_data_read_callback(dap_http_client_t *a_http_client, void *a_args);
 void _dap_json_rpc_http_data_write_callback(dap_http_client_t *a_http_client, void *a_args);
-//void _dap_json_rpc_http_error_callback(dap_http_t *a_http, void *s_args);
-//dap_http_client_callback_t new_callback
-//                      ,dap_http_client_callback_t delete_callback
-//                      ,dap_http_client_callback_t headers_read_callback
-//                      ,dap_http_client_callback_t headers_write_callback
-//                      ,dap_http_client_callback_t data_read_callback
-//                      ,dap_http_client_callback_t data_write_callback
-//                      ,dap_http_client_callback_t error_callback
 
 int dap_json_rpc_init(){
     init_module = true;
@@ -71,5 +61,6 @@ void dap_json_rpc_add_proc_http(struct dap_http *sh, const char *URL){
                       _dap_json_rpc_http_data_read_callback,
                       _dap_json_rpc_http_headers_write_callback,
                       NULL);
+    dap_json_rpc_request_init(URL);
     //dap_http_add_proc(sh, URL, )
 }
