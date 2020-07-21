@@ -40,6 +40,8 @@ void dap_json_rpc_response_handler(dap_json_rpc_response_t *a_response){
         log_it(L_NOTICE, "Calling handler response id: %d", a_response->id);
         l_handler->func(a_response);
         dap_json_rpc_response_unregistration(a_response->id);
+    } else {
+        log_it(L_NOTICE, "Can't calling handler response id: %d. This handler not found", a_response->id);
     }
 }
 
@@ -51,6 +53,7 @@ uint64_t dap_json_rpc_response_get_new_id(void){
 
 void dap_json_rpc_response_accepted(void *a_data, size_t a_size_data, void *a_obj){
     (void) a_obj;
+    log_it(L_NOTICE, "Pre handling response");
     char *l_str = DAP_NEW_SIZE(char, a_size_data);
     memcpy(l_str, a_data, a_size_data);
     dap_json_rpc_response_t *l_response = dap_json_rpc_response_from_json(l_str);
