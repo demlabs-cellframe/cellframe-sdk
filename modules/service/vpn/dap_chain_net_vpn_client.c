@@ -492,7 +492,7 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                         HASH_DELETE(hh2, sf_socks, sf_sock);
                         HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
 
-                        struct epoll_event ev;
+                        struct epoll_event ev = {0, {0}};
                         ev.data.fd = sf_sock->sock;
                         ev.events = EPOLLIN;
                         if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
@@ -525,7 +525,7 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                     HASH_DELETE(hh2, sf_socks, sf_sock);
                     HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
 
-                    struct epoll_event ev;
+                    struct epoll_event ev = {0, {0}};
                     ev.data.fd = sf_sock->sock;
                     ev.events = EPOLLIN;
                     if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
@@ -612,7 +612,7 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                             pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
                             pthread_mutex_unlock(&sf_socks_mutex);
 
-                            struct epoll_event ev;
+                            struct epoll_event ev = { 0, {0} };
                             ev.data.fd = s;
                             ev.events = EPOLLIN | EPOLLERR;
 

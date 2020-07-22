@@ -103,6 +103,7 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         pthread_rwlock_unlock(&a_stream->rwlock);
 
         struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
+        l_new_ch->ch = ret;
         pthread_mutex_lock(&s_ch_table_lock);
         HASH_ADD_PTR(s_ch_table, ch, l_new_ch);
         pthread_mutex_unlock(&s_ch_table_lock);
@@ -120,7 +121,7 @@ bool dap_stream_ch_valid(dap_stream_ch_t *a_ch)
     if(!a_ch)
         return false;
     pthread_mutex_lock(&s_ch_table_lock);
-    HASH_FIND_PTR(s_ch_table, a_ch, l_ret);
+    HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
     pthread_mutex_unlock(&s_ch_table_lock);
     return l_ret;
 }
@@ -132,8 +133,8 @@ bool dap_stream_ch_valid(dap_stream_ch_t *a_ch)
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 {
     pthread_mutex_lock(&s_ch_table_lock);
-    struct dap_stream_ch_table_t *l_ret;;
-    HASH_FIND_PTR(s_ch_table, a_ch, l_ret);
+    struct dap_stream_ch_table_t *l_ret;
+    HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
     HASH_DEL(s_ch_table, l_ret);
     pthread_mutex_unlock(&s_ch_table_lock);
 

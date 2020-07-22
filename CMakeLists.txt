@@ -34,7 +34,6 @@ add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
 add_subdirectory(modules/)
-add_subdirectory(modules_dynamic)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 
