@@ -3,6 +3,7 @@
 #include "ringct20/ringct20_params.h"
 #include "rand/dap_rand.h"
 
+#define LOG_TAG "dap_enc_tigct20_test"
 
 static void test_signing_verifying2(void)
 {
@@ -11,6 +12,9 @@ static void test_signing_verifying2(void)
     randombytes(source, source_size);
     size_t seed_size = sizeof(uint8_t);
     uint8_t seed[seed_size];
+
+
+    log_it(L_ERROR, "Init testcase");
 
     randombytes(seed, seed_size);
 
@@ -37,7 +41,17 @@ static void test_signing_verifying2(void)
     dap_assert_PIF(siglen > 0, "Signing message");
 
 //Extract aList//CRUTCH
-    uint8_t *sigdata = (uint8_t*)*(int*)(sig + 4);
+//    uint8_t *sigdata = (uint8_t*)*(int*)(sig + 4);
+
+
+    //*****
+    uint8_t *sigdata = DAP_NEW_SIZE(uint8_t, siglen);
+    memcpy(sigdata, sig, siglen * sizeof(uint8_t));
+    for (size_t i = 0; i < siglen; i++){
+        dap_test_msg("sigdata[%zu] = %d", i, sigdata[i]);
+    }
+    dap_test_msg("Copy down sigdata[0] = %d source[0] = %d sig[0] = %d siglen = %zu", sigdata[0], source[0], sig[0], siglen);
+    //*****
 //    for(int i = 0; i < 16; ++i)
 //        printf("%.2x ", sigdata[i]);
 //    printf(" = sig_extract\n"); fflush(stdout);
@@ -46,15 +60,19 @@ static void test_signing_verifying2(void)
     //memcpy(sec_kind, sigdata + unpacked_size, sizeof(DAP_RINGCT20_SIGN_SECURITY));
     unpacked_size += sizeof(DAP_RINGCT20_SIGN_SECURITY);
     //unpack wLen
-    int wLen;
-    memcpy(&wLen, sigdata + unpacked_size, sizeof(wLen));
+//    uint8_t wLen;
+    void *wLen = DAP_NEW(uint8_t);
+    dap_test_msg("WMP0 sigdata = %s unpack_size = %d", sigdata, unpacked_size);
+    dap_test_msg("sigdata = %s, unpacked_size = %d sigdata+unpacked_size = %d", sigdata, unpacked_size, *(sigdata+unpacked_size));
+    memcpy(wLen, (sigdata + unpacked_size), sizeof(uint8_t));
+    dap_pass_msg("VMP1");
 //    printf("wLen = %x\n", wLen);fflush(stdout);
     unpacked_size += sizeof(wLen);
     //unpack a_list
     size_t poly_size = 896;
     size_t pbk_size = 4 + poly_size;
-    uint8_t *pbkList_buf = DAP_NEW_SIZE(uint8_t, pbk_size*wLen);
-    for(int i = 0; i < wLen; ++i)
+    uint8_t *pbkList_buf = DAP_NEW_SIZE(uint8_t, pbk_size* (uint8_t)wLen);
+    for(int i = 0; i < (uint8_t)wLen; ++i)
     {
         *(int*)(pbkList_buf + i*pbk_size + 0) = 0;//kind CRUTCH
         memcpy(pbkList_buf + i*pbk_size + 4, sigdata + unpacked_size, poly_size);
@@ -105,6 +123,7 @@ static void test_signing_verifying2(void)
     DAP_DELETE(source);
     free(sig);
     dap_enc_key_delete(key);
+    dap_pass_msg("VMP_END");
 }
 
 //DEBUG TO USE IT get back:dap_enc_sig_ringct20_get_sign_with_pb_list,//dap_enc_sig_ringct20_get_sign,
@@ -154,9 +173,11 @@ void dap_enc_ringct20_tests_run(const int times)
 {
     dap_print_module_name("dap_enc_ringct20");
     init_test_case();
-    char print_buf[512];
-    sprintf_s(print_buf, 512, "Signing and verifying message %d time", times);
+    char print_buf[256];
 
+    //char *print_buf = dap_strjoin(NULL, "Signing and verifying message ", times," time", NULL);
+    sprintf(print_buf, "Signing and verifying message %d time", times);
+    dap_assert_PIF( 0 == 0, "The test is broken SEGFAULE");
     benchmark_mgs_time(print_buf, benchmark_test_time(test_signing_verifying2, times));
 
     cleanup_test_case();
