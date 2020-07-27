@@ -47,7 +47,6 @@ static void test_signing_verifying2(void)
     //*****
     uint8_t *sigdata = DAP_NEW_SIZE(uint8_t, siglen);
     memcpy(sigdata, sig, siglen * sizeof(uint8_t));
-    dap_test_msg("Copy down sigdata[0] = %d source[0] = %d sig[0] = %d siglen = %zu", sigdata[0], source[0], sig[0], siglen);
     //*****
 //    for(int i = 0; i < 16; ++i)
 //        printf("%.2x ", sigdata[i]);
@@ -58,9 +57,7 @@ static void test_signing_verifying2(void)
     unpacked_size += sizeof(DAP_RINGCT20_SIGN_SECURITY);
     //unpack wLen
     uint8_t wLen;
-    dap_test_msg("WMP0 sigdata = %s unpack_size = %d", sigdata, unpacked_size);
     memcpy(&wLen, sigdata + unpacked_size, sizeof(uint8_t));
-    dap_pass_msg("VMP1");
 //    printf("wLen = %x\n", wLen);fflush(stdout);
     unpacked_size += sizeof(wLen);
     //unpack a_list
@@ -118,7 +115,6 @@ static void test_signing_verifying2(void)
     DAP_DELETE(source);
     free(sig);
     dap_enc_key_delete(key);
-    dap_pass_msg("VMP_END")
 }
 
 //DEBUG TO USE IT get back:dap_enc_sig_ringct20_get_sign_with_pb_list,//dap_enc_sig_ringct20_get_sign,
