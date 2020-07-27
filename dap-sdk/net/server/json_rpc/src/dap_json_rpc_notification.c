@@ -5,7 +5,7 @@
 static dap_json_rpc_notification_handler_t *s_handler_notifications = NULL;
 
 
-int dap_json_rpc_notification_registration(const char *a_method, notification_handler_func *a_notification_func){
+int dap_json_rpc_notification_registration(const char *a_method, notification_handler_func_t *a_notification_func){
     dap_json_rpc_notification_handler_t *l_handler;
     HASH_FIND_STR(s_handler_notifications, a_method, l_handler);
     if (l_handler == 0){

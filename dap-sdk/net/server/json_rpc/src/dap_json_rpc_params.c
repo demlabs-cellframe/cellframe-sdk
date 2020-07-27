@@ -73,11 +73,11 @@ uint32_t dap_json_rpc_params_lenght(dap_json_rpc_params_t *a_params){
     return a_params->lenght;
 }
 
-//void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index){
-//    if (a_params->lenght > index)
-//        return a_params->params[index]->value_param;
-//    return NULL;
-//}
+void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index){
+    if (a_params->lenght > index)
+        return a_params->params[index]->value_param;
+    return NULL;
+}
 
 dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params_t *a_params, uint32_t index){
     if (a_params->lenght > index)
@@ -85,11 +85,11 @@ dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params
     return TYPE_PARAM_NULL;
 }
 
-//void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
-//    DAP_FREE(param->value_param);
-//    //DAP_FREE(param->name_param);
-//    DAP_FREE(param);
-//}
+void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
+    DAP_FREE(param->value_param);
+    //DAP_FREE(param->name_param);
+    DAP_FREE(param);
+}
 
 dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list){
     log_it(L_NOTICE, "Translation json_object to dap_json_rpc_params");
