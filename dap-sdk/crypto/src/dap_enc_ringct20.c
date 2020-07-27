@@ -353,7 +353,7 @@ int ringct20_crypto_sign_open_with_pbkList(const unsigned char * msg, const unsi
     {
         return -1;
     }
-    ringct20_param_t *p = calloc(sizeof(ringct20_param_t),1);
+    ringct20_param_t *p = DAP_NEW(ringct20_param_t);
     if (! ringct20_params_init( p, sec_kind))
     {
         ringct20_params_free(p);
