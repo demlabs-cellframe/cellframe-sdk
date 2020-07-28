@@ -22,7 +22,7 @@ void dap_json_rpc_params_add_data(dap_json_rpc_params_t *a_params, const void *a
 //    case TYPE_PARAM_OBJECT:
 //        break;
     case TYPE_PARAM_STRING:
-        l_param->value_param = dap_strdup(a_value);
+        l_param->value_param = dap_strdup((char*)a_value);
         break;
     case TYPE_PARAM_BOOLEAN:
         l_len_value = sizeof(bool);
@@ -50,7 +50,8 @@ void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc
     dap_json_rpc_param_t **l_new_params = DAP_NEW_SIZE(dap_json_rpc_param_t*, l_len_new_params);
     memcpy(l_new_params, a_params->params, sizeof(dap_json_rpc_param_t*) * a_params->lenght);
     memcpy(l_new_params+a_params->lenght, &a_param, sizeof(dap_json_rpc_param_t*));
-    DAP_FREE(a_params->params);
+    if (a_params->lenght != 0)
+        DAP_FREE(a_params->params);
     a_params->params = l_new_params;
     a_params->lenght = l_len_new_params;
 }
