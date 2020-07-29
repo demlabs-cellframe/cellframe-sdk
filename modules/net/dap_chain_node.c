@@ -304,10 +304,10 @@ void dap_chain_node_mempool_periodic(void *a_param)
 
         l_mempool_auto = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
         if (l_mempool_auto) {
-            dap_chain_t *l_chain;
-            DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                dap_chain_node_mempool_process(l_chain, l_role);
-            }
+            //dap_chain_t *l_chain;
+            //DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+            //    dap_chain_node_mempool_process(l_chain, l_role);
+            //}
         }
     }
     DAP_DELETE(l_net_list);
