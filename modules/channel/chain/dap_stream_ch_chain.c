@@ -510,9 +510,23 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
             }
                 break;
-                default:{
+            case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS: {
+                dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
+                memcpy(&l_sync_gdb, l_chain_pkt->data, l_chain_pkt_data_size);
+                dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_net_id);
+                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
+                                                  dap_chain_net_get_cur_addr(l_net)->uint64 :
+                                                  dap_db_get_cur_node_addr(l_net->pub.name);
+                // Get last timestamp in log
+                l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_ch_chain->request.node_addr.uint64);
+                // no limit
+                l_sync_gdb.id_end = (uint64_t)0;
+                dap_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_chain_pkt->hdr.net_id,
+                                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
+            }
+            default: {
                     //log_it(L_INFO, "Get %s packet", c_dap_stream_ch_chain_pkt_type_str[l_ch_pkt->hdr.type]);
-                }
+                     }
             }
             if(l_ch_chain->callback_notify_packet_in)
                 l_ch_chain->callback_notify_packet_in(l_ch_chain, l_ch_pkt->hdr.type, l_chain_pkt,

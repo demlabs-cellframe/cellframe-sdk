@@ -492,34 +492,23 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
         break;
 
         case NET_STATE_SYNC_CHAINS: {
-            dap_chain_node_client_t *l_node_client = l_pvt_net->links;
-            uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db and chains sync
-            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
-            if(!l_ch_chain) {
-                log_it(L_DEBUG,"Can't get stream_ch for id='%c' ", l_ch_id);
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                break;
-            }
-            dap_chain_t * l_chain = NULL;
-            int l_sync_errors = 0;
-            DL_FOREACH(l_net->pub.chains, l_chain ){
-                //size_t l_lasts_size = 0;
-                //dap_chain_atom_ptr_t * l_lasts;
-                //dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
-                //l_lasts = l_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_size);
-                //if( l_lasts ) {
+            for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
+                uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db and chains sync
+                dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+                if (!l_ch_chain) {
+                    log_it(L_DEBUG,"Can't get stream_ch for id='%c' ", l_ch_id);
+                    continue;
+                }
+                dap_chain_t * l_chain = NULL;
+                int l_sync_errors = 0;
+                DL_FOREACH (l_net->pub.chains, l_chain) {
                     l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
                     dap_stream_ch_chain_sync_request_t l_request ;
                     memset(&l_request, 0, sizeof (l_request));
-                    //dap_hash_fast(l_lasts[0], l_chain->callback_atom_get_size(l_lasts[0]), &l_request.hash_from);
                     dap_stream_ch_chain_pkt_write(l_ch_chain,
                     DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id, l_chain->id,
                             l_net->pub.cell_id, &l_request, sizeof(l_request));
-                    //
-                    //                        dap_chain_node_client_send_ch_pkt(l_node_client,l_ch_id,
-                    //                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
-                    //                                                      &l_request,sizeof (l_request) );
-
                     // wait for finishing of request
                     int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
                     // TODO add progress info to console
@@ -535,7 +524,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         // set time of last sync
                         {
                             struct timespec l_to;
-                            clock_gettime( CLOCK_MONOTONIC, &l_to);
+                            clock_gettime(CLOCK_MONOTONIC, &l_to);
                             l_pvt_net->last_sync = l_to.tv_sec;
                         }
                         break;
@@ -545,19 +534,15 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     if (l_res) {
                         l_sync_errors++;
                     }
-                    //DAP_DELETE( l_lasts );
-                //}
-                //DAP_DELETE( l_atom_iter );
+                }
             }
-            dap_chain_node_client_close(l_node_client);
-            l_pvt_net->links = NULL;
-            if (!l_sync_errors) {
-                l_pvt_net->links_success++;
+            if (l_pvt_net->state_target == NET_STATE_ONLINE){
+                l_pvt_net->state = NET_STATE_ONLINE;
+            } else {    // Synchronization done, go offline
+                l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
             }
-            l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
             break;
-        }
-        break;
+        } break;
 
         case NET_STATE_ONLINE: {
             if (l_pvt_net->flags & F_DAP_CHAIN_NET_GO_SYNC)
@@ -571,7 +556,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NET_STATE_ONLINE:
                 case NET_STATE_SYNC_GDB:
                 case NET_STATE_SYNC_CHAINS:
-                    l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
+                    l_pvt_net->state = NET_STATE_SYNC_GDB;
                     break;
                 default: break;
                 }
@@ -998,16 +983,16 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address not defined",
                             l_net->pub.name, c_net_states[PVT(l_net)->state],
-                            c_net_states[PVT(l_net)->state_target], PVT(l_net)->links_count,
-                            PVT(l_net)->links_addrs_count
+                            c_net_states[PVT(l_net)->state_target], dap_list_length(PVT(l_net)->links),
+                            dap_list_length(PVT(l_net)->links_info)
                             );
                 }
                 else {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Network \"%s\" has state %s (target state %s), active links %u from %u, cur node address " NODE_ADDR_FP_STR,
                             l_net->pub.name, c_net_states[PVT(l_net)->state],
-                            c_net_states[PVT(l_net)->state_target], PVT(l_net)->links_count,
-                            PVT(l_net)->links_addrs_count,
+                            c_net_states[PVT(l_net)->state_target], dap_list_length(PVT(l_net)->links),
+                            dap_list_length(PVT(l_net)->links_info),
                             NODE_ADDR_FP_ARGS_S(l_cur_node_addr)
                             );
                 }
