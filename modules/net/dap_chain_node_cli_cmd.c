@@ -1967,7 +1967,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
                     else {
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Error! datum %s produced from %s can't be placed in mempool",
-                                l_key_str_base58, l_datum_hash_base58_str);
+                                l_key_out_str, l_datum_hash_out_str);
                         DAP_DELETE(l_datum);
                         //DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
@@ -1989,7 +1989,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
             }
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s",l_datum_hash_base58_str, l_net->pub.name,
+                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s",l_datum_hash_out_str, l_net->pub.name,
                     l_chain->name);
             return -5;
         }
