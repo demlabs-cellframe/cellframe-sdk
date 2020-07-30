@@ -482,6 +482,17 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 l_res = dap_stream_ch_chain_pkt_write(dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id()),
                                                       DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, l_net->pub.id, l_chain_id,
                                                       l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
+                l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+                switch (l_res) {
+                case -1:
+                    log_it(L_WARNING,"Timeout with link sync");
+                    break;
+                case 0:
+                    log_it(L_INFO, "Node sync completed");
+                    break;
+                default:
+                    log_it(L_INFO, "Node sync error %d",l_res);
+                }
             }
             if (l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
                 l_pvt_net->state = NET_STATE_SYNC_CHAINS;
@@ -501,18 +512,31 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     continue;
                 }
                 dap_chain_t * l_chain = NULL;
-                int l_sync_errors = 0;
                 DL_FOREACH (l_net->pub.chains, l_chain) {
                     l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
                     dap_stream_ch_chain_sync_request_t l_request ;
                     memset(&l_request, 0, sizeof (l_request));
-                    dap_stream_ch_chain_pkt_write(l_ch_chain,
-                    DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id, l_chain->id,
-                            l_net->pub.cell_id, &l_request, sizeof(l_request));
+                    dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id,
+                                                  l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
                     int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
                     // TODO add progress info to console
                     int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+                    switch (l_res) {
+                    case -1:
+                        log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
+                        break;
+                    case 0:
+                        // flush global_db
+                        dap_chain_global_db_flush();
+                        log_it(L_INFO, "sync of chain '%s' completed ", l_chain->name);
+                        break;
+                    default:
+                        log_it(L_ERROR, "sync of chain '%s' error %d", l_chain->name,l_res);
+                    }
+                    dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, l_net->pub.id,
+                                                  l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
+                    l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
                     case -1:
                         log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
@@ -530,9 +554,6 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         break;
                     default:
                         log_it(L_ERROR, "sync of chain '%s' error %d", l_chain->name,l_res);
-                    }
-                    if (l_res) {
-                        l_sync_errors++;
                     }
                 }
             }
