@@ -362,7 +362,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NODE_ROLE_ARCHIVE:
                 case NODE_ROLE_CELL_MASTER: {
                     // Add other root nodes as synchronization links
-                    while (dap_list_length(l_pvt_net->links_info) <= s_max_links_count) {
+                    while (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
                         int i = rand() % l_pvt_net->seed_aliases_count;
                         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
                         dap_chain_node_info_read(l_net, l_link_addr);
@@ -373,32 +373,30 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NODE_ROLE_LIGHT:
                 default: {
                     // Get DNS request result from root nodes as synchronization links
-                    while (dap_list_length(l_pvt_net->links_info) <= s_max_links_count) {
+                    while (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
                         int i = rand() % l_pvt_net->seed_aliases_count;
                         dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
                         dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
                         dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        int res = dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                        int res = 0;//dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                        memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
                         DAP_DELETE(l_remote_node_info);
                         if (res) {
                             DAP_DELETE(l_link_node_info);
                         } else {
                             l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                         }
+                        if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
+                            l_pvt_net->state = NET_STATE_OFFLINE;
+                            break;
+                        }
                     }
                 } break;
             }
-            if (l_pvt_net->state_target > NET_STATE_LINKS_PREPARE) {
-                if (l_pvt_net->links_info) { // If links are present
-                    l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                    log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_pvt_net->links_info));
-                } else {
-                    log_it(L_WARNING, "No links for connecting, try again to find it");
-                    struct timespec l_sleep = {3, 0};
-                    nanosleep(&l_sleep, NULL);
-                }
-            }else {
-                log_it(L_WARNING, "Target state is NET_STATE_LINKS_PREPARE? Realy?");
+            if (l_pvt_net->state_target != NET_STATE_OFFLINE) {
+                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
+                log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_pvt_net->links_info));
+            } else {
                 l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
             }
         } break;
@@ -428,8 +426,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 }
             }
             if (l_pvt_net->links) { // We have at least one working link
-                l_pvt_net->state = NET_STATE_LINKS_ESTABLISHED;
+                l_pvt_net->state = NET_STATE_SYNC_GDB;
             } else { // Try to find another links
+                struct timespec l_sleep = {3, 0};
+                nanosleep(&l_sleep, NULL);
                 l_pvt_net->state = NET_STATE_OFFLINE;
             }
         } break;

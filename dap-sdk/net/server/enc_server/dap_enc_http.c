@@ -124,9 +124,6 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_key_delete(msrln_key);
 
         *return_code = Http_Status_OK;
-
-
-        *return_code = Http_Status_Unauthorized;
     } else{
         log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http->url_path);
         *return_code = Http_Status_NotFound;

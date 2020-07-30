@@ -341,6 +341,10 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
 
     // create socket
     int l_socket = socket( PF_INET, SOCK_STREAM, 0);
+    if (l_socket == -1) {
+        log_it(L_ERROR, "Error %d with socket create", errno);
+        return NULL;
+    }
     // set socket param
     int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
 #ifdef _WIN32

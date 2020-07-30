@@ -132,6 +132,10 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
     pthread_mutex_lock(&s_ch_table_lock);
     struct dap_stream_ch_table_t *l_ret;;
     HASH_FIND_PTR(s_ch_table, a_ch, l_ret);
+    if (!l_ret) {
+        pthread_mutex_unlock(&s_ch_table_lock);
+        return;
+    }
     HASH_DEL(s_ch_table, l_ret);
     pthread_mutex_unlock(&s_ch_table_lock);
 
