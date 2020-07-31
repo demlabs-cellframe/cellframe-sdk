@@ -771,8 +771,10 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
     {
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-        if(dap_stream_pkt_read(a_stream,l_pkt, l_ch_pkt, STREAM_BUF_SIZE_MAX)==0){
+        if(dap_stream_pkt_read(a_stream,l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache))==0){
             log_it(L_WARNING, "Input: can't decode packet size=%d",l_pkt_size);
+            DAP_DELETE(l_pkt);
+            return;
         }
 
         _detect_loose_packet(a_stream);
