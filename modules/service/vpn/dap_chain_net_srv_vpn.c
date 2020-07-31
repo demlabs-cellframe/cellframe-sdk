@@ -1646,41 +1646,41 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
 
     size_t l_read_ret;
 
-    do{
-        l_read_ret = dap_events_socket_read(s_raw_server->tun_events_socket, l_tmp_buf, sizeof(l_tmp_buf));
 
-        if(l_read_ret > 0) {
-            struct iphdr *iph = (struct iphdr*) l_tmp_buf;
-            struct in_addr in_daddr, in_saddr;
-            in_daddr.s_addr = iph->daddr;
-            in_saddr.s_addr = iph->saddr;
-            char str_daddr[42], str_saddr[42];
-            dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
-            dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
+    l_read_ret = dap_events_socket_read(s_raw_server->tun_events_socket, l_tmp_buf, sizeof(l_tmp_buf));
 
-            dap_chain_net_srv_ch_vpn_t * l_ch_vpn = NULL;
-            pthread_rwlock_rdlock(&s_clients_rwlock);
-            HASH_FIND(hh,s_ch_vpn_addrs, &in_daddr, sizeof (in_daddr), l_ch_vpn);
+    if(l_read_ret > 0) {
+        struct iphdr *iph = (struct iphdr*) l_tmp_buf;
+        struct in_addr in_daddr, in_saddr;
+        in_daddr.s_addr = iph->daddr;
+        in_saddr.s_addr = iph->saddr;
+        char str_daddr[42], str_saddr[42];
+        dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
+        dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
 
-            if(l_ch_vpn) { // Is present in hash table such destination address
+        dap_chain_net_srv_ch_vpn_t * l_ch_vpn = NULL;
+        pthread_rwlock_rdlock(&s_clients_rwlock);
+        HASH_FIND(hh,s_ch_vpn_addrs, &in_daddr, sizeof (in_daddr), l_ch_vpn);
 
-                if (dap_stream_ch_get_ready_to_read(l_ch_vpn->ch ) ){
-                    dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (l_ch_vpn->ch->stream->session );
-                    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
-                    ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + l_read_ret);
-                    l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
-                    l_pkt_out->header.sock_id = s_raw_server->tun_fd;
-                    l_pkt_out->header.usage_id = l_ch_vpn->usage_id;
-                    l_pkt_out->header.op_data.data_size = l_read_ret;
-                    memcpy(l_pkt_out->data, l_tmp_buf, l_read_ret);
-                    dap_stream_ch_pkt_write(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
-                            l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                    s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_read_ret);
-                }
+        if(l_ch_vpn) { // Is present in hash table such destination address
+
+            if (dap_stream_ch_get_ready_to_read(l_ch_vpn->ch ) ){
+                dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (l_ch_vpn->ch->stream->session );
+                dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
+                ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + l_read_ret);
+                l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
+                l_pkt_out->header.sock_id = s_raw_server->tun_fd;
+                l_pkt_out->header.usage_id = l_ch_vpn->usage_id;
+                l_pkt_out->header.op_data.data_size = l_read_ret;
+                memcpy(l_pkt_out->data, l_tmp_buf, l_read_ret);
+                dap_stream_ch_pkt_write(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
+                        l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
+                s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_read_ret);
             }
-            pthread_rwlock_unlock(&s_clients_rwlock);
         }
-    }while(l_read_ret > 0);
+        pthread_rwlock_unlock(&s_clients_rwlock);
+    }
+
 
     dap_events_socket_set_readable(a_es, true);
 }
