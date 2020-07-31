@@ -118,6 +118,8 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
 bool dap_stream_ch_valid(dap_stream_ch_t *a_ch)
 {
     struct dap_stream_ch_table_t *l_ret;
+    if(!a_ch)
+        return false;
     pthread_mutex_lock(&s_ch_table_lock);
     HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
     pthread_mutex_unlock(&s_ch_table_lock);

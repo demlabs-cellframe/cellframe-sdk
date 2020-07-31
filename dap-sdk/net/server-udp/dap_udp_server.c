@@ -345,8 +345,8 @@ void dap_udp_server_loop( dap_server_t *d_server )
 
   sb_payload_ready = false;
 
-  struct epoll_event  pev;
-  struct epoll_event  events[ 16 ];
+  struct epoll_event  pev = {0, {0}};
+  struct epoll_event  events[ 16 ] = {{0, {0}}};
 
   pev.events = EPOLLIN | EPOLLERR;
   pev.data.fd = d_server->socket_listener;

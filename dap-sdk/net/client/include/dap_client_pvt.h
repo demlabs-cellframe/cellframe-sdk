@@ -28,6 +28,8 @@
 #include "dap_client.h"
 #include "dap_stream.h"
 #include "dap_events_socket.h"
+#include "dap_cert.h"
+
 typedef struct dap_enc_key dap_enc_key_t;
 typedef struct dap_http_client dap_http_client_t;
 
@@ -47,7 +49,7 @@ typedef struct dap_client_internal
     dap_enc_key_t * session_key; // Symmetric private key for session encryption
     dap_enc_key_t * stream_key; // Stream private key for stream encryption
     char stream_id[25];
-
+    dap_cert_t *auth_cert;
 
     char  * session_key_id;
     //void  *curl;// curl connection descriptor

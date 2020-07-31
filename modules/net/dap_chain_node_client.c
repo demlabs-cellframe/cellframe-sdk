@@ -477,6 +477,8 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
     dap_client_set_active_channels(l_node_client->client, a_active_channels);
 
+    //dap_client_set_auth_cert(l_node_client->client, dap_cert_find_by_name("auth")); // TODO provide the certificate choice
+
     int hostlen = 128;
     char host[hostlen];
     if(a_node_info->hdr.ext_addr_v4.s_addr)

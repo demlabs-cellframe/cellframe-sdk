@@ -138,7 +138,6 @@ void dap_client_set_active_channels (dap_client_t * a_client, const char * a_act
     DAP_CLIENT_PVT(a_client)->active_channels = dap_strdup( a_active_channels);
 }
 
-
 /**
  * @brief dap_client_get_uplink_port
  * @param a_client
@@ -147,6 +146,11 @@ void dap_client_set_active_channels (dap_client_t * a_client, const char * a_act
 uint16_t dap_client_get_uplink_port(dap_client_t * a_client)
 {
     return DAP_CLIENT_PVT(a_client)->uplink_port;
+}
+
+void dap_client_set_auth_cert(dap_client_t * a_client, dap_cert_t *a_cert)
+{
+    DAP_CLIENT_PVT(a_client)->auth_cert = a_cert;
 }
 
 

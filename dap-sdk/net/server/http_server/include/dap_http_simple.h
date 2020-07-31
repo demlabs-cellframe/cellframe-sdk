@@ -28,7 +28,7 @@ See more details here <http://www.gnu.org/licenses/>.
 #include "dap_http.h"
 
 //#define DAP_HTTP_SIMPLE_REQUEST_MAX 100000
-
+// number of simultaneous http requests
 #define DAP_HTTP_SIMPLE_REQUEST_MAX 65536
 
 struct dap_http_simple;
@@ -51,6 +51,7 @@ typedef struct dap_http_simple {
   };
 
   size_t request_size;
+  size_t request_size_max;
   size_t reply_size;
   size_t reply_size_max;
   size_t reply_sent;

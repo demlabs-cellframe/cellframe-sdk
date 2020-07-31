@@ -2,7 +2,7 @@
 #include <timer.h>
 
 #if defined(_WIN32)
-#  include <Windows.h>
+#  include <windows.h>
 #elif defined(__APPLE__)
 #  include <mach/mach_time.h>
 static mach_timebase_info_data_t _time_info;

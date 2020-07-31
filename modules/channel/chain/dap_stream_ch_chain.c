@@ -130,8 +130,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     if(l_ch_chain) {
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_pkt_t * l_chain_pkt = (dap_stream_ch_chain_pkt_t *) l_ch_pkt->data;
+        uint8_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_chain_pkt->hdr.net_id);
+        bool l_error = false;
+        char l_err_str[64];
+        if (l_acl_idx == (uint8_t)-1) {
+            log_it(L_ERROR, "Invalid net id in packet");
+            strcpy(l_err_str, "ERROR_NET_INVALID_ID");
+            l_error = true;
+        }
+        if (!l_error && a_ch->stream->session->acl && !a_ch->stream->session->acl[l_acl_idx]) {
+            log_it(L_WARNING, "Unauthorized request attempt to network %s",
+                   dap_chain_net_by_id(l_chain_pkt->hdr.net_id)->pub.name);
+            strcpy(l_err_str, "ERROR_NET_NOT_AUTHORIZED");
+            l_error = true;
+        }
+        if (l_error) {
+            dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, l_err_str);
+            dap_stream_ch_set_ready_to_write(a_ch, true);
+        }
         size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size - sizeof(l_chain_pkt->hdr);
-        if(l_chain_pkt) {
+        if (!l_error && l_chain_pkt) {
             switch (l_ch_pkt->hdr.type) {
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
                 log_it(L_INFO, "In:  SYNCED_ALL pkt");
@@ -336,8 +355,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     if(l_chain_pkt_data_size > 0) {
                         dap_chain_atom_ptr_t l_atom_copy = DAP_CALLOC(1, l_chain_pkt_data_size);
                         memcpy(l_atom_copy, l_chain_pkt->data, l_chain_pkt_data_size);
-                        if(l_chain->callback_atom_add(l_chain, l_atom_copy) == 0 &&
-                                dap_chain_has_file_store(l_chain)) {
+                        dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy);
+                        if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
                             // append to file
                             dap_chain_cell_id_t l_cell_id;
                             l_cell_id.uint64 = l_chain_pkt->hdr.cell_id.uint64;
@@ -353,6 +372,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             // delete cell and close file
                             dap_chain_cell_delete(l_cell);
                         }
+                        if(l_atom_add_res == ATOM_PASS)
+                            DAP_DELETE(l_atom_copy);
                     } else {
                         log_it(L_WARNING, "Empty chain packet");
                         dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
