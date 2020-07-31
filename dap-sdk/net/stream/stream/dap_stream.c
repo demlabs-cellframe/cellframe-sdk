@@ -697,12 +697,15 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
     }
     pthread_mutex_unlock(&s_mutex_keepalive_list);
 
-    pthread_rwlock_wrlock(&l_stream->rwlock);
-    size_t i;
-    for(i=0;i<l_stream->channel_count; i++)
-        dap_stream_ch_delete(l_stream->channel[i]);
-    l_stream->channel_count = 0;
+    /*  Until channel is closed, it may still need l_stream->rwlock, so we can't lock it here yet.
+        In case of races on stream closing think about making this place more robust;
+        or forbid locking l_stream->rwlock from inside of channels.  */
+    for( ;l_stream->channel_count; l_stream->channel_count--){
+        dap_stream_ch_delete(l_stream->channel[l_stream->channel_count - 1]);
+        l_stream->channel[l_stream->channel_count - 1] = NULL;
+    }
 
+    pthread_rwlock_wrlock(&l_stream->rwlock);
     if(l_stream->session)
         dap_stream_session_close(l_stream->session->id);
     l_stream->session = NULL;
