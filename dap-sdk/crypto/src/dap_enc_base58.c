@@ -192,6 +192,67 @@ size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out)
     return l_out_size;
 }
 
+/**
+ * @brief dap_enc_base58_encode_to_str Encode to base58 and convert to string like '0xXXXXXXXXXXXXXXX'
+ * @param a_in
+ * @param a_in_size
+ * @return allocated string or NULL if error
+ */
+char* dap_enc_base58_encode_to_str(const void * a_in, size_t a_in_size)
+{
+    size_t l_out_size = DAP_ENC_BASE58_ENCODE_SIZE (a_in_size);
+    char * l_out = DAP_NEW_Z_SIZE(char, l_out_size + 1);//+ 3); no prefix needed
+    size_t l_size = dap_enc_base58_encode(a_in, a_in_size, l_out);//l_out+2); no prefix needed
+    if(!l_size || !l_out){
+        DAP_DELETE(l_out);
+        return NULL;
+    }
+    // no prefix needed
+    // memcpy(l_out, "0x", 2);
+    return l_out;
+}
 
+char* dap_enc_base58_encode_hash_to_str(dap_chain_hash_fast_t *a_in_hash)
+{
+    return dap_enc_base58_encode_to_str(a_in_hash->raw, sizeof(dap_chain_hash_fast_t));
+}
 
+// convert from "0xA21F1E865B6740A28E8708798ECF25D2C0AA596DF5EB1FD724186B6AD7FF2199" to "Bura1HFrKsqbdytEXQVrxpbovtvLhR1VbrJs65JBx3gc"
+char* dap_enc_base58_from_hex_str_to_str(const char *a_in_str)
+{
+    size_t a_in_hash_len = dap_strlen(a_in_str);
+    if(a_in_hash_len<3 || dap_strncmp(a_in_str,"0x",2))
+        return NULL;
+    // from "0x..." to binary
+    char *l_out_str = DAP_NEW_Z_SIZE(char, a_in_hash_len / 2 + 1);
+    size_t len = dap_hex2bin(l_out_str, a_in_str+2, a_in_hash_len-2);
+    // from binary to base58
+    char *l_base58_out = dap_enc_base58_encode_to_str(l_out_str, len/2);
+    DAP_DELETE(l_out_str);
+    return l_base58_out;
+}
 
+// convert from "Bura1HFrKsqbdytEXQVrxpbovtvLhR1VbrJs65JBx3gc" to "0xA21F1E865B6740A28E8708798ECF25D2C0AA596DF5EB1FD724186B6AD7FF2199"
+char* dap_enc_base58_to_hex_str_from_str(const char *a_in_str)
+{
+    size_t a_in_hash_len = dap_strlen(a_in_str);
+    if(a_in_hash_len < 8)
+        return NULL;
+    // from base58 to binary
+    size_t l_out_size_max = DAP_ENC_BASE58_DECODE_SIZE(a_in_hash_len);
+    void * l_out = DAP_NEW_Z_SIZE(char, l_out_size_max + 1);
+    size_t l_out_size = dap_enc_base58_decode( a_in_str, l_out);
+    // dap_htoa64() requires a multiple of 8 bytes
+    if(l_out_size < 8 || l_out_size%8){
+        DAP_DELETE(l_out);
+        return NULL;
+    }
+    // from binary to "0x..."
+    size_t l_out_str_size = l_out_size * 2 + 3;
+    char* l_out_str = DAP_NEW_Z_SIZE(char, l_out_str_size);
+    l_out_str[0] = '0';
+    l_out_str[1] = 'x';
+    dap_htoa64((l_out_str + 2), l_out, l_out_size);
+    DAP_DELETE(l_out);
+    return l_out_str;
+}
