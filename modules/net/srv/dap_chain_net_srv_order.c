@@ -28,6 +28,7 @@
 #include "dap_chain_net_srv_order.h"
 
 #include "dap_hash.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_net_srv_countries.h"
 //#include "dap_chain_net_srv_geoip.h"
@@ -439,13 +440,18 @@ int dap_chain_net_srv_order_delete_by_hash_str(dap_chain_net_t * a_net, const ch
  * @param a_orders
  * @param a_str_out
  */
-void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out)
+void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type)
 {
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
-        char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
+        char *l_hash_str;//[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
+        //dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
+        if(!dap_strcmp(a_hash_out_type,"hex"))
+            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+        else
+            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
+
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
 
@@ -469,8 +475,13 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
         dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
         DAP_DELETE(l_region);
+        DAP_DELETE(l_hash_str);
 
-        dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
+        if(!dap_strcmp(a_hash_out_type, "hex"))
+            l_hash_str = dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
+        else
+            l_hash_str = dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash);
+        //dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         dap_bin2hex(l_ext_out, a_order->ext, a_order->ext_size);
@@ -478,7 +489,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out);
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
-
+        DAP_DELETE(l_hash_str);
         DAP_DELETE(l_ext_out);
     }
 }
