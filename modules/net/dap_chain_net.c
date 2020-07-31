@@ -1741,6 +1741,9 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
  */
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
+    if (!l_net) {
+        return NULL;
+    }
     return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.address : PVT(l_net)->node_addr;
 }
 

@@ -513,7 +513,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS: {
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                 memcpy(&l_sync_gdb, l_chain_pkt->data, l_chain_pkt_data_size);
-                dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_net_id);
+                dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
                 l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
                                                   dap_chain_net_get_cur_addr(l_net)->uint64 :
                                                   dap_db_get_cur_node_addr(l_net->pub.name);
