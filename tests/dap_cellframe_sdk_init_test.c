@@ -6,11 +6,12 @@ void dap_cellframe_sdk_init_test_run(void){
 
     dap_assert(dap_common_init(dap_get_appname(), "test.log") == 0, "Init dap_common");
 
-//    char l_config_dir[MAX_PATH] = {'\0'};
-//    dap_sprintf(l_config_dir, "%s/etc", g_sys_dir_path);
-//    dap_assert_PIF(dap_config_init(l_config_dir) == 0, "Can't initialization dap_config");
+    dap_assert(dap_config_init(g_sys_dir_path) == 0, "Initialization dap_config");
+    dap_mkdir_with_parents(dap_strjoin(NULL, g_sys_dir_path, "var/", "log/", NULL));
+//    dap_mkdir_with_parents(dap_strjoin(NULL, g_sys_dir_path, "var/", "log/");
+//    dap_test_msg(" G path: %s \n get_aap: %s", g_sys_dir_path, dap_get_appname());
 
-//    dap_assert_PIF((g_config = dap_config_open(dap_get_appname())) == NULL , "Can't init general configurations");
+    dap_assert((g_config = dap_config_open(dap_get_appname())) == NULL , "Init general configurations");
 
     dap_assert(dap_server_init(0) == 0 , "Init socket server module");
 
