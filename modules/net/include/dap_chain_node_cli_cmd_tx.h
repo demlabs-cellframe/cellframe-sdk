@@ -24,6 +24,27 @@
 
 #include "dap_chain.h"
 #include "dap_chain_common.h"
+#include "utlist.h"
+
+typedef enum dap_chain_type_transaction_in_history{
+    TYPE_TRANSACTION_EMIT,
+    TYPE_TRANSACTION_TRANSLATION_IN_SEND,
+    TYPE_TRANSACTION_TRANSLATION_IN_RECV,
+    TYPE_TRANSACTION_TRANSLATION_SEND,
+    TYPE_TRANSACTION_TRANSLATION_RECV,
+}dap_chain_type_transaction_in_history_t;
+
+typedef struct dap_chain_history{
+    dap_chain_hash_fast_t *tx_hash;
+    dap_chain_type_transaction_in_history_t type_transaction;
+//    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    char *token_ticker;
+    uint64_t amount;
+    time_t time;
+    dap_chain_addr_t *addr_src;
+    dap_chain_addr_t *addr_dst;
+    struct dap_chain_history *next;
+}dap_chain_history_t;
 
 /**
  *
@@ -31,3 +52,10 @@
  */
 char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain);
 char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain);
+
+dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_chain_t * a_chain);
+void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_hash_fast_t *a_tx_hash,
+                                const dap_chain_type_transaction_in_history_t a_type_transaction,
+                                const char *a_token_ticker, const uint64_t a_amount, const time_t a_time,
+                                const dap_chain_addr_t *a_addr_src, const dap_chain_addr_t *a_addr_dst);
+void *dap_chain_history_free(dap_chain_history_t *a_history);
