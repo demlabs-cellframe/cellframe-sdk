@@ -74,6 +74,8 @@ const char *test_cfg_files = "# General section\n"
         "dap_global_db_driver=cdb\n\n"
         "# Plugins\n"
         "[plugins]\n"
+        //    dap_mkdir_with_parents(dap_strjoin(NULL, g_sys_dir_path, "var/", "log/");
+        //    dap_test_msg(" G path: %s \n get_aap: %s", g_sys_dir_path, dap_get_appname());
         "# Load Python plugins\n"
         "py_load=false\n"
         "# Plugins path\n"
@@ -136,7 +138,7 @@ int main (int argc, char **argv){
     g_sys_dir_path = DAP_NEW_SIZE(char, l_new_str);
     memcpy(g_sys_dir_path, argv[0], l_new_str);
     g_sys_dir_path[l_new_str - 1] = '\0';
-//    dap_cellframe_sdk_creat_config_files_test();
+    dap_cellframe_sdk_creat_config_files_test();
     dap_cellframe_sdk_init_test_run();
     return 0;
 }
