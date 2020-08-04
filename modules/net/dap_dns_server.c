@@ -84,20 +84,29 @@ void dap_dns_buf_put_uint32(dap_dns_buf_t *buf, uint32_t val) {
 
 uint32_t dap_dns_resolve_hostname(char *str) {
     log_it(L_DEBUG, "DNS parser retrieve hostname %s", str);
-    dap_chain_net_t *l_net = dap_chain_net_by_name("kelvin-testnet");
+    dap_chain_net_t *l_net = dap_chain_net_by_name(str);
+    if (l_net == NULL) {
+        uint16_t l_nets_count;
+        dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
+        if (!l_nets_count) {
+            log_it(L_WARNING, "No chain network present");
+            return 0;
+        }
+        l_net = l_nets[rand() % l_nets_count];
+    }
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
     l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
-    if(!l_nodes_count || !l_objs)
+    if (!l_nodes_count || !l_objs)
         return 0;
     size_t l_node_num = rand() % l_nodes_count;
-    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[l_node_num].value;
-    uint32_t addr = l_node_info->hdr.ext_addr_v4.s_addr;
+    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[l_node_num].value;
+    struct in_addr addr = l_node_info->hdr.ext_addr_v4;
     dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
-    log_it(L_DEBUG, "DNS resolver find ip %d.%d.%d.%d", addr & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
-    return addr;
+    log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(addr));
+    return addr.s_addr;
 }
 
 /**
