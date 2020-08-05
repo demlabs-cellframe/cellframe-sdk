@@ -421,7 +421,7 @@ static void *thread_worker_function(void *arg)
                 pthread_mutex_lock(&cur->write_hold);
                 cur->buf_out_size -= total_sent;
                 if (cur->buf_out_size) {
-                    memcpy(cur->buf_out, &cur->buf_out[total_sent], cur->buf_out_size);
+                    memmove(cur->buf_out, &cur->buf_out[total_sent], cur->buf_out_size);
                 } else {
                     cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
                 }

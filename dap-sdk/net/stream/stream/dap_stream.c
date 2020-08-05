@@ -697,12 +697,15 @@ void stream_dap_delete(dap_client_remote_t* sh, void * arg){
     }
     pthread_mutex_unlock(&s_mutex_keepalive_list);
 
-    pthread_rwlock_wrlock(&l_stream->rwlock);
-    size_t i;
-    for(i=0;i<l_stream->channel_count; i++)
-        dap_stream_ch_delete(l_stream->channel[i]);
-    l_stream->channel_count = 0;
+    /*  Until channel is closed, it may still need l_stream->rwlock, so we can't lock it here yet.
+        In case of races on stream closing think about making this place more robust;
+        or forbid locking l_stream->rwlock from inside of channels.  */
+    for( ;l_stream->channel_count; l_stream->channel_count--){
+        dap_stream_ch_delete(l_stream->channel[l_stream->channel_count - 1]);
+        l_stream->channel[l_stream->channel_count - 1] = NULL;
+    }
 
+    pthread_rwlock_wrlock(&l_stream->rwlock);
     if(l_stream->session)
         dap_stream_session_close(l_stream->session->id);
     l_stream->session = NULL;
@@ -768,8 +771,10 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
     {
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-        if(dap_stream_pkt_read(a_stream,l_pkt, l_ch_pkt, STREAM_BUF_SIZE_MAX)==0){
+        if(dap_stream_pkt_read(a_stream,l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache))==0){
             log_it(L_WARNING, "Input: can't decode packet size=%d",l_pkt_size);
+            DAP_DELETE(l_pkt);
+            return;
         }
 
         _detect_loose_packet(a_stream);

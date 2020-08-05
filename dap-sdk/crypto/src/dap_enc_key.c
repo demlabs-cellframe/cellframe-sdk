@@ -650,14 +650,19 @@ dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size)
     result->priv_key_data_size = in_key->priv_key_data_size;
     result->pub_key_data_size = in_key->pub_key_data_size;
     result->_inheritor_size = in_key->inheritor_size;
+    DAP_DEL_Z(result->priv_key_data)
+    DAP_DEL_Z(result->pub_key_data)
+    result->priv_key_data = DAP_NEW_Z_SIZE(uint8_t, result->priv_key_data_size);
     memcpy(result->priv_key_data, in_key->priv_key_data, result->priv_key_data_size);
+    result->pub_key_data = DAP_NEW_Z_SIZE(uint8_t, result->pub_key_data_size);
     memcpy(result->pub_key_data, in_key->pub_key_data, result->pub_key_data_size);
-
-    if(in_key->inheritor_size)
+    if(in_key->inheritor_size) {
+        DAP_DEL_Z(result->_inheritor)
+        result->_inheritor = DAP_NEW_Z(dap_enc_key_t);
         memcpy(result->_inheritor, in_key->inheritor, in_key->inheritor_size);
-    else
+    } else {
         result->_inheritor = NULL;
-
+    }
     return result;
 }
 

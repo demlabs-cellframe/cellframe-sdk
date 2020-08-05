@@ -24,9 +24,15 @@
 
 #pragma once
 
+
 #include <string.h>
 #include "dap_common.h"
 #include "dap_list.h"
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef const char *dap_binary_tree_key_t;
 #define KEY_LS(a, b) (strcmp(a, b) < 0)
@@ -48,3 +54,8 @@ dap_binary_tree_t *dap_binary_tree_insert(dap_binary_tree_t *a_tree_root, dap_bi
 dap_binary_tree_t *dap_binary_tree_delete(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key);
 size_t dap_binary_tree_count(dap_binary_tree_t *a_tree_root);
 void dap_binary_tree_clear(dap_binary_tree_t *a_tree_root);
+
+
+#ifdef __cplusplus
+}
+#endif

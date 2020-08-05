@@ -1041,7 +1041,7 @@ int dap_chain_net_init()
             "\tAdd certificate to list of authority cetificates in GDB group\n"
         "net -net <chain net name> ca list\n"
             "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <chain net name> ca del -hash <cert hash>\n"
+        "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
                                         );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
@@ -1138,6 +1138,15 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
     UNUSED(arg_func);
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
+
+    const char * l_hash_out_type = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "base58";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
 
     // command 'net list'
     if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", NULL) == arg_index) {
@@ -1313,12 +1322,28 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
         } else if (l_ca_str) {
             if (strcmp(l_ca_str, "add") == 0 ) {
                 const char *l_cert_string = NULL, *l_hash_string = NULL;
+
+
+
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_cert_string);
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
+
                 if (!l_cert_string && !l_hash_string) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "One of -cert or -hash parameters is mandatory");
                     return -6;
                 }
+                char *l_hash_hex_str;
+                //char *l_hash_base58_str;
+                // hash may be in hex or base58 format
+                if(!dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)) {
+                    l_hash_hex_str = dap_strdup(l_hash_string);
+                    //l_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_hash_string);
+                }
+                else {
+                    l_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_hash_string);
+                    //l_hash_base58_str = dap_strdup(l_hash_string);
+                }
+
                 if (l_cert_string) {
                     dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_string);
                     if (l_cert == NULL) {
@@ -1338,7 +1363,8 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-                    l_hash_string = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                    l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                    //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 }
                 const char c = '1';
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
@@ -1346,8 +1372,9 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
                     return -11;
                 }
-                ret = dap_chain_global_db_gr_set(dap_strdup(l_hash_string), (void *)&c, 1, dap_chain_net_get_gdb_group_acl(l_net));
+                ret = dap_chain_global_db_gr_set(dap_strdup(l_hash_hex_str), (void *)&c, 1, dap_chain_net_get_gdb_group_acl(l_net));
                 DAP_DELETE(l_gdb_group_str);
+                DAP_DELETE(l_hash_hex_str);
                 if (!ret) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save public key hash in database");
                     return -10;
@@ -2341,7 +2368,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
  * @param a_str_out
  * @param a_datum
  */
-void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum)
+void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum, const char *a_hash_out_type)
 {
     if( a_datum == NULL){
         dap_string_append_printf(a_str_out,"==Datum is NULL\n");
@@ -2401,8 +2428,11 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD :
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
-                                        char *l_hash_str = dap_chain_hash_fast_to_str_new(
-                                                    (dap_chain_hash_fast_t*) l_tsd->data );
+                                        char *l_hash_str;
+                                        if(!dap_strcmp(a_hash_out_type, "hex"))
+                                            l_hash_str = dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data);
+                                        else
+                                            l_hash_str = dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
                                         dap_string_append_printf(a_str_out,"total_signs_add: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
@@ -2410,8 +2440,11 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE :
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
-                                        char *l_hash_str = dap_chain_hash_fast_to_str_new(
-                                                    (dap_chain_hash_fast_t*) l_tsd->data );
+                                        char *l_hash_str;
+                                        if(!dap_strcmp(a_hash_out_type,"hex"))
+                                            l_hash_str = dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data);
+                                        else
+                                            l_hash_str = dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
                                         dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else

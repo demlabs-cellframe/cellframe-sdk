@@ -236,7 +236,7 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
             s_log_file = fopen( a_log_filename , "w" );
         if ( s_log_file == NULL ) {
             dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
-            return -1;
+            //return -1;   //switch off show log in cosole if file not open
         }
         dap_stpcpy(s_log_file_path, a_log_filename);
     }
