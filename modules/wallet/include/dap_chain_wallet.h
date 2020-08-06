@@ -29,6 +29,7 @@
 #include "dap_sign.h"
 #include "dap_cert.h"
 #include "dap_chain_net.h"
+#include "dap_chain_node_cli_cmd_tx.h"
 
 typedef struct dap_chain_wallet{
     char * name;
@@ -59,5 +60,7 @@ dap_pkey_t * dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a
 dap_enc_key_t * dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_key_idx);
 
 uint64_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id, char *a_token_ticker);
+dap_chain_history_t *dap_chain_wallet_get_tx_history(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id);
+
 
 int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);

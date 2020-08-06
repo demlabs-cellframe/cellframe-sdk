@@ -424,3 +424,20 @@ uint64_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_ne
     }
     return l_balance;
 }
+
+/**
+ * @brief dap_chain_wallet_get_tx_history
+ * @param a_wallet
+ * @param a_net_id
+ * @return
+ */
+dap_chain_history_t *dap_chain_wallet_get_tx_history(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id){
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_addr_t *l_addr =dap_chain_wallet_get_addr(a_wallet, a_net_id);
+    if (l_net){
+        dap_chain_t *l_chain = l_net->pub.chains;
+        dap_chain_history_t *l_history = dap_db_history_addr_struct(l_addr, l_chain);
+        return l_history;
+    }
+    return NULL;
+}
