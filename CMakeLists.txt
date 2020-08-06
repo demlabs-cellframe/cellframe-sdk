@@ -4,14 +4,15 @@ cmake_minimum_required(VERSION 2.8)
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "2.3-4")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
+add_definitions ("-DWno-traditional")
 
 set(DAPSDK_MODULES "")
 
 if (${BUILD_CELLFRAME_SDK_TESTS} MATCHES ON)
-    set(DAPSDK_MODULES "core crypto")
+#    set(DAPSDK_MODULES "core crypto")
     set(BUILD_TESTS ON)
-#    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-dag-pos cs-none srv-app srv-app-db srv-datum
-#        srv-xchange srv-stake srv-vpn")
+    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-dag-pos cs-none srv-app srv-app-db srv-datum
+        srv-xchange srv-stake srv-vpn")
 endif()
 
 if (CELLFRAME_MODULES MATCHES "core")
