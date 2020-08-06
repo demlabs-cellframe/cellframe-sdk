@@ -701,6 +701,7 @@ dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_c
 
     return l_history;
 }
+
 void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_hash_fast_t *a_tx_hash,
                                 const dap_chain_type_transaction_in_history_t a_type_transaction,
                                 const char *a_token_ticker, const uint64_t a_amount, const time_t a_time,
@@ -711,12 +712,18 @@ void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_
     l_new_history->token_ticker = dap_strdup(a_token_ticker);
     l_new_history->amount = a_amount;
     l_new_history->time = a_time;
-//    l_new_history->addr_src = memcpy() a_addr_src;
     l_new_history->addr_src = DAP_NEW(dap_chain_addr_t);
     memcpy(l_new_history->addr_src, a_addr_src, sizeof(dap_chain_addr_t));
-//    l_new_history->addr_dist = a_addr_dist;
     l_new_history->addr_dst = DAP_NEW(dap_chain_addr_t);
     memcpy(l_new_history->addr_dst, a_addr_dst, sizeof(dap_chain_addr_t));
     LL_APPEND(a_history, l_new_history);
 }
-void *dap_chain_history_free(dap_chain_history_t *a_history);
+void dap_chain_history_free(dap_chain_history_t *a_history){
+    dap_chain_history_t *l_element, *l_tmp;
+    LL_FOREACH_SAFE(a_history, l_element, l_tmp){
+        DAP_FREE(a_history->addr_src);
+        DAP_FREE(a_history->addr_dst);
+        DAP_FREE(a_history->token_ticker);
+        LL_DELETE(a_history, l_element);
+    }
+}

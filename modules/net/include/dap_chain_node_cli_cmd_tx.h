@@ -58,4 +58,4 @@ void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_
                                 const dap_chain_type_transaction_in_history_t a_type_transaction,
                                 const char *a_token_ticker, const uint64_t a_amount, const time_t a_time,
                                 const dap_chain_addr_t *a_addr_src, const dap_chain_addr_t *a_addr_dst);
-void *dap_chain_history_free(dap_chain_history_t *a_history);
+void dap_chain_history_free(dap_chain_history_t *a_history);
