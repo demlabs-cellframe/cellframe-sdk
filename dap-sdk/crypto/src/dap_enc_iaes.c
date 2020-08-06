@@ -100,10 +100,13 @@ size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void *
     size_t block_in32_size = IAES_BLOCK_SIZE/sizeof(uint32_t);
     uint32_t round_decrypt_key[60];
     uint32_t feedback[block_in32_size];
+    uint8_t priv_key_swapped_endian[IAES_KEYSIZE];
 
     memcpy(&feedback[0], DAP_ENC_AES_KEY(a_key)->ivec, IAES_BLOCK_SIZE);
-    swap_endian((uint32_t *)a_key->priv_key_data, IAES_KEYSIZE/sizeof(uint32_t));
-    Key_Shedule_for_decrypT((uint32_t *)a_key->priv_key_data, round_decrypt_key);
+    memcpy(priv_key_swapped_endian, a_key->priv_key_data, sizeof(priv_key_swapped_endian));
+
+    swap_endian(priv_key_swapped_endian, sizeof(priv_key_swapped_endian)/sizeof(uint32_t));
+    Key_Shedule_for_decrypT(priv_key_swapped_endian, round_decrypt_key);
 
     void *data = buf_out;
     const void *cdata = a_in;
@@ -120,10 +123,14 @@ size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void *
 //    for(int i = 0; i < 16; ++i)
 //    {printf("%.2x ", ((uint8_t*)data)[i]);}
 //    printf("\n");fflush(stdout);
-    swap_endian((uint32_t *)a_key->priv_key_data, IAES_KEYSIZE/sizeof(uint32_t));
 
-    return a_in_size - ((uint8_t *)data)[a_in_size - 1];
-
+    size_t l_padding_size = ((uint8_t *)data)[a_in_size - 1];
+    if(l_padding_size > a_in_size){
+        log_it(L_WARNING, "%s: padding size is %u while whole message is just %u", __PRETTY_FUNCTION__, l_padding_size, a_in_size);
+        return 0;
+    }else{
+        return a_in_size - l_padding_size;
+    }
 }
 
 size_t dap_enc_iaes256_cbc_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)

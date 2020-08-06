@@ -597,6 +597,8 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
 {
     service_list_t *l_sdata;
+    if(!a_srv)
+        return;
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {
