@@ -21,7 +21,7 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#pragma once
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "utlist.h"

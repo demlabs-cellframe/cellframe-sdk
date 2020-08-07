@@ -313,7 +313,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
         case TYPE_TRANSACTION_TRANSLATION_IN_SEND:
                 dap_string_append_printf(l_str_out, "tx hash %s \n %s in send  %lu %s from %s\n to %s\n",
                 tmp, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
-                dap_chain_addr_to_str(l_element->addr_src), dap_chain_addr_to_str(l_element->addr_dist));
+                dap_chain_addr_to_str(l_element->addr_src), dap_chain_addr_to_str(l_element->addr_dst));
             break;
         case TYPE_TRANSACTION_TRANSLATION_IN_RECV:
             dap_string_append_printf(l_str_out,"tx hash %s \n %s in recv %lu %s from %s\n",
