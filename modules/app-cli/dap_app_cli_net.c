@@ -80,7 +80,7 @@ static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_c
             if (l_str_ptr) {
                 l_str_ptr += strlen(l_head_end_str);
                 size_t l_head_size = l_str_ptr - l_cmd->cmd_res;
-                strncpy(l_cmd->cmd_res, l_str_ptr, l_cmd->cmd_res_cur - l_head_size);
+                memmove(l_cmd->cmd_res, l_str_ptr, l_cmd->cmd_res_cur - l_head_size);
                 l_cmd->cmd_res_cur -= l_head_size;
                 s_status++;
             } else {

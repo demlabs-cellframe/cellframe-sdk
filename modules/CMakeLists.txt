@@ -76,6 +76,21 @@ if (CELLFRAME_MODULES MATCHES "srv-vpn")
     add_subdirectory(service/vpn)
 endif()
 
+# Service eXchange
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    add_subdirectory(service/xchange)
+endif()
+
+# Service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    add_subdirectory(service/stake)
+endif()
+
+# Support for dynamic modules
+if (CELLFRAME_MODULES MATCHES "modules-dynamic")
+    add_subdirectory(modules_dynamic)
+endif()
+
 # Unit tests
 if( BUILD_TESTS)
     add_subdirectory(test)

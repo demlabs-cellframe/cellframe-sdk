@@ -308,7 +308,10 @@ static void* thread_one_client_func(void *args)
                         list = dap_list_next(list);
                         DAP_DELETE(str_cmd_prev);
                     }
-                    log_it(L_INFO, "execute command=%s", str_cmd);
+                    if(l_cmd->overrides.log_cmd_call)
+                        l_cmd->overrides.log_cmd_call(str_cmd);
+                    else
+                        log_it(L_INFO, "execute command=%s", str_cmd);
                     // exec command
 
                     char **l_argv = dap_strsplit(str_cmd, ";", -1);
@@ -684,6 +687,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
 {
     int arg_index = arg_start;
     const char *arg_string;
+    int l_ret_pos = 0;
 
     while(arg_index < arg_end)
     {
@@ -698,6 +702,9 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
                     *opt_value = arg_string;
                     return arg_index;
                 }
+                // for case if opt_name exist without value
+                else
+                    l_ret_pos = arg_index;
             }
             else
                 // need only opt_name
@@ -705,7 +712,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
         }
         arg_index++;
     }
-    return 0;
+    return l_ret_pos;
 }
 
 /**
@@ -727,6 +734,12 @@ void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, 
     l_cmd_item->arg_func = a_arg_func;
     HASH_ADD_STR(s_commands,name,l_cmd_item);
     log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
+}
+
+void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_chain_node_cmd_item_func_overrides_t * a_overrides){
+    dap_chain_node_cmd_item_t *l_cmd_item = dap_chain_node_cli_cmd_find(a_name);
+    if(l_cmd_item)
+        l_cmd_item->overrides = *a_overrides;
 }
 
 /**
@@ -831,7 +844,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -flags_set <value>:\t Set list of flags from <value> to token declaration\n"
             "\t -flags_unset <value>:\t Unset list of flags from <value> from token declaration\n"
             "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
-            "\t -signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
             "\t -signs_add <value>:\t Add signature's pkey fingerprint to the list of owners\n"
             "\t -signs_remove <value>:\t Remove signature's pkey fingerprint from the owners\n"
             "\nDatum type allowed/blocked updates:\n"
@@ -895,7 +908,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "General:\n"
             "\t -flags <value>:\t List of flags from <value> to token declaration\n"
             "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
-            "\t -signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
             "\t -signs <value>:\t Signature's fingerprint list\n"
             "\nDatum type allowed/blocked:\n"
             "\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
@@ -935,18 +948,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, NULL, "Make transaction",
             "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
-            "tx_cond_create todo\n" );
+            "tx_cond_create -net <net name> -token <token_ticker> -wallet_f <wallet_from> -wallet_t <wallet_to>"
+                                        "-value <value_datoshi> -unit <mb|kb|b|sec|day> -service <vpn>\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, NULL, "Verifing transaction",
             "tx_verify  -wallet <wallet name> \n" );
 
     // Transaction history
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
-
-    // vpn client
-    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
-    "vpn_client [start -addr <server address> -port <server port>| stop | status]\n");
-
 
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, NULL, "Print log info",
@@ -960,11 +969,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
 
-#ifndef _WIN32
-    // News
-    //dap_chain_node_cli_cmd_item_create("news", com_news, NULL, "Add News for VPN clients. Language code is a text code like \"en\", \"ru\", \"fr\"",
-    //        "news [-text <news text> | -file <filename with news>] -lang <language code> \n");
-#endif
     // create thread for waiting of clients
     pthread_t l_thread_id;
 

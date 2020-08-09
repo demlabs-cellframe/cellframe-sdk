@@ -169,10 +169,14 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_error{
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
     switch ( a_uid.enm) {
-        case SERV_UNIT_UNDEFINED: return "BYTE";
+        case SERV_UNIT_B: return "BYTE";
+        case SERV_UNIT_KB: return "KILOBYTE";
         case SERV_UNIT_MB: return "MEGABYTE";
         case SERV_UNIT_SEC: return "SECOND";
         case SERV_UNIT_DAY: return  "DAY";
         default: return "UNKNOWN";
     }
 }
+
+uint8_t dap_stream_ch_chain_net_srv_get_id();
+

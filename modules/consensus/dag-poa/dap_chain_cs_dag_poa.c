@@ -35,6 +35,7 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -43,6 +44,7 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
 #include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_net_srv_stake.h"
 
 #include "dap_cert.h"
 
@@ -81,7 +83,7 @@ int dap_chain_cs_dag_poa_init(void)
     dap_chain_cs_add ("dag_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",
-        "dag_poa -net <chain net name> -chain <chain name> event sign -event <event hash>\n"
+        "dag_poa -net <chain net name> -chain <chain name> event sign -event <event hash> [-H hex|base58(default)]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
 
     return 0;
@@ -111,6 +113,16 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
+
+    const char * l_hash_out_type = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "base58";
+    if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net);
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(l_chain);
@@ -127,6 +139,18 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "event", &l_event_cmd_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
 
+    // event hash may be in hex or base58 format
+    char *l_event_hash_hex_str;
+    char *l_event_hash_base58_str;
+    if(!dap_strncmp(l_event_hash_str, "0x", 2) || !dap_strncmp(l_event_hash_str, "0X", 2)) {
+        l_event_hash_hex_str = dap_strdup(l_event_hash_str);
+        l_event_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_hash_str);
+    }
+    else {
+        l_event_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_event_hash_str);
+        l_event_hash_base58_str = dap_strdup(l_event_hash_str);
+    }
+
     if ( l_event_cmd_str != NULL ){
         if (l_poa_pvt->events_sign_cert )
         ret = -1;
@@ -134,7 +158,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
             char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
             size_t l_event_size = 0;
             dap_chain_cs_dag_event_t * l_event;
-            if ( (l_event = (dap_chain_cs_dag_event_t*) dap_chain_global_db_gr_get( l_event_hash_str ,
+            if ( (l_event = (dap_chain_cs_dag_event_t*) dap_chain_global_db_gr_get( dap_strdup(l_event_hash_hex_str),
                                                        &l_event_size, l_gdb_group_events )) == NULL  ){
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Can't find event in round.new - only place where could be signed the new event\n",
@@ -145,26 +169,45 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
                 dap_chain_hash_fast_t l_event_new_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event_new,&l_event_new_hash);
                 //size_t l_event_new_size = dap_chain_cs_dag_event_calc_size(l_event_new);
-                char * l_event_new_hash_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
-                if (dap_chain_global_db_gr_set( dap_strdup(l_event_new_hash_str),(uint8_t*) l_event,l_event_size,l_gdb_group_events) ){
-                    if ( dap_chain_global_db_gr_del(dap_strdup(l_event_hash_str),l_gdb_group_events) ) { // Delete old event
-                        dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                                          l_poa_pvt->events_sign_cert->name ,l_event_new_hash_str);
+                char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
+                char * l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
+                //char * l_event_new_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_new_hash_hex_str);
+                if (dap_chain_global_db_gr_set( dap_strdup(l_event_new_hash_hex_str),(uint8_t*) l_event,l_event_size,l_gdb_group_events) ){
+                    if ( dap_chain_global_db_gr_del(dap_strdup(l_event_hash_hex_str),l_gdb_group_events) ) { // Delete old event
+                        if(!dap_strcmp(l_hash_out_type, "hex")) {
+                            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                    "Added new sign with cert \"%s\", event %s placed back in round.new\n",
+                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_hex_str);
+                        }
+                        else {
+                            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                    "Added new sign with cert \"%s\", event %s placed back in round.new\n",
+                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
+                        }
                         ret = 0;
                         dap_chain_net_sync_gdb(l_chain_net); // Propagate changes in pool
                     }else {
                         ret = 1;
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n"
-                                                                       "WARNING! Old event %s with same datum is still in round.new, produced DUP!\n"
-                                                          ,
-                                                          l_poa_pvt->events_sign_cert->name ,l_event_new_hash_str, l_event_hash_str);
+                                                                       "WARNING! Old event %s with same datum is still in round.new, produced DUP!\n",
+                                                                       l_poa_pvt->events_sign_cert->name ,l_event_new_hash_hex_str, l_event_hash_str);
                     }
                 }else {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                                      l_event_new_hash_str);
+                    if(!dap_strcmp(l_hash_out_type, "hex")) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply,
+                                "GDB Error: Can't place event %s with new sign back in round.new\n",
+                                l_event_new_hash_hex_str);
+                    }
+                    else {
+                        dap_chain_node_cli_set_reply_text(a_str_reply,
+                                "GDB Error: Can't place event %s with new sign back in round.new\n",
+                                l_event_new_hash_base58_str);
+                    }
                     ret=-31;
+
                 }
-                DAP_DELETE(l_event_new_hash_str);
+                DAP_DELETE(l_event_new_hash_hex_str);
+                DAP_DELETE(l_event_new_hash_base58_str);
             }
             DAP_DELETE( l_gdb_group_events );
             DAP_DELETE(l_event);
@@ -306,12 +349,33 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
     if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
         size_t l_verified = 0;
-        for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ){
-            for ( uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++){
-                if( dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j],
-                            dap_chain_cs_dag_event_get_sign(a_dag_event,i) ) == 0 )
+        for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ) {
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0);
+            if ( l_sign == NULL){
+                log_it(L_WARNING, "Event is NOT signed with anything");
+                return -4;
+            }
+            for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
+                if (dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j], l_sign) == 0)
                     l_verified++;
             }
+            if (i == 0) {
+                dap_chain_hash_fast_t l_pkey_hash;
+                if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                    log_it(L_WARNING, "Event's sign has no any key");
+                    return -5;
+                }
+                dap_chain_addr_t l_addr = {};
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
+                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
+                        return -6;
+                    }
+                }
+            }
+
         }
         return l_verified >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
     }else

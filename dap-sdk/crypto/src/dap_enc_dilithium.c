@@ -40,9 +40,7 @@ void dap_enc_sig_dilithium_key_new_generate(struct dap_enc_key * key, const void
 
     int32_t retcode;
 
-    int dilithium_type = (seed && seed_size >= sizeof(uint8_t)) ? ((uint8_t*)seed)[0] % (DILITHIUM_MAX_SECURITY + 1) :
-                                                              DILITHIUM_MIN_SIZE;
-    dap_enc_sig_dilithium_set_type(dilithium_type);
+    dap_enc_sig_dilithium_set_type(DILITHIUM_MAX_SPEED);
 
 
     //int32_t type = 2;

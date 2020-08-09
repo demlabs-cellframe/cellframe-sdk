@@ -50,8 +50,8 @@ typedef struct dap_chain_history{
  *
  * return history string
  */
-char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain);
-char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain);
+char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type);
+char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type);
 
 dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_chain_t * a_chain);
 void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_hash_fast_t *a_tx_hash,

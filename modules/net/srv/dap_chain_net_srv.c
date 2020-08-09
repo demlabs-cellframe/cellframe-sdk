@@ -43,6 +43,7 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_common.h"
+#include "dap_enc_base58.h"
 #include "dap_list.h"
 #include "dap_string.h"
 #include "dap_file_utils.h"
@@ -82,6 +83,7 @@ static void s_load_all(void);
  */
 int dap_chain_net_srv_init(dap_config_t * a_cfg)
 {
+    UNUSED(a_cfg);
     m_uid = NULL;
     m_uid_count = 0;
     if( dap_chain_net_srv_order_init() != 0 )
@@ -173,12 +175,22 @@ void dap_chain_net_srv_deinit(void)
  */
 static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply)
 {
+    UNUSED(arg_func);
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
+    const char * l_hash_out_type = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "base58";
+    if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
     int ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
     if ( l_net ) {
-        char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
+        //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
 
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
@@ -225,6 +237,18 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
 
         int8_t l_continent_num = dap_chain_net_srv_order_continent_to_num(l_continent_str);
 
+        char *l_order_hash_hex_str;
+        char *l_order_hash_base58_str;
+        // datum hash may be in hex or base58 format
+        if(!dap_strncmp(l_order_hash_str, "0x", 2) || !dap_strncmp(l_order_hash_str, "0X", 2)) {
+            l_order_hash_hex_str = dap_strdup(l_order_hash_str);
+            l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_str);
+        }
+        else {
+            l_order_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_order_hash_str);
+            l_order_hash_base58_str = dap_strdup(l_order_hash_str);
+        }
+
         if(l_continent_str && l_continent_num <= 0) {
             dap_string_t *l_string_err = dap_string_new("Unrecognized \"-continent\" option=");
             dap_string_append_printf(l_string_err, "\"%s\". Variants: ", l_continent_str);
@@ -251,16 +275,19 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append(l_string_ret, "Can't find option '-hash'\n");
             }
             else {
-                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_hex_str);
                 if(!l_order) {
                     ret = -2;
-                    dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
+                    if(!dap_strcmp(l_hash_out_type,"hex"))
+                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_hex_str);
+                    else
+                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_base58_str);
                 }
                 else {
                     if(l_ext) {
                         l_order->ext_size = strlen(l_ext) + 1;
                         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
-                        strncpy(l_order->ext, l_ext, l_order->ext_size);
+                        strncpy((char *)l_order->ext, l_ext, l_order->ext_size);
                     }
                     else
                         dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
@@ -280,8 +307,8 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                         dap_hash_fast(l_order, l_new_order_size, &l_new_order_hash);
                         char * l_new_order_hash_str = dap_chain_hash_fast_to_str_new(&l_new_order_hash);
                         // delete prev order
-                        if(dap_strcmp(l_new_order_hash_str, l_order_hash_str))
-                            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                        if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
+                            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str);
                         DAP_DELETE(l_new_order_hash_str);
                         dap_string_append_printf(l_string_ret, "order updated\n");
                     }
@@ -350,7 +377,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 size_t l_orders_size = 0;
                 for (size_t i = 0; i< l_orders_num; i++){
                     dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
-                    dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret);
+                    dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
                     l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                     dap_string_append(l_string_ret,"\n");
                 }
@@ -364,13 +391,16 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
         }else if( dap_strcmp( l_order_str, "dump" ) == 0 ){
             // Select with specified service uid
             if ( l_order_hash_str ){
-                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_str );
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
                 if (l_order){
-                    dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret);
+                    dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type);
                     ret = 0;
                 }else{
                     ret = -7 ;
-                    dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_str );
+                    if(!dap_strcmp(l_hash_out_type,"hex"))
+                        dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_hex_str );
+                    else
+                        dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_base58_str );
                 }
             } else{
 
@@ -386,7 +416,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     size_t l_orders_size = 0;
                     for(size_t i = 0; i < l_orders_num; i++) {
                         dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
-                        dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret);
+                        dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
                         l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                         dap_string_append(l_string_ret, "\n");
                     }
@@ -399,16 +429,22 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
             }
         }else if( dap_strcmp( l_order_str, "delete" ) == 0 ){
             // Select with specified service uid
-            const char *l_order_hash_str = NULL;
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
+            //const char *l_order_hash_str = NULL;
+            //dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
             if ( l_order_hash_str ){
-                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_str );
-                if (l_order && dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_str) == 0){
+                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
+                if (l_order && dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_hex_str) == 0){
                     ret = 0 ;
-                    dap_string_append_printf(l_string_ret,"Deleted order %s\n", l_order_hash_str );
+                    if(!dap_strcmp(l_hash_out_type,"hex"))
+                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_hex_str);
+                    else
+                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_base58_str);
                 }else{
                     ret = -8 ;
-                    dap_string_append_printf(l_string_ret,"Can't find order with hash %s\n", l_order_hash_str );
+                    if(!dap_strcmp(l_hash_out_type,"hex"))
+                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_hex_str);
+                    else
+                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_base58_str);
                 }
                 DAP_DELETE(l_order);
             } else{
@@ -452,10 +488,11 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = (uint64_t) atoll ( l_price_str );
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
-
+                strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+                size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
-                            l_price_token, l_expires,l_ext, l_region_str, l_continent_num);
+                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, NULL);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{
@@ -509,6 +546,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
+        //l_srv = l_sdata->srv;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_srv;
@@ -559,6 +597,8 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
 {
     service_list_t *l_sdata;
+    if(!a_srv)
+        return;
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {

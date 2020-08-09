@@ -23,8 +23,13 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+#include <stdint.h>
+#include <time.h>
+
+
 #include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_remote.h"
+
 
 typedef struct dap_chain_net_srv_client
 {

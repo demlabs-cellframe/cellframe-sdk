@@ -19,7 +19,6 @@ SOURCES +=  $$PWD/dap_chain_common.c                     \
 	    $$PWD/dap_chain_datum_token.c                \
 	    $$PWD/dap_chain_datum_tx.c                   \
 	    $$PWD/dap_chain_datum_tx_items.c             \
-	    $$PWD/dap_chain_datum_tx_out_cond.c          \
 	    $$PWD/dap_chain_datum_tx_receipt.c           \
 	    $$PWD/dap_chain_datum_tx_token.c 
 

@@ -27,6 +27,7 @@
 #include <pthread.h>
 
 #include <dap_common.h>
+#include <dap_enc_base58.h>
 #include <dap_strfuncs.h>
 #include <dap_string.h>
 #include <dap_list.h>
@@ -85,7 +86,7 @@ static dap_chain_datum_t* get_prev_tx(dap_tx_data_t *a_tx_data)
  *
  * return history string
  */
-char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
+char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
 
@@ -223,11 +224,20 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
             const dap_chain_tx_in_t *l_tx_in = (const dap_chain_tx_in_t*) l_list_tmp->data;
             dap_chain_hash_fast_t tx_prev_hash = l_tx_in->header.tx_prev_hash;
             char l_tx_hash_str[70];
-            if(!dap_hash_fast_is_blank(&tx_prev_hash))
+            char *tx_hash_base58_str = NULL;
+            if(!dap_hash_fast_is_blank(&tx_prev_hash)){
+                tx_hash_base58_str = dap_enc_base58_from_hex_str_to_str( l_tx_data->tx_hash_str);
                 dap_chain_hash_fast_to_str(&tx_prev_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-            else
+            }
+            else{
                 strcpy(l_tx_hash_str, "Null");
-            dap_string_append_printf(l_str_out, " IN item \n  prev tx_hash %s\n", l_tx_hash_str);
+                tx_hash_base58_str = dap_strdup("Null");
+            }
+            if(!dap_strcmp(a_hash_out_type,"hex"))
+                dap_string_append_printf(l_str_out, " IN item \n  prev tx_hash %s\n", l_tx_hash_str);
+            else
+                dap_string_append_printf(l_str_out, " IN item \n  prev tx_hash %s\n", tx_hash_base58_str);
+            DAP_DELETE(tx_hash_base58_str);
 
             //find prev OUT item
             dap_tx_data_t *l_tx_data_prev = NULL;
@@ -275,11 +285,11 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
     dap_tx_data_t *l_iter_current, *l_item_tmp;
     HASH_ITER(hh, l_tx_data_hash , l_iter_current, l_item_tmp)
     {
+        HASH_DEL(l_tx_data_hash, l_iter_current);
         // delete datum
         DAP_DELETE(l_iter_current->datum);
         // delete struct
         DAP_DELETE(l_iter_current);
-        HASH_DEL(l_tx_data_hash, l_iter_current);
     }
 
     // if no history
@@ -294,7 +304,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain)
  *
  * return history string
  */
-char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
+char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
     dap_chain_history_t *l_history = dap_db_history_addr_struct(a_addr, a_chain);
@@ -303,34 +313,41 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain)
     LL_FOREACH(l_history, l_element){
         char tmp[512];
         dap_chain_hash_fast_to_str(l_element->tx_hash, tmp, 512);
+        char *l_tmp_tx_hash_str;
+        if (strcmp(a_hash_out_type, "hex") == 0){
+            l_tmp_tx_hash_str = dap_strdup(tmp);
+        } else {
+            l_tmp_tx_hash_str = dap_enc_base58_from_hex_str_to_str(tmp);
+        }
         switch (l_element->type_transaction) {
         case TYPE_TRANSACTION_EMIT:
             dap_string_append_printf(l_str_out, "tx hash %s \n emit %lu %s\n",
-                                     tmp,
+                                     l_tmp_tx_hash_str,
                                      l_element->amount,
                                      l_element->token_ticker);
             break;
         case TYPE_TRANSACTION_TRANSLATION_IN_SEND:
                 dap_string_append_printf(l_str_out, "tx hash %s \n %s in send  %lu %s from %s\n to %s\n",
-                tmp, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
                 dap_chain_addr_to_str(l_element->addr_src), dap_chain_addr_to_str(l_element->addr_dst));
             break;
         case TYPE_TRANSACTION_TRANSLATION_IN_RECV:
             dap_string_append_printf(l_str_out,"tx hash %s \n %s in recv %lu %s from %s\n",
-                                     tmp, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                                     l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
                                      dap_chain_addr_to_str(l_element->addr_src));
             break;
         case TYPE_TRANSACTION_TRANSLATION_RECV:
             dap_string_append_printf(l_str_out, "tx hash %s \n %s recv %lu %s from %s\n",
-                                     tmp, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                                     l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
                                      dap_chain_addr_to_str(l_element->addr_src));
             break;
         case TYPE_TRANSACTION_TRANSLATION_SEND:
             dap_string_append_printf(l_str_out, "tx hash %s \n %s send %lu %s to %s\n",
-                                     tmp, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                                     l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
                                      dap_chain_addr_to_str(l_element->addr_src));
             break;
         }
+        DAP_FREE(l_tmp_tx_hash_str);
     }
     // if no history
     if(!l_str_out->len)
@@ -482,14 +499,9 @@ dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_c
                     if(l_tx_data && !memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t))) {
                         dap_list_t *l_records_tmp = l_records_out;
                         while(l_records_tmp) {
-
                             const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_records_tmp->data;
                             dap_chain_history_add_data(l_history, &l_tx_data->tx_hash, TYPE_TRANSACTION_EMIT,
                                                        l_tx_data->token_ticker, l_tx_out->header.value, NULL, NULL, NULL);
-//                            dap_string_append_printf(l_str_out, "tx hash %s \n emit %lu %s\n",
-//                                    l_tx_data->tx_hash_str,
-//                                    l_tx_out->header.value,
-//                                    l_tx_data->token_ticker);
                             l_records_tmp = dap_list_next(l_records_tmp);
                         }
                     }
@@ -565,56 +577,36 @@ dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_c
                                 }
                             }
 
-                            char *l_dst_to_str =
-                                    (l_tx_prev_out) ? dap_chain_addr_to_str(&l_tx_prev_out->addr) :
-                                    NULL;
-                            // if use dst addr
-                            bool l_is_use_dst_addr = false;
-                            if(!memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
-                                l_is_use_dst_addr = true;
-
                             l_src_str_is_cur = l_is_use_src_addr;
                             if(l_src_addr->len <= 1) {
                                 l_src_str =
                                         (l_tx_data) ? dap_chain_addr_to_str(&l_tx_data->addr) :
                                         NULL;
-                                if(!memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
+                                if(l_tx_prev_out && !memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
                                     l_src_str_is_cur = true;
                                 dap_string_free(l_src_addr, true);
                             }
                             else
                                 l_src_str = dap_string_free(l_src_addr, false);
-                            if(l_is_use_src_addr && !l_is_use_dst_addr) {
-                                dap_chain_history_add_data(l_history, &l_tx_data->tx_hash,
-                                                           TYPE_TRANSACTION_TRANSLATION_IN_SEND,l_tx_data->token_ticker,
-                                                           l_tx_prev_out->header.value, l_tx->header.ts_created,
-                                                           &l_tx_data->addr, &l_tx_prev_out->addr);
-//                                dap_string_append_printf(l_str_out,
-//                                        "tx hash %s \n %s in send  %lu %s from %s\n to %s\n",
-//                                        l_tx_data->tx_hash_str,
-//                                        l_time_str ? l_time_str : "",
-//                                        l_tx_prev_out->header.value,
-//                                        l_tx_data->token_ticker,
-//                                        l_src_str ? l_src_str : "",
-//                                        l_dst_to_str);
-                            } else if(l_is_use_dst_addr && !l_is_use_src_addr) {
-                                if(!l_src_str_is_cur)
+                            if(l_tx_prev_out) {
+                                // if use dst addr
+                                bool l_is_use_dst_addr = false;
+                                if(!memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
+                                    l_is_use_dst_addr = true;
+                                if(l_is_use_src_addr && !l_is_use_dst_addr) {
                                     dap_chain_history_add_data(l_history, &l_tx_data->tx_hash,
-                                                               TYPE_TRANSACTION_TRANSLATION_IN_RECV,l_tx_data->token_ticker,
+                                                               TYPE_TRANSACTION_TRANSLATION_IN_SEND,l_tx_data->token_ticker,
                                                                l_tx_prev_out->header.value, l_tx->header.ts_created,
-                                                               &l_tx_data->addr, NULL);
-//                                    dap_string_append_printf(l_str_out,
-//                                            "tx hash %s \n %s in recv %lu %s from %s\n",
-//                                            l_tx_data->tx_hash_str,
-//                                            l_time_str ? l_time_str : "",
-//                                            l_tx_prev_out->header.value,
-//                                            l_tx_data->token_ticker,
-//                                            l_src_str ? l_src_str : "");
+                                                               &l_tx_data->addr, &l_tx_prev_out->addr);
+                                } else if(l_is_use_dst_addr && !l_is_use_src_addr) {
+                                    if(!l_src_str_is_cur)
+                                        dap_chain_history_add_data(l_history, &l_tx_data->tx_hash,
+                                                                   TYPE_TRANSACTION_TRANSLATION_IN_RECV,l_tx_data->token_ticker,
+                                                                   l_tx_prev_out->header.value, l_tx->header.ts_created,
+                                                                   &l_tx_data->addr, NULL);
+                                }
+                                dap_list_free(l_list_out_prev_items);
                             }
-
-                            DAP_DELETE(l_dst_to_str);
-                            dap_list_free(l_list_out_prev_items);
-                        }
 
                         // OUT items
                         dap_list_t *l_records_tmp = l_records_out;
@@ -625,7 +617,6 @@ dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_c
                             if(l_tx_data->is_use_all_cur_out
                                     || !memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))) {
 
-                                char *l_addr_str = (l_tx_out) ? dap_chain_addr_to_str(&l_tx_out->addr) : NULL;
 
                                 if(!memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))) {
                                     if(!l_src_str_is_cur)
@@ -633,13 +624,6 @@ dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_c
                                                                    TYPE_TRANSACTION_TRANSLATION_RECV,
                                                                    l_tx_data_prev->token_ticker, l_tx_out->header.value,
                                                                    l_tx->header.ts_created, &l_tx_data->addr, NULL);
-//                                        dap_string_append_printf(l_str_out,
-//                                                "tx hash %s \n %s recv %lu %s from %s\n",
-//                                                l_tx_data->tx_hash_str,
-//                                                l_time_str ? l_time_str : "",
-//                                                l_tx_out->header.value,
-//                                                l_tx_data_prev->token_ticker,
-//                                                l_src_str ? l_src_str : "?");
                                     // break search prev OUT items for IN items
                                     l_list_in_items2_tmp = NULL;
                                 }
@@ -648,23 +632,15 @@ dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_c
                                                                TYPE_TRANSACTION_TRANSLATION_SEND,
                                                                l_tx_data_prev->token_ticker, l_tx_out->header.value,
                                                                l_tx->header.ts_created, &l_tx_out->addr, NULL);
-//                                    dap_string_append_printf(l_str_out,
-//                                            "tx hash %s \n %s send %lu %s to %s\n",
-//                                            l_tx_data->tx_hash_str,
-//                                            l_time_str ? l_time_str : "",
-//                                            l_tx_out->header.value,
-//                                            l_tx_data_prev->token_ticker,
-//                                            l_addr_str ? l_addr_str : "");
                                     l_list_in_items2_tmp = NULL;
                                 }
-                                DAP_DELETE(l_addr_str);
                             }
 
                             l_records_tmp = dap_list_next(l_records_tmp);
                         }
                         //dap_list_free(l_records_out);
                         DAP_DELETE(l_src_str);
-
+                        }
                     }
                 }
                 l_list_in_items2_tmp = dap_list_next(l_list_in_items2_tmp);
@@ -718,6 +694,7 @@ void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_
     memcpy(l_new_history->addr_dst, a_addr_dst, sizeof(dap_chain_addr_t));
     LL_APPEND(a_history, l_new_history);
 }
+
 void dap_chain_history_free(dap_chain_history_t *a_history){
     dap_chain_history_t *l_element, *l_tmp;
     LL_FOREACH_SAFE(a_history, l_element, l_tmp){

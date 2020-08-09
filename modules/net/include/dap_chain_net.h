@@ -75,6 +75,7 @@ typedef struct dap_chain_net{
         char * gdb_nodes;
 
         dap_chain_t * chains; // double-linked list of chains
+        dap_chain_t * default_chain;
         dap_ledger_t  *ledger;
     } pub;
     uint8_t pvt[];
@@ -101,6 +102,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
+uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 
@@ -112,8 +114,6 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
 dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
-
-void dap_chain_net_links_connect(dap_chain_net_t * a_net);
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
@@ -150,8 +150,8 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_cha
 
 dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
-dap_chain_net_t **dap_chain_net_list(size_t *a_size);
+dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
-void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum);
+void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum, const char *a_hash_out_type);

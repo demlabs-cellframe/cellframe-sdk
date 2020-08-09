@@ -21,6 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#define _POSIX_THREAD_SAFE_FUNCTIONS
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h> /* 'nanosleep' */
@@ -166,8 +167,9 @@ static char* s_appname = NULL;
 
 DAP_STATIC_INLINE void s_update_log_time(char *a_datetime_str) {
     time_t t = time(NULL);
-    struct tm *tmptime = localtime(&t);
-    strftime(a_datetime_str, 32, "[%x-%X]", tmptime);
+    struct tm tmptime;
+    if(localtime_r(&t, &tmptime))
+        strftime(a_datetime_str, 32, "[%x-%X]", &tmptime);
 }
 
 /**
@@ -234,7 +236,7 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
             s_log_file = fopen( a_log_filename , "w" );
         if ( s_log_file == NULL ) {
             dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
-            return -1;
+            //return -1;   //switch off show log in cosole if file not open
         }
         dap_stpcpy(s_log_file_path, a_log_filename);
     }
@@ -290,11 +292,8 @@ static void *s_log_thread_proc(void *arg) {
     (void) arg;
     for ( ; !s_log_term_signal; ) {
         pthread_mutex_lock(&s_log_mutex);
-        for ( ; s_log_count == 0; ) {
+        for ( ; s_log_count == 0 && !s_log_term_signal; ) {
             pthread_cond_wait(&s_log_cond, &s_log_mutex);
-            if (s_log_term_signal) {
-                break;
-            }
         }
         if (s_log_count) {
             log_str_t *elem, *tmp;
@@ -333,16 +332,21 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     if ( a_ll < s_dap_log_level || a_ll >= 16 || !a_log_tag )
         return;
     log_str_t *l_log_string = DAP_NEW_Z(log_str_t);
-    strncpy(l_log_string->str, s_ansi_seq_color[a_ll],sizeof (l_log_string->str)-1);
+    size_t offset2 = sizeof(l_log_string->str) - 2;
+    strncpy(l_log_string->str, s_ansi_seq_color[a_ll], offset2);
     l_log_string->offset = s_ansi_seq_color_len[a_ll];
     s_update_log_time(l_log_string->str + l_log_string->offset);
     size_t offset = strlen(l_log_string->str);
-    offset += dap_snprintf(l_log_string->str + offset, sizeof (l_log_string->str) -offset, "%s[%s%s", s_log_level_tag[a_ll], a_log_tag, "] ");
+    offset += dap_snprintf(l_log_string->str + offset, offset2, "%s[%s%s", s_log_level_tag[a_ll], a_log_tag, "] ");
+    offset2 -= offset;
     va_list va;
     va_start( va, a_fmt );
-    offset += dap_vsnprintf(l_log_string->str + offset,sizeof (l_log_string->str) -offset, a_fmt, va);
+    size_t l_offset = dap_vsnprintf(l_log_string->str + offset, offset2, a_fmt, va);
+    offset = (l_offset < offset2) ? offset + l_offset : offset;
+    offset2 = (l_offset < offset2) ? offset2 - offset : 0;
     va_end( va );
-    memcpy(&l_log_string->str[offset], "\n", 1);
+    char *dummy = (offset2 == 0) ? memcpy(&l_log_string->str[sizeof(l_log_string->str) - 6], "...\n\0", 5)
+        : memcpy(&l_log_string->str[offset], "\n", 1);
     pthread_mutex_lock(&s_log_mutex);
     DL_APPEND(s_log_buffer, l_log_string);
     ++s_log_count;
@@ -946,4 +950,73 @@ int dap_interval_timer_delete(void *a_timer)
         return timer_delete((timer_t)a_timer);
     #endif
 #endif
+}
+
+/**
+ * @brief dap_lendian_get16 Get uint16 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint16 in host endian memory
+ */
+uint16_t dap_lendian_get16(const uint8_t *a_buf)
+{
+    uint8_t u = *a_buf;
+    return (uint16_t)(*(a_buf + 1)) << 8 | u;
+}
+
+/**
+ * @brief dap_lendian_put16 Put uint16 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint16 in host endian memory
+ * @return none
+ */
+void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val)
+{
+    *(a_buf) = a_val;
+    *(a_buf + 1) = a_val >> 8;
+}
+
+/**
+ * @brief dap_lendian_get32 Get uint32 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint32 in host endian memory
+ */
+uint32_t dap_lendian_get32(const uint8_t *a_buf)
+{
+    uint16_t u = dap_lendian_get16(a_buf);
+    return (uint32_t)dap_lendian_get16(a_buf + 2) << 16 | u;
+}
+
+/**
+ * @brief dap_lendian_put32 Put uint32 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint32 in host endian memory
+ * @return none
+ */
+void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val)
+{
+    dap_lendian_put16(a_buf, a_val);
+    dap_lendian_put16(a_buf + 2, a_val >> 16);
+}
+
+/**
+ * @brief dap_lendian_get64 Get uint64 from little endian memory
+ * @param a_buf a buffer read from
+ * @return uint64 in host endian memory
+ */
+uint64_t dap_lendian_get64(const uint8_t *a_buf)
+{
+    uint32_t u = dap_lendian_get32(a_buf);
+    return (uint64_t)dap_lendian_get32(a_buf + 4) << 32 | u;
+}
+
+/**
+ * @brief dap_lendian_put64 Put uint64 to little endian memory
+ * @param buf a buffer write to
+ * @param val uint64 in host endian memory
+ * @return none
+ */
+void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
+{
+    dap_lendian_put32(a_buf, a_val);
+    dap_lendian_put32(a_buf + 4, a_val >> 32);
 }

@@ -264,14 +264,19 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
     return -1;
   }
 
+  if( !a_es->dap_worker ) {
+      log_it( L_WARNING, "%s: socket %u has no worker thread", __PRETTY_FUNCTION__, a_es->socket );
+      a_es->kill_signal = true;
+      return 0;
+  }
+
   uint32_t tn = a_es->dap_worker->number_thread;
 
-  dap_worker_t *w = a_es->dap_worker;
   //dap_events_t *d_ev = w->events;
 
-  pthread_mutex_lock( &w->locker_on_count );
+  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
   if ( a_es->kill_signal ) {
-    pthread_mutex_unlock( &w->locker_on_count );
+    pthread_mutex_unlock( &a_es->dap_worker ->locker_on_count );
     return 0;
   }
 
@@ -280,7 +285,7 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
   a_es->kill_signal = true;
   //DL_LIST_ADD_NODE_HEAD( d_ev->to_kill_sockets, a_es, kprev, knext, w->event_to_kill_count );
 
-  pthread_mutex_unlock( &w->locker_on_count );
+  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
   return 0;
 }
 
@@ -319,7 +324,7 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
 #endif
   }
   pthread_mutex_destroy(&a_es->write_hold);
-  free( a_es );
+  DAP_DELETE( a_es );
 }
 
 /**
@@ -428,12 +433,9 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
         return;
     }else if(cl->buf_in_size>shrink_size){
         size_t buf_size=cl->buf_in_size-shrink_size;
-        void * buf = malloc(buf_size);
-        memcpy(buf,cl->buf_in+ shrink_size,buf_size );
-        memcpy(cl->buf_in,buf,buf_size);
+        uint8_t* tmp = cl->buf_in + shrink_size;
+        memmove(cl->buf_in,tmp,buf_size);
         cl->buf_in_size=buf_size;
-        if (buf)
-            free(buf);
     }else{
         //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
         cl->buf_in_size=0;

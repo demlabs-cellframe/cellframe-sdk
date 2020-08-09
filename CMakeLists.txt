@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.3-1")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.3-4")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -30,11 +30,6 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
-if(DAP_TUN_NEW_WORKER)
-    message("[*] New TUN worker processor enabled")
-    add_definitions ("-DDAP_TUN_IN_WORKER")
-endif()
-
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
@@ -54,7 +49,7 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet dap_chain_crypto)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet)
 endif()
 
 # Networking
@@ -114,6 +109,24 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-vpn")
     message("[+] Module 'srv-vpn'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn )
+endif()
+
+# Enable service eXchange
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    message("[+] Module 'srv-xchange'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange )
+endif()
+
+# Enable service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    message("[+] Module 'srv-stake'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
+endif()
+
+# Enable service for dynamic modules
+if (CELLFRAME_MODULES MATCHES "modules-dynamic")
+    message("[+] Module 'dap_modules_dynamic_cdb'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb )
 endif()
 
 if (WIN32)

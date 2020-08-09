@@ -206,7 +206,7 @@ dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_c
 dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
 {
     dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
-    dap_chain_addr_fill(l_addr, a_cert->enc_key, &a_net_id);
+    dap_chain_addr_fill_from_key(l_addr, a_cert->enc_key, a_net_id);
     return l_addr;
 }
 
@@ -412,7 +412,7 @@ dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const cha
  * @param a_net_id
  * @return
  */
-uint64_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id, char *a_token_ticker)
+uint64_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id, const char *a_token_ticker)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr =dap_chain_wallet_get_addr(a_wallet, a_net_id);

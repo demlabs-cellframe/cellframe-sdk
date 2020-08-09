@@ -28,6 +28,8 @@
 #include "dap_client.h"
 #include "dap_stream.h"
 #include "dap_events_socket.h"
+#include "dap_cert.h"
+
 typedef struct dap_enc_key dap_enc_key_t;
 typedef struct dap_http_client dap_http_client_t;
 
@@ -47,7 +49,7 @@ typedef struct dap_client_internal
     dap_enc_key_t * session_key; // Symmetric private key for session encryption
     dap_enc_key_t * stream_key; // Stream private key for stream encryption
     char stream_id[25];
-
+    dap_cert_t *auth_cert;
 
     char  * session_key_id;
     //void  *curl;// curl connection descriptor
@@ -89,7 +91,7 @@ void dap_client_pvt_deinit();
 void dap_client_pvt_stage_transaction_begin(dap_client_pvt_t * dap_client_pvt_t, dap_client_stage_t a_stage_next,
                                                  dap_client_callback_t a_done_callback);
 
-void dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_path, void * a_request,
+int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_path, void * a_request,
                     size_t a_request_size,  dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
 void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char * a_path, const char * a_sub_url,
