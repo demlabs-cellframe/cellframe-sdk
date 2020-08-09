@@ -309,45 +309,48 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
     dap_string_t *l_str_out = dap_string_new(NULL);
     dap_chain_history_t *l_history = dap_db_history_addr_struct(a_addr, a_chain);
     dap_chain_history_t *l_element = NULL;
-
-    LL_FOREACH(l_history, l_element){
-        char tmp[512];
-        dap_chain_hash_fast_to_str(l_element->tx_hash, tmp, 512);
-        char *l_tmp_tx_hash_str;
-        if (strcmp(a_hash_out_type, "hex") == 0){
-            l_tmp_tx_hash_str = dap_strdup(tmp);
-        } else {
-            l_tmp_tx_hash_str = dap_enc_base58_from_hex_str_to_str(tmp);
+    if (l_history == NULL){
+        dap_string_append(l_str_out, "empty");
+    } else {
+        LL_FOREACH(l_history, l_element){
+            char tmp[512];
+            dap_chain_hash_fast_to_str(l_element->tx_hash, tmp, 512);
+            char *l_tmp_tx_hash_str;
+            if (strcmp(a_hash_out_type, "hex") == 0){
+                l_tmp_tx_hash_str = dap_strdup(tmp);
+            } else {
+                l_tmp_tx_hash_str = dap_enc_base58_from_hex_str_to_str(tmp);
+            }
+            switch (l_element->type_transaction) {
+            case TYPE_TRANSACTION_EMIT:
+                dap_string_append_printf(l_str_out, "tx hash %s \n emit %lu %s\n",
+                                         l_tmp_tx_hash_str,
+                                         l_element->amount,
+                                         l_element->token_ticker);
+                break;
+            case TYPE_TRANSACTION_TRANSLATION_IN_SEND:
+                    dap_string_append_printf(l_str_out, "tx hash %s \n %s in send  %lu %s from %s\n to %s\n",
+                    l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                    dap_chain_addr_to_str(l_element->addr_src), dap_chain_addr_to_str(l_element->addr_dst));
+                break;
+            case TYPE_TRANSACTION_TRANSLATION_IN_RECV:
+                dap_string_append_printf(l_str_out,"tx hash %s \n %s in recv %lu %s from %s\n",
+                                         l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                                         dap_chain_addr_to_str(l_element->addr_src));
+                break;
+            case TYPE_TRANSACTION_TRANSLATION_RECV:
+                dap_string_append_printf(l_str_out, "tx hash %s \n %s recv %lu %s from %s\n",
+                                         l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                                         dap_chain_addr_to_str(l_element->addr_src));
+                break;
+            case TYPE_TRANSACTION_TRANSLATION_SEND:
+                dap_string_append_printf(l_str_out, "tx hash %s \n %s send %lu %s to %s\n",
+                                         l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
+                                         dap_chain_addr_to_str(l_element->addr_src));
+                break;
+            }
+            DAP_FREE(l_tmp_tx_hash_str);
         }
-        switch (l_element->type_transaction) {
-        case TYPE_TRANSACTION_EMIT:
-            dap_string_append_printf(l_str_out, "tx hash %s \n emit %lu %s\n",
-                                     l_tmp_tx_hash_str,
-                                     l_element->amount,
-                                     l_element->token_ticker);
-            break;
-        case TYPE_TRANSACTION_TRANSLATION_IN_SEND:
-                dap_string_append_printf(l_str_out, "tx hash %s \n %s in send  %lu %s from %s\n to %s\n",
-                l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
-                dap_chain_addr_to_str(l_element->addr_src), dap_chain_addr_to_str(l_element->addr_dst));
-            break;
-        case TYPE_TRANSACTION_TRANSLATION_IN_RECV:
-            dap_string_append_printf(l_str_out,"tx hash %s \n %s in recv %lu %s from %s\n",
-                                     l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
-                                     dap_chain_addr_to_str(l_element->addr_src));
-            break;
-        case TYPE_TRANSACTION_TRANSLATION_RECV:
-            dap_string_append_printf(l_str_out, "tx hash %s \n %s recv %lu %s from %s\n",
-                                     l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
-                                     dap_chain_addr_to_str(l_element->addr_src));
-            break;
-        case TYPE_TRANSACTION_TRANSLATION_SEND:
-            dap_string_append_printf(l_str_out, "tx hash %s \n %s send %lu %s to %s\n",
-                                     l_tmp_tx_hash_str, asctime(localtime(&l_element->time)), l_element->amount, l_element->token_ticker,
-                                     dap_chain_addr_to_str(l_element->addr_src));
-            break;
-        }
-        DAP_FREE(l_tmp_tx_hash_str);
     }
     // if no history
     if(!l_str_out->len)
@@ -358,7 +361,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
 }
 
 dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_chain_t * a_chain){
-    dap_chain_history_t *l_history = DAP_NEW(dap_chain_history_t);
+    dap_chain_history_t *l_history = NULL;
 
     dap_tx_data_t *l_tx_data_hash = NULL;
     // load transactions
