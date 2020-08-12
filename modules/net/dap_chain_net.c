@@ -516,6 +516,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if (l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
                 l_pvt_net->state = NET_STATE_SYNC_CHAINS;
             } else {    // Synchronization done, go offline
+                log_it(L_INFO, "Synchronization done");
                 l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
             }
         }
@@ -576,13 +577,15 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     }
                 }
             }
-            if (l_pvt_net->state_target == NET_STATE_ONLINE){
+            log_it(L_INFO, "Synchronization done");
+            if (l_pvt_net->state_target == NET_STATE_ONLINE) {
+                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
                 l_pvt_net->state = NET_STATE_ONLINE;
             } else {    // Synchronization done, go offline
                 l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
             }
-            break;
-        } break;
+        }
+        break;
 
         case NET_STATE_ONLINE: {
             if (l_pvt_net->flags & F_DAP_CHAIN_NET_GO_SYNC)
