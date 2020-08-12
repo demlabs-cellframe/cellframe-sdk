@@ -152,5 +152,5 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
-void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum);
+void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum, const char *a_hash_out_type);
 void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback);

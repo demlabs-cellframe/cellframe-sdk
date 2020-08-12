@@ -117,7 +117,7 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str) {
     size_t l_nodes_count = 0;
     // read all node
     l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
-    if(!l_nodes_count || !l_objs)
+    if (!l_nodes_count || !l_objs)
         return 0;
     size_t l_node_num = rand() % l_nodes_count;
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
