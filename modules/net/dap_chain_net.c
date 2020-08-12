@@ -64,12 +64,10 @@
 #include "dap_enc_http.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net_srv_stake.h"
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
@@ -176,13 +174,16 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
 static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
-static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id);
+static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
 
 static int s_cli_net(int argc, char ** argv, void *arg_func, char **str_reply);
 
 static bool s_seed_mode = false;
 
 static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
+
+static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
+
 
 char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 {
@@ -198,18 +199,6 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
         }
     }
     return NULL;
-}
-
-/**
- * @brief s_net_set_go_sync
- * @param a_net
- * @return
- */
-void s_net_set_go_sync(dap_chain_net_t * a_net)
-{
-    if(!a_net)
-        return;
-    dap_chain_net_state_go_to(a_net, NET_STATE_SYNC_REQUESTED);
 }
 
 /**
@@ -229,16 +218,10 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
-    if (a_new_state == NET_STATE_SYNC_REQUESTED) {
-        if (PVT(a_net)->state_target != NET_STATE_OFFLINE) {
-            PVT(a_net)->state_target = NET_STATE_ONLINE;
-        }
-    } else {
-        if (PVT(a_net)->state_target == a_new_state){
-            log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
-        }
-        PVT(a_net)->state_target = a_new_state;
+    if (PVT(a_net)->state_target == a_new_state){
+        log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
     }
+    PVT(a_net)->state_target = a_new_state;
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond);
     // set flag for sync
     PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
@@ -249,6 +232,12 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
 #endif
     pthread_mutex_unlock( &PVT(a_net)->state_mutex_cond);
     return 0;
+}
+
+
+void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback)
+{
+    s_srv_callback_notify = a_callback;
 }
 
 /**
@@ -268,47 +257,35 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
     (void) a_op_code;
     UNUSED(a_prefix);
     UNUSED(a_value_len);
-    if (a_arg) {
-        dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-        s_net_set_go_sync(l_net);
-        /*if (!PVT (l_net)->load_mode ){
-            if( pthread_mutex_trylock( &PVT (l_net)->state_mutex) == 0 ){
-                if ( PVT(l_net)->state == NET_STATE_ONLINE || PVT(l_net)->state == NET_STATE_ONLINE  )
-                    dap_chain_net_sync_all(l_net);
-                pthread_mutex_unlock( &PVT (l_net)->state_mutex);
-            }
-        }*/
-    }
-    if (!a_value || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+    if (!a_arg) {
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
-    if (!strcmp(a_group, l_gdb_group_str)) {
-        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
-        if (l_order->version == 1) {
-            dap_chain_global_db_gr_del((char *)a_key, a_group);
-        } else {
-            dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
-            if (!dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size)) {
-                dap_chain_global_db_gr_del((char *)a_key, a_group);
-                DAP_DELETE(l_gdb_group_str);
-                return;
-            }
-            dap_chain_hash_fast_t l_pkey_hash;
-            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
-                dap_chain_global_db_gr_del((char *)a_key, a_group);
-                DAP_DELETE(l_gdb_group_str);
-                return;
-            }
-            dap_chain_addr_t l_addr = {};
-            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-            uint64_t l_solvency = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
-            if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
-                dap_chain_global_db_gr_del((char *)a_key, a_group);
-            }
+    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+        dap_global_db_obj_t l_obj = {};
+        dap_store_obj_t *l_obj_cur = dap_chain_global_db_obj_gr_get(a_key, NULL, a_group);
+        if (!l_obj_cur) {
+            log_it(L_ERROR, "Notified GDB event does not exist");
+            return;
         }
-        DAP_DELETE(l_gdb_group_str);
+        l_obj.id = l_obj_cur->id;
+        l_obj.key = l_obj_cur->key;
+        l_obj.value = l_obj_cur->value;
+        l_obj.value_len = l_obj_cur->value_len;
+        size_t l_item_size_out = 0;
+        uint8_t *l_item = dap_db_log_pack(&l_obj, &l_item_size_out);
+        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {};
+        for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+            dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
+            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+            dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id,
+                                          l_chain_id, l_net->pub.cell_id, l_item, l_item_size_out);
+        }
+        DAP_DELETE(l_item);
+    }
+    if (s_srv_callback_notify) {
+        s_srv_callback_notify(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);
     }
 }
 
@@ -318,14 +295,24 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
  * @param a_chain
  * @param a_id
  */
-static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id)
+static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
-    UNUSED(a_chain);
-    UNUSED(a_id);
-    if(!a_arg)
+    if (!a_arg)
         return;
-    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    s_net_set_go_sync(l_net);
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+        for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+            dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
+            uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db and chains sync
+            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+            if (!l_ch_chain) {
+                log_it(L_DEBUG,"Can't get stream_ch for id='%c' ", l_ch_id);
+                continue;
+            }
+            dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_net->pub.id,
+                                          a_chain->id, a_id, a_atom, a_atom_size);
+        }
+    }
 }
 
 
@@ -465,12 +452,6 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
                                                   dap_chain_net_get_cur_addr(l_net)->uint64 :
                                                   dap_db_get_cur_node_addr(l_net->pub.name);
-
-                dap_chain_id_t l_chain_id_null = {};
-                dap_chain_cell_id_t l_chain_cell_id_null = {};
-                l_chain_id_null.uint64 = l_net->pub.id.uint64;
-                l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
-
                 log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end);
                 // find dap_chain_id_t
                 dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
@@ -607,18 +588,6 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
     }
     return ret;
 }
-
-// Global
-/*static void s_net_proc_thread_callback_update_db(void)
-{
-    dap_chain_net_item_t *l_net_item, *l_net_item_tmp;
-    printf("update0\n");
-    HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp)
-    {
-        s_net_set_go_sync(l_net_item->chain_net);
-    }
-    printf("update1\n");
-}*/
 
 /**
  * @brief s_net_proc_thread
