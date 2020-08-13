@@ -66,11 +66,6 @@ void callback_timerfd_read(struct dap_events_socket *a_event_sock, void * arg)
     dap_events_socket_set_readable(a_event_sock, true);
 }
 
-void tmpd(void * arg)
-{
-    printf("2 arg=0x%x\n", arg);
-}
-
 /**
  * @brief dap_events_socket_init Init clients module
  * @return Zero if ok others if no
@@ -78,8 +73,6 @@ void tmpd(void * arg)
 int dap_timerfd_init()
 {
     log_it(L_NOTICE, "Initialized timerfd");
-
-    dap_timerfd_t *l_sd = dap_timerfd_start(1000, &tmpd, (void*)45);
     return 0;
 }
 

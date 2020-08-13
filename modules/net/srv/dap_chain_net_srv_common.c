@@ -46,7 +46,4 @@
 #include "dap_stream.h"
 #include "dap_chain_net_srv_common.h"
 
-uint8_t dap_stream_ch_chain_net_srv_get_id()
-{
-    return 'R';
-}
+
