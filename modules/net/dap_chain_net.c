@@ -262,27 +262,32 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
-        dap_global_db_obj_t l_obj = {};
-        dap_store_obj_t *l_obj_cur = dap_chain_global_db_obj_gr_get(a_key, NULL, a_group);
-        if (!l_obj_cur) {
-            log_it(L_ERROR, "Notified GDB event does not exist");
+        char *l_group;
+        if (a_op_code == 'd') {
+            l_group = dap_strdup_printf("%s.del", a_group);
+        } else {
+            l_group = (char *)a_group;
+        }
+        dap_store_obj_t *l_obj = (dap_store_obj_t *)dap_chain_global_db_obj_get(a_key, l_group);
+        if (a_op_code == 'd') {
+            DAP_DELETE(l_group);
+        }
+        if (!l_obj) {
+            log_it(L_DEBUG, "Notified GDB event does not exist");
             return;
         }
-        l_obj.id = l_obj_cur->id;
-        l_obj.key = l_obj_cur->key;
-        l_obj.value = l_obj_cur->value;
-        l_obj.value_len = l_obj_cur->value_len;
-        size_t l_item_size_out = 0;
-        uint8_t *l_item = dap_db_log_pack(&l_obj, &l_item_size_out);
+        l_obj->type = (uint8_t)a_op_code;
+        dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
+        dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
-        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {};
+        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
             dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
             dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id,
-                                          l_chain_id, l_net->pub.cell_id, l_item, l_item_size_out);
+                                          l_chain_id, l_net->pub.cell_id, l_data_out, sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
-        DAP_DELETE(l_item);
+        DAP_DELETE(l_data_out);
     }
     if (s_srv_callback_notify) {
         s_srv_callback_notify(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);
