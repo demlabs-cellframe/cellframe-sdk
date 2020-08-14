@@ -3518,8 +3518,13 @@ int com_mempool_add_ca( int a_argc,  char ** a_argv, void *a_arg_func, char ** a
     // Chech for chain if was set or not
     if ( l_chain == NULL){
        // If wasn't set - trying to auto detect
-        l_chain = dap_chain_net_get_chain_by_chain_type( l_net, DAP_CHAIN_DATUM_CA );
+        l_chain = dap_chain_net_get_chain_by_chain_type( l_net, CHAIN_TYPE_CA );
         if (l_chain == NULL) { // If can't auto detect
+            // clean previous error code
+            if(a_str_reply && *a_str_reply) {
+                DAP_DELETE(*a_str_reply);
+                *a_str_reply = NULL;
+            }
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "No chains for CA datum in network \"%s\"", l_net->pub.name );
             return -2;

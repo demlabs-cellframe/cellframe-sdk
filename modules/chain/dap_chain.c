@@ -200,6 +200,9 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "transaction")) {
         return CHAIN_TYPE_TX;
     }
+    if(!dap_strcmp(a_type_str, "ca")) {
+        return CHAIN_TYPE_CA;
+    }
     return CHAIN_TYPE_LAST;
 }
 
