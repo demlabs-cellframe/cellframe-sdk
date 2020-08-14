@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #define EPOLL_HANDLE  int
 #else
 #define EPOLL_HANDLE  HANDLE
@@ -62,12 +63,11 @@ typedef struct dap_events {
 
 typedef struct dap_worker
 {
-  uint32_t event_sockets_count;
+  atomic_uint event_sockets_count;
   //uint32_t event_to_kill_count;
 
   EPOLL_HANDLE epoll_fd;
   uint32_t number_thread;
-  pthread_mutex_t locker_on_count;
   dap_events_t *events;
 
 } dap_worker_t;
