@@ -3519,6 +3519,9 @@ int com_mempool_add_ca( int a_argc,  char ** a_argv, void *a_arg_func, char ** a
     if ( l_chain == NULL){
        // If wasn't set - trying to auto detect
         l_chain = dap_chain_net_get_chain_by_chain_type( l_net, CHAIN_TYPE_CA );
+        if (l_chain == NULL) {
+            l_chain = l_net->pub.default_chain;
+        }
         if (l_chain == NULL) { // If can't auto detect
             // clean previous error code
             if(a_str_reply && *a_str_reply) {
