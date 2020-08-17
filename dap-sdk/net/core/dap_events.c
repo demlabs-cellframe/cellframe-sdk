@@ -220,7 +220,6 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
 {
   dap_events_socket_t *a_es, *tmp;
 
-  pthread_mutex_lock( &dap_worker->locker_on_count );
   DL_FOREACH_SAFE( d_ev->dlsockets, a_es, tmp ) {
 
     if ( a_es->type == DESCRIPTOR_TYPE_FILE)
@@ -243,8 +242,6 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
       dap_events_socket_delete( a_es, true );
     }
   }
-  pthread_mutex_unlock( &dap_worker->locker_on_count );
-
 }
 
 /**
@@ -430,8 +427,6 @@ static void *thread_worker_function(void *arg)
                 }
             }
 
-            pthread_mutex_lock(&w->locker_on_count);
-
             if((cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !cur->no_close) {
                 // protect against double deletion
                 cur->kill_signal = true;
@@ -442,11 +437,8 @@ static void *thread_worker_function(void *arg)
             if(cur->kill_signal) {
                 log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", cur->socket, tn);
                 dap_events_socket_remove(cur);
-                pthread_mutex_unlock(&w->locker_on_count);
                 dap_events_socket_delete( cur, true);
             }
-            else
-                pthread_mutex_unlock(&w->locker_on_count);
 
             /*
             if(!w->event_to_kill_count) {
@@ -560,7 +552,6 @@ int dap_events_start( dap_events_t *a_events )
     s_workers[i].number_thread = i;
     s_workers[i].events = a_events;
 
-    pthread_mutex_init( &s_workers[i].locker_on_count, NULL );
     pthread_create( &s_threads[i].tid, NULL, thread_worker_function, &s_workers[i] );
   }
 
