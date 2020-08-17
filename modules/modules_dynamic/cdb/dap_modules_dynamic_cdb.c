@@ -51,7 +51,7 @@ int dap_modules_dynamic_load_cdb(dap_http_t * a_server){
     *(void **) (&dap_chain_net_srv_vpn_cdb_init) = dlsym(l_cdb_handle, l_init_func_name);
     char* error;
     if (( error = dlerror()) != NULL) {
-        log_it(L_ERROR,"%s module: %s error loading %s (%s)", l_cdb_so_name, l_init_func_name, error);
+        log_it(L_ERROR,"%s module: %s error loading (%s)", l_cdb_so_name, l_init_func_name, error);
         return -2;
      }
 
