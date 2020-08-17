@@ -109,6 +109,8 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
 
   dap_worker_add_events_socket( a_es );
 
+  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
+
   a_es->dap_worker->event_sockets_count ++;
   DL_APPEND( a_es->events->dlsockets, a_es );
 
@@ -121,6 +123,8 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
 
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
     log_it( L_CRITICAL, "Can't add event socket's handler to epoll_fd" );
+
+  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
 }
 
 /**
@@ -268,13 +272,20 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
 
   uint32_t tn = a_es->dap_worker->number_thread;
 
-  if ( a_es->kill_signal )
+  //dap_events_t *d_ev = w->events;
+
+  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
+  if ( a_es->kill_signal ) {
+    pthread_mutex_unlock( &a_es->dap_worker ->locker_on_count );
     return 0;
+  }
 
   log_it( L_DEBUG, "KILL %u socket! (in queue) [ thread %u ]", a_es->socket, tn );
 
   a_es->kill_signal = true;
+  //DL_LIST_ADD_NODE_HEAD( d_ev->to_kill_sockets, a_es, kprev, knext, w->event_to_kill_count );
 
+  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
   return 0;
 }
 
