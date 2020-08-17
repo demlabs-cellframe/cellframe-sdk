@@ -33,6 +33,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_strfuncs.h"
+#include "dap_timerfd.h"
 //#include "dap_chain_global_db_pvt.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
@@ -233,6 +234,15 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
     DAP_DELETE(objs);
 }
 
+
+static void callback_flush_db(void *a_arg)
+{
+    int res_flush = dap_chain_global_db_flush();
+    if(res_flush) {
+        log_it(L_INFO, "Can't commit data base caches to disk completed. err_code=%d", res_flush);
+    }
+}
+
 /**
  * @brief dap_chain_global_db_init
  * @param g_config
@@ -249,6 +259,9 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     unlock();
     if( res != 0 )
         log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, s_storage_path );
+
+    // add timer for flush cdb (600 sec = 10 min)
+    dap_timerfd_start(600*1000, (dap_timerfd_callback_t*)&callback_flush_db, NULL);
     return res;
 }
 
