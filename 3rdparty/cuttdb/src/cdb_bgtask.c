@@ -70,8 +70,8 @@ static void *_cdb_bgtask_func(void *arg)
         time_t now = time(NULL);
         struct timespec timeout;
 
-        /* check should run some tasks every 1 second */
-        timeout.tv_sec = now + 1;
+        /* check should run some tasks every 5 second */
+        timeout.tv_sec = now + 5;
         timeout.tv_nsec = 0;
 
         /* iterate and run the tasks */
