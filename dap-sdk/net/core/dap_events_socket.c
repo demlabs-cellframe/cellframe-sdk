@@ -343,6 +343,7 @@ void dap_events_socket_remove( dap_events_socket_t *a_es)
 
 void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool preserve_inheritor )
 {
+  pthread_mutex_lock(&a_es->dap_worker->locker_on_count);
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
      log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
   else
@@ -352,6 +353,7 @@ void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool prese
   a_es->dap_worker->event_sockets_count --;
 
   dap_events_socket_delete( a_es, preserve_inheritor );
+  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
 }
 
 /**
