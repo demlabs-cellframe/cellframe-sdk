@@ -398,19 +398,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 //log_it(L_INFO, "In: GLOBAL_DB data_size=%d", l_chain_pkt_data_size);
                 // get transaction and save it to global_db
                 if(l_chain_pkt_data_size > 0) {
-
                     //session_data_t *l_data = session_data_find(a_ch->stream->session->id);
                     size_t l_data_obj_count = 0;
-
                     // deserialize data
                     dap_store_obj_t *l_store_obj = dap_db_log_unpack((uint8_t*) l_chain_pkt->data,
                             l_chain_pkt_data_size, &l_data_obj_count); // Parse data from dap_db_log_pack()
-                    //dap_store_obj_t * l_store_obj_reversed = NULL;
-                    //if ( dap_log_level_get()== L_DEBUG  )
-                    //if ( l_data_obj_count && l_store_obj )
-                    //   l_store_obj_reversed = DAP_NEW_Z_SIZE(dap_store_obj_t,l_data_obj_count+1);
-
-
 //                    log_it(L_INFO, "In: l_data_obj_count = %d", l_data_obj_count );
 
                     for(size_t i = 0; i < l_data_obj_count; i++) {
@@ -466,10 +458,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         /*log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
                                 " timestamp=\"%s\" value_len=%u  ",
                                 (char ) l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
-                                l_store_obj[i].key,
-                                l_ts_str,
-                                l_store_obj[i].value_len);*/
-
+                                l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);*/
                         // apply received transaction
                         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                         if(l_chain) {
@@ -478,36 +467,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                         (dap_chain_datum_t**) &(l_store_obj->value), 1,
                                         l_store_obj[i].group);
                         }
-                        /*else {
-                         // read net_name
-                         if(!s_net_name)
-                         {
-                         static dap_config_t *l_cfg = NULL;
-                         if((l_cfg = dap_config_open("network/default")) == NULL) {
-                         log_it(L_ERROR, "Can't open default network config");
-                         } else {
-                         s_net_name = dap_strdup(dap_config_get_item_str(l_cfg, "general", "name"));
-                         dap_config_close(l_cfg);
-                         }
-                         }
-                         // add datum in ledger if necessary
-                         {
-                         dap_chain_net_t *l_net = dap_chain_net_by_name(s_net_name);
-                         dap_chain_t * l_chain;
-                         if(l_net) {
-                         DL_FOREACH(l_net->pub.chains, l_chain)
-                         {
-                         const char *l_chain_name = l_chain->name; //l_chain_name = dap_strdup("gdb");
-                         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
-                         //const char *l_group_name = "chain-gdb.kelvin-testnet.chain-F00000000000000F";//dap_chain_gdb_get_group(l_chain);
-                         if(l_chain->callback_datums_pool_proc_with_group)
-                         l_chain->callback_datums_pool_proc_with_group(l_chain,
-                         (dap_chain_datum_t**) &(l_store_obj->value), 1,
-                         l_store_obj[i].group);
-                         }
-                         }
-                         }
-                         }*/
                         // save data to global_db
                         if(!dap_chain_global_db_obj_save(l_obj, 1)) {
                             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,

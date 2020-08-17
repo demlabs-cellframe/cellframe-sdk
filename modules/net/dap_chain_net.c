@@ -240,26 +240,11 @@ void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a
     s_srv_callback_notify = a_callback;
 }
 
-/**
- * @brief s_gbd_history_callback_notify
- * @param a_arg
- * @param a_op_code
- * @param a_prefix
- * @param a_group
- * @param a_key
- * @param a_value
- * @param a_value_len
- */
-static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
-                                                     const char * a_key, const void * a_value,
-                                                     const size_t a_value_len)
+void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+                                      const char *a_key, const void *a_value, const size_t a_value_len)
 {
-    (void) a_op_code;
     UNUSED(a_prefix);
     UNUSED(a_value_len);
-    if (!a_arg) {
-        return;
-    }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
         char *l_group;
@@ -289,6 +274,25 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
         }
         DAP_DELETE(l_data_out);
     }
+}
+
+/**
+ * @brief s_gbd_history_callback_notify
+ * @param a_arg
+ * @param a_op_code
+ * @param a_prefix
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ */
+static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
+                                                     const char * a_key, const void * a_value, const size_t a_value_len)
+{
+    if (!a_arg) {
+        return;
+    }
+    dap_chain_net_sync_gdb_broadcast(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);
     if (s_srv_callback_notify) {
         s_srv_callback_notify(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);
     }

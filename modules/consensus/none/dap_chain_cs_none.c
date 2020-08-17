@@ -134,13 +134,12 @@ int dap_chain_gdb_init(void)
 static void s_history_callback_notify(void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
         const char * a_key, const void * a_value, const size_t a_value_size)
 {
-    (void) a_value;
-    (void) a_prefix;
     if (a_arg){
         dap_chain_gdb_t * l_gdb = (dap_chain_gdb_t *) a_arg;
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
         log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%u",l_net->pub.name,
                l_gdb->chain->name, a_op_code, a_group, a_key, a_value_size);
+        dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
     }
 }
 

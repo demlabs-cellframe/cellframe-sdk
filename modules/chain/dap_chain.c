@@ -252,9 +252,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
             // Recognize chains id
             if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( sscanf(l_chain_id_str,"0x%016lX",& l_chain_id_u ) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%016lx",&l_chain_id_u) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%lu",&l_chain_id_u ) !=1 ){
+                if ( sscanf(l_chain_id_str,"0x%016llX",& l_chain_id_u ) !=1 ){
+                    if ( sscanf(l_chain_id_str,"0x%016llx",&l_chain_id_u) !=1 ) {
+                        if ( sscanf(l_chain_id_str,"%llu",&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
