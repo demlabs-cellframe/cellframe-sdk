@@ -310,7 +310,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
                                 l_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
 
-                        dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
+                        dap_stream_ch_chain_sync_request_t l_request = {};
                         //log_it(L_DEBUG, "No items to sync from %u", l_request->id_start + 1);
                         l_request.node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
                         l_request.id_start = dap_db_log_get_last_id_remote(l_ch_chain->request.node_addr.uint64);
@@ -353,27 +353,33 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(l_chain) {
                     // Expect atom element in
                     if(l_chain_pkt_data_size > 0) {
-                        dap_chain_atom_ptr_t l_atom_copy = DAP_CALLOC(1, l_chain_pkt_data_size);
-                        memcpy(l_atom_copy, l_chain_pkt->data, l_chain_pkt_data_size);
-                        dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy);
-                        if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
-                            // append to file
-                            dap_chain_cell_id_t l_cell_id;
-                            l_cell_id.uint64 = l_chain_pkt->hdr.cell_id.uint64;
-                            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
-                            // add one atom only
-                            int l_res = dap_chain_cell_file_append(l_cell, l_chain_pkt->data, l_chain_pkt_data_size);
-                            // rewrite all file
-                            //l_res = dap_chain_cell_file_update(l_cell);
-                            if(!l_cell || l_res < 0) {
-                                log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_chain_pkt->data,
-                                        l_cell ? l_cell->file_storage_path : "[null]");
+                        dap_chain_hash_fast_t l_atom_hash = {};
+                        dap_hash_fast(l_chain_pkt->data, l_chain_pkt_data_size, &l_atom_hash);
+                        dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+                        if (!l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash)) {
+                            dap_chain_atom_ptr_t l_atom_copy = DAP_CALLOC(1, l_chain_pkt_data_size);
+                            memcpy(l_atom_copy, l_chain_pkt->data, l_chain_pkt_data_size);
+                            dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy);
+                            if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
+                                // append to file
+                                dap_chain_cell_id_t l_cell_id;
+                                l_cell_id.uint64 = l_chain_pkt->hdr.cell_id.uint64;
+                                dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
+                                // add one atom only
+                                int l_res = dap_chain_cell_file_append(l_cell, l_chain_pkt->data, l_chain_pkt_data_size);
+                                // rewrite all file
+                                //l_res = dap_chain_cell_file_update(l_cell);
+                                if(!l_cell || l_res < 0) {
+                                    log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_chain_pkt->data,
+                                            l_cell ? l_cell->file_storage_path : "[null]");
+                                }
+                                // delete cell and close file
+                                dap_chain_cell_delete(l_cell);
                             }
-                            // delete cell and close file
-                            dap_chain_cell_delete(l_cell);
+                            if(l_atom_add_res == ATOM_PASS)
+                                DAP_DELETE(l_atom_copy);
                         }
-                        if(l_atom_add_res == ATOM_PASS)
-                            DAP_DELETE(l_atom_copy);
+                        l_chain->callback_atom_iter_delete(l_atom_iter);
                     } else {
                         log_it(L_WARNING, "Empty chain packet");
                         dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
@@ -646,7 +652,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
                         // last message
 
-                        dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
+                        dap_stream_ch_chain_sync_request_t l_request = {};
                         dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_net_id);
                         l_request.node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
                         l_request.id_start = dap_db_log_get_last_id_remote(l_ch_chain->request.node_addr.uint64);
