@@ -351,9 +351,9 @@ void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool prese
 
   DL_DELETE( a_es->events->dlsockets, a_es );
   a_es->dap_worker->event_sockets_count --;
+  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
 
   dap_events_socket_delete( a_es, preserve_inheritor );
-  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
 }
 
 /**
