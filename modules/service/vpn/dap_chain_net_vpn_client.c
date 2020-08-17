@@ -40,6 +40,10 @@
 #include "dap_strfuncs.h"
 #include "rand/dap_rand.h"
 
+#ifdef DAP_OS_LINUX
+#include <dlfcn.h>
+#endif
+
 #include "dap_client.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_node_client.h"
@@ -308,6 +312,39 @@ int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wa
 }
 
 
+static const char * s_default_path_modules = "var/modules";
+// get_order_state() from dynamic library
+static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
+{
+    char l_lib_path[MAX_PATH] = {'\0'};
+#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+    const char * l_cdb_so_name = "libcellframe-node-cdb.so";
+    dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
+
+    void* l_cdb_handle = NULL;
+    l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
+    if(!l_cdb_handle){
+        log_it(L_ERROR,"Can't load %s module: %s", l_cdb_so_name, dlerror());
+        return -1;
+    }
+
+    int (*get_order_state_so)(dap_chain_node_addr_t);
+    const char * l_init_func_name = "get_order_state";
+    *(void **) (&get_order_state_so) = dlsym(l_cdb_handle, l_init_func_name);
+    char* error;
+    if (( error = dlerror()) != NULL) {
+        log_it(L_ERROR,"%s module: %s error loading (%s)", l_cdb_so_name, l_init_func_name, error);
+        return -2;
+     }
+
+    return (*get_order_state_so)(a_node_addr);
+#else
+    log_it(L_ERROR,"%s: module is not supported on current platfrom", __PRETTY_FUNCTION__);
+    return -1;
+#endif
+
+}
+
 char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* a_hash_out_type)
 {
 
@@ -332,7 +369,7 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
                 l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
             else
                 l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
-            int l_state = get_order_state(l_order->node_addr);
+            int l_state = get_order_state_so(l_order->node_addr);
             const char *l_state_str;
             switch (l_state)
             {
