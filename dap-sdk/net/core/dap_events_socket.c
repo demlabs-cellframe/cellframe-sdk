@@ -118,7 +118,7 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
   HASH_ADD_INT( a_es->events->sockets, socket, a_es );
   pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
 
-  a_es->ev.events = EPOLLIN | EPOLLERR | EPOLLOUT;
+  a_es->ev.events = EPOLLIN | EPOLLERR;
   a_es->ev.data.ptr = a_es;
 
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
