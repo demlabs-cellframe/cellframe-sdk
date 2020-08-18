@@ -282,8 +282,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
 #endif
 
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
         dap_stream_ch_chain_sync_request_t * l_request = NULL;
         if(a_pkt_data_size == sizeof(*l_request))
             l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;

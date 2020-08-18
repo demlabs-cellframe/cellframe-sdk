@@ -452,6 +452,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             log_it(L_INFO, "Go to stage STREAM_SESSION: process the state ops");
 
             a_client_pvt->stream_socket = socket( PF_INET, SOCK_STREAM, 0);
+            if (a_client_pvt->stream_socket == -1) {
+                log_it(L_ERROR, "Error %d with socket create", errno);
+                a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                break;
+            }
 #ifdef _WIN32 
             {
               int buffsize = 65536;
