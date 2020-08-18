@@ -86,8 +86,7 @@ static void *_cdb_bgtask_func(void *arg)
         }
         pthread_mutex_lock(&bt->smutex);
         l_cond_rc = pthread_cond_timedwait(&bt->scond, &bt->smutex, &timeout);
-        if(l_cond_rc == ETIMEDOUT)
-            pthread_mutex_unlock(&bt->smutex);
+        pthread_mutex_unlock(&bt->smutex);
     }
 
     return NULL;
