@@ -246,7 +246,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                     }
                 }
             }
-            return 0;
             /*
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(a_dag_event);
             // transaction include emission?

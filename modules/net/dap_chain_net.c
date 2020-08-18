@@ -262,6 +262,8 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
             return;
         }
         l_obj->type = (uint8_t)a_op_code;
+        DAP_DELETE(l_obj->group);
+        l_obj->group = dap_strdup(a_group);
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
