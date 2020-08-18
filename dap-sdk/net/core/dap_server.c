@@ -642,6 +642,7 @@ void  *thread_loop( void *arg )
   CPU_SET( tn, &mask );
 
   int err;
+  int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
 #ifndef ANDROID
   err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #else
@@ -690,7 +691,8 @@ void  *thread_loop( void *arg )
 
       dap_cur->last_time_active = cur_time;
       if( events[i].events & EPOLLERR ) {
-          log_it( L_ERROR,"Socket error: %u, remove it" , dap_cur->socket );
+          getsockopt(dap_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
+          log_it( L_ERROR,"Socket %u error: %s, remove it" , dap_cur->socket, strerror(l_sock_err));
           dap_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
       }
       set_nonblock_socket(dap_cur->socket);
