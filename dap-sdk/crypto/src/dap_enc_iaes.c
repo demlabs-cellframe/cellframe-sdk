@@ -76,7 +76,7 @@ void dap_enc_aes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 
 size_t dap_enc_iaes256_cbc_decrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
-    if (a_in_size % 16) {
+    if (a_in_size % IAES_BLOCK_SIZE) {
         log_it(L_ERROR, "Bad in data size");
         return 0;
     }
@@ -168,9 +168,11 @@ size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void *
 
     size_t block_in32_size = IAES_BLOCK_SIZE/sizeof(uint32_t);
     uint32_t feedback[block_in32_size];
+    uint8_t priv_key_swapped_endian[IAES_KEYSIZE];
+    memcpy(priv_key_swapped_endian, a_key->priv_key_data, sizeof(priv_key_swapped_endian));
 
     memcpy(&feedback[0], DAP_ENC_AES_KEY(a_key)->ivec, IAES_BLOCK_SIZE);
-    swap_endian((uint32_t *)a_key->priv_key_data, IAES_KEYSIZE/sizeof(uint32_t));
+    swap_endian((uint32_t *)priv_key_swapped_endian, IAES_KEYSIZE/sizeof(uint32_t));
 
     size_t count_block, count32_word;
     const void *data = a_in;
@@ -181,7 +183,7 @@ size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void *
            *((uint32_t *)cdata + count_block * block_in32_size + count32_word) =
                 *((uint32_t *)data + count_block * block_in32_size + count32_word) ^ feedback[count32_word];
 
-        AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)a_key->priv_key_data);
+        AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)priv_key_swapped_endian);
 
         memcpy ((uint32_t *)cdata + count_block * block_in32_size, &feedback[0], IAES_BLOCK_SIZE);
     }
@@ -197,10 +199,9 @@ size_t dap_enc_iaes256_cbc_encrypt_fast(struct dap_enc_key * a_key, const void *
        *((uint32_t *)cdata + count_block * block_in32_size + count32_word) =
             *((uint32_t *)tmp_in + count32_word) ^ feedback[count32_word];
 
-    AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)a_key->priv_key_data);
+    AES256_enc_cernelT(((uint32_t *)cdata + count_block * block_in32_size), feedback, (uint32_t *)priv_key_swapped_endian);
 
     memcpy ((uint32_t *)cdata + count_block * block_in32_size, &feedback[0], IAES_BLOCK_SIZE);
-    swap_endian((uint32_t *)a_key->priv_key_data,IAES_KEYSIZE/sizeof(uint32_t));
 
 
 //    IAES_256_CBC_encrypt(a_in, buf_out, DAP_ENC_AES_KEY(a_key)->ivec, a_in_size - last_block_from_in, a_key->priv_key_data);

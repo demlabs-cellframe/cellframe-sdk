@@ -418,14 +418,16 @@ static void *thread_worker_function(void *arg)
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,sa_cur->buf_out_size);
                 }
                 //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
-                pthread_mutex_lock(&cur->write_hold);
-                cur->buf_out_size -= total_sent;
-                if (cur->buf_out_size) {
-                    memmove(cur->buf_out, &cur->buf_out[total_sent], cur->buf_out_size);
-                } else {
-                    cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
+                if (total_sent) {
+                    pthread_mutex_lock(&cur->write_hold);
+                    cur->buf_out_size -= total_sent;
+                    if (cur->buf_out_size) {
+                        memmove(cur->buf_out, &cur->buf_out[total_sent], cur->buf_out_size);
+                    } else {
+                        cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
+                    }
+                    pthread_mutex_unlock(&cur->write_hold);
                 }
-                pthread_mutex_unlock(&cur->write_hold);
             }
 
             pthread_mutex_lock(&w->locker_on_count);

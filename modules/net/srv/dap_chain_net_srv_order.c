@@ -493,6 +493,19 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out);
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
+        // order state
+/*        {
+            int l_order_state = get_order_state(a_order->node_addr);
+            // if order is not tested
+            if(l_order_state == -1)
+                dap_string_append_printf(a_str_out, "        \"State\":\"unknown\"\n");
+            // if order off-line
+            else if(l_order_state == 1)
+                dap_string_append_printf(a_str_out, "        \"State\":\"available\"\n");
+            // if order on-line
+            else
+                dap_string_append_printf(a_str_out, "        \"State\":\"not available\"\n");
+        }*/
         DAP_DELETE(l_hash_str);
         DAP_DELETE(l_ext_out);
     }
