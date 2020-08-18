@@ -12,9 +12,19 @@ int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_repl
 {
 #ifndef _WIN32
     enum {
-        CMD_NONE, CMD_INIT, CMD_START, CMD_STOP, CMD_STATUS
+        CMD_NONE, CMD_INIT, CMD_START, CMD_STOP, CMD_STATUS, CMD_CHECK, CMD_CHECK_RESULT
     };
     int l_arg_index = 1;
+
+    const char * l_hash_out_type = NULL;
+    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "base58";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
     // find net
     dap_chain_net_t *l_net = NULL;
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
@@ -33,6 +43,12 @@ int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_repl
     else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "status", NULL)) {
         cmd_num = CMD_STATUS;
     }
+    else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "check", NULL)) {
+        cmd_num = CMD_CHECK;
+        if(dap_chain_node_cli_find_option_val(a_argv, min(a_argc, l_arg_index + 1), min(a_argc, l_arg_index + 2), "result", NULL)) {
+                cmd_num = CMD_CHECK_RESULT;
+            }
+    }
     if(cmd_num == CMD_NONE) {
         if(!a_argv[1])
             dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
@@ -43,6 +59,55 @@ int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_repl
 
     switch (cmd_num)
     {
+    case CMD_CHECK_RESULT: {
+        char *l_str = dap_chain_net_vpn_client_check_result(l_net, l_hash_out_type);
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str);
+        DAP_DELETE(l_str);
+    }
+    break;
+    case CMD_CHECK: {
+        const char * l_str_addr = NULL; // for example, "192.168.100.93"
+        const char * l_str_port = NULL; // for example, "8079"
+        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_str_addr);
+        if(!l_str_addr) {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "VPN server address not defined, use -addr <vpn server ipv4 address> parameter");
+            break;
+        }
+        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_str_port);
+        int l_srv_port = (l_str_port) ? (int) strtoll(l_str_port, 0, 10) : 0;
+        if(!l_srv_port) {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "VPN server port not defined, use -port <vpn server port>  parameter");
+            break;
+        }
+        size_t l_data_size_to_send = 10240;
+        size_t l_data_size_to_recv = 0;// no recv data, only send
+        // default timeout 10ms
+        int l_timeout_test_ms = dap_config_get_item_int32_default( g_config,"cdb", "servers_list_check_timeout", 20) * 1000;// read settings
+        // start node check
+        int l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, NULL, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
+        if(!l_res){
+            l_data_size_to_send = 0;// no send data, only recv
+            size_t l_data_size_to_recv = 10240;
+            int l_timeout_test_ms = -1;// default timeout
+            int l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, NULL, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
+        }
+        switch (l_res) {
+        case 0:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "tested VPN server successfully");
+            break;
+        case -2:
+        case -3:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't connect to VPN server");
+            break;
+        default:
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't recognize error code=%d", l_res);
+            break;
+        }
+        return l_res;
+    }
+        break;
     case CMD_INIT: {
             const char * l_str_token = NULL; // token name
             const char * l_str_value_datoshi = NULL;

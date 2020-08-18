@@ -399,6 +399,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     dap_chain_hash_fast_t * l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
                                              sizeof(dap_chain_hash_fast_t) * l_hashes_size);
     size_t l_hashes_linked = 0;
+    dap_chain_cell_t *l_cell = NULL;
 
     for (size_t d = 0; d <a_datums_count ; d++){
         dap_chain_datum_t * l_datum = a_datums[d];
@@ -471,9 +472,24 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked);
             if ( l_event){ // Event is created
 
-                // add directly to file
-                if(l_dag->is_add_directy) {
-                    if(!s_chain_callback_atom_add(a_chain, l_event)) {
+                if (l_dag->is_add_directy) {
+                    if (s_chain_callback_atom_add(a_chain, l_event) == ATOM_ACCEPT) {
+                        // add events to file
+                        if (!l_cell) {
+                            l_cell = dap_chain_cell_create();
+                            if (!l_cell) {
+                                log_it(L_ERROR, "Insufficient memory");
+                                continue;
+                            }
+                            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+                            l_cell->chain = a_chain;
+                            l_cell->id.uint64 = l_net ? l_net->pub.cell_id.uint64 : 0;
+                            l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell", l_cell->id.uint64);
+                        }
+                        if (dap_chain_cell_file_append(l_cell, l_event, a_chain->callback_atom_get_size(l_event)) < 0) {
+                            log_it(L_ERROR, "Can't add new event to the file '%s'", l_cell->file_storage_path);
+                            continue;
+                        }
                         l_datum_processed++;
                     }
                     else {
@@ -522,22 +538,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             }
         }
     }
-    // add events to file
-    if(l_dag->is_add_directy && l_datum_processed>0) {
-        dap_chain_cell_t *l_cell = dap_chain_cell_create();
-        int l_res = -1;
-        if(l_cell) {
-            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-            l_cell->chain = a_chain;
-            l_cell->id.uint64 = l_net ? l_net->pub.cell_id.uint64 : 0;
-            l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell", l_cell->id.uint64);
-            l_res = dap_chain_cell_file_update(l_cell);
-        }
-        if(!l_cell || l_res < 0) {
-            log_it(L_ERROR, "Can't add new %d events to the file '%s'", l_datum_processed,
-                    l_cell ? l_cell->file_storage_path : "");
-            l_datum_processed = 0;
-        }
+    if (l_cell) {
         dap_chain_cell_delete(l_cell);
     }
     dap_chain_global_db_objs_delete(l_events_round_new, l_events_round_new_size);
