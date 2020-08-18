@@ -430,8 +430,6 @@ static void *thread_worker_function(void *arg)
                 }
             }
 
-            pthread_mutex_lock(&w->locker_on_count);
-
             if((cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !cur->no_close) {
                 // protect against double deletion
                 cur->kill_signal = true;
@@ -442,11 +440,8 @@ static void *thread_worker_function(void *arg)
             if(cur->kill_signal) {
                 log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", cur->socket, tn);
                 dap_events_socket_remove(cur);
-                pthread_mutex_unlock(&w->locker_on_count);
                 dap_events_socket_delete( cur, true);
             }
-            else
-                pthread_mutex_unlock(&w->locker_on_count);
 
             /*
             if(!w->event_to_kill_count) {
