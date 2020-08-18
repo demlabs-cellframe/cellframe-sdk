@@ -93,8 +93,35 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
-          dap_chain_delete(s_chain_items->chain);
-        }
+          dap_chain_delete(l_item->chain);
+    }
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
+}
+
+
+/**
+ * @brief dap_chain_deinit
+ * note: require dap_chain_enum_unlock() after
+ */
+dap_chain_t* dap_chain_enum(void** a_item)
+{
+    // if a_item == 0x1 then first item
+    dap_chain_item_t *l_item_start = (*a_item == 0x1) ? s_chain_items : (dap_chain_item_t*) *a_item;
+    dap_chain_item_t *l_item = NULL;
+    dap_chain_item_t *l_item_tmp = NULL;
+    pthread_rwlock_wrlock(&s_chain_items_rwlock);
+    HASH_ITER(hh, l_item_start, l_item, l_item_tmp) {
+        *a_item = l_item_tmp;
+        return l_item->chain;
+    }
+    return NULL ;
+}
+
+/**
+ * @brief dap_chain_enum_unlock
+ */
+void dap_chain_enum_unlock(void)
+{
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 

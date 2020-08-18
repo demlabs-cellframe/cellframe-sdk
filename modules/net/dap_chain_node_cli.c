@@ -62,6 +62,7 @@
 #include "dap_list.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_cli.h"
 
 //#include "dap_chain_node_cli.h"
@@ -956,6 +957,18 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Transaction history
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
+
+    // Ledger info
+    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, NULL, "Ledger info",
+            "ledger list coins -net <network name>\n"
+            "ledger list coins_cond -net <network name>\n"
+            "ledger list addrs -net <network name>\n"
+            "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+
+    // Token info
+    dap_chain_node_cli_cmd_item_create("token", com_token, NULL, "Token info",
+            "token list -net <network name>\n"
+            "token tx all name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
 
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, NULL, "Print log info",
