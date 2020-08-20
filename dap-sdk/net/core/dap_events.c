@@ -91,7 +91,7 @@ dap_thread_t *s_threads = NULL;
 
 #define LOG_TAG "dap_events"
 
-uint32_t s_get_cpu_count( )
+uint32_t dap_get_cpu_count( )
 {
 #ifdef _WIN32
   SYSTEM_INFO si;
@@ -123,7 +123,7 @@ uint32_t s_get_cpu_count( )
  */
 int32_t dap_events_init( uint32_t a_threads_count, size_t conn_timeout )
 {
-  s_threads_count = a_threads_count ? a_threads_count : s_get_cpu_count( );
+  s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
 
   if ( conn_timeout )
     s_connection_timeout = conn_timeout;
@@ -521,6 +521,11 @@ uint32_t dap_worker_get_index_min( )
   return min;
 }
 
+dap_worker_t * dap_worker_get_index(uint8_t a_index)
+{
+    return a_index < s_threads_count ? &s_workers[a_index] : NULL;
+}
+
 /**
  * @brief dap_worker_print_all
  */
@@ -585,11 +590,21 @@ int dap_events_wait( dap_events_t *sh )
 }
 
 /**
+ * @brief sap_worker_add_events_socket
+ * @param a_events_socket
+ * @param a_worker
+ */
+void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
+{
+    eventfd_write( a_worker->eventsfd_new, (eventfd_t) a_events_socket );
+}
+
+/**
  * @brief dap_worker_add_events_socket
  * @param a_worker
  * @param a_events_socket
  */
-void dap_worker_add_events_socket( dap_events_socket_t *a_es)
+void dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 {
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_worker_get_min( );
