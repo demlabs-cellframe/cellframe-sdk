@@ -274,9 +274,7 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
 
   //dap_events_t *d_ev = w->events;
 
-  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
   if ( a_es->kill_signal ) {
-    pthread_mutex_unlock( &a_es->dap_worker ->locker_on_count );
     return 0;
   }
 
@@ -285,7 +283,6 @@ int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
   a_es->kill_signal = true;
   //DL_LIST_ADD_NODE_HEAD( d_ev->to_kill_sockets, a_es, kprev, knext, w->event_to_kill_count );
 
-  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
   return 0;
 }
 
@@ -333,6 +330,7 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
  */
 void dap_events_socket_remove( dap_events_socket_t *a_es)
 {
+  pthread_mutex_lock(&a_es->dap_worker->locker_on_count);
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
      log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
   else
@@ -340,10 +338,12 @@ void dap_events_socket_remove( dap_events_socket_t *a_es)
 
   DL_DELETE( a_es->events->dlsockets, a_es );
   a_es->dap_worker->event_sockets_count --;
+  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
 }
 
 void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool preserve_inheritor )
 {
+  pthread_mutex_lock(&a_es->dap_worker->locker_on_count);
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
      log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
   else
@@ -351,6 +351,7 @@ void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool prese
 
   DL_DELETE( a_es->events->dlsockets, a_es );
   a_es->dap_worker->event_sockets_count --;
+  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
 
   dap_events_socket_delete( a_es, preserve_inheritor );
 }
