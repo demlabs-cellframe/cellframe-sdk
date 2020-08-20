@@ -277,7 +277,7 @@ int dap_client_pvt_disconnect(dap_client_pvt_t *a_client_pvt)
 
 //        l_client_internal->stream_es->signal_close = true;
         // start stopping connection
-        if(!dap_events_socket_kill_socket(a_client_pvt->stream_es)) {
+        if(a_client_pvt->stream_es && !dap_events_socket_kill_socket(a_client_pvt->stream_es)) {
             int l_counter = 0;
             // wait for stop of connection (max 0.7 sec.)
             while(a_client_pvt->stream_es && l_counter < 70) {
@@ -485,10 +485,9 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             a_client_pvt->stream_es->_inheritor = a_client_pvt;//->client;
             a_client_pvt->stream = dap_stream_new_es(a_client_pvt->stream_es);
             a_client_pvt->stream->is_client_to_uplink = true;
-            a_client_pvt->stream_session = dap_stream_session_pure_new(); // may be from in packet?
+            a_client_pvt->stream->session = dap_stream_session_pure_new(); // may be from in packet?
 
             // new added, whether it is necessary?
-            a_client_pvt->stream->session = a_client_pvt->stream_session;
             a_client_pvt->stream->session->key = a_client_pvt->stream_key;
 
             // connect
@@ -1201,39 +1200,21 @@ void m_es_stream_delete(dap_events_socket_t *a_es, void *arg)
 {
     log_it(L_INFO, "================= stream delete/peer reconnect");
 
-    //dap_client_t *l_client = DAP_CLIENT(a_es);
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
 
     if(l_client_pvt == NULL) {
         log_it(L_ERROR, "dap_client_pvt_t is not initialized");
         return;
     }
-    //pthread_mutex_lock(&l_client->mutex);
 
-    //dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
     log_it(L_DEBUG, "client_pvt=0x%x", l_client_pvt);
-    if(l_client_pvt == NULL) {
-        log_it(L_ERROR, "dap_client_pvt is not initialized");
-        //pthread_mutex_unlock(&l_client->mutex);
-        return;
-    }
 
+    if (l_client_pvt->stage_status_error_callback) {
+        l_client_pvt->stage_status_error_callback(l_client_pvt->client, (void *)true);
+    }
     dap_stream_delete(l_client_pvt->stream);
     l_client_pvt->stream = NULL;
-
-//    if(l_client_pvt->client && l_client_pvt->client == l_client)
-//        dap_client_reset(l_client_pvt->client);
-//    l_client_pvt->client= NULL;
-
-//    log_it(L_DEBUG, "dap_stream_session_close()");
-//    sleep(3);
-    dap_stream_session_close(l_client_pvt->stream_session->id);
-    l_client_pvt->stream_session = NULL;
-
-    // signal to permit  deleting of l_client_pvt
     l_client_pvt->stream_es = NULL;
-    //pthread_mutex_unlock(&l_client->mutex);
-
 
 /*  disable reconnect from here
     if(l_client_pvt->is_reconnect) {
