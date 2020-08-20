@@ -115,13 +115,16 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
     }
 }
 
-bool dap_stream_ch_valid(dap_stream_ch_t *a_ch)
+struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch)
 {
     struct dap_stream_ch_table_t *l_ret;
     if(!a_ch)
         return false;
     pthread_mutex_lock(&s_ch_table_lock);
     HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
+    if (l_ret) {
+        pthread_mutex_lock(&a_ch->mutex);
+    }
     pthread_mutex_unlock(&s_ch_table_lock);
     return l_ret;
 }
@@ -140,15 +143,19 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
         return;
     }
     HASH_DEL(s_ch_table, l_ret);
+    pthread_mutex_lock(&a_ch->mutex);
     pthread_mutex_unlock(&s_ch_table_lock);
     DAP_DELETE(l_ret);
 
-    pthread_mutex_lock(&a_ch->mutex);
     if (a_ch->proc)
         if (a_ch->proc->delete_callback)
             a_ch->proc->delete_callback(a_ch, NULL);
     pthread_mutex_unlock(&a_ch->mutex);
     pthread_mutex_destroy(&a_ch->mutex);
+
+    //pthread_rwlock_wrlock(&a_ch->stream->rwlock);
+    a_ch->stream->channel[a_ch->stream->channel_count--] = NULL;
+    //pthread_rwlock_unlock(&a_ch->stream->rwlock);
 
 /* fixed raise, but probably may be memory leak!
     if(ch->internal){
@@ -168,7 +175,6 @@ void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * a_ch,bool a_is_ready)
     if (!dap_stream_ch_valid(a_ch)) {
         return;
     }
-    pthread_mutex_lock(&a_ch->mutex);
     if( a_ch->ready_to_read != a_is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         a_ch->ready_to_read=a_is_ready;
@@ -194,7 +200,6 @@ void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
     if (!dap_stream_ch_valid(ch)) {
         return;
     }
-    pthread_mutex_lock(&ch->mutex);
     if(ch->ready_to_write!=is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         ch->ready_to_write=is_ready;
@@ -223,7 +228,6 @@ bool dap_stream_ch_get_ready_to_read(dap_stream_ch_t * a_ch)
         return false;
     }
     bool l_ret;
-    pthread_mutex_lock(&a_ch->mutex);
     l_ret = a_ch->ready_to_read;
     pthread_mutex_unlock(&a_ch->mutex);
     return l_ret;
@@ -240,7 +244,6 @@ bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t * a_ch)
         return false;
     }
     bool l_ret;
-    pthread_mutex_lock(&a_ch->mutex);
     l_ret = a_ch->ready_to_write;
     pthread_mutex_unlock(&a_ch->mutex);
     return l_ret;

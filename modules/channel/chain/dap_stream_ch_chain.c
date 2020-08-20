@@ -516,8 +516,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                               l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_chains, sizeof(l_sync_chains));
             }
             default: {
-                    //log_it(L_INFO, "Get %s packet", c_dap_stream_ch_chain_pkt_type_str[l_ch_pkt->hdr.type]);
-                     }
+                dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                                                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                                                    "ERROR_UNKNOWN_CHAIN_PKT_TYPE");
+                }
             }
             if(l_ch_chain->callback_notify_packet_in)
                 l_ch_chain->callback_notify_packet_in(l_ch_chain, l_ch_pkt->hdr.type, l_chain_pkt,

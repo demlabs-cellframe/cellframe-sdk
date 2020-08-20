@@ -21,7 +21,7 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifndef WIN32
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -149,4 +149,4 @@ int dap_timerfd_delete(dap_timerfd_t *l_timerfd)
     DAP_DELETE(l_timerfd);
     return 0;
 }
-
+#endif

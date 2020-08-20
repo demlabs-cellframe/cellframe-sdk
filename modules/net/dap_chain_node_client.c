@@ -120,12 +120,12 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     if(l_is_last_attempt){
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
 
     if(l_node_client && l_node_client->keep_connection &&
@@ -137,13 +137,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         log_it(L_DEBUG, "Wakeup all who waits");
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ERROR;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         //dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
     }
     //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
@@ -161,9 +161,6 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     if(l_node_client) {
         log_it(L_NOTICE, "Stream connection with node " NODE_ADDR_FP_STR " established",
                 NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr));
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
         // set callbacks for C and N channels; for R and S it is not needed
         dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
         if(l_client_internal && l_client_internal->active_channels) {
@@ -174,31 +171,18 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 }
             }
         }
-        /*
-             // find current channel code
-             dap_stream_ch_t * l_ch = NULL;
-             l_ch = dap_client_get_stream_ch(a_client, l_client_internal->active_channels[0]);
-        //dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client, dap_stream_ch_chain_get_id());
-        if(l_ch) {
-            dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
-            dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-            l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
-            l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
-            l_ch_chain->callback_notify_arg = l_node_client;
-        } else {
-            log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
-        }*/
         if(l_node_client->callback_connected)
             l_node_client->callback_connected(l_node_client, a_arg);
         l_node_client->keep_connection = true;
         log_it(L_DEBUG, "Wakeup all who waits");
-
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
-
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
 }
 
@@ -223,12 +207,12 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         }
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
-                    SetEvent( l_node_client->wait_cond );
-        #endif
+        SetEvent( l_node_client->wait_cond );
+#endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         break;
     }
     // get remote node address
@@ -240,13 +224,13 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         }
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
             SetEvent( l_node_client->wait_cond );
 #endif
-        break;
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+            break;
     }
     }
 }
@@ -267,20 +251,20 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
     case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ERROR;
         dap_snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
                 "%s", (char*) a_pkt->data);
         log_it(L_WARNING, "Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
                 l_node_client->last_error);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_ERROR;
 
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
-            SetEvent( l_node_client->wait_cond );
+        SetEvent( l_node_client->wait_cond );
 #endif
-
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
@@ -387,25 +371,24 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     log_it(L_INFO, "Remote node has lastes timestamp for us type=%d", a_pkt_type);
                     pthread_mutex_lock(&l_node_client->wait_mutex);
                     l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                    pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
                     pthread_cond_signal(&l_node_client->wait_cond);
 #else
                     SetEvent( l_node_client->wait_cond );
 #endif
-
+                    pthread_mutex_unlock(&l_node_client->wait_mutex);
                 }
             }
         } else {
             log_it(L_INFO, "Sync notify without request to sync back, stay in SYNCED state");
             pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-            pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
             pthread_cond_signal(&l_node_client->wait_cond);
 #else
-                SetEvent( l_node_client->wait_cond );
+            SetEvent( l_node_client->wait_cond );
 #endif
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
         }
 
     }
@@ -438,12 +421,12 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
-            SetEvent( l_node_client->wait_cond );
+        SetEvent( l_node_client->wait_cond );
 #endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
         break;
     default: {
@@ -520,12 +503,12 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
             //...
             pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_CHECKED;
-            pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
             pthread_cond_signal(&l_node_client->wait_cond);
 #else
             SetEvent( l_node_client->wait_cond );
 #endif
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
             break;
         }
     }
