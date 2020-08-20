@@ -366,13 +366,18 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
             if (l_pvt_net->node_info) {
                 for (size_t i = 0; i < l_pvt_net->node_info->hdr.links_number; i++) {
                     dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_pvt_net->node_info->links[i]);
-                    if (l_link_node_info->hdr.address.uint64 == l_pvt_net->node_info->hdr.address.uint64) {
+                    if (!l_link_node_info || l_link_node_info->hdr.address.uint64 == l_pvt_net->node_info->hdr.address.uint64) {
                         continue;   // Do not link with self
                     }
                     l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                 }
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, find nearest 3 links and fill global_db");
+            }
+            if (!l_pvt_net->seed_aliases_count) {
+                log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
+                l_pvt_net->state_target = l_pvt_net->state = NET_STATE_OFFLINE;
+                break;
             }
             switch (l_pvt_net->node_role.enums) {
                 case NODE_ROLE_ROOT:
@@ -453,8 +458,15 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
         } break;
 
         case NET_STATE_SYNC_GDB:{
-            for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+            for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; ) {
                 dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
+                dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+                if (!l_ch_chain) { // Channel or stream or client itself closed
+                    l_tmp = dap_list_next(l_tmp);
+                    dap_chain_node_client_close(l_node_client);
+                    l_pvt_net->links = dap_list_remove(l_pvt_net->links, l_node_client);
+                    continue;
+                }
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                 // Get last timestamp in log
                 l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_node_client->remote_node_addr.uint64);
@@ -505,8 +517,11 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 default:
                     log_it(L_INFO, "Node sync error %d",l_res);
                 }
+                l_tmp = dap_list_next(l_tmp);
             }
-            if (l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS){
+            if (!l_pvt_net->links) {
+                l_pvt_net->state = NET_STATE_LINKS_PREPARE;
+            } else if (l_pvt_net->state_target >= NET_STATE_SYNC_CHAINS) {
                 l_pvt_net->state = NET_STATE_SYNC_CHAINS;
             } else {    // Synchronization done, go offline
                 log_it(L_INFO, "Synchronization done");
@@ -516,12 +531,14 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
         break;
 
         case NET_STATE_SYNC_CHAINS: {
+            bool l_need_flush = false;
             for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
-                uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db and chains sync
-                dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
-                if (!l_ch_chain) {
-                    log_it(L_DEBUG,"Can't get stream_ch for id='%c' ", l_ch_id);
+                dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+                if (!l_ch_chain) { // Channel or stream or client itself closed
+                    l_tmp = dap_list_next(l_tmp);
+                    dap_chain_node_client_close(l_node_client);
+                    l_pvt_net->links = dap_list_remove(l_pvt_net->links, l_node_client);
                     continue;
                 }
                 dap_chain_t * l_chain = NULL;
@@ -540,24 +557,22 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
                         break;
                     case 0:
-                        // flush global_db
-                        dap_chain_global_db_flush();
-                        log_it(L_INFO, "sync of chain '%s' completed ", l_chain->name);
+                        l_need_flush = true;
+                        log_it(L_INFO, "Sync of chain '%s' completed ", l_chain->name);
                         break;
                     default:
-                        log_it(L_ERROR, "sync of chain '%s' error %d", l_chain->name,l_res);
+                        log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                     dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, l_net->pub.id,
                                                   l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
                     case -1:
-                        log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
+                        log_it(L_WARNING,"Timeout with reverse sync of chain '%s' ", l_chain->name);
                         break;
                     case 0:
-                        // flush global_db
-                        dap_chain_global_db_flush();
-                        log_it(L_INFO, "sync of chain '%s' completed ", l_chain->name);
+                        l_need_flush = true;
+                        log_it(L_INFO, "Reverse sync of chain '%s' completed ", l_chain->name);
                         // set time of last sync
                         {
                             struct timespec l_to;
@@ -566,16 +581,25 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         }
                         break;
                     default:
-                        log_it(L_ERROR, "sync of chain '%s' error %d", l_chain->name,l_res);
+                        log_it(L_ERROR, "Reverse sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                 }
+                l_tmp = dap_list_next(l_tmp);
             }
-            log_it(L_INFO, "Synchronization done");
-            if (l_pvt_net->state_target == NET_STATE_ONLINE) {
-                l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
-                l_pvt_net->state = NET_STATE_ONLINE;
-            } else {    // Synchronization done, go offline
-                l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
+            if (l_need_flush) {
+                // flush global_db
+                dap_chain_global_db_flush();
+            }
+            if (!l_pvt_net->links) {
+                l_pvt_net->state = NET_STATE_LINKS_PREPARE;
+            } else {
+                log_it(L_INFO, "Synchronization done");
+                if (l_pvt_net->state_target == NET_STATE_ONLINE) {
+                    l_pvt_net->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
+                    l_pvt_net->state = NET_STATE_ONLINE;
+                } else {    // Synchronization done, go offline
+                    l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
+                }
             }
         }
         break;
@@ -653,7 +677,7 @@ static void *s_net_proc_thread ( void *a_net )
 
 #endif
         // checking whether new sync is needed
-        time_t l_sync_timeout = 300; // 300 sec = 5 min
+        time_t l_sync_timeout = 1800; // 1800 sec = 30 min
         clock_gettime(CLOCK_MONOTONIC, &l_to);
         // start sync every l_sync_timeout sec
         if(l_to.tv_sec >= p_net->last_sync + l_sync_timeout) {

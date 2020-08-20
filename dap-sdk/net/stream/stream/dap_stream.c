@@ -338,18 +338,49 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
     return ret;
 }
 
-void dap_stream_delete( dap_stream_t *a_stream )
+void dap_stream_delete(dap_stream_t *a_stream)
 {
-//    log_it(L_DEBUG,"dap_stream_delete( )");
     if(a_stream == NULL) {
         log_it(L_ERROR,"stream delete NULL instance");
         return;
     }
-    pthread_rwlock_destroy(&a_stream->rwlock);
-    stream_dap_delete(a_stream->conn, NULL);
+    pthread_mutex_lock(&s_mutex_keepalive_list);
+    if(s_stream_keepalive_list){
+        DL_DELETE(s_stream_keepalive_list, a_stream);
+    }
+    a_stream->conn_udp = NULL;
+    a_stream->conn = NULL;
+    a_stream->events_socket = NULL;
+    pthread_mutex_unlock(&s_mutex_keepalive_list);
 
+    while (a_stream->channel_count) {
+        dap_stream_ch_delete(a_stream->channel[a_stream->channel_count - 1]);
+    }
+
+    pthread_rwlock_wrlock(&a_stream->rwlock);
+    if(a_stream->session)
+        dap_stream_session_close(a_stream->session->id);
+    a_stream->session = NULL;
+    pthread_rwlock_unlock(&a_stream->rwlock);
+    pthread_rwlock_destroy(&a_stream->rwlock);
     DAP_DELETE(a_stream);
+    log_it(L_NOTICE,"Stream connection is over");
 }
+
+/**
+ * @brief stream_dap_delete Delete callback for UDP client
+ * @param sh DAP client instance
+ * @param arg Not used
+ */
+void stream_dap_delete(dap_client_remote_t* sh, void * arg)
+{
+    UNUSED(arg);
+    if (!sh)
+        return;
+    dap_stream_t *l_stream = DAP_STREAM(sh);
+    dap_stream_delete(l_stream);
+}
+
 
 /**
  * @brief dap_stream_new_es
@@ -676,42 +707,6 @@ void stream_dap_data_write(dap_client_remote_t* a_client , void * arg){
     //log_it(L_ERROR,"No stream_data_write_callback is defined");
 
     //log_it(L_DEBUG,"stream_dap_data_write ok");
-}
-
-/**
- * @brief stream_dap_delete Delete callback for UDP client
- * @param sh DAP client instance
- * @param arg Not used
- */
-void stream_dap_delete(dap_client_remote_t* sh, void * arg){
-    if(!sh)
-        return;
-    dap_stream_t * l_stream = DAP_STREAM(sh);
-    if(l_stream == NULL)
-        return;
-    (void) arg;
-
-    pthread_mutex_lock(&s_mutex_keepalive_list);
-    if(s_stream_keepalive_list){
-        DL_DELETE(s_stream_keepalive_list, l_stream);
-    }
-    pthread_mutex_unlock(&s_mutex_keepalive_list);
-
-    /*  Until channel is closed, it may still need l_stream->rwlock, so we can't lock it here yet.
-        In case of races on stream closing think about making this place more robust;
-        or forbid locking l_stream->rwlock from inside of channels.  */
-    for( ;l_stream->channel_count; l_stream->channel_count--){
-        dap_stream_ch_delete(l_stream->channel[l_stream->channel_count - 1]);
-        l_stream->channel[l_stream->channel_count - 1] = NULL;
-    }
-
-    pthread_rwlock_wrlock(&l_stream->rwlock);
-    if(l_stream->session)
-        dap_stream_session_close(l_stream->session->id);
-    l_stream->session = NULL;
-    pthread_rwlock_unlock(&l_stream->rwlock);
-    //free(sid);
-    log_it(L_NOTICE,"Stream connection is over");
 }
 
 /**

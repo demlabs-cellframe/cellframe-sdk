@@ -82,7 +82,6 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
     if (!dap_stream_ch_valid(a_ch)) {
         return 0;
     }
-    pthread_mutex_lock( &a_ch->mutex);
 
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 

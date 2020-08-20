@@ -41,7 +41,6 @@ typedef struct dap_client_internal
 
     dap_events_socket_t * stream_es;
     int stream_socket;
-    dap_stream_session_t * stream_session;
     dap_stream_t* stream;
     dap_events_t * events;
 
