@@ -27,7 +27,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
-
+#include <errno.h>
 #ifndef _WIN32
 #include <sys/epoll.h>
 #include <unistd.h>
@@ -88,7 +88,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
   ret->events = a_events;
   memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
   ret->flags = DAP_SOCK_READY_TO_READ;
-  pthread_mutex_init(&ret->write_hold, NULL);
+  pthread_mutex_init(&ret->mutex, NULL);
 
   log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
@@ -113,24 +113,62 @@ void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_w
  */
 dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
 {
-#if defined (DAP_EVENTS_CAPS_EVENT_EVENTFD) && defined (DAP_EVENTS_CAPS_EPOLL)
-    struct epoll_event l_ev={0};
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     l_es->dap_worker = a_w;
-    l_es->callbacks.action_callback = a_callback; // Arm action callback
-    int l_eventfd = eventfd(0,EFD_NONBLOCK);
-    //log_it( L_DEBUG, "Created eventfd %d (%p)", l_eventfd, l_es);
-    l_es->socket = l_eventfd;
+    l_es->callbacks.event_callback = a_callback; // Arm event callback
+
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
+    int l_pipe[2];
+    int l_errno;
+    char l_errbuf[128];
+    if( pipe2(l_pipe,O_DIRECT) < 0 ){
+        l_errno = errno;
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        switch (l_errno) {
+            case EINVAL: log_it(L_CRITICAL, "Too old linux version thats doesn't support O_DIRECT flag for pipes (%s)", l_errbuf); break;
+            default: log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
+        }
+        return NULL;
+    }else
+        log_it(L_DEBUG, "Created one-way unnamed pipe %d->%d", l_pipe[0], l_pipe[1]);
+    l_es->fd = l_pipe[1];
+    l_es->fd2 = l_pipe[0];
+#endif
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+    struct epoll_event l_ev={0};
+    int l_event_fd = l_es->fd;
+    log_it( L_INFO, "Create event descriptor with queue %d (%p)", l_event_fd, l_es);
     l_ev.events = EPOLLIN | EPOLLET;
     l_ev.data.ptr = l_es;
-    epoll_ctl(a_w->epoll_fd, EPOLL_CTL_ADD, l_eventfd, &l_ev);
+    epoll_ctl(a_w->epoll_fd, EPOLL_CTL_ADD, l_event_fd, &l_ev);
+#endif
     return  l_es;
-#else
-    // Default realization with pipe
-    return  NULL;
+}
+
+/**
+ * @brief dap_events_socket_send_event
+ * @param a_es
+ * @param a_arg
+ */
+void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg)
+{
+#if defined(DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE)
+    write( a_es->fd2, &a_arg,sizeof(a_arg));
 #endif
 }
+
+/**
+ * @brief dap_events_socket_queue_on_remove_and_delete
+ * @param a_es
+ */
+void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
+{
+    dap_events_socket_send_event( a_es->dap_worker->event_delete_es, a_es );
+}
+
+
 
 /**
  * @brief dap_events_socket_create_after
@@ -148,7 +186,6 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
   pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
 
   a_es->dap_worker->event_sockets_count ++;
-  DL_APPEND( a_es->events->dlsockets, a_es );
 
   pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
   HASH_ADD_INT( a_es->events->sockets, socket, a_es );
@@ -228,7 +265,8 @@ void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
   if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ) )
     return;
 
-  sc->ev.events = EPOLLERR;
+  sc->ev.events = sc->ev_base_flags;
+  sc->ev.events |= EPOLLERR;
 
   if ( is_ready )
     sc->flags |= DAP_SOCK_READY_TO_READ;
@@ -258,10 +296,10 @@ void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
  */
 void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
 {
-  pthread_mutex_lock(&sc->write_hold);
+  pthread_mutex_lock(&sc->mutex);
 
   if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
-    pthread_mutex_unlock(&sc->write_hold);
+    pthread_mutex_unlock(&sc->mutex);
     return;
   }
 
@@ -270,7 +308,7 @@ void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
   else
     sc->flags ^= DAP_SOCK_READY_TO_WRITE;
 
-  int events = EPOLLERR;
+  int events = sc->ev_base_flags | EPOLLERR;
 
   if( sc->flags & DAP_SOCK_READY_TO_READ )
     events |= EPOLLIN;
@@ -278,7 +316,7 @@ void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
   if( sc->flags & DAP_SOCK_READY_TO_WRITE )
     events |= EPOLLOUT;
 
-  pthread_mutex_unlock(&sc->write_hold);
+  pthread_mutex_unlock(&sc->mutex);
 
   sc->ev.events = events;
 
@@ -354,9 +392,15 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
     closesocket( a_es->socket );
 #else
     close( a_es->socket );
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
+    if( a_es->type == DESCRIPTOR_TYPE_EVENT){
+        close( a_es->fd2);
+    }
+#endif
+
 #endif
   }
-  pthread_mutex_destroy(&a_es->write_hold);
+  pthread_mutex_destroy(&a_es->mutex);
   DAP_DELETE( a_es );
 }
 
@@ -364,32 +408,24 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
  * @brief dap_events_socket_delete
  * @param a_es
  */
-void dap_events_socket_remove( dap_events_socket_t *a_es)
+void s_es_remove( dap_events_socket_t *a_es)
 {
-  pthread_mutex_lock(&a_es->dap_worker->locker_on_count);
   if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
      log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
   else
      log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
 
-  DL_DELETE( a_es->events->dlsockets, a_es );
   a_es->dap_worker->event_sockets_count --;
-  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
 }
 
-void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool preserve_inheritor )
+/**
+ * @brief dap_events_socket_remove_and_delete
+ * @param a_es
+ * @param preserve_inheritor
+ */
+void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
 {
-  pthread_mutex_lock(&a_es->dap_worker->locker_on_count);
-  if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
-     log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
-  else
-     log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
-
-  DL_DELETE( a_es->events->dlsockets, a_es );
-  a_es->dap_worker->event_sockets_count --;
-  pthread_mutex_unlock(&a_es->dap_worker->locker_on_count);
-
-  dap_events_socket_delete( a_es, preserve_inheritor );
+    dap_events_socket_send_event( a_es->dap_worker->event_delete_es, a_es );
 }
 
 /**
@@ -402,11 +438,11 @@ void dap_events_socket_remove_and_delete( dap_events_socket_t *a_es,  bool prese
 size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
     //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
-     pthread_mutex_lock(&sc->write_hold);
+     pthread_mutex_lock(&sc->mutex);
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
      sc->buf_out_size+=data_size;
-     pthread_mutex_unlock(&sc->write_hold);
+     pthread_mutex_unlock(&sc->mutex);
      return data_size;
 }
 
@@ -420,7 +456,7 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
 {
     log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
 
-    pthread_mutex_lock(&sc->write_hold);
+    pthread_mutex_lock(&sc->mutex);
     size_t max_data_size = sizeof(sc->buf_out)-sc->buf_out_size;
     va_list ap;
     va_start(ap,format);
@@ -431,7 +467,7 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
     }else{
         log_it(L_ERROR,"Can't write out formatted data '%s'",format);
     }
-    pthread_mutex_unlock(&sc->write_hold);
+    pthread_mutex_unlock(&sc->mutex);
     return (ret > 0) ? ret : 0;
 }
 

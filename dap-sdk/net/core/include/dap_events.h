@@ -52,9 +52,6 @@ struct dap_worker;
 typedef struct dap_events {
 
   dap_events_socket_t *sockets; // Hashmap of event sockets
-  dap_events_socket_t *dlsockets; // Dlist of event sockets
-  dap_events_socket_t *to_kill_sockets; // Dlist of event sockets
-
   pthread_rwlock_t sockets_rwlock;
   void *_inheritor;  // Pointer to the internal data, HTTP for example
   dap_thread_t proc_thread;
@@ -66,7 +63,8 @@ typedef struct dap_worker
 {
   atomic_uint event_sockets_count;
 
-  int eventsfd_new; // Events fd for new socket
+  dap_events_socket_t * event_new_es; // Events socket for new socket
+  dap_events_socket_t * event_delete_es; // Events socket for new socket
   EPOLL_HANDLE epoll_fd;
   uint32_t number_thread;
   pthread_mutex_t locker_on_count;

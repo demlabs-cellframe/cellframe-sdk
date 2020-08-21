@@ -285,7 +285,7 @@ int dap_client_pvt_disconnect(dap_client_pvt_t *a_client_pvt)
                 l_counter++;
             }
             if(l_counter >= 70) {
-                dap_events_socket_remove_and_delete(a_client_pvt->stream_es, true);
+                dap_events_socket_queue_remove_and_delete(a_client_pvt->stream_es);
             }
         }
 //        if (l_client_internal->stream_socket ) {

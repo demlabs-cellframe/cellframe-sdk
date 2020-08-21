@@ -79,17 +79,20 @@
 //} dap_events_socket_info_t;
 
 //dap_events_socket_info_t **s_dap_events_sockets;
+#define LOG_TAG "dap_events"
 
 static uint32_t s_threads_count = 1;
-static size_t   s_connection_timeout = 6000;
+static time_t s_connection_timeout = 6000;
 static struct epoll_event *g_epoll_events = NULL;
 static volatile bool bEventsAreActive = true;
 
 bool s_workers_init = false;
 dap_worker_t *s_workers = NULL;
 dap_thread_t *s_threads = NULL;
+static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg);
 
-#define LOG_TAG "dap_events"
 
 uint32_t dap_get_cpu_count( )
 {
@@ -216,17 +219,17 @@ void dap_events_delete( dap_events_t *a_events )
  * @param n_thread
  * @param sh
  */
-static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t *d_ev, time_t cur_time )
+static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t *a_events, time_t cur_time )
 {
   dap_events_socket_t *a_es, *tmp;
 
-  pthread_mutex_lock( &dap_worker->locker_on_count );
-  DL_FOREACH_SAFE( d_ev->dlsockets, a_es, tmp ) {
+  pthread_rwlock_rdlock(&a_events->sockets_rwlock);
+  HASH_ITER(hh, a_events->sockets, a_es, tmp ) {
 
     if ( a_es->type == DESCRIPTOR_TYPE_FILE)
       continue;
 
-    if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
+    if ( !a_es->kill_signal && cur_time >=  (time_t)a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
       if (a_es->callbacks.error_callback) {
@@ -238,12 +241,12 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
       else
         log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", dap_worker->number_thread );
 
-      dap_worker->event_sockets_count --;
-      DL_DELETE( d_ev->dlsockets, a_es );
+      pthread_rwlock_unlock(&a_events->sockets_rwlock);
       dap_events_socket_delete( a_es, true );
+      pthread_rwlock_rdlock(&a_events->sockets_rwlock);
     }
   }
-  pthread_mutex_unlock( &dap_worker->locker_on_count );
+  pthread_rwlock_unlock(&a_events->sockets_rwlock);
 
 }
 
@@ -254,7 +257,7 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
  */
 static void *thread_worker_function(void *arg)
 {
-    dap_events_socket_t *cur;
+    dap_events_socket_t *l_cur;
     dap_worker_t *w = (dap_worker_t *) arg;
     time_t next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
     uint32_t tn = w->number_thread;
@@ -285,6 +288,9 @@ static void *thread_worker_function(void *arg)
   }
   #endif
 
+    w->event_new_es = dap_events_socket_create_type_event( w, s_new_es_callback);
+    w->event_delete_es = dap_events_socket_create_type_event( w, s_new_es_callback);
+
     log_it(L_INFO, "Worker %d started, epoll fd %d", w->number_thread, w->epoll_fd);
 
     struct epoll_event *events = &g_epoll_events[ DAP_MAX_EPOLL_EVENTS * tn];
@@ -309,57 +315,68 @@ static void *thread_worker_function(void *arg)
         time_t cur_time = time( NULL);
         for(int32_t n = 0; n < selected_sockets; n++) {
 
-            cur = (dap_events_socket_t *) events[n].data.ptr;
+            l_cur = (dap_events_socket_t *) events[n].data.ptr;
 
-            if(!cur) {
+            if(!l_cur) {
 
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
+            l_cur->last_time_active = cur_time;
             //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", w->number_thread, w->epoll_fd,cur->socket, events[n].events,events[n].events);
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
-                getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
-                //if(!(events[n].events & EPOLLIN))
-                //cur->no_close = false;
-                if (l_sock_err) {
-                    cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                    log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
-                    if(!(events[n].events & EPOLLERR))
-                        cur->callbacks.error_callback(cur, NULL); // Call callback to process error event
+                switch (l_cur->type ){
+                    case DESCRIPTOR_TYPE_SOCKET_LISTENING:
+                    case DESCRIPTOR_TYPE_SOCKET:
+                        getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
+                        //if(!(events[n].events & EPOLLIN))
+                        //cur->no_close = false;
+                        if (l_sock_err) {
+                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
+                        }
+                   default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
                 }
             }
 
             if(events[n].events & EPOLLERR) {
-                getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
-                log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
-                cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                cur->callbacks.error_callback(cur, NULL); // Call callback to process error event
+                switch (l_cur->type ){
+                    case DESCRIPTOR_TYPE_SOCKET_LISTENING:
+                    case DESCRIPTOR_TYPE_SOCKET:
+                        getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
+                        log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
+                    default: ;
+                }
+                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                l_cur->callbacks.error_callback(l_cur, NULL); // Call callback to process error event
             }
 
-            cur->last_time_active = cur_time;
 
             if(events[n].events & EPOLLIN) {
 
                 //log_it(DEBUG,"Comes connection in active read set");
-                if(cur->buf_in_size == sizeof(cur->buf_in)) {
+                if(l_cur->buf_in_size == sizeof(l_cur->buf_in)) {
                     log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped!");
-                    cur->buf_in_size = 0;
+                    l_cur->buf_in_size = 0;
                 }
 
                 int32_t bytes_read = 0;
+                int l_errno=0;
                 bool l_must_read_smth = false;
-                switch (cur->type) {
+                switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_FILE:
                         l_must_read_smth = true;
-                        bytes_read = read(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
-                                sizeof(cur->buf_in) - cur->buf_in_size);
+                        bytes_read = read(l_cur->socket, (char *) (l_cur->buf_in + l_cur->buf_in_size),
+                                sizeof(l_cur->buf_in) - l_cur->buf_in_size);
+                        l_errno = errno;
                     break;
                     case DESCRIPTOR_TYPE_SOCKET:
                         l_must_read_smth = true;
-                        bytes_read = recv(cur->fd, (char *) (cur->buf_in + cur->buf_in_size),
-                                sizeof(cur->buf_in) - cur->buf_in_size, 0);
+                        bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
+                                sizeof(l_cur->buf_in) - l_cur->buf_in_size, 0);
+                        l_errno = errno;
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                         // Accept connection
@@ -367,135 +384,124 @@ static void *thread_worker_function(void *arg)
                     case DESCRIPTOR_TYPE_TIMER:{
                         uint64_t val;
                         /* if we not reading data from socket, he triggered again */
-                        read( cur->fd, &val, 8);
-                    } // Pass same actions as EVENT - mostly we're also event
-                    case DESCRIPTOR_TYPE_EVENT:
-                        if (cur->callbacks.action_callback)
-                            cur->callbacks.action_callback(cur, NULL);
+                        read( l_cur->fd, &val, 8);
+                        if (l_cur->callbacks.timer_callback)
+                            l_cur->callbacks.timer_callback(l_cur);
                         else
-                            log_it(L_ERROR, "Socket %d with action callback fired, but callback is NULL ", cur->socket);
+                            log_it(L_ERROR, "Socket %d with timer callback fired, but callback is NULL ", l_cur->socket);
+
+                    } break;
+                    case DESCRIPTOR_TYPE_EVENT:
+                        if (l_cur->callbacks.event_callback){
+                            void * l_event_ptr = NULL;
+#if defined(DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE)
+                            if(read( l_cur->fd, &l_event_ptr,sizeof (&l_event_ptr)) == sizeof (&l_event_ptr))
+                                l_cur->callbacks.event_callback(l_cur, l_event_ptr);
+                            else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                                log_it(L_WARNING, "Can't read packet from pipe");
+#endif
+                        }else
+                            log_it(L_ERROR, "Socket %d with event callback fired, but callback is NULL ", l_cur->socket);
                     break;
                 }
 
                 if (l_must_read_smth){ // Socket/Descriptor read
                     if(bytes_read > 0) {
-                        cur->buf_in_size += bytes_read;
+                        l_cur->buf_in_size += bytes_read;
                         //log_it(DEBUG, "Received %d bytes", bytes_read);
-                        cur->callbacks.read_callback(cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
+                        l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
                     }
                     else if(bytes_read < 0) {
-                        log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
-                        dap_events_socket_set_readable(cur, false);
-                        cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                        if (l_errno != EAGAIN && l_errno != EWOULDBLOCK){ // Socket is blocked
+                            log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
+                            dap_events_socket_set_readable(l_cur, false);
+                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                        }
                     }
                     else if(bytes_read == 0) {
                         log_it(L_INFO, "Client socket disconnected");
-                        dap_events_socket_set_readable(cur, false);
-                        cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                        dap_events_socket_set_readable(l_cur, false);
+                        l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     }
                 }
             }
 
             // Socket is ready to write
-            if(((events[n].events & EPOLLOUT) || (cur->flags & DAP_SOCK_READY_TO_WRITE))
-                    && !(cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
+            if(((events[n].events & EPOLLOUT) || (l_cur->flags & DAP_SOCK_READY_TO_WRITE))
+                    && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
                 ///log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
-                if(cur->callbacks.write_callback)
-                    cur->callbacks.write_callback(cur, NULL); // Call callback to process write event
+                if(l_cur->callbacks.write_callback)
+                    l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
 
-                if(cur->flags & DAP_SOCK_READY_TO_WRITE) {
+                if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
                     static const uint32_t buf_out_zero_count_max = 20;
-                    cur->buf_out[cur->buf_out_size] = 0;
+                    l_cur->buf_out[l_cur->buf_out_size] = 0;
 
-                    if(!cur->buf_out_size) {
+                    if(!l_cur->buf_out_size) {
 
                         //log_it(L_WARNING, "Output: nothing to send. Why we are in write socket set?");
-                        cur->buf_out_zero_count++;
+                        l_cur->buf_out_zero_count++;
 
-                        if(cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
+                        if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
                             log_it(L_ERROR, "Output: nothing to send %u times, remove socket from the write set",
                                     buf_out_zero_count_max);
-                            dap_events_socket_set_writable(cur, false);
+                            dap_events_socket_set_writable(l_cur, false);
                         }
                     }
                     else
-                        cur->buf_out_zero_count = 0;
+                        l_cur->buf_out_zero_count = 0;
                 }
-                for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
-                    if(cur->type == DESCRIPTOR_TYPE_SOCKET) {
-                        bytes_sent = send(cur->socket, (char *) (cur->buf_out + total_sent),
-                                cur->buf_out_size - total_sent, MSG_DONTWAIT | MSG_NOSIGNAL);
-                    }else if(cur->type == DESCRIPTOR_TYPE_FILE) {
-                        bytes_sent = write(cur->socket, (char *) (cur->buf_out + total_sent),
-                                cur->buf_out_size - total_sent);
-                    }
+                //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
+                int l_errno;
+                if(l_cur->type == DESCRIPTOR_TYPE_SOCKET) {
+                    bytes_sent = send(l_cur->socket, (char *) (l_cur->buf_out + total_sent),
+                            l_cur->buf_out_size - total_sent, MSG_DONTWAIT | MSG_NOSIGNAL);
+                    l_errno = errno;
+                }else if(l_cur->type == DESCRIPTOR_TYPE_FILE) {
+                    bytes_sent = write(l_cur->socket, (char *) (l_cur->buf_out + total_sent),
+                            l_cur->buf_out_size - total_sent);
+                    l_errno = errno;
+                }
 
-                    if(bytes_sent < 0) {
+                if(bytes_sent < 0) {
+                    if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
                         log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
-                        cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                        l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                         break;
                     }
+                }else{
                     total_sent += bytes_sent;
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,sa_cur->buf_out_size);
-                }
-                //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
-                if (total_sent) {
-                    pthread_mutex_lock(&cur->write_hold);
-                    cur->buf_out_size -= total_sent;
-                    if (cur->buf_out_size) {
-                        memmove(cur->buf_out, &cur->buf_out[total_sent], cur->buf_out_size);
-                    } else {
-                        cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
+                    //}
+                    //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
+                    if (total_sent) {
+                        pthread_mutex_lock(&l_cur->mutex);
+                        l_cur->buf_out_size -= total_sent;
+                        if (l_cur->buf_out_size) {
+                            memmove(l_cur->buf_out, &l_cur->buf_out[total_sent], l_cur->buf_out_size);
+                        } else {
+                            l_cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
+                        }
+                        pthread_mutex_unlock(&l_cur->mutex);
                     }
-                    pthread_mutex_unlock(&cur->write_hold);
                 }
             }
 
-            if((cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !cur->no_close) {
+            if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close) {
                 // protect against double deletion
-                cur->kill_signal = true;
+                l_cur->kill_signal = true;
                 //dap_events_socket_remove_and_delete(cur, true);
-                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", cur->hostaddr, cur->socket, tn);
+                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, tn);
             }
 
-            if(cur->kill_signal) {
-                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", cur->socket, tn);
-                dap_events_socket_remove(cur);
-                dap_events_socket_delete( cur, true);
+            if(l_cur->kill_signal) {
+                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, tn);
+                s_es_remove(l_cur);
+                dap_events_socket_delete( l_cur, true);
             }
 
-            /*
-            if(!w->event_to_kill_count) {
-
-             pthread_mutex_unlock(&w->locker_on_count);
-             continue;
-
-             do {
-
-//      if ( cur->no_close ) {
-//        cur = cur->knext;
-//        continue;
-//      }
-                tmp = cur_del->knext;
-
-                // delete only current events_socket because others may be active in the other workers
-                //if(cur_del == cur)
-                if(cur->kill_signal) {
-                    log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", cur_del->socket, tn);
-                    DL_LIST_REMOVE_NODE(w->events->to_kill_sockets, cur, kprev, knext, w->event_to_kill_count);
-                    dap_events_socket_remove_and_delete(cur_del, true);
-                }
-                cur_del = tmp;
-
-            } while(cur_del);
-
-            log_it(L_INFO, "[ Thread %u ] coneections: %u, to kill: %u", tn, w->event_sockets_count,
-                    w->event_to_kill_count);
-
-            pthread_mutex_unlock(&w->locker_on_count);
-            */
-        } // for
+        }
 
 #ifndef  NO_TIMER
         if(cur_time >= next_time_timeout_check) {
@@ -508,6 +514,87 @@ static void *thread_worker_function(void *arg)
 
     return NULL;
 }
+
+/**
+ * @brief s_new_es_callback
+ * @param a_es
+ * @param a_arg
+ */
+static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
+{
+    dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
+    dap_worker_t * w = a_es->dap_worker;
+    log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
+    l_es_new->dap_worker = w;
+    if (  l_es_new->type == DESCRIPTOR_TYPE_SOCKET  ||  l_es_new->type == DESCRIPTOR_TYPE_SOCKET_LISTENING ){
+        int l_cpu = w->number_thread;
+        setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
+    }
+
+    if ( ! l_es_new->is_initalized ){
+        if (l_es_new->callbacks.new_callback)
+            l_es_new->callbacks.new_callback(l_es_new, NULL);
+        l_es_new->is_initalized = true;
+    }
+
+    if (l_es_new->socket>0){
+        pthread_rwlock_wrlock(&w->events->sockets_rwlock);
+        HASH_ADD_INT(w->events->sockets, socket, l_es_new );
+        pthread_rwlock_unlock(&w->events->sockets_rwlock);
+
+        struct epoll_event l_ev={0};
+        l_ev.events = l_es_new->flags ;
+        if(l_es_new->flags & DAP_SOCK_READY_TO_READ )
+            l_ev.events |= EPOLLIN;
+        if(l_es_new->flags & DAP_SOCK_READY_TO_WRITE )
+            l_ev.events |= EPOLLOUT;
+        l_ev.data.ptr = l_es_new;
+
+        if ( epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_ev) == 1 )
+            log_it(L_CRITICAL,"Can't add event socket's handler to epoll_fd");
+        else{
+            log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->number_thread);
+            if (l_es_new->callbacks.worker_assign_callback)
+                l_es_new->callbacks.worker_assign_callback(l_es_new, w);
+
+        }
+    }else{
+        log_it(L_ERROR, "Incorrect socket %d after new callback. Dropping this handler out", l_es_new->socket);
+        dap_events_socket_queue_on_remove_and_delete( l_es_new );
+    }
+}
+
+/**
+ * @brief s_delete_es_callback
+ * @param a_es
+ * @param a_arg
+ */
+static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
+{
+    if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
+       log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
+    else
+       log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
+
+    a_es->dap_worker->event_sockets_count --;
+    dap_events_socket_delete( a_es, false );
+}
+
+/**
+ * @brief s_reassign_es_callback
+ * @param a_es
+ * @param a_arg
+ */
+static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
+{
+    dap_events_socket_t * l_es_reassign = ((dap_events_socket_t* ) a_arg);
+    s_es_remove( l_es_reassign);
+    if (l_es_reassign->callbacks.worker_unassign_callback)
+        l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->dap_worker);
+
+    dap_events_socket_assign_on_worker( l_es_reassign, l_es_reassign->dap_worker );
+}
+
 
 /**
  * @brief dap_worker_get_min
@@ -618,7 +705,7 @@ int dap_events_wait( dap_events_t *sh )
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    eventfd_write( a_worker->eventsfd_new, (eventfd_t) a_events_socket );
+    dap_events_socket_send_event( a_worker->event_new_es, a_events_socket );
 }
 
 /**
