@@ -32,12 +32,13 @@
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
     #define DAP_EVENTS_CAPS_EPOLL
-#define DAP_EVENTS_CAPS_EVENT_EVENTFD
+    #define DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
 #elif defined (DAP_OS_UNIX)
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_EVENT_PIPE
 #elif defined (DAP_OS_WINDOWS)
     #define DAP_EVENTS_CAPS_WEPOLL
+    #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_EVENT_PIPE
 #endif
 
@@ -52,13 +53,14 @@ typedef struct dap_events_socket dap_events_socket_t;
 typedef struct dap_worker dap_worker_t;
 
 typedef struct dap_server dap_server_t;
-typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * arg); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
 typedef struct dap_events_socket_callbacks {
     union{
         dap_events_socket_callback_t accept_callback; // Accept callback for listening socket
-        dap_events_socket_callback_t timer_callback; // Timer callback for listening socket
+        dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
         dap_events_socket_callback_t event_callback; // Timer callback for listening socket
         dap_events_socket_callback_t action_callback; // Callback for action with socket
                                                       // for events and timers thats pointer
@@ -90,8 +92,8 @@ typedef struct dap_events_socket {
         int socket;
         int fd;
     };
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE
-    int32_t socket2;
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
+    int fd2;
 #endif
     dap_events_desc_type_t type;
 
@@ -101,6 +103,7 @@ typedef struct dap_events_socket {
     uint32_t  flags;
     bool no_close;
     atomic_bool kill_signal;
+    atomic_bool is_initalized;
 
     uint32_t buf_out_zero_count;
 
@@ -120,7 +123,10 @@ typedef struct dap_events_socket {
 
     struct dap_events *events;
     struct dap_worker *dap_worker;
+#ifdef DAP_EVENTS_CAPS_EPOLL
+    uint32_t ev_base_flags;
     struct epoll_event ev;
+#endif
 
     dap_events_socket_callbacks_t callbacks;
 
@@ -135,8 +141,12 @@ typedef struct dap_events_socket {
 
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
 
-    pthread_mutex_t write_hold;
+    pthread_mutex_t mutex;
 } dap_events_socket_t; // Node of bidirectional list of clients
+
+typedef struct dap_events_socket_event{
+
+} dap_events_socket_event_t;
 
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
@@ -144,13 +154,7 @@ void dap_events_socket_deinit(); // Deinit clients module
 void dap_events_socket_create_after(dap_events_socket_t * a_es);
 
 dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
-inline dap_events_socket_t * dap_events_socket_send_event( dap_events_socket_t * a_es)
-{
-#if defined(DAP_EVENTS_CAPS_EPOLL) && defined(DAP_EVENTS_CAPS_EVENT_EVENTFD)
-    events
-#endif
-}
-
+void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg);
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
 
@@ -181,9 +185,9 @@ size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, si
 size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
 
 
-void dap_events_socket_remove( dap_events_socket_t *a_es);
+void s_es_remove( dap_events_socket_t *a_es);
 void dap_events_socket_delete(dap_events_socket_t *sc,bool preserve_inheritor); // Removes the client from the list
-void dap_events_socket_remove_and_delete(dap_events_socket_t* a_es, bool preserve_inheritor );
+void dap_events_socket_queue_remove_and_delete(dap_events_socket_t* a_es);
 int dap_events_socket_kill_socket( dap_events_socket_t *a_es );
 
 
