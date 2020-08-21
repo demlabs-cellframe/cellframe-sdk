@@ -97,6 +97,17 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 }
 
 /**
+ * @brief dap_events_socket_assign_on_worker
+ * @param a_es
+ * @param a_worker
+ */
+void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_worker * a_worker)
+{
+    a_es->last_ping_request = time(NULL);
+    dap_worker_add_events_socket(a_es,a_worker);
+}
+
+/**
  * @brief dap_events_socket_create_after
  * @param a_es
  */
@@ -107,7 +118,7 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
 
   a_es->last_time_active = a_es->last_ping_request = time( NULL );
 
-  dap_worker_add_events_socket( a_es );
+  dap_worker_add_events_socket_auto( a_es );
 
   pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
 

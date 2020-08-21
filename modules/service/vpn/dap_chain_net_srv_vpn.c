@@ -74,8 +74,6 @@
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
-#define DAP_TUN_IN_WORKER
-
 #define SF_MAX_EVENTS 256
 
 typedef struct usage_client {
@@ -325,12 +323,133 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config) {
     return 0;
 }
 
+
+ch_sf_tun_server_t * m_tun_server = NULL;
+
+int s_tun_deattach_queue(int fd)
+{
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_flags = IFF_DETACH_QUEUE;
+    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
+}
+
+
+/**
+ * @brief s_tun_es_create
+ * @param a_worker
+ * @return
+ */
+dap_events_socket_t * s_tun_es_create(dap_worker_t * a_worker, int a_tun_fd)
+{
+    assert(a_worker);
+    static dap_events_socket_callbacks_t l_s_callbacks = { 0 };
+//    l_s_callbacks.new_callback = s_es_tun_new;
+//    l_s_callbacks.read_callback = s_es_tun_read;
+//    l_s_callbacks.error_callback = s_es_tun_error;
+//    l_s_callbacks.delete_callback = s_es_tun_delete;
+
+    s_tun_deattach_queue(a_tun_fd);
+
+    dap_events_socket_t * l_es = dap_events_socket_wrap_no_add(a_worker->events ,
+                                          a_tun_fd, &l_s_callbacks);
+    l_es->type = DESCRIPTOR_TYPE_FILE;
+    dap_events_socket_assign_on_worker(l_es, a_worker);
+
+    return l_es;
+}
+
+int ch_sf_tun_create(dap_config_t * g_config)
+{
+    const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
+    const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
+    if(!c_addr || !c_mask){
+        log_it(L_ERROR, "%s: error while reading network parameters from config (network_address and network_mask)", __PRETTY_FUNCTION__);
+        DAP_DELETE((void*)c_addr);
+        DAP_DELETE((void*)c_mask);
+        return -1;
+    }
+
+    inet_aton(c_addr, &m_tun_server->int_network );
+    inet_aton(c_mask, &m_tun_server->int_network_mask );
+    m_tun_server->int_network_addr.s_addr= (m_tun_server->int_network.s_addr | 0x01000000); // grow up some shit here!
+    m_tun_server->client_addr_last.s_addr = m_tun_server->int_network_addr.s_addr;
+    m_tun_server->announces_num=0;
+
+    memset(&m_tun_server->ifr, 0, sizeof(m_tun_server->ifr));
+    m_tun_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
+
+    uint32_t l_cpu_count = dap_get_cpu_count(); // maybe replace with getting s_threads_count directly
+    log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, l_cpu_count);
+
+    int err = -1;
+    for( uint8_t i =0; i< l_cpu_count; i++){
+        dap_worker_t * l_worker = dap_worker_get_index(i);
+        assert( l_worker );
+        int l_tun_fd;
+        if( (l_tun_fd = open("/dev/net/tun", O_RDWR| O_NONBLOCK)) < 0 ) {
+            log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
+            err = -100;
+            break;
+        }
+        log_it(L_DEBUG,"Opening /dev/net/tun:%u", i);
+        if( (err = ioctl(l_tun_fd, TUNSETIFF, (void *)& m_tun_server->ifr)) < 0 ) {
+            log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ",strerror(errno));
+            close(l_tun_fd);
+            break;
+        }
+        s_tun_deattach_queue(l_tun_fd);
+        s_tun_es_create(l_worker, l_tun_fd);
+    }
+
+    if (! err ){
+        char buf[256];
+        log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", m_tun_server->ifr.ifr_name,inet_ntoa(m_tun_server->int_network_addr),c_mask);
+        snprintf(buf,sizeof(buf),"ip link set %s up",m_tun_server->ifr.ifr_name);
+        system(buf);
+        snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(m_tun_server->int_network_addr),c_mask, m_tun_server->ifr.ifr_name );
+        system(buf);
+    }
+
+    return err;
+}
+
+/**
+* @brief ch_sf_tun_init
+* @return
+*/
+int ch_sf_tun_init()
+{
+    m_tun_server=DAP_NEW_Z(ch_sf_tun_server_t);
+    m_tun_server->peers_max = CH_SF_PEER_MAX;
+    m_tun_server->peers = DAP_NEW_Z_SIZE(ch_sf_peer_info_t, m_tun_server->peers_max);
+    pthread_rwlock_init(&m_tun_server->rwlock, NULL);
+
+    pthread_mutex_init(&m_tun_server->external_route_operations,NULL);
+    pthread_mutex_init(&m_tun_server->pkt_out_mutex,NULL);
+
+    return 0;
+}
+
+int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
+    ch_sf_tun_init();
+
+    log_it(L_DEBUG,"Initializing TUN driver...");
+    ch_sf_tun_create(g_config);
+    log_it(L_INFO,"TUN driver configured successfuly");
+
+    //TODO: initialize dap_chain_net_srv_vpn_t* here,
+    //take it from previous version of dap_chain_net_srv_vpn_init() (below)
+    return 0;
+}
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
  * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
+/*
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
@@ -370,9 +489,8 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
 
         uint16_t l_pricelist_count = 0;
 
-        /* ! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
-         * ! it also must NOT be freed within this module !
-         */
+        //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
+        //! it also must NOT be freed within this module !
         char **l_pricelist = dap_config_get_array_str(g_config, "srv_vpn", "pricelist", &l_pricelist_count); // must not be freed!
         for (uint16_t i = 0; i < l_pricelist_count; i++) {
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
@@ -450,6 +568,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     }
     return -1;
 }
+*/
 
 /**
  * @brief ch_sf_deinit

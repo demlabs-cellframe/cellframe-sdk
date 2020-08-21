@@ -26,10 +26,13 @@
 #pragma once
 #ifdef DAP_OS_UNIX
 #include <netinet/in.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
 #endif
 
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
+#include "dap_events.h"
 
 
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT    0x01
@@ -152,6 +155,77 @@ typedef struct dap_chain_net_srv_vpn
     dap_chain_net_srv_ch_vpn_t * ch_vpn_ipv4;
     dap_chain_net_srv_t * parent;
 } dap_chain_net_srv_vpn_t;
+
+
+#define CH_SF_PEER_MAX 20
+
+
+typedef struct ch_sf_peer_info {
+    in_addr_t 	addr;
+    in_addr_t 	netmask;
+    in_addr_t 	netaddr;
+    in_addr_t 	gw;
+    dap_stream_ch_t * ch;
+    uint64_t 	bytes_sent;
+    uint64_t 	bytes_recieved;
+    uint16_t	metric;					// route metric
+    uint16_t	ttl;					// route ttl, =0 means undead
+    bool		from_uplink;			// this route is received from uplink
+    bool		in_use;
+    bool		active;
+} ch_sf_peer_info_t;
+
+typedef  struct ch_sf_tun_socket ch_sf_tun_socket_t;
+
+typedef struct ch_sf_tun_client{
+    in_addr_t addr;
+    dap_stream_ch_t * ch;  /* TODO: check if it's same as sap_stream_ch_t */
+    ch_sf_tun_socket_t * tun_socket;
+
+    uint64_t bytes_sent;
+    uint64_t bytes_recieved;
+
+     UT_hash_handle hh;
+} ch_sf_tun_client_t;
+
+typedef struct ch_sf_tun_socket {
+    uint8_t worker_id;
+    dap_worker_t * worker; /* TODO: check if it's same as sap_worker_t (it's not) */
+    dap_events_socket_t * es;
+
+    ch_sf_tun_client_t * clients; // Remote clients identified by destination address
+
+    UT_hash_handle hh;
+}ch_sf_tun_socket_t;
+#define CH_SF_TUN_SOCKET(a) ((ch_sf_tun_socket_t*) a->_inheritor )
+
+struct ch_sf_tun_server{
+    struct in_addr client_addr_last;
+    struct in_addr int_network_mask;
+    struct in_addr int_network_addr;
+    struct in_addr announces_mask[10];
+    struct in_addr announces_addr[10];
+    struct in_addr int_network;
+    int 	tun_ctl_fd;
+    uint	announces_num;
+    struct ifreq ifr;
+    ch_sf_tun_client_t * clients; // Remote clients identified by destination address
+    ch_sf_peer_info_t *peers;
+    size_t peers_count;
+    size_t peers_max;
+
+    ch_vpn_pkt_t * pkt_out[400]; /* TODO: it differs from ch_sf_pkt with padding */
+    size_t pkt_out_size;
+    size_t pkt_out_rindex;
+    size_t pkt_out_windex;
+    pthread_mutex_t pkt_out_mutex;
+
+    pthread_mutex_t external_route_operations;
+
+    pthread_rwlock_t rwlock;
+};
+typedef struct ch_sf_tun_server ch_sf_tun_server_t;
+extern ch_sf_tun_server_t * m_tun_server;
 
 #define CH_VPN(a) ((dap_chain_net_srv_ch_vpn_t *) ((a)->internal) )
 
