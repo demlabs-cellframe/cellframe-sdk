@@ -172,6 +172,14 @@ bool is_dap_tun_in_worker(void)
 #endif
 }
 
+static void s_es_tun_new(dap_events_socket_t * a_es, void * arg);
+static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg);
+static void s_es_tun_read(dap_events_socket_t * a_es, void * arg);
+static void s_es_tun_error(dap_events_socket_t * a_es, void * arg);
+
+pthread_rwlock_t s_tun_sockets_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+ch_sf_tun_socket_t * s_tun_sockets = NULL;
+
 //TODO: create .new_callback for event sockets
 int s_tun_event_stream_create()
 {
@@ -326,6 +334,14 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config) {
 
 ch_sf_tun_server_t * m_tun_server = NULL;
 
+int s_tun_attach_queue(int fd)
+{
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_flags = IFF_ATTACH_QUEUE;
+    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
+}
+
 int s_tun_deattach_queue(int fd)
 {
     struct ifreq ifr;
@@ -344,10 +360,10 @@ dap_events_socket_t * s_tun_es_create(dap_worker_t * a_worker, int a_tun_fd)
 {
     assert(a_worker);
     static dap_events_socket_callbacks_t l_s_callbacks = { 0 };
-//    l_s_callbacks.new_callback = s_es_tun_new;
-//    l_s_callbacks.read_callback = s_es_tun_read;
-//    l_s_callbacks.error_callback = s_es_tun_error;
-//    l_s_callbacks.delete_callback = s_es_tun_delete;
+    l_s_callbacks.new_callback = s_es_tun_new;
+    l_s_callbacks.read_callback = s_es_tun_read;
+    l_s_callbacks.error_callback = s_es_tun_error;
+    l_s_callbacks.delete_callback = s_es_tun_delete;
 
     s_tun_deattach_queue(a_tun_fd);
 
@@ -359,7 +375,7 @@ dap_events_socket_t * s_tun_es_create(dap_worker_t * a_worker, int a_tun_fd)
     return l_es;
 }
 
-int ch_sf_tun_create(dap_config_t * g_config)
+int s_vpn_tun_create(dap_config_t * g_config)
 {
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
@@ -374,7 +390,6 @@ int ch_sf_tun_create(dap_config_t * g_config)
     inet_aton(c_mask, &m_tun_server->int_network_mask );
     m_tun_server->int_network_addr.s_addr= (m_tun_server->int_network.s_addr | 0x01000000); // grow up some shit here!
     m_tun_server->client_addr_last.s_addr = m_tun_server->int_network_addr.s_addr;
-    m_tun_server->announces_num=0;
 
     memset(&m_tun_server->ifr, 0, sizeof(m_tun_server->ifr));
     m_tun_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
@@ -418,11 +433,9 @@ int ch_sf_tun_create(dap_config_t * g_config)
 * @brief ch_sf_tun_init
 * @return
 */
-int ch_sf_tun_init()
+int s_vpn_tun_init()
 {
     m_tun_server=DAP_NEW_Z(ch_sf_tun_server_t);
-    m_tun_server->peers_max = CH_SF_PEER_MAX;
-    m_tun_server->peers = DAP_NEW_Z_SIZE(ch_sf_peer_info_t, m_tun_server->peers_max);
     pthread_rwlock_init(&m_tun_server->rwlock, NULL);
 
     pthread_mutex_init(&m_tun_server->external_route_operations,NULL);
@@ -432,10 +445,10 @@ int ch_sf_tun_init()
 }
 
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
-    ch_sf_tun_init();
+    s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");
-    ch_sf_tun_create(g_config);
+    s_vpn_tun_create(g_config);
     log_it(L_INFO,"TUN driver configured successfuly");
 
     //TODO: initialize dap_chain_net_srv_vpn_t* here,
@@ -1810,3 +1823,48 @@ void m_es_tun_error(dap_events_socket_t * a_es, void * arg)
 }
 #endif
 
+
+static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
+{
+    (void) arg;
+    ch_sf_tun_socket_t * l_tun_socket = DAP_NEW_Z(ch_sf_tun_socket_t);
+    if ( l_tun_socket ){
+        l_tun_socket->worker = a_es->dap_worker;
+        l_tun_socket->worker_id = l_tun_socket->worker->number_thread;
+        l_tun_socket->es = a_es;
+        pthread_rwlock_wrlock(&s_tun_sockets_rwlock);
+        HASH_ADD_INT( s_tun_sockets, worker_id, l_tun_socket);
+        pthread_rwlock_unlock(&s_tun_sockets_rwlock);
+        a_es->_inheritor = l_tun_socket;
+        s_tun_attach_queue( a_es->fd );
+        log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
+    }else{
+        log_it(L_ERROR, "Can't allocate memory for tun socket");
+    }
+}
+
+static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
+{
+    if (! a_es->_inheritor) // There is moment between inheritor initialization and active live of event socket in worker.
+        return;
+
+    ch_sf_tun_socket_t * l_tun_socket = CH_SF_TUN_SOCKET( a_es );
+    pthread_rwlock_wrlock(&s_tun_sockets_rwlock);
+    HASH_DEL(s_tun_sockets,l_tun_socket);
+    DAP_DELETE(l_tun_socket);
+    a_es->_inheritor = NULL;
+    pthread_rwlock_unlock(&s_tun_sockets_rwlock);
+    log_it(L_NOTICE,"Destroyed TUN event socket");
+}
+
+static void s_es_tun_error(dap_events_socket_t * a_es, void * arg)
+{
+    if (! a_es->_inheritor)
+        return;
+    log_it(L_ERROR,"%s: error in socket %u (socket type %d)", __PRETTY_FUNCTION__, a_es->socket, a_es->type);
+}
+
+void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
+{
+    //TODO: implement
+}
