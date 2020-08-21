@@ -277,15 +277,13 @@ int dap_client_pvt_disconnect(dap_client_pvt_t *a_client_pvt)
 
 //        l_client_internal->stream_es->signal_close = true;
         // start stopping connection
-        if(a_client_pvt->stream_es && !dap_events_socket_kill_socket(a_client_pvt->stream_es)) {
+        if(a_client_pvt->stream_es ) {
+            dap_events_socket_queue_remove_and_delete(a_client_pvt->stream_es);
             int l_counter = 0;
             // wait for stop of connection (max 0.7 sec.)
             while(a_client_pvt->stream_es && l_counter < 70) {
                 dap_usleep(DAP_USEC_PER_SEC / 100);
                 l_counter++;
-            }
-            if(l_counter >= 70) {
-                dap_events_socket_queue_remove_and_delete(a_client_pvt->stream_es);
             }
         }
 //        if (l_client_internal->stream_socket ) {
@@ -498,7 +496,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(l_remote_addr.sin_addr)) < 0) {
                 log_it(L_ERROR, "Wrong remote address '%s:%u'", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                 //close(a_client_pvt->stream_socket);
-                dap_events_socket_kill_socket(a_client_pvt->stream_es);
+                dap_events_socket_queue_remove_and_delete(a_client_pvt->stream_es);
                 //a_client_pvt->stream_socket = 0;
                 a_client_pvt->stage_status = STAGE_STATUS_ERROR;
             }
@@ -515,7 +513,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 else {
                     log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_client_pvt->uplink_addr,
                             a_client_pvt->uplink_port);
-                    dap_events_socket_kill_socket(a_client_pvt->stream_es);
+                    dap_events_socket_queue_remove_and_delete(a_client_pvt->stream_es);
                     //close(a_client_pvt->stream_socket);
                     a_client_pvt->stream_socket = 0;
                     a_client_pvt->stage_status = STAGE_STATUS_ERROR;
@@ -546,7 +544,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             const char *l_add_str = "";
 
-            dap_events_socket_write_f( a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
+            dap_events_socket_write_f_unsafe( a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
                                                                 "Host: %s:%d%s\r\n"
                                                                 "\r\n",
                                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
@@ -1303,7 +1301,7 @@ void m_es_stream_write(dap_events_socket_t * a_es, void * arg)
         }
         //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
 
-        dap_events_socket_set_writable(l_client_pvt->stream_es, ready_to_write);
+        dap_events_socket_set_writable_unsafe(l_client_pvt->stream_es, ready_to_write);
         //log_it(ERROR,"No stream_data_write_callback is defined");
     }
         break;

@@ -69,6 +69,7 @@
 #include "dap_strfuncs.h"
 #include "dap_server.h"
 #include "dap_events.h"
+#include "dap_events_socket.h"
 
 #define DAP_MAX_EPOLL_EVENTS    8192
 
@@ -414,13 +415,13 @@ static void *thread_worker_function(void *arg)
                     else if(bytes_read < 0) {
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK){ // Socket is blocked
                             log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
-                            dap_events_socket_set_readable(l_cur, false);
+                            dap_events_socket_set_readable_unsafe(l_cur, false);
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                         }
                     }
                     else if(bytes_read == 0) {
                         log_it(L_INFO, "Client socket disconnected");
-                        dap_events_socket_set_readable(l_cur, false);
+                        dap_events_socket_set_readable_unsafe(l_cur, false);
                         l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     }
                 }
@@ -446,7 +447,7 @@ static void *thread_worker_function(void *arg)
                         if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
                             log_it(L_ERROR, "Output: nothing to send %u times, remove socket from the write set",
                                     buf_out_zero_count_max);
-                            dap_events_socket_set_writable(l_cur, false);
+                            dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
                     else
@@ -498,7 +499,7 @@ static void *thread_worker_function(void *arg)
             if(l_cur->kill_signal) {
                 log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, tn);
                 s_es_remove(l_cur);
-                dap_events_socket_delete( l_cur, true);
+                dap_events_socket_delete( l_cur, false);
             }
 
         }
@@ -571,13 +572,7 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
  */
 static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
-       log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
-    else
-       log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
-
-    a_es->dap_worker->event_sockets_count --;
-    dap_events_socket_delete( a_es, false );
+    ((dap_events_socket_t*)a_arg)->kill_signal = true; // Send signal to socket to kill
 }
 
 /**

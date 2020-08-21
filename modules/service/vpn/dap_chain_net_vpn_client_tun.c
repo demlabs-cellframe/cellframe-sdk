@@ -393,7 +393,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
     log_it(L_WARNING, __PRETTY_FUNCTION__);
 
     do{
-        l_read_ret = dap_events_socket_read(a_es, l_tmp_buf, sizeof(l_tmp_buf));
+        l_read_ret = dap_events_socket_pop_from_buf_in(a_es, l_tmp_buf, sizeof(l_tmp_buf));
 
         if(l_read_ret > 0) {
             struct iphdr *iph = (struct iphdr*) l_tmp_buf;
@@ -428,7 +428,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
         }
     }while(l_read_ret > 0);
 
-    dap_events_socket_set_readable(a_es, true);
+    dap_events_socket_set_readable_unsafe(a_es, true);
 }
 
 static void m_client_tun_error(dap_events_socket_t * a_es, void * arg)
@@ -574,7 +574,7 @@ int dap_chain_net_vpn_client_tun_delete(void)
     if(is_dap_tun_in_worker())
     {
         pthread_mutex_lock(&s_clients_mutex);
-        dap_events_socket_kill_socket(s_tun_events_socket);
+        dap_events_socket_queue_remove_and_delete(s_tun_events_socket);
         s_tun_events_socket = NULL;
         pthread_mutex_unlock(&s_clients_mutex);
     }

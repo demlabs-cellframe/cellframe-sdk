@@ -185,7 +185,7 @@ void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * a_ch,bool a_is_ready)
             dap_client_remote_ready_to_read( a_ch->stream->conn,a_is_ready);
         // for stream client
         else if(a_ch->stream->events_socket)
-            dap_events_socket_set_readable( a_ch->stream->events_socket, a_is_ready);
+            dap_events_socket_set_readable_unsafe( a_ch->stream->events_socket, a_is_ready);
     }
     pthread_mutex_unlock(&a_ch->mutex);
 }
@@ -212,7 +212,7 @@ void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
             dap_client_remote_ready_to_write(ch->stream->conn,is_ready);
         // for stream client
         else if(ch->stream->events_socket)
-            dap_events_socket_set_writable(ch->stream->events_socket, is_ready);
+            dap_events_socket_set_writable_unsafe(ch->stream->events_socket, is_ready);
     }
     pthread_mutex_unlock(&ch->mutex);
 }

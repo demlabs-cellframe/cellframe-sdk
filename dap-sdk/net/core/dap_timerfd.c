@@ -43,7 +43,7 @@ void callback_timerfd_read(struct dap_events_socket *a_event_sock, void * arg)
     uint64_t l_ptiu64;
     size_t l_read_ret;
     do {
-        l_read_ret = dap_events_socket_read(a_event_sock, &l_ptiu64, sizeof(l_ptiu64));
+        l_read_ret = dap_events_socket_pop_from_buf_in(a_event_sock, &l_ptiu64, sizeof(l_ptiu64));
 
         if(l_read_ret > 0) {
             dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
@@ -63,7 +63,7 @@ void callback_timerfd_read(struct dap_events_socket *a_event_sock, void * arg)
                 l_timerfd->callback(l_timerfd->callback_arg);
         }
     } while(l_read_ret > 0);
-    dap_events_socket_set_readable(a_event_sock, true);
+    dap_events_socket_set_readable_unsafe(a_event_sock, true);
 }
 
 /**
@@ -144,7 +144,7 @@ int dap_timerfd_delete(dap_timerfd_t *l_timerfd)
         return -2;
     }
 
-    dap_events_socket_kill_socket(l_timerfd->events_socket);
+    dap_events_socket_queue_remove_and_delete(l_timerfd->events_socket);
     l_timerfd->events_socket = NULL;
     DAP_DELETE(l_timerfd);
     return 0;

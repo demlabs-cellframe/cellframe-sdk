@@ -750,7 +750,7 @@ static void s_tun_destroy(void)
 {
     pthread_rwlock_wrlock(& s_raw_server_rwlock);
 #ifdef DAP_TUN_IN_WORKER
-    dap_events_socket_kill_socket(s_raw_server->tun_events_socket);
+    dap_events_socket_queue_remove_and_delete(s_raw_server->tun_events_socket);
 #endif
     close(s_raw_server->tun_fd);
     s_raw_server->tun_fd = -1;
@@ -1762,7 +1762,7 @@ void m_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
   log_it(L_WARNING, __PRETTY_FUNCTION__);
   log_it(L_NOTICE, "Raw sockets listen thread is stopped");
-  dap_events_socket_kill_socket(s_raw_server->tun_events_socket);
+  dap_events_socket_queue_remove_and_delete(s_raw_server->tun_events_socket);
   s_tun_destroy();
 }
 
@@ -1779,7 +1779,7 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
     size_t l_read_ret;
 
 
-    l_read_ret = dap_events_socket_read(s_raw_server->tun_events_socket, l_tmp_buf, sizeof(l_tmp_buf));
+    l_read_ret = dap_events_socket_pop_from_buf_in(s_raw_server->tun_events_socket, l_tmp_buf, sizeof(l_tmp_buf));
 
     if(l_read_ret > 0) {
         struct iphdr *iph = (struct iphdr*) l_tmp_buf;
@@ -1814,7 +1814,7 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
     }
 
 
-    dap_events_socket_set_readable(a_es, true);
+    dap_events_socket_set_readable_unsafe(a_es, true);
 }
 
 void m_es_tun_error(dap_events_socket_t * a_es, void * arg)

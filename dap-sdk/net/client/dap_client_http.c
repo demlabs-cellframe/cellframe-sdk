@@ -128,7 +128,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
         return;
     }
     // read data
-    l_client_http_internal->response_size += dap_events_socket_read(a_es,
+    l_client_http_internal->response_size += dap_events_socket_pop_from_buf_in(a_es,
             l_client_http_internal->response + l_client_http_internal->response_size,
             l_client_http_internal->response_size_max - l_client_http_internal->response_size);
 
@@ -208,7 +208,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
         }
         else {
             // close connection
-            dap_events_socket_kill_socket(a_es);
+            dap_events_socket_queue_remove_and_delete(a_es);
             //dap_events_socket_remove_and_delete(a_es, true); //dap_events_socket_delete(a_es, true);
         }
     }
@@ -231,7 +231,7 @@ static void s_http_error(dap_events_socket_t * a_es, void * arg)
         l_client_http_internal->error_callback((int)arg, l_client_http_internal->obj);
 
     // close connection
-    dap_events_socket_kill_socket(a_es);
+    dap_events_socket_queue_remove_and_delete(a_es);
     //dap_events_socket_remove_and_delete(a_es, true);
     //dap_events_thread_wake_up( &a_es->events->proc_thread);
     //dap_events_socket_delete(a_es, false);
@@ -372,7 +372,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     if(!l_remote_addr.sin_addr.s_addr) {
         if(resolve_host(a_uplink_addr, AF_INET, (struct sockaddr*) &l_remote_addr.sin_addr) < 0) {
             log_it(L_ERROR, "Wrong remote address '%s:%u'", a_uplink_addr, a_uplink_port);
-            dap_events_socket_kill_socket(l_ev_socket);
+            dap_events_socket_queue_remove_and_delete(l_ev_socket);
             return NULL;
         }
     }
@@ -390,7 +390,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
         log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d err: %s", a_uplink_addr, a_uplink_port,
                 l_socket, strerror(errno));
         //l_ev_socket->no_close = false;
-        dap_events_socket_kill_socket(l_ev_socket);
+        dap_events_socket_queue_remove_and_delete(l_ev_socket);
         //shutdown(l_ev_socket->socket, SHUT_RDWR);
         //dap_events_socket_remove_and_delete(l_ev_socket, true);
         //l_ev_socket->socket = 0;
@@ -441,15 +441,15 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     }
 
     // send header
-    dap_events_socket_write_f(l_ev_socket, "%s /%s%s HTTP/1.1\r\n"
+    dap_events_socket_write_f_unsafe(l_ev_socket, "%s /%s%s HTTP/1.1\r\n"
             "Host: %s\r\n"
             "%s"
             "\r\n",
             a_method, a_path, l_get_str ? l_get_str : "", a_uplink_addr, l_request_headers->str);
     // send data for POST request
     if(!l_get_str)
-        dap_events_socket_write(l_ev_socket, a_request, a_request_size);
-    dap_events_socket_set_writable(l_ev_socket, true);
+        dap_events_socket_write_unsafe(l_ev_socket, a_request, a_request_size);
+    dap_events_socket_set_writable_unsafe(l_ev_socket, true);
 
     DAP_DELETE(l_get_str);
     dap_string_free(l_request_headers, true);

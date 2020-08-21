@@ -161,36 +161,22 @@ dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events
 
 dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * sh); // Find client by socket
 
-// Non-MT functions
-bool dap_events_socket_is_ready_to_read(dap_events_socket_t * sc);
-bool dap_events_socket_is_ready_to_write(dap_events_socket_t * sc);
-void dap_events_socket_set_readable(dap_events_socket_t * sc,bool is_ready);
-void dap_events_socket_set_writable(dap_events_socket_t * sc,bool is_ready);
+size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, size_t data_size);
 
-size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size);
-size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,...);
-size_t dap_events_socket_read(dap_events_socket_t *sc, void * data, size_t data_size);
+// Non-MT functions
+void dap_events_socket_set_readable_unsafe(dap_events_socket_t * sc,bool is_ready);
+void dap_events_socket_set_writable_unsafe(dap_events_socket_t * sc,bool is_ready);
+
+size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size);
+size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...);
 
 // MT variants less
-bool dap_events_socket_is_ready_to_read_mt(dap_events_socket_t * sc);
-bool dap_events_socket_is_ready_to_write_mt(dap_events_socket_t * sc);
 void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready);
 void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready);
-
-size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size);
-size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
-size_t dap_events_socket_read_mt(dap_events_socket_t *sc, void * data, size_t data_size);
-
 size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size);
 size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
 
-
-void s_es_remove( dap_events_socket_t *a_es);
-void dap_events_socket_delete(dap_events_socket_t *sc,bool preserve_inheritor); // Removes the client from the list
 void dap_events_socket_queue_remove_and_delete(dap_events_socket_t* a_es);
-int dap_events_socket_kill_socket( dap_events_socket_t *a_es );
-
-
 
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 

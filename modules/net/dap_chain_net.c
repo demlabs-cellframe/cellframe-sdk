@@ -888,7 +888,7 @@ void dap_chain_net_load_all()
 }
 
 void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
-    const char* l_node_address_text_block = NULL;
+    char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
     l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(a_net) ? dap_chain_net_get_cur_addr(a_net)->uint64 : dap_db_get_cur_node_addr(a_net->pub.name);
     if(!l_cur_node_addr.uint64)
@@ -896,7 +896,7 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
     else
         l_node_address_text_block = dap_strdup_printf(", cur node address " NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_cur_node_addr));
 
-    const char* l_sync_current_link_text_block = NULL;
+    char* l_sync_current_link_text_block = NULL;
     if(PVT(a_net)->state == NET_STATE_LINKS_PREPARE ||
        PVT(a_net)->state == NET_STATE_LINKS_CONNECTING ||
        PVT(a_net)->state == NET_STATE_SYNC_GDB ||
@@ -1681,7 +1681,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
                 for ( size_t i = 0; i< l_proc_chains_count ; i++){
                     dap_chain_id_t l_chain_id = {{0}};
-                    if(dap_sscanf( l_proc_chains[i], "0x%16lX",  &l_chain_id.uint64) ==1 || dap_scanf("0x%16lx",  &l_chain_id.uint64) == 1){
+                    if(dap_sscanf( l_proc_chains[i], "0x%16llX",  &l_chain_id.uint64) ==1 || dap_scanf("0x%16llx",  &l_chain_id.uint64) == 1){
                         dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
                         if ( l_chain ){
                             l_chain->is_datum_pool_proc = true;

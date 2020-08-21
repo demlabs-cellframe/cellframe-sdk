@@ -855,5 +855,5 @@ void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready)
         dap_client_remote_ready_to_write(a_stream->conn,a_is_ready);
     // for stream client
     else if(a_stream->events_socket)
-        dap_events_socket_set_writable(a_stream->events_socket, a_is_ready);
+        dap_events_socket_set_writable_unsafe(a_stream->events_socket, a_is_ready);
 }

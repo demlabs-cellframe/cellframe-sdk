@@ -260,7 +260,7 @@ dap_events_socket_t *dap_events_socket_find( int sock, struct dap_events *a_even
  * @param sc
  * @param isReady
  */
-void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
+void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_ready )
 {
   if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ) )
     return;
@@ -294,70 +294,32 @@ void dap_events_socket_set_readable( dap_events_socket_t *sc, bool is_ready )
  * @param sc
  * @param isReady
  */
-void dap_events_socket_set_writable( dap_events_socket_t *sc, bool is_ready )
+void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_ready )
 {
-  pthread_mutex_lock(&sc->mutex);
+    char l_errbuf[128];
+    if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
+        return;
+    }
 
-  if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
-    pthread_mutex_unlock(&sc->mutex);
-    return;
-  }
+    if ( is_ready )
+        sc->flags |= DAP_SOCK_READY_TO_WRITE;
+    else
+        sc->flags ^= DAP_SOCK_READY_TO_WRITE;
 
-  if ( is_ready )
-    sc->flags |= DAP_SOCK_READY_TO_WRITE;
-  else
-    sc->flags ^= DAP_SOCK_READY_TO_WRITE;
+    int events = sc->ev_base_flags | EPOLLERR;
 
-  int events = sc->ev_base_flags | EPOLLERR;
+    if( sc->flags & DAP_SOCK_READY_TO_READ )
+        events |= EPOLLIN;
 
-  if( sc->flags & DAP_SOCK_READY_TO_READ )
-    events |= EPOLLIN;
+    if( sc->flags & DAP_SOCK_READY_TO_WRITE )
+        events |= EPOLLOUT;
 
-  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
-    events |= EPOLLOUT;
+    sc->ev.events = events;
 
-  pthread_mutex_unlock(&sc->mutex);
-
-  sc->ev.events = events;
-
-  if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
-    log_it(L_ERROR,"Can't update write client socket state in the epoll_fd");
-  else
-    dap_events_thread_wake_up( &sc->events->proc_thread );
-}
-
-
-/**
- * @brief dap_events_socket_kill_socket
- * @param sc Connection instance
- */
-int dap_events_socket_kill_socket( dap_events_socket_t *a_es )
-{
-  if ( !a_es ) {
-    log_it( L_ERROR, "dap_events_socket_kill_socket( NULL )" );
-    return -1;
-  }
-
-  if( !a_es->dap_worker ) {
-      log_it( L_WARNING, "%s: socket %u has no worker thread", __PRETTY_FUNCTION__, a_es->socket );
-      a_es->kill_signal = true;
-      return 0;
-  }
-
-  uint32_t tn = a_es->dap_worker->number_thread;
-
-  //dap_events_t *d_ev = w->events;
-
-  if ( a_es->kill_signal ) {
-    return 0;
-  }
-
-  log_it( L_DEBUG, "KILL %u socket! (in queue) [ thread %u ]", a_es->socket, tn );
-
-  a_es->kill_signal = true;
-  //DL_LIST_ADD_NODE_HEAD( d_ev->to_kill_sockets, a_es, kprev, knext, w->event_to_kill_count );
-
-  return 0;
+    if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
+        strerror_r(errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: %s (%d)", l_errbuf, errno);
+    }
 }
 
 /**
@@ -414,8 +376,7 @@ void s_es_remove( dap_events_socket_t *a_es)
      log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
   else
      log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
-
-  a_es->dap_worker->event_sockets_count --;
+  a_es->dap_worker->event_sockets_count--;
 }
 
 /**
@@ -428,6 +389,26 @@ void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
     dap_events_socket_send_event( a_es->dap_worker->event_delete_es, a_es );
 }
 
+void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready)
+{
+
+}
+
+void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready)
+{
+
+}
+
+size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size)
+{
+
+}
+
+size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...)
+{
+
+}
+
 /**
  * @brief dap_events_socket_write Write data to the client
  * @param sc Conn instance
@@ -435,14 +416,12 @@ void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
  * @param data_size Size of data to write
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size)
+size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
     //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
-     pthread_mutex_lock(&sc->mutex);
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
      sc->buf_out_size+=data_size;
-     pthread_mutex_unlock(&sc->mutex);
      return data_size;
 }
 
@@ -452,11 +431,10 @@ size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_
  * @param format Format
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,...)
+size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...)
 {
     log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
 
-    pthread_mutex_lock(&sc->mutex);
     size_t max_data_size = sizeof(sc->buf_out)-sc->buf_out_size;
     va_list ap;
     va_start(ap,format);
@@ -467,18 +445,17 @@ size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,..
     }else{
         log_it(L_ERROR,"Can't write out formatted data '%s'",format);
     }
-    pthread_mutex_unlock(&sc->mutex);
     return (ret > 0) ? ret : 0;
 }
 
 /**
- * @brief dap_events_socket_read Read data from input buffer
+ * @brief dap_events_socket_pop_from_buf_in Read data from input buffer
  * @param sc Conn instasnce
  * @param data Pointer to memory where to store the data
  * @param data_size Size of data to read
  * @return Actual bytes number that were read
  */
-size_t dap_events_socket_read(dap_events_socket_t *sc, void *data, size_t data_size)
+size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void *data, size_t data_size)
 {
 //    log_it(L_DEBUG,"dap_events_socket_read %u sock data %X size %u", sc->socket, data, data_size );
 
