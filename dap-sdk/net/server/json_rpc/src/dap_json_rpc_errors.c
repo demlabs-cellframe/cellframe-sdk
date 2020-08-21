@@ -47,6 +47,18 @@ dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error){
     return l_element;
 }
 
+json_object *dap_json_rpc_error_get_json_struct(dap_json_rpc_error_t *a_error){
+    log_it(L_NOTICE, "Translation JSON string to struct dap_json_rpc_error");
+    json_object *l_jobj_code = json_object_new_int64(a_error->code_error);
+    json_object *l_jobj_msg = json_object_new_string(a_error->msg);
+    json_object *l_jobj = json_object_new_object();
+    json_object_object_add(l_jobj, "code", l_jobj_code);
+    json_object_object_add(l_jobj, "message", l_jobj_msg);
+    json_object_put(l_jobj_code);
+    json_object_put(l_jobj_msg);
+    return l_jobj;
+}
+
 char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error){
     log_it(L_NOTICE, "Translation JSON string to struct dap_json_rpc_error");
     json_object *l_jobj_code = json_object_new_int64(a_error->code_error);
