@@ -92,6 +92,7 @@ uint32_t dap_get_cpu_count( );
 dap_worker_t * dap_worker_get_index(uint8_t a_index);
 
 void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_worker * a_worker);
+void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
 void dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 void dap_worker_print_all( );
 

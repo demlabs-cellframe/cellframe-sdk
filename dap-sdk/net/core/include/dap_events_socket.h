@@ -34,14 +34,30 @@
 #include "wepoll.h"
 #endif
 #include <pthread.h>
-struct dap_events;
-struct dap_events_socket;
-struct dap_worker;
+
+// Caps for different platforms
+#if defined(DAP_OS_LINUX)
+    #define DAP_EVENTS_CAPS_EPOLL
+#define DAP_EVENTS_CAPS_EVENT_EVENTFD
+#elif defined (DAP_OS_UNIX)
+    #define DAP_EVENTS_CAPS_POLL
+    #define DAP_EVENTS_CAPS_EVENT_PIPE
+#elif defined (DAP_OS_WINDOWS)
+    #define DAP_EVENTS_CAPS_EVENT_PIPE
+#endif
+
+typedef struct dap_events dap_events_t;
+typedef struct dap_events_socket dap_events_socket_t;
+typedef struct dap_worker dap_worker_t;
 
 typedef struct dap_server dap_server_t;
-typedef void (*dap_events_socket_callback_t) (struct dap_events_socket *,void * arg); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * arg); // Callback for specific client operations
+typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
 typedef struct dap_events_socket_callbacks {
+    dap_events_socket_callback_t action_callback; // Callback for action with socket
+                                                  // for events and timers thats pointer
+                                                  // to processing callback
 
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
@@ -49,24 +65,45 @@ typedef struct dap_events_socket_callbacks {
     dap_events_socket_callback_t write_callback; // Write function
     dap_events_socket_callback_t error_callback; // Error processing function
 
+    dap_events_socket_worker_callback_t worker_assign_callback; // After successful worker assign
+    dap_events_socket_worker_callback_t worker_unassign_callback; // After successful worker unassign
+
 } dap_events_socket_callbacks_t;
 
 #define DAP_EVENTS_SOCKET_BUF 100000
 
-#if 0
+typedef enum {
+    DESCRIPTOR_TYPE_SOCKET = 0,
+    DESCRIPTOR_TYPE_SOCKET_LISTENING,
+    DESCRIPTOR_TYPE_EVENT,
+    DESCRIPTOR_TYPE_TIMER,
+    DESCRIPTOR_TYPE_FILE
+} dap_events_desc_type_t;
+
 typedef struct dap_events_socket {
+    union{
+        int socket;
+        int fd;
+    };
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE
+    int32_t socket2;
+#endif
+    dap_events_desc_type_t type;
 
-    int socket;
-    bool signal_close;
+    dap_events_socket_t ** workers_es; // If not NULL - on every worker must be present
+    size_t workers_es_size;           //  events socket with same socket
 
-    bool _ready_to_write;
-    bool _ready_to_read;
+    uint32_t  flags;
+    bool no_close;
+    atomic_bool kill_signal;
 
     uint32_t buf_out_zero_count;
+
     union{
         uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
         char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
     };
+
     size_t buf_in_size; // size of data that is in the input buffer
 
     uint8_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
@@ -77,75 +114,31 @@ typedef struct dap_events_socket {
     size_t buf_out_size; // size of data that is in the output buffer
 
     struct dap_events *events;
-
     struct dap_worker *dap_worker;
-    dap_events_socket_callbacks_t *callbacks;
+    struct epoll_event ev;
+
+    dap_events_socket_callbacks_t callbacks;
 
     time_t time_connection;
+    time_t last_time_active;
     time_t last_ping_request;
     bool is_pingable;
 
     UT_hash_handle hh;
+    struct dap_events_socket *next, *prev;
+    struct dap_events_socket *knext, *kprev;
 
-    void * _inheritor; // Inheritor data to specific client type, usualy states for state machine
-} dap_events_socket_t; // Node of bidirectional list of clients
-#endif
+    void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
 
-typedef enum {
-    DESCRIPTOR_TYPE_SOCKET = 0,
-    DESCRIPTOR_TYPE_FILE
-} dap_events_desc_type_t;
-
-typedef struct dap_events_socket {
-
-  int32_t socket;
-  dap_events_desc_type_t type;
-
-  uint32_t  flags;
-//  bool signal_close;
-  bool no_close;
-  atomic_bool kill_signal;
-//  bool _ready_to_write;
-//  bool _ready_to_read;
-
-  uint32_t buf_out_zero_count;
-  union{
-    uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
-    char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
-  };
-  size_t buf_in_size; // size of data that is in the input buffer
-
-  uint8_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
-
-  char hostaddr[1024]; // Address
-  char service[128];
-
-  size_t buf_out_size; // size of data that is in the output buffer
-
-  struct dap_events *events;
-  struct dap_worker *dap_worker;
-  struct epoll_event ev;
-
-  dap_events_socket_callbacks_t *callbacks;
-
-  time_t time_connection;
-  time_t last_time_active;
-  time_t last_ping_request;
-  bool is_pingable;
-
-  UT_hash_handle hh;
-  struct dap_events_socket *next, *prev;
-  struct dap_events_socket *knext, *kprev;
-
-  void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
-
-  pthread_mutex_t write_hold;
+    pthread_mutex_t write_hold;
 } dap_events_socket_t; // Node of bidirectional list of clients
 
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
 
 void dap_events_socket_create_after(dap_events_socket_t * a_es);
+
+dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
 
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list

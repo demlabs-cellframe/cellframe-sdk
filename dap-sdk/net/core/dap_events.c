@@ -229,8 +229,8 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
     if ( !a_es->kill_signal && cur_time >= a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
 
       log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
-      if (a_es->callbacks->error_callback) {
-          a_es->callbacks->error_callback(a_es, (void *)ETIMEDOUT);
+      if (a_es->callbacks.error_callback) {
+          a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
       }
 
       if ( epoll_ctl( dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
@@ -327,7 +327,7 @@ static void *thread_worker_function(void *arg)
                     cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                     if(!(events[n].events & EPOLLERR))
-                        cur->callbacks->error_callback(cur, NULL); // Call callback to process error event
+                        cur->callbacks.error_callback(cur, NULL); // Call callback to process error event
                 }
             }
 
@@ -335,7 +335,7 @@ static void *thread_worker_function(void *arg)
                 getsockopt(cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
                 log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
                 cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                cur->callbacks->error_callback(cur, NULL); // Call callback to process error event
+                cur->callbacks.error_callback(cur, NULL); // Call callback to process error event
             }
 
             cur->last_time_active = cur_time;
@@ -349,28 +349,50 @@ static void *thread_worker_function(void *arg)
                 }
 
                 int32_t bytes_read = 0;
-                if(cur->type == DESCRIPTOR_TYPE_SOCKET) {
-                    bytes_read = recv(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
-                            sizeof(cur->buf_in) - cur->buf_in_size, 0);
-                }else if(cur->type == DESCRIPTOR_TYPE_FILE) {
-                    bytes_read = read(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
-                            sizeof(cur->buf_in) - cur->buf_in_size);
+                bool l_must_read_smth = false;
+                switch (cur->type) {
+                    case DESCRIPTOR_TYPE_FILE:
+                        l_must_read_smth = true;
+                        bytes_read = read(cur->socket, (char *) (cur->buf_in + cur->buf_in_size),
+                                sizeof(cur->buf_in) - cur->buf_in_size);
+                    break;
+                    case DESCRIPTOR_TYPE_SOCKET:
+                        l_must_read_smth = true;
+                        bytes_read = recv(cur->fd, (char *) (cur->buf_in + cur->buf_in_size),
+                                sizeof(cur->buf_in) - cur->buf_in_size, 0);
+                    break;
+                    case DESCRIPTOR_TYPE_SOCKET_LISTENING:
+                        // Accept connection
+                    break;
+                    case DESCRIPTOR_TYPE_TIMER:{
+                        uint64_t val;
+                        /* if we not reading data from socket, he triggered again */
+                        read( cur->fd, &val, 8);
+                    } // Pass same actions as EVENT - mostly we're also event
+                    case DESCRIPTOR_TYPE_EVENT:
+                        if (cur->callbacks.action_callback)
+                            cur->callbacks.action_callback(cur, NULL);
+                        else
+                            log_it(L_ERROR, "Socket %d with action callback fired, but callback is NULL ", cur->socket);
+                    break;
                 }
 
-                if(bytes_read > 0) {
-                    cur->buf_in_size += bytes_read;
-                    //log_it(DEBUG, "Received %d bytes", bytes_read);
-                    cur->callbacks->read_callback(cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
-                }
-                else if(bytes_read < 0) {
-                    log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
-                    dap_events_socket_set_readable(cur, false);
-                    cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                }
-                else if(bytes_read == 0) {
-                    log_it(L_INFO, "Client socket disconnected");
-                    dap_events_socket_set_readable(cur, false);
-                    cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                if (l_must_read_smth){ // Socket/Descriptor read
+                    if(bytes_read > 0) {
+                        cur->buf_in_size += bytes_read;
+                        //log_it(DEBUG, "Received %d bytes", bytes_read);
+                        cur->callbacks.read_callback(cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
+                    }
+                    else if(bytes_read < 0) {
+                        log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
+                        dap_events_socket_set_readable(cur, false);
+                        cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    }
+                    else if(bytes_read == 0) {
+                        log_it(L_INFO, "Client socket disconnected");
+                        dap_events_socket_set_readable(cur, false);
+                        cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    }
                 }
             }
 
@@ -378,8 +400,8 @@ static void *thread_worker_function(void *arg)
             if(((events[n].events & EPOLLOUT) || (cur->flags & DAP_SOCK_READY_TO_WRITE))
                     && !(cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
                 ///log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
-                if(cur->callbacks->write_callback)
-                    cur->callbacks->write_callback(cur, NULL); // Call callback to process write event
+                if(cur->callbacks.write_callback)
+                    cur->callbacks.write_callback(cur, NULL); // Call callback to process write event
 
                 if(cur->flags & DAP_SOCK_READY_TO_WRITE) {
 

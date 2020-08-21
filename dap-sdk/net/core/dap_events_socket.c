@@ -86,9 +86,8 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
   ret->socket = a_sock;
   ret->events = a_events;
-  ret->callbacks = a_callbacks;
+  memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
   ret->flags = DAP_SOCK_READY_TO_READ;
-  ret->no_close = false;
   pthread_mutex_init(&ret->write_hold, NULL);
 
   log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
@@ -108,13 +107,39 @@ void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_w
 }
 
 /**
+ * @brief dap_events_socket_create_type_event
+ * @param a_w
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
+{
+#if defined (DAP_EVENTS_CAPS_EVENT_EVENTFD) && defined (DAP_EVENTS_CAPS_EPOLL)
+    struct epoll_event l_ev={0};
+    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    l_es->type = DESCRIPTOR_TYPE_EVENT;
+    l_es->dap_worker = a_w;
+    l_es->callbacks.action_callback = a_callback; // Arm action callback
+    int l_eventfd = eventfd(0,EFD_NONBLOCK);
+    //log_it( L_DEBUG, "Created eventfd %d (%p)", l_eventfd, l_es);
+    l_es->socket = l_eventfd;
+    l_ev.events = EPOLLIN | EPOLLET;
+    l_ev.data.ptr = l_es;
+    epoll_ctl(a_w->epoll_fd, EPOLL_CTL_ADD, l_eventfd, &l_ev);
+    return  l_es;
+#else
+    // Default realization with pipe
+    return  NULL;
+#endif
+}
+
+/**
  * @brief dap_events_socket_create_after
  * @param a_es
  */
 void dap_events_socket_create_after( dap_events_socket_t *a_es )
 {
-  if ( a_es->callbacks->new_callback )
-    a_es->callbacks->new_callback( a_es, NULL ); // Init internal structure
+  if ( a_es->callbacks.new_callback )
+    a_es->callbacks.new_callback( a_es, NULL ); // Init internal structure
 
   a_es->last_time_active = a_es->last_ping_request = time( NULL );
 
@@ -158,7 +183,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
 
   ret->socket = a_sock;
   ret->events = a_events;
-  ret->callbacks = a_callbacks;
+  memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
 
   ret->flags = DAP_SOCK_READY_TO_READ;
   ret->is_pingable = true;
@@ -318,8 +343,8 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
 
   log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
 
-  if( a_es->callbacks->delete_callback )
-    a_es->callbacks->delete_callback( a_es, NULL ); // Init internal structure
+  if( a_es->callbacks.delete_callback )
+    a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
 
   if ( a_es->_inheritor && !preserve_inheritor )
     DAP_DELETE( a_es->_inheritor );
