@@ -125,6 +125,7 @@ dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *
             dap_json_rpc_params_add_data(l_params, NULL, TYPE_PARAM_NULL);
         }
     }
+    return  l_params;
 }
 
 char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){

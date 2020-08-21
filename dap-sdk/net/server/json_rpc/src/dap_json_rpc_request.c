@@ -23,7 +23,7 @@ dap_json_rpc_request_t *dap_json_rpc_request_creation(const char *a_method, dap_
 
 dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data){
     log_it(L_DEBUG, "Translation JSON string to struct dap_json_rpc_request");
-    json_object *l_jobj = json_object_new_string(a_data);
+    json_object *l_jobj = json_tokener_parse(a_data);
     json_object *l_jobj_methods =json_object_object_get(l_jobj, "method");
     json_object *l_jobj_params = json_object_object_get(l_jobj, "params");
     json_object *l_jobj_id = json_object_object_get(l_jobj, "id");

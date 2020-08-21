@@ -7,7 +7,7 @@ static uint64_t s_delta = 0;
 
 int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_response_handler_func_t *func){
     dap_json_rpc_response_handler_t *l_handler = NULL;
-    HASH_FIND_INT(s_response_handlers, (void*)a_id, l_handler);
+    HASH_FIND_INT(s_response_handlers, &a_id, l_handler);
     if (l_handler == NULL){
         l_handler = DAP_NEW(dap_json_rpc_response_handler_t);
         l_handler->id = a_id;
@@ -25,7 +25,7 @@ uint64_t dap_json_rpc_response_registration(dap_json_rpc_response_handler_func_t
 }
 void dap_json_rpc_response_unregistration(uint64_t a_id){
     dap_json_rpc_response_handler_t *l_handler = NULL;
-    HASH_FIND_INT(s_response_handlers, (void*)a_id, l_handler);
+    HASH_FIND_INT(s_response_handlers, &a_id, l_handler);
     if (l_handler != NULL){
         HASH_DEL(s_response_handlers, l_handler);
         DAP_FREE(l_handler);

@@ -13,9 +13,9 @@ void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response){
 void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_remote_t *a_client_remote){
     char *str_response = NULL;
     json_object *l_jobj = json_object_new_object();
-    json_object *l_jobj_error = json_object_new_object();
-    json_object *l_jobj_result;
-    if (a_response->error != NULL){
+    json_object *l_jobj_error = NULL;
+    json_object *l_jobj_result = NULL;
+    if (a_response->error == NULL){
         switch (a_response->type_result) {
         case TYPE_RESPONSE_STRING:
             l_jobj_result = json_object_new_string(a_response->result_string);
@@ -31,11 +31,7 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_
             break;
         }
     }else{
-        l_jobj_result = json_object_new_object();
-        json_object *l_jobj_error_code = json_object_new_int64(a_response->error->code_error);
-        json_object *l_jobj_error_msg = json_object_new_string(a_response->error->msg);
-        json_object_object_add(l_jobj_error, "code", l_jobj_error_code);
-        json_object_object_add(l_jobj_error, "message", l_jobj_error_msg);
+        l_jobj_error = dap_json_rpc_error_get_json_struct(a_response->error);
     }
     json_object_object_add(l_jobj, "result", l_jobj_result);
     json_object_object_add(l_jobj, "error", l_jobj_error);
