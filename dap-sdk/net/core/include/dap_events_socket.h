@@ -22,18 +22,12 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdatomic.h>
-#include "uthash.h"
-#ifndef _WIN32
-#include <sys/epoll.h>
-#else
-#include "wepoll.h"
-#endif
 #include <pthread.h>
+#include "uthash.h"
 
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
@@ -43,7 +37,14 @@
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_EVENT_PIPE
 #elif defined (DAP_OS_WINDOWS)
+    #define DAP_EVENTS_CAPS_WEPOLL
     #define DAP_EVENTS_CAPS_EVENT_PIPE
+#endif
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+#include <sys/epoll.h>
+#elif defined (DAP_EVENTS_CAPS_WEPOLL)
+#include "wepoll.h"
 #endif
 
 typedef struct dap_events dap_events_t;
@@ -143,6 +144,12 @@ void dap_events_socket_deinit(); // Deinit clients module
 void dap_events_socket_create_after(dap_events_socket_t * a_es);
 
 dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
+inline dap_events_socket_t * dap_events_socket_send_event( dap_events_socket_t * a_es)
+{
+#if defined(DAP_EVENTS_CAPS_EPOLL) && defined(DAP_EVENTS_CAPS_EVENT_EVENTFD)
+    events
+#endif
+}
 
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
@@ -150,6 +157,7 @@ dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events
 
 dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * sh); // Find client by socket
 
+// Non-MT functions
 bool dap_events_socket_is_ready_to_read(dap_events_socket_t * sc);
 bool dap_events_socket_is_ready_to_write(dap_events_socket_t * sc);
 void dap_events_socket_set_readable(dap_events_socket_t * sc,bool is_ready);
@@ -158,6 +166,20 @@ void dap_events_socket_set_writable(dap_events_socket_t * sc,bool is_ready);
 size_t dap_events_socket_write(dap_events_socket_t *sc, const void * data, size_t data_size);
 size_t dap_events_socket_write_f(dap_events_socket_t *sc, const char * format,...);
 size_t dap_events_socket_read(dap_events_socket_t *sc, void * data, size_t data_size);
+
+// MT variants less
+bool dap_events_socket_is_ready_to_read_mt(dap_events_socket_t * sc);
+bool dap_events_socket_is_ready_to_write_mt(dap_events_socket_t * sc);
+void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready);
+void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready);
+
+size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size);
+size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
+size_t dap_events_socket_read_mt(dap_events_socket_t *sc, void * data, size_t data_size);
+
+size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size);
+size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
+
 
 void dap_events_socket_remove( dap_events_socket_t *a_es);
 void dap_events_socket_delete(dap_events_socket_t *sc,bool preserve_inheritor); // Removes the client from the list
