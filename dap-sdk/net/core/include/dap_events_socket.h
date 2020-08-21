@@ -55,10 +55,14 @@ typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * arg);
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
 typedef struct dap_events_socket_callbacks {
-    dap_events_socket_callback_t action_callback; // Callback for action with socket
-                                                  // for events and timers thats pointer
-                                                  // to processing callback
-
+    union{
+        dap_events_socket_callback_t accept_callback; // Accept callback for listening socket
+        dap_events_socket_callback_t timer_callback; // Timer callback for listening socket
+        dap_events_socket_callback_t event_callback; // Timer callback for listening socket
+        dap_events_socket_callback_t action_callback; // Callback for action with socket
+                                                      // for events and timers thats pointer
+                                                      // to processing callback
+    };
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
     dap_events_socket_callback_t read_callback; // Read function
