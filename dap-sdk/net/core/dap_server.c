@@ -53,6 +53,7 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_server.h"
+#include "dap_worker.h"
 #include "dap_events.h"
 
 #define LOG_TAG "dap_server"
@@ -117,6 +118,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
     if (l_server->socket_listener < 0) {
         int l_errno = errno;
         log_it (L_ERROR,"Socket error %s (%d)",strerror(l_errno), l_errno);
+        DAP_DELETE(l_server);
         return NULL;
     }
 
@@ -151,6 +153,9 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 
     for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
         dap_events_socket_t * l_es = dap_events_socket_wrap_no_add( a_events, l_server->socket_listener, &l_callbacks);
+        dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
+        assert(l_w);
+
         if ( l_es){
             log_it(L_DEBUG, "Wrapped server socket %p on worker %u", l_es, l_worker_id);
             l_es->_inheritor = l_server;
@@ -160,7 +165,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
             // Prepare for multi thread listening
             l_es->ev_base_flags  = EPOLLET| EPOLLIN | EPOLLEXCLUSIVE;
 #endif
-            dap_worker_add_events_socket( l_es, dap_events_worker_get_index(l_worker_id) );
+            dap_worker_add_events_socket( l_es, l_w );
         } else{
             log_it(L_WARNING, "Can't wrap event socket for %s:%u server", a_addr, a_port);
             return NULL;

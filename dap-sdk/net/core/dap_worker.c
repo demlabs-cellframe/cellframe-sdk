@@ -67,22 +67,28 @@ void *dap_worker_thread(void *arg)
     dap_worker_t *l_worker = (dap_worker_t *) arg;
     time_t l_next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
     uint32_t l_tn = l_worker->id;
-
 #ifndef _WIN32
 #ifndef NO_POSIX_SHED
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(l_tn, &mask);
 
-    int err;
+    int l_retcode;
 #ifndef __ANDROID__
-    err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
+    l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #else
   err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
-    if(err)
+    if(l_retcode != 0)
     {
-        log_it(L_CRITICAL, "Error pthread_setaffinity_np() You really have %d or more core in CPU?", *(int* )arg);
+        char l_errbuf[128]={0};
+        switch (l_retcode) {
+            case EFAULT: strncpy(l_errbuf,"A supplied memory address was invalid.",sizeof (l_errbuf)-1); break;
+            case EINVAL: strncpy(l_errbuf,"The affinity bit mask mask contains no processors that are currently physically on the system and permitted to the thread",sizeof (l_errbuf)-1); break;
+            case ESRCH:  strncpy(l_errbuf,"No thread with the ID thread could be found",sizeof (l_errbuf)-1); break;
+            default:     strncpy(l_errbuf,"Unknown error",sizeof (l_errbuf)-1);
+        }
+        log_it(L_CRITICAL, "Worker #%u: error pthread_setaffinity_np(): %s (%d)", l_errbuf , l_retcode);
         abort();
     }
 #endif
@@ -97,15 +103,15 @@ void *dap_worker_thread(void *arg)
     l_worker->event_new_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
     l_worker->event_delete_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
 
-    log_it(L_INFO, "Worker %d started, epoll fd %d", l_worker->id, l_worker->epoll_fd);
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events[ DAP_MAX_EPOLL_EVENTS]= {{0}};
+    log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #else
 #error "Unimplemented socket array for this platform"
 #endif
 
+    pthread_cond_broadcast(&l_worker->started_cond);
     bool s_loop_is_active = true;
-
     while(s_loop_is_active) {
 #ifdef DAP_EVENTS_CAPS_EPOLL
         int l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
@@ -115,7 +121,10 @@ void *dap_worker_thread(void *arg)
         if(l_selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
-            log_it(L_ERROR, "Worker thread %d got errno: %d", l_worker->id, errno);
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_ERROR, "Worker thread %d got errno:\"%s\" (%d)", l_worker->id, l_errbuf, l_errno);
             break;
         }
 

@@ -55,7 +55,7 @@
  */
 int dap_events_socket_init( )
 {
-    log_it(L_NOTICE,"Initialized socket client module");
+    log_it(L_NOTICE,"Initialized events socket module");
     return 0;
 }
 
@@ -129,6 +129,7 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
             case EINVAL: log_it(L_CRITICAL, "Too old linux version thats doesn't support O_DIRECT flag for pipes (%s)", l_errbuf); break;
             default: log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
         }
+        DAP_DELETE(l_es);
         return NULL;
     }else
         log_it(L_DEBUG, "Created one-way unnamed pipe %d->%d", l_pipe[0], l_pipe[1]);
@@ -139,10 +140,10 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     struct epoll_event l_ev={0};
     int l_event_fd = l_es->fd;
-    log_it( L_INFO, "Create event descriptor with queue %d (%p)", l_event_fd, l_es);
-    l_ev.events = EPOLLIN | EPOLLET;
-    l_ev.data.ptr = l_es;
-    epoll_ctl(a_w->epoll_fd, EPOLL_CTL_ADD, l_event_fd, &l_ev);
+    //log_it( L_INFO, "Create event descriptor with queue %d (%p) and add it on epoll fd %d", l_event_fd, l_es, a_w->epoll_fd);
+    l_es->ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLHUP;
+    l_es->ev.data.ptr = l_es;
+    epoll_ctl(a_w->epoll_fd, EPOLL_CTL_ADD, l_event_fd, &l_es->ev);
 #endif
     return  l_es;
 }
@@ -183,7 +184,6 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
 
   dap_worker_add_events_socket_auto( a_es );
 
-  pthread_mutex_lock( &a_es->worker->locker_on_count );
 
   a_es->worker->event_sockets_count ++;
 
@@ -197,7 +197,6 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
   if ( epoll_ctl( a_es->worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
     log_it( L_CRITICAL, "Can't add event socket's handler to epoll_fd" );
 
-  pthread_mutex_unlock( &a_es->worker->locker_on_count );
 }
 
 /**
@@ -215,7 +214,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   assert( a_callbacks );
   assert( a_server );
 
-  log_it( L_DEBUG,"Sap event socket wrapped around %d sock", a_sock );
+  log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
   dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t );
 
   ret->socket = a_sock;

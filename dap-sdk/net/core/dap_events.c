@@ -76,10 +76,10 @@
 
 #define LOG_TAG "dap_events"
 
-bool s_workers_init = false;
+static bool s_workers_init = false;
 static uint32_t s_threads_count = 1;
-dap_worker_t *s_workers = NULL;
-dap_thread_t *s_threads = NULL;
+static dap_worker_t * volatile *s_workers = NULL;
+static dap_thread_t *s_threads = NULL;
 
 
 uint32_t dap_get_cpu_count( )
@@ -116,7 +116,7 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 {
     s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
 
-    s_workers =  DAP_NEW_S_SIZE(dap_worker_t,sizeof(dap_worker_t) * s_threads_count );
+    s_workers =  DAP_NEW_Z_SIZE(dap_worker_t*,s_threads_count*sizeof (dap_worker_t*) );
     s_threads = DAP_NEW_Z_SIZE(dap_thread_t, sizeof(dap_thread_t) * s_threads_count );
     if ( !s_workers || !s_threads )
         return -1;
@@ -129,14 +129,15 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
         goto err;
     }
 
-    log_it( L_NOTICE, "Initialized socket server module" );
+    log_it( L_NOTICE, "Initialized event socket reactor for %u threads", s_threads_count );
 
 #ifdef DAP_OS_UNIX
-    signal( SIGPIPE, SIG_IGN );
+//    signal( SIGPIPE, SIG_IGN ); // ?
 #endif
     return 0;
 
 err:
+    log_it(L_ERROR,"Deinit events subsystem");
     dap_events_deinit();
     dap_worker_deinit();
     return -1;
@@ -162,7 +163,7 @@ void dap_events_deinit( )
  */
 dap_events_t * dap_events_new( )
 {
-  dap_events_t *ret = (dap_events_t *)calloc( 1, sizeof(dap_events_t) );
+  dap_events_t *ret = DAP_NEW_Z(dap_events_t);
 
   pthread_rwlock_init( &ret->sockets_rwlock, NULL );
   pthread_rwlock_init( &ret->servers_rwlock, NULL );
@@ -199,21 +200,42 @@ void dap_events_delete( dap_events_t *a_events )
  */
 int dap_events_start( dap_events_t *a_events )
 {
+
     for( uint32_t i = 0; i < s_threads_count; i++) {
-        s_workers[i].id = i;
-        s_workers[i].events = a_events;
+        dap_worker_t * l_worker = DAP_NEW_Z(dap_worker_t);
+
+        l_worker->id = i;
+        l_worker->events = a_events;
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        s_workers[i].epoll_fd = epoll_create( DAP_MAX_EPOLL_EVENTS );
-        if ( (intptr_t)s_workers[i].epoll_fd == -1 ) {
+        l_worker->epoll_fd = epoll_create( DAP_MAX_EPOLL_EVENTS );
+        pthread_mutex_init(& l_worker->started_mutex, NULL);
+        pthread_cond_init( & l_worker->started_cond, NULL);
+        //log_it(L_DEBUG, "Created event_fd %d for worker %u", l_worker->epoll_fd,i);
+        if ( l_worker->epoll_fd == -1 ) {
             int l_errno = errno;
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof ( l_errbuf) );
             log_it(L_CRITICAL, "Error create epoll fd: %s (%d)", l_errbuf, l_errno);
+            DAP_DELETE(l_worker);
             return -1;
         }
 #endif
-      pthread_mutex_init( &s_workers[i].locker_on_count, NULL );
-      pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, &s_workers[i] );
+        s_workers[i] = l_worker;
+        pthread_mutex_lock(&l_worker->started_mutex);
+        struct timespec l_timeout;
+        clock_gettime(CLOCK_REALTIME, &l_timeout);
+        l_timeout.tv_sec+=5;
+        pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
+
+        int l_ret;
+        l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
+        if ( l_ret== ETIMEDOUT ){
+            log_it(L_CRITICAL, "Timeout 5 seconds is out: worker #%u thread don't respond", i);
+            return -2;
+        } else if (l_ret != 0){
+            log_it(L_CRITICAL, "Can't wait on condition: %d error code", l_ret);
+            return -3;
+        }
     }
     return 0;
 }
@@ -254,7 +276,7 @@ uint32_t dap_events_worker_get_index_min( )
 
     for( i = 1; i < s_threads_count; i++ ) {
 
-    if ( s_workers[min].event_sockets_count > s_workers[i].event_sockets_count )
+    if ( s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count )
         min = i;
     }
 
@@ -272,8 +294,7 @@ uint32_t dap_events_worker_get_count()
  */
 dap_worker_t *dap_events_worker_get_min( )
 {
-    dap_worker_t *l_workers = &s_workers[dap_events_worker_get_index_min()];
-    return l_workers;
+    return s_workers[dap_events_worker_get_index_min()];
 }
 
 /**
@@ -281,9 +302,12 @@ dap_worker_t *dap_events_worker_get_min( )
  * @param a_index
  * @return
  */
-dap_worker_t * dap_events_worker_get_index(uint8_t a_index)
+dap_worker_t * dap_events_worker_get(uint8_t a_index)
 {
-    return a_index < s_threads_count ? &s_workers[a_index] : NULL;
+    if (a_index < s_threads_count){
+        return   s_workers[a_index];
+    }else
+        return NULL;
 }
 
 /**
@@ -294,6 +318,6 @@ void dap_events_worker_print_all( )
     uint32_t i;
     for( i = 0; i < s_threads_count; i ++ ) {
         log_it( L_INFO, "Worker: %d, count open connections: %d",
-                s_workers[i].id, s_workers[i].event_sockets_count );
+                s_workers[i]->id, s_workers[i]->event_sockets_count );
     }
 }

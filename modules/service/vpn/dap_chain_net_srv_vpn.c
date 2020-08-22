@@ -399,7 +399,7 @@ int s_vpn_tun_create(dap_config_t * g_config)
 
     int err = -1;
     for( uint8_t i =0; i< l_cpu_count; i++){
-        dap_worker_t * l_worker = dap_events_worker_get_index(i);
+        dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
         int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR| O_NONBLOCK)) < 0 ) {

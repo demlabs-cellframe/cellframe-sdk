@@ -61,5 +61,5 @@ uint32_t dap_events_worker_get_index_min( );
 uint32_t dap_events_worker_get_count();
 dap_worker_t *dap_events_worker_get_min( );
 
-dap_worker_t * dap_events_worker_get_index(uint8_t a_index);
+dap_worker_t * dap_events_worker_get(uint8_t a_index);
 uint32_t dap_get_cpu_count();

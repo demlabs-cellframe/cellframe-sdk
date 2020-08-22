@@ -23,6 +23,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdatomic.h>
+#include <pthread.h>
 #include "dap_events_socket.h"
 
 typedef struct dap_worker
@@ -33,8 +34,10 @@ typedef struct dap_worker
     dap_events_socket_t * event_new_es; // Events socket for new socket
     dap_events_socket_t * event_delete_es; // Events socket for new socket
     EPOLL_HANDLE epoll_fd;
-    pthread_mutex_t locker_on_count;
     dap_events_t *events;
+
+    pthread_cond_t started_cond;
+    pthread_mutex_t started_mutex;
 } dap_worker_t;
 
 int dap_worker_init( size_t a_conn_timeout );
