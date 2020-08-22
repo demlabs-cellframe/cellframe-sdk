@@ -115,7 +115,7 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
-    l_es->dap_worker = a_w;
+    l_es->worker = a_w;
     l_es->callbacks.event_callback = a_callback; // Arm event callback
 
 #ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
@@ -165,7 +165,7 @@ void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg)
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    dap_events_socket_send_event( a_es->dap_worker->event_delete_es, a_es );
+    dap_events_socket_send_event( a_es->worker->event_delete_es, a_es );
 }
 
 
@@ -183,9 +183,9 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
 
   dap_worker_add_events_socket_auto( a_es );
 
-  pthread_mutex_lock( &a_es->dap_worker->locker_on_count );
+  pthread_mutex_lock( &a_es->worker->locker_on_count );
 
-  a_es->dap_worker->event_sockets_count ++;
+  a_es->worker->event_sockets_count ++;
 
   pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
   HASH_ADD_INT( a_es->events->sockets, socket, a_es );
@@ -194,10 +194,10 @@ void dap_events_socket_create_after( dap_events_socket_t *a_es )
   a_es->ev.events = EPOLLIN | EPOLLERR;
   a_es->ev.data.ptr = a_es;
 
-  if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
+  if ( epoll_ctl( a_es->worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
     log_it( L_CRITICAL, "Can't add event socket's handler to epoll_fd" );
 
-  pthread_mutex_unlock( &a_es->dap_worker->locker_on_count );
+  pthread_mutex_unlock( &a_es->worker->locker_on_count );
 }
 
 /**
@@ -283,7 +283,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
 
   sc->ev.events = events;
 
-  if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
+  if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
     log_it( L_ERROR,"Can't update read client socket state in the epoll_fd" );
   else
     dap_events_thread_wake_up( &sc->events->proc_thread );
@@ -316,7 +316,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
 
     sc->ev.events = events;
 
-    if ( epoll_ctl(sc->dap_worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
+    if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
         strerror_r(errno, l_errbuf, sizeof (l_errbuf));
         log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: %s (%d)", l_errbuf, errno);
     }
@@ -326,7 +326,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
  * @brief dap_events_socket_remove Removes the client from the list
  * @param sc Connection instance
  */
-void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inheritor )
+void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor )
 {
   if ( !a_es ) return;
 
@@ -336,6 +336,8 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
       log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
       return ;
   }
+
+  dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
   pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
   if(a_es->events->sockets)
     HASH_DEL( a_es->events->sockets, a_es );
@@ -370,13 +372,13 @@ void dap_events_socket_delete( dap_events_socket_t *a_es, bool preserve_inherito
  * @brief dap_events_socket_delete
  * @param a_es
  */
-void s_es_remove( dap_events_socket_t *a_es)
+void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
-  if ( epoll_ctl( a_es->dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
+  if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
      log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
   else
-     log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_es->dap_worker->number_thread );
-  a_es->dap_worker->event_sockets_count--;
+     log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
+  a_worker->event_sockets_count--;
 }
 
 /**
@@ -386,7 +388,7 @@ void s_es_remove( dap_events_socket_t *a_es)
  */
 void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
 {
-    dap_events_socket_send_event( a_es->dap_worker->event_delete_es, a_es );
+    dap_events_socket_send_event( a_es->worker->event_delete_es, a_es );
 }
 
 void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready)

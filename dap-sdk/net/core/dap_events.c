@@ -202,7 +202,7 @@ void dap_events_delete( dap_events_t *a_events )
   if ( a_events ) {
 
     HASH_ITER( hh, a_events->sockets,cur, tmp ) {
-      dap_events_socket_delete( cur, true );
+      dap_events_socket_delete_unsafe( cur, true );
     }
 
     if ( a_events->_inheritor )
@@ -240,10 +240,10 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
       if ( epoll_ctl( dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
         log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
       else
-        log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", dap_worker->number_thread );
+        log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", dap_worker->id );
 
       pthread_rwlock_unlock(&a_events->sockets_rwlock);
-      dap_events_socket_delete( a_es, true );
+      dap_events_socket_delete_unsafe(a_es, true );
       pthread_rwlock_rdlock(&a_events->sockets_rwlock);
     }
   }
@@ -252,22 +252,22 @@ static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t 
 }
 
 /**
- * @brief thread_worker_function
+ * @brief s_thread_worker_function
  * @param arg
  * @return
  */
-static void *thread_worker_function(void *arg)
+static void *s_thread_worker_function(void *arg)
 {
     dap_events_socket_t *l_cur;
-    dap_worker_t *w = (dap_worker_t *) arg;
-    time_t next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
-    uint32_t tn = w->number_thread;
+    dap_worker_t *l_worker = (dap_worker_t *) arg;
+    time_t l_next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
+    uint32_t l_tn = l_worker->id;
 
 #ifndef _WIN32
 #ifndef NO_POSIX_SHED
     cpu_set_t mask;
     CPU_ZERO(&mask);
-    CPU_SET(tn, &mask);
+    CPU_SET(l_tn, &mask);
 
     int err;
 #ifndef __ANDROID__
@@ -289,12 +289,12 @@ static void *thread_worker_function(void *arg)
   }
   #endif
 
-    w->event_new_es = dap_events_socket_create_type_event( w, s_new_es_callback);
-    w->event_delete_es = dap_events_socket_create_type_event( w, s_new_es_callback);
+    l_worker->event_new_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
+    l_worker->event_delete_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
 
-    log_it(L_INFO, "Worker %d started, epoll fd %d", w->number_thread, w->epoll_fd);
+    log_it(L_INFO, "Worker %d started, epoll fd %d", l_worker->id, l_worker->epoll_fd);
 
-    struct epoll_event *events = &g_epoll_events[ DAP_MAX_EPOLL_EVENTS * tn];
+    struct epoll_event *events = &g_epoll_events[ DAP_MAX_EPOLL_EVENTS * l_tn];
 
 //  memset( &ev, 0, sizeof(ev) );
 //  memset( &events, 0, sizeof(events) );
@@ -304,12 +304,12 @@ static void *thread_worker_function(void *arg)
 
     while(bEventsAreActive) {
 
-        int selected_sockets = epoll_wait(w->epoll_fd, events, DAP_MAX_EPOLL_EVENTS, 1000);
+        int selected_sockets = epoll_wait(l_worker->epoll_fd, events, DAP_MAX_EPOLL_EVENTS, 1000);
 
         if(selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
-            log_it(L_ERROR, "Worker thread %d got errno: %d", w->number_thread, errno);
+            log_it(L_ERROR, "Worker thread %d got errno: %d", l_worker->id, errno);
             break;
         }
 
@@ -493,21 +493,20 @@ static void *thread_worker_function(void *arg)
                 // protect against double deletion
                 l_cur->kill_signal = true;
                 //dap_events_socket_remove_and_delete(cur, true);
-                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, tn);
+                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
             }
 
             if(l_cur->kill_signal) {
-                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, tn);
-                s_es_remove(l_cur);
-                dap_events_socket_delete( l_cur, false);
+                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, l_tn);
+                dap_events_socket_delete_unsafe( l_cur, false);
             }
 
         }
 
 #ifndef  NO_TIMER
-        if(cur_time >= next_time_timeout_check) {
-            s_socket_all_check_activity(w, w->events, cur_time);
-            next_time_timeout_check = cur_time + s_connection_timeout / 2;
+        if(cur_time >= l_next_time_timeout_check) {
+            s_socket_all_check_activity(l_worker, l_worker->events, cur_time);
+            l_next_time_timeout_check = cur_time + s_connection_timeout / 2;
         }
 #endif
 
@@ -524,11 +523,11 @@ static void *thread_worker_function(void *arg)
 static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
-    dap_worker_t * w = a_es->dap_worker;
+    dap_worker_t * w = a_es->worker;
     log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
-    l_es_new->dap_worker = w;
+    l_es_new->worker = w;
     if (  l_es_new->type == DESCRIPTOR_TYPE_SOCKET  ||  l_es_new->type == DESCRIPTOR_TYPE_SOCKET_LISTENING ){
-        int l_cpu = w->number_thread;
+        int l_cpu = w->id;
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
     }
 
@@ -554,14 +553,14 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         if ( epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_ev) == 1 )
             log_it(L_CRITICAL,"Can't add event socket's handler to epoll_fd");
         else{
-            log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->number_thread);
+            log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, w);
 
         }
     }else{
         log_it(L_ERROR, "Incorrect socket %d after new callback. Dropping this handler out", l_es_new->socket);
-        dap_events_socket_queue_on_remove_and_delete( l_es_new );
+        dap_events_socket_delete_unsafe( l_es_new, false );
     }
 }
 
@@ -583,11 +582,11 @@ static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
 static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_reassign = ((dap_events_socket_t* ) a_arg);
-    s_es_remove( l_es_reassign);
+    dap_events_socket_remove_from_worker_unsafe( l_es_reassign, a_es->worker );
     if (l_es_reassign->callbacks.worker_unassign_callback)
-        l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->dap_worker);
+        l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->worker);
 
-    dap_events_socket_assign_on_worker( l_es_reassign, l_es_reassign->dap_worker );
+    dap_events_socket_assign_on_worker( l_es_reassign, l_es_reassign->worker );
 }
 
 
@@ -640,7 +639,7 @@ void dap_worker_print_all( )
   for( i = 0; i < s_threads_count; i ++ ) {
 
     log_it( L_INFO, "Worker: %d, count open connections: %d",
-            s_workers[i].number_thread, s_workers[i].event_sockets_count );
+            s_workers[i].id, s_workers[i].event_sockets_count );
   }
 }
 
@@ -661,11 +660,11 @@ int dap_events_start( dap_events_t *a_events )
 
     //s_workers[i].event_to_kill_count = 0;
     s_workers[i].event_sockets_count = 0;
-    s_workers[i].number_thread = i;
+    s_workers[i].id = i;
     s_workers[i].events = a_events;
 
     pthread_mutex_init( &s_workers[i].locker_on_count, NULL );
-    pthread_create( &s_threads[i].tid, NULL, thread_worker_function, &s_workers[i] );
+    pthread_create( &s_threads[i].tid, NULL, s_thread_worker_function, &s_workers[i] );
   }
 
   return 0;
@@ -713,8 +712,8 @@ void dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_worker_get_min( );
 
-  a_es->dap_worker = l_worker;
-  a_es->events = a_es->dap_worker->events;
+  a_es->worker = l_worker;
+  a_es->events = a_es->worker->events;
 }
 
 /**

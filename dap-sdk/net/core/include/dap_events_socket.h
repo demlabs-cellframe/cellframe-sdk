@@ -121,8 +121,8 @@ typedef struct dap_events_socket {
 
     size_t buf_out_size; // size of data that is in the output buffer
 
-    struct dap_events *events;
-    struct dap_worker *dap_worker;
+    dap_events_t *events;
+    dap_worker_t *worker;
 #ifdef DAP_EVENTS_CAPS_EPOLL
     uint32_t ev_base_flags;
     struct epoll_event ev;
@@ -177,6 +177,8 @@ size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, si
 size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
 
 void dap_events_socket_queue_remove_and_delete(dap_events_socket_t* a_es);
+void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor );
+void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
 
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 

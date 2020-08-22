@@ -61,15 +61,14 @@ typedef struct dap_events {
 
 typedef struct dap_worker
 {
-  atomic_uint event_sockets_count;
+    uint32_t id;
+    atomic_uint event_sockets_count;
 
-  dap_events_socket_t * event_new_es; // Events socket for new socket
-  dap_events_socket_t * event_delete_es; // Events socket for new socket
-  EPOLL_HANDLE epoll_fd;
-  uint32_t number_thread;
-  pthread_mutex_t locker_on_count;
-  dap_events_t *events;
-
+    dap_events_socket_t * event_new_es; // Events socket for new socket
+    dap_events_socket_t * event_delete_es; // Events socket for new socket
+    EPOLL_HANDLE epoll_fd;
+    pthread_mutex_t locker_on_count;
+    dap_events_t *events;
 } dap_worker_t;
 
 int32_t  dap_events_init( uint32_t a_threads_count, size_t conn_t ); // Init server module

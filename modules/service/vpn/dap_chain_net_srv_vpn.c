@@ -1829,8 +1829,8 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     ch_sf_tun_socket_t * l_tun_socket = DAP_NEW_Z(ch_sf_tun_socket_t);
     if ( l_tun_socket ){
-        l_tun_socket->worker = a_es->dap_worker;
-        l_tun_socket->worker_id = l_tun_socket->worker->number_thread;
+        l_tun_socket->worker = a_es->worker;
+        l_tun_socket->worker_id = l_tun_socket->worker->id;
         l_tun_socket->es = a_es;
         pthread_rwlock_wrlock(&s_tun_sockets_rwlock);
         HASH_ADD_INT( s_tun_sockets, worker_id, l_tun_socket);
