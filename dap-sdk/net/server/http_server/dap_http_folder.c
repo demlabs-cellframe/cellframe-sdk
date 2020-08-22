@@ -1,23 +1,25 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * DeM Labs Ltd.   https://demlabs.net
+ * Copyright  (c) 2017
+ * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
+    DAP SDK is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DAP SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Lesser General Public License for more details.
+    GNU General Public License for more details.
 
-    You should have received a copy of the GNU Lesser General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -38,7 +40,7 @@
 #include <magic.h>
 
 #include "dap_common.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http.h"
 #include "dap_http_client.h"
 #include "dap_http_folder.h"
@@ -160,8 +162,9 @@ void dap_http_folder_headers_read(dap_http_client_t * cl_ht, void * arg)
     (void) arg;
     cl_ht->state_write=DAP_HTTP_CLIENT_STATE_START;
     cl_ht->state_read=cl_ht->keep_alive?DAP_HTTP_CLIENT_STATE_START:DAP_HTTP_CLIENT_STATE_NONE;
-    dap_client_remote_ready_to_write(cl_ht->client,true);
-    dap_client_remote_ready_to_read(cl_ht->client, cl_ht->keep_alive);
+
+    dap_events_socket_set_writable_unsafe(cl_ht->esocket,true);
+    dap_events_socket_set_readable_unsafe(cl_ht->esocket, cl_ht->keep_alive);
 }
 
 #ifdef _WIN32
@@ -255,7 +258,7 @@ void dap_http_folder_headers_write( dap_http_client_t *cl_ht, void * arg)
     }
     else {
       cl_ht->reply_status_code=Http_Status_NotFound;
-      cl_ht->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
+      cl_ht->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
       log_it(L_WARNING,"Can't detect MIME type of %s file: %s",cl_ht_file->local_path,magic_error(up_folder->mime_detector));
     }
   }
@@ -280,7 +283,7 @@ void dap_http_folder_data_read(dap_http_client_t * cl_ht, void * arg)
 {
     int * bytes_return = (int*) arg; // Return number of read bytes
     //Do nothing
-    *bytes_return=cl_ht->client->buf_in_size;
+    *bytes_return=cl_ht->esocket->buf_in_size;
 }
 
 /**
@@ -292,17 +295,17 @@ void dap_http_folder_data_write(dap_http_client_t * cl_ht, void * arg)
 {
     (void) arg;
     dap_http_file_t * cl_ht_file= DAP_HTTP_FILE(cl_ht);
-    cl_ht->client->buf_out_size=fread(cl_ht->client->buf_out,1,sizeof(cl_ht->client->buf_out),cl_ht_file->fd);
-    cl_ht_file->position+=cl_ht->client->buf_out_size;
+    cl_ht->esocket->buf_out_size=fread(cl_ht->esocket->buf_out,1,sizeof(cl_ht->esocket->buf_out),cl_ht_file->fd);
+    cl_ht_file->position+=cl_ht->esocket->buf_out_size;
 
     if(feof(cl_ht_file->fd)!=0){
         log_it(L_INFO, "All the file %s is sent out",cl_ht_file->local_path);
         //strncat(cl_ht->client->buf_out+cl_ht->client->buf_out_size,"\r\n",sizeof(cl_ht->client->buf_out));
         fclose(cl_ht_file->fd);
-        dap_client_remote_ready_to_write(cl_ht->client,false);
+        dap_events_socket_set_writable_unsafe(cl_ht->esocket,false);
 
         if ( !cl_ht->keep_alive )
-            cl_ht->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
+            cl_ht->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
         cl_ht->state_write=DAP_HTTP_CLIENT_STATE_NONE;
     }

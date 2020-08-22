@@ -175,8 +175,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 randombytes(l_request_out->data, l_request_out->data_size);
                 l_request_out->err_code = l_err_code;
                 dap_hash_fast(l_request_out->data, l_request_out->data_size, &l_request_out->data_hash);
-                memcpy(l_request_out->ip_send, a_ch->stream->conn->s_ip, sizeof(l_request_out->ip_send));
-                gettimeofday(&l_request_out->send_time2, NULL);
+                strncpy(l_request_out->ip_send,a_ch->stream->esocket->hostaddr  , sizeof(l_request_out->ip_send)-1);
+
+                // Thats to prevent unaligned pointer
+                struct timeval l_tval;
+                gettimeofday(&l_tval, NULL);
+                l_request_out->send_time2.tv_sec = l_tval.tv_sec;
+                l_request_out->send_time2.tv_usec = l_tval.tv_usec;
 
                 // send response
                 if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request_out, l_request_out->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t))) {

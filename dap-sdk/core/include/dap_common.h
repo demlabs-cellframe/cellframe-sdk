@@ -413,6 +413,12 @@ void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val);
 uint64_t dap_lendian_get64(const uint8_t *a_buf);
 void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
 
+// crossplatform usleep
+#define DAP_USEC_PER_SEC 1000000
+void dap_usleep(time_t a_microseconds);
+
+
+
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
 #endif

@@ -23,7 +23,7 @@ See more details here <http://www.gnu.org/licenses/>.
 #pragma once
 
 #include "dap_server.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_header.h"
 #include "dap_http_client.h"
 #include "uthash.h"

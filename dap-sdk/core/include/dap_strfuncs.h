@@ -112,6 +112,3 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base);
 char *_strndup(const char *str, unsigned long len);
 #endif
 
-#define DAP_USEC_PER_SEC 1000000
-void dap_usleep(time_t a_microseconds);
-

@@ -39,7 +39,7 @@
 //#include "config.h"
 
 
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_client.h"
 
 #include "dap_enc.h"
@@ -145,21 +145,9 @@ size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t
 //    printf("*[dap_stream_pkt_write] size=%d key=0x%x _inheritor_size=%d\n", pkt_hdr.size, sid->session->key,
 //            sid->session->key->_inheritor_size);
 
-    if(a_stream->conn_udp){
-        ret+=dap_udp_client_write(a_stream->conn,&pkt_hdr,sizeof(pkt_hdr));
-        ret+=dap_udp_client_write(a_stream->conn,a_stream->buf,pkt_hdr.size);
-        dap_client_remote_ready_to_write(a_stream->conn, true);
-    }
-    else if(a_stream->conn){
-        ret+=dap_client_remote_write(a_stream->conn,&pkt_hdr,sizeof(pkt_hdr));
-        ret+=dap_client_remote_write(a_stream->conn,a_stream->buf,pkt_hdr.size);
-        dap_client_remote_ready_to_write(a_stream->conn, true);
-    }
-    else if(a_stream->events_socket) {
-        ret += dap_events_socket_write_unsafe(a_stream->events_socket, &pkt_hdr, sizeof(pkt_hdr));
-        ret += dap_events_socket_write_unsafe(a_stream->events_socket, a_stream->buf, pkt_hdr.size);
-        dap_events_socket_set_writable_unsafe(a_stream->events_socket, true);
-    }
+    ret+=dap_events_socket_write_unsafe(a_stream->esocket,&pkt_hdr,sizeof(pkt_hdr));
+    ret+=dap_events_socket_write_unsafe(a_stream->esocket,a_stream->buf,pkt_hdr.size);
+    dap_events_socket_set_writable_unsafe(a_stream->esocket, true);
 
     return ret;
 }

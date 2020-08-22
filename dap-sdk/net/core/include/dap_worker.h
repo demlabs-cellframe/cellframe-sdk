@@ -21,10 +21,28 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-struct dap_http;
+#include <stdint.h>
+#include <stdatomic.h>
+#include "dap_events_socket.h"
 
-extern int dap_http_folder_init();
-extern void dap_http_folder_deinit();
+typedef struct dap_worker
+{
+    uint32_t id;
+    atomic_uint event_sockets_count;
 
-extern int dap_http_folder_add(struct dap_http *sh, const char * url_path, const char * local_path); // Add folder for reading to the HTTP server
+    dap_events_socket_t * event_new_es; // Events socket for new socket
+    dap_events_socket_t * event_delete_es; // Events socket for new socket
+    EPOLL_HANDLE epoll_fd;
+    pthread_mutex_t locker_on_count;
+    dap_events_t *events;
+} dap_worker_t;
 
+int dap_worker_init( size_t a_conn_timeout );
+void dap_worker_deinit();
+
+void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_worker * a_worker);
+void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
+void dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
+
+// Thread function
+void *dap_worker_thread(void *arg);

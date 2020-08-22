@@ -60,8 +60,8 @@ See more details here <http://www.gnu.org/licenses/>.
 #define LOG_TAG "dap_http_simple"
 
 static void s_headers_read( dap_http_client_t *cl_ht, void *arg );
-static void s_data_write( dap_http_client_t *a_http_client, void *a_arg );
-static void s_data_read( dap_http_client_t * cl_ht, void *arg );
+static void s_http_client_data_write( dap_http_client_t *a_http_client, void *a_arg );
+static void s_es_read( dap_http_client_t * cl_ht, void *arg );
 void *dap_http_simple_proc( dap_http_simple_t * cl_sh );
 
 static void *loop_http_simple_proc( void *arg );
@@ -168,7 +168,7 @@ static void *loop_http_simple_proc( void *arg )
 
       for ( uint32_t i = 0; i < s_requestsproc_count; ++ i ) {
         dap_http_simple_proc( s_requestsproc[i] );
-        s_requestsproc[i]->http->client->no_close = false;
+        s_requestsproc[i]->http->esocket->no_close = false;
 //        free( s_requestsproc[i] ); // ???
       }
     }
@@ -205,7 +205,7 @@ void dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_
                      NULL, // Contrustor
                      NULL, //  Destructor
                      s_headers_read, NULL, // Headers read, write
-                     s_data_read, s_data_write, // Data read, write
+                     s_es_read, s_http_client_data_write, // Data read, write
                      NULL); // errror
 }
 
@@ -307,11 +307,11 @@ inline static void _set_only_write_http_client_state(dap_http_client_t* http_cli
 //  log_it(L_DEBUG,"_set_only_write_http_client_state");
 //  Sleep(300);
 
-  dap_client_remote_ready_to_read(http_client->client,false);
+  dap_events_socket_set_readable_unsafe(http_client->esocket,false);
 //  http_client->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
   http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-  dap_client_remote_ready_to_write(http_client->client,true);
+  dap_events_socket_set_writable_unsafe(http_client->esocket,true);
 //  http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
 }
 
@@ -429,7 +429,7 @@ static void s_headers_read( dap_http_client_t *a_http_client, void *a_arg )
     }
 }
 
-void s_data_read( dap_http_client_t *a_http_client, void * a_arg )
+void s_es_read( dap_http_client_t *a_http_client, void * a_arg )
 {
     int *ret = (int *)a_arg;
 
@@ -438,8 +438,8 @@ void s_data_read( dap_http_client_t *a_http_client, void * a_arg )
 
     dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
 
-    size_t bytes_to_read = (a_http_client->client->buf_in_size + l_http_simple->request_size) < a_http_client->in_content_length ?
-                            a_http_client->client->buf_in_size : ( a_http_client->in_content_length - l_http_simple->request_size );
+    size_t bytes_to_read = (a_http_client->esocket->buf_in_size + l_http_simple->request_size) < a_http_client->in_content_length ?
+                            a_http_client->esocket->buf_in_size : ( a_http_client->in_content_length - l_http_simple->request_size );
 
     if( bytes_to_read ) {
         // Oops! The client sent more data than write in the CONTENT_LENGTH header
@@ -450,7 +450,7 @@ void s_data_read( dap_http_client_t *a_http_client, void * a_arg )
             l_http_simple->request = DAP_REALLOC(l_http_simple->request, l_http_simple->request_size_max);
         }
         if(l_http_simple->request){// request_byte=request
-            memcpy( l_http_simple->request_byte + l_http_simple->request_size, a_http_client->client->buf_in, bytes_to_read );
+            memcpy( l_http_simple->request_byte + l_http_simple->request_size, a_http_client->esocket->buf_in, bytes_to_read );
             l_http_simple->request_size += bytes_to_read;
         }
     }
@@ -462,7 +462,7 @@ void s_data_read( dap_http_client_t *a_http_client, void * a_arg )
         queue_http_request_put( l_http_simple );
     }
 
-    *ret = (int) a_http_client->client->buf_in_size;
+    *ret = (int) a_http_client->esocket->buf_in_size;
 }
 
 
@@ -471,7 +471,7 @@ void s_data_read( dap_http_client_t *a_http_client, void * a_arg )
  * @param a_http_client
  * @param a_arg
  */
-static void s_data_write( dap_http_client_t *a_http_client, void *a_arg )
+static void s_http_client_data_write( dap_http_client_t *a_http_client, void *a_arg )
 {
   (void) a_arg;
   dap_http_simple_t *cl_st = DAP_HTTP_SIMPLE( a_http_client );
@@ -481,20 +481,20 @@ static void s_data_write( dap_http_client_t *a_http_client, void *a_arg )
 
   if ( !cl_st->reply ) {
 
-    a_http_client->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     log_it( L_WARNING, "No reply to write, close connection" );
 
     return;
   }
 
-  cl_st->reply_sent += dap_client_remote_write( a_http_client->client,
+  cl_st->reply_sent += dap_events_socket_write_unsafe( a_http_client->esocket,
                                               cl_st->reply_byte + cl_st->reply_sent,
                                               a_http_client->out_content_length - cl_st->reply_sent );
 
   if ( cl_st->reply_sent >= a_http_client->out_content_length ) {
     log_it(L_INFO, "All the reply (%u) is sent out", a_http_client->out_content_length );
     //cl_ht->client->signal_close=cl_ht->keep_alive;
-    a_http_client->client->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     //dap_client_ready_to_write(cl_ht->client,false);
   }
 
@@ -554,7 +554,7 @@ inline void queue_http_request_put( dap_http_simple_t *cl_sh )
   log_it( L_WARNING, "queue_http_request_put >>> %u", s_requests_count );
 
   s_requests[ s_requests_count ++ ] = cl_sh;
-  cl_sh->http->client->no_close = true;
+  cl_sh->http->esocket->no_close = true;
 
   pthread_mutex_unlock( &mutex_on_queue_http_response );
 }

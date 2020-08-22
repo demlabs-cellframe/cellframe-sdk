@@ -36,7 +36,7 @@
 #include <pthread.h>
 
 #include "dap_common.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_client.h"
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
@@ -178,14 +178,7 @@ void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * a_ch,bool a_is_ready)
     if( a_ch->ready_to_read != a_is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         a_ch->ready_to_read=a_is_ready;
-        if(a_ch->stream->conn_udp)
-            dap_udp_client_ready_to_read(a_ch->stream->conn,a_is_ready);
-        // for stream server
-        else if(a_ch->stream->conn)
-            dap_client_remote_ready_to_read( a_ch->stream->conn,a_is_ready);
-        // for stream client
-        else if(a_ch->stream->events_socket)
-            dap_events_socket_set_readable_unsafe( a_ch->stream->events_socket, a_is_ready);
+        dap_events_socket_set_readable_unsafe( a_ch->stream->esocket,a_is_ready);
     }
     pthread_mutex_unlock(&a_ch->mutex);
 }
@@ -205,14 +198,7 @@ void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
         ch->ready_to_write=is_ready;
         if(is_ready && ch->stream->conn_http)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
-        if(ch->stream->conn_udp)
-            dap_udp_client_ready_to_write(ch->stream->conn,is_ready);
-        // for stream server
-        else if(ch->stream->conn)
-            dap_client_remote_ready_to_write(ch->stream->conn,is_ready);
-        // for stream client
-        else if(ch->stream->events_socket)
-            dap_events_socket_set_writable_unsafe(ch->stream->events_socket, is_ready);
+        dap_events_socket_set_writable_unsafe(ch->stream->esocket,is_ready);
     }
     pthread_mutex_unlock(&ch->mutex);
 }

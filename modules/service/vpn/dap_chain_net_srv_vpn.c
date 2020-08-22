@@ -53,7 +53,7 @@
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_client.h"
 
 #include "dap_stream.h"
@@ -233,7 +233,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
     ch_vpn_socket_proxy_t * sf_sock = NULL;
     sf_sock = DAP_NEW_Z(ch_vpn_socket_proxy_t);
     sf_sock->id = remote_sock_id;
-    sf_sock->sock = l_ch->stream->events_socket->socket;
+    sf_sock->sock = l_ch->stream->esocket->socket;
     sf_sock->ch = l_ch;
     pthread_mutex_init(&sf_sock->mutex, NULL);
     dap_chain_net_srv_ch_vpn_t *f = CH_VPN(a_srv_client->ch);
@@ -302,7 +302,7 @@ static int callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_
 /*
  * Client VPN init (after dap_chain_net_srv_vpn_init!)
  */
-int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config) {
+int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_uid);
     dap_chain_net_srv_vpn_t* l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*) l_srv->_inhertor : NULL;
@@ -359,7 +359,7 @@ int s_tun_deattach_queue(int fd)
 dap_events_socket_t * s_tun_es_create(dap_worker_t * a_worker, int a_tun_fd)
 {
     assert(a_worker);
-    static dap_events_socket_callbacks_t l_s_callbacks = { 0 };
+    static dap_events_socket_callbacks_t l_s_callbacks = {{ 0 }};
     l_s_callbacks.new_callback = s_es_tun_new;
     l_s_callbacks.read_callback = s_es_tun_read;
     l_s_callbacks.error_callback = s_es_tun_error;
@@ -399,7 +399,7 @@ int s_vpn_tun_create(dap_config_t * g_config)
 
     int err = -1;
     for( uint8_t i =0; i< l_cpu_count; i++){
-        dap_worker_t * l_worker = dap_worker_get_index(i);
+        dap_worker_t * l_worker = dap_events_worker_get_index(i);
         assert( l_worker );
         int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR| O_NONBLOCK)) < 0 ) {
@@ -817,7 +817,7 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
  */
 void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
 {
-    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->conn->s_ip);
+    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->esocket->hostaddr);
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
     pthread_mutex_lock(&(l_ch_vpn->mutex));
@@ -1069,11 +1069,11 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if(l_vpn_pkt->header.op_code >= 0xb0) { // Raw packets
             switch (l_vpn_pkt->header.op_code) {
             case VPN_PACKET_OP_CODE_PING:
-                a_ch->stream->events_socket->last_ping_request = time(NULL);
+                a_ch->stream->esocket->last_ping_request = time(NULL);
                 send_pong_pkt(a_ch);
                 break;
             case VPN_PACKET_OP_CODE_PONG:
-                a_ch->stream->events_socket->last_ping_request = time(NULL);
+                a_ch->stream->esocket->last_ping_request = time(NULL);
                 break;
             // for client
             case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
@@ -1191,7 +1191,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 break;
             // for client only
             case VPN_PACKET_OP_CODE_VPN_RECV:{
-                a_ch->stream->events_socket->last_ping_request = time(NULL); // not ping, but better  ;-)
+                a_ch->stream->esocket->last_ping_request = time(NULL); // not ping, but better  ;-)
                             ch_sf_tun_send(CH_VPN(a_ch), l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
             }
             break;

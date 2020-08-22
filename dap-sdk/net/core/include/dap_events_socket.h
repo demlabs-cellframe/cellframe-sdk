@@ -1,25 +1,24 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2019
+ * DeM Labs Ltd.   https://demlabs.net
+ * Copyright  (c) 2017
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP SDK is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DAP SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
 #include <stdint.h>
@@ -32,10 +31,13 @@
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
     #define DAP_EVENTS_CAPS_EPOLL
-    #define DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
+    #define DAP_EVENTS_CAPS_EVENT_PIPE2
+    #include <netinet/in.h>
+    #include <sys/eventfd.h>
 #elif defined (DAP_OS_UNIX)
-    #define DAP_EVENTS_CAPS_POLL
-    #define DAP_EVENTS_CAPS_EVENT_PIPE
+    #define DAP_EVENTS_CAPS_KQUEUE
+    #define DAP_EVENTS_CAPS_EVENT_SOCKETPAIR
+    #include <netinet/in.h>
 #elif defined (DAP_OS_WINDOWS)
     #define DAP_EVENTS_CAPS_WEPOLL
     #define DAP_EVENTS_CAPS_EPOLL
@@ -44,8 +46,10 @@
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 #include <sys/epoll.h>
+#define EPOLL_HANDLE  int
 #elif defined (DAP_EVENTS_CAPS_WEPOLL)
 #include "wepoll.h"
+#define EPOLL_HANDLE  HANDLE
 #endif
 
 typedef struct dap_events dap_events_t;
@@ -92,8 +96,10 @@ typedef struct dap_events_socket {
         int socket;
         int fd;
     };
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
     int fd2;
+
+    int write_pipe;
 #endif
     dap_events_desc_type_t type;
 
@@ -123,6 +129,7 @@ typedef struct dap_events_socket {
 
     dap_events_t *events;
     dap_worker_t *worker;
+    dap_server_t *server; // If this socket assigned with server
 #ifdef DAP_EVENTS_CAPS_EPOLL
     uint32_t ev_base_flags;
     struct epoll_event ev;
@@ -134,14 +141,10 @@ typedef struct dap_events_socket {
     time_t last_time_active;
     time_t last_ping_request;
     bool is_pingable;
-
-    UT_hash_handle hh;
-    struct dap_events_socket *next, *prev;
-    struct dap_events_socket *knext, *kprev;
+    pthread_mutex_t mutex;
 
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
-
-    pthread_mutex_t mutex;
+    UT_hash_handle hh;
 } dap_events_socket_t; // Node of bidirectional list of clients
 
 typedef struct dap_events_socket_event{

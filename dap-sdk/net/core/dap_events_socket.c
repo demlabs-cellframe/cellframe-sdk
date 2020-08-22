@@ -1,26 +1,26 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2019
+ * DeM Labs Ltd.   https://demlabs.net
+ * Copyright  (c) 2017
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP SDK is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DAP SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -118,7 +118,7 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
     l_es->worker = a_w;
     l_es->callbacks.event_callback = a_callback; // Arm event callback
 
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
     int l_pipe[2];
     int l_errno;
     char l_errbuf[128];
@@ -154,7 +154,7 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
  */
 void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg)
 {
-#if defined(DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE)
+#if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
     write( a_es->fd2, &a_arg,sizeof(a_arg));
 #endif
 }
@@ -283,10 +283,12 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
 
   sc->ev.events = events;
 
-  if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 )
-    log_it( L_ERROR,"Can't update read client socket state in the epoll_fd" );
-  else
-    dap_events_thread_wake_up( &sc->events->proc_thread );
+    if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 ){
+        int l_errno = errno;
+        char l_errbuf[128];
+        strerror_r( l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it( L_ERROR,"Can't update read client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno );
+    }
 }
 
 /**
@@ -296,7 +298,6 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
  */
 void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_ready )
 {
-    char l_errbuf[128];
     if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
         return;
     }
@@ -317,8 +318,10 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
     sc->ev.events = events;
 
     if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
-        strerror_r(errno, l_errbuf, sizeof (l_errbuf));
-        log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: %s (%d)", l_errbuf, errno);
+        int l_errno = errno;
+        char l_errbuf[128];
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno);
     }
 }
 
@@ -328,44 +331,45 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
  */
 void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor )
 {
-  if ( !a_es ) return;
+    if ( !a_es )
+        return;
 
-  log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
+    log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
 
-  if(!dap_events_socket_find(a_es->socket, a_es->events)){
-      log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
-      return ;
-  }
-
-  dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
-  pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
-  if(a_es->events->sockets)
-    HASH_DEL( a_es->events->sockets, a_es );
-  pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
-
-  log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
-
-  if( a_es->callbacks.delete_callback )
-    a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
-
-  if ( a_es->_inheritor && !preserve_inheritor )
-    DAP_DELETE( a_es->_inheritor );
-
-  if ( a_es->socket ) {
-#ifdef _WIN32
-    closesocket( a_es->socket );
-#else
-    close( a_es->socket );
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE_PKT_MODE
-    if( a_es->type == DESCRIPTOR_TYPE_EVENT){
-        close( a_es->fd2);
+    if(!dap_events_socket_find(a_es->socket, a_es->events)){
+        log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
+        return ;
     }
+
+    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
+    pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
+    if(a_es->events->sockets)
+    HASH_DEL( a_es->events->sockets, a_es );
+    pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
+
+    log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
+
+    if( a_es->callbacks.delete_callback )
+        a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
+
+    if ( a_es->_inheritor && !preserve_inheritor )
+        DAP_DELETE( a_es->_inheritor );
+
+    if ( a_es->socket ) {
+#ifdef _WIN32
+        closesocket( a_es->socket );
+#else
+        close( a_es->socket );
+#ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
+        if( a_es->type == DESCRIPTOR_TYPE_EVENT){
+            close( a_es->fd2);
+        }
 #endif
 
 #endif
-  }
-  pthread_mutex_destroy(&a_es->mutex);
-  DAP_DELETE( a_es );
+    }
+    pthread_mutex_destroy(&a_es->mutex);
+    DAP_DELETE( a_es );
 }
 
 /**
@@ -374,11 +378,11 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_i
  */
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
-  if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
-     log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
-  else
-     log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
-  a_worker->event_sockets_count--;
+    if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
+        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
+    else
+        log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
+    a_worker->event_sockets_count--;
 }
 
 /**
@@ -391,21 +395,44 @@ void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
     dap_events_socket_send_event( a_es->worker->event_delete_es, a_es );
 }
 
+/**
+ * @brief dap_events_socket_set_readable_mt
+ * @param sc
+ * @param is_ready
+ */
 void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready)
 {
 
 }
 
+/**
+ * @brief dap_events_socket_set_writable_mt
+ * @param sc
+ * @param is_ready
+ */
 void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready)
 {
 
 }
 
+/**
+ * @brief dap_events_socket_write_mt
+ * @param sc
+ * @param data
+ * @param data_size
+ * @return
+ */
 size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
 
 }
 
+/**
+ * @brief dap_events_socket_write_f_mt
+ * @param sc
+ * @param format
+ * @return
+ */
 size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...)
 {
 
