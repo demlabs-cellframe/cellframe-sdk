@@ -205,7 +205,7 @@ void stream_headers_read(dap_http_client_t * cl_ht, void * arg)
         if(sscanf(cl_ht->in_query_string,"session_id=%u",&id) == 1 ||
                 sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id) == 1) {
             dap_stream_session_t * ss=NULL;
-            ss=dap_stream_session_id(id);
+            ss=dap_stream_session_id_mt(id);
             if(ss==NULL){
                 log_it(L_ERROR,"No session id %u was found",id);
                 cl_ht->reply_status_code=404;
@@ -268,7 +268,7 @@ void check_session( unsigned int a_id, dap_events_socket_t *a_client_remote )
 {
     dap_stream_session_t *l_session = NULL;
 
-    l_session = dap_stream_session_id( a_id );
+    l_session = dap_stream_session_id_mt( a_id );
 
     if ( l_session == NULL ) {
         log_it(L_ERROR,"No session id %u was found",a_id);
@@ -353,7 +353,7 @@ void dap_stream_delete(dap_stream_t *a_stream)
 
     pthread_rwlock_wrlock(&a_stream->rwlock);
     if(a_stream->session)
-        dap_stream_session_close(a_stream->session->id);
+        dap_stream_session_close_mt(a_stream->session->id); // TODO make stream close after timeout, not momentaly
     a_stream->session = NULL;
     pthread_rwlock_unlock(&a_stream->rwlock);
     pthread_rwlock_destroy(&a_stream->rwlock);

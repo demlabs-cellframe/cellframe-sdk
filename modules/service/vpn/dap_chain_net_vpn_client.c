@@ -477,8 +477,8 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             l_request->time_connect_ms = l_dtime_connect_ms;
             gettimeofday(&l_request->send_time1, NULL);
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
-            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
-            dap_stream_ch_set_ready_to_write(l_ch, true);
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
             DAP_DELETE(l_request);
         }
     }
@@ -568,8 +568,8 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
             //dap_chain_hash_fast_t l_request
             //.hdr.tx_cond = a_txCond.value();
 //    	    strncpy(l_request->hdr.token, a_token.toLatin1().constData(),sizeof (l_request->hdr.token)-1);
-            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST, &l_request, sizeof(l_request));
-            dap_stream_ch_set_ready_to_write(l_ch, true);
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST, &l_request, sizeof(l_request));
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         }
     }
 
@@ -777,9 +777,9 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                     ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z(ch_vpn_pkt_t);
                     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
 
-                    dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out,
+                    dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out,
                             l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                     free(l_pkt_out);
 
@@ -825,21 +825,21 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                                 log_it(L_NOTICE, "Added sock_id %d  with sock %d to the epoll fd", remote_sock_id, s);
                                 //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=%uc result=0",sf_pkt->sock_id, sf_pkt->op_code);
                             }
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                         } else {
                             ch_vpn_pkt_t *l_pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(l_pkt_out->header));
                             l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
 
-                            dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out,
+                            dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out,
                                     l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                             free(l_pkt_out);
 
                             log_it(L_INFO, "Can't connect to the remote server %s", addr_str);
-                            dap_stream_ch_pkt_write_f(a_ch, 'i', "sock_id=%d op_code=%c result=-1",
+                            dap_stream_ch_pkt_write_f_unsafe(a_ch, 'i', "sock_id=%d op_code=%c result=-1",
                                     l_sf_pkt->header.sock_id, l_sf_pkt->header.op_code);
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                         }
                     } else {
@@ -847,9 +847,9 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                         ch_vpn_pkt_t *l_pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(l_pkt_out->header));
                         l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
 
-                        dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out,
+                        dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out,
                                 l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                         free(l_pkt_out);
 
@@ -879,7 +879,7 @@ void dap_chain_net_vpn_client_pkt_out(dap_stream_ch_t* a_ch)
             for(i = 0; i < l_cur->pkt_out_size; i++) {
                 ch_vpn_pkt_t * pout = l_cur->pkt_out[i];
                 if(pout) {
-                    if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout,
+                    if(dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout,
                             pout->header.op_data.data_size + sizeof(pout->header))) {
                         l_is_smth_out = true;
                         if(pout)

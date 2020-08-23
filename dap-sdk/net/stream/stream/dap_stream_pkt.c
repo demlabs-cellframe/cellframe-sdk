@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -128,7 +129,7 @@ size_t dap_stream_pkt_read( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, v
  * @return
  */
 
-size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
+size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
 {
     size_t ret=0;
     stream_pkt_hdr_t pkt_hdr;
@@ -152,6 +153,31 @@ size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t
     return ret;
 }
 
+/**
+ * @brief dap_stream_pkt_write_mt
+ * @param a_stream_session
+ * @param a_es
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+size_t dap_stream_pkt_write_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
+{
+    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    stream_pkt_hdr_t *l_pkt_hdr;
+    l_msg->data_size = 16-a_data_size%16+a_data_size+sizeof(*l_pkt_hdr);
+    l_msg->data = DAP_NEW_SIZE(void,l_msg->data_size);
+    l_pkt_hdr=(stream_pkt_hdr_t*) l_msg->data;
+    memset(l_pkt_hdr,0,sizeof(*l_pkt_hdr));
+    memcpy(l_pkt_hdr->sig,c_dap_stream_sig,sizeof(l_pkt_hdr->sig));
+    l_msg->data_size=sizeof (*l_pkt_hdr) +dap_enc_code(a_key, a_data,a_data_size, ((byte_t*)l_msg->data)+sizeof (*l_pkt_hdr),l_msg->data_size-sizeof (*l_pkt_hdr),DAP_ENC_DATA_TYPE_RAW);
+    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
+        log_it(L_ERROR, "Wasn't send msg pointer to queue");
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return a_data_size;
+}
 
 
 /**
@@ -164,7 +190,7 @@ void dap_stream_send_keepalive(dap_stream_t * a_stream)
     l_pkt.id = TECHICAL_CHANNEL_ID;
     l_pkt.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
 
-    if( dap_stream_pkt_write( a_stream, &l_pkt, sizeof(l_pkt) ) )
+    if( dap_stream_pkt_write_unsafe( a_stream, &l_pkt, sizeof(l_pkt) ) )
         dap_stream_set_ready_to_write( a_stream, true );
 }
 

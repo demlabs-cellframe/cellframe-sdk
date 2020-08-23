@@ -1139,7 +1139,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
-        dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+        dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
         // wait for finishing of request
         int timeout_ms = 420000; // 7 min = 420 sec = 420 000 ms
         // TODO add progress info to console
@@ -1176,7 +1176,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 return -3;
             }
             log_it(L_NOTICE, "Requested syncronization for chain \"%s\"", l_chain->name);
-            dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
 
             // wait for finishing of request
             timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms

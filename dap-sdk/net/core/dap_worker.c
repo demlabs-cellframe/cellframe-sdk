@@ -457,6 +457,7 @@ static void s_queue_es_write_callback( dap_events_socket_t * a_es, void * a_arg)
     if( a_es->buf_in_size < sizeof(l_es_data_out) ){
         dap_events_socket_mgs_t * l_msg = a_arg;
         dap_events_socket_t * l_msg_es = l_msg->esocket;
+        // TODO add check if it was deleted
         if (l_msg->flags_set & DAP_SOCK_READY_TO_READ)
             dap_events_socket_set_readable_unsafe(l_msg_es, true);
         if (l_msg->flags_unset & DAP_SOCK_READY_TO_READ)

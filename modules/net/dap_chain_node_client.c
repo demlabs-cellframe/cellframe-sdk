@@ -365,7 +365,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                             a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
 
                     log_it(L_INFO, "Sync for remote tr type=%d", a_pkt_type);//_count=%d", dap_list_length(l_list));
-                    dap_stream_ch_set_ready_to_write(a_ch_chain->ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch_chain->ch, true);
                 }
                 else {
                     log_it(L_INFO, "Remote node has lastes timestamp for us type=%d", a_pkt_type);
@@ -626,9 +626,7 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client->client, a_ch_id);
     if(l_ch) {
 //        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-
-        dap_stream_ch_pkt_write(l_ch, a_type, a_pkt_data, a_pkt_data_size);
-        dap_stream_ch_set_ready_to_write(l_ch, true);
+        dap_stream_ch_pkt_write_mt(l_ch->stream->esocket, l_ch->stream->session->key, a_type, a_pkt_data, a_pkt_data_size);
         return 0;
     } else
         return -1;

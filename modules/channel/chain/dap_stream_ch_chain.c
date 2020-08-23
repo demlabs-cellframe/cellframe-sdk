@@ -147,7 +147,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_error) {
             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, l_err_str);
-            dap_stream_ch_set_ready_to_write(a_ch, true);
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
         }
         size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size - sizeof(l_chain_pkt->hdr);
         if (!l_error && l_chain_pkt) {
@@ -249,7 +249,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         DAP_DELETE(l_lasts);
                         DAP_DELETE(l_iter);
                     }
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 }
             }
                 break;
@@ -260,7 +260,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             "ERROR_STATE_NOT_IN_IDLE");
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                     break;
                 }
                 // receive the latest global_db revision of the remote node -> go to send mode
@@ -328,7 +328,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     //log_it(L_INFO, "Prepared %u items for sync", l_db_log->items_number - l_request->id_start);//dap_list_length(l_ch_chain->request_global_db_trs));
                     // go to send data from list [in s_stream_ch_packet_out()]
                     // no data to send -> send one empty message DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB_SYNCED
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 }
                 else {
                     log_it(L_ERROR, "Get DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB session_id=%u bad request",
@@ -336,7 +336,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                             "ERROR_SYNC_GLOBAL_DB_REQUEST_BAD");
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 }
             }
                 break;
@@ -385,7 +385,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                                 l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                 "ERROR_CHAIN_PACKET_EMPTY");
-                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                     }
                 }
             }
@@ -478,7 +478,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                     "ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED");
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                         } else {
                             // If request was from defined node_addr we update its state
                             if(l_ch_chain->request.node_addr.uint64) {
@@ -553,7 +553,7 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     HASH_ITER( hh, a_ch_chain->request_atoms_processed, l_atom_item, l_atom_item_tmp )
         HASH_DEL(a_ch_chain->request_atoms_processed, l_atom_item);
     pthread_mutex_unlock(&a_ch_chain->mutex);
-    dap_stream_ch_set_ready_to_write(a_ch_chain->ch, false);
+    dap_stream_ch_set_ready_to_write_unsafe(a_ch_chain->ch, false);
 
 }
 

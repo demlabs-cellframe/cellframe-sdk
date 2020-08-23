@@ -329,9 +329,8 @@ static void* thread_read_tun(void *arg)
 
                         pthread_mutex_lock(&s_clients_mutex);
                         // sent packet to vpn server
-                        dap_stream_ch_pkt_write(l_stream, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                        dap_stream_ch_pkt_write_mt(l_stream->stream->esocket,l_stream->stream->session->key , DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                        dap_stream_ch_set_ready_to_write(l_stream, true);
                         pthread_mutex_unlock(&s_clients_mutex);
 
                         DAP_DELETE(pkt_out);
@@ -415,9 +414,8 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 
                 pthread_mutex_lock(&s_clients_mutex);
                 // sent packet to vpn server
-                dap_stream_ch_pkt_write(l_stream, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                dap_stream_ch_pkt_write_mt(l_stream->stream->esocket,l_stream->stream->session->key, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                         pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                dap_stream_ch_set_ready_to_write(l_stream, true);
                 pthread_mutex_unlock(&s_clients_mutex);
 
                 DAP_DELETE(pkt_out);
@@ -666,8 +664,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     l_pkt_out->header.sock_id = a_ch->stream->esocket->socket;
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
-    dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out, l_pkt_out_size);
-    dap_stream_ch_set_ready_to_write(a_ch, true);
+    dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);
 }
 
 void ch_sf_tun_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size) {
@@ -711,9 +708,8 @@ void ch_sf_tun_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t 
                 pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
                 pkt_out->header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
                 pkt_out->header.sock_id = s_fd_tun;
-                dap_stream_ch_pkt_write(ch_sf->ch, 'd', pkt_out,
+                dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', pkt_out,
                         pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                dap_stream_ch_set_ready_to_write(ch_sf->ch, true);
             } else {
                 //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
                 //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);

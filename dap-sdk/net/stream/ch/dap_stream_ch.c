@@ -170,17 +170,13 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
  * @param a_ch
  * @param a_is_ready
  */
-void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * a_ch,bool a_is_ready)
+void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * a_ch,bool a_is_ready)
 {
-    if (!dap_stream_ch_valid(a_ch)) {
-        return;
-    }
     if( a_ch->ready_to_read != a_is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         a_ch->ready_to_read=a_is_ready;
         dap_events_socket_set_readable_unsafe( a_ch->stream->esocket,a_is_ready);
     }
-    pthread_mutex_unlock(&a_ch->mutex);
 }
 
 /**
@@ -188,11 +184,8 @@ void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * a_ch,bool a_is_ready)
  * @param ch
  * @param is_ready
  */
-void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
+void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready)
 {
-    if (!dap_stream_ch_valid(ch)) {
-        return;
-    }
     if(ch->ready_to_write!=is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         ch->ready_to_write=is_ready;
@@ -200,7 +193,6 @@ void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
         dap_events_socket_set_writable_unsafe(ch->stream->esocket,is_ready);
     }
-    pthread_mutex_unlock(&ch->mutex);
 }
 
 /**

@@ -55,8 +55,8 @@ void dap_stream_ch_deinit();
 
 dap_stream_ch_t* dap_stream_ch_new( dap_stream_t * dap_stream,uint8_t id);
 
-void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * ch,bool is_ready);
-void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready);
+void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * ch,bool is_ready);
+void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready);
 
 bool dap_stream_ch_get_ready_to_read(dap_stream_ch_t *a_ch);
 bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t *a_ch);

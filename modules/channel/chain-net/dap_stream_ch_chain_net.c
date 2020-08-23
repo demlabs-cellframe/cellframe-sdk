@@ -186,7 +186,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_session_data_t *l_session_data = session_data_find(a_ch->stream->session->id);
     if (l_session_data == NULL) {
         log_it(L_ERROR, "Can't find chain net session for stream session %d", a_ch->stream->session->id);
-        dap_stream_ch_set_ready_to_write(a_ch, false);
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
     }
 
     if(l_ch_chain_net) {
@@ -210,7 +210,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (l_error) {
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, strlen(l_err_str) + 1);
-            dap_stream_ch_set_ready_to_write(a_ch, true);
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
         }
         //size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
         if (!l_error && l_ch_chain_net_pkt) {
@@ -219,7 +219,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG: {
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING,
                                                       l_ch_chain_net_pkt->hdr.net_id, NULL, 0);
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 }
                     break;
                     // received ping request - > send pong request
@@ -227,13 +227,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG,
                                                       l_ch_chain_net_pkt->hdr.net_id,NULL, 0);
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 }
                     break;
                     // receive pong request -> send nothing
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG: {
                     //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PONG");
-                    dap_stream_ch_set_ready_to_write(a_ch, false);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }
                 break;
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR: {
@@ -246,7 +246,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         log_it(L_WARNING,"Wrong data secion size %u",l_ch_chain_net_pkt_data_size,
                                sizeof (dap_chain_node_addr_t));
                     }
-                    dap_stream_ch_set_ready_to_write(a_ch, false);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE: {
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE");
@@ -258,7 +258,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             char l_err_str[]="ERROR_NET_INVALID_ID";
                             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str,sizeof (l_err_str));
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                             log_it(L_ERROR, "Invalid net id in packet");
                         } else {
                             if (dap_db_set_cur_node_addr_exp( l_addr->uint64, l_net->pub.name ))
@@ -271,7 +271,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         log_it(L_WARNING,"Wrong data secion size %u",l_ch_chain_net_pkt_data_size,
                                sizeof (dap_chain_node_addr_t));
                     }
-                    dap_stream_ch_set_ready_to_write(a_ch, false);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
                 // get current node address
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST: {
@@ -283,7 +283,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     // send cur node addr
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR,
                                                       l_ch_chain_net_pkt->hdr.net_id, &l_addr, l_send_data_len);
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 } break;
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST: {
                     log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST");
@@ -293,12 +293,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         char l_err_str[]="ERROR_NET_INVALID_ID";
                         dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR , l_net->pub.id,
                                                           l_err_str,sizeof (l_err_str));
-                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                     } else {
                         dap_chain_node_addr_t *l_addr_new = dap_chain_node_gen_addr(l_net, &l_net->pub.cell_id );
                         dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE ,
                                                          l_ch_chain_net_pkt->hdr.net_id, l_addr_new, sizeof (*l_addr_new));
-                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                         memcpy( &l_session_data->addr_remote,l_addr_new,sizeof (*l_addr_new) );
                         DAP_DELETE(l_addr_new);
                     }
@@ -323,5 +323,5 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  */
 void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
-    dap_stream_ch_set_ready_to_write(a_ch, false);
+    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
 }

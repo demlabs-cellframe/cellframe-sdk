@@ -38,7 +38,7 @@
 #define LOG_TAG "dap_stream_session"
 
 dap_stream_session_t * sessions=NULL;
-
+pthread_mutex_t sessions_mutex = PTHREAD_MUTEX_INITIALIZER;
 int stream_session_close2(dap_stream_session_t * s);
 static void * session_check(void * data);
 
@@ -52,27 +52,16 @@ void dap_stream_session_deinit()
 {
     dap_stream_session_t *current, *tmp;
     log_it(L_INFO,"Destroy all the sessions");
-
+    pthread_mutex_lock(&sessions_mutex);
       HASH_ITER(hh, sessions, current, tmp) {
           HASH_DEL(sessions,current);
-          stream_session_close2(current);
+          if (current->callback_delete)
+              current->callback_delete(current, NULL);
+          if (current->_inheritor )
+              DAP_DELETE(current->_inheritor);
+          DAP_DELETE(current);
       }
-}
-
-void dap_stream_session_list()
-{
-    dap_stream_session_t *current, *tmp;
-
-    log_it(L_INFO,"=== sessions list ======");
-
-      HASH_ITER( hh, sessions, current, tmp ) {
-      log_it(L_INFO,"ID %u session %X", current->id, current);
-
-//          HASH_DEL(sessions,current);
-//          stream_session_close2(current);
-      }
-
-    log_it(L_INFO,"=== sessions list ======");
+    pthread_mutex_unlock(&sessions_mutex);
 }
 
 
@@ -99,8 +88,9 @@ dap_stream_session_t * dap_stream_session_pure_new()
     ret->create_empty=true;
     ret->enc_type = 0x01; // Default encryption type
     log_it(L_DEBUG,"Timestamp %u",(unsigned int) ret->time_created);
+    pthread_mutex_lock(&sessions_mutex);
     HASH_ADD_INT(sessions,id,ret);
-
+    pthread_mutex_unlock(&sessions_mutex);
     return ret;
 }
 
@@ -114,29 +104,64 @@ dap_stream_session_t * dap_stream_session_new(unsigned int media_id, bool open_p
     return ret;
 }
 
-dap_stream_session_t *dap_stream_session_id( unsigned int id )
+/**
+ * @brief dap_stream_session_id_mt
+ * @param id
+ * @return
+ */
+dap_stream_session_t *dap_stream_session_id_mt( unsigned int id )
 {
     dap_stream_session_t *ret;
+    dap_stream_session_lock();
     HASH_FIND_INT( sessions, &id, ret );
-
+    dap_stream_session_unlock();
     return ret;
 }
 
+/**
+ * @brief dap_stream_session_id_unsafe
+ * @param id
+ * @return
+ */
+dap_stream_session_t *dap_stream_session_id_unsafe( unsigned int id )
+{
+    dap_stream_session_t *ret;
+    HASH_FIND_INT( sessions, &id, ret );
+    return ret;
+}
 
-int dap_stream_session_close(unsigned int id)
+/**
+ * @brief dap_stream_session_lock
+ */
+void dap_stream_session_lock()
+{
+    pthread_mutex_lock(&sessions_mutex);
+}
+
+/**
+ * @brief dap_stream_session_unlock
+ */
+void dap_stream_session_unlock()
+{
+    pthread_mutex_unlock(&sessions_mutex);
+}
+
+
+int dap_stream_session_close_mt(unsigned int id)
 {
     log_it(L_INFO,"Close session id %u", id);
 
 //    dap_stream_session_list();
-
-    dap_stream_session_t *l_s = dap_stream_session_id( id );
-
+    dap_stream_session_lock();
+    dap_stream_session_t *l_s = dap_stream_session_id_unsafe( id );
     if(!l_s) {
         log_it(L_WARNING, "Session id %u not found", id);
         return -1;
     }
 
-    return stream_session_close2(l_s);
+    int ret = stream_session_close2(l_s);
+    dap_stream_session_unlock();
+    return ret;
 }
 
 int stream_session_close2(dap_stream_session_t * a_session)

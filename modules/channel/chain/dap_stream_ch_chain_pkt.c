@@ -63,7 +63,7 @@ size_t dap_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,dap_c
     if (a_data_size && a_data)
         memcpy( l_chain_pkt->data, a_data, a_data_size);
 
-    size_t l_ret  = dap_stream_ch_pkt_write(a_ch, a_type , l_chain_pkt, l_chain_pkt_size);
+    size_t l_ret  = dap_stream_ch_pkt_write_unsafe(a_ch, a_type , l_chain_pkt, l_chain_pkt_size);
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }
