@@ -78,7 +78,7 @@
 
 static bool s_workers_init = false;
 static uint32_t s_threads_count = 1;
-static dap_worker_t * volatile *s_workers = NULL;
+static dap_worker_t **s_workers = NULL;
 static dap_thread_t *s_threads = NULL;
 
 
@@ -166,7 +166,6 @@ dap_events_t * dap_events_new( )
   dap_events_t *ret = DAP_NEW_Z(dap_events_t);
 
   pthread_rwlock_init( &ret->sockets_rwlock, NULL );
-  pthread_rwlock_init( &ret->servers_rwlock, NULL );
 
   return ret;
 }
@@ -186,7 +185,6 @@ void dap_events_delete( dap_events_t *a_events )
         if ( a_events->_inheritor )
             DAP_DELETE( a_events->_inheritor );
 
-        pthread_rwlock_destroy( &a_events->servers_rwlock );
         pthread_rwlock_destroy( &a_events->sockets_rwlock );
 
         DAP_DELETE( a_events );
@@ -292,7 +290,7 @@ uint32_t dap_events_worker_get_count()
  * @brief dap_worker_get_min
  * @return
  */
-dap_worker_t *dap_events_worker_get_min( )
+dap_worker_t *dap_events_worker_get_auto( )
 {
     return s_workers[dap_events_worker_get_index_min()];
 }

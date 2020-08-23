@@ -37,13 +37,10 @@ typedef struct dap_thread {
 } dap_thread_t;
 
 typedef struct dap_events {
-
-  dap_events_socket_t *sockets; // Hashmap of event sockets
-  pthread_rwlock_t sockets_rwlock;
-  void *_inheritor;  // Pointer to the internal data, HTTP for example
-  dap_thread_t proc_thread;
-  pthread_rwlock_t servers_rwlock;
-
+    dap_events_socket_t *sockets; // Hashmap of event sockets
+    pthread_rwlock_t sockets_rwlock;
+    void *_inheritor;  // Pointer to the internal data, HTTP for example
+    dap_thread_t proc_thread;
 } dap_events_t;
 
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout ); // Init server module
@@ -59,7 +56,7 @@ int32_t dap_events_wait( dap_events_t *a_events );
 void dap_events_worker_print_all( );
 uint32_t dap_events_worker_get_index_min( );
 uint32_t dap_events_worker_get_count();
-dap_worker_t *dap_events_worker_get_min( );
+dap_worker_t *dap_events_worker_get_auto( );
 
 dap_worker_t * dap_events_worker_get(uint8_t a_index);
 uint32_t dap_get_cpu_count();

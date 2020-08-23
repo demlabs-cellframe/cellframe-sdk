@@ -138,8 +138,8 @@ void *dap_worker_thread(void *arg)
             }
             l_cur->last_time_active = l_cur_time;
 
-            log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", l_worker->id,
-                   l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
+            //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", l_worker->id,
+             //      l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(l_epoll_events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
@@ -368,6 +368,7 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
     }
 
+    // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
         if (l_es_new->callbacks.new_callback)
             l_es_new->callbacks.new_callback(l_es_new, NULL);
@@ -375,21 +376,29 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if (l_es_new->socket>0){
-        pthread_rwlock_wrlock(&w->events->sockets_rwlock);
-        HASH_ADD_INT(w->events->sockets, socket, l_es_new );
-        pthread_rwlock_unlock(&w->events->sockets_rwlock);
-
-        struct epoll_event l_ev={0};
+        int l_ret = -1;
+#ifdef DAP_EVENTS_CAPS_EPOLL
+        // Init events for EPOLL
         l_es_new->ev.events = l_es_new->ev_base_flags ;
         if(l_es_new->flags & DAP_SOCK_READY_TO_READ )
             l_es_new->ev.events |= EPOLLIN;
         if(l_es_new->flags & DAP_SOCK_READY_TO_WRITE )
             l_es_new->ev.events |= EPOLLOUT;
         l_es_new->ev.data.ptr = l_es_new;
+        l_ret = epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev);
+#else
+#error "Unimplemented new esocket on worker callback for current platform"
+#endif
+        if (  l_ret != 0 ){
+            log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism");
+        }else{
+            // Add in global list
+            pthread_rwlock_wrlock(&w->events->sockets_rwlock);
+            HASH_ADD(hh, w->events->sockets, socket, sizeof (int), l_es_new );
+            pthread_rwlock_unlock(&w->events->sockets_rwlock);
+            // Add in worker
+            HASH_ADD(hh_worker, w->sockets, socket, sizeof (int), l_es_new );
 
-        if ( epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev) == 1 )
-            log_it(L_CRITICAL,"Can't add event socket's handler to epoll_fd");
-        else{
             log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, w);
@@ -431,35 +440,26 @@ static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
  * @param n_thread
  * @param sh
  */
-static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t *a_events, time_t cur_time )
+static void s_socket_all_check_activity( dap_worker_t *a_worker, dap_events_t *a_events, time_t a_cur_time )
 {
-  dap_events_socket_t *a_es, *tmp;
+    dap_events_socket_t *a_es, *tmp;
 
-  pthread_rwlock_rdlock(&a_events->sockets_rwlock);
-  HASH_ITER(hh, a_events->sockets, a_es, tmp ) {
+    HASH_ITER(hh_worker, a_worker->sockets, a_es, tmp ) {
+        if ( a_es->type == DESCRIPTOR_TYPE_FILE)
+            continue;
 
-    if ( a_es->type == DESCRIPTOR_TYPE_FILE)
-      continue;
-
-    if ( !a_es->kill_signal && cur_time >=  (time_t)a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
-
-      log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
-      if (a_es->callbacks.error_callback) {
-          a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
-      }
-
-      if ( epoll_ctl( dap_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
-        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
-      else
-        log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", dap_worker->id );
-
-      pthread_rwlock_unlock(&a_events->sockets_rwlock);
-      dap_events_socket_delete_unsafe(a_es, true );
-      pthread_rwlock_rdlock(&a_events->sockets_rwlock);
+        if ( !a_es->kill_signal && a_cur_time >=  (time_t)a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
+            log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
+            if (a_es->callbacks.error_callback) {
+                a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
+            }
+            if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
+                log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
+            else
+                log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
+            dap_events_socket_queue_remove_and_delete( a_es);
+        }
     }
-  }
-  pthread_rwlock_unlock(&a_events->sockets_rwlock);
-
 }
 
 /**
@@ -480,7 +480,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
 void dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 {
 //  struct epoll_event ev = {0};
-  dap_worker_t *l_worker = dap_events_worker_get_min( );
+  dap_worker_t *l_worker = dap_events_worker_get_auto( );
 
   a_es->worker = l_worker;
   a_es->events = a_es->worker->events;

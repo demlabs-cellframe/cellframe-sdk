@@ -25,14 +25,16 @@
 #include <stdatomic.h>
 #include <pthread.h>
 #include "dap_events_socket.h"
-
+#include "dap_timerfd.h"
 typedef struct dap_worker
 {
     uint32_t id;
     atomic_uint event_sockets_count;
+    dap_events_socket_t *sockets; // Hashmap of event sockets
 
     dap_events_socket_t * event_new_es; // Events socket for new socket
     dap_events_socket_t * event_delete_es; // Events socket for new socket
+    dap_events_socket_t * event_data_out; // Events socket with some data for output
     EPOLL_HANDLE epoll_fd;
     dap_events_t *events;
 

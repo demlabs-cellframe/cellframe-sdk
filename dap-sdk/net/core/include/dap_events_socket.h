@@ -142,10 +142,10 @@ typedef struct dap_events_socket {
     time_t last_time_active;
     time_t last_ping_request;
     bool is_pingable;
-    pthread_mutex_t mutex;
 
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
     UT_hash_handle hh;
+    UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
 
 typedef struct dap_events_socket_event{
@@ -165,7 +165,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 
 
-dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * sh); // Find client by socket
+dap_events_socket_t * dap_events_socket_find_unsafe(int sock, struct dap_events * sh); // Find client by socket
 
 size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, size_t data_size);
 

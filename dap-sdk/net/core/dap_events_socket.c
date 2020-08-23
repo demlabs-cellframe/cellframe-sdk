@@ -88,7 +88,10 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
   ret->events = a_events;
   memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
   ret->flags = DAP_SOCK_READY_TO_READ;
-  pthread_mutex_init(&ret->mutex, NULL);
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+    ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+#endif
 
   log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
@@ -116,6 +119,7 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     l_es->worker = a_w;
+    l_es->events = a_w->events;
     l_es->callbacks.event_callback = a_callback; // Arm event callback
 
 #ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
@@ -238,17 +242,17 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
  * @param sh
  * @return
  */
-dap_events_socket_t *dap_events_socket_find( int sock, struct dap_events *a_events )
+dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events *a_events )
 {
-  dap_events_socket_t *ret = NULL;
-  if(!a_events)
-      return NULL;
-  pthread_rwlock_wrlock( &a_events->sockets_rwlock );
-  if(a_events->sockets)
-      HASH_FIND_INT( a_events->sockets, &sock, ret );
-  pthread_rwlock_unlock( &a_events->sockets_rwlock );
+    // Why we have only unsafe socket? Because you need to lock sockets_rwlock when do any operations with
+    // socket that you've find in global list
+    dap_events_socket_t *ret = NULL;
+    if(!a_events)
+        return NULL;
+    if(a_events->sockets)
+        HASH_FIND_INT( a_events->sockets, &sock, ret );
 
-  return ret;
+    return ret;
 }
 
 /**
@@ -331,16 +335,16 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_i
         return;
 
     log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
+    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
-    if(!dap_events_socket_find(a_es->socket, a_es->events)){
+    pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
+    if(!dap_events_socket_find_unsafe(a_es->socket, a_es->events)){
         log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
         return ;
     }
 
-    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
-    pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
     if(a_es->events->sockets)
-    HASH_DEL( a_es->events->sockets, a_es );
+        HASH_DEL( a_es->events->sockets, a_es );
     pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
 
     log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
@@ -351,7 +355,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_i
     if ( a_es->_inheritor && !preserve_inheritor )
         DAP_DELETE( a_es->_inheritor );
 
-    if ( a_es->socket ) {
+    if ( a_es->socket && a_es->socket != -1) {
 #ifdef _WIN32
         closesocket( a_es->socket );
 #else
@@ -364,7 +368,6 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_i
 
 #endif
     }
-    pthread_mutex_destroy(&a_es->mutex);
     DAP_DELETE( a_es );
 }
 
@@ -379,6 +382,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     else
         log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
     a_worker->event_sockets_count--;
+    if(a_worker->sockets)
+        HASH_DELETE(hh_worker,a_worker->sockets, a_es);
 }
 
 /**
