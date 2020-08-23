@@ -455,6 +455,19 @@ static void s_queue_es_write_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_data_out;
     if( a_es->buf_in_size < sizeof(l_es_data_out) ){
+        dap_events_socket_mgs_t * l_msg = a_arg;
+        dap_events_socket_t * l_msg_es = l_msg->esocket;
+        if (l_msg->flags_set & DAP_SOCK_READY_TO_READ)
+            dap_events_socket_set_readable_unsafe(l_msg_es, true);
+        if (l_msg->flags_unset & DAP_SOCK_READY_TO_READ)
+            dap_events_socket_set_readable_unsafe(l_msg_es, false);
+        if (l_msg->flags_set & DAP_SOCK_READY_TO_WRITE)
+            dap_events_socket_set_writable_unsafe(l_msg_es, true);
+        if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
+            dap_events_socket_set_writable_unsafe(l_msg_es, false);
+        if (l_msg->data_size && l_msg->data)
+            dap_events_socket_write_unsafe(l_msg_es, l_msg->data,l_msg->data_size);
+        DAP_DELETE(l_msg);
         //log_it()
     }
 }
