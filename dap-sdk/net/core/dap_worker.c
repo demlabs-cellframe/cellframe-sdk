@@ -138,7 +138,8 @@ void *dap_worker_thread(void *arg)
             }
             l_cur->last_time_active = l_cur_time;
 
-            //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", w->number_thread, w->epoll_fd,cur->socket, events[n].events,events[n].events);
+            log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", l_worker->id,
+                   l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(l_epoll_events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
@@ -195,6 +196,24 @@ void *dap_worker_thread(void *arg)
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                         // Accept connection
+                        if ( l_cur->callbacks.accept_callback){
+                            struct sockaddr l_remote_addr;
+                            socklen_t l_remote_addr_size= sizeof (l_remote_addr);
+                            int l_remote_socket= accept(l_cur->socket ,&l_remote_addr,&l_remote_addr_size);
+                            int l_errno = errno;
+                            if ( l_remote_socket == -1 ){
+                                if( l_errno == EAGAIN || l_errno == EWOULDBLOCK){// Everything is good, we'll receive ACCEPT on next poll
+                                    continue;
+                                }else{
+                                    char l_errbuf[128];
+                                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                                    log_it(L_WARNING,"accept() on socket %d error:\"%s\"(%d)",l_cur->socket, l_errbuf,l_errno);
+                                }
+                            }
+
+                            l_cur->callbacks.accept_callback(l_cur,l_remote_socket,&l_remote_addr);
+                        }else
+                            log_it(L_ERROR,"No accept_callback on listening socket");
                     break;
                     case DESCRIPTOR_TYPE_TIMER:{
                         uint64_t val;
@@ -224,7 +243,12 @@ void *dap_worker_thread(void *arg)
                     if(l_bytes_read > 0) {
                         l_cur->buf_in_size += l_bytes_read;
                         //log_it(DEBUG, "Received %d bytes", bytes_read);
-                        l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
+                        if(l_cur->callbacks.read_callback)
+                            l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
+                        else{
+                            log_it(L_WARNING, "We have incomming %u data but no read callback on socket %d, removing from read set", l_cur->socket);
+                            dap_events_socket_set_readable_unsafe(l_cur,false);
+                        }
                     }
                     else if(l_bytes_read < 0) {
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK){ // Socket is blocked
@@ -287,19 +311,17 @@ void *dap_worker_thread(void *arg)
                         break;
                     }
                 }else{
-                    l_bytes_sent += l_bytes_sent;
-                    //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", total_sent,sa_cur->buf_out_size);
+                    //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
                     //}
                     //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
                     if (l_bytes_sent) {
-                        pthread_mutex_lock(&l_cur->mutex);
                         l_cur->buf_out_size -= l_bytes_sent;
+                        //log_it(L_DEBUG,"Output: left %u bytes in buffer",l_cur->buf_out_size);
                         if (l_cur->buf_out_size) {
                             memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
                         } else {
                             l_cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
                         }
-                        pthread_mutex_unlock(&l_cur->mutex);
                     }
                 }
             }
@@ -358,14 +380,14 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         pthread_rwlock_unlock(&w->events->sockets_rwlock);
 
         struct epoll_event l_ev={0};
-        l_ev.events = l_es_new->flags ;
+        l_es_new->ev.events = l_es_new->ev_base_flags ;
         if(l_es_new->flags & DAP_SOCK_READY_TO_READ )
-            l_ev.events |= EPOLLIN;
+            l_es_new->ev.events |= EPOLLIN;
         if(l_es_new->flags & DAP_SOCK_READY_TO_WRITE )
-            l_ev.events |= EPOLLOUT;
-        l_ev.data.ptr = l_es_new;
+            l_es_new->ev.events |= EPOLLOUT;
+        l_es_new->ev.data.ptr = l_es_new;
 
-        if ( epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_ev) == 1 )
+        if ( epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev) == 1 )
             log_it(L_CRITICAL,"Can't add event socket's handler to epoll_fd");
         else{
             log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);

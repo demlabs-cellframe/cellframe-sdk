@@ -58,8 +58,9 @@
 
 #define LOG_TAG "dap_server"
 
-static void s_es_server_read(dap_events_socket_t *a_events, void * a_arg);
-static void s_es_server_error(dap_events_socket_t *a_events, void * a_arg);
+static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr* a_remote_addr);
+static void s_es_server_error(dap_events_socket_t *a_es, void * a_arg);
+static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg);
 
 static void s_server_delete(dap_server_t * a_server);
 /**
@@ -122,7 +123,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         return NULL;
     }
 
-    log_it(L_NOTICE,"Listen socket created...");
+    log_it(L_NOTICE,"Listen socket %d created...", l_server->socket_listener);
     int reuse=1;
 
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
@@ -139,6 +140,8 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 
     if(bind (l_server->socket_listener, (struct sockaddr *) &(l_server->listener_addr), sizeof(l_server->listener_addr)) < 0){
         log_it(L_ERROR,"Bind error: %s",strerror(errno));
+        close(l_server->socket_listener);
+        DAP_DELETE(l_server);
         return NULL;
     }else{
         log_it(L_INFO,"Binded %s:%u",l_server->address,l_server->port);
@@ -146,26 +149,33 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
     }
 
     fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
+    pthread_mutex_init(&l_server->started_mutex,NULL);
+    pthread_cond_init(&l_server->started_cond,NULL);
 
-    dap_events_socket_callbacks_t l_callbacks = {{ 0 }};
-    l_callbacks.read_callback = s_es_server_read;
+
+
+    dap_events_socket_callbacks_t l_callbacks;
+    memset(&l_callbacks,0,sizeof (l_callbacks));
+    l_callbacks.new_callback = s_es_server_new;
+    l_callbacks.accept_callback = s_es_server_accept;
     l_callbacks.error_callback = s_es_server_error;
 
     for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
-        dap_events_socket_t * l_es = dap_events_socket_wrap_no_add( a_events, l_server->socket_listener, &l_callbacks);
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
         assert(l_w);
+        dap_events_socket_t * l_es = dap_events_socket_wrap2( l_server, a_events, l_server->socket_listener, &l_callbacks);
 
         if ( l_es){
-            log_it(L_DEBUG, "Wrapped server socket %p on worker %u", l_es, l_worker_id);
-            l_es->_inheritor = l_server;
-            l_es->server = l_server;
             l_es->type = DESCRIPTOR_TYPE_SOCKET_LISTENING;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             // Prepare for multi thread listening
             l_es->ev_base_flags  = EPOLLET| EPOLLIN | EPOLLEXCLUSIVE;
 #endif
+            l_es->_inheritor = l_server;
+            pthread_mutex_lock(&l_server->started_mutex);
             dap_worker_add_events_socket( l_es, l_w );
+            pthread_cond_wait(&l_server->started_cond, &l_server->started_mutex);
+            pthread_mutex_unlock(&l_server->started_mutex);
         } else{
             log_it(L_WARNING, "Can't wrap event socket for %s:%u server", a_addr, a_port);
             return NULL;
@@ -174,6 +184,17 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
     return  l_server;
 }
 
+/**
+ * @brief s_es_server_new
+ * @param a_es
+ * @param a_arg
+ */
+static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg)
+{
+    log_it(L_DEBUG, "Created server socket %p on worker %u", a_es, a_es->worker->id);
+    dap_server_t *l_server = (dap_server_t*) a_es->_inheritor;
+    pthread_cond_broadcast( &l_server->started_cond);
+}
 
 /**
  * @brief s_es_server_error
@@ -190,41 +211,30 @@ static void s_es_server_error(dap_events_socket_t *a_es, void * a_arg)
 }
 
 /**
- * @brief s_es_server_read
- * @param a_es
- * @param a_arg
+ * @brief s_es_server_accept
+ * @param a_events
+ * @param a_remote_socket
+ * @param a_remote_addr
  */
-static void s_es_server_read(dap_events_socket_t *a_es,void * a_arg)
+static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr *a_remote_addr)
 {
-    (void) a_arg;
+    socklen_t a_remote_addr_size = sizeof(*a_remote_addr);
     a_es->buf_in_size = 0; // It should be 1 so we reset it to 0
     //log_it(L_DEBUG, "Server socket %d is active",i);
     dap_server_t * l_server = (dap_server_t*) a_es->_inheritor;
-    if( l_server ){
-        dap_events_socket_t * l_es_new = NULL;
-        log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
-        struct sockaddr client_addr = {0};
-        socklen_t client_addr_size = sizeof(struct sockaddr);
-        int l_es_new_socket;
-        while (  (l_es_new_socket = accept(a_es->socket ,&client_addr,&client_addr_size)) > 0){
-            log_it(L_DEBUG, "Accepted new connection (sock %d from %d)", l_es_new_socket, a_es->socket);
-            l_es_new = dap_server_events_socket_new(a_es->events,l_es_new_socket,&l_server->client_callbacks,l_server);
+    assert(l_server);
 
-            getnameinfo(&client_addr,client_addr_size, l_es_new->hostaddr
-                        , sizeof(l_es_new->hostaddr),l_es_new->service,sizeof(l_es_new->service),
-                        NI_NUMERICHOST | NI_NUMERICSERV);
-            log_it(L_INFO,"Connection accepted from %s (%s)", l_es_new->hostaddr, l_es_new->service );
-            dap_worker_add_events_socket_auto(l_es_new);
-        }
-        if ( l_es_new_socket == -1 && errno == EAGAIN){
-            // Everything is good, we'll receive ACCEPT on next poll
-            return;
-        }else{
-            log_it(L_WARNING,"accept() returned %d",l_es_new_socket);
-        }
+    dap_events_socket_t * l_es_new = NULL;
+    log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
+    log_it(L_DEBUG, "Accepted new connection (sock %d from %d)", a_remote_socket, a_es->socket);
+    l_es_new = dap_server_events_socket_new(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
 
-    }else
-        log_it(L_ERROR, "No sap_server object related with socket %d in the select loop",a_es->socket);
+    getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr
+                , sizeof(l_es_new->hostaddr),l_es_new->service,sizeof(l_es_new->service),
+                NI_NUMERICHOST | NI_NUMERICSERV);
+
+    log_it(L_INFO,"Connection accepted from %s (%s)", l_es_new->hostaddr, l_es_new->service );
+    dap_worker_add_events_socket_auto(l_es_new);
 }
 
 

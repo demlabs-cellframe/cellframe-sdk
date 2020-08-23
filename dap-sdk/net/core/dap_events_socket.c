@@ -133,12 +133,11 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
         return NULL;
     }else
         log_it(L_DEBUG, "Created one-way unnamed pipe %d->%d", l_pipe[0], l_pipe[1]);
-    l_es->fd = l_pipe[1];
-    l_es->fd2 = l_pipe[0];
+    l_es->fd = l_pipe[0];
+    l_es->fd2 = l_pipe[1];
 #endif
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
-    struct epoll_event l_ev={0};
     int l_event_fd = l_es->fd;
     //log_it( L_INFO, "Create event descriptor with queue %d (%p) and add it on epoll fd %d", l_event_fd, l_es, a_w->epoll_fd);
     l_es->ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLHUP;
@@ -219,6 +218,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
 
   ret->socket = a_sock;
   ret->events = a_events;
+  ret->server = a_server;
   memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
 
   ret->flags = DAP_SOCK_READY_TO_READ;
@@ -228,9 +228,6 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   pthread_rwlock_wrlock( &a_events->sockets_rwlock );
   HASH_ADD_INT( a_events->sockets, socket, ret );
   pthread_rwlock_unlock( &a_events->sockets_rwlock );
-
-  if( a_callbacks->new_callback )
-    a_callbacks->new_callback( ret, NULL ); // Init internal structure
 
   return ret;
 }

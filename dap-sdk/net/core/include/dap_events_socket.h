@@ -59,11 +59,12 @@ typedef struct dap_worker dap_worker_t;
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , int, struct sockaddr* ); // Callback for accept of new connection
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
 typedef struct dap_events_socket_callbacks {
     union{
-        dap_events_socket_callback_t accept_callback; // Accept callback for listening socket
+        dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
         dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
         dap_events_socket_callback_t event_callback; // Timer callback for listening socket
         dap_events_socket_callback_t action_callback; // Callback for action with socket
@@ -160,6 +161,8 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
 void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg);
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
+dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
+                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 
 
 dap_events_socket_t * dap_events_socket_find(int sock, struct dap_events * sh); // Find client by socket

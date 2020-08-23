@@ -75,6 +75,9 @@ typedef struct dap_server {
   dap_server_callback_t delete_callback;
 
   dap_events_socket_callbacks_t client_callbacks; // Callbacks for the new clients
+
+  pthread_cond_t started_cond; // Condition for initialized socket
+  pthread_mutex_t started_mutex; // Mutex for shared operation between mirrored sockets
 } dap_server_t;
 
 int dap_server_init( ); // Init server module
