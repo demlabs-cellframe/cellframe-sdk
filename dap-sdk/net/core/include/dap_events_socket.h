@@ -87,7 +87,7 @@ typedef struct dap_events_socket_callbacks {
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET = 0,
     DESCRIPTOR_TYPE_SOCKET_LISTENING,
-    DESCRIPTOR_TYPE_EVENT,
+    DESCRIPTOR_TYPE_QUEUE,
     DESCRIPTOR_TYPE_TIMER,
     DESCRIPTOR_TYPE_FILE
 } dap_events_desc_type_t;
@@ -157,8 +157,8 @@ void dap_events_socket_deinit(); // Deinit clients module
 
 void dap_events_socket_create_after(dap_events_socket_t * a_es);
 
-dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
-void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg);
+dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
+void dap_events_socket_queue_send( dap_events_socket_t * a_es, void* a_arg);
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
 dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,

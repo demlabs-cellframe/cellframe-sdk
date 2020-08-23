@@ -114,10 +114,10 @@ void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_w
  * @param a_w
  * @return
  */
-dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
+dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
-    l_es->type = DESCRIPTOR_TYPE_EVENT;
+    l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->worker = a_w;
     l_es->events = a_w->events;
     l_es->callbacks.event_callback = a_callback; // Arm event callback
@@ -156,7 +156,7 @@ dap_events_socket_t * dap_events_socket_create_type_event(dap_worker_t * a_w, da
  * @param a_es
  * @param a_arg
  */
-void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg)
+void dap_events_socket_queue_send( dap_events_socket_t * a_es, void* a_arg)
 {
 #if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
     write( a_es->fd2, &a_arg,sizeof(a_arg));
@@ -169,7 +169,7 @@ void dap_events_socket_send_event( dap_events_socket_t * a_es, void* a_arg)
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    dap_events_socket_send_event( a_es->worker->event_delete_es, a_es );
+    dap_events_socket_queue_send( a_es->worker->queue_delete_es, a_es );
 }
 
 
@@ -361,7 +361,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_i
 #else
         close( a_es->socket );
 #ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
-        if( a_es->type == DESCRIPTOR_TYPE_EVENT){
+        if( a_es->type == DESCRIPTOR_TYPE_QUEUE){
             close( a_es->fd2);
         }
 #endif
@@ -393,7 +393,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
  */
 void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
 {
-    dap_events_socket_send_event( a_es->worker->event_delete_es, a_es );
+    dap_events_socket_queue_send( a_es->worker->queue_delete_es, a_es );
 }
 
 /**

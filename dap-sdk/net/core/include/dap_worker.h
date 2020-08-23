@@ -29,16 +29,17 @@
 typedef struct dap_worker
 {
     uint32_t id;
+    dap_events_t *events;
     atomic_uint event_sockets_count;
     dap_events_socket_t *sockets; // Hashmap of event sockets
 
-    dap_events_socket_t * event_new_es; // Events socket for new socket
-    dap_events_socket_t * event_delete_es; // Events socket for new socket
-    dap_events_socket_t * event_data_out; // Events socket with some data for output
+    // worker control queues
+    dap_events_socket_t * queue_new_es; // Events socket for new socket
+    dap_events_socket_t * queue_delete_es; // Events socket for new socket
+    dap_events_socket_t * queue_data_out; // Events socket with some data for output
 
     dap_timerfd_t * timer_check_activity;
     EPOLL_HANDLE epoll_fd;
-    dap_events_t *events;
 
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;

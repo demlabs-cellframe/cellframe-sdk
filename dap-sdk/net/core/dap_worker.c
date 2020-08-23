@@ -100,9 +100,9 @@ void *dap_worker_thread(void *arg)
   }
   #endif
 
-    l_worker->event_new_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
-    l_worker->event_delete_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
-    l_worker->event_data_out = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
+    l_worker->queue_new_es = dap_events_socket_create_type_queue( l_worker, s_new_es_callback);
+    l_worker->queue_delete_es = dap_events_socket_create_type_queue( l_worker, s_new_es_callback);
+    l_worker->queue_data_out = dap_events_socket_create_type_queue( l_worker, s_new_es_callback);
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -227,7 +227,7 @@ void *dap_worker_thread(void *arg)
                             log_it(L_ERROR, "Socket %d with timer callback fired, but callback is NULL ", l_cur->socket);
 
                     } break;
-                    case DESCRIPTOR_TYPE_EVENT:
+                    case DESCRIPTOR_TYPE_QUEUE:
                         if (l_cur->callbacks.event_callback){
                             void * l_event_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
@@ -464,7 +464,7 @@ static void s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    dap_events_socket_send_event( a_worker->event_new_es, a_events_socket );
+    dap_events_socket_queue_send( a_worker->queue_new_es, a_events_socket );
 }
 
 /**
