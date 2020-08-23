@@ -34,7 +34,7 @@
 #include "dap_common.h"
 #include "dap_events_socket.h"
 
-typedef void (*dap_timerfd_callback_t)(void * arg); // Callback for timer
+typedef void (*dap_timerfd_callback_t)(void* ); // Callback for timer
 
 typedef struct dap_timerfd {
     uint64_t timeout_ms;

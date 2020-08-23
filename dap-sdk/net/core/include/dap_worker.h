@@ -35,6 +35,8 @@ typedef struct dap_worker
     dap_events_socket_t * event_new_es; // Events socket for new socket
     dap_events_socket_t * event_delete_es; // Events socket for new socket
     dap_events_socket_t * event_data_out; // Events socket with some data for output
+
+    dap_timerfd_t * timer_check_activity;
     EPOLL_HANDLE epoll_fd;
     dap_events_t *events;
 

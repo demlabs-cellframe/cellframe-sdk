@@ -31,10 +31,10 @@
 #define LOG_TAG "dap_worker"
 
 
-static time_t s_connection_timeout = 6000;
+static time_t s_connection_timeout = 20000;
 
 
-static void s_socket_all_check_activity( dap_worker_t *dap_worker, dap_events_t *a_events, time_t cur_time );
+static void s_socket_all_check_activity( void * a_arg);
 static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg);
@@ -102,6 +102,8 @@ void *dap_worker_thread(void *arg)
 
     l_worker->event_new_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
     l_worker->event_delete_es = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
+    l_worker->event_data_out = dap_events_socket_create_type_event( l_worker, s_new_es_callback);
+    l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events[ DAP_MAX_EPOLL_EVENTS]= {{0}};
@@ -340,13 +342,6 @@ void *dap_worker_thread(void *arg)
 
         }
 
-#ifndef  NO_TIMER
-        if(l_cur_time >= l_next_time_timeout_check) {
-            s_socket_all_check_activity(l_worker, l_worker->events, l_cur_time);
-            l_next_time_timeout_check = l_cur_time + s_connection_timeout / 2;
-        }
-#endif
-
     } // while
 
     return NULL;
@@ -361,7 +356,7 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
-    log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
+    //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
     l_es_new->worker = w;
     if (  l_es_new->type == DESCRIPTOR_TYPE_SOCKET  ||  l_es_new->type == DESCRIPTOR_TYPE_SOCKET_LISTENING ){
         int l_cpu = w->id;
@@ -436,28 +431,28 @@ static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
 }
 
 /**
- * @brief s_socket_info_all_check_activity
- * @param n_thread
- * @param sh
+ * @brief s_socket_all_check_activity
+ * @param a_arg
  */
-static void s_socket_all_check_activity( dap_worker_t *a_worker, dap_events_t *a_events, time_t a_cur_time )
+static void s_socket_all_check_activity( void * a_arg)
 {
+    dap_worker_t *l_worker = (dap_worker_t*) a_arg;
+    assert(l_worker);
     dap_events_socket_t *a_es, *tmp;
+    char l_curtimebuf[64];
+    time_t l_curtime= time(NULL);
+    ctime_r(&l_curtime, l_curtimebuf);
+    log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
 
-    HASH_ITER(hh_worker, a_worker->sockets, a_es, tmp ) {
-        if ( a_es->type == DESCRIPTOR_TYPE_FILE)
-            continue;
-
-        if ( !a_es->kill_signal && a_cur_time >=  (time_t)a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
-            log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
-            if (a_es->callbacks.error_callback) {
-                a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
+    HASH_ITER(hh_worker, l_worker->sockets, a_es, tmp ) {
+        if ( a_es->type == DESCRIPTOR_TYPE_SOCKET  ){
+            if ( !a_es->kill_signal && l_curtime >=  (time_t)a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
+                log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
+                if (a_es->callbacks.error_callback) {
+                    a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
+                }
+                dap_events_socket_queue_remove_and_delete( a_es);
             }
-            if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
-                log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
-            else
-                log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
-            dap_events_socket_queue_remove_and_delete( a_es);
         }
     }
 }
