@@ -46,12 +46,7 @@
 
 typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
 
-#define BIT( x ) ( 1 << x )
 
-#define DAP_SOCK_READY_TO_READ     BIT( 0 )
-#define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
-#define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
-#define DAP_SOCK_ACTIVE            BIT( 3 )
 
 struct dap_server;
 

@@ -103,24 +103,76 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
  * @param a_es
  * @param a_worker
  */
-void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_worker * a_worker)
+void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker)
 {
     a_es->last_ping_request = time(NULL);
     dap_worker_add_events_socket(a_es,a_worker);
 }
 
 /**
- * @brief dap_events_socket_create_type_event
+ * @brief dap_events_socket_assign_on_worker_unsafe
+ * @param a_es
+ * @param a_worker
+ */
+void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struct dap_worker * a_worker)
+{
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+    int l_event_fd = a_es->fd;
+    //log_it( L_INFO, "Create event descriptor with queue %d (%p) and add it on epoll fd %d", l_event_fd, l_es, a_w->epoll_fd);
+    a_es->ev.events = a_es->ev_base_flags;
+    a_es->ev.data.ptr = a_es;
+    epoll_ctl(a_worker->epoll_fd, EPOLL_CTL_ADD, l_event_fd, &a_es->ev);
+#endif
+}
+
+/**
+ * @brief dap_events_socket_create_type_queue
  * @param a_w
+ * @param a_callback
+ * @param a_buf_in_size
  * @return
  */
-dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
+dap_events_socket_t * dap_events_socket_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
+{
+    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    l_es->type = DESCRIPTOR_TYPE_PIPE;
+    l_es->worker = a_w;
+    l_es->events = a_w->events;
+    l_es->callbacks.read_callback = a_callback; // Arm event callback
+    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+
+    int l_pipe[2];
+    int l_errno;
+    char l_errbuf[128];
+    if( pipe(l_pipe) < 0 ){
+        l_errno = errno;
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
+        DAP_DELETE(l_es);
+        return NULL;
+    }else
+        log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
+    l_es->fd = l_pipe[0];
+    l_es->fd2 = l_pipe[1];
+
+    dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+    return  l_es;
+}
+
+/**
+ * @brief dap_events_socket_create_type_queue
+ * @param a_w
+ * @param a_callback
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, dap_events_socket_callback_t a_callback )
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->worker = a_w;
     l_es->events = a_w->events;
-    l_es->callbacks.event_callback = a_callback; // Arm event callback
+    l_es->callbacks.queue_callback = a_callback; // Arm event callback
+    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 
 #ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
     int l_pipe[2];
@@ -136,18 +188,13 @@ dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, da
         DAP_DELETE(l_es);
         return NULL;
     }else
-        log_it(L_DEBUG, "Created one-way unnamed pipe %d->%d", l_pipe[0], l_pipe[1]);
+        log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
 #endif
 
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    int l_event_fd = l_es->fd;
-    //log_it( L_INFO, "Create event descriptor with queue %d (%p) and add it on epoll fd %d", l_event_fd, l_es, a_w->epoll_fd);
-    l_es->ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLHUP;
-    l_es->ev.data.ptr = l_es;
-    epoll_ctl(a_w->epoll_fd, EPOLL_CTL_ADD, l_event_fd, &l_es->ev);
-#endif
+
+    dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
     return  l_es;
 }
 
@@ -169,7 +216,7 @@ void dap_events_socket_queue_send( dap_events_socket_t * a_es, void* a_arg)
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    dap_events_socket_queue_send( a_es->worker->queue_delete_es, a_es );
+    dap_events_socket_queue_send( a_es->worker->queue_es_delete, a_es );
 }
 
 
@@ -391,9 +438,9 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
  * @param a_es
  * @param preserve_inheritor
  */
-void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
+void dap_events_socket_remove_and_delete_mt( dap_events_socket_t *a_es )
 {
-    dap_events_socket_queue_send( a_es->worker->queue_delete_es, a_es );
+    dap_events_socket_queue_send( a_es->worker->queue_es_delete, a_es );
 }
 
 /**
@@ -401,8 +448,18 @@ void dap_events_socket_queue_remove_and_delete( dap_events_socket_t *a_es )
  * @param sc
  * @param is_ready
  */
-void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready)
+void dap_events_socket_set_readable_mt(dap_events_socket_t * a_es,bool is_ready)
 {
+    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    l_msg->esocket = a_es;
+    if (is_ready)
+        l_msg->flags_set = DAP_SOCK_READY_TO_READ;
+    else
+        l_msg->flags_unset = DAP_SOCK_READY_TO_READ;
+    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
+        log_it(L_ERROR, "Wasn't send pointer to queue");
+        DAP_DELETE(l_msg);
+    }
 
 }
 
@@ -411,9 +468,18 @@ void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready)
  * @param sc
  * @param is_ready
  */
-void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready)
+void dap_events_socket_set_writable_mt(dap_events_socket_t * a_es,bool is_ready)
 {
-
+    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    l_msg->esocket = a_es;
+    if (is_ready)
+        l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    else
+        l_msg->flags_unset = DAP_SOCK_READY_TO_WRITE;
+    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
+        log_it(L_ERROR, "Wasn't send pointer to queue");
+        DAP_DELETE(l_msg);
+    }
 }
 
 /**
@@ -423,20 +489,57 @@ void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready)
  * @param data_size
  * @return
  */
-size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size)
+size_t dap_events_socket_write_mt(dap_events_socket_t *a_es, const void * data, size_t l_data_size)
 {
+    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    l_msg->esocket = a_es;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data_size = l_data_size;
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    memcpy( l_msg->data, data, l_data_size);
 
+    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
+        log_it(L_ERROR, "Wasn't send pointer to queue");
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return  l_data_size;
 }
 
 /**
  * @brief dap_events_socket_write_f_mt
- * @param sc
+ * @param a_es
  * @param format
  * @return
  */
-size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...)
+size_t dap_events_socket_write_f_mt(dap_events_socket_t *a_es, const char * format,...)
 {
-
+    va_list ap;
+    va_start(ap,format);
+    int l_data_size = dap_vsnprintf(NULL,0,format,ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
+        return 0;
+    }
+    l_data_size++; // To calc trailing zero
+    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    l_msg->esocket = a_es;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_data_size = dap_vsnprintf(l_msg->data,0,format,ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    l_data_size++;
+    l_msg->data_size = l_data_size;
+    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
+        log_it(L_ERROR, "Wasn't send pointer to queue");
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return l_data_size;
 }
 
 /**

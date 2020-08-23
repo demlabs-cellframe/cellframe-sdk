@@ -34,9 +34,9 @@ typedef struct dap_worker
     dap_events_socket_t *sockets; // Hashmap of event sockets
 
     // worker control queues
-    dap_events_socket_t * queue_new_es; // Events socket for new socket
-    dap_events_socket_t * queue_delete_es; // Events socket for new socket
-    dap_events_socket_t * queue_data_out; // Events socket with some data for output
+    dap_events_socket_t * queue_es_new; // Events socket for new socket
+    dap_events_socket_t * queue_es_delete; // Events socke
+    dap_events_socket_t * queue_es_write; // Events socket for new socket
 
     dap_timerfd_t * timer_check_activity;
     EPOLL_HANDLE epoll_fd;
@@ -48,7 +48,6 @@ typedef struct dap_worker
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
 
-void dap_events_socket_assign_on_worker(dap_events_socket_t * a_es, struct dap_worker * a_worker);
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
 void dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 

@@ -370,7 +370,7 @@ dap_events_socket_t * s_tun_es_create(dap_worker_t * a_worker, int a_tun_fd)
     dap_events_socket_t * l_es = dap_events_socket_wrap_no_add(a_worker->events ,
                                           a_tun_fd, &l_s_callbacks);
     l_es->type = DESCRIPTOR_TYPE_FILE;
-    dap_events_socket_assign_on_worker(l_es, a_worker);
+    dap_events_socket_assign_on_worker_mt(l_es, a_worker);
 
     return l_es;
 }
@@ -749,9 +749,7 @@ static void s_tun_create(void)
 static void s_tun_destroy(void)
 {
     pthread_rwlock_wrlock(& s_raw_server_rwlock);
-#ifdef DAP_TUN_IN_WORKER
-    dap_events_socket_queue_remove_and_delete(s_raw_server->tun_events_socket);
-#endif
+    dap_events_socket_remove_and_delete_mt(s_raw_server->tun_events_socket);
     close(s_raw_server->tun_fd);
     s_raw_server->tun_fd = -1;
     pthread_rwlock_unlock(& s_raw_server_rwlock);
@@ -1762,7 +1760,7 @@ void m_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
   log_it(L_WARNING, __PRETTY_FUNCTION__);
   log_it(L_NOTICE, "Raw sockets listen thread is stopped");
-  dap_events_socket_queue_remove_and_delete(s_raw_server->tun_events_socket);
+  dap_events_socket_remove_and_delete_mt(s_raw_server->tun_events_socket);
   s_tun_destroy();
 }
 

@@ -23,6 +23,11 @@
 #include <time.h>
 #include <errno.h>
 #include <unistd.h>
+#if ! defined (_GNU_SOURCE)
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#endif
+#include <fcntl.h>
+
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_worker.h"
@@ -35,9 +40,10 @@ static time_t s_connection_timeout = 20000;
 
 
 static void s_socket_all_check_activity( void * a_arg);
-static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
-static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
-static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_es_write_callback( dap_events_socket_t * a_es, void * a_arg);
 
 /**
  * @brief dap_worker_init
@@ -100,9 +106,9 @@ void *dap_worker_thread(void *arg)
   }
   #endif
 
-    l_worker->queue_new_es = dap_events_socket_create_type_queue( l_worker, s_new_es_callback);
-    l_worker->queue_delete_es = dap_events_socket_create_type_queue( l_worker, s_new_es_callback);
-    l_worker->queue_data_out = dap_events_socket_create_type_queue( l_worker, s_new_es_callback);
+    l_worker->queue_es_new = dap_events_socket_create_type_queue( l_worker, s_queue_new_es_callback);
+    l_worker->queue_es_delete = dap_events_socket_create_type_queue( l_worker, s_queue_delete_es_callback);
+    l_worker->queue_es_write = dap_events_socket_create_type_queue( l_worker, s_queue_es_write_callback );
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -184,6 +190,7 @@ void *dap_worker_thread(void *arg)
                 int l_errno=0;
                 bool l_must_read_smth = false;
                 switch (l_cur->type) {
+                    case DESCRIPTOR_TYPE_PIPE:
                     case DESCRIPTOR_TYPE_FILE:
                         l_must_read_smth = true;
                         l_bytes_read = read(l_cur->socket, (char *) (l_cur->buf_in + l_cur->buf_in_size),
@@ -228,16 +235,18 @@ void *dap_worker_thread(void *arg)
 
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
-                        if (l_cur->callbacks.event_callback){
-                            void * l_event_ptr = NULL;
+                        if (l_cur->callbacks.queue_callback){
+                            void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
-                            if(read( l_cur->fd, &l_event_ptr,sizeof (&l_event_ptr)) == sizeof (&l_event_ptr))
-                                l_cur->callbacks.event_callback(l_cur, l_event_ptr);
+                            if(read( l_cur->fd, &l_queue_ptr,sizeof (&l_queue_ptr)) == sizeof (&l_queue_ptr))
+                                l_cur->callbacks.queue_callback(l_cur, l_queue_ptr);
                             else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                                 log_it(L_WARNING, "Can't read packet from pipe");
+#else
+#error "No Queue fetch mechanism implemented on your platform"
 #endif
                         }else
-                            log_it(L_ERROR, "Socket %d with event callback fired, but callback is NULL ", l_cur->socket);
+                            log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", l_cur->socket);
                     break;
                 }
 
@@ -285,7 +294,7 @@ void *dap_worker_thread(void *arg)
                         l_cur->buf_out_zero_count++;
 
                         if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                            log_it(L_ERROR, "Output: nothing to send %u times, remove socket from the write set",
+                            log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
                                     buf_out_zero_count_max);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
@@ -296,14 +305,21 @@ void *dap_worker_thread(void *arg)
                 //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
                 size_t l_bytes_sent =0;
                 int l_errno;
-                if(l_cur->type == DESCRIPTOR_TYPE_SOCKET) {
-                    l_bytes_sent = send(l_cur->socket, l_cur->buf_out,
-                            l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
-                    l_errno = errno;
-                }else if(l_cur->type == DESCRIPTOR_TYPE_FILE) {
-                    l_bytes_sent = write(l_cur->socket, (char *) (l_cur->buf_out + l_bytes_sent),
-                            l_cur->buf_out_size );
-                    l_errno = errno;
+                switch (l_cur->type){
+                    case DESCRIPTOR_TYPE_SOCKET:
+                        l_bytes_sent = send(l_cur->socket, l_cur->buf_out,
+                                l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
+                        l_errno = errno;
+                    break;
+                    case DESCRIPTOR_TYPE_PIPE:
+                    case DESCRIPTOR_TYPE_FILE:
+                        l_bytes_sent = write(l_cur->socket, (char *) (l_cur->buf_out + l_bytes_sent),
+                                l_cur->buf_out_size );
+                        l_errno = errno;
+                    break;
+                    default:
+                        log_it(L_WARNING, "Socket %d is not SOCKET, PIPE or FILE but has WRITE state on. Switching it off");
+                        dap_events_socket_set_writable_unsafe(l_cur,false);
                 }
 
                 if(l_bytes_sent < 0) {
@@ -352,7 +368,7 @@ void *dap_worker_thread(void *arg)
  * @param a_es
  * @param a_arg
  */
-static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
+static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
@@ -410,7 +426,7 @@ static void s_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
  * @param a_es
  * @param a_arg
  */
-static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
+static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     ((dap_events_socket_t*)a_arg)->kill_signal = true; // Send signal to socket to kill
 }
@@ -420,14 +436,27 @@ static void s_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
  * @param a_es
  * @param a_arg
  */
-static void s_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
+static void s_queue_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_reassign = ((dap_events_socket_t* ) a_arg);
     dap_events_socket_remove_from_worker_unsafe( l_es_reassign, a_es->worker );
     if (l_es_reassign->callbacks.worker_unassign_callback)
         l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->worker);
 
-    dap_events_socket_assign_on_worker( l_es_reassign, l_es_reassign->worker );
+    dap_events_socket_assign_on_worker_mt( l_es_reassign, l_es_reassign->worker );
+}
+
+/**
+ * @brief s_pipe_data_out_read_callback
+ * @param a_es
+ * @param a_arg
+ */
+static void s_queue_es_write_callback( dap_events_socket_t * a_es, void * a_arg)
+{
+    dap_events_socket_t * l_es_data_out;
+    if( a_es->buf_in_size < sizeof(l_es_data_out) ){
+        //log_it()
+    }
 }
 
 /**
@@ -451,7 +480,7 @@ static void s_socket_all_check_activity( void * a_arg)
                 if (a_es->callbacks.error_callback) {
                     a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
                 }
-                dap_events_socket_queue_remove_and_delete( a_es);
+                dap_events_socket_remove_and_delete_mt( a_es);
             }
         }
     }
@@ -464,7 +493,7 @@ static void s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    dap_events_socket_queue_send( a_worker->queue_new_es, a_events_socket );
+    dap_events_socket_queue_send( a_worker->queue_es_new, a_events_socket );
 }
 
 /**
