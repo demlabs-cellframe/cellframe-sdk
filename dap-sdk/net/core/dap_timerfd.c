@@ -38,36 +38,8 @@
 #include "dap_timerfd.h"
 
 #define LOG_TAG "dap_timerfd"
+static void s_es_callback_timer(struct dap_events_socket *a_event_sock);
 
-static void s_es_time_callback( dap_events_socket_t * a_es);
-
-void callback_timerfd_read(struct dap_events_socket *a_event_sock, void * arg)
-{
-    uint64_t l_ptiu64;
-    size_t l_read_ret;
-    do {
-        l_read_ret = dap_events_socket_pop_from_buf_in(a_event_sock, &l_ptiu64, sizeof(l_ptiu64));
-
-        if(l_read_ret > 0) {
-            dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
-            //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
-            struct itimerspec l_ts;
-            // first expiration in 0 seconds after times start
-            l_ts.it_interval.tv_sec = 0;
-            l_ts.it_interval.tv_nsec = 0;
-            // timeout for timer
-            l_ts.it_value.tv_sec = l_timerfd->timeout_ms / 1000;
-            l_ts.it_value.tv_nsec = (l_timerfd->timeout_ms % 1000) * 1000000;
-            if(timerfd_settime(l_timerfd->tfd, 0, &l_ts, NULL) < 0) {
-                log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
-            }
-            // run user's callback
-            if(l_timerfd->callback)
-                l_timerfd->callback(l_timerfd->callback_arg);
-        }
-    } while(l_read_ret > 0);
-    dap_events_socket_set_readable_unsafe(a_event_sock, true);
-}
 
 /**
  * @brief dap_events_socket_init Init clients module
@@ -125,7 +97,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     // create events_socket for timer file descriptor
     dap_events_socket_callbacks_t l_s_callbacks;
     memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
-    l_s_callbacks.timer_callback = s_es_time_callback;
+    l_s_callbacks.timer_callback = s_es_callback_timer;
 
     dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(a_worker->events, l_tfd, &l_s_callbacks);
     l_events_socket->type = DESCRIPTOR_TYPE_TIMER;
@@ -144,25 +116,36 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
 }
 
 /**
- * @brief s_es_time_callback
- * @param a_es
+ * @brief s_es_callback_timer
+ * @param a_event_sock
  */
-static void s_es_time_callback( dap_events_socket_t * a_es)
+static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 {
-    dap_timerfd_t * l_timer = (dap_timerfd_t*) a_es->_inheritor;
-    assert(l_timer);
-    if( l_timer->callback)
-        l_timer->callback(l_timer->callback_arg);
+    uint64_t l_ptiu64;
+    dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
+    //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
+    struct itimerspec l_ts;
+    // first expiration in 0 seconds after times start
+    l_ts.it_interval.tv_sec = 0;
+    l_ts.it_interval.tv_nsec = 0;
+    // timeout for timer
+    l_ts.it_value.tv_sec = l_timerfd->timeout_ms / 1000;
+    l_ts.it_value.tv_nsec = (l_timerfd->timeout_ms % 1000) * 1000000;
+    if(timerfd_settime(l_timerfd->tfd, 0, &l_ts, NULL) < 0) {
+        log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
+    }
+    // run user's callback
+    if(l_timerfd->callback)
+        l_timerfd->callback(l_timerfd->callback_arg);
+    dap_events_socket_set_readable_unsafe(a_event_sock, true);
 }
-
 
 /**
  * @brief dap_timerfd_stop
  * @param a_tfd
  * @param a_callback
- * @return 0 or <0 if error
  */
-int dap_timerfd_delete(dap_timerfd_t *l_timerfd)
+void dap_timerfd_delete(dap_timerfd_t *l_timerfd)
 {
     dap_events_socket_queue_remove_and_delete(l_timerfd->events_socket);
 }
