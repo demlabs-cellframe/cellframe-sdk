@@ -227,7 +227,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
     while(tx_items_pos < tx_items_size) {
         uint8_t *item = tx->tx_items + tx_items_pos;
         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-        if(!l_item_tx_size)
+        if(!l_item_tx_size || l_item_tx_size > tx_items_size)
             return -3;
         if(dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG) {
             dap_chain_tx_sig_t *l_item_tx_sig = (dap_chain_tx_sig_t*) item;
