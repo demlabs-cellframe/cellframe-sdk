@@ -54,7 +54,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
 char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type);
 
 dap_chain_history_t* dap_db_history_addr_struct(dap_chain_addr_t * a_addr, dap_chain_t * a_chain);
-void dap_chain_history_add_data(dap_chain_history_t *a_history, const dap_chain_hash_fast_t *a_tx_hash,
+void dap_chain_history_add_data(dap_chain_history_t **a_history, const dap_chain_hash_fast_t *a_tx_hash,
                                 const dap_chain_type_transaction_in_history_t a_type_transaction,
                                 const char *a_token_ticker, const uint64_t a_amount, const time_t a_time,
                                 const dap_chain_addr_t *a_addr_src, const dap_chain_addr_t *a_addr_dst);
