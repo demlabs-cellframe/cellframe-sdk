@@ -169,15 +169,6 @@ bool s_dap_app_cli_cmd_contains_forbidden_symbol(const char * a_cmd_param){
     return false;
 }
 
-char * s_dap_app_cli_strdup_to_base64(const char * a_cmd_param){
-    size_t l_cmd_param_len = strlen(a_cmd_param);
-    size_t l_cmd_param_base64_len = DAP_ENC_BASE64_ENCODE_SIZE(l_cmd_param_len) + 1;
-    char * l_cmd_param_base64 = DAP_NEW_SIZE(char, l_cmd_param_base64_len);
-    size_t l_cmd_param_base64_len_res = dap_enc_base64_encode(a_cmd_param, l_cmd_param_len, l_cmd_param_base64, DAP_ENC_DATA_TYPE_B64);
-    l_cmd_param_base64[l_cmd_param_base64_len_res] = '\0';
-    return l_cmd_param_base64;
-}
-
 /**
  * Send request to kelvin-node
  *
@@ -198,7 +189,7 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
             if (a_cmd->cmd_param[i]) {
                 dap_string_append(l_cmd_data, "\r\n");
                 if(s_dap_app_cli_cmd_contains_forbidden_symbol(a_cmd->cmd_param[i])){
-                    char * l_cmd_param_base64 = s_dap_app_cli_strdup_to_base64(a_cmd->cmd_param[i]);
+                    char * l_cmd_param_base64 = dap_enc_strdup_to_base64(a_cmd->cmd_param[i]);
                     dap_string_append(l_cmd_data, l_cmd_param_base64);
                     DAP_DELETE(l_cmd_param_base64);
                 }else{
