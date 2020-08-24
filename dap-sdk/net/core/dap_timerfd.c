@@ -147,7 +147,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
  */
 void dap_timerfd_delete(dap_timerfd_t *l_timerfd)
 {
-    dap_events_socket_remove_and_delete_mt(l_timerfd->events_socket);
+    dap_events_socket_remove_and_delete_mt(l_timerfd->events_socket->worker, l_timerfd->events_socket);
 }
 #else
 #error "No dap_timerfd realization for your platform"

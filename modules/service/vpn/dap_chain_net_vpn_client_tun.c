@@ -572,7 +572,7 @@ int dap_chain_net_vpn_client_tun_delete(void)
     if(is_dap_tun_in_worker())
     {
         pthread_mutex_lock(&s_clients_mutex);
-        dap_events_socket_remove_and_delete_mt(s_tun_events_socket);
+        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket);
         s_tun_events_socket = NULL;
         pthread_mutex_unlock(&s_clients_mutex);
     }

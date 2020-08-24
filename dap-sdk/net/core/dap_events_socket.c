@@ -43,6 +43,7 @@
 #endif
 
 #include "dap_common.h"
+#include "dap_worker.h"
 #include "dap_events.h"
 
 #include "dap_events_socket.h"
@@ -126,13 +127,13 @@ void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struc
 }
 
 /**
- * @brief dap_events_socket_create_type_queue
+ * @brief s_create_type_pipe
  * @param a_w
  * @param a_callback
- * @param a_buf_in_size
+ * @param a_flags
  * @return
  */
-dap_events_socket_t * dap_events_socket_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback)
+dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_PIPE;
@@ -154,24 +155,51 @@ dap_events_socket_t * dap_events_socket_create_type_pipe(dap_worker_t * a_w, dap
         log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
+    return l_es;
+}
 
+/**
+ * @brief dap_events_socket_create_type_pipe_mt
+ * @param a_w
+ * @param a_callback
+ * @param a_flags
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
+{
+    dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
     dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
     return  l_es;
 }
 
 /**
- * @brief dap_events_socket_create_type_queue
+ * @brief dap_events_socket_create_type_pipe_unsafe
  * @param a_w
  * @param a_callback
+ * @param a_flags
  * @return
  */
-dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, dap_events_socket_callback_t a_callback )
+dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
+{
+    dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
+    dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+    return  l_es;
+}
+
+/**
+ * @brief s_create_type_queue
+ * @param a_w
+ * @param a_flags
+ * @return
+ */
+dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->worker = a_w;
+    l_es->flags =  DAP_SOCK_QUEUE_PTR;
     l_es->events = a_w->events;
-    l_es->callbacks.queue_callback = a_callback; // Arm event callback
+    l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 
 #ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
@@ -192,8 +220,33 @@ dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, da
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
 #endif
+    return l_es;
+}
+
+/**
+ * @brief dap_events_socket_create_type_queue_mt
+ * @param a_w
+ * @param a_callback
+ * @param a_flags
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
+{
+    dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
+    dap_events_socket_assign_on_worker_mt(l_es,a_w);
+    return  l_es;
+}
 
 
+/**
+ * @brief dap_events_socket_create_type_queue
+ * @param a_w
+ * @param a_callback
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
+{
+    dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
     dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
     return  l_es;
 }
@@ -203,10 +256,17 @@ dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, da
  * @param a_es
  * @param a_arg
  */
-void dap_events_socket_queue_send( dap_events_socket_t * a_es, void* a_arg)
+int dap_worker_queue_send_ptr( dap_events_socket_t * a_es, void* a_arg)
 {
 #if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
-    write( a_es->fd2, &a_arg,sizeof(a_arg));
+    int ret = write( a_es->fd2, &a_arg,sizeof(a_arg));
+    int l_errno = errno;
+    if (ret == 0 )
+        return  0;
+    else if ( ret < 0)
+        return l_errno;
+    else
+        return 1;
 #endif
 }
 
@@ -216,7 +276,10 @@ void dap_events_socket_queue_send( dap_events_socket_t * a_es, void* a_arg)
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    dap_events_socket_queue_send( a_es->worker->queue_es_delete, a_es );
+    int l_ret= dap_worker_queue_send_ptr( a_es->worker->queue_es_delete, a_es );
+    if( l_ret != 0 ){
+        log_it(L_ERROR, "Queue send returned %d", l_ret);
+    }
 }
 
 
@@ -376,7 +439,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
  * @brief dap_events_socket_remove Removes the client from the list
  * @param sc Connection instance
  */
-void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor )
+void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor )
 {
     if ( !a_es )
         return;
@@ -429,8 +492,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     else
         log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
     a_worker->event_sockets_count--;
-    if(a_worker->sockets)
-        HASH_DELETE(hh_worker,a_worker->sockets, a_es);
+    if(a_worker->esockets)
+        HASH_DELETE(hh_worker,a_worker->esockets, a_es);
 }
 
 /**
@@ -438,29 +501,31 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
  * @param a_es
  * @param preserve_inheritor
  */
-void dap_events_socket_remove_and_delete_mt( dap_events_socket_t *a_es )
+void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_socket_t *a_es )
 {
-    dap_events_socket_queue_send( a_es->worker->queue_es_delete, a_es );
+    dap_worker_queue_send_ptr( a_w->queue_es_delete, a_es );
 }
 
 /**
  * @brief dap_events_socket_set_readable_mt
- * @param sc
- * @param is_ready
+ * @param a_w
+ * @param a_es
+ * @param a_is_ready
  */
-void dap_events_socket_set_readable_mt(dap_events_socket_t * a_es,bool is_ready)
+void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready)
 {
-    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
-    if (is_ready)
+    if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_READ;
     else
         l_msg->flags_unset = DAP_SOCK_READY_TO_READ;
-    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
-        log_it(L_ERROR, "Wasn't send pointer to queue");
+
+    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
     }
-
 }
 
 /**
@@ -468,16 +533,18 @@ void dap_events_socket_set_readable_mt(dap_events_socket_t * a_es,bool is_ready)
  * @param sc
  * @param is_ready
  */
-void dap_events_socket_set_writable_mt(dap_events_socket_t * a_es,bool is_ready)
+void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready)
 {
-    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
-    if (is_ready)
+    if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     else
         l_msg->flags_unset = DAP_SOCK_READY_TO_WRITE;
-    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
-        log_it(L_ERROR, "Wasn't send pointer to queue");
+
+    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
     }
 }
@@ -489,17 +556,18 @@ void dap_events_socket_set_writable_mt(dap_events_socket_t * a_es,bool is_ready)
  * @param data_size
  * @return
  */
-size_t dap_events_socket_write_mt(dap_events_socket_t *a_es, const void * data, size_t l_data_size)
+size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, const void * data, size_t l_data_size)
 {
-    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->data_size = l_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     memcpy( l_msg->data, data, l_data_size);
 
-    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
-        log_it(L_ERROR, "Wasn't send pointer to queue");
+    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -512,7 +580,7 @@ size_t dap_events_socket_write_mt(dap_events_socket_t *a_es, const void * data, 
  * @param format
  * @return
  */
-size_t dap_events_socket_write_f_mt(dap_events_socket_t *a_es, const char * format,...)
+size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, const char * format,...)
 {
     va_list ap;
     va_start(ap,format);
@@ -522,7 +590,7 @@ size_t dap_events_socket_write_f_mt(dap_events_socket_t *a_es, const char * form
         return 0;
     }
     l_data_size++; // To calc trailing zero
-    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -534,8 +602,9 @@ size_t dap_events_socket_write_f_mt(dap_events_socket_t *a_es, const char * form
     }
     l_data_size++;
     l_msg->data_size = l_data_size;
-    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
-        log_it(L_ERROR, "Wasn't send pointer to queue");
+    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }

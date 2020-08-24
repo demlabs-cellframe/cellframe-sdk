@@ -753,8 +753,7 @@ static void s_tun_create(void)
 static void s_tun_destroy(void)
 {
     pthread_rwlock_wrlock(& s_raw_server_rwlock);
-    dap_events_socket_remove_and_delete_mt(s_raw_server->tun_events_socket);
-    close(s_raw_server->tun_fd);
+    dap_events_socket_remove_and_delete_mt(s_raw_server->tun_events_socket->worker, s_raw_server->tun_events_socket);
     s_raw_server->tun_fd = -1;
     pthread_rwlock_unlock(& s_raw_server_rwlock);
 }
@@ -1764,7 +1763,6 @@ void m_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
   log_it(L_WARNING, __PRETTY_FUNCTION__);
   log_it(L_NOTICE, "Raw sockets listen thread is stopped");
-  dap_events_socket_remove_and_delete_mt(s_raw_server->tun_events_socket);
   s_tun_destroy();
 }
 

@@ -49,9 +49,9 @@
 #include "dap_http_client.h"
 #include "dap_http_header.h"
 #include "dap_udp_server.h"
+#include "dap_stream_worker.h"
 
-
-#define LOG_TAG "stream"
+#define LOG_TAG "dap_stream"
 #define HEADER_WITH_SIZE_FIELD 12  //This count of bytes enough for allocate memory for stream packet
 
 void stream_proc_pkt_in(dap_stream_t * sid);
@@ -120,10 +120,13 @@ int dap_stream_init( bool a_dump_packet_headers)
         log_it(L_CRITICAL, "Can't init channel types submodule");
         return -1;
     }
+    if( dap_stream_worker_init() != 0 ){
+        log_it(L_CRITICAL, "Can't init stream worker extention submodule");
+        return -2;
+    }
+
     s_dump_packet_headers = a_dump_packet_headers;
-
     s_keep_alive_loop_quit_signal = false;
-
     pthread_mutex_init( &s_mutex_keepalive_list, NULL );
     //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
 
@@ -754,7 +757,7 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
     {
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-        if(dap_stream_pkt_read(a_stream,l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache))==0){
+        if(dap_stream_pkt_read_unsafe(a_stream,l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache))==0){
             log_it(L_WARNING, "Input: can't decode packet size=%d",l_pkt_size);
             DAP_DELETE(l_pkt);
             return;

@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Ltd.   https://demlabs.net
- * Copyright  (c) 2017
+ * Copyright  (c) 2020
  * All rights reserved.
 
  This file is part of DAP SDK the open source project
@@ -31,19 +31,34 @@ typedef struct dap_worker
     uint32_t id;
     dap_events_t *events;
     atomic_uint event_sockets_count;
-    dap_events_socket_t *sockets; // Hashmap of event sockets
+    dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // worker control queues
     dap_events_socket_t * queue_es_new; // Events socket for new socket
     dap_events_socket_t * queue_es_delete; // Events socke
-    dap_events_socket_t * queue_es_write; // Events socket for new socket
+    dap_events_socket_t * queue_es_io; // Events socket for new socket
+
+    dap_events_socket_t * queue_callback; // Queue for pure callback on worker
 
     dap_timerfd_t * timer_check_activity;
     EPOLL_HANDLE epoll_fd;
 
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;
+    void * _inheritor;
 } dap_worker_t;
+
+typedef struct dap_worker_msg_io{
+    dap_events_socket_t * esocket;
+    size_t data_size;
+    void *data;
+    uint32_t flags_set;
+    uint32_t flags_unset;
+} dap_worker_msg_io_t;
+
+typedef struct dap_worker_msg_callback{
+    void (*callback) (dap_worker_t *); // Callback for specific client operations
+} dap_worker_msg_callback_t;
 
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();

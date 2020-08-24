@@ -179,7 +179,7 @@ void dap_events_delete( dap_events_t *a_events )
     if (a_events) {
         dap_events_socket_t *l_cur, *l_tmp;
         HASH_ITER( hh, a_events->sockets,l_cur, l_tmp ) {
-            dap_events_socket_delete_unsafe( l_cur, true );
+            dap_events_socket_remove_and_delete_unsafe( l_cur, true );
         }
 
         if ( a_events->_inheritor )

@@ -43,7 +43,8 @@ static void s_socket_all_check_activity( void * a_arg);
 static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg);
-static void s_queue_es_write_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg);
 
 /**
  * @brief dap_worker_init
@@ -106,9 +107,10 @@ void *dap_worker_thread(void *arg)
   }
   #endif
 
-    l_worker->queue_es_new = dap_events_socket_create_type_queue( l_worker, s_queue_new_es_callback);
-    l_worker->queue_es_delete = dap_events_socket_create_type_queue( l_worker, s_queue_delete_es_callback);
-    l_worker->queue_es_write = dap_events_socket_create_type_queue( l_worker, s_queue_es_write_callback );
+    l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
+    l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
+    l_worker->queue_es_io = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_io_callback);
+    l_worker->queue_callback= dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_callback_callback);
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -236,15 +238,20 @@ void *dap_worker_thread(void *arg)
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
                         if (l_cur->callbacks.queue_callback){
-                            void * l_queue_ptr = NULL;
+                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
+                                void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
-                            if(read( l_cur->fd, &l_queue_ptr,sizeof (&l_queue_ptr)) == sizeof (&l_queue_ptr))
-                                l_cur->callbacks.queue_callback(l_cur, l_queue_ptr);
-                            else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
-                                log_it(L_WARNING, "Can't read packet from pipe");
+                                if(read( l_cur->fd, &l_queue_ptr,sizeof (void *)) == sizeof (void *))
+                                    l_cur->callbacks.queue_callback(l_cur, l_queue_ptr,sizeof(void *));
+                                else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                                    log_it(L_WARNING, "Can't read packet from pipe");
 #else
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
+                            }else{
+                                size_t l_read = read(l_cur->socket, l_cur->buf_in,sizeof(l_cur->buf_in));
+                                l_cur->callbacks.queue_callback(l_cur,l_cur->buf_in,l_read );
+                            }
                         }else
                             log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", l_cur->socket);
                     break;
@@ -353,7 +360,7 @@ void *dap_worker_thread(void *arg)
 
             if(l_cur->kill_signal) {
                 log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, l_tn);
-                dap_events_socket_delete_unsafe( l_cur, false);
+                dap_events_socket_remove_and_delete_unsafe( l_cur, false);
             }
 
         }
@@ -408,7 +415,8 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
             HASH_ADD(hh, w->events->sockets, socket, sizeof (int), l_es_new );
             pthread_rwlock_unlock(&w->events->sockets_rwlock);
             // Add in worker
-            HASH_ADD(hh_worker, w->sockets, socket, sizeof (int), l_es_new );
+            l_es_new->me = l_es_new;
+            HASH_ADD(hh_worker, w->esockets, me, sizeof(void *), l_es_new );
 
             log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
@@ -417,7 +425,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         }
     }else{
         log_it(L_ERROR, "Incorrect socket %d after new callback. Dropping this handler out", l_es_new->socket);
-        dap_events_socket_delete_unsafe( l_es_new, false );
+        dap_events_socket_remove_and_delete_unsafe( l_es_new, false );
     }
 }
 
@@ -447,30 +455,47 @@ static void s_queue_reassign_es_callback( dap_events_socket_t * a_es, void * a_a
 }
 
 /**
+ * @brief s_queue_callback
+ * @param a_es
+ * @param a_arg
+ */
+static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
+{
+    dap_worker_msg_callback_t * l_msg = (dap_worker_msg_callback_t *) a_arg;
+    assert(l_msg);
+    assert(l_msg->callback);
+    l_msg->callback(a_es->worker);
+}
+
+/**
  * @brief s_pipe_data_out_read_callback
  * @param a_es
  * @param a_arg
  */
-static void s_queue_es_write_callback( dap_events_socket_t * a_es, void * a_arg)
+static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    dap_events_socket_t * l_es_data_out;
-    if( a_es->buf_in_size < sizeof(l_es_data_out) ){
-        dap_events_socket_mgs_t * l_msg = a_arg;
-        dap_events_socket_t * l_msg_es = l_msg->esocket;
-        // TODO add check if it was deleted
-        if (l_msg->flags_set & DAP_SOCK_READY_TO_READ)
-            dap_events_socket_set_readable_unsafe(l_msg_es, true);
-        if (l_msg->flags_unset & DAP_SOCK_READY_TO_READ)
-            dap_events_socket_set_readable_unsafe(l_msg_es, false);
-        if (l_msg->flags_set & DAP_SOCK_READY_TO_WRITE)
-            dap_events_socket_set_writable_unsafe(l_msg_es, true);
-        if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
-            dap_events_socket_set_writable_unsafe(l_msg_es, false);
-        if (l_msg->data_size && l_msg->data)
-            dap_events_socket_write_unsafe(l_msg_es, l_msg->data,l_msg->data_size);
+    dap_worker_msg_io_t * l_msg = a_arg;
+
+    // Check if it was removed from the list
+    dap_events_socket_t *l_msg_es = NULL;
+    HASH_FIND(hh_worker, a_es->worker->esockets, &l_msg->esocket , sizeof (void*), l_msg_es );
+    if ( l_msg_es == NULL){
+        log_it(L_DEBUG, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
         DAP_DELETE(l_msg);
-        //log_it()
+        return;
     }
+
+    if (l_msg->flags_set & DAP_SOCK_READY_TO_READ)
+        dap_events_socket_set_readable_unsafe(l_msg_es, true);
+    if (l_msg->flags_unset & DAP_SOCK_READY_TO_READ)
+        dap_events_socket_set_readable_unsafe(l_msg_es, false);
+    if (l_msg->flags_set & DAP_SOCK_READY_TO_WRITE)
+        dap_events_socket_set_writable_unsafe(l_msg_es, true);
+    if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
+        dap_events_socket_set_writable_unsafe(l_msg_es, false);
+    if (l_msg->data_size && l_msg->data)
+        dap_events_socket_write_unsafe(l_msg_es, l_msg->data,l_msg->data_size);
+    DAP_DELETE(l_msg);
 }
 
 /**
@@ -481,20 +506,20 @@ static void s_socket_all_check_activity( void * a_arg)
 {
     dap_worker_t *l_worker = (dap_worker_t*) a_arg;
     assert(l_worker);
-    dap_events_socket_t *a_es, *tmp;
+    dap_events_socket_t *l_es, *tmp;
     char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
     ctime_r(&l_curtime, l_curtimebuf);
     log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
 
-    HASH_ITER(hh_worker, l_worker->sockets, a_es, tmp ) {
-        if ( a_es->type == DESCRIPTOR_TYPE_SOCKET  ){
-            if ( !a_es->kill_signal && l_curtime >=  (time_t)a_es->last_time_active + s_connection_timeout && !a_es->no_close ) {
-                log_it( L_INFO, "Socket %u timeout, closing...", a_es->socket );
-                if (a_es->callbacks.error_callback) {
-                    a_es->callbacks.error_callback(a_es, (void *)ETIMEDOUT);
+    HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
+        if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  ){
+            if ( !l_es->kill_signal && l_curtime >=  (time_t)l_es->last_time_active + s_connection_timeout && !l_es->no_close ) {
+                log_it( L_INFO, "Socket %u timeout, closing...", l_es->socket );
+                if (l_es->callbacks.error_callback) {
+                    l_es->callbacks.error_callback(l_es, (void *)ETIMEDOUT);
                 }
-                dap_events_socket_remove_and_delete_mt( a_es);
+                dap_events_socket_remove_and_delete_mt( l_worker, l_es);
             }
         }
     }
@@ -507,7 +532,7 @@ static void s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    dap_events_socket_queue_send( a_worker->queue_es_new, a_events_socket );
+    dap_worker_queue_send_ptr( a_worker->queue_es_new, a_events_socket );
 }
 
 /**

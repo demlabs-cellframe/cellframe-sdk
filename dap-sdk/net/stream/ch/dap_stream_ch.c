@@ -42,6 +42,7 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_worker.h"
 
 #define LOG_TAG "dap_stream_ch"
 
@@ -88,27 +89,36 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
 {
     stream_ch_proc_t * proc=stream_ch_proc_find(id);
     if(proc){
-        dap_stream_ch_t* ret = DAP_NEW_Z(dap_stream_ch_t);
-        ret->stream = a_stream;
-        ret->proc = proc;
-        ret->ready_to_read = true;
+        dap_stream_ch_t* l_ch_new = DAP_NEW_Z(dap_stream_ch_t);
+        l_ch_new->me = l_ch_new;
+        l_ch_new->stream = a_stream;
+        l_ch_new->proc = proc;
+        l_ch_new->ready_to_read = true;
 
-        pthread_mutex_init(&(ret->mutex),NULL);
-        if(ret->proc->new_callback)
-            ret->proc->new_callback(ret,NULL);
+        // Init on stream worker
+        dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_stream->esocket->worker );
+        l_ch_new->stream_worker = l_stream_worker;
+        HASH_ADD(hh_worker,l_stream_worker->channels, me,sizeof (void*),l_ch_new);
+
+        pthread_mutex_init(&(l_ch_new->mutex),NULL);
+
+        // Proc new callback
+        if(l_ch_new->proc->new_callback)
+            l_ch_new->proc->new_callback(l_ch_new,NULL);
 
         pthread_rwlock_wrlock(&a_stream->rwlock);
-        a_stream->channel[ret->stream->channel_count] = ret;
+        a_stream->channel[l_ch_new->stream->channel_count] = l_ch_new;
         a_stream->channel_count++;
         pthread_rwlock_unlock(&a_stream->rwlock);
 
         struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
-        l_new_ch->ch = ret;
+        l_new_ch->ch = l_ch_new;
         pthread_mutex_lock(&s_ch_table_lock);
         HASH_ADD_PTR(s_ch_table, ch, l_new_ch);
         pthread_mutex_unlock(&s_ch_table_lock);
 
-        return ret;
+
+        return l_ch_new;
     }else{
         log_it(L_WARNING, "Unknown stream processor with id %uc",id);
         return NULL;
@@ -135,6 +145,10 @@ struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch)
  */
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 {
+    dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_ch->stream->esocket->worker );
+    HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
+
+
     pthread_mutex_lock(&s_ch_table_lock);
     struct dap_stream_ch_table_t *l_ret;;
     HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);

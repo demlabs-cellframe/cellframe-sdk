@@ -41,6 +41,7 @@
 
 
 #include "dap_events_socket.h"
+#include "dap_worker.h"
 #include "dap_http_client.h"
 
 #include "dap_enc.h"
@@ -106,7 +107,7 @@ static size_t s_encode_dummy(const void * a_buf, size_t a_buf_size, void * a_buf
  * @param pkt
  * @param buf_out
  */
-size_t dap_stream_pkt_read( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size)
+size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size)
 {
     size_t ds = a_stream->session->key->dec_na(a_stream->session->key,a_pkt->data,a_pkt->hdr.size,a_buf_out, a_buf_out_size);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
@@ -161,9 +162,9 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
  * @param a_data_size
  * @return
  */
-size_t dap_stream_pkt_write_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
+size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
 {
-    dap_events_socket_mgs_t * l_msg = DAP_NEW_Z(dap_events_socket_mgs_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     stream_pkt_hdr_t *l_pkt_hdr;
     l_msg->data_size = 16-a_data_size%16+a_data_size+sizeof(*l_pkt_hdr);
     l_msg->data = DAP_NEW_SIZE(void,l_msg->data_size);
@@ -171,8 +172,10 @@ size_t dap_stream_pkt_write_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key, 
     memset(l_pkt_hdr,0,sizeof(*l_pkt_hdr));
     memcpy(l_pkt_hdr->sig,c_dap_stream_sig,sizeof(l_pkt_hdr->sig));
     l_msg->data_size=sizeof (*l_pkt_hdr) +dap_enc_code(a_key, a_data,a_data_size, ((byte_t*)l_msg->data)+sizeof (*l_pkt_hdr),l_msg->data_size-sizeof (*l_pkt_hdr),DAP_ENC_DATA_TYPE_RAW);
-    if (write(a_es->fd, l_msg,sizeof (l_msg)) != sizeof (l_msg) ){
-        log_it(L_ERROR, "Wasn't send msg pointer to queue");
+
+    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }

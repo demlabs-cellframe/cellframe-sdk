@@ -60,12 +60,18 @@
 #define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
 #define DAP_SOCK_ACTIVE            BIT( 3 )
 
+// If set - queue limited to sizeof(void*) size of data transmitted
+#define DAP_SOCK_QUEUE_PTR         BIT( 8 )
+
 typedef struct dap_events dap_events_t;
 typedef struct dap_events_socket dap_events_socket_t;
 typedef struct dap_worker dap_worker_t;
 
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_queue_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_pipe_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_queue_ptr_t) (dap_events_socket_t *, void *); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , int, struct sockaddr* ); // Callback for accept of new connection
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
@@ -74,7 +80,8 @@ typedef struct dap_events_socket_callbacks {
     union{
         dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
         dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
-        dap_events_socket_callback_t queue_callback; // Timer callback for listening socket
+        dap_events_socket_callback_queue_t queue_callback; // Timer callback for listening socket
+        dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // Timer callback for listening socket
         dap_events_socket_callback_t action_callback; // Callback for action with socket
                                                       // for events and timers thats pointer
                                                       // to processing callback
@@ -108,11 +115,8 @@ typedef struct dap_events_socket {
     };
 #ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
     int fd2;
-
-    int write_pipe;
 #endif
     dap_events_desc_type_t type;
-
     // Related sockets (be careful - possible problems, delete them before )
     dap_events_socket_t ** workers_es; // If not NULL - on every worker must be present
     size_t workers_es_size;           //  events socket with same socket
@@ -165,26 +169,22 @@ typedef struct dap_events_socket {
     time_t last_ping_request;
 
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
+    struct dap_events_socket * me; // pointer on itself
+
     UT_hash_handle hh;
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
-
-typedef struct dap_events_socket_mgs{
-    dap_events_socket_t * esocket;
-    size_t data_size;
-    void *data;
-    uint32_t flags_set;
-    uint32_t flags_unset;
-} dap_events_socket_mgs_t;
 
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
 
 void dap_events_socket_create_after(dap_events_socket_t * a_es);
 
-dap_events_socket_t * dap_events_socket_create_type_queue(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
-dap_events_socket_t * dap_events_socket_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback);
-void dap_events_socket_queue_send( dap_events_socket_t * a_es, void* a_arg);
+dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
+dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
+dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
+dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
+int dap_worker_queue_send_ptr( dap_events_socket_t * a_es, void* a_arg);
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
 dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
@@ -205,14 +205,13 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data
 size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...);
 
 // MT variants less
-void dap_events_socket_set_readable_mt(dap_events_socket_t * sc,bool is_ready);
-void dap_events_socket_set_writable_mt(dap_events_socket_t * sc,bool is_ready);
-size_t dap_events_socket_write_mt(dap_events_socket_t *sc, const void * data, size_t data_size);
-size_t dap_events_socket_write_f_mt(dap_events_socket_t *sc, const char * format,...);
+void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready);
+void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready);
+size_t dap_events_socket_write_mt(dap_worker_t * a_w, dap_events_socket_t *sc, const void * data, size_t data_size);
+size_t dap_events_socket_write_f_mt(dap_worker_t * a_w, dap_events_socket_t *sc, const char * format,...);
+void dap_events_socket_remove_and_delete_mt( dap_worker_t * a_w, dap_events_socket_t* a_es);
+void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor );
 
-void dap_events_socket_remove_and_delete_mt(dap_events_socket_t* a_es);
-void dap_events_socket_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor );
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
-
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 

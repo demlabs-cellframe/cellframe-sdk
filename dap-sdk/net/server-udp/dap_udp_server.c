@@ -243,7 +243,7 @@ int check_close( dap_events_socket_t *client )
         LL_DELETE( udp_server->waiting_clients, client_check );
     }
 
-    dap_events_socket_remove_and_delete_mt( client );
+    dap_events_socket_remove_and_delete_mt(client->worker, client );
 
     return 1;
 }

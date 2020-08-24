@@ -47,6 +47,7 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_pkt.h"
+#include "dap_stream_worker.h"
 
 #define LOG_TAG "dap_stream_ch_pkt"
 
@@ -72,8 +73,36 @@ void dap_stream_ch_pkt_deinit()
  * @param a_str
  * @return
  */
-size_t dap_stream_ch_pkt_write_f_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key, uint8_t a_type, const char * a_str,...)
+size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const char * a_format,...)
 {
+    va_list ap;
+    va_start(ap,a_format);
+    int l_data_size = dap_vsnprintf(NULL,0,a_format,ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
+        return 0;
+    }
+    l_data_size++; // To calc trailing zero
+    dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
+    l_msg->ch = a_ch;
+    l_msg->ch_pkt_type = a_type;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    l_data_size++;
+    l_msg->data_size = l_data_size;
+    int l_ret= dap_worker_queue_send_ptr(a_worker->queue_ch_io , l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return l_data_size;
 
 }
 
@@ -85,9 +114,22 @@ size_t dap_stream_ch_pkt_write_f_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_
  * @param a_data_size
  * @return
  */
-size_t dap_stream_ch_pkt_write_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key,  uint8_t a_type, const void * a_data, size_t a_data_size)
+size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const void * a_data, size_t a_data_size)
 {
-
+    dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
+    l_msg->ch = a_ch;
+    l_msg->ch_pkt_type = a_type;
+    l_msg->data = DAP_NEW_SIZE(void,a_data_size);
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_msg->data_size = a_data_size;
+    memcpy( l_msg->data, a_data, a_data_size);
+    int l_ret= dap_worker_queue_send_ptr(a_worker->queue_ch_io , l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return a_data_size;
 }
 
 
@@ -98,7 +140,7 @@ size_t dap_stream_ch_pkt_write_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_ke
  * @param data_size
  * @return
  */
-size_t dap_stream_ch_pkt_write_unsafe(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
+size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
 {
     if (! a_data_size){
         log_it(L_WARNING,"Zero data size to write out in channel");

@@ -28,9 +28,11 @@
 #include <stddef.h>
 
 #include "dap_enc_key.h"
+
 typedef struct dap_stream_ch dap_stream_ch_t;
 typedef struct dap_stream_session dap_stream_session_t;
 typedef struct dap_events_socket dap_events_socket_t;
+typedef struct dap_stream_worker dap_stream_worker_t;
 typedef struct dap_stream_ch_pkt_hdr{
     uint8_t id;   // Channel id
     uint8_t enc_type; // Zero if not encrypted
@@ -52,5 +54,5 @@ void dap_stream_ch_pkt_deinit();
 size_t dap_stream_ch_pkt_write_f_unsafe(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...);
 size_t dap_stream_ch_pkt_write_unsafe(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_pkt_write_f_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key, uint8_t a_type, const char * a_str,...);
-size_t dap_stream_ch_pkt_write_mt(dap_events_socket_t *a_es, dap_enc_key_t *a_key,  uint8_t a_type, const void * a_data, size_t a_data_size);
+size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const char * a_str,...);
+size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);

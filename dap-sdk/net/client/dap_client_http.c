@@ -208,7 +208,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
         }
         else {
             // close connection
-            dap_events_socket_remove_and_delete_mt(a_es);
+            a_es->kill_signal=true;
             //dap_events_socket_remove_and_delete(a_es, true); //dap_events_socket_delete(a_es, true);
         }
     }
@@ -231,7 +231,7 @@ static void s_http_error(dap_events_socket_t * a_es, void * arg)
         l_client_http_internal->error_callback((int)arg, l_client_http_internal->obj);
 
     // close connection
-    dap_events_socket_remove_and_delete_mt(a_es);
+    a_es->kill_signal = true;
     //dap_events_socket_remove_and_delete(a_es, true);
     //dap_events_thread_wake_up( &a_es->events->proc_thread);
     //dap_events_socket_delete(a_es, false);
@@ -372,7 +372,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     if(!l_remote_addr.sin_addr.s_addr) {
         if(resolve_host(a_uplink_addr, AF_INET, (struct sockaddr*) &l_remote_addr.sin_addr) < 0) {
             log_it(L_ERROR, "Wrong remote address '%s:%u'", a_uplink_addr, a_uplink_port);
-            dap_events_socket_remove_and_delete_mt(l_ev_socket);
+            dap_events_socket_remove_and_delete_mt(l_ev_socket->worker, l_ev_socket);
             return NULL;
         }
     }
@@ -390,7 +390,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
         log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d err: %s", a_uplink_addr, a_uplink_port,
                 l_socket, strerror(errno));
         //l_ev_socket->no_close = false;
-        dap_events_socket_remove_and_delete_mt(l_ev_socket);
+        dap_events_socket_remove_and_delete_mt(l_ev_socket->worker, l_ev_socket);
         //shutdown(l_ev_socket->socket, SHUT_RDWR);
         //dap_events_socket_remove_and_delete(l_ev_socket, true);
         //l_ev_socket->socket = 0;
