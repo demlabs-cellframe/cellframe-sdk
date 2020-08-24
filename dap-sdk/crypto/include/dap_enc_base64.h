@@ -38,6 +38,8 @@ extern "C" {
 
 size_t dap_enc_base64_decode(const char * in, size_t in_size, void * out, dap_enc_data_type_t standard);
 size_t dap_enc_base64_encode(const void * in, size_t in_size, char * out, dap_enc_data_type_t standard);
+char * dap_enc_strdup_to_base64(const char * a_string);
+char * dap_enc_strdup_from_base64(const char * a_string_base64);
 
 #ifdef __cplusplus
 }

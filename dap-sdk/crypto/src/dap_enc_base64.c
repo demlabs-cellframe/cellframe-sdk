@@ -271,6 +271,33 @@ size_t dap_enc_base64_encode(const void * a_in, size_t a_in_size, char * a_out, 
     return size;
 }
 
+char * dap_enc_strdup_to_base64(const char * a_string){
+    size_t l_string_len = strlen(a_string);
+    size_t l_string_base64_len = DAP_ENC_BASE64_ENCODE_SIZE(l_string_len) + 1;
+    char * l_string_base64 = DAP_NEW_SIZE(char, l_string_base64_len);
+    size_t l_string_base64_len_res = dap_enc_base64_encode(a_string, l_string_len, l_string_base64, DAP_ENC_DATA_TYPE_B64);
+    l_string_base64[l_string_base64_len_res] = '\0';
+    return l_string_base64;
+}
+
+char * dap_enc_strdup_from_base64(const char * a_string_base64){
+    if(!a_string_base64)
+        return NULL;
+
+    size_t l_string_base64_len = strlen(a_string_base64);
+    if(!l_string_base64_len)
+        return NULL;
+
+    char * l_string = DAP_NEW_Z_SIZE(byte_t, l_string_base64_len * 2);
+    size_t l_string_len = dap_enc_base64_decode(a_string_base64, l_string_base64_len, l_string, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+
+    if(!l_string_len){
+        DAP_DELETE(l_string);
+        return NULL;
+    }
+    return l_string;
+}
+
 
 // get the size of the result buffer required for Base-64
 // encoding/decoding.
