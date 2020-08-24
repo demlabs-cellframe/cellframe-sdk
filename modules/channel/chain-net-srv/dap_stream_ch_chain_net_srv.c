@@ -303,10 +303,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
                 // Create one client
                 l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_t);
-                l_usage->client->esocket = a_ch->stream->esocket;
+                l_usage->client->stream_worker = a_ch->stream_worker;
                 l_usage->client->ch = a_ch;
                 l_usage->client->session_id = a_ch->stream->session->id;
-                l_usage->client->stream_key = dap_enc_key_dup(a_ch->stream->session->key);
                 l_usage->client->ts_created = time(NULL);
                 l_usage->tx_cond = l_tx;
                 memcpy(&l_usage->tx_cond_hash, &l_request->hdr.tx_cond,sizeof (l_usage->tx_cond_hash));
@@ -595,9 +594,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if ( l_srv && l_srv->callback_client_success){
                     // Create client for client)
                     dap_chain_net_srv_client_t *l_client = DAP_NEW_Z( dap_chain_net_srv_client_t);
-                    l_client->stream_key = dap_enc_key_dup(a_ch->stream->session->key);
-                    l_client->esocket = a_ch->stream->esocket;
                     l_client->ch = a_ch;
+                    l_client->stream_worker = a_ch->stream_worker;
                     l_client->ts_created = time(NULL);
                     l_srv->callback_client_success(l_srv, l_success->hdr.usage_id,  l_client, l_success, l_success_size );
                     //l_success->hdr.net_id, l_success->hdr.srv_uid, l_success->hdr.usage_id

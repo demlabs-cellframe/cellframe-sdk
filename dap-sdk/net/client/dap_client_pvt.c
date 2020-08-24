@@ -64,6 +64,7 @@
 #include "dap_client_pvt.h"
 #include "dap_server.h"
 #include "dap_stream.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
@@ -477,8 +478,10 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             };
             a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
                     a_client_pvt->stream_socket, &l_s_callbacks);
+            dap_worker_t * l_worker = dap_events_worker_get_auto();
+            a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
             // add to dap_worker
-            dap_events_socket_create_after(a_client_pvt->stream_es);
+            dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
 
             a_client_pvt->stream_es->_inheritor = a_client_pvt;//->client;
             a_client_pvt->stream = dap_stream_new_es(a_client_pvt->stream_es);
@@ -1287,26 +1290,26 @@ void m_es_stream_write(dap_events_socket_t * a_es, void * arg)
         return;
     }
     switch (l_client_pvt->stage) {
-    case STAGE_STREAM_STREAMING: {
-        size_t i;
-        bool ready_to_write = false;
-        //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
+        case STAGE_STREAM_STREAMING: {
+            size_t i;
+            bool ready_to_write = false;
+            //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
 
-        for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
-            dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
-            if(ch->ready_to_write) {
-                ch->proc->packet_out_callback(ch, NULL);
-                ready_to_write |= ch->ready_to_write;
+            for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
+                dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
+                if(ch->ready_to_write) {
+                    ch->proc->packet_out_callback(ch, NULL);
+                    ready_to_write |= ch->ready_to_write;
+                }
             }
-        }
-        //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
+            //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
 
-        dap_events_socket_set_writable_unsafe(l_client_pvt->stream_es, ready_to_write);
-        //log_it(ERROR,"No stream_data_write_callback is defined");
-    }
-        break;
-    default: {
-    }
+            dap_events_socket_set_writable_unsafe(l_client_pvt->stream_es, ready_to_write);
+            //log_it(ERROR,"No stream_data_write_callback is defined");
+        }
+            break;
+        default: {
+        }
     }
 }
 

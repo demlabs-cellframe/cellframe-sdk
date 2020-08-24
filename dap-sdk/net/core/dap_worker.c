@@ -510,7 +510,7 @@ static void s_socket_all_check_activity( void * a_arg)
     char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
     ctime_r(&l_curtime, l_curtimebuf);
-    log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
+    //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
 
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
         if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  ){

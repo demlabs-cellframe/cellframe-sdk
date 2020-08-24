@@ -89,6 +89,13 @@ static pthread_mutex_t sf_socks_mutex;
 static dap_chain_node_info_t *s_node_info = NULL;
 static dap_chain_node_client_t *s_vpn_client = NULL;
 
+dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void)
+{
+    if(!s_vpn_client)
+        return NULL;
+    return dap_client_get_stream_worker( s_vpn_client->client );
+}
+
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
     if(!s_vpn_client)

@@ -38,6 +38,7 @@ typedef enum dap_chain_net_vpn_client_status_enum{
 
 
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void);
+dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void);
 
 int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet_name, const char *a_str_token, uint64_t a_value_datoshi);
 int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wallet_name, char **a_str_token, uint64_t *a_value_datoshi);

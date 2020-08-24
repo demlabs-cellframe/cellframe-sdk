@@ -46,6 +46,7 @@
 #include "dap_strfuncs.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_client.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -319,6 +320,7 @@ static void* thread_read_tun(void *arg)
                     //                  HASH_DEL(CH_SF(ch)->socks,sf_sock);
 //                    if(l_stream) { // Is present in hash table such destination address
                     dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
+                    dap_stream_worker_t * l_stream_worker = dap_chain_net_vpn_client_get_stream_worker();
                     if(l_ch) {
                         // form packet to vpn-server
                         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + read_ret);
@@ -327,11 +329,9 @@ static void* thread_read_tun(void *arg)
                         pkt_out->header.op_data.data_size = read_ret;
                         memcpy(pkt_out->data, tmp_buf, read_ret);
 
-                        pthread_mutex_lock(&s_clients_mutex);
                         // sent packet to vpn server
-                        dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch , DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                        dap_stream_ch_pkt_write_mt(l_stream_worker,l_ch , DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                        pthread_mutex_unlock(&s_clients_mutex);
 
                         DAP_DELETE(pkt_out);
                     }

@@ -50,6 +50,7 @@
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_net_srv_common.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
@@ -622,11 +623,11 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     if(!a_client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
         return -1;
 
-//    dap_stream_t *l_stream = dap_client_get_stream(a_client->client);
+    dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->client);
     dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client->client, a_ch_id);
     if(l_ch) {
 //        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-        dap_stream_ch_pkt_write_mt(l_ch->stream_worker , l_ch , a_type, a_pkt_data, a_pkt_data_size);
+        dap_stream_ch_pkt_write_mt(l_stream_worker , l_ch , a_type, a_pkt_data, a_pkt_data_size);
         return 0;
     } else
         return -1;

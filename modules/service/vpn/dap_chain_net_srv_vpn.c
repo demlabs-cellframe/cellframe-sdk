@@ -203,7 +203,7 @@ int s_tun_event_stream_create()
 static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
                     const void * a_success, size_t a_success_size)
 {
-    if(!a_srv || !a_srv_client || !a_srv_client->esocket || ! a_srv_client->stream_key || !a_success || a_success_size < sizeof(dap_stream_ch_chain_net_srv_pkt_success_t))
+    if(!a_srv || !a_srv_client || !a_srv_client->stream_worker || !a_success || a_success_size < sizeof(dap_stream_ch_chain_net_srv_pkt_success_t))
         return -1;
     dap_stream_ch_chain_net_srv_pkt_success_t * l_success = (dap_stream_ch_chain_net_srv_pkt_success_t*) a_success;
 
