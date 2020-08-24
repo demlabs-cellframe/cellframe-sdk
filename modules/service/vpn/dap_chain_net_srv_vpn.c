@@ -1803,7 +1803,7 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
             l_pkt_out->header.usage_id = l_ch_vpn->usage_id;
             l_pkt_out->header.op_data.data_size = l_read_ret;
             memcpy(l_pkt_out->data, l_tmp_buf, l_read_ret);
-            dap_stream_ch_pkt_write_mt(l_usage->client->esocket , l_usage->client->stream_key, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
+            dap_stream_ch_pkt_write_mt(l_usage->client->ch->stream_worker , l_usage->client->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
                     l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
             s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_read_ret);
         }

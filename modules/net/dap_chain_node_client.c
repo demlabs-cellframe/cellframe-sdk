@@ -492,7 +492,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     switch (a_pkt_type) {
     // get new generated current node address
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
-            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t *) a_pkt->data;
+            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
             if(a_pkt->hdr.size != l_request_size) {
                 log_it(L_WARNING, "Wrong request size, less or more than required");
@@ -626,7 +626,7 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client->client, a_ch_id);
     if(l_ch) {
 //        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-        dap_stream_ch_pkt_write_mt(l_ch->stream->esocket, l_ch->stream->session->key, a_type, a_pkt_data, a_pkt_data_size);
+        dap_stream_ch_pkt_write_mt(l_ch->stream_worker , l_ch , a_type, a_pkt_data, a_pkt_data_size);
         return 0;
     } else
         return -1;

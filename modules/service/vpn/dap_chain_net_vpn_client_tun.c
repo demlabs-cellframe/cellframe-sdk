@@ -318,8 +318,8 @@ static void* thread_read_tun(void *arg)
                     //                  HASH_ADD_INT(CH_SF(ch)->socks, id, sf_sock );
                     //                  HASH_DEL(CH_SF(ch)->socks,sf_sock);
 //                    if(l_stream) { // Is present in hash table such destination address
-                    dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream_ch();
-                    if(l_stream) {
+                    dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
+                    if(l_ch) {
                         // form packet to vpn-server
                         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + read_ret);
                         pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND; //VPN_PACKET_OP_CODE_VPN_RECV
@@ -329,7 +329,7 @@ static void* thread_read_tun(void *arg)
 
                         pthread_mutex_lock(&s_clients_mutex);
                         // sent packet to vpn server
-                        dap_stream_ch_pkt_write_mt(l_stream->stream->esocket,l_stream->stream->session->key , DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                        dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch , DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
                         pthread_mutex_unlock(&s_clients_mutex);
 
@@ -403,8 +403,8 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
             dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
             dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
 
-            dap_stream_ch_t *l_stream = dap_chain_net_vpn_client_get_stream_ch();
-            if(l_stream) {
+            dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
+            if(l_ch) {
                 // form packet to vpn-server
                 ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_read_ret);
                 pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND; //VPN_PACKET_OP_CODE_VPN_RECV
@@ -414,7 +414,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 
                 pthread_mutex_lock(&s_clients_mutex);
                 // sent packet to vpn server
-                dap_stream_ch_pkt_write_mt(l_stream->stream->esocket,l_stream->stream->session->key, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                         pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
                 pthread_mutex_unlock(&s_clients_mutex);
 
