@@ -63,6 +63,6 @@ bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t *a_ch);
 
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
 
-bool dap_stream_ch_valid(dap_stream_ch_t *a_ch);
+struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch);
 
 #endif

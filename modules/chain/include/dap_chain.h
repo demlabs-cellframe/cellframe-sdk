@@ -83,7 +83,7 @@ typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  )
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
-typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id); //change in chain happened
+typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
 typedef  enum dap_chain_type
 {
@@ -91,6 +91,7 @@ typedef  enum dap_chain_type
     CHAIN_TYPE_TOKEN,
     CHAIN_TYPE_EMISSION,
     CHAIN_TYPE_TX,
+    CHAIN_TYPE_CA,
     CHAIN_TYPE_LAST
 } dap_chain_type_t;
 

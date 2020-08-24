@@ -40,6 +40,19 @@
 
 typedef uint8_t byte_t;
 
+// Stuffs an integer into a pointer type
+#define DAP_INT_TO_POINTER(i) ((void*) (long) (i))
+// Extracts an integer from a pointer
+#define DAP_POINTER_TO_INT(p) ((int)  (long) (p))
+// Stuffs an unsigned integer into a pointer type
+#define DAP_UINT_TO_POINTER(u) ((void*) (unsigned long) (u))
+// Extracts an unsigned integer from a pointer
+#define DAP_POINTER_TO_UINT(p) ((unsigned int) (unsigned long) (p))
+// Stuffs a size_t into a pointer type
+#define DAP_SIZE_TO_POINTER(s) ((void*) (size_t) (s))
+// Extracts a size_t from a pointer
+#define DAP_POINTER_TO_SIZE(p) ((size_t) (p))
+
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #else

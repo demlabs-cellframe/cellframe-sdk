@@ -15,6 +15,7 @@
 
 #include "cdb_bgtask.h"
 #include <stdlib.h>
+#include <errno.h>
 #ifndef _WIN32
 #include <sys/signal.h>
 #else
@@ -69,6 +70,7 @@ static void *_cdb_bgtask_func(void *arg)
     while(bt->run) {
         time_t now = time(NULL);
         struct timespec timeout;
+        int l_cond_rc;
 
         /* check should run some tasks every 1 second */
         timeout.tv_sec = now + 1;
@@ -82,7 +84,9 @@ static void *_cdb_bgtask_func(void *arg)
                 task->ltime = now;
             }
         }
-        pthread_cond_timedwait(&bt->scond, &bt->smutex, &timeout);
+        pthread_mutex_lock(&bt->smutex);
+        l_cond_rc = pthread_cond_timedwait(&bt->scond, &bt->smutex, &timeout);
+        pthread_mutex_unlock(&bt->smutex);
     }
 
     return NULL;
