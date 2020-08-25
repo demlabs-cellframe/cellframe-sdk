@@ -24,18 +24,24 @@
 
 #pragma once
 
-#ifndef _WIN32
+#include "dap_common.h"
+#if defined( DAP_OS_LINUX)
+
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #define EPOLL_HANDLE  int
-#else
+
+#elif defined(DAP_OS_WINDOWS)
+
 #define EPOLL_HANDLE  HANDLE
 #define MSG_DONTWAIT 0
 #define MSG_NOSIGNAL 0
 #include "winsock.h"
 #include "wepoll.h"
+#else
+#error "No poll headers for your platform"
 #endif
 
 #include <pthread.h>

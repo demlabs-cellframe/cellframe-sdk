@@ -72,7 +72,7 @@
 #include "dap_server.h"
 #include "dap_events.h"
 #include "dap_events_socket.h"
-
+#include "dap_proc_thread.h"
 
 #define LOG_TAG "dap_events"
 
@@ -128,12 +128,13 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
         log_it( L_CRITICAL, "Can't init client submodule dap_events_socket_init( )" );
         goto err;
     }
+    if (dap_proc_thread_init(s_threads_count) != 0 ){
+        log_it( L_CRITICAL, "Can't init proc threads" );
+        goto err;
 
+    }
     log_it( L_NOTICE, "Initialized event socket reactor for %u threads", s_threads_count );
 
-#ifdef DAP_OS_UNIX
-//    signal( SIGPIPE, SIG_IGN ); // ?
-#endif
     return 0;
 
 err:

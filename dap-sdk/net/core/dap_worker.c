@@ -532,7 +532,7 @@ static void s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    dap_worker_queue_send_ptr( a_worker->queue_es_new, a_events_socket );
+    dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
 }
 
 /**
