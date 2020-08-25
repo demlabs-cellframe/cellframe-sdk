@@ -33,17 +33,20 @@
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
     #define DAP_EVENTS_CAPS_EPOLL
-    #define DAP_EVENTS_CAPS_EVENT_PIPE2
+    #define DAP_EVENTS_CAPS_QUEUE_PIPE2
+    #define DAP_EVENTS_CAPS_EVENT_EVENTFD
     #include <netinet/in.h>
     #include <sys/eventfd.h>
 #elif defined (DAP_OS_UNIX)
     #define DAP_EVENTS_CAPS_KQUEUE
-    #define DAP_EVENTS_CAPS_EVENT_SOCKETPAIR
+    #define DAP_EVENTS_CAPS_EVENT_KEVENT
+    #define DAP_EVENTS_CAPS_QUEUE_SOCKETPAIR
     #include <netinet/in.h>
 #elif defined (DAP_OS_WINDOWS)
     #define DAP_EVENTS_CAPS_WEPOLL
     #define DAP_EVENTS_CAPS_EPOLL
-    #define DAP_EVENTS_CAPS_EVENT_PIPE
+    #define DAP_EVENTS_CAPS_QUEUE_WEVENT
+    #define DAP_EVENTS_CAPS_EVENT_WEVENT
 #endif
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -70,6 +73,7 @@ typedef struct dap_worker dap_worker_t;
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_queue_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_event_t) (dap_events_socket_t *, uint64_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_pipe_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_queue_ptr_t) (dap_events_socket_t *, void *); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
@@ -80,6 +84,7 @@ typedef struct dap_events_socket_callbacks {
     union{
         dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
         dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
+        dap_events_socket_callback_event_t event_callback; // Timer callback for listening socket
         dap_events_socket_callback_queue_t queue_callback; // Timer callback for listening socket
         dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // Timer callback for listening socket
         dap_events_socket_callback_t action_callback; // Callback for action with socket
@@ -105,6 +110,7 @@ typedef enum {
     DESCRIPTOR_TYPE_QUEUE,
     DESCRIPTOR_TYPE_PIPE,
     DESCRIPTOR_TYPE_TIMER,
+    DESCRIPTOR_TYPE_EVENT,
     DESCRIPTOR_TYPE_FILE
 } dap_events_desc_type_t;
 
@@ -113,7 +119,7 @@ typedef struct dap_events_socket {
         int socket;
         int fd;
     };
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     int fd2;
 #endif
     dap_events_desc_type_t type;
@@ -182,9 +188,17 @@ void dap_events_socket_create_after(dap_events_socket_t * a_es);
 
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
+void dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket);
+
+dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback);
+dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback);
+void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket);
+
 dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
 int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg);
+int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value);
+
 dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
                                             int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
 dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,

@@ -58,6 +58,11 @@ void dap_proc_queue_delete(dap_proc_queue_t * a_queue)
     dap_events_socket_queue_ptr_send( a_queue->esocket, l_msg );
 }
 
+/**
+ * @brief s_queue_esocket_callback
+ * @param a_es
+ * @param a_msg
+ */
 static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
 {
     dap_proc_queue_t * l_queue = (dap_proc_queue_t*) a_es->_inheritor;

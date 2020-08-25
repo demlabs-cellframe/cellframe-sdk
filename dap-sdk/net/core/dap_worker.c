@@ -74,38 +74,11 @@ void *dap_worker_thread(void *arg)
     dap_worker_t *l_worker = (dap_worker_t *) arg;
     time_t l_next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
     uint32_t l_tn = l_worker->id;
-#ifndef _WIN32
-#ifndef NO_POSIX_SHED
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(l_tn, &mask);
 
-    int l_retcode;
-#ifndef __ANDROID__
-    l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
-#else
-  err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
-#endif
-    if(l_retcode != 0)
-    {
-        char l_errbuf[128]={0};
-        switch (l_retcode) {
-            case EFAULT: strncpy(l_errbuf,"A supplied memory address was invalid.",sizeof (l_errbuf)-1); break;
-            case EINVAL: strncpy(l_errbuf,"The affinity bit mask mask contains no processors that are currently physically on the system and permitted to the thread",sizeof (l_errbuf)-1); break;
-            case ESRCH:  strncpy(l_errbuf,"No thread with the ID thread could be found",sizeof (l_errbuf)-1); break;
-            default:     strncpy(l_errbuf,"Unknown error",sizeof (l_errbuf)-1);
-        }
-        log_it(L_CRITICAL, "Worker #%u: error pthread_setaffinity_np(): %s (%d)", l_errbuf , l_retcode);
-        abort();
-    }
-#endif
-#else
-
-  if ( !SetThreadAffinityMask( GetCurrentThread(), (DWORD_PTR)(1 << tn) ) ) {
-    log_it( L_CRITICAL, "Error pthread_setaffinity_np() You really have %d or more core in CPU?", tn );
-    abort();
-  }
-  #endif
+    dap_cpu_assign_thread_on(l_worker->id);
+    struct sched_param l_shed_params;
+    l_shed_params.sched_priority = 0;
+    pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
 
     l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
@@ -237,23 +210,10 @@ void *dap_worker_thread(void *arg)
 
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
-                        if (l_cur->callbacks.queue_callback){
-                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
-                                void * l_queue_ptr = NULL;
-#if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
-                                if(read( l_cur->fd, &l_queue_ptr,sizeof (void *)) == sizeof (void *))
-                                    l_cur->callbacks.queue_callback(l_cur, l_queue_ptr,sizeof(void *));
-                                else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
-                                    log_it(L_WARNING, "Can't read packet from pipe");
-#else
-#error "No Queue fetch mechanism implemented on your platform"
-#endif
-                            }else{
-                                size_t l_read = read(l_cur->socket, l_cur->buf_in,sizeof(l_cur->buf_in));
-                                l_cur->callbacks.queue_callback(l_cur,l_cur->buf_in,l_read );
-                            }
-                        }else
-                            log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", l_cur->socket);
+                        dap_events_socket_queue_proc_input_unsafe(l_cur);
+                    break;
+                    case DESCRIPTOR_TYPE_EVENT:
+                        dap_events_socket_event_proc_input_unsafe(l_cur);
                     break;
                 }
 

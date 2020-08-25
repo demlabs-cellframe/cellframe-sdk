@@ -32,6 +32,7 @@ typedef struct dap_proc_thread{
     uint32_t cpu_id;
     pthread_t thread_id;
     dap_proc_queue_t * proc_queue;
+    dap_events_socket_t * proc_event; // Should be armed if we have to deal with it
     atomic_uint proc_queue_size;
 
     pthread_cond_t started_cond;

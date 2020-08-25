@@ -107,6 +107,43 @@ uint32_t dap_get_cpu_count( )
 #endif
 }
 
+void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
+{
+#ifndef _WIN32
+#ifndef NO_POSIX_SHED
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(a_cpu_id, &mask);
+
+    int l_retcode;
+#ifndef __ANDROID__
+    l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
+#else
+  err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
+#endif
+    if(l_retcode != 0)
+    {
+        char l_errbuf[128]={0};
+        switch (l_retcode) {
+            case EFAULT: strncpy(l_errbuf,"A supplied memory address was invalid.",sizeof (l_errbuf)-1); break;
+            case EINVAL: strncpy(l_errbuf,"The affinity bit mask mask contains no processors that are currently physically on the system and permitted to the thread",sizeof (l_errbuf)-1); break;
+            case ESRCH:  strncpy(l_errbuf,"No thread with the ID thread could be found",sizeof (l_errbuf)-1); break;
+            default:     strncpy(l_errbuf,"Unknown error",sizeof (l_errbuf)-1);
+        }
+        log_it(L_CRITICAL, "Worker #%u: error pthread_setaffinity_np(): %s (%d)", l_errbuf , l_retcode);
+        abort();
+    }
+#endif
+#else
+
+  if ( !SetThreadAffinityMask( GetCurrentThread(), (DWORD_PTR)(1 << a_cpu_id) ) ) {
+    log_it( L_CRITICAL, "Error pthread_setaffinity_np() You really have %d or more core in CPU?", a_cpu_id );
+    abort();
+  }
+#endif
+
+}
+
 /**
  * @brief sa_server_init Init server module
  * @arg a_threads_count  number of events processor workers in parallel threads
@@ -205,6 +242,7 @@ int dap_events_start( dap_events_t *a_events )
 
         l_worker->id = i;
         l_worker->events = a_events;
+        l_worker->proc_queue = dap_proc_thread_get(i)->proc_queue;
 #ifdef DAP_EVENTS_CAPS_EPOLL
         l_worker->epoll_fd = epoll_create( DAP_MAX_EPOLL_EVENTS );
         pthread_mutex_init(& l_worker->started_mutex, NULL);

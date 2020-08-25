@@ -32,6 +32,7 @@
 #endif
 
 #include "dap_events.h"
+#include "dap_events_socket.h"
 #include "dap_proc_thread.h"
 
 #define LOG_TAG "dap_proc_thread"
@@ -39,6 +40,7 @@
 static size_t s_threads_count = 0;
 static dap_proc_thread_t * s_threads = NULL;
 static void * s_proc_thread_function(void * a_arg);
+
 /**
  * @brief dap_proc_thread_init
  * @param a_cpu_count 0 means autodetect
@@ -47,6 +49,7 @@ static void * s_proc_thread_function(void * a_arg);
 int dap_proc_thread_init(uint32_t a_threads_count){
     s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
+
     for (size_t i = 0; i < s_threads_count; i++ ){
         s_threads[i].cpu_id = i;
         pthread_cond_init( &s_threads[i].started_cond, NULL );
@@ -100,17 +103,56 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
 
 }
 
+/**
+ * @brief s_proc_event_callback
+ * @param a_esocket
+ * @param a_value
+ */
+static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
+{
+    (void) a_value;
+    dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
+    dap_proc_queue_item_t * l_item = l_thread->proc_queue->items;
+    dap_proc_queue_item_t * l_item_old = NULL;
+    bool l_is_anybody_for_repeat=false;
+    while(l_item){
+        bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
+        if (l_is_finished){
+            if(l_item_old)
+                l_item_old->next = l_item->next;
+            else
+                l_thread->proc_queue->items = l_item->next;
+            DAP_DELETE(l_item);
+            l_item = l_item_old->next;
+        }else{
+            l_item_old = l_item;
+            l_item=l_item->next;
+        }
+        l_is_anybody_for_repeat &= (!l_is_finished);
+    }
+    if(l_is_anybody_for_repeat) // Arm event if we have smth to proc again
+        dap_events_socket_event_signal(a_esocket,1);
+}
+
 static void * s_proc_thread_function(void * a_arg)
 {
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
+
+    dap_cpu_assign_thread_on(l_thread->cpu_id);
+    struct sched_param l_shed_params;
+    l_shed_params.sched_priority = 0;
+    pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
+
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events[DAP_MAX_EPOLL_EVENTS] = {{0}}, l_ev={0};
+    struct epoll_event l_epoll_events[DAP_MAX_EPOLL_EVENTS] = {{0}};
     l_thread->epoll_ctl = epoll_create( DAP_MAX_EPOLL_EVENTS );
 #else
 #error "Unimplemented poll events analog for this platform"
 #endif
-
+    l_thread->proc_queue = dap_proc_queue_create(l_thread);
+    l_thread->proc_event = dap_events_socket_create_type_event_mt(NULL, s_proc_event_callback);
+    l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
     //We've started!
     pthread_cond_broadcast(&l_thread->started_cond);
     // Main loop
@@ -121,7 +163,56 @@ static void * s_proc_thread_function(void * a_arg)
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
+        if(l_selected_sockets == -1) {
+            if( errno == EINTR)
+                continue;
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_ERROR, "Proc thread #%d got errno:\"%s\" (%d)", l_thread->cpu_id , l_errbuf, l_errno);
+            break;
+        }
+        time_t l_cur_time = time( NULL);
+        for(int32_t n = 0; n < l_selected_sockets; n++) {
+            dap_events_socket_t * l_cur;
+            l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
+            uint32_t l_cur_events = l_epoll_events[n].events;
+            if(!l_cur) {
+                log_it(L_ERROR, "dap_events_socket NULL");
+                continue;
+            }
+            l_cur->last_time_active = l_cur_time;
+            if (l_cur_events & EPOLLIN ){
+                switch (l_cur->type) {
+                    case DESCRIPTOR_TYPE_QUEUE:
+                            dap_events_socket_queue_proc_input_unsafe(l_cur);
+                    break;
+                    case DESCRIPTOR_TYPE_EVENT:
+                            dap_events_socket_event_proc_input_unsafe (l_cur);
+                    break;
+                    default:{ log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop"); }
+                }
+            }
+            if(l_cur->kill_signal){
+#ifdef DAP_EVENTS_CAPS_EPOLL
+                if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev ) == -1 )
+                    log_it( L_ERROR,"Can't remove event socket's handler from the epoll ctl" );
+                else
+                    log_it( L_DEBUG,"Removed epoll's event from proc thread #%u", l_thread->cpu_id );
+                if (l_cur->callbacks.delete_callback)
+                    l_cur->callbacks.delete_callback(l_cur, l_thread);
+                if(l_cur->_inheritor)
+                    DAP_DELETE(l_cur->_inheritor);
+                DAP_DELETE(l_cur);
+#else
+#error "Unimplemented poll ctl analog for this platform"
+#endif
+            }
+
+        }
     }
+    log_it(L_NOTICE, "Stop processing thread #%u", l_thread->cpu_id);
+    return NULL;
 }
 
 

@@ -25,7 +25,7 @@
 
 typedef struct dap_proc_thread dap_proc_thread_t;
 
-typedef bool (*dap_proc_queue_callback_t)(dap_proc_thread_t,void* ); // Callback for processor. Returns true if we want to continue running
+typedef bool (*dap_proc_queue_callback_t)(dap_proc_thread_t*,void* ); // Callback for processor. Returns true if we want to continue running
 
 typedef struct dap_proc_queue_item{
     dap_proc_queue_callback_t callback;
