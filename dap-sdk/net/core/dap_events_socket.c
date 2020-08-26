@@ -196,13 +196,15 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->worker = a_w;
     l_es->flags =  DAP_SOCK_QUEUE_PTR;
-    l_es->events = a_w->events;
+    if (a_w){
+        l_es->events = a_w->events;
+        l_es->worker = a_w;
+    }
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     int l_pipe[2];
     int l_errno;
     char l_errbuf[128];
@@ -233,7 +235,9 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
     dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
-    dap_events_socket_assign_on_worker_mt(l_es,a_w);
+    // If no worker - don't assign
+    if ( a_w)
+        dap_events_socket_assign_on_worker_mt(l_es,a_w);
     return  l_es;
 }
 
@@ -247,8 +251,129 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * 
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
     dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
-    dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+    // If no worker - don't assign
+    if ( a_w)
+        dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
     return  l_es;
+}
+
+/**
+ * @brief dap_events_socket_queue_proc_input
+ * @param a_esocket
+ */
+void dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
+{
+    if (a_esocket->callbacks.queue_callback){
+        if (a_esocket->flags & DAP_SOCK_QUEUE_PTR){
+            void * l_queue_ptr = NULL;
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+            if(read( a_esocket->fd, &l_queue_ptr,sizeof (void *)) == sizeof (void *))
+                a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr,sizeof(void *));
+            else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                log_it(L_WARNING, "Can't read packet from pipe");
+#else
+#error "No Queue fetch mechanism implemented on your platform"
+#endif
+        }else{
+            size_t l_read = read(a_esocket->socket, a_esocket->buf_in,sizeof(a_esocket->buf_in));
+            a_esocket->callbacks.queue_callback(a_esocket,a_esocket->buf_in,l_read );
+        }
+    }else
+        log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
+
+}
+
+/**
+ * @brief s_create_type_event
+ * @param a_w
+ * @param a_callback
+ * @return
+ */
+dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
+{
+    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    l_es->type = DESCRIPTOR_TYPE_EVENT;
+    if (a_w){
+        l_es->events = a_w->events;
+        l_es->worker = a_w;
+    }
+    l_es->callbacks.event_callback = a_callback; // Arm event callback
+    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+
+#ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
+    if((l_es->fd = eventfd(0,EFD_NONBLOCK) ) < 0 ){
+        int l_errno = errno;
+        char l_errbuf[128];
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        switch (l_errno) {
+            case EINVAL: log_it(L_CRITICAL, "An unsupported value was specified in flags: \"%s\" (%d)", l_errbuf, l_errno); break;
+            case EMFILE: log_it(L_CRITICAL, "The per-process limit on the number of open file descriptors has been reached: \"%s\" (%d)", l_errbuf, l_errno); break;
+            case ENFILE: log_it(L_CRITICAL, "The system-wide limit on the total number of open files has been reached: \"%s\" (%d)", l_errbuf, l_errno); break;
+            case ENODEV: log_it(L_CRITICAL, "Could not mount (internal) anonymous inode device: \"%s\" (%d)", l_errbuf, l_errno); break;
+            case ENOMEM: log_it(L_CRITICAL, "There was insufficient memory to create a new eventfd file descriptor: \"%s\" (%d)", l_errbuf, l_errno); break;
+            default: log_it( L_ERROR, "Error detected, can't create eventfd: '%s' (%d)", l_errbuf, l_errno);
+        }
+        DAP_DELETE(l_es);
+        return NULL;
+    }else
+        log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
+#endif
+    return l_es;
+}
+
+/**
+ * @brief dap_events_socket_create_type_event_mt
+ * @param a_w
+ * @param a_callback
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
+{
+    dap_events_socket_t * l_es = s_create_type_event(a_w, a_callback);
+    // If no worker - don't assign
+    if ( a_w)
+        dap_events_socket_assign_on_worker_mt(l_es,a_w);
+    return  l_es;
+}
+
+/**
+ * @brief dap_events_socket_create_type_event_unsafe
+ * @param a_w
+ * @param a_callback
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
+{
+    dap_events_socket_t * l_es = s_create_type_event(a_w, a_callback);
+    // If no worker - don't assign
+    if ( a_w)
+        dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+    return  l_es;
+}
+
+/**
+ * @brief dap_events_socket_event_proc_input_unsafe
+ * @param a_esocket
+ */
+void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
+{
+    if (a_esocket->callbacks.event_callback ){
+#if defined(DAP_EVENTS_CAPS_EVENT_EVENTFD )
+        eventfd_t l_value;
+        if(eventfd_read( a_esocket->fd, &l_value)==0 ){ // would block if not ready
+            a_esocket->callbacks.event_callback(a_esocket, l_value);
+        }else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) ){  // we use blocked socket for now but who knows...
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_WARNING, "Can't read packet from event fd: \"%s\"(%d)", l_errbuf, l_errno);
+        }else
+            return; // do nothing
+#else
+#error "No Queue fetch mechanism implemented on your platform"
+#endif
+    }else
+        log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
 }
 
 /**
@@ -256,15 +381,40 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
  * @param a_es
  * @param a_arg
  */
-int dap_worker_queue_send_ptr( dap_events_socket_t * a_es, void* a_arg)
+int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
 {
-#if defined(DAP_EVENTS_CAPS_EVENT_PIPE2)
-    int ret = write( a_es->fd2, &a_arg, sizeof(a_arg));
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+    int ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
     int l_errno = errno;
     if (ret == sizeof(a_arg) )
         return  0;
     else
         return l_errno;
+#else
+#error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
+#endif
+}
+
+/**
+ * @brief dap_events_socket_event_signal
+ * @param a_es
+ * @param a_value
+ * @return
+ */
+int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value)
+{
+#if defined(DAP_EVENTS_CAPS_EVENT_EVENTFD)
+    int ret = eventfd_write( a_es->fd2,a_value);
+    int l_errno = errno;
+    if (ret == 0 )
+        return  0;
+    else if ( ret < 0)
+        return l_errno;
+    else
+        return 1;
+#else
+#error "Not implemented dap_events_socket_event_signal() for this platform"
+>>>>>>> ae57177364bc0175d7b8a07487f8fa3c9105208b
 #endif
 }
 
@@ -274,7 +424,7 @@ int dap_worker_queue_send_ptr( dap_events_socket_t * a_es, void* a_arg)
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    int l_ret= dap_worker_queue_send_ptr( a_es->worker->queue_es_delete, a_es );
+    int l_ret= dap_events_socket_queue_ptr_send( a_es->worker->queue_es_delete, a_es );
     if( l_ret != 0 ){
         log_it(L_ERROR, "Queue send returned %d", l_ret);
     }
@@ -415,16 +565,17 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
     log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
     dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
-    pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
-    if(!dap_events_socket_find_unsafe(a_es->socket, a_es->events)){
-        log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
-        return ;
+    if (a_es->events){ // It could be socket NOT from events
+        pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
+        if(!dap_events_socket_find_unsafe(a_es->socket, a_es->events)){
+            log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
+            return ;
+        }
+
+        if(a_es->events->sockets)
+            HASH_DEL( a_es->events->sockets, a_es );
+        pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
     }
-
-    if(a_es->events->sockets)
-        HASH_DEL( a_es->events->sockets, a_es );
-    pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
-
     log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
 
     if( a_es->callbacks.delete_callback )
@@ -438,7 +589,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
         closesocket( a_es->socket );
 #else
         close( a_es->socket );
-#ifdef DAP_EVENTS_CAPS_EVENT_PIPE2
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
         if( a_es->type == DESCRIPTOR_TYPE_QUEUE){
             close( a_es->fd2);
         }
@@ -471,7 +622,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
  */
 void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_socket_t *a_es )
 {
-    dap_worker_queue_send_ptr( a_w->queue_es_delete, a_es );
+    dap_events_socket_queue_ptr_send( a_w->queue_es_delete, a_es );
 }
 
 /**
@@ -489,7 +640,7 @@ void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t *
     else
         l_msg->flags_unset = DAP_SOCK_READY_TO_READ;
 
-    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
@@ -510,7 +661,7 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t *
     else
         l_msg->flags_unset = DAP_SOCK_READY_TO_WRITE;
 
-    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
@@ -533,7 +684,7 @@ size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, 
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     memcpy( l_msg->data, data, l_data_size);
 
-    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
@@ -573,7 +724,7 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     }
     l_data_size++;
     l_msg->data_size = l_data_size;
-    int l_ret= dap_worker_queue_send_ptr(a_w->queue_es_io, l_msg );
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);

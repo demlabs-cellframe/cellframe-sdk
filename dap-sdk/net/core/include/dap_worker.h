@@ -26,10 +26,13 @@
 #include <pthread.h>
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
+
+#include "dap_proc_queue.h"
 typedef struct dap_worker
 {
     uint32_t id;
     dap_events_t *events;
+    dap_proc_queue_t * proc_queue;
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
