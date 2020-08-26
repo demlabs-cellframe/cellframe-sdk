@@ -37,16 +37,17 @@ void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_client_
         dap_json_rpc_notification_handler(a_request->method, a_request->params);
     } else {
         dap_json_rpc_response_t *l_response = DAP_NEW(dap_json_rpc_response_t);
+        l_response->id = a_request->id;
         dap_json_rpc_request_handler_t *l_handler = NULL;
         HASH_FIND_STR(s_handler_hash_table, a_request->method, l_handler);
         if (l_handler == NULL){
             dap_json_rpc_error_t *l_err = dap_json_rpc_error_search_by_code(1);
-            l_response->id = a_request->id;
             l_response->type_result = TYPE_RESPONSE_NULL;
             l_response->error = l_err;
             log_it(L_NOTICE, "Can't processing the request. Handler %s not registration. "
                              "Request sending from client ip %s", a_request->method, a_client_remote->s_ip);
         } else {
+            l_response->error = NULL;
             l_handler->func(a_request->params, l_response);
             log_it(L_NOTICE, "Calling handler request name: %s", a_request->method);
         }
