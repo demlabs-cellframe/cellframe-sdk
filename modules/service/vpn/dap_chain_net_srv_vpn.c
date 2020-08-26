@@ -193,7 +193,7 @@ int s_tun_event_stream_create()
   s_raw_server->tun_events_socket = dap_events_socket_wrap_no_add(NULL,
                                                                   s_raw_server->tun_fd, &l_s_callbacks);
   s_raw_server->tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
-  dap_worker_add_events_socket_auto(s_raw_server->tun_events_socket);
+  dap_events_socket_create_after(s_raw_server->tun_events_socket);
   s_raw_server->tun_events_socket->_inheritor = s_raw_server;
 
   return 0;

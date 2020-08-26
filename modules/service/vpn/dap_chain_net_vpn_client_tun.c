@@ -552,7 +552,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
 
         s_tun_events_socket = dap_events_socket_wrap_no_add(NULL, s_fd_tun, &l_s_callbacks);
         s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
-        dap_worker_add_events_socket_auto(s_tun_events_socket);
+        dap_events_socket_create_after(s_tun_events_socket);
         s_tun_events_socket->_inheritor = NULL;
 
         return 0;
