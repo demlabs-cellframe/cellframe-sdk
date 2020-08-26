@@ -35,11 +35,11 @@ void _dap_json_rpc_http_headers_read_callback(dap_http_client_t *a_http_client, 
 void _dap_json_rpc_http_headers_write_callback(dap_http_client_t *a_http_client, void *a_args){
     if (a_http_client->reply_status_code == 200){
         dap_http_out_header_add(a_http_client,"Content-Type","application/json");
-        dap_http_out_header_add(a_http_client,"Connnection","keep-alive");
         dap_http_out_header_add(a_http_client,"Cache-Control","no-cache");
-        a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+        a_http_client->keep_alive = false;
         dap_client_remote_ready_to_read(a_http_client->client,true);
     }
+    a_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
 }
 void _dap_json_rpc_http_data_read_callback(dap_http_client_t *a_http_client, void *a_args){
     (void) a_args;
@@ -47,8 +47,14 @@ void _dap_json_rpc_http_data_read_callback(dap_http_client_t *a_http_client, voi
     l_reading_data[a_http_client->in_content_length] = '\0';
     memcpy(l_reading_data, a_http_client->client->buf_in, a_http_client->in_content_length);
     dap_json_rpc_request_t *l_request = dap_json_rpc_request_from_json(l_reading_data);
-    dap_json_rpc_request_handler(l_request, a_http_client->client);
-    a_http_client->state_read=DAP_HTTP_CLIENT_STATE_NONE;
+    if (l_request){
+        dap_json_rpc_request_handler(l_request, a_http_client->client);
+        a_http_client->state_read=DAP_HTTP_CLIENT_STATE_NONE;
+        a_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
+    } else {
+        a_http_client->reply_status_code = 404;
+        strcpy(a_http_client->reply_reason_phrase, dap_strdup("Can't parse JSON"));
+    }
 }
 void _dap_json_rpc_http_data_write_callback(dap_http_client_t *a_http_client, void *a_args){
 
@@ -64,5 +70,4 @@ void dap_json_rpc_add_proc_http(struct dap_http *sh, const char *URL){
                       _dap_json_rpc_http_headers_write_callback,
                       NULL);
     dap_json_rpc_request_init(URL);
-    //dap_http_add_proc(sh, URL, )
 }
