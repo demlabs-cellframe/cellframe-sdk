@@ -72,7 +72,6 @@ static char *s_cur_ipv4_server = NULL;
 static const char *s_conn_name = "nodeVPNClient";
 static char *s_last_used_connection_name = NULL, *s_last_used_connection_device = NULL;
 
-static pthread_t s_thread_read_tun_id;
 static pthread_mutex_t s_clients_mutex;
 static dap_events_socket_t * s_tun_events_socket = NULL;
 
@@ -231,135 +230,6 @@ static bool is_local_address(const char *a_address)
 
 }
 
-/**
- * Thread for read from /dev/net/tun
- */
-static void* thread_read_tun(void *arg)
-{
-    //srv_ch_sf_tun_create();
-
-    if(s_fd_tun <= 0) {
-        log_it(L_CRITICAL, "Tun/tap file descriptor is not initialized");
-        return NULL;
-    }
-    /*    if (fcntl(raw_server->tun_fd, F_SETFL, O_NONBLOCK) < 0){ ;
-     log_it(L_CRITICAL,"Can't switch tun/tap socket into the non-block mode");
-     return NULL;
-     }
-     if (fcntl(raw_server->tun_fd, F_SETFD, FD_CLOEXEC) < 0){;
-     log_it(L_CRITICAL,"Can't switch tun/tap socket to not be passed across execs");
-     return NULL;
-     }
-     */
-    uint8_t *tmp_buf;
-//    ssize_t tmp_buf_size;
-    static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
-
-    tmp_buf = (uint8_t *) calloc(1, tun_MTU);
-//    tmp_buf_size = 0;
-    log_it(L_INFO, "Tun/tap thread starts with MTU = %d", tun_MTU);
-
-    fd_set fds_read, fds_read_active;
-
-    FD_ZERO(&fds_read);
-    FD_SET(s_fd_tun, &fds_read);
-    FD_SET(get_select_breaker(), &fds_read);
-    /// Main cycle
-    do {
-        fds_read_active = fds_read;
-        int ret = select(FD_SETSIZE, &fds_read_active, NULL, NULL, NULL);
-        //
-        if(ret > 0) {
-            if(FD_ISSET(get_select_breaker(), &fds_read_active)) { // Smth to send
-                ch_vpn_pkt_t* pkt = NULL; //TODO srv_ch_sf_raw_read();
-                if(pkt) {
-                    int write_ret = write(s_fd_tun, pkt->data, pkt->header.op_data.data_size);
-                    if(write_ret > 0) {
-                        log_it(L_DEBUG, "Wrote out %d bytes to the tun/tap interface", write_ret);
-                    } else {
-                        log_it(L_ERROR, "Tun/tap write %u bytes returned '%s' error, code (%d)",
-                                pkt->header.op_data.data_size, strerror(errno), write_ret);
-                    }
-                }
-            }
-            // there is data in tun for sent to vpn server
-            if(FD_ISSET(s_fd_tun, &fds_read_active)) {
-                int read_ret = read(s_fd_tun, tmp_buf, tun_MTU);
-                if(read_ret < 0) {
-                    log_it(L_CRITICAL, "Tun/tap read returned '%s' error, code (%d)", strerror(errno), read_ret);
-                    break;
-                } else {
-                    struct iphdr *iph = (struct iphdr*) tmp_buf;
-                    struct in_addr in_daddr, in_saddr;
-                    // destination address
-                    in_daddr.s_addr = iph->daddr;
-                    // source address
-                    in_saddr.s_addr = iph->saddr;
-                    char str_daddr[42], str_saddr[42];
-                    strncpy(str_saddr, inet_ntoa(in_saddr), sizeof(str_saddr));
-                    strncpy(str_daddr, inet_ntoa(in_daddr), sizeof(str_daddr));
-
-                    if(iph->tot_len > (uint16_t) read_ret) {
-                        log_it(L_INFO, "Tun/Tap interface returned only the fragment (tot_len =%u  read_ret=%d) ",
-                                iph->tot_len, read_ret);
-                    }
-                    if(iph->tot_len < (uint16_t) read_ret) {
-                        log_it(L_WARNING, "Tun/Tap interface returned more then one packet (tot_len =%u  read_ret=%d) ",
-                                iph->tot_len, read_ret);
-                    }
-
-                    log_it(L_DEBUG, "Read IP packet from tun/tap interface daddr=%s saddr=%s total_size = %d "
-                            , str_daddr, str_saddr, read_ret);
-
-                    //dap_client_t *l_client = l_vpn_client ? l_vpn_client->client : NULL;
-                    //DAP_CLIENT_PVT(l_client);
-                    //dap_stream_ch_vpn_remote_single_t * raw_client = l_client->;
-
-//                    HASH_FIND_INT(raw_server->clients, &in_daddr.s_addr, raw_client);
-                    //                  HASH_ADD_INT(CH_SF(ch)->socks, id, sf_sock );
-                    //                  HASH_DEL(CH_SF(ch)->socks,sf_sock);
-//                    if(l_stream) { // Is present in hash table such destination address
-                    dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
-                    dap_stream_worker_t * l_stream_worker = dap_chain_net_vpn_client_get_stream_worker();
-                    if(l_ch) {
-                        // form packet to vpn-server
-                        ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + read_ret);
-                        pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND; //VPN_PACKET_OP_CODE_VPN_RECV
-                        pkt_out->header.sock_id = s_fd_tun;
-                        pkt_out->header.op_data.data_size = read_ret;
-                        memcpy(pkt_out->data, tmp_buf, read_ret);
-
-                        // sent packet to vpn server
-                        dap_stream_ch_pkt_write_mt(l_stream_worker,l_ch , DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-
-                        DAP_DELETE(pkt_out);
-                    }
-                    else {
-                        log_it(L_DEBUG, "No remote client for income IP packet with addr %s", inet_ntoa(in_daddr));
-                    }
-
-                }
-            }/*else {
-             log_it(L_CRITICAL,"select() has no tun handler in the returned set");
-             break;
-
-             }*/
-        } else {
-            log_it(L_CRITICAL, "Select returned %d", ret);
-            break;
-        }
-    } while(1);
-    log_it(L_NOTICE, "Raw sockets listen thread is stopped");
-    // close tun
-    if(s_fd_tun > 0) {
-        int l_fd_tun = s_fd_tun;
-        s_fd_tun = 0;
-        close(l_fd_tun);
-    }
-
-    return NULL;
-}
 
 int dap_chain_net_vpn_client_tun_init(const char *a_ipv4_server_str)
 {
@@ -541,26 +411,19 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
 
     pthread_mutex_init(&s_clients_mutex, NULL);
 
-    if(is_dap_tun_in_worker()) {
+    static dap_events_socket_callbacks_t l_s_callbacks = {
+            .read_callback = m_client_tun_read,// for server
+            .write_callback = m_client_tun_write,// for client
+            .error_callback = m_client_tun_error,
+            .delete_callback = m_client_tun_delete
+    };
 
-        static dap_events_socket_callbacks_t l_s_callbacks = {
-                .read_callback = m_client_tun_read,// for server
-                .write_callback = m_client_tun_write,// for client
-                .error_callback = m_client_tun_error,
-                .delete_callback = m_client_tun_delete
-        };
+    s_tun_events_socket = dap_events_socket_wrap_no_add(NULL, s_fd_tun, &l_s_callbacks);
+    s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
+    dap_worker_add_events_socket_auto(s_tun_events_socket);
+    s_tun_events_socket->_inheritor = NULL;
 
-        s_tun_events_socket = dap_events_socket_wrap_no_add(NULL, s_fd_tun, &l_s_callbacks);
-        s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
-        dap_worker_add_events_socket_auto(s_tun_events_socket);
-        s_tun_events_socket->_inheritor = NULL;
-
-        return 0;
-    }
-    else {
-        pthread_create(&s_thread_read_tun_id, NULL, thread_read_tun, NULL);
-    }
-
+    return 0;
 
     //m_tunDeviceName = dev;
     //m_tunSocket = fd;
@@ -569,13 +432,10 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
 
 int dap_chain_net_vpn_client_tun_delete(void)
 {
-    if(is_dap_tun_in_worker())
-    {
-        pthread_mutex_lock(&s_clients_mutex);
-        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket);
-        s_tun_events_socket = NULL;
-        pthread_mutex_unlock(&s_clients_mutex);
-    }
+    pthread_mutex_lock(&s_clients_mutex);
+    dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket);
+    s_tun_events_socket = NULL;
+    pthread_mutex_unlock(&s_clients_mutex);
 
     // restore previous routing
     if(!s_conn_name || !s_last_used_connection_name)
