@@ -414,7 +414,6 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
         return 1;
 #else
 #error "Not implemented dap_events_socket_event_signal() for this platform"
->>>>>>> ae57177364bc0175d7b8a07487f8fa3c9105208b
 #endif
 }
 
