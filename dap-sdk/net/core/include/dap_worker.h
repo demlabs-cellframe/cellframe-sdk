@@ -67,7 +67,7 @@ int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
 
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
-void dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
+dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 
 // Thread function
 void *dap_worker_thread(void *arg);
