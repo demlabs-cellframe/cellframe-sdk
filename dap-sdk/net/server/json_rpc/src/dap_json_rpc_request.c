@@ -23,14 +23,44 @@ dap_json_rpc_request_t *dap_json_rpc_request_creation(const char *a_method, dap_
 
 dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data){
     log_it(L_DEBUG, "Translation JSON string to struct dap_json_rpc_request");
-    json_object *l_jobj = json_tokener_parse(a_data);
-    json_object *l_jobj_methods =json_object_object_get(l_jobj, "method");
-    json_object *l_jobj_params = json_object_object_get(l_jobj, "params");
-    json_object *l_jobj_id = json_object_object_get(l_jobj, "id");
+    enum json_tokener_error l_jterr;
+    json_object *l_jobj = json_tokener_parse_verbose(a_data, &l_jterr);
+    json_object *l_jobj_id = NULL;
+    json_object *l_jobj_method = NULL;
+    json_object *l_jobj_params = NULL;
     dap_json_rpc_request_t *l_request = DAP_NEW(dap_json_rpc_request_t);
-    l_request->id = json_object_get_int64(l_jobj_id);
-    l_request->method = (char*)json_object_get_string(l_jobj_methods);
-    l_request->params = dap_json_rpc_params_create_from_array_list(l_jobj_params);
+    l_request->params = NULL;
+    bool l_err_parse_request = false;
+    if (l_jterr == json_tokener_success){
+        if (json_object_object_get_ex(l_jobj, "id", &l_jobj_id)){
+            l_request->id = json_object_get_int64(l_jobj_id);
+        }else{
+            log_it(L_ERROR, "Error parse JSON string, Can't searching id request");
+            l_err_parse_request = true;
+        }
+        if (json_object_object_get_ex(l_jobj, "method", &l_jobj_method)){
+            l_request->method = dap_strdup(json_object_get_string(l_jobj_method));
+        }else{
+            log_it(L_ERROR, "Error parse JSON string, Can't searching method for request with id: %lu", l_request->id);
+            l_err_parse_request = true;
+        }
+        if (json_object_object_get_ex(l_jobj, "params", &l_jobj_params) && !l_err_parse_request){
+            l_request->params = dap_json_rpc_params_create_from_array_list(l_jobj_params);
+        }else{
+            log_it(L_ERROR, "Error parse JSON string, Can't searching array params for request with id: %lu", l_request->id);
+            l_err_parse_request = true;
+        }
+    } else {
+        log_it(L_ERROR, "Error parse json tokener: %s", json_tokener_error_desc(l_jterr));
+        l_err_parse_request = true;
+    }
+    if (l_err_parse_request){
+        DAP_FREE(l_request->method);
+//        if (l_request->params)
+//            dap_json_rpc_params_remove_all(l_request->params);
+        DAP_FREE(l_request);
+        return NULL;
+    }
     return l_request;
 
 }

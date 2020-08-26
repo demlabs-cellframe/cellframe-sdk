@@ -53,12 +53,12 @@ void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc
     if (a_params->lenght != 0)
         DAP_FREE(a_params->params);
     a_params->params = l_new_params;
-    a_params->lenght = l_len_new_params;
+    a_params->lenght++;
 }
 
 void dap_json_rpc_params_remove_all(dap_json_rpc_params_t *a_params){
     log_it(L_DEBUG, "Clean params");
-    for (uint32_t i=0 ; i < a_params->lenght; i++){
+    for (uint32_t i=0x0 ; i < dap_json_rpc_params_lenght(a_params); i++){
         dap_json_rpc_param_remove(a_params->params[i]);
     }
     DAP_FREE(a_params);
@@ -94,6 +94,8 @@ void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
 
 dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list){
     log_it(L_NOTICE, "Translation json_object to dap_json_rpc_params");
+    if (a_array_list == NULL)
+        return NULL;
     dap_json_rpc_params_t *l_params = dap_json_rpc_params_create();
     int l_lenght = json_object_array_length(a_array_list);
     for (int i = 0; i < l_lenght; i++){
