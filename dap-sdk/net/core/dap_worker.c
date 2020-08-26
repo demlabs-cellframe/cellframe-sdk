@@ -246,7 +246,7 @@ void *dap_worker_thread(void *arg)
             // Socket is ready to write
             if(((l_epoll_events[n].events & EPOLLOUT) || (l_cur->flags & DAP_SOCK_READY_TO_WRITE))
                     && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
-                ///log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
+                //log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
 
@@ -305,7 +305,7 @@ void *dap_worker_thread(void *arg)
                         if (l_cur->buf_out_size) {
                             memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
                         } else {
-                            l_cur->flags &= ~DAP_SOCK_READY_TO_WRITE;
+                            dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
                 }
@@ -368,7 +368,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif
         if (  l_ret != 0 ){
-            log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism");
+            log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
         }else{
             // Add in global list
             pthread_rwlock_wrlock(&w->events->sockets_rwlock);
@@ -500,7 +500,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
  * @param a_worker
  * @param a_events_socket
  */
-void dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
+dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 {
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_events_worker_get_auto( );
@@ -508,6 +508,7 @@ void dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
   a_es->worker = l_worker;
   a_es->events = a_es->worker->events;
   dap_worker_add_events_socket( a_es, l_worker);
+  return l_worker;
 }
 
 

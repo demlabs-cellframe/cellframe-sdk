@@ -384,14 +384,12 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
 {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    int ret = write( a_es->fd2, &a_arg,sizeof(a_arg));
+    int ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
     int l_errno = errno;
-    if (ret == 0 )
+    if (ret == sizeof(a_arg) )
         return  0;
-    else if ( ret < 0)
-        return l_errno;
     else
-        return 1;
+        return l_errno;
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
@@ -429,36 +427,6 @@ void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
     if( l_ret != 0 ){
         log_it(L_ERROR, "Queue send returned %d", l_ret);
     }
-}
-
-
-
-/**
- * @brief dap_events_socket_create_after
- * @param a_es
- */
-void dap_events_socket_create_after( dap_events_socket_t *a_es )
-{
-  if ( a_es->callbacks.new_callback )
-    a_es->callbacks.new_callback( a_es, NULL ); // Init internal structure
-
-  a_es->last_time_active = a_es->last_ping_request = time( NULL );
-
-  dap_worker_add_events_socket_auto( a_es );
-
-
-  a_es->worker->event_sockets_count ++;
-
-  pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
-  HASH_ADD_INT( a_es->events->sockets, socket, a_es );
-  pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
-
-  a_es->ev.events = EPOLLIN | EPOLLERR;
-  a_es->ev.data.ptr = a_es;
-
-  if ( epoll_ctl( a_es->worker->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev ) == 1 )
-    log_it( L_CRITICAL, "Can't add event socket's handler to epoll_fd" );
-
 }
 
 /**
@@ -735,6 +703,7 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     va_list ap;
     va_start(ap,format);
     int l_data_size = dap_vsnprintf(NULL,0,format,ap);
+    va_end(ap);
     if (l_data_size <0 ){
         log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
         return 0;
@@ -742,9 +711,11 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     l_data_size++; // To calc trailing zero
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    va_start(ap, format);
     l_data_size = dap_vsnprintf(l_msg->data,0,format,ap);
+    va_end(ap);
     if (l_data_size <0 ){
         log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
         DAP_DELETE(l_msg);

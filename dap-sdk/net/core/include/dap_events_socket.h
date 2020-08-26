@@ -184,8 +184,6 @@ typedef struct dap_events_socket {
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
 
-void dap_events_socket_create_after(dap_events_socket_t * a_es);
-
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 void dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket);

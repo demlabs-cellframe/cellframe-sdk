@@ -547,7 +547,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             const char *l_add_str = "";
 
-            dap_events_socket_write_f_unsafe( a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
+            dap_events_socket_write_f_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
                                                                 "Host: %s:%d%s\r\n"
                                                                 "\r\n",
                                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
