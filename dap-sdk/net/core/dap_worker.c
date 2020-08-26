@@ -152,6 +152,12 @@ void *dap_worker_thread(void *arg)
                 l_cur->callbacks.error_callback(l_cur, NULL); // Call callback to process error event
             }
 
+            if (l_epoll_events[n].events & EPOLLRDHUP) {
+                log_it(L_INFO, "Client socket disconnected");
+                dap_events_socket_set_readable_unsafe(l_cur, false);
+                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                l_epoll_events[n].events &= ~EPOLLIN;
+            }
 
             if(l_epoll_events[n].events & EPOLLIN) {
 
@@ -235,10 +241,9 @@ void *dap_worker_thread(void *arg)
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                         }
                     }
-                    else if(l_bytes_read == 0) {
-                        log_it(L_INFO, "Client socket disconnected");
-                        dap_events_socket_set_readable_unsafe(l_cur, false);
-                        l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    else {
+                        log_it(L_WARNING, "EPOLLIN triggered but nothing to read");
+                        dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
                 }
             }

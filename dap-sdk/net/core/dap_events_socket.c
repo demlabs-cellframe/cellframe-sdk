@@ -135,6 +135,7 @@ void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struc
  */
 dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
+    UNUSED(a_flags);
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_PIPE;
     l_es->worker = a_w;
@@ -711,7 +712,7 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     l_data_size++; // To calc trailing zero
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     va_start(ap, format);
     l_data_size = dap_vsnprintf(l_msg->data,0,format,ap);
