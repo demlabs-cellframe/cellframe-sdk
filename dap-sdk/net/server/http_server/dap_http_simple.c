@@ -229,8 +229,7 @@ inline static void _set_only_write_http_client_state(dap_http_client_t* http_cli
 //  log_it(L_DEBUG,"_set_only_write_http_client_state");
 //  Sleep(300);
 
-  dap_events_socket_set_readable_unsafe(http_client->esocket,false);
-  dap_events_socket_set_writable_unsafe(http_client->esocket,true);
+  http_client->esocket->flags = DAP_SOCK_READY_TO_WRITE; // To not to touch epoll_fd we clean flags by ourself
 //  http_client->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
   http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -275,7 +274,6 @@ inline static void _write_response_bad_request( dap_http_simple_t * a_http_simpl
   _copy_reply_and_mime_to_response( a_http_simple );
 
   json_object_put( jobj ); // free obj
-  dap_events_socket_set_writable_mt(a_http_simple->worker, a_http_simple->esocket ,true);
 }
 
 /**

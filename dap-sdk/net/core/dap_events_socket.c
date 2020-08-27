@@ -516,7 +516,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
     events |= EPOLLOUT;
 
   sc->ev.events = events;
-
+  if (sc->worker)
     if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 ){
         int l_errno = errno;
         char l_errbuf[128];
@@ -551,12 +551,13 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
 
     sc->ev.events = events;
 
-    if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
-        int l_errno = errno;
-        char l_errbuf[128];
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno);
-    }
+    if (sc->worker)
+        if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno);
+        }
 }
 
 /**
