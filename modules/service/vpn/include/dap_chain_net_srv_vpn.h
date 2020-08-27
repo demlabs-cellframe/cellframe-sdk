@@ -93,6 +93,33 @@ typedef struct ch_vpn_pkt {
     uint8_t data[]; // Binary data nested by packet
 }DAP_ALIGN_PACKED ch_vpn_pkt_t;
 
+typedef struct ch_sf_tun_socket ch_sf_tun_socket_t;
+typedef struct dap_chain_net_srv_ch_vpn dap_chain_net_srv_ch_vpn_t;
+
+typedef struct usage_client {
+    pthread_rwlock_t rwlock;
+    dap_chain_net_srv_ch_vpn_t * ch_vpn;
+    dap_chain_net_srv_client_t *net_srv_client;
+    dap_chain_datum_tx_receipt_t * receipt;
+    size_t receipt_size;
+    uint32_t usage_id;
+    dap_chain_net_srv_t * srv;
+    ch_sf_tun_socket_t * tun_socket;
+    UT_hash_handle hh;
+} usage_client_t;
+
+typedef struct ch_sf_tun_socket {
+    uint8_t worker_id;
+    dap_worker_t * worker;
+    dap_events_socket_t * es;
+
+    usage_client_t * clients; // Remote clients identified by destination address
+
+    UT_hash_handle hh;
+}ch_sf_tun_socket_t;
+#define CH_SF_TUN_SOCKET(a) ((ch_sf_tun_socket_t*) a->_inheritor )
+
+
 /**
  * @struct ch_vpn_socket_proxy
  * @brief Internal data storage for single socket proxy functions. Usualy helpfull for\
@@ -137,6 +164,7 @@ typedef struct dap_chain_net_srv_ch_vpn
     ch_vpn_socket_proxy_t * socks;
     int raw_l3_sock;
     bool is_allowed;
+    ch_sf_tun_socket_t * tun_socket;
 
     struct in_addr addr_ipv4;
     dap_stream_ch_t * ch;
@@ -156,56 +184,7 @@ typedef struct dap_chain_net_srv_vpn
     dap_chain_net_srv_t * parent;
 } dap_chain_net_srv_vpn_t;
 
-
-typedef  struct ch_sf_tun_socket ch_sf_tun_socket_t;
-
-typedef struct ch_sf_tun_client{
-    in_addr_t addr;
-    dap_stream_ch_t * ch;
-    ch_sf_tun_socket_t * tun_socket;
-
-    uint64_t bytes_sent;
-    uint64_t bytes_recieved;
-
-     UT_hash_handle hh;
-} ch_sf_tun_client_t;
-
-typedef struct ch_sf_tun_socket {
-    uint8_t worker_id;
-    dap_worker_t * worker;
-    dap_events_socket_t * es;
-
-    ch_sf_tun_client_t * clients; // Remote clients identified by destination address
-
-    UT_hash_handle hh;
-}ch_sf_tun_socket_t;
-#define CH_SF_TUN_SOCKET(a) ((ch_sf_tun_socket_t*) a->_inheritor )
-
-struct ch_sf_tun_server{
-    struct in_addr client_addr_last;
-    struct in_addr int_network_mask;
-    struct in_addr int_network_addr;
-    struct in_addr int_network;
-    int 	tun_ctl_fd;
-    struct ifreq ifr;
-    ch_sf_tun_client_t * clients; // Remote clients identified by destination address
-
-    ch_vpn_pkt_t * pkt_out[400];
-    size_t pkt_out_size;
-    size_t pkt_out_rindex;
-    size_t pkt_out_windex;
-    pthread_mutex_t pkt_out_mutex;
-
-    pthread_mutex_t external_route_operations;
-
-    pthread_rwlock_t rwlock;
-};
-typedef struct ch_sf_tun_server ch_sf_tun_server_t;
-extern ch_sf_tun_server_t * m_tun_server;
-
 #define CH_VPN(a) ((dap_chain_net_srv_ch_vpn_t *) ((a)->internal) )
-
-bool is_dap_tun_in_worker(void);
 
 int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config);
 

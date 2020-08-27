@@ -111,6 +111,11 @@ void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct da
     dap_worker_add_events_socket(a_es,a_worker);
 }
 
+void dap_events_socket_reassign_between_workers_unsafe(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
+{
+    dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, a_worker_new );
+}
+
 /**
  * @brief dap_events_socket_assign_on_worker_unsafe
  * @param a_es
@@ -617,6 +622,25 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 }
 
 /**
+ * @brief dap_events_socket_check_unsafe
+ * @param a_worker
+ * @param a_es
+ * @return
+ */
+bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t * a_es)
+{
+    if (a_es){
+        if ( a_worker->esockets){
+            dap_events_socket_t * l_es = NULL;
+            HASH_FIND(hh_worker,a_worker->esockets,&a_es, sizeof(a_es), l_es );
+            return l_es == a_es;
+        }else
+            return false;
+    }else
+        return false;
+}
+
+/**
  * @brief dap_events_socket_remove_and_delete
  * @param a_es
  * @param preserve_inheritor
@@ -711,10 +735,9 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
         log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
         return 0;
     }
-    l_data_size++; // To calc trailing zero
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsprintf(l_msg->data,format,ap_copy);
     va_end(ap_copy);
@@ -724,7 +747,6 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
         DAP_DELETE(l_msg);
         return 0;
     }
-    //l_data_size++;
     l_msg->data_size = l_data_size;
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){

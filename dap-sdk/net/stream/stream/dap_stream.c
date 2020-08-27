@@ -63,7 +63,7 @@ void s_http_client_headers_write(dap_http_client_t * sh, void * arg); // Output 
 void s_http_client_data_write(dap_http_client_t * sh, void * arg); // Write the data
 void stream_data_read(dap_http_client_t * sh, void * arg); // Read the data
 
-void s_es_read(dap_events_socket_t* sh, void * arg);
+void s_http_client_data_read(dap_events_socket_t* sh, void * arg);
 void stream_dap_data_write(dap_events_socket_t* sh, void * arg);
 void s_es_callback_delete(dap_events_socket_t* sh, void * arg);
 void stream_dap_udp_new(dap_events_socket_t* sh,void * arg);
@@ -165,7 +165,7 @@ void dap_stream_add_proc_http(struct dap_http * sh, const char * url)
 void dap_stream_add_proc_udp(dap_udp_server_t * sh)
 {
     dap_server_t* server =  sh->dap_server;
-    server->client_callbacks.read_callback = s_es_read;
+    server->client_callbacks.read_callback = s_http_client_data_read;
     server->client_callbacks.write_callback = stream_dap_data_write;
     server->client_callbacks.delete_callback = s_es_callback_delete;
     server->client_callbacks.new_callback = stream_dap_udp_new;
@@ -498,7 +498,7 @@ void s_http_client_data_write(dap_http_client_t * sh, void * arg)
  * @param sh
  * @param arg
  */
-void s_es_read(dap_events_socket_t* a_client, void * arg)
+void s_http_client_data_read(dap_events_socket_t* a_client, void * arg)
 {
     dap_stream_t * l_stream =DAP_STREAM(a_client);
     int * ret = (int *) arg;
@@ -816,7 +816,7 @@ void stream_proc_pkt_in(dap_stream_t * a_stream)
  */
 void stream_data_read(dap_http_client_t * sh, void * arg)
 {
-    s_es_read(sh->esocket,arg);
+    s_http_client_data_read(sh->esocket,arg);
 }
 
 

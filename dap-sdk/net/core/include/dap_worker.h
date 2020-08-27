@@ -39,6 +39,7 @@ typedef struct dap_worker
     // worker control queues
     dap_events_socket_t * queue_es_new; // Events socket for new socket
     dap_events_socket_t * queue_es_delete; // Events socke
+    dap_events_socket_t * queue_es_reassign; // Reassign between workers
     dap_events_socket_t * queue_es_io; // Events socket for new socket
 
     dap_events_socket_t * queue_callback; // Queue for pure callback on worker
@@ -51,6 +52,13 @@ typedef struct dap_worker
     void * _inheritor;
 } dap_worker_t;
 
+// Message for reassigment
+typedef struct dap_worker_msg_reassign{
+    dap_events_socket_t * esocket;
+    dap_worker_t * worker_new;
+} dap_worker_msg_reassign_t;
+
+// Message for input/output queue
 typedef struct dap_worker_msg_io{
     dap_events_socket_t * esocket;
     size_t data_size;
@@ -59,8 +67,11 @@ typedef struct dap_worker_msg_io{
     uint32_t flags_unset;
 } dap_worker_msg_io_t;
 
+// Message for callback execution
+typedef void (*dap_worker_callback_t)(dap_worker_t *,void *);
 typedef struct dap_worker_msg_callback{
-    void (*callback) (dap_worker_t *); // Callback for specific client operations
+    dap_worker_callback_t callback; // Callback for specific client operations
+    void * arg;
 } dap_worker_msg_callback_t;
 
 int dap_worker_init( size_t a_conn_timeout );
@@ -68,6 +79,7 @@ void dap_worker_deinit();
 
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
 dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
+void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg);
 
 // Thread function
 void *dap_worker_thread(void *arg);

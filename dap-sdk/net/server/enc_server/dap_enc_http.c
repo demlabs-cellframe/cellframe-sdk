@@ -98,7 +98,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
     log_it(L_DEBUG,"Proc enc http request");
     http_status_code_t * return_code = (http_status_code_t*)arg;
 
-    if(strcmp(cl_st->http->url_path,"gd4y5yh78w42aaagh") == 0 ) {
+    if(strcmp(cl_st->http_client->url_path,"gd4y5yh78w42aaagh") == 0 ) {
 
         uint8_t alice_msg[cl_st->request_size];
         size_t decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
@@ -148,7 +148,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         *return_code = Http_Status_OK;
 
     } else{
-        log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http->url_path);
+        log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http_client->url_path);
         *return_code = Http_Status_NotFound;
     }
 }
@@ -171,16 +171,16 @@ void enc_http_add_proc(struct dap_http * sh, const char * url)
 enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simple)
 {
 
-    dap_enc_key_t * l_key= dap_enc_ks_find_http(a_http_simple->http);
+    dap_enc_key_t * l_key= dap_enc_ks_find_http(a_http_simple->http_client);
     if(l_key){
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
         dg->key=l_key;
-        dg->http=a_http_simple->http;
+        dg->http=a_http_simple->http_client;
        // dg->isOk=true;
 
-        strncpy(dg->action,a_http_simple->http->action,sizeof(dg->action)-1);
-        if(a_http_simple->http->in_cookie[0])
-            dg->cookie=strdup(a_http_simple->http->in_cookie);
+        strncpy(dg->action,a_http_simple->http_client->action,sizeof(dg->action)-1);
+        if(a_http_simple->http_client->in_cookie[0])
+            dg->cookie=strdup(a_http_simple->http_client->in_cookie);
 
         if(a_http_simple->request_size){
             size_t l_dg_request_size_max = a_http_simple->request_size;
@@ -199,20 +199,20 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
         else
             l_enc_type = DAP_ENC_DATA_TYPE_B64;
 
-        size_t l_url_path_size_max = strlen(a_http_simple->http->url_path);
+        size_t l_url_path_size_max = strlen(a_http_simple->http_client->url_path);
         if(l_url_path_size_max){
             dg->url_path= DAP_NEW_SIZE(char,l_url_path_size_max+1);
-            dg->url_path_size=dap_enc_decode(l_key, a_http_simple->http->url_path,l_url_path_size_max,dg->url_path, l_url_path_size_max, l_enc_type);
+            dg->url_path_size=dap_enc_decode(l_key, a_http_simple->http_client->url_path,l_url_path_size_max,dg->url_path, l_url_path_size_max, l_enc_type);
             dg->url_path[dg->url_path_size] = 0;
             log_it(L_DEBUG,"URL path after decode '%s'",dg->url_path );
             // log_it(L_DEBUG,"URL path before decode: '%s' after decode '%s'",cl_st->http->url_path,dg->url_path );
         }
 
-        size_t l_in_query_size=strlen(a_http_simple->http->in_query_string);
+        size_t l_in_query_size=strlen(a_http_simple->http_client->in_query_string);
 
         if(l_in_query_size){
             dg->in_query= DAP_NEW_SIZE(char, l_in_query_size+1);
-            dg->in_query_size=dap_enc_decode(l_key, a_http_simple->http->in_query_string,l_in_query_size,dg->in_query,l_in_query_size,  l_enc_type);
+            dg->in_query_size=dap_enc_decode(l_key, a_http_simple->http_client->in_query_string,l_in_query_size,dg->in_query,l_in_query_size,  l_enc_type);
             dg->in_query[dg->in_query_size] = 0;
             log_it(L_DEBUG,"Query string after decode '%s'",dg->in_query);
         }
@@ -233,7 +233,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
  */
 void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delegate_t * a_http_delegate)
 {
-    dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http);
+    dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http_client);
     if( key == NULL ) {
         log_it(L_ERROR, "Can't find http key.");
         return;
