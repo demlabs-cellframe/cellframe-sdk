@@ -335,9 +335,6 @@ static void dap_client_pvt_delete_in(dap_client_pvt_t * a_client_pvt)
 
     if(a_client_pvt->stream_key)
         dap_enc_key_delete(a_client_pvt->stream_key);
-
-    //a_client_pvt->client = NULL;
-    DAP_DELETE(a_client_pvt);
 }
 
 /*
