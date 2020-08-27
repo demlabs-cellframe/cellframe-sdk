@@ -55,7 +55,12 @@ int dap_proc_thread_init(uint32_t a_threads_count){
         pthread_cond_init( &s_threads[i].started_cond, NULL );
         pthread_mutex_init( &s_threads[i].started_mutex, NULL );
         pthread_mutex_lock( &s_threads[i].started_mutex );
-        pthread_create( &s_threads[i].thread_id,NULL, s_proc_thread_function, &s_threads[i] );
+        int res = pthread_create( &s_threads[i].thread_id,NULL, s_proc_thread_function, &s_threads[i] );
+        if (res) {
+            log_it(L_CRITICAL, "Create thread failed with code %d", res);
+            pthread_mutex_unlock( &s_threads[i].started_mutex );
+            return -1;
+        }
         pthread_cond_wait( &s_threads[i].started_cond, &s_threads[i].started_mutex );
         pthread_mutex_unlock( &s_threads[i].started_mutex );
     }
@@ -138,12 +143,10 @@ static void * s_proc_thread_function(void * a_arg)
 {
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
-
     dap_cpu_assign_thread_on(l_thread->cpu_id);
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
-
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events[DAP_MAX_EPOLL_EVENTS] = {{0}};
     l_thread->epoll_ctl = epoll_create( DAP_MAX_EPOLL_EVENTS );
