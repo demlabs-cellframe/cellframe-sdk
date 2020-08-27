@@ -154,6 +154,8 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->proc_event = dap_events_socket_create_type_event_mt(NULL, s_proc_event_callback);
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
     //We've started!
+    pthread_mutex_lock(&l_thread->started_mutex);
+    pthread_mutex_unlock(&l_thread->started_mutex);
     pthread_cond_broadcast(&l_thread->started_cond);
     // Main loop
     while (! l_thread->signal_kill){
