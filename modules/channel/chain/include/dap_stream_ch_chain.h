@@ -54,6 +54,8 @@ typedef struct dap_stream_ch_chain {
     dap_chain_atom_iter_t * request_atom_iter;
     dap_chain_atom_item_t * request_atoms_lasts;
     dap_chain_atom_item_t * request_atoms_processed;
+    uint8_t *pkt_data;
+    uint64_t pkt_data_size;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
     dap_stream_ch_chain_sync_request_t request;

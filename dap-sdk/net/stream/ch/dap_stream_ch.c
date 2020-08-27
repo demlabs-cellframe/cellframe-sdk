@@ -189,7 +189,7 @@ void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * a_ch,bool a_is_rea
     if( a_ch->ready_to_read != a_is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         a_ch->ready_to_read=a_is_ready;
-        dap_events_socket_set_readable_unsafe( a_ch->stream->esocket,a_is_ready);
+        dap_events_socket_set_readable_unsafe(a_ch->stream->esocket, a_is_ready);
     }
 }
 
@@ -205,7 +205,7 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready)
         ch->ready_to_write=is_ready;
         if(is_ready && ch->stream->conn_http)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
-        dap_events_socket_set_writable_unsafe(ch->stream->esocket,is_ready);
+        dap_events_socket_set_writable_unsafe(ch->stream->esocket, is_ready);
     }
 }
 
