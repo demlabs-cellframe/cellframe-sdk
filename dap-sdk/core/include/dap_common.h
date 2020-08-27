@@ -379,7 +379,7 @@ int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct time
 
 int get_select_breaker(void);
 int send_select_break(void);
-char * exec_with_ret(const char * a_cmd);
+int exec_with_ret(char **repl, const char * a_cmd);
 char * exec_with_ret_multistring(const char * a_cmd);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);

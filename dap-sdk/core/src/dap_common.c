@@ -539,31 +539,35 @@ void srand(u_int seed)
 
 #endif
 
-#if 0
+
 
 /**
  * @brief exec_with_ret Executes a command with result return
  * @param[in] a_cmd Command
  * @return Result
  */
-char * exec_with_ret(const char * a_cmd)
+int exec_with_ret(char **repl, const char * a_cmd)
 {
-    FILE * fp;
+    FILE *fp;
     size_t buf_len = 0;
     char buf[4096] = {0};
-    fp= popen(a_cmd, "r");
+    fp = popen(a_cmd, "r");
     if (!fp) {
-        goto FIN;
+        log_it(L_ERROR,"Cmd execution error: '%s'", strerror(errno));
+    return(255);
     }
-    memset(buf,0,sizeof(buf));
-    fgets(buf,sizeof(buf)-1,fp);
-    pclose(fp);
-    buf_len=strlen(buf);
-    if(buf[buf_len-1] =='\n')buf[buf_len-1] ='\0';
-FIN:
-    return strdup(buf);
+    memset(buf, 0, sizeof(buf));
+    fgets(buf, sizeof(buf) - 1, fp);
+    buf_len = strlen(buf);
+    if(repl) {
+        if(buf[buf_len-1] == '\n')
+            buf[buf_len-1] = '\0';
+        *repl = strdup(buf);
+    }
+    return pclose(fp);
 }
 
+#if 0
 /**
  * @brief exec_with_ret_multistring performs a command with a result return in the form of a multistring
  * @param[in] a_cmd Coomand
