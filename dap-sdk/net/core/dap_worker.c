@@ -42,7 +42,7 @@ static time_t s_connection_timeout = 20000;
 static void s_socket_all_check_activity( void * a_arg);
 static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
-static void s_queue_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg);
 
@@ -83,6 +83,7 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
     l_worker->queue_es_io = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_io_callback);
+    l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_reassign_callback );
     l_worker->queue_callback= dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_callback_callback);
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
@@ -396,7 +397,11 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
  */
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    ((dap_events_socket_t*)a_arg)->kill_signal = true; // Send signal to socket to kill
+    dap_events_socket_t * l_esocket = (dap_events_socket_t*) a_arg;
+    if (dap_events_socket_check_unsafe(a_es->worker,l_esocket)){
+        ((dap_events_socket_t*)a_arg)->kill_signal = true; // Send signal to socket to kill
+    }else
+        log_it(L_INFO, "While we were sending the delete() message, esocket %p has been disconnected", l_esocket);
 }
 
 /**
@@ -404,14 +409,21 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
  * @param a_es
  * @param a_arg
  */
-static void s_queue_reassign_es_callback( dap_events_socket_t * a_es, void * a_arg)
+static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    dap_events_socket_t * l_es_reassign = ((dap_events_socket_t* ) a_arg);
-    dap_events_socket_remove_from_worker_unsafe( l_es_reassign, a_es->worker );
-    if (l_es_reassign->callbacks.worker_unassign_callback)
-        l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->worker);
+    dap_worker_msg_reassign_t * l_msg = (dap_worker_msg_reassign_t*) a_arg;
+    if (dap_events_socket_check_unsafe(a_es->worker,l_msg->esocket)){
+        dap_events_socket_t * l_es_reassign = l_msg->esocket;
+        dap_events_socket_remove_from_worker_unsafe( l_es_reassign, a_es->worker );
 
-    dap_events_socket_assign_on_worker_mt( l_es_reassign, l_es_reassign->worker );
+        if (l_es_reassign->callbacks.worker_unassign_callback)
+            l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->worker);
+
+        dap_events_socket_assign_on_worker_mt( l_es_reassign, l_msg->worker_new );
+    }else{
+        log_it(L_INFO, "While we were sending the reassign message, esocket %p has been disconnected", l_msg->esocket);
+    }
+    DAP_DELETE(l_msg);
 }
 
 /**
@@ -424,7 +436,8 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_worker_msg_callback_t * l_msg = (dap_worker_msg_callback_t *) a_arg;
     assert(l_msg);
     assert(l_msg->callback);
-    l_msg->callback(a_es->worker);
+    l_msg->callback(a_es->worker, l_msg->arg);
+    DAP_DELETE(l_msg);
 }
 
 /**
@@ -494,6 +507,18 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
 {
     dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
 }
+
+/**
+ * @brief dap_worker_exec_callback_on
+ */
+void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg)
+{
+    dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
+    l_msg->callback = a_callback;
+    l_msg->arg = a_arg;
+    dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
+}
+
 
 /**
  * @brief dap_worker_add_events_socket
