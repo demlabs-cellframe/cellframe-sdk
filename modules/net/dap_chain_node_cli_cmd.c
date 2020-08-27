@@ -1098,7 +1098,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 DAP_DELETE(l_remote_node_info);
                 return -1;*/
             }
-            /*                if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
+            /*                if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
              l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
              sizeof(l_sync_request))) {
              dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
@@ -1130,7 +1130,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         //l_s_ch_chain->request_cell_id.uint64 = l_chain_cell_id_null.uint64;
         //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
 
-        if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+        if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1165,7 +1165,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
             // send request
             dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-            if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+            if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id, l_chain->id, l_remote_node_info->hdr.cell_id, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
