@@ -156,12 +156,12 @@ void *dap_worker_thread(void *arg)
                 log_it(L_INFO, "Client socket disconnected");
                 dap_events_socket_set_readable_unsafe(l_cur, false);
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                l_epoll_events[n].events &= ~EPOLLIN;
+                //l_epoll_events[n].events &= ~EPOLLIN;
             }
 
             if(l_epoll_events[n].events & EPOLLIN) {
 
-                //log_it(DEBUG,"Comes connection in active read set");
+                //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_cur->buf_in_size == sizeof(l_cur->buf_in)) {
                     log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped!");
                     l_cur->buf_in_size = 0;
@@ -226,7 +226,7 @@ void *dap_worker_thread(void *arg)
                 if (l_must_read_smth){ // Socket/Descriptor read
                     if(l_bytes_read > 0) {
                         l_cur->buf_in_size += l_bytes_read;
-                        //log_it(DEBUG, "Received %d bytes", bytes_read);
+                        //log_it(L_DEBUG, "Received %d bytes", l_bytes_read);
                         if(l_cur->callbacks.read_callback)
                             l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
                         else{

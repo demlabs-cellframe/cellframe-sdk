@@ -347,7 +347,6 @@ void dap_stream_delete(dap_stream_t *a_stream)
     if(s_stream_keepalive_list){
         DL_DELETE(s_stream_keepalive_list, a_stream);
     }
-    a_stream->esocket = NULL;
     pthread_mutex_unlock(&s_mutex_keepalive_list);
 
     while (a_stream->channel_count) {
@@ -358,6 +357,7 @@ void dap_stream_delete(dap_stream_t *a_stream)
     if(a_stream->session)
         dap_stream_session_close_mt(a_stream->session->id); // TODO make stream close after timeout, not momentaly
     a_stream->session = NULL;
+    a_stream->esocket = NULL;
     pthread_rwlock_unlock(&a_stream->rwlock);
     pthread_rwlock_destroy(&a_stream->rwlock);
     DAP_DELETE(a_stream);
