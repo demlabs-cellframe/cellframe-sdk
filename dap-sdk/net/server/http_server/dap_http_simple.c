@@ -392,10 +392,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
 
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
-        dap_events_socket_set_readable_unsafe(a_http_client->esocket,false);
-        dap_events_socket_set_writable_unsafe(a_http_client->esocket,false);
-        a_http_client->esocket->_inheritor = NULL; // Unbound http_simple from http_client when over reading,
-                                          // now it would be proc thread context
+        dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
         dap_proc_queue_add_callback( a_http_client->esocket->worker->proc_queue, s_proc_queue_callback, l_http_simple);
     }
 }
