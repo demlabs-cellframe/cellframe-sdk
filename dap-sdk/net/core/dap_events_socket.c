@@ -107,6 +107,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker)
 {
     a_es->last_ping_request = time(NULL);
+    a_es->worker = a_worker;
     dap_worker_add_events_socket(a_es,a_worker);
 }
 
@@ -140,6 +141,7 @@ void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struc
  */
 dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
+    UNUSED(a_flags);
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_PIPE;
     l_es->worker = a_w;
@@ -724,32 +726,32 @@ size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, 
  */
 size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, const char * format,...)
 {
-    va_list ap;
+    va_list ap, ap_copy;
     va_start(ap,format);
+    va_copy(ap_copy, ap);
     int l_data_size = dap_vsnprintf(NULL,0,format,ap);
     va_end(ap);
     if (l_data_size <0 ){
         log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
         return 0;
     }
-    l_data_size++; // To calc trailing zero
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
-    va_start(ap, format);
-    l_data_size = dap_vsnprintf(l_msg->data,0,format,ap);
-    va_end(ap);
+    l_data_size = dap_vsprintf(l_msg->data,format,ap_copy);
+    va_end(ap_copy);
     if (l_data_size <0 ){
         log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
+        DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
-    l_data_size++;
     l_msg->data_size = l_data_size;
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
