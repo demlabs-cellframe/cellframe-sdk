@@ -287,7 +287,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
     if(res == 0){
         char l_buf_hash[128];
         dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
-        log_it(L_DEBUG,"Dag event %s checked, add it to ledger", a_event_item->hash);
+        log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
         res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
 
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
@@ -354,7 +354,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     // verify hashes and consensus
     if(ret == ATOM_ACCEPT){
         ret = s_chain_callback_atom_verify (a_chain, a_atom, a_atom_size);
-        log_it(L_DEBUG, "Accepted atom %p", a_atom);
+        log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
     }
 
     if( ret == ATOM_MOVE_TO_THRESHOLD){
@@ -587,8 +587,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
     dap_chain_atom_verify_res_t res = ATOM_ACCEPT;
 
-    if(sizeof (l_event->header)<= a_atom_size)
+    if(sizeof (l_event->header) >= a_atom_size){
+        log_it(L_WARNING,"Size of atom is %zd that is equel or less then header %zd",a_atom_size,sizeof (l_event->header));
         return  ATOM_REJECT;
+    }
     // genesis or seed mode
     if (l_event->header.hash_count == 0){
       if(s_seed_mode && !PVT(l_dag)->events)

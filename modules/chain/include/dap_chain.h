@@ -51,10 +51,10 @@ typedef struct dap_chain_atom_iter{
 } dap_chain_atom_iter_t;
 
 typedef enum dap_chain_atom_verify_res{
-    ATOM_ACCEPT,
-    ATOM_PASS,
-    ATOM_REJECT,
-    ATOM_MOVE_TO_THRESHOLD
+    ATOM_ACCEPT=0,
+    ATOM_PASS=1,
+    ATOM_REJECT=2,
+    ATOM_MOVE_TO_THRESHOLD=3
 } dap_chain_atom_verify_res_t;
 
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);

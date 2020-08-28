@@ -349,8 +349,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 {
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
     size_t l_offset_from_beginning = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
-    if( l_offset_from_beginning > a_dag_event_size){
-        log_it(L_WARNING,"Incorrect size with event %p", a_dag_event);
+    if( l_offset_from_beginning >= a_dag_event_size){
+        log_it(L_WARNING,"Incorrect size with event %p: caled size excl signs %zd is bigger or equal then event size %zd",
+               a_dag_event, l_offset_from_beginning, a_dag_event_size);
         return -7; // Incorrest size
     }
     if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
