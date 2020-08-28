@@ -576,6 +576,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
         pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
         if(!dap_events_socket_find_unsafe(a_es->socket, a_es->events)){
             log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
+            pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
             return ;
         }
 
