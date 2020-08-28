@@ -64,6 +64,7 @@ See more details here <http://www.gnu.org/licenses/>.
 
 static void s_http_client_headers_read( dap_http_client_t *cl_ht, void *arg );
 static void s_http_client_data_read( dap_http_client_t * cl_ht, void *arg );
+static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a_arg );
 static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void *a_arg );
 
 typedef struct dap_http_simple_url_proc {
@@ -126,7 +127,7 @@ void dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_
                      NULL, // Contrustor
                      NULL, //  Destructor
                      s_http_client_headers_read, NULL, // Headers read, write
-                     s_http_client_data_read, NULL, // Data read, write
+                     s_http_client_data_read, s_http_client_data_write, // Data read, write
                      NULL); // errror
 }
 
@@ -358,6 +359,33 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
         dap_proc_queue_add_callback( a_http_client->esocket->worker->proc_queue, s_proc_queue_callback, l_http_simple);
+    }
+}
+
+static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a_arg )
+{
+    (void) a_arg;
+    dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE( a_http_client );
+
+    //  log_it(L_DEBUG,"dap_http_simple_data_write");
+    //  Sleep(300);
+
+    if ( !l_http_simple->reply ) {
+        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        log_it( L_WARNING, "No reply to write, close connection" );
+        return;
+    }
+
+    l_http_simple->reply_sent += dap_events_socket_write_unsafe( a_http_client->esocket,
+                                              l_http_simple->reply_byte + l_http_simple->reply_sent,
+                                              a_http_client->out_content_length - l_http_simple->reply_sent );
+
+    if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
+        log_it(L_INFO, "All the reply (%u) is sent out", a_http_client->out_content_length );
+        //cl_ht->client->signal_close=cl_ht->keep_alive;
+        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        //dap_client_ready_to_write(cl_ht->client,false);
+        DAP_DELETE(l_http_simple->reply );
     }
 }
 

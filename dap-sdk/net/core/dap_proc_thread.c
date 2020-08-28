@@ -116,6 +116,7 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_value)
 {
     (void) a_value;
+    log_it(L_DEBUG, "Proc event callback");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
     dap_proc_queue_item_t * l_item = l_thread->proc_queue->items;
     dap_proc_queue_item_t * l_item_old = NULL;
