@@ -585,24 +585,17 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     HASH_ITER( hh, a_ch_chain->request_atoms_processed, l_atom_item, l_atom_item_tmp )
         HASH_DEL(a_ch_chain->request_atoms_processed, l_atom_item);
     pthread_mutex_unlock(&a_ch_chain->mutex);
-    dap_stream_ch_set_ready_to_write_unsafe(a_ch_chain->ch, false);
-
 }
 
-/**
- * @brief s_stream_ch_packet_out
- * @param ch
- * @param arg
- */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
+bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
-    (void) a_arg;
-
-    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    UNUSED(a_thread);
+    dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
     //log_it( L_DEBUG,"s_stream_ch_packet_out state=%d", l_ch_chain ? l_ch_chain->state : -1);
     //  log_it( L_DEBUG,"l_ch_chain %X", l_ch_chain );
-
+    bool l_packet_out = false;
     switch (l_ch_chain->state) {
         case CHAIN_STATE_IDLE: {
             dap_stream_ch_chain_go_idle(l_ch_chain);
@@ -633,9 +626,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 else {
                     //log_it(L_INFO, "Send one global_db record data=0x%x len=%d (rest=%d/%d items)", l_item, l_item_size_out,
                     //        l_items_rest, l_items_total);
-                    dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
+                    dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
                             l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
                             l_ch_chain->request_cell_id, l_item, l_item_size_out);
+                    l_packet_out = true;
                     l_ch_chain->stats_request_gdb_processed++;
                     DAP_DELETE(l_item);
                     // sent the record, another will be sent
@@ -659,9 +653,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 log_it( L_DEBUG,"Syncronized database:  last id %llu, items syncronyzed %llu ", l_request.id_start,
                         l_ch_chain->stats_request_gdb_processed );
 
-                dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
+                dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                         l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
                         l_ch_chain->request_cell_id, &l_request, sizeof(l_request));
+                l_packet_out = true;
 
                 if(l_ch_chain->callback_notify_packet_out)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
@@ -679,17 +674,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         case CHAIN_STATE_SYNC_CHAINS: {
             //log_it(L_DEBUG, "CHAIN_STATE_SYNC_CHAINS");
             dap_chain_t * l_chain = dap_chain_find_by_id(l_ch_chain->request_net_id, l_ch_chain->request_chain_id);
-            /*
-            // alternative way to get l_chain
-            if(!l_ch_chain->request_atom_iter) {
-                log_it(L_ERROR, "CHAIN_STATE_SYNC_CHAINS not ready to send chains");
-                l_ch_chain->state = CHAIN_STATE_IDLE;
-                break;
-            }
-            //dap_chain_atom_iter_t* l_iter = l_chain->callback_atom_iter_create(l_chain);
-            dap_chain_t * l_chain = l_ch_chain->request_atom_iter->chain;
-            */
-
             dap_chain_atom_item_t * l_atom_item = NULL, *l_atom_item_tmp = NULL;//, *l_chains_lasts_new = NULL;
             if(l_ch_chain->request_atoms_lasts == NULL) { // All chains synced
                 dap_stream_ch_chain_sync_request_t l_request = { { 0 } };
@@ -697,10 +681,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                         DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS :
                         DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL;
                 // last message
-                dap_stream_ch_chain_pkt_write_unsafe(a_ch,
+                dap_stream_ch_chain_pkt_write_unsafe(l_ch,
                         l_send_pkt_type,
                         l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
                         l_ch_chain->request_cell_id, &l_request, sizeof(l_request));
+                l_packet_out = true;
                 log_it( L_DEBUG,"Synced: %llu atoms processed",
                                         l_ch_chain->stats_request_atoms_processed);
                 dap_stream_ch_chain_go_idle(l_ch_chain);
@@ -724,9 +709,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
                         // Then flush it out to the remote
                         size_t l_atom_size = l_chain->callback_atom_get_size(l_atom_item->atom);
-                        dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_net_id,
+                        dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_net_id,
                                 l_ch_chain->request_chain_id, l_ch_chain->request_cell_id,
                                 l_atom_item->atom, l_atom_size);
+                        l_packet_out = true;
                         l_ch_chain->stats_request_atoms_processed++;
                         // Then parse links and populate new lasts
                         size_t l_lasts_size = 0;
@@ -734,10 +720,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
                         dap_chain_atom_iter_t* l_iter = l_chain->callback_atom_iter_create_from(l_chain, l_atom_item->atom);
                         l_links = l_chain->callback_atom_iter_get_links(l_iter, &l_lasts_size);
-                        //DAP_DELETE(l_atom_item->atom);
                         DAP_DELETE(l_iter);
-                        //l_links = l_chain->callback_atom_iter_get_links(l_atom_item->atom, &l_lasts_size);
-
                         for(size_t i = 0; i < l_lasts_size; i++) { // Find links
                             dap_chain_atom_item_t * l_link_item = NULL;
                             dap_chain_hash_fast_t l_link_hash;
@@ -749,11 +732,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_link_item = DAP_NEW_Z(dap_chain_atom_item_t);
                                 l_link_item->atom = l_links[i];// do not use memory cause it will be deleted
                                 memcpy(&l_link_item->atom_hash, &l_link_hash, sizeof(l_link_hash));
-                                //HASH_ADD(hh, l_chains_lasts_new, atom_hash, sizeof(l_link_hash), l_link_item);
                                 HASH_ADD(hh, l_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_link_hash), l_link_item);
                             }
-                            //else
-                            //    DAP_DELETE(l_links[i]);
                         }
                         DAP_DELETE(l_links);
                         HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
@@ -765,11 +745,23 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 pthread_mutex_unlock(&l_ch_chain->mutex);
             }
-            //assert(l_ch_chain->request_atoms_lasts == NULL);
-            //l_ch_chain->request_atoms_lasts = l_chains_lasts_new;
         }
         break;
-
     }
+    if (l_packet_out) {
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch_chain->ch, true);
+    }
+    dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
+}
 
+/**
+ * @brief s_stream_ch_packet_out
+ * @param ch
+ * @param arg
+ */
+void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
+{
+    (void) a_arg;
+    dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
+    dap_proc_queue_add_callback(a_ch->stream->esocket->worker->proc_queue, s_out_pkt_callback, a_ch);
 }
