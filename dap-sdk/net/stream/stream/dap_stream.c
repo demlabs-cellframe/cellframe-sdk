@@ -141,7 +141,7 @@ int dap_stream_init( bool a_dump_packet_headers)
 void dap_stream_deinit()
 {
     s_keep_alive_loop_quit_signal = true;
-    pthread_join( keepalive_thread, NULL );
+//    pthread_join( keepalive_thread, NULL );
 
     pthread_mutex_destroy( &s_mutex_keepalive_list );
 
