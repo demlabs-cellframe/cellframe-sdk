@@ -56,6 +56,7 @@
 #include "dap_enc.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_cert.h"
 
 //#include "dap_http_client_simple.h"
 #include "dap_client_http.h"
@@ -63,6 +64,7 @@
 #include "dap_client_pvt.h"
 #include "dap_server.h"
 #include "dap_stream.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
@@ -276,15 +278,13 @@ int dap_client_pvt_disconnect(dap_client_pvt_t *a_client_pvt)
 
 //        l_client_internal->stream_es->signal_close = true;
         // start stopping connection
-        if(!dap_events_socket_kill_socket(a_client_pvt->stream_es)) {
+        if(a_client_pvt->stream_es ) {
+            dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es);
             int l_counter = 0;
             // wait for stop of connection (max 0.7 sec.)
             while(a_client_pvt->stream_es && l_counter < 70) {
                 dap_usleep(DAP_USEC_PER_SEC / 100);
                 l_counter++;
-            }
-            if(l_counter >= 70) {
-                dap_events_socket_remove_and_delete(a_client_pvt->stream_es, true);
             }
         }
 //        if (l_client_internal->stream_socket ) {
@@ -337,7 +337,7 @@ static void dap_client_pvt_delete_in(dap_client_pvt_t * a_client_pvt)
         dap_enc_key_delete(a_client_pvt->stream_key);
 
     //a_client_pvt->client = NULL;
-    DAP_DELETE(a_client_pvt);
+   // DAP_DELETE(a_client_pvt);
 }
 
 /*
@@ -396,25 +396,37 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
     case STAGE_STATUS_IN_PROGRESS: {
         switch (a_client_pvt->stage) {
         case STAGE_ENC_INIT: {
-            log_it(L_INFO, "Go to stage ENC: prepare the request");
-
+            log_it(L_INFO, "Go to stage ENC: prepare the request");         
             a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
-
-            size_t l_key_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(a_client_pvt->session_key_open->pub_key_data_size);
-            char *l_key_str = DAP_NEW_Z_SIZE(char, l_key_str_size_max + 1);
+            if (!a_client_pvt->session_key_open) {
+                log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
+                a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                break;
+            }
+            size_t l_key_size = a_client_pvt->session_key_open->pub_key_data_size;
+            dap_cert_t *l_cert = a_client_pvt->auth_cert;
+            dap_sign_t *l_sign = NULL;
+            size_t l_sign_size = 0;
+            if (l_cert) {
+                l_sign = dap_sign_create(l_cert->enc_key, a_client_pvt->session_key_open->pub_key_data, l_key_size, 0);
+                l_sign_size = dap_sign_get_size(l_sign);
+            }
+            uint8_t l_data[l_key_size + l_sign_size];
+            memcpy(l_data, a_client_pvt->session_key_open->pub_key_data, l_key_size);
+            if (l_sign) {
+                memcpy(l_data + l_key_size, l_sign, l_sign_size);
+            }
+            size_t l_data_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(l_key_size + l_sign_size);
+            char l_data_str[l_data_str_size_max + 1];
             // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
-            size_t l_key_str_enc_size = dap_enc_base64_encode(a_client_pvt->session_key_open->pub_key_data,
-                    a_client_pvt->session_key_open->pub_key_data_size,
-                    l_key_str, DAP_ENC_DATA_TYPE_B64);
-
-            log_it(L_DEBUG, "ENC request size %u", l_key_str_enc_size);
+            size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
+            log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
             int l_res = dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
-                    l_key_str, l_key_str_enc_size, m_enc_init_response, m_enc_init_error);
+                    l_data_str, l_data_str_enc_size, m_enc_init_response, m_enc_init_error);
             // bad request
             if(l_res<0){
             	a_client_pvt->stage_status = STAGE_STATUS_ERROR;
             }
-            DAP_DELETE(l_key_str);
         }
             break;
         case STAGE_STREAM_CTL: {
@@ -439,6 +451,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             log_it(L_INFO, "Go to stage STREAM_SESSION: process the state ops");
 
             a_client_pvt->stream_socket = socket( PF_INET, SOCK_STREAM, 0);
+            if (a_client_pvt->stream_socket == -1) {
+                log_it(L_ERROR, "Error %d with socket create", errno);
+                a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                break;
+            }
 #ifdef _WIN32 
             {
               int buffsize = 65536;
@@ -461,16 +478,17 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             };
             a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
                     a_client_pvt->stream_socket, &l_s_callbacks);
+            dap_worker_t * l_worker = dap_events_worker_get_auto();
+            a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
             // add to dap_worker
-            dap_events_socket_create_after(a_client_pvt->stream_es);
+            dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
 
             a_client_pvt->stream_es->_inheritor = a_client_pvt;//->client;
             a_client_pvt->stream = dap_stream_new_es(a_client_pvt->stream_es);
             a_client_pvt->stream->is_client_to_uplink = true;
-            a_client_pvt->stream_session = dap_stream_session_pure_new(); // may be from in packet?
+            a_client_pvt->stream->session = dap_stream_session_pure_new(); // may be from in packet?
 
             // new added, whether it is necessary?
-            a_client_pvt->stream->session = a_client_pvt->stream_session;
             a_client_pvt->stream->session->key = a_client_pvt->stream_key;
 
             // connect
@@ -481,7 +499,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(l_remote_addr.sin_addr)) < 0) {
                 log_it(L_ERROR, "Wrong remote address '%s:%u'", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                 //close(a_client_pvt->stream_socket);
-                dap_events_socket_kill_socket(a_client_pvt->stream_es);
+                dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es);
                 //a_client_pvt->stream_socket = 0;
                 a_client_pvt->stage_status = STAGE_STATUS_ERROR;
             }
@@ -498,7 +516,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 else {
                     log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_client_pvt->uplink_addr,
                             a_client_pvt->uplink_port);
-                    dap_events_socket_kill_socket(a_client_pvt->stream_es);
+                    dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es);
                     //close(a_client_pvt->stream_socket);
                     a_client_pvt->stream_socket = 0;
                     a_client_pvt->stage_status = STAGE_STATUS_ERROR;
@@ -529,7 +547,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             const char *l_add_str = "";
 
-            dap_events_socket_write_f( a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
+            dap_events_socket_write_f_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
                                                                 "Host: %s:%d%s\r\n"
                                                                 "\r\n",
                                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
@@ -1183,39 +1201,21 @@ void m_es_stream_delete(dap_events_socket_t *a_es, void *arg)
 {
     log_it(L_INFO, "================= stream delete/peer reconnect");
 
-    //dap_client_t *l_client = DAP_CLIENT(a_es);
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
 
     if(l_client_pvt == NULL) {
         log_it(L_ERROR, "dap_client_pvt_t is not initialized");
         return;
     }
-    //pthread_mutex_lock(&l_client->mutex);
 
-    //dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(l_client);
     log_it(L_DEBUG, "client_pvt=0x%x", l_client_pvt);
-    if(l_client_pvt == NULL) {
-        log_it(L_ERROR, "dap_client_pvt is not initialized");
-        //pthread_mutex_unlock(&l_client->mutex);
-        return;
-    }
 
+    if (l_client_pvt->stage_status_error_callback) {
+        l_client_pvt->stage_status_error_callback(l_client_pvt->client, (void *)true);
+    }
     dap_stream_delete(l_client_pvt->stream);
     l_client_pvt->stream = NULL;
-
-//    if(l_client_pvt->client && l_client_pvt->client == l_client)
-//        dap_client_reset(l_client_pvt->client);
-//    l_client_pvt->client= NULL;
-
-//    log_it(L_DEBUG, "dap_stream_session_close()");
-//    sleep(3);
-    dap_stream_session_close(l_client_pvt->stream_session->id);
-    l_client_pvt->stream_session = NULL;
-
-    // signal to permit  deleting of l_client_pvt
     l_client_pvt->stream_es = NULL;
-    //pthread_mutex_unlock(&l_client->mutex);
-
 
 /*  disable reconnect from here
     if(l_client_pvt->is_reconnect) {
@@ -1290,26 +1290,26 @@ void m_es_stream_write(dap_events_socket_t * a_es, void * arg)
         return;
     }
     switch (l_client_pvt->stage) {
-    case STAGE_STREAM_STREAMING: {
-        size_t i;
-        bool ready_to_write = false;
-        //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
+        case STAGE_STREAM_STREAMING: {
+            size_t i;
+            bool ready_to_write = false;
+            //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
 
-        for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
-            dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
-            if(ch->ready_to_write) {
-                ch->proc->packet_out_callback(ch, NULL);
-                ready_to_write |= ch->ready_to_write;
+            for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
+                dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
+                if(ch->ready_to_write) {
+                    ch->proc->packet_out_callback(ch, NULL);
+                    ready_to_write |= ch->ready_to_write;
+                }
             }
-        }
-        //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
+            //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
 
-        dap_events_socket_set_writable(l_client_pvt->stream_es, ready_to_write);
-        //log_it(ERROR,"No stream_data_write_callback is defined");
-    }
-        break;
-    default: {
-    }
+            dap_events_socket_set_writable_unsafe(l_client_pvt->stream_es, ready_to_write);
+            //log_it(ERROR,"No stream_data_write_callback is defined");
+        }
+            break;
+        default: {
+        }
     }
 }
 

@@ -27,14 +27,19 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <time.h>
 
 
+#include "dap_enc_key.h"
+#include "dap_stream_session.h"
+#include "dap_stream_worker.h"
 #include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_remote.h"
 
 
 typedef struct dap_chain_net_srv_client
 {
+    dap_stream_ch_t * ch; // Use ONLY in own context, not thread-safe
     time_t ts_created;
-    dap_stream_ch_t *ch; // For direct connections
+    dap_stream_worker_t * stream_worker;
+    int session_id;
     dap_chain_net_remote_t *net_remote; // For remotes
     uint64_t bytes_received;
     uint64_t bytes_sent;

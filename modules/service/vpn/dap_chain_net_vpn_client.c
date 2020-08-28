@@ -38,8 +38,14 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
+#include "rand/dap_rand.h"
+
+#ifdef DAP_OS_LINUX
+#include <dlfcn.h>
+#endif
 
 #include "dap_client.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_node_client.h"
 
 #include "dap_stream_ch_proc.h"
@@ -47,6 +53,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_node_cli.h"
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_srv_vpn_cdb.h" // for DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX
 #include "dap_chain_net_vpn_client.h"
@@ -56,6 +63,7 @@
 //#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
+#include "dap_chain_net_srv_vpn_cdb_server_list.h"
 //#include "dap_chain_net_vpn_client_data.h"
 
 /*
@@ -80,6 +88,13 @@ static pthread_mutex_t sf_socks_mutex;
 
 static dap_chain_node_info_t *s_node_info = NULL;
 static dap_chain_node_client_t *s_vpn_client = NULL;
+
+dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void)
+{
+    if(!s_vpn_client)
+        return NULL;
+    return dap_client_get_stream_worker( s_vpn_client->client );
+}
 
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
@@ -303,6 +318,200 @@ int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wa
     return 0;
 }
 
+
+static const char * s_default_path_modules = "var/modules";
+// get_order_state() from dynamic library
+static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
+{
+    char l_lib_path[MAX_PATH] = {'\0'};
+#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+    const char * l_cdb_so_name = "libcellframe-node-cdb.so";
+    dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
+
+    void* l_cdb_handle = NULL;
+    l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
+    if(!l_cdb_handle){
+        log_it(L_ERROR,"Can't load %s module: %s", l_cdb_so_name, dlerror());
+        return -1;
+    }
+
+    int (*get_order_state_so)(dap_chain_node_addr_t);
+    const char * l_init_func_name = "get_order_state";
+    *(void **) (&get_order_state_so) = dlsym(l_cdb_handle, l_init_func_name);
+    char* error;
+    if (( error = dlerror()) != NULL) {
+        log_it(L_ERROR,"%s module: %s error loading (%s)", l_cdb_so_name, l_init_func_name, error);
+        return -2;
+     }
+
+    return (*get_order_state_so)(a_node_addr);
+#else
+    log_it(L_ERROR,"%s: module is not supported on current platfrom", __PRETTY_FUNCTION__);
+    return -1;
+#endif
+
+}
+
+char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* a_hash_out_type)
+{
+
+
+    dap_chain_net_srv_order_t * l_orders = NULL;
+    size_t l_orders_num = 0;
+    dap_chain_net_srv_uid_t l_srv_uid = { { 0 } };
+    uint64_t l_price_min = 0, l_price_max = 0;
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
+    dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
+    dap_string_t *l_string_ret = dap_string_new("");
+
+    if(dap_chain_net_srv_order_find_all_by(a_net, l_direction, l_srv_uid, l_price_unit, NULL, l_price_min, l_price_max, &l_orders, &l_orders_num) == 0){
+        size_t l_orders_size = 0;
+        for(size_t i = 0; i < l_orders_num; i++) {
+            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+            //dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
+            dap_chain_hash_fast_t l_hash;
+            char *l_hash_str;
+            dap_hash_fast(l_order, dap_chain_net_srv_order_get_size(l_order), &l_hash);
+            if(!dap_strcmp(a_hash_out_type, "hex"))
+                l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+            else
+                l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
+            int l_state = get_order_state_so(l_order->node_addr);
+            const char *l_state_str;
+            switch (l_state)
+            {
+            case 0:
+                l_state_str = "Not available";
+                break;
+            case 1:
+                l_state_str = "Available";
+                break;
+            default:
+                l_state_str = "Unknown";
+            }
+            dap_string_append_printf(l_string_ret, "Order %s: State %s\n", l_hash_str, l_state_str);
+            DAP_DELETE(l_hash_str);
+            l_orders_size += dap_chain_net_srv_order_get_size(l_order);
+            //dap_string_append(l_string_ret, "\n");
+        }
+    }
+    // return str from dap_string_t
+    return dap_string_free(l_string_ret, false);
+}
+
+/**
+ * Check  VPN server
+ *
+ * return: 0 Ok, <0 Error
+ */
+int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port, size_t a_data_size_to_send, size_t a_data_size_to_recv, int a_timeout_test_ms)
+{
+    // default 10k
+    if(a_data_size_to_send==-1)
+        a_data_size_to_send = 10240;
+    if(a_data_size_to_recv==-1)
+        a_data_size_to_recv = 10240;
+    // default 10 sec = 10000 ms
+    if(a_timeout_test_ms==-1)
+        a_timeout_test_ms = 10000;
+    // default 5 sec = 5000 ms
+    int l_timeout_conn_ms = 5000;
+
+    int l_ret = 0;
+    if(!a_ipv4_str) // && !a_ipv6_str)
+        return -1;
+    if(!s_node_info)
+        s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+    s_node_info->hdr.ext_port = a_port;
+
+
+    // measuring connection time
+    struct timeval l_t;
+    gettimeofday(&l_t, NULL);//get_cur_time_msec
+    long l_t1 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
+
+    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
+    const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), 0 }; //only R, without S
+    if(a_ipv4_str)
+        inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
+    if(a_ipv6_str)
+        inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
+
+    s_vpn_client = dap_chain_client_connect(s_node_info, l_stage_target, l_active_channels);
+    if(!s_vpn_client) {
+        log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
+        // clean client struct
+        dap_chain_node_client_close(s_vpn_client);
+        DAP_DELETE(s_node_info);
+        s_node_info = NULL;
+        return -2;
+    }
+    // wait connected
+    int l_timeout_ms = l_timeout_conn_ms; //5 sec = 5000 ms
+    int l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CONNECTED, l_timeout_ms);
+    if(l_res) {
+        log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
+        // clean client struct
+        dap_chain_node_client_close(s_vpn_client);
+        DAP_DELETE(s_node_info);
+        s_node_info = NULL;
+        return -3;
+    }
+
+    gettimeofday(&l_t, NULL);
+    long l_t2 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
+    int l_dtime_connect_ms = l_t2-l_t1;
+
+    //l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
+
+    // send first packet to server
+    {
+        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        if(l_ch) {
+            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + a_data_size_to_send);
+            l_request->net_id.uint64 = a_net->pub.id.uint64;
+            l_request->srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
+            l_request->data_size_send = a_data_size_to_send;
+            l_request->data_size_recv = a_data_size_to_recv;
+            l_request->data_size = a_data_size_to_send;
+            randombytes(l_request->data, a_data_size_to_send);
+            dap_chain_hash_fast_t l_data_hash;
+            dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
+            if(a_ipv4_str)
+                memcpy(l_request->ip_recv, a_ipv4_str, min(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
+
+            l_request->time_connect_ms = l_dtime_connect_ms;
+            gettimeofday(&l_request->send_time1, NULL);
+            size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
+            DAP_DELETE(l_request);
+        }
+    }
+    // wait testing
+    //int timeout_test_ms = 10000; //10 sec = 10000 ms
+    a_timeout_test_ms -=l_dtime_connect_ms;
+    // timeout not less then 5 sec
+    if(a_timeout_test_ms<5000)
+        a_timeout_test_ms = 5000;
+    l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CHECKED, a_timeout_test_ms);
+    if(l_res) {
+        log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
+    }
+    else{
+        log_it(L_NOTICE, "Got response from VPN server=%s:%d", a_ipv4_str, a_port);
+    }
+    // clean client struct
+    dap_chain_node_client_close(s_vpn_client);
+    DAP_DELETE(s_node_info);
+    s_node_info = NULL;
+    if(l_res)
+        return -3;
+    return l_ret;
+}
+
+
 /**
  * Start VPN client
  *
@@ -366,8 +575,8 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
             //dap_chain_hash_fast_t l_request
             //.hdr.tx_cond = a_txCond.value();
 //    	    strncpy(l_request->hdr.token, a_token.toLatin1().constData(),sizeof (l_request->hdr.token)-1);
-            dap_stream_ch_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST, &l_request, sizeof(l_request));
-            dap_stream_ch_set_ready_to_write(l_ch, true);
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST, &l_request, sizeof(l_request));
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         }
     }
 
@@ -492,7 +701,7 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                         HASH_DELETE(hh2, sf_socks, sf_sock);
                         HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
 
-                        struct epoll_event ev;
+                        struct epoll_event ev = {0, {0}};
                         ev.data.fd = sf_sock->sock;
                         ev.events = EPOLLIN;
                         if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
@@ -525,7 +734,7 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                     HASH_DELETE(hh2, sf_socks, sf_sock);
                     HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
 
-                    struct epoll_event ev;
+                    struct epoll_event ev = {0, {0}};
                     ev.data.fd = sf_sock->sock;
                     ev.events = EPOLLIN;
                     if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
@@ -575,9 +784,9 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                     ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z(ch_vpn_pkt_t);
                     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
 
-                    dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out,
+                    dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out,
                             l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                    dap_stream_ch_set_ready_to_write(a_ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                     free(l_pkt_out);
 
@@ -612,7 +821,7 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                             pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
                             pthread_mutex_unlock(&sf_socks_mutex);
 
-                            struct epoll_event ev;
+                            struct epoll_event ev = { 0, {0} };
                             ev.data.fd = s;
                             ev.events = EPOLLIN | EPOLLERR;
 
@@ -623,21 +832,21 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                                 log_it(L_NOTICE, "Added sock_id %d  with sock %d to the epoll fd", remote_sock_id, s);
                                 //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=%uc result=0",sf_pkt->sock_id, sf_pkt->op_code);
                             }
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                         } else {
                             ch_vpn_pkt_t *l_pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(l_pkt_out->header));
                             l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
 
-                            dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out,
+                            dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out,
                                     l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                             free(l_pkt_out);
 
                             log_it(L_INFO, "Can't connect to the remote server %s", addr_str);
-                            dap_stream_ch_pkt_write_f(a_ch, 'i', "sock_id=%d op_code=%c result=-1",
+                            dap_stream_ch_pkt_write_f_unsafe(a_ch, 'i', "sock_id=%d op_code=%c result=-1",
                                     l_sf_pkt->header.sock_id, l_sf_pkt->header.op_code);
-                            dap_stream_ch_set_ready_to_write(a_ch, true);
+                            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                         }
                     } else {
@@ -645,9 +854,9 @@ void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t*
                         ch_vpn_pkt_t *l_pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(l_pkt_out->header));
                         l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
 
-                        dap_stream_ch_pkt_write(a_ch, 'd', l_pkt_out,
+                        dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out,
                                 l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                        dap_stream_ch_set_ready_to_write(a_ch, true);
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
                         free(l_pkt_out);
 
@@ -677,7 +886,7 @@ void dap_chain_net_vpn_client_pkt_out(dap_stream_ch_t* a_ch)
             for(i = 0; i < l_cur->pkt_out_size; i++) {
                 ch_vpn_pkt_t * pout = l_cur->pkt_out[i];
                 if(pout) {
-                    if(dap_stream_ch_pkt_write(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout,
+                    if(dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout,
                             pout->header.op_data.data_size + sizeof(pout->header))) {
                         l_is_smth_out = true;
                         if(pout)
@@ -728,7 +937,13 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 
     // vpn client command
     dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
-    "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net name>\n");
+    "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net name>\n"
+    "vpn_client init -w <wallet name> -token <token name> -value <value> -net <net name>\n"
+            "vpn_client stop -net <net name>\n"
+            "vpn_client status -net <net name>\n"
+            "vpn_client check -addr <ip addr> -port <port> -net <net name>\n"
+            "vpn_client check result -net <net name> [-H hex|base58(default)]\n"
+            );
 
 
     return dap_chain_net_srv_client_vpn_init(g_config);

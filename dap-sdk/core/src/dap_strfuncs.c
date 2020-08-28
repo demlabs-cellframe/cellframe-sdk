@@ -866,22 +866,3 @@ char *_strndup(const char *str, unsigned long len) {
 }
 #endif
 
-/**
- * dap_usleep:
- * @a_microseconds: number of microseconds to pause
- *
- * Pauses the current thread for the given number of microseconds.
- */
-void dap_usleep(time_t a_microseconds)
-{
-#ifdef _WIN32
-    Sleep (a_microseconds / 1000);
-#else
-    struct timespec l_request, l_remaining;
-    l_request.tv_sec = a_microseconds / DAP_USEC_PER_SEC;
-    l_request.tv_nsec = 1000 * (a_microseconds % DAP_USEC_PER_SEC);
-    while(nanosleep(&l_request, &l_remaining) == -1 && errno == EINTR)
-        l_request = l_remaining;
-#endif
-}
-

@@ -21,6 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#define _POSIX_THREAD_SAFE_FUNCTIONS
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h> /* 'nanosleep' */
@@ -235,7 +236,7 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
             s_log_file = fopen( a_log_filename , "w" );
         if ( s_log_file == NULL ) {
             dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
-            return -1;
+            //return -1;   //switch off show log in cosole if file not open
         }
         dap_stpcpy(s_log_file_path, a_log_filename);
     }
@@ -331,16 +332,21 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     if ( a_ll < s_dap_log_level || a_ll >= 16 || !a_log_tag )
         return;
     log_str_t *l_log_string = DAP_NEW_Z(log_str_t);
-    strncpy(l_log_string->str, s_ansi_seq_color[a_ll],sizeof (l_log_string->str)-1);
+    size_t offset2 = sizeof(l_log_string->str) - 2;
+    strncpy(l_log_string->str, s_ansi_seq_color[a_ll], offset2);
     l_log_string->offset = s_ansi_seq_color_len[a_ll];
     s_update_log_time(l_log_string->str + l_log_string->offset);
     size_t offset = strlen(l_log_string->str);
-    offset += dap_snprintf(l_log_string->str + offset, sizeof (l_log_string->str) -offset, "%s[%s%s", s_log_level_tag[a_ll], a_log_tag, "] ");
+    offset += dap_snprintf(l_log_string->str + offset, offset2, "%s[%s%s", s_log_level_tag[a_ll], a_log_tag, "] ");
+    offset2 -= offset;
     va_list va;
     va_start( va, a_fmt );
-    offset += dap_vsnprintf(l_log_string->str + offset,sizeof (l_log_string->str) -offset, a_fmt, va);
+    size_t l_offset = dap_vsnprintf(l_log_string->str + offset, offset2, a_fmt, va);
+    offset = (l_offset < offset2) ? offset + l_offset : offset;
+    offset2 = (l_offset < offset2) ? offset2 - offset : 0;
     va_end( va );
-    memcpy(&l_log_string->str[offset], "\n", 1);
+    char *dummy = (offset2 == 0) ? memcpy(&l_log_string->str[sizeof(l_log_string->str) - 6], "...\n\0", 5)
+        : memcpy(&l_log_string->str[offset], "\n", 1);
     pthread_mutex_lock(&s_log_mutex);
     DL_APPEND(s_log_buffer, l_log_string);
     ++s_log_count;
@@ -1014,3 +1020,23 @@ void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
     dap_lendian_put32(a_buf, a_val);
     dap_lendian_put32(a_buf + 4, a_val >> 32);
 }
+
+/**
+ * dap_usleep:
+ * @a_microseconds: number of microseconds to pause
+ *
+ * Pauses the current thread for the given number of microseconds.
+ */
+void dap_usleep(time_t a_microseconds)
+{
+#ifdef DAP_OS_WINDOWS
+    Sleep (a_microseconds / 1000);
+#else
+    struct timespec l_request, l_remaining;
+    l_request.tv_sec = a_microseconds / DAP_USEC_PER_SEC;
+    l_request.tv_nsec = 1000 * (a_microseconds % DAP_USEC_PER_SEC);
+    while(nanosleep(&l_request, &l_remaining) == -1 && errno == EINTR)
+        l_request = l_remaining;
+#endif
+}
+

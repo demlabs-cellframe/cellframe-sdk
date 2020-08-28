@@ -24,6 +24,7 @@
 
 #include <math.h>
 #include "dap_string.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
@@ -48,9 +49,9 @@ int dap_chain_net_srv_stake_init()
     "srv_stake order create -net <net name> -from_addr <addr> -token <ticker> -coins <value> -cert <name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate it to the specified address."
         "The fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
-    "srv_stake order remove -net <net name> -order <order hash>\n"
+    "srv_stake order remove -net <net name> -order <order hash> [-H hex|base58(default)]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net name> -order <order hash> -cert <name>"
+    "srv_stake order update -net <net name> -order <order hash> -cert <name> [-H hex|base58(default)]"
                             "{-from_addr <addr> | -token <ticker> -coins <value> | -fee_percent <value>}\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net name>\n"
@@ -365,7 +366,7 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     return l_item;
 }
 
-static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
+static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply, const char *a_hash_out_type)
 {
     enum {
         CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_LIST, CMD_UPDATE
@@ -485,12 +486,28 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 return -4;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
+
+            char *l_order_hash_hex_str;
+            char *l_order_hash_base58_str;
+            // datum hash may be in hex or base58 format
+            if(!dap_strncmp(l_order_hash_str, "0x", 2) || !dap_strncmp(l_order_hash_str, "0X", 2)) {
+                l_order_hash_hex_str = dap_strdup(l_order_hash_str);
+                l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_str);
+            }
+            else {
+                l_order_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_order_hash_str);
+                l_order_hash_base58_str = dap_strdup(l_order_hash_str);
+            }
+
             if (!l_net_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order remove' requires parameter -order");
                 return -13;
             }
-            if (dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't remove order %s\n", l_order_hash_str);
+            if (dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str)) {
+                if(!dap_strcmp(a_hash_out_type,"hex"))
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't remove order %s\n", l_order_hash_hex_str);
+                else
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't remove order %s\n", l_order_hash_base58_str);
                 return -14;
             }
             dap_chain_node_cli_set_reply_text(a_str_reply, "Stake order successfully removed");
@@ -515,8 +532,24 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 return -13;
             }
             dap_chain_net_srv_order_t *l_order =  dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+
+            char *l_order_hash_hex_str;
+            char *l_order_hash_base58_str;
+            // datum hash may be in hex or base58 format
+            if(!dap_strncmp(l_order_hash_str, "0x", 2) || !dap_strncmp(l_order_hash_str, "0X", 2)) {
+                l_order_hash_hex_str = dap_strdup(l_order_hash_str);
+                l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_str);
+            }
+            else {
+                l_order_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_order_hash_str);
+                l_order_hash_base58_str = dap_strdup(l_order_hash_str);
+            }
+
             if (!l_order) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_str);
+                if(!dap_strcmp(a_hash_out_type,"hex"))
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_hex_str);
+                else
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_base58_str);
                 return -14;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_cert_str);
@@ -563,11 +596,21 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             memcpy(&l_stake->addr_to, l_addr_to, sizeof(dap_chain_addr_t));
             DAP_DELETE(l_addr_to);
             // Create the order & put it to GDB
-            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
-            l_order_hash_str = s_stake_order_create(l_stake, l_cert->enc_key);
-            if (l_order_hash_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
-                DAP_DELETE(l_order_hash_str);
+            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str);
+            DAP_DELETE(l_order_hash_hex_str);
+            DAP_DELETE(l_order_hash_base58_str);
+            l_order_hash_hex_str = s_stake_order_create(l_stake, l_cert->enc_key);
+            if(l_order_hash_hex_str) {
+                if(!dap_strcmp(a_hash_out_type, "hex")) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_hex_str);
+                }
+                else {
+                    l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_hex_str);
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s",
+                            l_order_hash_base58_str);
+                    DAP_DELETE(l_order_hash_base58_str);
+                }
+                DAP_DELETE(l_order_hash_hex_str);
                 DAP_DELETE(l_stake);
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the order");
@@ -626,6 +669,16 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_TX, CMD_INVALIDATE
     };
     int l_arg_index = 1;
+
+    const char * l_hash_out_type = NULL;
+    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "base58";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
     int l_cmd_num = CMD_NONE;
     if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;
@@ -641,7 +694,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
     }
     switch (l_cmd_num) {
         case CMD_ORDER:
-            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply);
+            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
         case CMD_DELEGATE: {
             const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_addr_fee_str = NULL;
             l_arg_index++;

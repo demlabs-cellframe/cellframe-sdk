@@ -50,7 +50,7 @@ size_t dap_stream_ch_chain_net_srv_pkt_data_write(dap_stream_ch_t *a_ch,
     l_pkt_data->hdr.srv_uid = a_srv_uid;
     l_pkt_data->hdr.usage_id = a_usage_id;
     memcpy( l_pkt_data->data, a_data, a_data_size);
-    size_t l_ret  = dap_stream_ch_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA , l_pkt_data, l_pkt_data_size);
+    size_t l_ret  = dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA , l_pkt_data, l_pkt_data_size);
     DAP_DELETE(l_pkt_data);
     return l_ret;
 }

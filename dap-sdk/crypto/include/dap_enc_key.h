@@ -256,6 +256,7 @@ int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, 
 
 dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key);
 dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size);
+dap_enc_key_t* dap_enc_key_dup(dap_enc_key_t * a_key);
 
 // allocate memory for key struct
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type);

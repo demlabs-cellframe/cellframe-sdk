@@ -28,8 +28,10 @@
 #include "dap_chain_net_srv_order.h"
 
 #include "dap_hash.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_net_srv_countries.h"
+#include "dap_chain_net_srv_stake.h"
 //#include "dap_chain_net_srv_geoip.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
@@ -57,13 +59,16 @@ char *s_server_continents[]={
 		"Antarctica"
  };
 
+static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+                                   const char *a_key, const void *a_value, const size_t a_value_len);
+
 /**
  * @brief dap_chain_net_srv_order_init
  * @return
  */
 int dap_chain_net_srv_order_init(void)
 {
-
+    dap_chain_net_set_srv_callback_notify(s_srv_order_callback_notify);
 	//geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
 }
@@ -439,13 +444,18 @@ int dap_chain_net_srv_order_delete_by_hash_str(dap_chain_net_t * a_net, const ch
  * @param a_orders
  * @param a_str_out
  */
-void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out)
+void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type)
 {
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
-        char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
+        char *l_hash_str;//[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
+        //dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
+        if(!dap_strcmp(a_hash_out_type,"hex"))
+            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+        else
+            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
+
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
 
@@ -469,8 +479,13 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
         dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
         DAP_DELETE(l_region);
+        DAP_DELETE(l_hash_str);
 
-        dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
+        if(!dap_strcmp(a_hash_out_type, "hex"))
+            l_hash_str = dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
+        else
+            l_hash_str = dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash);
+        //dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         dap_bin2hex(l_ext_out, a_order->ext, a_order->ext_size);
@@ -478,7 +493,59 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out);
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
-
+        // order state
+/*        {
+            int l_order_state = get_order_state(a_order->node_addr);
+            // if order is not tested
+            if(l_order_state == -1)
+                dap_string_append_printf(a_str_out, "        \"State\":\"unknown\"\n");
+            // if order off-line
+            else if(l_order_state == 1)
+                dap_string_append_printf(a_str_out, "        \"State\":\"available\"\n");
+            // if order on-line
+            else
+                dap_string_append_printf(a_str_out, "        \"State\":\"not available\"\n");
+        }*/
+        DAP_DELETE(l_hash_str);
         DAP_DELETE(l_ext_out);
+    }
+}
+
+static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+                                   const char *a_key, const void *a_value, const size_t a_value_len)
+{
+    (void) a_op_code;
+    UNUSED(a_prefix);
+    UNUSED(a_value_len);
+    if (!a_arg || !a_value || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+        return;
+    }
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+    if (!strcmp(a_group, l_gdb_group_str)) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
+        if (l_order->version == 1) {
+            dap_chain_global_db_gr_del((char *)a_key, a_group);
+        } else {
+            dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
+            if (!dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+                DAP_DELETE(l_gdb_group_str);
+                return;
+            }
+            dap_chain_hash_fast_t l_pkey_hash;
+            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+                DAP_DELETE(l_gdb_group_str);
+                return;
+            }
+            dap_chain_addr_t l_addr = {};
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+            uint64_t l_solvency = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
+            if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
+                dap_chain_global_db_gr_del((char *)a_key, a_group);
+            }
+        }
+        DAP_DELETE(l_gdb_group_str);
     }
 }

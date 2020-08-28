@@ -273,9 +273,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             }
             if (! l_is_enough_balance ){
                 char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-                log_it(L_WARNING, "Verify of event is false, because bal=0 for addr=%s", l_addr_str);
+                log_it(L_WARNING, "Verify of event is false, because bal is not enough for addr=%s", l_addr_str);
                 DAP_DELETE(l_addr_str);
-                return 0; //-1;
+                return -1;
             }
         }
 

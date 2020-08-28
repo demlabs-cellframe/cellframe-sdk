@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
+#include <json-c/json.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -48,11 +49,14 @@
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
+#include "dap_chain_net_srv_common.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain_net_pkt.h"
+#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_pkt.h"
 
 //#include "dap_chain_common.h"
@@ -117,12 +121,12 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     if(l_is_last_attempt){
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
 
     if(l_node_client && l_node_client->keep_connection &&
@@ -134,13 +138,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         log_it(L_DEBUG, "Wakeup all who waits");
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ERROR;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         //dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
     }
     //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
@@ -158,9 +162,6 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     if(l_node_client) {
         log_it(L_NOTICE, "Stream connection with node " NODE_ADDR_FP_STR " established",
                 NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr));
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
         // set callbacks for C and N channels; for R and S it is not needed
         dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
         if(l_client_internal && l_client_internal->active_channels) {
@@ -171,31 +172,18 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 }
             }
         }
-        /*
-             // find current channel code
-             dap_stream_ch_t * l_ch = NULL;
-             l_ch = dap_client_get_stream_ch(a_client, l_client_internal->active_channels[0]);
-        //dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client, dap_stream_ch_chain_get_id());
-        if(l_ch) {
-            dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
-            dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-            l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
-            l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
-            l_ch_chain->callback_notify_arg = l_node_client;
-        } else {
-            log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
-        }*/
         if(l_node_client->callback_connected)
             l_node_client->callback_connected(l_node_client, a_arg);
         l_node_client->keep_connection = true;
         log_it(L_DEBUG, "Wakeup all who waits");
-
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
-
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
 }
 
@@ -220,12 +208,12 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         }
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
-                    SetEvent( l_node_client->wait_cond );
-        #endif
+        SetEvent( l_node_client->wait_cond );
+#endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         break;
     }
     // get remote node address
@@ -237,16 +225,17 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         }
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
             SetEvent( l_node_client->wait_cond );
 #endif
-        break;
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+            break;
     }
     }
 }
+
 
 /**
  * @brief s_ch_chain_callback_notify_packet_in - for dap_stream_ch_chain
@@ -263,23 +252,23 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
     case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ERROR;
         dap_snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
                 "%s", (char*) a_pkt->data);
         log_it(L_WARNING, "Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
                 l_node_client->last_error);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_ERROR;
 
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
-            SetEvent( l_node_client->wait_cond );
+        SetEvent( l_node_client->wait_cond );
 #endif
-
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
+    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
         dap_stream_ch_chain_sync_request_t * l_request = NULL;
         if(a_pkt_data_size == sizeof(*l_request))
             l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;
@@ -372,36 +361,35 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     dap_chain_node_addr_t l_node_addr = { 0 };
                     dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);
                     l_node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
-                    dap_stream_ch_chain_pkt_write(a_ch_chain->ch, l_type,
+                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch, l_type,
                             a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
                             a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
 
                     log_it(L_INFO, "Sync for remote tr type=%d", a_pkt_type);//_count=%d", dap_list_length(l_list));
-                    dap_stream_ch_set_ready_to_write(a_ch_chain->ch, true);
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch_chain->ch, true);
                 }
                 else {
                     log_it(L_INFO, "Remote node has lastes timestamp for us type=%d", a_pkt_type);
                     pthread_mutex_lock(&l_node_client->wait_mutex);
                     l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                    pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
                     pthread_cond_signal(&l_node_client->wait_cond);
 #else
                     SetEvent( l_node_client->wait_cond );
 #endif
-
+                    pthread_mutex_unlock(&l_node_client->wait_mutex);
                 }
             }
         } else {
             log_it(L_INFO, "Sync notify without request to sync back, stay in SYNCED state");
             pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-            pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
             pthread_cond_signal(&l_node_client->wait_cond);
 #else
-                SetEvent( l_node_client->wait_cond );
+            SetEvent( l_node_client->wait_cond );
 #endif
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
         }
 
     }
@@ -409,6 +397,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
     }
     }
 }
+
+
 
 /**
  * @brief s_ch_chain_callback_notify_packet_in
@@ -432,16 +422,96 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_signal(&l_node_client->wait_cond);
 #else
-            SetEvent( l_node_client->wait_cond );
+        SetEvent( l_node_client->wait_cond );
 #endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
         break;
     default: {
     }
+    }
+}
+
+static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
+{
+    int l_ret = 0;
+    if(!a_request)
+        return -1;
+    long l_t1_ms = (long) a_request->send_time1.tv_sec * 1000 + a_request->send_time1.tv_usec / 1000;
+    long l_t2_ms = (long) a_request->recv_time1.tv_sec * 1000 + a_request->recv_time1.tv_usec / 1000;
+    struct json_object *jobj = json_object_new_object();
+    time_t l_cur_t = time(NULL);
+    char buf[1024];
+    dap_time_to_str_rfc822( buf, sizeof(buf), l_cur_t );
+    json_object_object_add(jobj, "time_save", json_object_new_int64(l_cur_t));
+    json_object_object_add(jobj, "time_save_str", json_object_new_string(buf));
+    json_object_object_add(jobj, "time_connect", json_object_new_int(a_request->time_connect_ms));
+    json_object_object_add(jobj, "time_transmit", json_object_new_int(l_t2_ms-l_t1_ms));
+    json_object_object_add(jobj, "ip_send", json_object_new_string(a_request->ip_send));
+    json_object_object_add(jobj, "ip_recv", json_object_new_string(a_request->ip_recv));
+    json_object_object_add(jobj, "time_len_send", json_object_new_int(a_request->data_size_send));
+    json_object_object_add(jobj, "time_len_recv", json_object_new_int(a_request->data_size_recv));
+    json_object_object_add(jobj, "err_code", json_object_new_int(a_request->err_code));
+    const char* json_str = json_object_to_json_string(jobj);
+    // save statistics
+    char *l_group = NULL;
+    dap_chain_net_t * l_net = dap_chain_net_by_id(a_request->net_id);
+    if(l_net) {
+        l_group = dap_strdup_printf("%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
+    }
+    if(l_group) {
+        dap_store_obj_t *l_obj = dap_chain_global_db_get_last(l_group);
+        int64_t l_key = 0;
+        if(l_obj) {
+            l_key = strtoll(l_obj->key, NULL, 16);
+        }
+        char *l_key_str = dap_strdup_printf("%06x", ++l_key);
+        if(!dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) json_str, strlen(json_str) + 1, l_group)) {
+            l_ret = -1;
+        }
+        DAP_DELETE(l_key_str);
+        DAP_DELETE(l_group);
+    }
+    else
+        l_ret = -2;
+    json_object_put(jobj);
+    return l_ret;
+}
+/**
+ * @brief s_ch_chain_callback_notify_packet_R - Callback for channel 'R'
+ * @param a_ch_chain
+ * @param a_pkt_type
+ * @param a_pkt
+ * @param a_arg
+ */
+static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void * a_arg)
+{
+    dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
+    switch (a_pkt_type) {
+    // get new generated current node address
+    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
+            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
+            size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
+            if(a_pkt->hdr.size != l_request_size) {
+                log_it(L_WARNING, "Wrong request size, less or more than required");
+                break;
+            }
+            // todo to write result to database
+            save_stat_to_database(l_request, l_node_client);
+            //...
+            pthread_mutex_lock(&l_node_client->wait_mutex);
+            l_node_client->state = NODE_CLIENT_STATE_CHECKED;
+#ifndef _WIN32
+            pthread_cond_signal(&l_node_client->wait_cond);
+#else
+            SetEvent( l_node_client->wait_cond );
+#endif
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
+            break;
+        }
     }
 }
 
@@ -476,6 +546,8 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     l_node_client->client->_inheritor = l_node_client;
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
     dap_client_set_active_channels(l_node_client->client, a_active_channels);
+
+    //dap_client_set_auth_cert(l_node_client->client, dap_cert_find_by_name("auth")); // TODO provide the certificate choice
 
     int hostlen = 128;
     char host[hostlen];
@@ -551,13 +623,11 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     if(!a_client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
         return -1;
 
-//    dap_stream_t *l_stream = dap_client_get_stream(a_client->client);
+    dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->client);
     dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client->client, a_ch_id);
     if(l_ch) {
 //        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-
-        dap_stream_ch_pkt_write(l_ch, a_type, a_pkt_data, a_pkt_data_size);
-        dap_stream_ch_set_ready_to_write(l_ch, true);
+        dap_stream_ch_pkt_write_mt(l_stream_worker , l_ch , a_type, a_pkt_data, a_pkt_data_size);
         return 0;
     } else
         return -1;
@@ -656,15 +726,23 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
         if(l_client_internal)
             l_ch = dap_client_get_stream_ch(a_client, a_ch_id);
         if(l_ch) {
+            // C
             if(a_ch_id == dap_stream_ch_chain_get_id()) {
                 dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
                 l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
                 l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
                 l_ch_chain->callback_notify_arg = l_node_client;
             }
+            // N
             if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
                 dap_stream_ch_chain_net_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
+                l_ch_chain->notify_callback_arg = l_node_client;
+            }
+            // R
+            if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
+                dap_stream_ch_chain_net_srv_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
+                l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_R;
                 l_ch_chain->notify_callback_arg = l_node_client;
             }
             l_ret = 0;
