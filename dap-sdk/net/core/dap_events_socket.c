@@ -308,7 +308,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 
 #ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
-    if((l_es->fd = eventfd(0,EFD_NONBLOCK) ) < 0 ){
+    if((l_es->fd = eventfd(0,0) ) < 0 ){
         int l_errno = errno;
         char l_errbuf[128];
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -576,6 +576,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
         pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
         if(!dap_events_socket_find_unsafe(a_es->socket, a_es->events)){
             log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
+            pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
             return ;
         }
 

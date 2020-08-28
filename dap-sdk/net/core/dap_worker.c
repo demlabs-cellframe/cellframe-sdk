@@ -150,7 +150,7 @@ void *dap_worker_thread(void *arg)
                     default: ;
                 }
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                l_cur->callbacks.error_callback(l_cur, NULL); // Call callback to process error event
+                l_cur->callbacks.error_callback(l_cur, 0); // Call callback to process error event
             }
 
             if (l_epoll_events[n].events & EPOLLRDHUP) {
@@ -310,7 +310,8 @@ void *dap_worker_thread(void *arg)
                         if (l_cur->buf_out_size) {
                             memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
                         } else {
-                            dap_events_socket_set_writable_unsafe(l_cur, false);
+                            if (!l_cur->is_dont_reset_write_flag)
+                                dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
                 }
@@ -494,7 +495,7 @@ static void s_socket_all_check_activity( void * a_arg)
             if ( !l_es->kill_signal && l_curtime >=  (time_t)l_es->last_time_active + s_connection_timeout && !l_es->no_close ) {
                 log_it( L_INFO, "Socket %u timeout, closing...", l_es->socket );
                 if (l_es->callbacks.error_callback) {
-                    l_es->callbacks.error_callback(l_es, (void *)ETIMEDOUT);
+                    l_es->callbacks.error_callback(l_es, ETIMEDOUT);
                 }
                 dap_events_socket_remove_and_delete_mt( l_worker, l_es);
             }
@@ -509,7 +510,12 @@ static void s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
+    int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
+    if(l_ret != 0 ){
+        char l_errbuf[128];
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
+    }
 }
 
 /**
@@ -520,7 +526,13 @@ void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t 
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
-    dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
+    int l_ret=dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
+    if(l_ret != 0 ){
+        char l_errbuf[128];
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
+    }
+
 }
 
 

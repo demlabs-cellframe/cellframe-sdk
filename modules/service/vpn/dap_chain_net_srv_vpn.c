@@ -147,7 +147,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 static void m_es_tun_new(dap_events_socket_t * a_es, void * arg);
 static void m_es_tun_delete(dap_events_socket_t * a_es, void * arg);
 static void m_es_tun_read(dap_events_socket_t * a_es, void * arg);
-static void m_es_tun_error(dap_events_socket_t * a_es, void * arg);
+static void m_es_tun_error(dap_events_socket_t * a_es,int arg);
 
 pthread_rwlock_t s_tun_sockets_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 ch_sf_tun_socket_t * s_tun_sockets = NULL;
@@ -158,7 +158,8 @@ int s_tun_attach_queue(int fd);
 dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, int a_tun_fd)
 {
     assert(a_worker);
-    static dap_events_socket_callbacks_t l_s_callbacks = {{ 0 }};
+    dap_events_socket_callbacks_t l_s_callbacks;
+    memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
     l_s_callbacks.new_callback = m_es_tun_new;
     l_s_callbacks.read_callback = m_es_tun_read;
     l_s_callbacks.error_callback = m_es_tun_error;
@@ -259,11 +260,11 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 }
 
 static int callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
-                    const void **a_receipt, size_t a_receipt_size)
+                    dap_chain_datum_tx_receipt_t **a_receipt, size_t a_receipt_size)
 {
-    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t*)*a_receipt;
+    dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    char *l_wallet_name = dap_chain_global_db_gr_get(dap_strdup("wallet_name"), NULL, l_gdb_group);
+    char *l_wallet_name = (char*) dap_chain_global_db_gr_get(dap_strdup("wallet_name"), NULL, l_gdb_group);
 
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config));
     if(l_wallet) {
@@ -1665,7 +1666,7 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
     dap_events_socket_set_readable_unsafe(a_es, true);
 }
 
-void m_es_tun_error(dap_events_socket_t * a_es, void * arg)
+void m_es_tun_error(dap_events_socket_t * a_es, int arg)
 {
     if (! a_es->_inheritor)
         return;

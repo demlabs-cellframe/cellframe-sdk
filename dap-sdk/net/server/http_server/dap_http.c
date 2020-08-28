@@ -144,7 +144,7 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                       ,dap_http_client_callback_t headers_write_callback
                       ,dap_http_client_callback_t data_read_callback
                       ,dap_http_client_callback_t data_write_callback
-                      ,dap_http_client_callback_t error_callback
+                      ,dap_http_client_callback_error_t error_callback
 
                       )
 {

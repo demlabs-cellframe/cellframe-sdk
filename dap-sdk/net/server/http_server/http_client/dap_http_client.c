@@ -635,7 +635,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
  * @param cl HTTP Client instance
  * @param arg Additional argument (usualy not used)
  */
-void dap_http_client_error( dap_events_socket_t *cl, void *arg )
+void dap_http_client_error( dap_events_socket_t *cl, int arg )
 {
   (void) arg;
 

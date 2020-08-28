@@ -49,7 +49,7 @@ typedef struct dap_chain_cs_dag_event {
 
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum,
                                                 dap_enc_key_t * a_key,
-                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
+                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t * a_event_size);
 
 
 /**
@@ -57,23 +57,25 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
  * @param a_event
  * @return
  */
-static inline dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a_event)
+static inline dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_dag_event_t * a_event,size_t a_event_size)
 {
-    return (dap_chain_datum_t* ) (a_event->hashes_n_datum_n_signs
-            +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t));
+    return  a_event->header.hash_count*sizeof(dap_chain_hash_fast_t)<=a_event_size?(dap_chain_datum_t* ) (a_event->hashes_n_datum_n_signs
+            +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t)): NULL;
 }
 
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src);
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src, size_t a_event_size);
 
 // Important: returns new deep copy of event
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, dap_enc_key_t * l_key);
-dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number);
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event,size_t a_event_size, dap_enc_key_t * l_key);
+dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
 /**
  * @brief dap_chain_cs_dag_event_calc_size
  * @param a_event
  * @return
  */
+
+/**
 static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t * a_event)
 {
     if(!a_event)
@@ -93,14 +95,16 @@ static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *
 
     return sizeof( a_event->header ) + l_hashes_size +l_signs_offset +l_datum_size;
 }
-
+**/
 /**
  * @brief dap_chain_cs_dag_event_calc_size_excl_signs
  * @param a_event
  * @return
  */
-static inline size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t * a_event)
+static inline ssize_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t * a_event,size_t a_event_size)
 {
+    if (a_event_size< sizeof (a_event->header))
+        return -1;
     size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -113,7 +117,7 @@ static inline size_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_da
  * @param a_event
  * @param a_event_hash
  */
-static inline void dap_chain_cs_dag_event_calc_hash(dap_chain_cs_dag_event_t * a_event,dap_chain_hash_fast_t * a_event_hash)
+static inline void dap_chain_cs_dag_event_calc_hash(dap_chain_cs_dag_event_t * a_event,size_t a_event_size, dap_chain_hash_fast_t * a_event_hash)
 {
-    dap_hash_fast(a_event, dap_chain_cs_dag_event_calc_size (a_event) , a_event_hash);
+    dap_hash_fast(a_event, a_event_size , a_event_hash);
 }

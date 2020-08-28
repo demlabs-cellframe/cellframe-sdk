@@ -22,7 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
+#include <pthread.h>
 #include "uthash.h"
 #include "dap_events_socket.h"
 #include "dap_server.h"

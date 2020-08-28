@@ -68,30 +68,29 @@ typedef struct dap_chain_gdb_private
 static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net);
 
 // Atomic element organization callbacks
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Accept new event in gdb
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t); //    Verify new event in gdb
-static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_ptr_t); //    Get gdb event size
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Accept new event in gdb
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
 static size_t s_chain_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain);
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t * a_chain,
-        dap_chain_atom_ptr_t a);
+        dap_chain_atom_ptr_t a, size_t a_atom_size);
 
 // Delete iterator
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter); //    Get the fisrt event from gdb
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
-        dap_chain_hash_fast_t * a_atom_hash);
+        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_atom_iter_t * a_atom_iter ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash);
+                                                                       dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 
 // Get event(s) from gdb
-static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter); //    Get the fisrt event from gdb
-static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter); //    Get the next event from gdb
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t * a_atom_size); //    Get the fisrt event from gdb
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter, size_t * a_atom_size); //    Get the next event from gdb
 static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_links(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_links_size_ptr); //    Get list of linked events
+        size_t * a_links_size_ptr, size_t ** a_lasts_sizes_ptr); //    Get list of linked events
 static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_lasts_size_ptr); //    Get list of linked events
+        size_t * a_lasts_size_ptr, size_t ** a_lasts_sizes_ptr); //    Get list of linked events
 
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
         size_t a_datums_size);
@@ -185,7 +184,6 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add; // Accept new element in chain
     a_chain->callback_atom_verify = s_chain_callback_atom_verify; // Verify new element in chain
-    a_chain->callback_atom_get_size = s_chain_callback_atom_hdr_get_size; // Get dag event size
     a_chain->callback_atom_get_hdr_static_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
 
     a_chain->callback_atom_iter_create = s_chain_callback_atom_iter_create;
@@ -263,7 +261,6 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
 static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net)
 {
     dap_chain_gdb_private_t *l_gdb_priv = PVT(a_gdb);
-    dap_list_t *l_datum_list = NULL, *l_list_tmp = NULL;
     // protect from reloading
     if(dap_chain_ledger_count( a_net->pub.ledger ) > 0)
         return 0;
@@ -275,19 +272,10 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
     dap_global_db_obj_t *data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
-        l_datum_list = dap_list_append(l_datum_list, data[i].value);
-    }
-    // sort list by time
-    //l_datum_list = dap_list_sort(l_datum_list, (dap_callback_compare_t) compare_datum_items);
-    l_list_tmp = l_datum_list;
-    // add datum_tx from list to ledger
-    while(l_list_tmp) {
-        dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_list_tmp->data;
-        s_chain_callback_atom_add(a_gdb->chain,l_datum);
-        l_list_tmp = dap_list_next(l_list_tmp);
+        s_chain_callback_atom_add(a_gdb->chain,data[i].value, data[i].value_len);
+
     }
     dap_chain_global_db_objs_delete(data, l_data_size);
-    dap_list_free(l_datum_list);
     return 0;
 }
 
@@ -302,7 +290,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 {
     for(size_t i = 0; i < a_datums_count; i++) {
         dap_chain_datum_t * l_datum = a_datums[i];
-        s_chain_callback_atom_add(a_chain, l_datum );
+        s_chain_callback_atom_add(a_chain, l_datum,dap_chain_datum_size(l_datum) );
     }
     return a_datums_count;
 }
@@ -321,11 +309,16 @@ static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain
  * @param a_datums
  * @param a_datums_size
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
+    if ( a_atom_size < l_datum->header.data_size+ sizeof (l_datum->header) ){
+        log_it(L_INFO,"Corrupted atom rejected: wrong size %zd not equel or less atom size %zd",l_datum->header.data_size+ sizeof (l_datum->header),
+               a_atom_size);
+        return ATOM_REJECT;
+    }
     switch (l_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
@@ -369,22 +362,14 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
  * @param a_atom
  * @return
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
     (void) a_chain;
     (void) a_atom;
+    (void) a_atom_size;
     return ATOM_ACCEPT;
 }
 
-/**
- * @brief s_chain_callback_atom_get_size Get size of atomic element
- * @param a_atom
- * @return
- */
-static size_t s_chain_callback_atom_hdr_get_size(dap_chain_atom_ptr_t a_atom)
-{
-    return ((dap_chain_datum_t *) a_atom)->header.data_size +sizeof (((dap_chain_datum_t *) a_atom)->header);
-}
 
 /**
  * @brief s_chain_callback_atom_get_static_hdr_size
@@ -416,7 +401,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_
  * @return
  */
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t * a_chain,
-        dap_chain_atom_ptr_t a_atom)
+        dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_iter->chain = a_chain;
@@ -441,7 +426,7 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
  * @return
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
-        dap_chain_hash_fast_t * a_atom_hash)
+        dap_chain_hash_fast_t * a_atom_hash, size_t *a_atom_size)
 {
     char * l_key = dap_chain_hash_fast_to_str_new(a_atom_hash);
     size_t l_ret_size;
@@ -449,6 +434,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_atom_iter->chain );
     l_ret = dap_chain_global_db_gr_get(l_key,&l_ret_size,
                                        PVT ( l_gdb )->group_datums  );
+    *a_atom_size = l_ret_size;
     return l_ret;
 }
 
@@ -457,7 +443,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
  * @param a_atom_iter
  * @return
  */
-static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter)
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size)
 {
     dap_chain_datum_t * l_datum = NULL;
     a_atom_iter->cur_item = PVT ( DAP_CHAIN_GDB(a_atom_iter->chain) )->hash_items;
@@ -468,7 +454,9 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
-    }
+        *a_atom_size = l_datum_size;
+    }else
+        *a_atom_size = 0;
     return l_datum;
 }
 
@@ -477,7 +465,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
  * @param a_atom_iter
  * @return
  */
-static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter)
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size)
 {
     dap_chain_datum_t * l_datum = NULL;
     a_atom_iter->cur_item = a_atom_iter->cur_item?
@@ -490,7 +478,9 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
-    }
+        *a_atom_size = l_datum_size;
+    }else
+        *a_atom_size = 0;
     return l_datum;
 }
 
@@ -501,10 +491,11 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
  * @return
  */
 static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_links_size_ptr)
+        size_t * a_links_size_ptr, size_t **a_links_sizes_ptr)
 {
     (void) a_atom_iter;
     (void) a_links_size_ptr;
+    (void) a_links_sizes_ptr;
     return NULL;
 }
 
@@ -515,10 +506,11 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links(dap_chain_atom
  * @return
  */
 static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
-        size_t * a_lasts_size_ptr)
+        size_t * a_lasts_size_ptr,  size_t **a_links_sizes_ptr)
 {
     (void) a_atom_iter;
     (void) a_lasts_size_ptr;
+    (void) a_links_sizes_ptr;
     return NULL;
 }
 
