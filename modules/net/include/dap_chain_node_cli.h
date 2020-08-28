@@ -40,12 +40,20 @@ typedef int SOCKET;
 
 typedef int cmdfunc_t(int argc, char ** argv, void *arg_func, char **str_reply);
 
+typedef void cmd_item_func_override_log_cmd_call(const char*);
+
+typedef struct dap_chain_node_cmd_item_func_overrides{
+    /* use it if you want to prevent logging of some sensetive data */
+    cmd_item_func_override_log_cmd_call * log_cmd_call;
+} dap_chain_node_cmd_item_func_overrides_t;
+
 typedef struct dap_chain_node_cmd_item{
     char name[32]; /* User printable name of the function. */
     cmdfunc_t *func; /* Function to call to do the job. */
     void *arg_func; /* additional argument of function*/
     char *doc; /* Documentation for this function.  */
     char *doc_ex; /* Full documentation for this function.  */
+    dap_chain_node_cmd_item_func_overrides_t overrides; /* Used to change default behaviour */
     UT_hash_handle hh;
 } dap_chain_node_cmd_item_t;
 
@@ -60,6 +68,7 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout);
 dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_get_first();
 dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name);
 void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex);
+void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_chain_node_cmd_item_func_overrides_t * a_overrides);
 
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...);
 

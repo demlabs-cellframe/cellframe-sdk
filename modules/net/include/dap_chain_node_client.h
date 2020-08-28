@@ -44,6 +44,7 @@ typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_SYNC_GDB = 101,
     NODE_CLIENT_STATE_SYNC_CHAINS = 102,
     NODE_CLIENT_STATE_SYNCED = 103,
+    NODE_CLIENT_STATE_CHECKED = 104,
 } dap_chain_node_client_state_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;

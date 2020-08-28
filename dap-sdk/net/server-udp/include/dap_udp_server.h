@@ -36,7 +36,6 @@
 
 #include "dap_udp_client.h"
 #include "dap_server.h"
-#include "dap_client_remote.h"
 
 struct dap_udp_server;
 

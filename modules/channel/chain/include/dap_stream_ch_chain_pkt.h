@@ -44,6 +44,8 @@
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB            0x12
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL                  0x22
 
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS          0x04
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS       0x14
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS             0x03
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
@@ -95,12 +97,16 @@ static const char* c_dap_stream_ch_chain_pkt_type_str[]={
 
 dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(char a_state);
 
-size_t dap_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
-                                     dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-        const void * a_data, size_t a_data_size);
+size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id,
+                                            dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+                                            const void * a_data, size_t a_data_size);
+
+size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id,
+                                        dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+                                        const void * a_data, size_t a_data_size);
 
 inline static size_t dap_stream_ch_chain_pkt_write_error(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id,
                                                   dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, const char * a_err_string )
 {
-    return  dap_stream_ch_chain_pkt_write( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, a_err_string,strlen (a_err_string)+1 );
+    return  dap_stream_ch_chain_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, a_err_string,strlen (a_err_string)+1 );
 }

@@ -24,4 +24,4 @@
 
 #include "dap_http.h"
 
-void dap_chain_net_bugreport_add_proc(struct dap_http * sh);
+int dap_chain_net_bugreport_init(dap_http_t * a_http);

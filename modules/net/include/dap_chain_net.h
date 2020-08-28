@@ -61,8 +61,7 @@ typedef  enum dap_chain_net_state{
     NET_STATE_ADDR_REQUEST, // Waiting for address assign
     NET_STATE_SYNC_GDB,
     NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE,
-    NET_STATE_SYNC_REQUESTED
+    NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
 typedef struct dap_chain_net{
@@ -87,7 +86,6 @@ void dap_chain_net_deinit(void);
 
 void dap_chain_net_load_all();
 
-void s_net_set_go_sync(dap_chain_net_t * a_net);
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
@@ -102,6 +100,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
+uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 
@@ -113,8 +112,6 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
 dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
-
-void dap_chain_net_links_connect(dap_chain_net_t * a_net);
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
@@ -155,4 +152,7 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
-void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum);
+void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum, const char *a_hash_out_type);
+void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback);
+void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+                                      const char *a_key, const void *a_value, const size_t a_value_len);

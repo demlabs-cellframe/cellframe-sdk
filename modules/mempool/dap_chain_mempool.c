@@ -557,7 +557,7 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
     if(a_net->pub.default_chain)
         l_chain = a_net->pub.default_chain;
     else
-        dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
 
     if(!l_chain)
             return NULL;
@@ -887,15 +887,15 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 {
     http_status_code_t * return_code = (http_status_code_t*) arg;
     // save key while it alive, i.e. still exist
-    dap_enc_key_t *key = dap_enc_ks_find_http(cl_st->http);
+    dap_enc_key_t *key = dap_enc_ks_find_http(cl_st->http_client);
     //dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
     //dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
 
     // read header
     dap_http_header_t *hdr_session_close_id =
-            (cl_st->http) ? dap_http_header_find(cl_st->http->in_headers, "SessionCloseAfterRequest") : NULL;
+            (cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "SessionCloseAfterRequest") : NULL;
     dap_http_header_t *hdr_key_id =
-            (hdr_session_close_id && cl_st->http) ? dap_http_header_find(cl_st->http->in_headers, "KeyID") : NULL;
+            (hdr_session_close_id && cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "KeyID") : NULL;
 
     enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
     if(dg) {

@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.3-4")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.4-3")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -121,6 +121,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
+endif()
+
+# Enable service for dynamic modules
+if (CELLFRAME_MODULES MATCHES "modules-dynamic")
+    message("[+] Module 'dap_modules_dynamic_cdb'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb )
 endif()
 
 if (WIN32)

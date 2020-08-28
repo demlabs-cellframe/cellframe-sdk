@@ -50,7 +50,7 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_net_srv_price_t * price; // Price for issue next receipt
     size_t receipt_size;
     size_t receipt_next_size;
-    dap_chain_net_srv_client_t * clients;
+    dap_chain_net_srv_client_t * client;
     dap_chain_datum_tx_t * tx_cond;
     dap_chain_hash_fast_t tx_cond_hash;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];

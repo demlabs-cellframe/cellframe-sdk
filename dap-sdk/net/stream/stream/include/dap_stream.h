@@ -54,12 +54,9 @@ typedef struct dap_stream {
     int id;
     pthread_rwlock_t rwlock;
     dap_stream_session_t * session;
-    struct dap_client_remote * conn; // Connection
+    dap_events_socket_t * esocket; // Connection
 
     struct dap_http_client * conn_http; // HTTP-specific
-
-    struct dap_udp_client * conn_udp; // UDP-client
-    dap_events_socket_t * events_socket;
 
     char * service_key;
 
@@ -93,7 +90,7 @@ typedef struct dap_stream {
 
 } dap_stream_t;
 
-#define DAP_STREAM(a) ((dap_stream_t *) (a)->_internal )
+#define DAP_STREAM(a) ((dap_stream_t *) (a)->_inheritor )
 
 int dap_stream_init(bool a_dump_packet_headers);
 

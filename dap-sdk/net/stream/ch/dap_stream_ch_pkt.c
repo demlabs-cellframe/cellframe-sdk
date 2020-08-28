@@ -41,12 +41,13 @@
 #include "dap_enc.h"
 #include "dap_enc_key.h"
 
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_pkt.h"
+#include "dap_stream_worker.h"
 
 #define LOG_TAG "dap_stream_ch_pkt"
 
@@ -65,6 +66,72 @@ void dap_stream_ch_pkt_deinit()
 
 }
 
+/**
+ * @brief dap_stream_ch_pkt_write_f_mt
+ * @param a_ch
+ * @param a_type
+ * @param a_str
+ * @return
+ */
+size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const char * a_format,...)
+{
+    va_list ap;
+    va_start(ap,a_format);
+    int l_data_size = dap_vsnprintf(NULL,0,a_format,ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
+        return 0;
+    }
+    l_data_size++; // To calc trailing zero
+    dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
+    l_msg->ch = a_ch;
+    l_msg->ch_pkt_type = a_type;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    l_data_size++;
+    l_msg->data_size = l_data_size;
+    int l_ret= dap_events_socket_queue_ptr_send(a_worker->queue_ch_io , l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return l_data_size;
+
+}
+
+/**
+ * @brief dap_stream_ch_pkt_write_mt
+ * @param a_ch
+ * @param a_type
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const void * a_data, size_t a_data_size)
+{
+    dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
+    l_msg->ch = a_ch;
+    l_msg->ch_pkt_type = a_type;
+    l_msg->data = DAP_NEW_SIZE(void,a_data_size);
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_msg->data_size = a_data_size;
+    memcpy( l_msg->data, a_data, a_data_size);
+    int l_ret= dap_events_socket_queue_ptr_send(a_worker->queue_ch_io , l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return a_data_size;
+}
+
 
 /**
  * @brief stream_ch_pkt_write
@@ -73,17 +140,12 @@ void dap_stream_ch_pkt_deinit()
  * @param data_size
  * @return
  */
-size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
+size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
 {
     if (! a_data_size){
         log_it(L_WARNING,"Zero data size to write out in channel");
         return 0;
     }
-    if (!dap_stream_ch_valid(a_ch)) {
-        return 0;
-    }
-    pthread_mutex_lock( &a_ch->mutex);
-
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 
     dap_stream_ch_pkt_hdr_t l_hdr;
@@ -94,10 +156,8 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
     l_hdr.type=a_type;
     l_hdr.enc_type = a_ch->proc->enc_type;
 
-    pthread_rwlock_wrlock(&a_ch->stream->rwlock);
     l_hdr.seq_id=a_ch->stream->seq_id;
     a_ch->stream->seq_id++;
-    pthread_rwlock_unlock(&a_ch->stream->rwlock);
 
     if ( dap_stream_get_dump_packet_headers() ){
         log_it(L_INFO,"Outgoing channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02hhX",
@@ -113,10 +173,9 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
     if( a_data_size )
         memcpy(a_ch->buf+sizeof(l_hdr),a_data,a_data_size );
 
-    size_t l_ret=dap_stream_pkt_write(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
+    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
     a_ch->stat.bytes_write+=a_data_size;
     a_ch->ready_to_write=true;
-    pthread_mutex_unlock( &a_ch->mutex);
     return l_ret;
 
 }
@@ -127,14 +186,14 @@ size_t dap_stream_ch_pkt_write(struct dap_stream_ch * a_ch,  uint8_t a_type, con
  * @param str
  * @return
  */
-size_t dap_stream_ch_pkt_write_f(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...)
+size_t dap_stream_ch_pkt_write_f_unsafe(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...)
 {
     char l_buf[4096];
     va_list ap;
     va_start(ap,a_str);
     dap_vsnprintf(l_buf,sizeof(l_buf),a_str,ap);
     va_end(ap);
-    size_t ret=dap_stream_ch_pkt_write(a_ch,a_type,l_buf,strlen(l_buf));
+    size_t ret=dap_stream_ch_pkt_write_unsafe(a_ch,a_type,l_buf,strlen(l_buf));
     return ret;
 }
 
