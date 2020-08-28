@@ -284,7 +284,7 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
 {
     (void) a_thread;
      dap_http_simple_t *l_http_simple = (dap_http_simple_t*) a_arg;
-//  log_it(L_DEBUG, "dap http simple proc");
+    log_it(L_DEBUG, "dap http simple proc");
 //  Sleep(300);
 
     http_status_code_t return_code = (http_status_code_t)0;
@@ -337,6 +337,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     //  Sleep(300);
 
     l_http_simple->esocket = a_http_client->esocket;
+    l_http_simple->http_client = a_http_client;
     l_http_simple->worker = a_http_client->esocket->worker;
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
     l_http_simple->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
