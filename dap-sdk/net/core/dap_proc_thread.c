@@ -113,7 +113,7 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
  * @param a_esocket
  * @param a_value
  */
-static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
+static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_value)
 {
     (void) a_value;
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
@@ -123,12 +123,16 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
     while(l_item){
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
-            if(l_item_old)
+            if(l_item_old){
                 l_item_old->next = l_item->next;
-            else
+                DAP_DELETE(l_item);
+                l_item = l_item_old->next;
+            }else{
                 l_thread->proc_queue->items = l_item->next;
-            DAP_DELETE(l_item);
-            l_item = l_item_old->next;
+                DAP_DELETE(l_item);
+                l_item = l_thread->proc_queue->items;
+            }
+
         }else{
             l_item_old = l_item;
             l_item=l_item->next;
@@ -147,15 +151,39 @@ static void * s_proc_thread_function(void * a_arg)
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
+    l_thread->proc_queue = dap_proc_queue_create(l_thread);
+
+
+    l_thread->proc_event = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_proc_event_callback);
+    l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
+
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events[DAP_MAX_EPOLL_EVENTS] = {{0}};
+    struct epoll_event l_epoll_events[DAP_MAX_EPOLL_EVENTS], l_ev;
+    memset(l_epoll_events, 0,sizeof (l_epoll_events));
+
+    // Create epoll ctl
     l_thread->epoll_ctl = epoll_create( DAP_MAX_EPOLL_EVENTS );
+
+    // add proc queue
+    l_ev.events = l_thread->proc_queue->esocket->ev_base_flags;
+    l_ev.data.ptr = l_thread->proc_queue->esocket;
+    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_queue->esocket->socket , &l_ev) != 0 ){
+        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+        return NULL;
+    }
+
+    // Add proc event
+    l_ev.events = l_thread->proc_event->ev_base_flags ;
+    l_ev.data.ptr = l_thread->proc_event;
+    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_event->fd , &l_ev) != 0 ){
+        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+        return NULL;
+    }
+
 #else
 #error "Unimplemented poll events analog for this platform"
 #endif
-    l_thread->proc_queue = dap_proc_queue_create(l_thread);
-    l_thread->proc_event = dap_events_socket_create_type_event_mt(NULL, s_proc_event_callback);
-    l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
+
     //We've started!
     pthread_mutex_lock(&l_thread->started_mutex);
     pthread_mutex_unlock(&l_thread->started_mutex);
@@ -164,10 +192,12 @@ static void * s_proc_thread_function(void * a_arg)
     while (! l_thread->signal_kill){
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
+        log_it(L_DEBUG, "Epoll_wait call");
         int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
+        log_it(L_DEBUG,"Proc thread waked up");
         if(l_selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
@@ -187,6 +217,11 @@ static void * s_proc_thread_function(void * a_arg)
                 continue;
             }
             l_cur->last_time_active = l_cur_time;
+            if (l_cur_events & EPOLLERR ){
+                char l_buferr[128];
+                strerror_r(errno,l_buferr, sizeof (l_buferr));
+                log_it(L_ERROR,"Some error happend in proc thread #%u: %s", l_thread->cpu_id, l_buferr);
+            }
             if (l_cur_events & EPOLLIN ){
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_QUEUE:
@@ -195,6 +230,7 @@ static void * s_proc_thread_function(void * a_arg)
                     case DESCRIPTOR_TYPE_EVENT:
                             dap_events_socket_event_proc_input_unsafe (l_cur);
                     break;
+
                     default:{ log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop"); }
                 }
             }

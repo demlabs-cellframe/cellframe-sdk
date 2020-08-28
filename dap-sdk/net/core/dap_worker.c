@@ -310,7 +310,8 @@ void *dap_worker_thread(void *arg)
                         if (l_cur->buf_out_size) {
                             memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
                         } else {
-                            dap_events_socket_set_writable_unsafe(l_cur, false);
+                            if (!l_cur->is_dont_reset_write_flag)
+                                dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
                 }

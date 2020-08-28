@@ -139,7 +139,7 @@ typedef struct dap_events_socket {
     // Flags
     bool is_pingable;
     bool is_read_direct; // If set - don't call read() in worker, let operate with handler to callback
-
+    bool is_dont_reset_write_flag; // If set - don't reset write flag ever data is over
     // Input section
     union{
         uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
