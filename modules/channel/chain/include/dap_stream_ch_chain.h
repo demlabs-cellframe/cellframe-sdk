@@ -41,6 +41,7 @@ typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, ui
 typedef struct dap_chain_atom_item{
     dap_chain_hash_fast_t atom_hash;
     dap_chain_atom_ptr_t atom;
+    size_t atom_size;
     UT_hash_handle hh;
 } dap_chain_atom_item_t;
 

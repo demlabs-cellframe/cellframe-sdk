@@ -308,7 +308,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 
 #ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
-    if((l_es->fd = eventfd(0,EFD_NONBLOCK) ) < 0 ){
+    if((l_es->fd = eventfd(0,0) ) < 0 ){
         int l_errno = errno;
         char l_errbuf[128];
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));

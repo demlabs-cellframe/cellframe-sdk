@@ -288,7 +288,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     dap_db_log_list_t *l_db_log = NULL;
                     // If the current global_db has been truncated, but the remote node has not known this
                     uint64_t l_last_id = dap_db_log_get_last_id();
-                    if(l_request->id_start > a_ch_chain->request_last_ts){
+                    if(l_request->id_start > (uint64_t) a_ch_chain->request_last_ts){
                         dap_chain_net_t *l_net = dap_chain_net_by_id(a_pkt->hdr.net_id);
                         dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, a_ch_chain->request.node_addr);
                         l_db_log = dap_db_log_list_start(l_start_item + 1, l_add_groups);
@@ -330,12 +330,13 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
 
                                 dap_chain_atom_ptr_t * l_lasts = NULL;
                                 size_t l_lasts_size = 0;
-                                l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size);
+                                size_t *l_lasts_sizes = NULL;
+                                l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size, &l_lasts_sizes);
                                 if ( l_lasts){
                                     for(size_t i = 0; i < l_lasts_size; i++) {
                                         dap_chain_atom_item_t * l_item = NULL;
                                         dap_chain_hash_fast_t l_atom_hash;
-                                        dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]), &l_atom_hash);
+                                        dap_hash_fast(l_lasts[i], l_lasts_sizes[i], &l_atom_hash);
                                         pthread_mutex_lock(&a_ch_chain->mutex);
                                         HASH_FIND(hh, a_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash), l_item);
                                         if(l_item == NULL) { // Not found, add new lasts
