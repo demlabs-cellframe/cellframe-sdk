@@ -105,8 +105,8 @@ size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void *
     memcpy(&feedback[0], DAP_ENC_AES_KEY(a_key)->ivec, IAES_BLOCK_SIZE);
     memcpy(priv_key_swapped_endian, a_key->priv_key_data, sizeof(priv_key_swapped_endian));
 
-    swap_endian(priv_key_swapped_endian, sizeof(priv_key_swapped_endian)/sizeof(uint32_t));
-    Key_Shedule_for_decrypT(priv_key_swapped_endian, round_decrypt_key);
+    swap_endian((uint32_t*)priv_key_swapped_endian, sizeof(priv_key_swapped_endian)/sizeof(uint32_t));
+    Key_Shedule_for_decrypT((uint32_t*)priv_key_swapped_endian, round_decrypt_key);
 
     void *data = buf_out;
     const void *cdata = a_in;

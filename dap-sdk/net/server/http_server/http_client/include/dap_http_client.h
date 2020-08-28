@@ -35,6 +35,7 @@ typedef enum dap_http_client_state{
 } dap_http_client_state_t;
 
 typedef void (*dap_http_client_callback_t) (struct dap_http_client *,void * arg); // Callback for specific client operations
+typedef void (*dap_http_client_callback_error_t) (struct dap_http_client *,int); // Callback for specific client operations
 
 typedef struct dap_http_client
 {
@@ -88,7 +89,7 @@ void dap_http_client_delete( dap_events_socket_t * cl,void *arg ); // Free memor
 
 void dap_http_client_read( dap_events_socket_t * cl,void *arg ); // Process read event
 void dap_http_client_write( dap_events_socket_t * cl,void *arg ); // Process write event
-void dap_http_client_error( dap_events_socket_t * cl,void *arg ); // Process error event
+void dap_http_client_error( dap_events_socket_t * cl,int arg ); // Process error event
 void dap_http_client_out_header_generate( dap_http_client_t *cl_ht );
 
 #ifdef __cplusplus

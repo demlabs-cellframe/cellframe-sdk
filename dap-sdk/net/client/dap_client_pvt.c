@@ -99,7 +99,7 @@ void m_request_error(int, void *);
 void m_es_stream_delete(dap_events_socket_t * a_es, void * arg);
 void m_es_stream_read(dap_events_socket_t * a_es, void * arg);
 void m_es_stream_write(dap_events_socket_t * a_es, void * arg);
-void m_es_stream_error(dap_events_socket_t * a_es, void * arg);
+void m_es_stream_error(dap_events_socket_t * a_es, int a_arg);
 
 /**
  * @brief dap_client_internal_init
@@ -1313,7 +1313,7 @@ void m_es_stream_write(dap_events_socket_t * a_es, void * arg)
     }
 }
 
-void m_es_stream_error(dap_events_socket_t * a_es, void * arg)
+void m_es_stream_error(dap_events_socket_t * a_es, int a_arg)
 {
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     //dap_client_pvt_t * l_client_pvt = (l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
@@ -1322,6 +1322,6 @@ void m_es_stream_error(dap_events_socket_t * a_es, void * arg)
         log_it(L_ERROR, "m_es_stream_error: l_client_pvt is NULL!");
         return;
     }
-    log_it(L_INFO, "m_es_stream_error");
+    log_it(L_INFO, "m_es_stream_error: code %d", a_arg);
 }
 

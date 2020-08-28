@@ -72,6 +72,7 @@ typedef struct dap_worker dap_worker_t;
 
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_error_t) (dap_events_socket_t *, int ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_queue_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_event_t) (dap_events_socket_t *, uint64_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_pipe_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
@@ -95,7 +96,7 @@ typedef struct dap_events_socket_callbacks {
     dap_events_socket_callback_t delete_callback; // Delete client callback
     dap_events_socket_callback_t read_callback; // Read function
     dap_events_socket_callback_t write_callback; // Write function
-    dap_events_socket_callback_t error_callback; // Error processing function
+    dap_events_socket_callback_error_t error_callback; // Error processing function
 
     dap_events_socket_worker_callback_t worker_assign_callback; // After successful worker assign
     dap_events_socket_worker_callback_t worker_unassign_callback; // After successful worker unassign

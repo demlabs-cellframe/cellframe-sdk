@@ -288,7 +288,7 @@ char * dap_enc_strdup_from_base64(const char * a_string_base64){
     if(!l_string_base64_len)
         return NULL;
 
-    char * l_string = DAP_NEW_Z_SIZE(byte_t, l_string_base64_len * 2);
+    char * l_string = DAP_NEW_Z_SIZE(char, l_string_base64_len * 2);
     size_t l_string_len = dap_enc_base64_decode(a_string_base64, l_string_base64_len, l_string, DAP_ENC_DATA_TYPE_B64_URLSAFE);
 
     if(!l_string_len){

@@ -299,9 +299,9 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
     dap_events_socket_set_readable_unsafe(a_es, true);
 }
 
-static void m_client_tun_error(dap_events_socket_t * a_es, void * arg)
+static void m_client_tun_error(dap_events_socket_t * a_es, int a_arg)
 {
-  log_it(L_DEBUG, __PRETTY_FUNCTION__);
+  log_it(L_WARNING, " TUN client problems: code %d", a_arg);
 }
 
 int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char *a_ipv4_gw_str)

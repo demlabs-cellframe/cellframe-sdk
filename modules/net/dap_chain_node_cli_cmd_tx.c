@@ -94,15 +94,14 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
     dap_tx_data_t *l_tx_data_hash = NULL;
     // load transactions
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
-    size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
+    size_t l_atom_size = 0;
+    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
 
     while(l_atom && l_atom_size) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_atom;
         if(!l_datum && l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
             // go to next transaction
-            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-            l_atom_size = a_chain->callback_atom_get_size(l_atom);
+            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             continue;
         }
         dap_tx_data_t *l_tx_data = NULL;
@@ -181,8 +180,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
         // search tx with a_tx_hash
         if(!dap_hash_fast_compare(a_tx_hash, &l_tx_hash)) {
             // go to next transaction
-            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-            l_atom_size = a_chain->callback_atom_get_size(l_atom);
+            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             continue;
         }
         // found a_tx_hash now
@@ -200,7 +198,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
         l_list_tmp = l_list_out_items;
         while(l_list_tmp) {
             const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
-            dap_tx_data_t *l_tx_data_prev = NULL;
+            //dap_tx_data_t *l_tx_data_prev = NULL;
 
             const char *l_token_str = NULL;
             if(l_tx_data)
@@ -311,18 +309,18 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
     dap_tx_data_t *l_tx_data_hash = NULL;
     // load transactions
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
+    size_t l_atom_size=0;
+    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
     if (!l_atom) {
         return NULL;
     }
-    size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
 
     while(l_atom && l_atom_size) {
-        dap_chain_datum_t *l_datum = a_chain->callback_atom_get_datum ? a_chain->callback_atom_get_datum(l_atom) : (dap_chain_datum_t*)l_atom;
+        dap_chain_datum_t *l_datum = a_chain->callback_atom_get_datum ? a_chain->callback_atom_get_datum(l_atom, l_atom_size) :
+                                                                        (dap_chain_datum_t*)l_atom;
         if(!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
             // go to next transaction
-            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-            l_atom_size = a_chain->callback_atom_get_size(l_atom);
+            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             continue;
         }
         // transaction
@@ -656,8 +654,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
         DAP_DELETE(l_time_str);
 
         // go to next transaction
-        l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-        l_atom_size = l_atom ? a_chain->callback_atom_get_size(l_atom) : 0;
+        l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
     }
 
     // delete hashes

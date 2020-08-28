@@ -219,7 +219,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
  * @param a_es
  * @param arg
  */
-static void s_http_error(dap_events_socket_t * a_es, void * arg)
+static void s_http_error(dap_events_socket_t * a_es, int arg)
 {
     log_it(L_INFO, "http client error");
     dap_client_http_internal_t * l_client_http_internal = DAP_CLIENT_HTTP(a_es);
@@ -228,7 +228,7 @@ static void s_http_error(dap_events_socket_t * a_es, void * arg)
         return;
     }
     if(l_client_http_internal->error_callback)
-        l_client_http_internal->error_callback((int)arg, l_client_http_internal->obj);
+        l_client_http_internal->error_callback(arg, l_client_http_internal->obj);
 
     // close connection
     a_es->kill_signal = true;

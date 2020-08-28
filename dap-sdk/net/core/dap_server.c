@@ -59,7 +59,7 @@
 #define LOG_TAG "dap_server"
 
 static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr* a_remote_addr);
-static void s_es_server_error(dap_events_socket_t *a_es, void * a_arg);
+static void s_es_server_error(dap_events_socket_t *a_es, int a_arg);
 static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg);
 
 static void s_server_delete(dap_server_t * a_server);
@@ -193,6 +193,8 @@ static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg)
 {
     log_it(L_DEBUG, "Created server socket %p on worker %u", a_es, a_es->worker->id);
     dap_server_t *l_server = (dap_server_t*) a_es->_inheritor;
+    pthread_mutex_lock( &l_server->started_mutex);
+    pthread_mutex_unlock( &l_server->started_mutex);
     pthread_cond_broadcast( &l_server->started_cond);
 }
 
@@ -201,7 +203,7 @@ static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg)
  * @param a_es
  * @param a_arg
  */
-static void s_es_server_error(dap_events_socket_t *a_es, void * a_arg)
+static void s_es_server_error(dap_events_socket_t *a_es, int a_arg)
 {
     (void) a_arg;
     (void) a_es;
