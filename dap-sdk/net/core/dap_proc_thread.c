@@ -193,12 +193,12 @@ static void * s_proc_thread_function(void * a_arg)
     while (! l_thread->signal_kill){
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        log_it(L_DEBUG, "Epoll_wait call");
+        //log_it(L_DEBUG, "Epoll_wait call");
         int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
-        log_it(L_DEBUG,"Proc thread waked up");
+        //log_it(L_DEBUG,"Proc thread waked up");
         if(l_selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
@@ -222,6 +222,14 @@ static void * s_proc_thread_function(void * a_arg)
                 char l_buferr[128];
                 strerror_r(errno,l_buferr, sizeof (l_buferr));
                 log_it(L_ERROR,"Some error happend in proc thread #%u: %s", l_thread->cpu_id, l_buferr);
+            }
+            if (l_cur_events & EPOLLERR ){
+                int l_errno = errno;
+                char l_errbuf[128];
+                strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
+                log_it(L_ERROR,"Some error with %d socket: %s(%d)", l_cur->socket, l_errbuf, l_errno);
+                if(l_cur->callbacks.error_callback)
+                    l_cur->callbacks.error_callback(l_cur,errno);
             }
             if (l_cur_events & EPOLLIN ){
                 switch (l_cur->type) {

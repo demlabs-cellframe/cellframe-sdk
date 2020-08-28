@@ -510,7 +510,12 @@ static void s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
-    dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
+    int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
+    if(l_ret != 0 ){
+        char l_errbuf[128];
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
+    }
 }
 
 /**
@@ -521,7 +526,13 @@ void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t 
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
-    dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
+    int l_ret=dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
+    if(l_ret != 0 ){
+        char l_errbuf[128];
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
+    }
+
 }
 
 
