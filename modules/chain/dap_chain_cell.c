@@ -134,7 +134,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
                         if ( l_element_size > 0 ){
                             dap_chain_atom_ptr_t * l_element = DAP_NEW_Z_SIZE (dap_chain_atom_ptr_t, l_element_size );
                             if ( fread( l_element,1,l_element_size,l_cell->file_storage ) == l_element_size ) {
-                                a_chain->callback_atom_add (a_chain, l_element );
+                                a_chain->callback_atom_add (a_chain, l_element, l_element_size);
                             }
                         } else {
                             log_it (L_ERROR, "Zero element size, file is corrupted");
@@ -270,13 +270,12 @@ int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
     if ( a_cell->file_storage ){
         dap_chain_t * l_chain = a_cell->chain;
         dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create (l_chain);
-        dap_chain_atom_ptr_t *l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter);
-        size_t l_atom_size = l_chain->callback_atom_get_size(l_atom);
+        size_t l_atom_size = 0;
+        dap_chain_atom_ptr_t *l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
         while ( l_atom  && l_atom_size){
             if ( dap_chain_cell_file_append (a_cell,l_atom, l_atom_size) <0 )
                 break;
-            l_atom = l_chain->callback_atom_iter_get_next( l_atom_iter );
-            l_atom_size = l_chain->callback_atom_get_size(l_atom);
+            l_atom = l_chain->callback_atom_iter_get_next( l_atom_iter, &l_atom_size );
         }
     }else {
             log_it (L_ERROR,"Can't write cell 0x%016X file \"%s\"",a_cell->id.uint64, a_cell->file_storage_path);

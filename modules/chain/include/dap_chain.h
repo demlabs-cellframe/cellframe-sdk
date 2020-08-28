@@ -45,15 +45,16 @@ typedef void * dap_chain_atom_ptr_t;
 typedef struct dap_chain_atom_iter{
     dap_chain_t * chain;
     dap_chain_atom_ptr_t cur;
+    size_t cur_size;
     void * cur_item;
     void * _inheritor;
 } dap_chain_atom_iter_t;
 
 typedef enum dap_chain_atom_verify_res{
-    ATOM_ACCEPT,
-    ATOM_PASS,
-    ATOM_REJECT,
-    ATOM_MOVE_TO_THRESHOLD
+    ATOM_ACCEPT=0,
+    ATOM_PASS=1,
+    ATOM_REJECT=2,
+    ATOM_MOVE_TO_THRESHOLD=3
 } dap_chain_atom_verify_res_t;
 
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
@@ -62,22 +63,20 @@ typedef void (*dap_chain_callback_t)(dap_chain_t *);
 typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t*, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t );
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t );
-typedef int (*dap_chain_callback_atom_size_t)(dap_chain_t *, dap_chain_atom_ptr_t ,size_t);
+typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t );
+typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
-typedef size_t (*dap_chain_callback_atom_hdr_get_size_t)(dap_chain_atom_ptr_t );
 
 typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t * );
-typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_from_t)(dap_chain_t * ,dap_chain_atom_ptr_t);
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_first_t)(dap_chain_atom_iter_t * );
-typedef dap_chain_datum_t* (*dap_chain_callback_atom_get_datum)(dap_chain_atom_ptr_t );
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t * ,dap_chain_hash_fast_t *);
+typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_from_t)(dap_chain_t * ,dap_chain_atom_ptr_t, size_t);
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_first_t)(dap_chain_atom_iter_t * , size_t*);
+typedef dap_chain_datum_t* (*dap_chain_callback_atom_get_datum)(dap_chain_atom_ptr_t, size_t );
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t * ,dap_chain_hash_fast_t *,size_t*);
 typedef dap_chain_datum_tx_t* (*dap_chain_callback_tx_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *);
 
-typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t * );
+typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
 
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  );
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  ,size_t*);
 typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
 
 typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
@@ -126,7 +125,6 @@ typedef struct dap_chain{
     dap_chain_datum_callback_datum_pool_proc_add_with_group_t callback_datums_pool_proc_with_group;
 
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
-    dap_chain_callback_atom_hdr_get_size_t callback_atom_get_size; // Get atom's size from header
 
     dap_chain_callback_atom_iter_create_t callback_atom_iter_create;
     dap_chain_callback_atom_iter_create_from_t callback_atom_iter_create_from;

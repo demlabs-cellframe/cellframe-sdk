@@ -150,7 +150,7 @@ void *dap_worker_thread(void *arg)
                     default: ;
                 }
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                l_cur->callbacks.error_callback(l_cur, NULL); // Call callback to process error event
+                l_cur->callbacks.error_callback(l_cur, 0); // Call callback to process error event
             }
 
             if (l_epoll_events[n].events & EPOLLRDHUP) {
@@ -494,7 +494,7 @@ static void s_socket_all_check_activity( void * a_arg)
             if ( !l_es->kill_signal && l_curtime >=  (time_t)l_es->last_time_active + s_connection_timeout && !l_es->no_close ) {
                 log_it( L_INFO, "Socket %u timeout, closing...", l_es->socket );
                 if (l_es->callbacks.error_callback) {
-                    l_es->callbacks.error_callback(l_es, (void *)ETIMEDOUT);
+                    l_es->callbacks.error_callback(l_es, ETIMEDOUT);
                 }
                 dap_events_socket_remove_and_delete_mt( l_worker, l_es);
             }
