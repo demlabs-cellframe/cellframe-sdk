@@ -399,7 +399,7 @@ int s_vpn_tun_init()
     return 0;
 }
 
-int s_vpn_service_create(dap_config_t * g_config){
+int s_vpn_service_parse_price_list(dap_config_t * g_config){
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add( l_uid, s_callback_requested,
                                                         s_callback_response_success, s_callback_response_error,
@@ -503,11 +503,13 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     }
     log_it(L_INFO,"TUN driver configured successfuly");
 
+
+    //NOTE: guess we need to choose one
     pthread_create(&srv_sf_socks_pid, NULL, srv_ch_sf_thread, NULL);
     dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_new, srv_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
-    s_vpn_service_create(g_config);
+    s_vpn_service_parse_price_list(g_config);
     return 0;
 }
 
@@ -716,11 +718,12 @@ dap_srv_vpn_tun_socket_t* s_srv_vpn_tun_socket_find_by_worker_id(uint32_t a_work
 
 dap_chain_net_srv_ch_vpn_t * s_sf_from_events_socket( dap_events_socket_t * a_es)
 {
-//    if ( !a_es ){
-//        log_it(L_ERROR, "NULL events socker in worker assign callback");
-//        return NULL;
-//    }
+    if ( !a_es ){
+        log_it(L_ERROR, "NULL events socker in worker assign callback");
+        return NULL;
+    }
 
+    dap_srv_vpn_tun_socket_t * l_tun_socket = DAP_SRV_VPN_TUN_SOCKET(a_es);
 //    sap_http_conn_t * l_http_conn = SAP_HTTP_CONN(a_es);
 //    if ( !l_http_conn){
 //        log_it(L_ERROR, "NULL http connection in worker assign callback");
@@ -800,6 +803,28 @@ static void s_srv_vpn_worker_unassign ( dap_events_socket_t * a_es, dap_worker_t
 //    }else
 //        log_it(L_WARNING, "Was no tun socket, nothing to clean");
 }
+
+
+//static void s_sf_new(sap_stream_ch_t* ch , void* arg)
+//{
+//    log_it(L_INFO, "SF channel created");
+
+//    ch->_inheritor=SAP_NEW_Z(ch_sf_t);
+//    ch_sf_t * sf = CH_SF(ch);
+//    sf->ch=ch;
+//    if ( ch->stream->events_socket){
+//        sf->tun_socket = ch_sf_tun_socket_find_by_worker_id( ch->stream->events_socket->worker->id);
+//        ch->stream->events_socket->callbacks->worker_assign_callback = s_sf_worker_assign;
+//        ch->stream->events_socket->callbacks->worker_unassign_callback = s_sf_worker_unassign;
+//        // First time assign should be called before, so we repeat it here
+//        s_sf_worker_assign( ch->stream->events_socket, ch->stream->events_socket->worker);
+//    }else
+//        log_it(L_WARNING, "No events socket for stream when SF channel call new()");
+//    pthread_mutex_init(& sf->mutex,NULL);
+//    ch->stream->events_socket->is_pingable = true; //set up connection to be pingable by main loop
+
+//}
+
 
 /**
  * @brief s_new Callback to constructor of object of Ch
