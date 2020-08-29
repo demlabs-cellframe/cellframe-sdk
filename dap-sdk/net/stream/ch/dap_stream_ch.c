@@ -145,7 +145,7 @@ struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch)
  */
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 {
-    dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_ch->stream->esocket->worker );
+    dap_stream_worker_t * l_stream_worker = a_ch->stream_worker;
     HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
 
 
