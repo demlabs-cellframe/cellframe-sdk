@@ -235,6 +235,10 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     dap_chain_t * l_chain = dap_chain_find_by_id(l_ch_chain->request_net_id, l_ch_chain->request_chain_id);
+    if (!l_chain) {
+        log_it(L_WARNING, "No chain found for DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN");
+        return true;
+    }
 
     dap_chain_hash_fast_t l_atom_hash = {};
     dap_chain_atom_ptr_t l_atom_copy = l_ch_chain->pkt_data;

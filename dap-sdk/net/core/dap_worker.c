@@ -351,16 +351,13 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         int l_cpu = w->id;
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
     }
-    bool l_socket_present = false;
+    bool l_socket_present = (l_es_new->worker && l_es_new->is_initalized) ? true : false;
+    l_es_new->worker = w;
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
-        l_es_new->worker = w;
         if (l_es_new->callbacks.new_callback)
             l_es_new->callbacks.new_callback(l_es_new, NULL);
         l_es_new->is_initalized = true;
-    } else if (l_es_new->worker) {
-    // Socket already have its worker
-        l_socket_present = true;
     }
 
     if (l_es_new->socket>0){
@@ -375,7 +372,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->ev.data.ptr = l_es_new;
         if (l_socket_present) {
             // Update only flags, socket already present in worker
-            //return;
+            return;
         }
         l_ret = epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev);
 #else
@@ -554,8 +551,7 @@ dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_events_worker_get_auto( );
 
-  a_es->worker = l_worker;
-  a_es->events = a_es->worker->events;
+  a_es->events = l_worker->events;
   dap_worker_add_events_socket( a_es, l_worker);
   return l_worker;
 }

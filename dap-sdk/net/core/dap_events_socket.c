@@ -107,7 +107,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker)
 {
     a_es->last_ping_request = time(NULL);
-    a_es->worker = a_worker;
     dap_worker_add_events_socket(a_es,a_worker);
 }
 
@@ -616,7 +615,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
     if (!a_es->worker) {
-    // Socket already removed from worker
+        // Socket already removed from worker
         return;
     }
     if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
