@@ -137,7 +137,8 @@ void *dap_worker_thread(void *arg)
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                         }
-                   default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
+                    break;
+                    default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
                 }
             }
 
@@ -346,12 +347,12 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
-    l_es_new->worker = w;
     if (  l_es_new->type == DESCRIPTOR_TYPE_SOCKET  ||  l_es_new->type == DESCRIPTOR_TYPE_SOCKET_LISTENING ){
         int l_cpu = w->id;
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
     }
-
+    bool l_socket_present = (l_es_new->worker && l_es_new->is_initalized) ? true : false;
+    l_es_new->worker = w;
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
         if (l_es_new->callbacks.new_callback)
@@ -369,6 +370,10 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         if(l_es_new->flags & DAP_SOCK_READY_TO_WRITE )
             l_es_new->ev.events |= EPOLLOUT;
         l_es_new->ev.data.ptr = l_es_new;
+        if (l_socket_present) {
+            // Update only flags, socket already present in worker
+            return;
+        }
         l_ret = epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev);
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
@@ -383,7 +388,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
             // Add in worker
             l_es_new->me = l_es_new;
             HASH_ADD(hh_worker, w->esockets, me, sizeof(void *), l_es_new );
-
+            w->event_sockets_count++;
             log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, w);
@@ -546,8 +551,7 @@ dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_events_worker_get_auto( );
 
-  a_es->worker = l_worker;
-  a_es->events = a_es->worker->events;
+  a_es->events = l_worker->events;
   dap_worker_add_events_socket( a_es, l_worker);
   return l_worker;
 }

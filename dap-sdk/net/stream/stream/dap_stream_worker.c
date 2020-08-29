@@ -39,6 +39,10 @@ int dap_stream_worker_init()
     uint32_t l_worker_count = dap_events_worker_get_count();
     for (uint32_t i = 0; i < l_worker_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
+        if (!l_worker) {
+            log_it(L_CRITICAL,"Can't init stream worker, woreker thread don't exist");
+            return -2;
+        }
         if (l_worker->_inheritor){
             log_it(L_CRITICAL,"Can't init stream worker, core worker has already inheritor");
             return -1;

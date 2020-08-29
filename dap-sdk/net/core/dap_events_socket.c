@@ -107,7 +107,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker)
 {
     a_es->last_ping_request = time(NULL);
-    a_es->worker = a_worker;
     dap_worker_add_events_socket(a_es,a_worker);
 }
 
@@ -556,7 +555,8 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_rea
             int l_errno = errno;
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno);
+            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd %d: \"%s\" (%d)",
+                   sc->worker->epoll_fd, l_errbuf, l_errno);
         }
 }
 
@@ -614,13 +614,23 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
  */
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
-    if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 )
-        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd" );
+    if (!a_es->worker) {
+        // Socket already removed from worker
+        return;
+    }
+    if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
+        int l_errno = errno;
+        char l_errbuf[128];
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd %d  \"%s\" (%d)",
+                a_worker->epoll_fd, l_errbuf, l_errno);
+    }
     else
         log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
     a_worker->event_sockets_count--;
     if(a_worker->esockets)
         HASH_DELETE(hh_worker,a_worker->esockets, a_es);
+    a_es->worker = NULL;
 }
 
 /**
