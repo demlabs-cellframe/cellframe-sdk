@@ -55,7 +55,7 @@ typedef struct dap_stream {
     pthread_rwlock_t rwlock;
     dap_stream_session_t * session;
     dap_events_socket_t * esocket; // Connection
-
+    dap_stream_worker_t * stream_worker;
     struct dap_http_client * conn_http; // HTTP-specific
 
     char * service_key;

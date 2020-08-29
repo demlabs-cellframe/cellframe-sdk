@@ -490,6 +490,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             // new added, whether it is necessary?
             a_client_pvt->stream->session->key = a_client_pvt->stream_key;
+            a_client_pvt->stream_worker = (dap_stream_worker_t*) l_worker->_inheritor;
+
 
             // connect
             struct sockaddr_in l_remote_addr;

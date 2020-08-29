@@ -322,6 +322,7 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
 
     pthread_rwlock_init( &ret->rwlock, NULL);
     ret->esocket = a_sh->esocket;
+    ret->stream_worker = (dap_stream_worker_t*) a_sh->esocket->worker->_inheritor;
     ret->conn_http=a_sh;
     ret->buf_defrag_size = 0;
     ret->seq_id = 0;
@@ -332,6 +333,7 @@ dap_stream_t * stream_new(dap_http_client_t * a_sh)
     log_it(L_NOTICE,"New stream instance");
     return ret;
 }
+
 
 /**
  * @brief dap_stream_delete
@@ -391,7 +393,6 @@ dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es)
     ret->esocket = a_es;
     ret->buf_defrag_size=0;
     ret->is_client_to_uplink = true;
-
     log_it(L_NOTICE,"New stream with events socket instance for %s",a_es->hostaddr);
     return ret;
 }

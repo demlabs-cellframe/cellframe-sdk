@@ -129,6 +129,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     UNUSED(a_thread);
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+
     dap_chain_t * l_chain = dap_chain_find_by_id(l_ch_chain->request_net_id, l_ch_chain->request_chain_id);
 
     dap_chain_atom_ptr_t * l_lasts = NULL;
@@ -243,31 +244,36 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_hash_fast_t l_atom_hash = {};
     dap_chain_atom_ptr_t l_atom_copy = l_ch_chain->pkt_data;
     uint64_t l_atom_copy_size = l_ch_chain->pkt_data_size;
-    dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
-    dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
-    size_t l_atom_size =0;
-    if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) != NULL ) {
-        dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
-        if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
-            // append to file
-            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_ch_chain->request_cell_id);
-            // add one atom only
-            int l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
-            // rewrite all file
-            //l_res = dap_chain_cell_file_update(l_cell);
-            if(!l_cell || l_res < 0) {
-                log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
-                        l_cell ? l_cell->file_storage_path : "[null]");
+    l_ch_chain->pkt_data = NULL;
+    l_ch_chain->pkt_data_size = 0;
+    if( l_atom_copy && l_atom_copy_size){
+        dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
+        dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+        size_t l_atom_size =0;
+        if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) != NULL ) {
+            dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
+            if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
+                // append to file
+                dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_ch_chain->request_cell_id);
+                // add one atom only
+                int l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
+                // rewrite all file
+                //l_res = dap_chain_cell_file_update(l_cell);
+                if(!l_cell || l_res < 0) {
+                    log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
+                            l_cell ? l_cell->file_storage_path : "[null]");
+                }
+                // delete cell and close file
+                dap_chain_cell_delete(l_cell);
             }
-            // delete cell and close file
-            dap_chain_cell_delete(l_cell);
-        }
-        if(l_atom_add_res == ATOM_PASS)
+            if(l_atom_add_res == ATOM_PASS)
+                DAP_DELETE(l_atom_copy);
+        } else {
             DAP_DELETE(l_atom_copy);
-    } else {
-        DAP_DELETE(l_atom_copy);
-    }
-    l_chain->callback_atom_iter_delete(l_atom_iter);
+        }
+        l_chain->callback_atom_iter_delete(l_atom_iter);
+    }else
+        log_it(L_WARNING, "In proc thread got stream ch packet with pkt_size: %zd and pkt_data: %p", l_atom_copy_size, l_atom_copy);
     dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
     return true;
 }
@@ -749,8 +755,7 @@ bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         }
                         HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
                         break;
-                    }
-                    else{
+                    } else {
                         HASH_DEL(l_ch_chain->request_atoms_lasts, l_atom_item);
                     }
                 }

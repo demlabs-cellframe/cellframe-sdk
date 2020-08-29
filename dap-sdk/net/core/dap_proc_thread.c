@@ -116,7 +116,7 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_value)
 {
     (void) a_value;
-    log_it(L_DEBUG, "Proc event callback");
+    //log_it(L_DEBUG, "Proc event callback");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
     dap_proc_queue_item_t * l_item = l_thread->proc_queue->items;
     dap_proc_queue_item_t * l_item_old = NULL;
@@ -247,8 +247,8 @@ static void * s_proc_thread_function(void * a_arg)
 #ifdef DAP_EVENTS_CAPS_EPOLL
                 if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev ) == -1 )
                     log_it( L_ERROR,"Can't remove event socket's handler from the epoll ctl" );
-                else
-                    log_it( L_DEBUG,"Removed epoll's event from proc thread #%u", l_thread->cpu_id );
+                //else
+                //    log_it( L_DEBUG,"Removed epoll's event from proc thread #%u", l_thread->cpu_id );
                 if (l_cur->callbacks.delete_callback)
                     l_cur->callbacks.delete_callback(l_cur, l_thread);
                 if(l_cur->_inheritor)

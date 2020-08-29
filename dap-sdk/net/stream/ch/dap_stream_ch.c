@@ -96,7 +96,7 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         l_ch_new->ready_to_read = true;
 
         // Init on stream worker
-        dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_stream->esocket->worker );
+        dap_stream_worker_t * l_stream_worker = a_stream->stream_worker;
         l_ch_new->stream_worker = l_stream_worker;
         HASH_ADD(hh_worker,l_stream_worker->channels, me,sizeof (void*),l_ch_new);
 

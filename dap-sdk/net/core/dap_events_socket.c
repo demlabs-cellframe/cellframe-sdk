@@ -94,7 +94,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #endif
 
-  log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
+ // log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
   return ret;
 }
@@ -157,8 +157,8 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
         log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
         DAP_DELETE(l_es);
         return NULL;
-    }else
-        log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
+    }//else
+     //   log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
     return l_es;
@@ -223,8 +223,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         }
         DAP_DELETE(l_es);
         return NULL;
-    }else
-        log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
+    }//else
+     //   log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
 #endif
@@ -450,7 +450,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   assert( a_callbacks );
   assert( a_server );
 
-  log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
+  //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
   dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t );
 
   ret->socket = a_sock;
@@ -569,7 +569,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
     if ( !a_es )
         return;
 
-    log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
+    //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
     dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
     if (a_es->events){ // It could be socket NOT from events
@@ -584,7 +584,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
             HASH_DEL( a_es->events->sockets, a_es );
         pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
     }
-    log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
+    //log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
 
     if( a_es->callbacks.delete_callback )
         a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
@@ -624,9 +624,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd %d  \"%s\" (%d)",
                 a_worker->epoll_fd, l_errbuf, l_errno);
-    }
-    else
-        log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
+    } //else
+      //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
     a_worker->event_sockets_count--;
     if(a_worker->esockets)
         HASH_DELETE(hh_worker,a_worker->esockets, a_es);
@@ -794,7 +793,7 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data
  */
 size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...)
 {
-    log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
+    //log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
 
     size_t max_data_size = sizeof(sc->buf_out)-sc->buf_out_size;
     va_list ap;
