@@ -92,6 +92,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+    ret->is_dont_reset_write_flag = true;
     #endif
 
     if ( a_sock!= 0 && a_sock != -1){
@@ -464,6 +465,8 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   ret->socket = a_sock;
   ret->events = a_events;
   ret->server = a_server;
+  ret->is_dont_reset_write_flag = true;
+
   memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
 
   ret->flags = DAP_SOCK_READY_TO_READ;
