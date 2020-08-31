@@ -78,7 +78,7 @@ void *dap_worker_thread(void *arg)
     dap_cpu_assign_thread_on(l_worker->id);
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
-    pthread_setschedparam(pthread_self(),SCHED_OTHER ,&l_shed_params);
+    pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
 
     l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
@@ -123,7 +123,7 @@ void *dap_worker_thread(void *arg)
             l_cur->last_time_active = l_cur_time;
 
             //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", l_worker->id,
-             //      l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
+            //       l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(l_epoll_events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
@@ -355,6 +355,11 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
+    if(dap_events_socket_check_unsafe( w, a_es)){
+        log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", a_es->socket, a_es);
+        return;
+    }
+
     if (  l_es_new->type == DESCRIPTOR_TYPE_SOCKET  ||  l_es_new->type == DESCRIPTOR_TYPE_SOCKET_LISTENING ){
         int l_cpu = w->id;
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
@@ -390,9 +395,6 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
             log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
         }else{
             // Add in global list
-            pthread_rwlock_wrlock(&w->events->sockets_rwlock);
-            HASH_ADD(hh, w->events->sockets, socket, sizeof (int), l_es_new );
-            pthread_rwlock_unlock(&w->events->sockets_rwlock);
             // Add in worker
             l_es_new->me = l_es_new;
             HASH_ADD(hh_worker, w->esockets, me, sizeof(void *), l_es_new );

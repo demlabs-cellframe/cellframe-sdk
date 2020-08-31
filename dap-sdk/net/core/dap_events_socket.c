@@ -80,23 +80,30 @@ void dap_events_socket_deinit( )
 dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks )
 {
-//  assert(a_events);
-  assert(a_callbacks);
+    assert(a_events);
+    assert(a_callbacks);
 
-  dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
+    dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
 
-  ret->socket = a_sock;
-  ret->events = a_events;
-  memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
-  ret->flags = DAP_SOCK_READY_TO_READ;
+    ret->socket = a_sock;
+    ret->events = a_events;
+    memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
+    ret->flags = DAP_SOCK_READY_TO_READ;
 
-#if defined(DAP_EVENTS_CAPS_EPOLL)
+    #if defined(DAP_EVENTS_CAPS_EPOLL)
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#endif
+    #endif
 
- // log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
+    if ( a_sock!= 0 && a_sock != -1){
+        pthread_rwlock_wrlock(&a_events->sockets_rwlock);
+        HASH_ADD(hh,a_events->sockets, socket, sizeof (int), ret);
+        pthread_rwlock_unlock(&a_events->sockets_rwlock);
+    }else
+        log_it(L_WARNING, "Be carefull, you've wrapped socket 0 or -1 so it wasn't added to global list. Do it yourself when possible");
 
-  return ret;
+    // log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
+
+    return ret;
 }
 
 /**
@@ -107,6 +114,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker)
 {
     a_es->last_ping_request = time(NULL);
+    log_it(L_DEBUG, "Assigned %p on worker %u", a_es, a_worker->id);
     dap_worker_add_events_socket(a_es,a_worker);
 }
 

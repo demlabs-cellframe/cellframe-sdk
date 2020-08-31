@@ -80,7 +80,7 @@ static bool s_workers_init = false;
 static uint32_t s_threads_count = 1;
 static dap_worker_t **s_workers = NULL;
 static dap_thread_t *s_threads = NULL;
-
+static dap_events_t * s_events_default = NULL;
 
 uint32_t dap_get_cpu_count( )
 {
@@ -201,11 +201,17 @@ void dap_events_deinit( )
  */
 dap_events_t * dap_events_new( )
 {
-  dap_events_t *ret = DAP_NEW_Z(dap_events_t);
+    dap_events_t *ret = DAP_NEW_Z(dap_events_t);
 
-  pthread_rwlock_init( &ret->sockets_rwlock, NULL );
+    pthread_rwlock_init( &ret->sockets_rwlock, NULL );
+    if ( s_events_default == NULL)
+        s_events_default = ret;
+    return ret;
+}
 
-  return ret;
+dap_events_t* dap_events_get_default( )
+{
+    return s_events_default;
 }
 
 /**

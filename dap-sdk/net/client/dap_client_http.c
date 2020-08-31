@@ -354,7 +354,7 @@ void* dap_client_http_request_custom(const char *a_uplink_addr, uint16_t a_uplin
     setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
     setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
 #endif
-    dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(NULL, l_socket, &l_s_callbacks);
+    dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
     // create private struct
     dap_client_http_internal_t *l_client_http_internal = DAP_NEW_Z(dap_client_http_internal_t);
