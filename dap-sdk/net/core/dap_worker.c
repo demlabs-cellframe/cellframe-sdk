@@ -78,7 +78,7 @@ void *dap_worker_thread(void *arg)
     dap_cpu_assign_thread_on(l_worker->id);
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
-    pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
+    pthread_setschedparam(pthread_self(),SCHED_OTHER ,&l_shed_params);
 
     l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);

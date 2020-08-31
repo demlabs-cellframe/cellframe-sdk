@@ -479,6 +479,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
                     a_client_pvt->stream_socket, &l_s_callbacks);
             dap_worker_t * l_worker = dap_events_worker_get_auto();
+            assert(l_worker);
+            assert(l_worker->_inheritor);
             a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
             // add to dap_worker
             dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
@@ -490,7 +492,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             // new added, whether it is necessary?
             a_client_pvt->stream->session->key = a_client_pvt->stream_key;
-            a_client_pvt->stream_worker = (dap_stream_worker_t*) l_worker->_inheritor;
+            a_client_pvt->stream->stream_worker = a_client_pvt->stream_worker;
 
 
             // connect
@@ -511,8 +513,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         sizeof(struct sockaddr_in))) != -1) {
                     a_client_pvt->stream_es->flags &= ~DAP_SOCK_SIGNAL_CLOSE;
                     //s_set_sock_nonblock(a_client_pvt->stream_socket, false);
-                    log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", a_client_pvt->uplink_addr,
-                            a_client_pvt->uplink_port, a_client_pvt->stream_socket);
+                    log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d (assign on worker #%u)", a_client_pvt->uplink_addr,
+                            a_client_pvt->uplink_port, a_client_pvt->stream_socket, l_worker->id);
                     a_client_pvt->stage_status = STAGE_STATUS_DONE;
                 }
                 else {
@@ -549,7 +551,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             const char *l_add_str = "";
 
-            dap_events_socket_write_f_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
+            dap_events_socket_write_f_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
                                                                 "Host: %s:%d%s\r\n"
                                                                 "\r\n",
                                        l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
