@@ -298,6 +298,7 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
     if (!a_arg) {
         return;
     }
+    dap_chain_node_mempool_autoproc_notify(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);
     dap_chain_net_sync_gdb_broadcast(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);
     if (s_srv_callback_notify) {
         s_srv_callback_notify(a_arg, a_op_code, a_prefix, a_group, a_key, a_value, a_value_len);

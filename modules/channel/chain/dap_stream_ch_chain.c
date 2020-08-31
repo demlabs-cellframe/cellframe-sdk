@@ -780,7 +780,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
-    dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-    if (l_ch_chain->state != CHAIN_STATE_IDLE)
+    if (l_ch_chain && l_ch_chain->state != CHAIN_STATE_IDLE) {
+        dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
         dap_proc_queue_add_callback(a_ch->stream_worker->worker->proc_queue, s_out_pkt_callback, a_ch);
+    }
 }
