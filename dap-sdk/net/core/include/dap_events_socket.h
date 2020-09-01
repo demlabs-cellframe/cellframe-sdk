@@ -33,12 +33,16 @@
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
     #define DAP_EVENTS_CAPS_EPOLL
+    #define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_QUEUE_PIPE2
+    //#define DAP_EVENTS_CAPS_QUEUE_POSIX
     #define DAP_EVENTS_CAPS_EVENT_EVENTFD
     #include <netinet/in.h>
     #include <sys/eventfd.h>
+    #include <mqueue.h>
 #elif defined (DAP_OS_UNIX)
     #define DAP_EVENTS_CAPS_KQUEUE
+    #define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_EVENT_KEVENT
     #define DAP_EVENTS_CAPS_QUEUE_SOCKETPAIR
     #include <netinet/in.h>
@@ -47,6 +51,7 @@
     #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_QUEUE_WEVENT
     #define DAP_EVENTS_CAPS_EVENT_WEVENT
+    #define DAP_EVENTS_CAPS_PIPE_POSIX
 #endif
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -119,8 +124,11 @@ typedef struct dap_events_socket {
     union{
         int socket;
         int fd;
+#if defined(DAP_EVENTS_CAPS_QUEUE_POSIX)
+        mqd_t mqd;
+#endif
     };
-#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
+#ifdef DAP_EVENTS_CAPS_PIPE_POSIX
     int fd2;
 #endif
     dap_events_desc_type_t type;
@@ -187,7 +195,7 @@ void dap_events_socket_deinit(); // Deinit clients module
 
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
-void dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket);
+int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket);
 
 dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback);
