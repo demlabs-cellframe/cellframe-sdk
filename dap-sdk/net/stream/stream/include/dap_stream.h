@@ -52,7 +52,6 @@ typedef void (*dap_stream_callback)( dap_stream_t *,void*);
 
 typedef struct dap_stream {
     int id;
-    pthread_rwlock_t rwlock;
     dap_stream_session_t * session;
     dap_events_socket_t * esocket; // Connection
     dap_stream_worker_t * stream_worker;
@@ -102,7 +101,7 @@ void dap_stream_add_proc_http(dap_http_t * sh, const char * url);
 
 void dap_stream_add_proc_udp(dap_udp_server_t * sh);
 
-dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es);
+dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_es);
 size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
 size_t dap_stream_data_proc_write(dap_stream_t * a_stream);
 void dap_stream_delete(dap_stream_t * a_stream);
