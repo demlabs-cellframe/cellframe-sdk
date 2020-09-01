@@ -103,7 +103,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-    ret->is_dont_reset_write_flag = true;
     #endif
 
     if ( a_sock!= 0 && a_sock != -1){
@@ -251,6 +250,18 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
      //   log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
+    const int l_file_buf_size = 64;
+    FILE* l_sys_max_pipe_size_fd = fopen("/proc/sys/fs/pipe-max-size", "r");
+    if (l_sys_max_pipe_size_fd == NULL) {
+        log_it(L_WARNING, "Сan't resize pipe buffer");
+    }
+    char l_file_buf[l_file_buf_size];
+    memset(l_file_buf, 0, l_file_buf_size);
+    fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
+    uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
+    if (l_sys_max_pipe_size && fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size) == l_sys_max_pipe_size) {
+        log_it(L_DEBUG, "Successfully resized pipe buffer to %lld", l_sys_max_pipe_size);
+    }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     char l_mq_name[64];
     struct mq_attr l_mq_attr ={0};
