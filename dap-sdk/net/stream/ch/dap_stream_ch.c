@@ -106,10 +106,8 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         if(l_ch_new->proc->new_callback)
             l_ch_new->proc->new_callback(l_ch_new,NULL);
 
-        pthread_rwlock_wrlock(&a_stream->rwlock);
         a_stream->channel[l_ch_new->stream->channel_count] = l_ch_new;
         a_stream->channel_count++;
-        pthread_rwlock_unlock(&a_stream->rwlock);
 
         struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
         l_new_ch->ch = l_ch_new;

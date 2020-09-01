@@ -487,7 +487,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
 
             a_client_pvt->stream_es->_inheritor = a_client_pvt;//->client;
-            a_client_pvt->stream = dap_stream_new_es(a_client_pvt->stream_es);
+            a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
             a_client_pvt->stream->is_client_to_uplink = true;
             a_client_pvt->stream->session = dap_stream_session_pure_new(); // may be from in packet?
 
