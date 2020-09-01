@@ -220,11 +220,11 @@ void check_session( unsigned int a_id, dap_events_socket_t *a_esocket )
     }
 
     dap_stream_t *l_stream;
-
-    if ( DAP_STREAM(a_esocket) == NULL )
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
+    if ( DAP_STREAM(l_http_client) == NULL )
         l_stream = stream_new_udp( a_esocket );
     else
-        l_stream = DAP_STREAM( a_esocket );
+        l_stream = DAP_STREAM( l_http_client );
 
     l_stream->session = l_session;
 
@@ -259,7 +259,7 @@ dap_stream_t * s_stream_new(dap_http_client_t * a_http_client)
     ret->seq_id = 0;
     ret->client_last_seq_id_packet = (size_t)-1;
 
-    ret->esocket->_inheritor=ret;
+    a_http_client->_inheritor=ret;
 
     log_it(L_NOTICE,"New stream instance");
     return ret;
@@ -304,9 +304,10 @@ static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_a
     UNUSED(a_arg);
     if (!a_esocket)
         return;
-    dap_stream_t *l_stream = DAP_STREAM(a_esocket);
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
+    dap_stream_t *l_stream = DAP_STREAM(l_http_client);
+    l_http_client->_inheritor = NULL; // To prevent double free
     dap_stream_delete(l_stream);
-    a_esocket->_inheritor = NULL; // To prevent double free
 }
 
 
@@ -415,7 +416,7 @@ static void s_http_client_headers_write(dap_http_client_t * a_http_client, void 
     (void) a_arg;
     log_it(L_DEBUG,"s_http_client_headers_write()");
     if(a_http_client->reply_status_code==200){
-        dap_stream_t *sid=DAP_STREAM(a_http_client->esocket);
+        dap_stream_t *sid=DAP_STREAM(a_http_client);
 
         dap_http_out_header_add(a_http_client,"Content-Type","application/octet-stream");
         dap_http_out_header_add(a_http_client,"Connnection","keep-alive");
@@ -452,7 +453,8 @@ static void s_http_client_data_write(dap_http_client_t * a_http_client, void * a
  */
 static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
 {
-    dap_stream_t * l_stream =DAP_STREAM(a_client);
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
+    dap_stream_t * l_stream =DAP_STREAM(l_http_client);
     int * l_ret = (int *) a_arg;
 
     if (s_dump_packet_headers ) {
@@ -473,10 +475,10 @@ static void s_esocket_write(dap_events_socket_t* a_client , void * a_arg){
     (void) a_arg;
     size_t i;
     bool ready_to_write=false;
-    //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(a_client )->channel_count );
-
-    for(i=0;i<DAP_STREAM(a_client )->channel_count; i++){
-        dap_stream_ch_t * ch = DAP_STREAM(a_client )->channel[i];
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
+    //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(l_http_client)->channel_count );
+    for(i=0;i<DAP_STREAM(l_http_client)->channel_count; i++){
+        dap_stream_ch_t * ch = DAP_STREAM(l_http_client)->channel[i];
         if(ch->ready_to_write){
             if(ch->proc->packet_out_callback)
                 ch->proc->packet_out_callback(ch,NULL);
