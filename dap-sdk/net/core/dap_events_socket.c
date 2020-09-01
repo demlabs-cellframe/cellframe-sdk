@@ -602,19 +602,20 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
  * @param sc
  * @param isReady
  */
-void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool is_ready )
+void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool a_is_ready )
 {
-    if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
+    if ( a_is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
         return;
     }
 
-    if ( is_ready )
+    if ( a_is_ready )
         sc->flags |= DAP_SOCK_READY_TO_WRITE;
     else
         sc->flags ^= DAP_SOCK_READY_TO_WRITE;
 
     int events = sc->ev_base_flags | EPOLLERR;
 
+    // Check & add
     if( sc->flags & DAP_SOCK_READY_TO_READ )
         events |= EPOLLIN;
 

@@ -59,20 +59,20 @@
 static void s_stream_proc_pkt_in(dap_stream_t * a_stream);
 
 // Callbacks for HTTP client
-static void s_stream_headers_read(dap_http_client_t * a_http_client, void * a_arg); // Prepare stream when all headers are read
+static void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg); // Prepare stream when all headers are read
 
 static void s_http_client_headers_write(dap_http_client_t * a_http_client, void * a_arg); // Output headers
 static void s_http_client_data_write(dap_http_client_t * a_http_client, void * a_arg); // Write the data
-static void s_stream_data_read(dap_http_client_t * a_http_client, void * a_arg); // Read the data
+static void s_http_client_data_read(dap_http_client_t * a_http_client, void * a_arg); // Read the data
 
-static void s_http_client_data_read(dap_events_socket_t* a_esocket, void * a_arg);
-static void s_stream_dap_data_write(dap_events_socket_t* a_esocket, void * a_arg);
-static void s_es_callback_delete(dap_events_socket_t* a_esocket, void * a_arg);
-static void s_stream_dap_udp_new(dap_events_socket_t* a_esocket,void * a_arg);
+static void s_esocket_data_read(dap_events_socket_t* a_esocket, void * a_arg);
+static void s_esocket_write(dap_events_socket_t* a_esocket, void * a_arg);
+static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_arg);
+static void s_udp_esocket_new(dap_events_socket_t* a_esocket,void * a_arg);
 
 // Internal functions
 static dap_stream_t * s_stream_new(dap_http_client_t * a_http_client); // Create new stream
-static void s_stream_delete(dap_http_client_t * a_esocket, void * a_arg);
+static void s_http_client_delete(dap_http_client_t * a_esocket, void * a_arg);
 
 //struct ev_loop *keepalive_loop;
 pthread_t keepalive_thread;
@@ -88,6 +88,7 @@ static bool s_dump_packet_headers = false;
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
 static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000  };
+static bool s_detect_loose_packet(dap_stream_t * a_stream);
 
 /**
  * @brief stream_init Init stream module
@@ -134,7 +135,15 @@ void dap_stream_deinit()
  */
 void dap_stream_add_proc_http(struct dap_http * a_http, const char * a_url)
 {
-    dap_http_add_proc(a_http,a_url,NULL,NULL,s_stream_delete,s_stream_headers_read,s_http_client_headers_write,s_stream_data_read,s_http_client_data_write,NULL);
+    dap_http_add_proc(a_http,a_url
+                      ,NULL, // _internal
+                      NULL, // New
+                      s_http_client_delete, // Delete
+                      s_http_client_headers_read, // Headers read
+                      s_http_client_headers_write, // Headerts write
+                      s_http_client_data_read, // Data read
+                      s_http_client_data_write, // Data write
+                      NULL); // Error callback
 }
 
 /**
@@ -144,10 +153,10 @@ void dap_stream_add_proc_http(struct dap_http * a_http, const char * a_url)
 void dap_stream_add_proc_udp(dap_udp_server_t * a_udp_server)
 {
     dap_server_t* l_server =  a_udp_server->dap_server;
-    l_server->client_callbacks.read_callback = s_http_client_data_read;
-    l_server->client_callbacks.write_callback = s_stream_dap_data_write;
-    l_server->client_callbacks.delete_callback = s_es_callback_delete;
-    l_server->client_callbacks.new_callback = s_stream_dap_udp_new;
+    l_server->client_callbacks.read_callback = s_esocket_data_read;
+    l_server->client_callbacks.write_callback = s_esocket_write;
+    l_server->client_callbacks.delete_callback = s_esocket_callback_delete;
+    l_server->client_callbacks.new_callback = s_udp_esocket_new;
 }
 
 /**
@@ -167,62 +176,7 @@ void stream_states_update(struct dap_stream *a_stream)
         a_stream->conn_http->out_content_ready=true;
 }
 
-/**
- * @brief stream_header_read Read headers callback for HTTP
- * @param a_http_client HTTP client structure
- * @param a_arg Not used
- */
-void s_stream_headers_read(dap_http_client_t * a_http_client, void * a_arg)
-{
-    (void) a_arg;
 
-   // char * raw=0;
-   // int raw_size;
-    unsigned int id=0;
-
-//    log_it(L_DEBUG,"Prepare data stream");
-    if(a_http_client->in_query_string[0]){
-        log_it(L_INFO,"Query string [%s]",a_http_client->in_query_string);
-//        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
-        if(sscanf(a_http_client->in_query_string,"session_id=%u",&id) == 1 ||
-                sscanf(a_http_client->in_query_string,"fj913htmdgaq-d9hf=%u",&id) == 1) {
-            dap_stream_session_t * ss=NULL;
-            ss=dap_stream_session_id_mt(id);
-            if(ss==NULL){
-                log_it(L_ERROR,"No session id %u was found",id);
-                a_http_client->reply_status_code=404;
-                strcpy(a_http_client->reply_reason_phrase,"Not found");
-            }else{
-                log_it(L_INFO,"Session id %u was found with channels = %s",id,ss->active_channels);
-                if(dap_stream_session_open(ss)==0){ // Create new stream
-                    dap_stream_t * sid = s_stream_new(a_http_client);
-                    sid->session=ss;
-                    dap_http_header_t *header = dap_http_header_find(a_http_client->in_headers, "Service-Key");
-                    if (header)
-                        ss->service_key = strdup(header->value);
-                    size_t count_channels = strlen(ss->active_channels);
-                    for(size_t i = 0; i < count_channels; i++) {
-                        dap_stream_ch_new(sid, ss->active_channels[i]);
-                        //sid->channel[i]->ready_to_write = true;
-                    }
-
-                    a_http_client->reply_status_code=200;
-                    strcpy(a_http_client->reply_reason_phrase,"OK");
-                    a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                    dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
-
-                    stream_states_update(sid);
-                }else{
-                    log_it(L_ERROR,"Can't open session id %u",id);
-                    a_http_client->reply_status_code=404;
-                    strcpy(a_http_client->reply_reason_phrase,"Not found");
-                }
-            }
-        }
-    }else{
-        log_it(L_ERROR,"No query string");
-    }
-}
 
 /**
  * @brief stream_new_udp Create new stream instance for UDP client
@@ -345,7 +299,7 @@ void dap_stream_delete(dap_stream_t *a_stream)
  * @param sh DAP client instance
  * @param arg Not used
  */
-static void s_es_callback_delete(dap_events_socket_t* a_esocket, void * a_arg)
+static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_arg)
 {
     UNUSED(a_arg);
     if (!a_esocket)
@@ -371,29 +325,6 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
     return ret;
 }
 
-/**
- * @brief s_http_client_headers_write Prepare headers for output. Creates stream structure
- * @param sh HTTP client instance
- * @param arg Not used
- */
-static void s_http_client_headers_write(dap_http_client_t * a_http_client, void *a_arg)
-{
-    (void) a_arg;
-
-    if(a_http_client->reply_status_code==200){
-        dap_stream_t *sid=DAP_STREAM(a_http_client->esocket);
-
-        dap_http_out_header_add(a_http_client,"Content-Type","application/octet-stream");
-        dap_http_out_header_add(a_http_client,"Connnection","keep-alive");
-        dap_http_out_header_add(a_http_client,"Cache-Control","no-cache");
-
-        if(sid->stream_size>0)
-            dap_http_out_header_add_f(a_http_client,"Content-Length","%u", (unsigned int) sid->stream_size );
-
-        a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-        dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
-    }
-}
 
 /**
  Function for keepalive loop
@@ -414,26 +345,89 @@ static void keepalive_cb (EV_P_ ev_timer *w, int revents)
 }
 **/
 
-static void s_keepalive_cb( void )
-{
-  dap_stream_t  *l_stream, *tmp;
-  return;
-  pthread_mutex_lock( &s_mutex_keepalive_list );
-  DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
-    if ( l_stream->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
-      dap_stream_send_keepalive( l_stream );
-      l_stream->keepalive_passed += 1;
-    }
-    else {
-      log_it( L_INFO, "Client disconnected" );
-      DL_DELETE( s_stream_keepalive_list, l_stream );
-      s_es_callback_delete( l_stream->esocket, NULL );
-    }
-  }
 
-  pthread_mutex_unlock( &s_mutex_keepalive_list );
+/**
+ * @brief stream_header_read Read headers callback for HTTP
+ * @param a_http_client HTTP client structure
+ * @param a_arg Not used
+ */
+void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
+{
+    (void) a_arg;
+
+   // char * raw=0;
+   // int raw_size;
+    unsigned int id=0;
+
+    log_it(L_DEBUG,"Prepare data stream");
+    if(a_http_client->in_query_string[0]){
+        log_it(L_INFO,"Query string [%s]",a_http_client->in_query_string);
+//        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
+        if(sscanf(a_http_client->in_query_string,"session_id=%u",&id) == 1 ||
+                sscanf(a_http_client->in_query_string,"fj913htmdgaq-d9hf=%u",&id) == 1) {
+            dap_stream_session_t * ss=NULL;
+            ss=dap_stream_session_id_mt(id);
+            if(ss==NULL){
+                log_it(L_ERROR,"No session id %u was found",id);
+                a_http_client->reply_status_code=404;
+                strcpy(a_http_client->reply_reason_phrase,"Not found");
+            }else{
+                log_it(L_INFO,"Session id %u was found with channels = %s",id,ss->active_channels);
+                if(dap_stream_session_open(ss)==0){ // Create new stream
+                    dap_stream_t * sid = s_stream_new(a_http_client);
+                    sid->session=ss;
+                    dap_http_header_t *header = dap_http_header_find(a_http_client->in_headers, "Service-Key");
+                    if (header)
+                        ss->service_key = strdup(header->value);
+                    size_t count_channels = strlen(ss->active_channels);
+                    for(size_t i = 0; i < count_channels; i++) {
+                        dap_stream_ch_new(sid, ss->active_channels[i]);
+                        //sid->channel[i]->ready_to_write = true;
+                    }
+
+                    a_http_client->reply_status_code=200;
+                    strcpy(a_http_client->reply_reason_phrase,"OK");
+                    stream_states_update(sid);
+                    a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+                    a_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+                    //dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
+                    dap_events_socket_set_writable_unsafe(a_http_client->esocket,true); // Dirty hack, because previous function shouldn't
+                    //                                                                    // set write flag off but it does!
+                }else{
+                    log_it(L_ERROR,"Can't open session id %u",id);
+                    a_http_client->reply_status_code=404;
+                    strcpy(a_http_client->reply_reason_phrase,"Not found");
+                }
+            }
+        }
+    }else{
+        log_it(L_ERROR,"No query string");
+    }
 }
 
+/**
+ * @brief s_http_client_headers_write Prepare headers for output. Creates stream structure
+ * @param sh HTTP client instance
+ * @param arg Not used
+ */
+static void s_http_client_headers_write(dap_http_client_t * a_http_client, void *a_arg)
+{
+    (void) a_arg;
+    log_it(L_DEBUG,"s_http_client_headers_write()");
+    if(a_http_client->reply_status_code==200){
+        dap_stream_t *sid=DAP_STREAM(a_http_client->esocket);
+
+        dap_http_out_header_add(a_http_client,"Content-Type","application/octet-stream");
+        dap_http_out_header_add(a_http_client,"Connnection","keep-alive");
+        dap_http_out_header_add(a_http_client,"Cache-Control","no-cache");
+
+        if(sid->stream_size>0)
+            dap_http_out_header_add_f(a_http_client,"Content-Length","%u", (unsigned int) sid->stream_size );
+
+        a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+        dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
+    }
+}
 
 /**
  * @brief stream_data_write HTTP data write callback
@@ -445,7 +439,7 @@ static void s_http_client_data_write(dap_http_client_t * a_http_client, void * a
     (void) a_arg;
 
     if( a_http_client->reply_status_code == 200 ){
-        s_stream_dap_data_write(a_http_client->esocket, a_arg);
+        s_esocket_write(a_http_client->esocket, a_arg);
     }else{
         log_it(L_WARNING, "Wrong request, reply status code is %u",a_http_client->reply_status_code);
     }
@@ -456,7 +450,7 @@ static void s_http_client_data_write(dap_http_client_t * a_http_client, void * a
  * @param a_client
  * @param a_arg
  */
-static void s_http_client_data_read(dap_events_socket_t* a_client, void * a_arg)
+static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
 {
     dap_stream_t * l_stream =DAP_STREAM(a_client);
     int * l_ret = (int *) a_arg;
@@ -466,6 +460,78 @@ static void s_http_client_data_read(dap_events_socket_t* a_client, void * a_arg)
                (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
     }
     *l_ret = dap_stream_data_proc_read( l_stream);
+}
+
+
+
+/**
+ * @brief stream_dap_data_write Write callback for UDP client
+ * @param sh DAP client instance
+ * @param arg Not used
+ */
+static void s_esocket_write(dap_events_socket_t* a_client , void * a_arg){
+    (void) a_arg;
+    size_t i;
+    bool ready_to_write=false;
+    //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(a_client )->channel_count );
+
+    for(i=0;i<DAP_STREAM(a_client )->channel_count; i++){
+        dap_stream_ch_t * ch = DAP_STREAM(a_client )->channel[i];
+        if(ch->ready_to_write){
+            if(ch->proc->packet_out_callback)
+                ch->proc->packet_out_callback(ch,NULL);
+            ready_to_write|=ch->ready_to_write;
+        }
+    }
+    if (s_dump_packet_headers ) {
+        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%u" ,
+               ready_to_write?"true":"false", a_client->buf_out_size );
+    }
+
+    //log_it(L_DEBUG,"stream_dap_data_write ok");
+}
+
+/**
+ * @brief stream_dap_new New connection callback for UDP client
+ * @param sh DAP client instance
+ * @param arg Not used
+ */
+static void s_udp_esocket_new(dap_events_socket_t* a_esocket, void * a_arg){
+    stream_new_udp(a_esocket);
+}
+
+
+/**
+ * @brief stream_data_read HTTP data read callback. Read packet and passes that to the channel's callback
+ * @param sh HTTP client instance
+ * @param arg Processed number of bytes
+ */
+static void s_http_client_data_read(dap_http_client_t * sh, void * arg)
+{
+    s_esocket_data_read(sh->esocket,arg);
+}
+
+
+
+/**
+ * @brief stream_delete Delete stream and free its resources
+ * @param sid Stream id
+ */
+static void s_http_client_delete(dap_http_client_t * sh, void * arg)
+{
+    s_esocket_callback_delete(sh->esocket,arg);
+}
+
+/**
+ * @brief dap_stream_set_ready_to_write
+ * @param a_stream
+ * @param a_is_ready
+ */
+void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready)
+{
+    if(a_is_ready && a_stream->conn_http)
+        a_stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
+    dap_events_socket_set_writable_unsafe(a_stream->esocket,a_is_ready);
 }
 
 /**
@@ -568,7 +634,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         bytes_left_to_read -= pkt_offset ;
         found_sig=true;
 
-        dap_stream_pkt_t *temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
+        //dap_stream_pkt_t *temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
 
         if(bytes_left_to_read  <(pkt->hdr.size+sizeof(stream_pkt_hdr_t) )){ // Is all the packet in da buf?
             read_bytes_to=bytes_left_to_read;
@@ -629,73 +695,6 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
 
     return buf_in_size;//a_stream->conn->buf_in_size;
 }
-
-
-/**
- * @brief stream_dap_data_write Write callback for UDP client
- * @param sh DAP client instance
- * @param arg Not used
- */
-static void s_stream_dap_data_write(dap_events_socket_t* a_client , void * a_arg){
-    (void) a_arg;
-    size_t i;
-    bool ready_to_write=false;
-    //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(a_client )->channel_count );
-
-    for(i=0;i<DAP_STREAM(a_client )->channel_count; i++){
-        dap_stream_ch_t * ch = DAP_STREAM(a_client )->channel[i];
-        if(ch->ready_to_write){
-            if(ch->proc->packet_out_callback)
-                ch->proc->packet_out_callback(ch,NULL);
-            ready_to_write|=ch->ready_to_write;
-        }
-    }
-    if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%u" ,
-               ready_to_write?"true":"false", a_client->buf_out_size );
-    }
-
-    //log_it(L_DEBUG,"stream_dap_data_write ok");
-}
-
-/**
- * @brief stream_dap_new New connection callback for UDP client
- * @param sh DAP client instance
- * @param arg Not used
- */
-static void s_stream_dap_udp_new(dap_events_socket_t* a_esocket, void * a_arg){
-    stream_new_udp(a_esocket);
-}
-
-/**
- * @brief _detect_loose_packet
- * @param a_stream
- * @return
- */
-static bool s_detect_loose_packet(dap_stream_t * a_stream)
-{
-    dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
-
-    int l_count_loosed_packets = l_ch_pkt->hdr.seq_id - (a_stream->client_last_seq_id_packet + 1);
-    if(l_count_loosed_packets > 0)
-    {
-        log_it(L_WARNING, "Detected loosed %d packets. "
-                          "Last read seq_id packet: %d Current: %d", l_count_loosed_packets,
-               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-    } else if(l_count_loosed_packets < 0) {
-        if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
-        log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
-                          "Last read seq_id packet: %d Current: %d", l_count_loosed_packets,
-               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-        } // else client don't support seqid functionality
-    }
-//    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
-//    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
-    a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
-
-    return false;
-}
-
 
 /**
  * @brief stream_proc_pkt_in
@@ -761,34 +760,52 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
 }
 
 /**
- * @brief stream_data_read HTTP data read callback. Read packet and passes that to the channel's callback
- * @param sh HTTP client instance
- * @param arg Processed number of bytes
- */
-static void s_stream_data_read(dap_http_client_t * sh, void * arg)
-{
-    s_http_client_data_read(sh->esocket,arg);
-}
-
-
-
-/**
- * @brief stream_delete Delete stream and free its resources
- * @param sid Stream id
- */
-static void s_stream_delete(dap_http_client_t * sh, void * arg)
-{
-    s_es_callback_delete(sh->esocket,arg);
-}
-
-/**
- * @brief dap_stream_set_ready_to_write
+ * @brief _detect_loose_packet
  * @param a_stream
- * @param a_is_ready
+ * @return
  */
-void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready)
+static bool s_detect_loose_packet(dap_stream_t * a_stream)
 {
-    if(a_is_ready && a_stream->conn_http)
-        a_stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
-    dap_events_socket_set_writable_unsafe(a_stream->esocket,a_is_ready);
+    dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
+
+    int l_count_loosed_packets = l_ch_pkt->hdr.seq_id - (a_stream->client_last_seq_id_packet + 1);
+    if(l_count_loosed_packets > 0)
+    {
+        log_it(L_WARNING, "Detected loosed %d packets. "
+                          "Last read seq_id packet: %d Current: %d", l_count_loosed_packets,
+               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
+    } else if(l_count_loosed_packets < 0) {
+        if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
+        log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
+                          "Last read seq_id packet: %d Current: %d", l_count_loosed_packets,
+               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
+        } // else client don't support seqid functionality
+    }
+//    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
+//    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
+    a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
+
+    return false;
 }
+
+
+static void s_keepalive_cb( void )
+{
+  dap_stream_t  *l_stream, *tmp;
+  return;
+  pthread_mutex_lock( &s_mutex_keepalive_list );
+  DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
+    if ( l_stream->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
+      dap_stream_send_keepalive( l_stream );
+      l_stream->keepalive_passed += 1;
+    }
+    else {
+      log_it( L_INFO, "Client disconnected" );
+      DL_DELETE( s_stream_keepalive_list, l_stream );
+      s_esocket_callback_delete( l_stream->esocket, NULL );
+    }
+  }
+
+  pthread_mutex_unlock( &s_mutex_keepalive_list );
+}
+

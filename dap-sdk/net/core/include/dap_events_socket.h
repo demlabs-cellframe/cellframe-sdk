@@ -206,8 +206,8 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, 
 int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg);
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value);
 
-dap_events_socket_t * dap_events_socket_wrap_no_add(struct dap_events * a_events,
-                                            int s, dap_events_socket_callbacks_t * a_callbacks); // Create new client and add it to the list
+dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
+                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 

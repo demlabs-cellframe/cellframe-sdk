@@ -394,7 +394,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
 {
     int *ret = (int *)a_arg;
 
-    //  log_it(L_DEBUG,"dap_http_simple_data_read");
+    //log_it(L_DEBUG,"dap_http_simple_data_read");
     //  Sleep(300);
 
     dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE(a_http_client);

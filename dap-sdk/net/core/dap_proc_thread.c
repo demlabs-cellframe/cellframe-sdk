@@ -146,6 +146,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_valu
 
 static void * s_proc_thread_function(void * a_arg)
 {
+
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
     dap_cpu_assign_thread_on(l_thread->cpu_id);

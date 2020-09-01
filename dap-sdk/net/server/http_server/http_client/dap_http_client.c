@@ -201,7 +201,7 @@ int32_t  z_rootdirname( char *path, uint32_t len )
     ++ptr;
   }
 
-  int32_t len2 = (uint32_t)(ptr - path);
+  uint32_t len2 = (uint32_t)(ptr - path);
   if ( len2 == len )
     return 0;
 
@@ -325,210 +325,152 @@ static inline void s_report_error_and_restart( dap_events_socket_t *cl, dap_http
  */
 void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
 {
-    char buf_line[4096] = {'\0'};
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 
 //  log_it( L_DEBUG, "dap_http_client_read..." );
-  //log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", cl_ht->state_read, cl->buf_in_size );
-
-    do {
+    do{
+        log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", l_http_client->state_read, a_esocket->buf_in_size );
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
-              char  *peol;
-              uint32_t eol;
+                char l_buf_line[4096];
+                char  *peol;
+                uint32_t eol;
 
-              if (!(peol = (char*)memchr(a_esocket->buf_in, 10, a_esocket->buf_in_size))) { /// search LF
-                  peol = (char*)memchr(a_esocket->buf_in, 13, a_esocket->buf_in_size);
-              }
-
-              if (peol) {
-                  eol = peol - a_esocket->buf_in_str;
-                  if (eol <= 0) {
-                      eol = a_esocket->buf_in_size - 2;
-                  }
-              } else {
-                  log_it( L_WARNING, "Single-line, possibly trash, input detected");
-                  eol = a_esocket->buf_in_size - 2;
-              }
-
-              if ( eol + 3 >= sizeof(buf_line) ) {
-                log_it( L_WARNING,"Too big line in request, more than %llu symbols - thats very strange", sizeof(buf_line) - 3 );
-                s_report_error_and_restart( a_esocket, l_http_client );
-                break;
-              }
-
-              memcpy( buf_line, a_esocket->buf_in, eol + 1 ); // copy with LF
-
-              dap_events_socket_shrink_buf_in( a_esocket, eol + 1 );
-              buf_line[ eol + 2 ] = 0; // null terminate
-
-              // parse http_request_line
-              if ( !dap_http_request_line_parse(l_http_client, buf_line, eol + 1) ) {
-
-                log_it( L_WARNING, "Input: Wrong request line '%s'", buf_line );
-                s_report_error_and_restart( a_esocket, l_http_client );
-                break;
-              }
-
-        //    uint32_t action_len;
-        //    uint32_t url_path_len;
-
-              char *query_string;
-
-              if( (query_string = strchr(l_http_client->url_path, '?')) != NULL ) {
-
-                size_t len_after = strlen( query_string + 1 );
-
-                if ( len_after ) {
-                  if( len_after > (sizeof(l_http_client->in_query_string) - 1) )
-                    len_after = sizeof(l_http_client->in_query_string) - 1;
-
-                  if ( strstr(query_string, "HTTP/1.1") )
-                    strncpy( l_http_client->in_query_string, query_string + 1, len_after - 11 );
-                  else
-                    strncpy( l_http_client->in_query_string,query_string + 1, len_after );
-
-                  if ( l_http_client->in_query_string[strlen(l_http_client->in_query_string) - 1] == ' ' )
-                    l_http_client->in_query_string[strlen(l_http_client->in_query_string) - 1] = 0;
-
-                  query_string[0] = 0;
+                if (!(peol = (char*)memchr(a_esocket->buf_in, 10, a_esocket->buf_in_size))) { /// search LF
+                    peol = (char*)memchr(a_esocket->buf_in, 13, a_esocket->buf_in_size);
                 }
-              }
 
-              log_it( L_WARNING, "Input: %s request for %s document (query string '%s')", l_http_client->action, l_http_client->url_path, l_http_client->in_query_string[0] ? l_http_client->in_query_string : ""  );
+                if (peol) {
+                    eol = peol - a_esocket->buf_in_str;
+                    if (eol <= 0) {
+                        eol = a_esocket->buf_in_size - 2;
+                    }
+                } else {
+                    log_it( L_WARNING, "Single-line, possibly trash, input detected");
+                    eol = a_esocket->buf_in_size - 2;
+                }
 
-              dap_http_url_proc_t *url_proc;
-              int32_t tpos = z_dirname( l_http_client->url_path, 0 );
-              log_it( L_WARNING, "cl_ht->url_path(dir) = %s", l_http_client->url_path );
+                if ( eol + 3 >= sizeof(l_buf_line) ) {
+                    log_it( L_WARNING,"Too big line in request, more than %llu symbols - thats very strange", sizeof(l_buf_line) - 3 );
+                    s_report_error_and_restart( a_esocket, l_http_client );
+                    break;
+                }
 
-              HASH_FIND_STR( l_http_client->http->url_proc, l_http_client->url_path, url_proc );  // Find URL processor
+                memcpy( l_buf_line, a_esocket->buf_in, eol + 1 ); // copy with LF
 
-              l_http_client->proc = url_proc;
+                dap_events_socket_shrink_buf_in( a_esocket, eol + 1 );
+                l_buf_line[ eol + 2 ] = 0; // null terminate
 
-              if ( tpos )
-                l_http_client->url_path[ tpos ] = '/';
+                // parse http_request_line
+                if ( !dap_http_request_line_parse(l_http_client, l_buf_line, eol + 1) ) {
+                    log_it( L_WARNING, "Input: Wrong request line '%s'", l_buf_line );
+                    s_report_error_and_restart( a_esocket, l_http_client );
+                    break;
+                }
 
-              char *ptr = z_basename( l_http_client->url_path, 0 );
-              log_it( L_WARNING, "basename = %s", ptr );
+                char *l_query_string;
+                if( (l_query_string = strchr(l_http_client->url_path, '?')) != NULL ) {
+                    size_t len_after = strlen( l_query_string + 1 );
 
-        //      log_it( L_WARNING, "cl_ht->client->socket = %u efd %u", cl_ht->client->socket, cl_ht->client->efd );
+                    if ( len_after ) {
+                        if( len_after > (sizeof(l_http_client->in_query_string) - 1) ){
+                            len_after = sizeof(l_http_client->in_query_string) - 1;
+                        }
 
-              memmove( l_http_client->url_path, ptr, strlen(ptr) + 1 );
+                        if ( strstr(l_query_string, "HTTP/1.1") ){
+                            strncpy( l_http_client->in_query_string, l_query_string + 1, len_after - 11 );
+                        }else{
+                            strncpy( l_http_client->in_query_string,l_query_string + 1, len_after );
+                        }
 
-              log_it( L_WARNING, "cl_ht->url_path = %s", l_http_client->url_path );
+                        if ( l_http_client->in_query_string[strlen(l_http_client->in_query_string) - 1] == ' ' ){
+                            l_http_client->in_query_string[strlen(l_http_client->in_query_string) - 1] = 0;
+                        }
+                        l_query_string[0] = 0;
+                    }
+                }
 
-              if ( url_proc ) {
-                l_http_client->state_read = DAP_HTTP_CLIENT_STATE_HEADERS;
-              }
-              else {
-                log_it( L_WARNING, "Input: unprocessed URL request %s is rejected", l_http_client->url_path );
-                s_report_error_and_restart( a_esocket, l_http_client );
-                break;
-              }
+                log_it( L_INFO, "Input: %s request for %s document (query string '%s')", l_http_client->action, l_http_client->url_path, l_http_client->in_query_string[0] ? l_http_client->in_query_string : ""  );
 
-            }
-            break;
+                dap_http_url_proc_t *url_proc;
+                int32_t tpos = z_dirname( l_http_client->url_path, 0 );
+                HASH_FIND_STR( l_http_client->http->url_proc, l_http_client->url_path, url_proc );  // Find URL processor
+                l_http_client->proc = url_proc;
+
+                if ( tpos ){
+                    l_http_client->url_path[ tpos ] = '/';
+                }
+                char *ptr = z_basename( l_http_client->url_path, 0 );
+                memmove( l_http_client->url_path, ptr, strlen(ptr) + 1 );
+
+                if ( url_proc ) {
+                    l_http_client->state_read = DAP_HTTP_CLIENT_STATE_HEADERS;
+                } else {
+                    log_it( L_WARNING, "Input: unprocessed URL request %s is rejected", l_http_client->url_path );
+                    s_report_error_and_restart( a_esocket, l_http_client );
+                    break;
+                }
+            } break;
 
             case DAP_HTTP_CLIENT_STATE_HEADERS: { // Parse input headers
+                char l_buf_line[4096];
+                char  *l_str_eol;
+                uint32_t l_eol_pos;
 
-        //      log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS" );
-              char  *peol;
-              uint32_t eol;
-
-              if ( !(peol = (char *)memchr(a_esocket->buf_in, 10, a_esocket->buf_in_size)) ) { /// search LF
-                log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
-                s_report_error_and_restart( a_esocket, l_http_client );
-                break;
-              }
-
-              eol = peol - a_esocket->buf_in_str;
-
-        //      int eol = detect_end_of_line( cl->buf_in, cl->buf_in_size );
-
-        //      if ( eol < 0 ) {
-        //        log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
-        //        return;
-        //      }
-
-              int parse_ret;
-              memcpy( buf_line, a_esocket->buf_in, eol + 1 );
-              buf_line[eol-1] = 0;
-
-              parse_ret = dap_http_header_parse( l_http_client, buf_line );
-
-        //      log_it( L_WARNING, "cl_ht->client->socket = %u efd %u", cl_ht->client->socket, cl_ht->client->efd );
-
-                //  log_it(L_WARNINGNG, "++ ALL HEADERS TO PARSE [%s]", buf_line);
-              if( parse_ret < 0 )
-                log_it( L_WARNING, "Input: not a valid header '%s'", buf_line );
-
-              else if ( parse_ret == 1 ) {
-
-                log_it( L_INFO, "Input: HTTP headers are over" );
-
-                if ( l_http_client->proc->access_callback ) {
-
-        //          log_it( L_WARNING, "access_callback" );
-
-                  bool isOk = true;
-                  l_http_client->proc->access_callback( l_http_client, &isOk );
-                  if ( !isOk ) {
-                    log_it( L_NOTICE, "Access restricted" );
+                if ( !(l_str_eol = (char *)memchr(a_esocket->buf_in, 10, a_esocket->buf_in_size)) ) { /// search LF
+                    log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
                     s_report_error_and_restart( a_esocket, l_http_client );
-                  }
+                    break;
                 }
 
-                if ( l_http_client->proc->headers_read_callback ) {
-                  log_it( L_WARNING, "headers_read_callback" );
-                  l_http_client->proc->headers_read_callback( l_http_client, NULL );
+                l_eol_pos = l_str_eol - a_esocket->buf_in_str;
+
+                int parse_ret;
+                memcpy( l_buf_line, a_esocket->buf_in, l_eol_pos + 1 );
+                l_buf_line[l_eol_pos-1] = 0;
+
+                parse_ret = dap_http_header_parse( l_http_client, l_buf_line );
+
+                if( parse_ret < 0 ){
+                    log_it( L_WARNING, "Input: not a valid header '%s'", l_buf_line );
+                }else if ( parse_ret == 1 ) {
+                    log_it( L_INFO, "Input: HTTP headers are over" );
+                    if ( l_http_client->proc->access_callback ) {
+                        bool isOk = true;
+                        l_http_client->proc->access_callback( l_http_client, &isOk );
+                        if ( !isOk ) {
+                            log_it( L_NOTICE, "Access restricted" );
+                            s_report_error_and_restart( a_esocket, l_http_client );
+                        }
+                    }
+
+                    if ( l_http_client->proc->headers_read_callback ) {
+                        l_http_client->proc->headers_read_callback( l_http_client, NULL );
+                    }
+
+                    // If no headers callback we go to the DATA processing
+                    if( l_http_client->in_content_length ) {
+                        log_it( L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
+                        l_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
+                    }
                 }
-
-                // If no headers callback we go to the DATA processing
-                if( l_http_client->in_content_length ) {
-                    log_it( L_WARNING, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
-                    l_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
+                dap_events_socket_shrink_buf_in( a_esocket, l_eol_pos + 1 );
+            } break;
+            case DAP_HTTP_CLIENT_STATE_DATA:{
+                size_t read_bytes = 0;
+                if ( l_http_client->proc->data_read_callback ) {
+                    l_http_client->proc->data_read_callback( l_http_client, &read_bytes );
+                    dap_events_socket_shrink_buf_in( a_esocket, read_bytes );
+                } else {
+                    log_it( L_WARNING, "data_read callback is NULL in DAP_HTTP_CLIENT_STATE_DATA" );
+                    a_esocket->buf_in_size = 0;
                 }
-                else {
-                                  //log_it
-                                  //cl_ht->state_read=DAP_HTTP_CLIENT_STATE_NONE;
-                                  //cl_ht->client->ready_to_read=t;
-                                  //cl_ht->client->signal_close=!cl_ht->keep_alive;
-                }
-              } // parse_ret == 1
-
-              dap_events_socket_shrink_buf_in( a_esocket, eol + 1 );
-            }
-            break;
-
-            case DAP_HTTP_CLIENT_STATE_DATA:
-            {
-                   //   log_it(L_WARNINGNG, "DBG_#002 [%s] [%s]",             cl_ht->in_query_string, cl_ht->url_path);
-
-              size_t read_bytes = 0;
-              if ( l_http_client->proc->data_read_callback ) {
-        //            log_it( L_WARNING, "cl_ht->proc->data_read_callback()" );
-
-                //while(cl_ht->client->buf_in_size){
-                l_http_client->proc->data_read_callback( l_http_client, &read_bytes );
-                dap_events_socket_shrink_buf_in( a_esocket, read_bytes );
-                        //}
-              }
-              else {
-                log_it( L_WARNING, "data_read callback is NULL in DAP_HTTP_CLIENT_STATE_DATA" );
-                a_esocket->buf_in_size = 0;
-              }
-            }
-            break;
-
+            } break;
             case DAP_HTTP_CLIENT_STATE_NONE: {
-              a_esocket->buf_in_size = 0;
-            }
-            break;
-
-    } // switch
-
-  } while ( a_esocket->buf_in_size > 0 );
-
+                a_esocket->buf_in_size = 0;
+            } break;
+        } // switch
+    } while (a_esocket->buf_in_size);
 //  log_it( L_DEBUG, "dap_http_client_read...exit" );
 //  Sleep(100);
 }
@@ -543,36 +485,35 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
     //  log_it( L_DEBUG, "dap_http_client_write..." );
 
     (void) arg;
-    dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( cl );
+    log_it(L_WARNING,"HTTP client write callback in state %d",l_http_client->state_write);
 
-    //   log_it(L_WARNING,"HTTP client write callback in state %d",cl_ht->state_write);
-
-    switch( cl_ht->state_write ) {
+    switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
             return;
         case DAP_HTTP_CLIENT_STATE_START:{
-            if ( cl_ht->proc )
-                if ( cl_ht->proc->headers_write_callback )
-                    cl_ht->proc->headers_write_callback( cl_ht, NULL );
+            if ( l_http_client->proc )
+                if ( l_http_client->proc->headers_write_callback )
+                    l_http_client->proc->headers_write_callback( l_http_client, NULL );
 
-            log_it( L_INFO," HTTP response with %u status code", cl_ht->reply_status_code );
-            dap_events_socket_write_f_unsafe(cl, "HTTP/1.1 %u %s\r\n",cl_ht->reply_status_code, cl_ht->reply_reason_phrase[0] ?
-                            cl_ht->reply_reason_phrase : http_status_reason_phrase(cl_ht->reply_status_code) );
+            log_it( L_INFO," HTTP response with %u status code", l_http_client->reply_status_code );
+            dap_events_socket_write_f_unsafe(cl, "HTTP/1.1 %u %s\r\n",l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
+                            l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
 
-            dap_http_client_out_header_generate( cl_ht );
-            cl_ht->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
+            dap_http_client_out_header_generate( l_http_client );
+            l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
         } break;
 
         case DAP_HTTP_CLIENT_STATE_HEADERS: {
-            dap_http_header_t *hdr = cl_ht->out_headers;
+            dap_http_header_t *hdr = l_http_client->out_headers;
             if ( hdr == NULL ) {
-                log_it(L_DEBUG, "Output: headers are over (reply status code %u)",cl_ht->reply_status_code);
+                log_it(L_DEBUG, "Output: headers are over (reply status code %u)",l_http_client->reply_status_code);
                 dap_events_socket_write_f_unsafe(cl, "\r\n");
-                if ( cl_ht->out_content_length || cl_ht->out_content_ready ) {
-                    cl_ht->state_write=DAP_HTTP_CLIENT_STATE_DATA;
+                if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {
+                    l_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
                 } else {
                     log_it( L_DEBUG, "Nothing to output" );
-                    cl_ht->state_write = DAP_HTTP_CLIENT_STATE_NONE;
+                    l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                     dap_events_socket_set_writable_unsafe( cl, false );
                     cl->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 }
@@ -580,14 +521,14 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
             } else {
                 //log_it(L_WARNING,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_events_socket_write_f_unsafe(cl, "%s: %s\r\n", hdr->name, hdr->value);
-                dap_http_header_remove( &cl_ht->out_headers, hdr );
+                dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
         } break;
     case DAP_HTTP_CLIENT_STATE_DATA:
     {
-      if ( cl_ht->proc )
-        if ( cl_ht->proc->data_write_callback )
-          cl_ht->proc->data_write_callback( cl_ht, NULL );
+      if ( l_http_client->proc )
+        if ( l_http_client->proc->data_write_callback )
+          l_http_client->proc->data_write_callback( l_http_client, NULL );
     }
     break;
   }

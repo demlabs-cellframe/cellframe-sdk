@@ -266,7 +266,7 @@ void *dap_worker_thread(void *arg)
 
                 if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
-                    static const uint32_t buf_out_zero_count_max = 20;
+                    static const uint32_t buf_out_zero_count_max = 2;
                     l_cur->buf_out[l_cur->buf_out_size] = 0;
 
                     if(!l_cur->buf_out_size) {
