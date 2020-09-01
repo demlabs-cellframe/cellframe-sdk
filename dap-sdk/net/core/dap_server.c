@@ -257,6 +257,7 @@ dap_events_socket_t * dap_server_events_socket_new(dap_events_t * a_events, int 
         //fcntl(a_sock, F_SETFL, O_NONBLOCK);
 
         ret = dap_events_socket_wrap_no_add(a_events, a_sock, a_callbacks);
+        ret->is_dont_reset_write_flag = true;
         ret->type = DESCRIPTOR_TYPE_SOCKET;
         ret->server = a_server;
 
