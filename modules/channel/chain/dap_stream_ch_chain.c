@@ -139,7 +139,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     l_ch_chain->request_atom_iter = l_iter;
     l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_count, &l_lasts_sizes);
     if(l_lasts&& l_lasts_sizes) {
-        for(size_t i = 0; i < l_lasts_count; i++) {
+        for(size_t i = l_lasts_count - 1; i >= 0; i--) {
             dap_chain_atom_item_t * l_item = NULL;
             dap_chain_hash_fast_t l_atom_hash;
             dap_hash_fast(l_lasts[i], l_lasts_sizes[i],
@@ -250,7 +250,7 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
         dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
         size_t l_atom_size =0;
-        if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) != NULL ) {
+        if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) == NULL ) {
             dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
             if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
                 // append to file
