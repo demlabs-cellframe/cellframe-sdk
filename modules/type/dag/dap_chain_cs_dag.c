@@ -251,12 +251,12 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
   switch (l_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TOKEN_DECL: {
       dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-      dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
+      return dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
     }
       break;
     case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
       dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-      dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
+      return dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
     }
       break;
     case DAP_CHAIN_DATUM_TX: {
@@ -289,10 +289,10 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
         dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
         log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
         res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
-
+        //All correct, no matter for result
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
         s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
-    }else{
+    } else {
         char l_buf_hash[128];
         dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
         log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash,  res );
@@ -693,7 +693,7 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
     bool l_is_events_all_hashes = true;
     bool l_is_events_main_hashes = true;
 
-    if(a_event->header.hash_count == 0){
+    if (a_event->header.hash_count == 0) {
         //looks like an alternative genesis event
         return DAP_THRESHOLD_CONFLICTING;
     }

@@ -127,6 +127,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         SetEvent( l_node_client->wait_cond );
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
+        return;
     }
 
     if(l_node_client && l_node_client->keep_connection &&

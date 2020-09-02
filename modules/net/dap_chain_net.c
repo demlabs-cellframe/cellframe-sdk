@@ -512,13 +512,13 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (l_res) {
                 case -1:
-                    log_it(L_WARNING,"Timeout with link sync");
+                    log_it(L_WARNING, "Timeout with reverse link sync");
                     break;
                 case 0:
-                    log_it(L_INFO, "Node sync completed");
+                    log_it(L_INFO, "Node reverse sync completed");
                     break;
                 default:
-                    log_it(L_INFO, "Node sync error %d",l_res);
+                    log_it(L_INFO, "Node reverse sync error %d",l_res);
                 }
                 l_tmp = dap_list_next(l_tmp);
             }
