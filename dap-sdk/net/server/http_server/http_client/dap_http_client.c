@@ -71,19 +71,19 @@ void dap_http_client_deinit( )
  */
 void dap_http_client_new( dap_events_socket_t *cl, void *arg )
 {
-  (void) arg;
+    (void) arg;
 
-  log_it( L_NOTICE, "dap_http_client_new" );
+    log_it( L_NOTICE, "dap_http_client_new" );
 
-  cl->_inheritor = DAP_NEW_Z( dap_http_client_t );
+    cl->_inheritor = DAP_NEW_Z( dap_http_client_t );
 
-  dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
-  cl_ht->esocket = cl;
-  cl_ht->http = DAP_HTTP( cl->server );
-  cl_ht->state_read = DAP_HTTP_CLIENT_STATE_START;
-  cl_ht->state_write = DAP_HTTP_CLIENT_STATE_NONE;
+    dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
+    cl_ht->esocket = cl;
+    cl_ht->http = DAP_HTTP( cl->server );
+    cl_ht->state_read = DAP_HTTP_CLIENT_STATE_START;
+    cl_ht->state_write = DAP_HTTP_CLIENT_STATE_NONE;
 
-  return;
+    return;
 }
 
 /**
