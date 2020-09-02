@@ -10,7 +10,7 @@ void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response){
     DAP_FREE(a_response);
 }
 
-void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_remote_t *a_client_remote){
+void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_simple_t *a_client){
     char *str_response = NULL;
     json_object *l_jobj = json_object_new_object();
     json_object *l_jobj_error = NULL;
@@ -37,8 +37,7 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_
     json_object_object_add(l_jobj, "error", l_jobj_error);
     json_object_object_add(l_jobj, "id", json_object_new_int64(a_response->id));
     str_response = strdup(json_object_to_json_string(l_jobj));
-    a_client_remote->buf_out_size = strlen(str_response);
-    memcpy(a_client_remote->buf_out, str_response, a_client_remote->buf_out_size);
+    dap_http_simple_reply(a_client, str_response, strlen(str_response));
     DAP_FREE(str_response);
 }
 

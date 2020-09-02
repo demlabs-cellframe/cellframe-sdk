@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "dap_http.h"
+#include "dap_http_simple.h"
 #include "dap_json_rpc_errors.h"
 #include "json-c/json.h"
 
@@ -53,7 +53,7 @@ typedef struct dap_json_rpc_response{
 //dap_json_rpc_response_t *dap_json_rpc_response_create(void *a_result);
 void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response);
 
-void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_client_remote_t *a_client_remote);
+void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_simple_t *a_client);
 
 dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json);
 
