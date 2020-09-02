@@ -123,7 +123,7 @@ void *dap_worker_thread(void *arg)
             l_cur->last_time_active = l_cur_time;
 
             //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", l_worker->id,
-             //      l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
+            //       l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
             if(l_epoll_events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
@@ -135,9 +135,10 @@ void *dap_worker_thread(void *arg)
                         //cur->no_close = false;
                         if (l_sock_err) {
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                            log_it(L_DEBUG, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
+                            log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                         }
-                   default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
+                    break;
+                    default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
                 }
             }
 
@@ -227,9 +228,13 @@ void *dap_worker_thread(void *arg)
                     if(l_bytes_read > 0) {
                         l_cur->buf_in_size += l_bytes_read;
                         //log_it(L_DEBUG, "Received %d bytes", l_bytes_read);
-                        if(l_cur->callbacks.read_callback)
+                        if(l_cur->callbacks.read_callback){
                             l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
-                        else{
+                            if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,
+                                                         // continue to poll another esockets
+                                continue;
+                            }
+                        }else{
                             log_it(L_WARNING, "We have incomming %u data but no read callback on socket %d, removing from read set", l_cur->socket);
                             dap_events_socket_set_readable_unsafe(l_cur,false);
                         }
@@ -254,10 +259,14 @@ void *dap_worker_thread(void *arg)
                 //log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
+                if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,
+                                             // continue to poll another esockets
+                    continue;
+                }
 
                 if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
-                    static const uint32_t buf_out_zero_count_max = 20;
+                    static const uint32_t buf_out_zero_count_max = 2;
                     l_cur->buf_out[l_cur->buf_out_size] = 0;
 
                     if(!l_cur->buf_out_size) {
@@ -346,12 +355,17 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
-    l_es_new->worker = w;
+    if(dap_events_socket_check_unsafe( w, a_es)){
+        log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", a_es->socket, a_es);
+        return;
+    }
+
     if (  l_es_new->type == DESCRIPTOR_TYPE_SOCKET  ||  l_es_new->type == DESCRIPTOR_TYPE_SOCKET_LISTENING ){
         int l_cpu = w->id;
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
     }
-
+    bool l_socket_present = (l_es_new->worker && l_es_new->is_initalized) ? true : false;
+    l_es_new->worker = w;
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
         if (l_es_new->callbacks.new_callback)
@@ -369,6 +383,10 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         if(l_es_new->flags & DAP_SOCK_READY_TO_WRITE )
             l_es_new->ev.events |= EPOLLOUT;
         l_es_new->ev.data.ptr = l_es_new;
+        if (l_socket_present) {
+            // Update only flags, socket already present in worker
+            return;
+        }
         l_ret = epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev);
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
@@ -377,14 +395,11 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
             log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
         }else{
             // Add in global list
-            pthread_rwlock_wrlock(&w->events->sockets_rwlock);
-            HASH_ADD(hh, w->events->sockets, socket, sizeof (int), l_es_new );
-            pthread_rwlock_unlock(&w->events->sockets_rwlock);
             // Add in worker
             l_es_new->me = l_es_new;
             HASH_ADD(hh_worker, w->esockets, me, sizeof(void *), l_es_new );
-
-            log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
+            w->event_sockets_count++;
+            //log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, w);
 
@@ -458,7 +473,7 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_events_socket_t *l_msg_es = NULL;
     HASH_FIND(hh_worker, a_es->worker->esockets, &l_msg->esocket , sizeof (void*), l_msg_es );
     if ( l_msg_es == NULL){
-        log_it(L_DEBUG, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
+        log_it(L_INFO, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
         DAP_DELETE(l_msg);
         return;
     }
@@ -546,8 +561,7 @@ dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_events_worker_get_auto( );
 
-  a_es->worker = l_worker;
-  a_es->events = a_es->worker->events;
+  a_es->events = l_worker->events;
   dap_worker_add_events_socket( a_es, l_worker);
   return l_worker;
 }

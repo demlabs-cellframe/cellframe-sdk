@@ -47,6 +47,7 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout ); // Init 
 void dap_events_deinit( ); // Deinit server module
 
 dap_events_t* dap_events_new( );
+dap_events_t* dap_events_get_default( );
 void dap_events_delete( dap_events_t * a_events );
 
 int32_t dap_events_start( dap_events_t *a_events );

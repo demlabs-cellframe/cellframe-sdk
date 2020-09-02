@@ -96,7 +96,7 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         l_ch_new->ready_to_read = true;
 
         // Init on stream worker
-        dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_stream->esocket->worker );
+        dap_stream_worker_t * l_stream_worker = a_stream->stream_worker;
         l_ch_new->stream_worker = l_stream_worker;
         HASH_ADD(hh_worker,l_stream_worker->channels, me,sizeof (void*),l_ch_new);
 
@@ -106,10 +106,8 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         if(l_ch_new->proc->new_callback)
             l_ch_new->proc->new_callback(l_ch_new,NULL);
 
-        pthread_rwlock_wrlock(&a_stream->rwlock);
         a_stream->channel[l_ch_new->stream->channel_count] = l_ch_new;
         a_stream->channel_count++;
-        pthread_rwlock_unlock(&a_stream->rwlock);
 
         struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
         l_new_ch->ch = l_ch_new;
@@ -145,7 +143,7 @@ struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch)
  */
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 {
-    dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_ch->stream->esocket->worker );
+    dap_stream_worker_t * l_stream_worker = a_ch->stream_worker;
     HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
 
 
@@ -189,7 +187,7 @@ void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * a_ch,bool a_is_rea
     if( a_ch->ready_to_read != a_is_ready){
         //log_it(L_DEBUG,"Change channel '%c' to %s", (char) ch->proc->id, is_ready?"true":"false");
         a_ch->ready_to_read=a_is_ready;
-        dap_events_socket_set_readable_unsafe( a_ch->stream->esocket,a_is_ready);
+        dap_events_socket_set_readable_unsafe(a_ch->stream->esocket, a_is_ready);
     }
 }
 
@@ -205,7 +203,7 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready)
         ch->ready_to_write=is_ready;
         if(is_ready && ch->stream->conn_http)
             ch->stream->conn_http->state_write=DAP_HTTP_CLIENT_STATE_DATA;
-        dap_events_socket_set_writable_unsafe(ch->stream->esocket,is_ready);
+        dap_events_socket_set_writable_unsafe(ch->stream->esocket, is_ready);
     }
 }
 
