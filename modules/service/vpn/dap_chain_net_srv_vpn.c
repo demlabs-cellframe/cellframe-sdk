@@ -94,21 +94,51 @@ typedef struct vpn_local_network {
     pthread_rwlock_t rwlock;
 } vpn_local_network_t;
 
+// Message for QUEUE_PTR operations
+struct tun_socket_msg{
+    enum{
+        TUN_SOCKET_MSG_IP_ASSIGNED,
+        TUN_SOCKET_MSG_IP_UNASSIGNED,
+        TUN_SOCKET_MSG_CH_VPN_SEND,
+        TUN_SOCKET_MSG_ESOCKET_REASSIGNED,
+        TUN_SOCKET_MSG_NONE
+    } type;
+    dap_chain_net_srv_ch_vpn_t * ch_vpn;
+    dap_events_socket_t * esocket;
+    bool is_reassigned_once;
+    union{
+        struct{ // Esocket reassigment
+            uint32_t worker_id;
+            struct in_addr addr;
+        } esocket_reassigment;
+        struct{  // IP assign/unassign
+            uint32_t worker_id;
+            struct in_addr addr;
+            uint32_t usage_id;
+        } ip_assigment;
+        struct{  // IP assign/unassign
+            uint32_t worker_id;
+            struct in_addr addr;
+        } ip_unassigment;
+        struct{ // CH VPN send operation
+            ch_vpn_pkt_t * pkt;
+        } ch_vpn_send;
+    };
+};
+
+
+ch_sf_tun_socket_t ** s_tun_sockets = NULL;
+dap_events_socket_t ** s_tun_sockets_queue_msg = NULL;
+uint32_t s_tun_sockets_count = 0;
+
 static usage_client_t * s_clients;
 static dap_chain_net_srv_ch_vpn_t * s_ch_vpn_addrs ;
 static pthread_rwlock_t s_clients_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-static ch_vpn_socket_proxy_t * sf_socks = NULL;
-static ch_vpn_socket_proxy_t * sf_socks_client = NULL;
 static pthread_mutex_t s_sf_socks_mutex;
 static pthread_cond_t s_sf_socks_cond;
-static int sf_socks_epoll_fd;
-static pthread_t srv_sf_socks_pid;
-static pthread_t srv_sf_socks_raw_pid;
 static vpn_local_network_t *s_raw_server;
 static pthread_rwlock_t s_raw_server_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-
-static const char *s_addr;
 
 // Service callbacks
 static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
@@ -122,16 +152,9 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
                     const void * a_receipt_next, size_t a_receipt_next_size);
 
 
-// Tunnel threads
-static void *srv_ch_sf_thread(void * a_arg);
-static void *srv_ch_sf_thread_raw(void *arg);
-static void s_tun_create(void);
-static void s_tun_destroy(void);
-
-
 // Stream callbacks
-static void s_new(dap_stream_ch_t* ch, void* arg);
-static void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
+static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
+static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
 static void s_ch_packet_in(dap_stream_ch_t* ch, void* a_arg);
 static void s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
@@ -149,12 +172,241 @@ static void m_es_tun_delete(dap_events_socket_t * a_es, void * arg);
 static void m_es_tun_read(dap_events_socket_t * a_es, void * arg);
 static void m_es_tun_error(dap_events_socket_t * a_es,int arg);
 
-pthread_rwlock_t s_tun_sockets_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-ch_sf_tun_socket_t * s_tun_sockets = NULL;
+static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void * a_msg );
+static void s_tun_send_msg_ip_assigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
+static void s_tun_send_msg_ip_assigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
+static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
+static void s_tun_send_msg_ip_unassigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
 
-int s_tun_deattach_queue(int fd);
-int s_tun_attach_queue(int fd);
+static int s_tun_deattach_queue(int fd);
+static int s_tun_attach_queue(int fd);
 
+
+static void s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * a_ch_vpn_info, const void * a_data, size_t a_data_size);
+
+
+static void s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, ch_vpn_pkt_t * l_pkt_out)
+{
+    dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (l_ch_vpn->ch->stream->session );
+    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
+
+    dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
+            l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
+    s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_pkt_out->header.op_data.data_size );
+}
+
+static void s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_info, const void * a_data, size_t a_data_size)
+{
+    ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
+    l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
+    l_pkt_out->header.sock_id = s_raw_server->tun_fd;
+    l_pkt_out->header.usage_id = l_ch_vpn_info->usage_id;
+    l_pkt_out->header.op_data.data_size = a_data_size;
+    memcpy(l_pkt_out->data, a_data, a_data_size);
+
+    if(l_ch_vpn_info->is_on_this_worker){
+        s_tun_client_send_data_unsafe(l_ch_vpn_info->ch_vpn,l_pkt_out);
+        DAP_DELETE(l_pkt_out);
+    }else{
+        struct tun_socket_msg * l_msg= DAP_NEW_Z(struct tun_socket_msg);
+        l_msg->type = TUN_SOCKET_MSG_CH_VPN_SEND;
+        l_msg->ch_vpn = l_ch_vpn_info->ch_vpn;
+        l_msg->esocket = l_ch_vpn_info->esocket;
+        l_msg->ch_vpn_send.pkt = l_pkt_out;
+        dap_events_socket_queue_ptr_send(l_ch_vpn_info->queue_msg, l_msg);
+    }
+}
+
+/**
+ * @brief s_tun_recv_msg_callback
+ * @param a_esocket_queue
+ * @param a_msg
+ */
+static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void * a_msg )
+{
+    struct tun_socket_msg * l_msg = (struct tun_socket_msg*) a_msg;
+    switch (l_msg->type) {
+        case TUN_SOCKET_MSG_ESOCKET_REASSIGNED:{
+            assert(l_msg->esocket_reassigment.worker_id < s_tun_sockets_count);
+            ch_sf_tun_socket_t * l_tun_sock = s_tun_sockets[a_esocket_queue->worker->id];
+            assert(l_tun_sock);
+
+            dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
+            HASH_FIND(hh,l_tun_sock->clients,&l_msg->esocket_reassigment.addr , sizeof (l_msg->esocket_reassigment.addr), l_info);
+            if (l_info){ // Updating info
+                l_info->worker = dap_events_worker_get(l_msg->esocket_reassigment.worker_id);
+                l_info->queue_msg = s_tun_sockets_queue_msg[l_msg->esocket_reassigment.worker_id];
+                l_info->is_reassigned_once = true;
+                l_info->is_on_this_worker =(a_esocket_queue->worker->id == l_msg->esocket_reassigment.worker_id);
+            }else{
+                if(dap_log_level_get() <= L_INFO){
+                    char l_addrbuf[17];
+                    inet_ntop(AF_INET,&l_msg->esocket_reassigment.addr, l_addrbuf, sizeof (l_addrbuf));
+                    log_it(L_INFO,"Reassigment message for address %s on worker %u comes but no such address was found on tun socket %u",
+                           l_addrbuf, l_msg->esocket_reassigment.worker_id,
+                           a_esocket_queue->worker->id);
+                }
+            }
+        } break;
+        case TUN_SOCKET_MSG_IP_ASSIGNED:{
+            assert(l_msg->ip_assigment.worker_id < s_tun_sockets_count);
+            ch_sf_tun_socket_t * l_tun_sock = s_tun_sockets[a_esocket_queue->worker->id];
+            assert(l_tun_sock);
+
+            dap_chain_net_srv_ch_vpn_info_t * l_new_info = NULL;
+            HASH_FIND(hh,l_tun_sock->clients,&l_msg->ip_assigment.addr, sizeof (l_msg->ip_assigment.addr), l_new_info);
+            if( l_new_info){
+                char l_addrbuf[17];
+                inet_ntop(AF_INET,&l_msg->ip_assigment.addr, l_addrbuf, sizeof (l_addrbuf));
+                log_it(L_WARNING, "Already assigned address %s on tun sock #%u", l_addrbuf, l_tun_sock->worker_id);
+            }else{
+                l_new_info = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_info_t);
+                l_new_info->ch_vpn = l_msg->ch_vpn;
+                l_new_info->addr_ipv4 = l_msg->ip_assigment.addr;
+                l_new_info->queue_msg = s_tun_sockets_queue_msg[l_msg->ip_assigment.worker_id];
+                l_new_info->usage_id = l_msg->ip_assigment.usage_id;
+                l_new_info->is_reassigned_once = l_msg->is_reassigned_once;
+                l_new_info->is_on_this_worker = (l_msg->ip_assigment.worker_id == a_esocket_queue->worker->id);
+                l_new_info->esocket = l_msg->esocket;
+                l_new_info->worker = dap_events_worker_get(l_msg->ip_assigment.worker_id);
+                HASH_ADD(hh,l_tun_sock->clients, addr_ipv4, sizeof (l_new_info->addr_ipv4), l_new_info);
+            }
+
+        }break;
+        case TUN_SOCKET_MSG_IP_UNASSIGNED:{
+            assert(l_msg->ip_unassigment.worker_id < s_tun_sockets_count);
+            ch_sf_tun_socket_t * l_tun_sock = s_tun_sockets[a_esocket_queue->worker->id];
+            assert(l_tun_sock);
+
+            dap_chain_net_srv_ch_vpn_info_t * l_new_info = NULL;
+            HASH_FIND(hh,l_tun_sock->clients,&l_msg->ip_unassigment.addr, sizeof (l_msg->ip_unassigment.addr), l_new_info);
+            if( l_new_info){
+                HASH_DELETE(hh, l_tun_sock->clients, l_new_info);
+                DAP_DELETE(l_new_info);
+                if( dap_log_level_get() <= L_INFO){
+                    char l_addrbuf[INET_ADDRSTRLEN];
+                    inet_ntop(AF_INET,&l_msg->ip_unassigment.addr, l_addrbuf, sizeof (l_addrbuf));
+                    log_it(L_INFO, "Unassigned %s address from tun sock #%u", l_addrbuf, l_tun_sock->worker_id);
+                }
+            }else{
+                char l_addrbuf[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET,&l_msg->ip_unassigment.addr, l_addrbuf, sizeof (l_addrbuf));
+                log_it(L_WARNING, "Can't fund address %s on tun sock #%u to unassign it", l_addrbuf, l_tun_sock->worker_id);
+            }
+
+        }break;
+        case TUN_SOCKET_MSG_CH_VPN_SEND:{
+            s_tun_client_send_data_unsafe(l_msg->ch_vpn,l_msg->ch_vpn_send.pkt);
+            DAP_DELETE(l_msg->ch_vpn_send.pkt);
+        }break;
+        default:log_it(L_ERROR,"Wrong tun socket message type %d", l_msg->type);
+    }
+    DAP_DELETE(l_msg);
+}
+
+/**
+ * @brief s_tun_send_msg_ip_assigned
+ * @param a_worker_id
+ * @param a_ch_vpn
+ * @param a_addr
+ */
+static void s_tun_send_msg_ip_assigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr )
+{
+    struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
+    l_msg->type = TUN_SOCKET_MSG_IP_ASSIGNED;
+    l_msg->ch_vpn = a_ch_vpn;
+    l_msg->esocket = a_ch_vpn->ch->stream->esocket;
+    l_msg->is_reassigned_once = a_ch_vpn->ch->stream->esocket->was_reassigned;
+    l_msg->ip_assigment.addr = a_addr;
+    l_msg->ip_assigment.worker_id = a_ch_vpn->ch->stream_worker->worker->id;
+    l_msg->ip_assigment.usage_id = a_ch_vpn->usage_id;
+
+    if (dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0){
+        log_it(L_WARNING, "Cant send new  ip assign message to the tun msg queue #%u", a_worker_id);
+    }
+}
+
+/**
+ * @brief s_tun_send_msg_ip_assigned_all
+ * @param a_ch_vpn
+ * @param a_addr
+ */
+static void s_tun_send_msg_ip_assigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr)
+{
+    for( uint32_t i=0; i< s_tun_sockets_count; i++)
+        s_tun_send_msg_ip_assigned(i, a_ch_vpn , a_addr );
+}
+
+/**
+ * @brief s_tun_send_msg_ip_unassigned
+ * @param a_worker_id
+ * @param a_ch_vpn
+ * @param a_addr
+ */
+static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr)
+{
+    struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
+    l_msg->type = TUN_SOCKET_MSG_IP_UNASSIGNED;
+    l_msg->ch_vpn = a_ch_vpn;
+    l_msg->ip_unassigment.addr = a_addr;
+    l_msg->ip_unassigment.worker_id = a_ch_vpn->ch->stream_worker->worker->id;
+    l_msg->esocket = a_ch_vpn->ch->stream->esocket;
+    l_msg->is_reassigned_once = a_ch_vpn->ch->stream->esocket->was_reassigned;
+
+    if (dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0){
+        log_it(L_WARNING, "Cant send new  ip unassign message to the tun msg queue #%u", a_worker_id);
+    }
+}
+
+/**
+ * @brief s_tun_send_msg_ip_unassigned_all
+ * @param a_ch_vpn
+ * @param a_addr
+ */
+static void s_tun_send_msg_ip_unassigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr)
+{
+    for( uint32_t i=0; i< s_tun_sockets_count; i++)
+        s_tun_send_msg_ip_unassigned(i, a_ch_vpn, a_addr);
+}
+
+/**
+ * @brief s_tun_send_msg_esocket_reasigned_mt
+ * @param a_worker_id
+ * @param a_ch_vpn
+ * @param a_esocket
+ * @param a_addr
+ * @param a_esocket_worker_id
+ */
+static void s_tun_send_msg_esocket_reasigned_mt(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
+                                                struct in_addr a_addr, uint32_t a_esocket_worker_id)
+{
+    struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
+    l_msg->type = TUN_SOCKET_MSG_ESOCKET_REASSIGNED ;
+    l_msg->ch_vpn = a_ch_vpn;
+    l_msg->ip_unassigment.addr = a_addr;
+    l_msg->ip_unassigment.worker_id = a_esocket_worker_id;
+    l_msg->esocket = a_esocket;
+    l_msg->is_reassigned_once = true;
+
+    if (dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0){
+        log_it(L_WARNING, "Cant send esocket reassigment message to the tun msg queue #%u", a_worker_id);
+    }
+}
+
+static void s_tun_send_msg_esocket_reasigned_all_mt(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
+                                                    struct in_addr a_addr, uint32_t a_worker_id)
+{
+    for( uint32_t i=0; i< s_tun_sockets_count; i++)
+        s_tun_send_msg_esocket_reasigned_mt(i, a_ch_vpn, a_esocket, a_addr, a_worker_id);
+}
+
+
+/**
+ * @brief s_tun_event_stream_create
+ * @param a_worker
+ * @param a_tun_fd
+ * @return
+ */
 dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, int a_tun_fd)
 {
     assert(a_worker);
@@ -210,28 +462,6 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
     dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
 
-    int remote_sock_id = 0;//l_vpn_pkt->header.sock_id;
-    ch_vpn_socket_proxy_t * sf_sock = NULL;
-    sf_sock = DAP_NEW_Z(ch_vpn_socket_proxy_t);
-    sf_sock->id = remote_sock_id;
-    sf_sock->sock = l_ch->stream->esocket->socket;
-    sf_sock->ch = l_ch;
-    pthread_mutex_init(&sf_sock->mutex, NULL);
-    //pthread_mutex_lock(&s_sf_socks_mutex);
-    pthread_mutex_lock(&l_srv_ch_vpn->mutex);
-    HASH_ADD_INT(l_srv_ch_vpn->socks, id, sf_sock);
-    pthread_mutex_unlock(&l_srv_ch_vpn->mutex);
-    //HASH_ADD_INT(CH_VPN(a_srv_client->ch)->socks, id, sf_sock);
-    log_it(L_DEBUG, "Added %d sock_id with sock %d to the hash table", sf_sock->id, sf_sock->sock);
-
-    //!!!//l_usage->receipt = ;
-
-    /*
-     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION( a_ch->stream->session );
-     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
-     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
-     if ( ! l_usage->is_active
-     */
 
     if(l_ch) { // Is present in hash table such destination address
         size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
@@ -242,17 +472,12 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         //pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
         //pkt_out->header.op_connect.port = a_port;
         //memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
-        sf_sock->pkt_out[sf_sock->pkt_out_size] = pkt_out;
-        sf_sock->pkt_out_size++;
 
         dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                 pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
         dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         //DAP_DELETE(pkt_out);
     }
-
-
-
 
     // usage is present, we've accepted packets
     dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
@@ -291,10 +516,12 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
         l_srv_vpn = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
         if(l_srv)
             l_srv->_inhertor = l_srv_vpn;
-        dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_new, srv_ch_vpn_delete, s_ch_packet_in, s_ch_packet_out);
+        dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in, s_ch_packet_out);
         pthread_mutex_init(&s_sf_socks_mutex, NULL);
         pthread_cond_init(&s_sf_socks_cond, NULL);
     }
+
+
     if(!dap_chain_net_srv_client_init(l_uid, s_callback_requested,
             s_callback_response_success, s_callback_response_error,
             s_callback_receipt_next_success,
@@ -311,21 +538,6 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
     return 0;
 }
 
-int s_tun_attach_queue(int fd)
-{
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = IFF_ATTACH_QUEUE;
-    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
-}
-
-int s_tun_deattach_queue(int fd)
-{
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = IFF_DETACH_QUEUE;
-    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
-}
 
 
 int s_vpn_tun_create(dap_config_t * g_config)
@@ -352,7 +564,9 @@ int s_vpn_tun_create(dap_config_t * g_config)
 
     uint32_t l_cpu_count = dap_get_cpu_count(); // maybe replace with getting s_threads_count directly
     log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, l_cpu_count);
-
+    s_tun_sockets_count = l_cpu_count;
+    s_tun_sockets = DAP_NEW_Z_SIZE(ch_sf_tun_socket_t*,s_tun_sockets_count*sizeof(ch_sf_tun_socket_t*));
+    s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
     int err = -1;
     for( uint8_t i =0; i< l_cpu_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
@@ -396,6 +610,7 @@ int s_vpn_tun_init()
     pthread_mutex_init(&s_raw_server->pkt_out_mutex,NULL);
     pthread_mutex_init(&s_sf_socks_mutex, NULL);
     pthread_cond_init(&s_sf_socks_cond, NULL);
+
 
     return 0;
 }
@@ -504,8 +719,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     }
     log_it(L_INFO,"TUN driver configured successfuly");
 
-    pthread_create(&srv_sf_socks_pid, NULL, srv_ch_sf_thread, NULL);
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_new, srv_ch_vpn_delete, s_ch_packet_in,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
     s_vpn_service_create(g_config);
@@ -566,19 +780,12 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 
     l_usage_client = DAP_NEW_Z(usage_client_t);
     l_usage_client->usage_id = a_usage_id;
-    l_usage_client->net_srv_client = a_srv_client;
     l_usage_client->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
-    pthread_rwlock_init(&l_usage_client->rwlock,NULL);
 
     memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
+
     pthread_rwlock_wrlock(&s_clients_rwlock);
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
-    if ( l_srv_ch_vpn->tun_socket){
-        //TODO: not so sure here. Should we make a copy, like in sap?
-        HASH_ADD(hh, l_srv_ch_vpn->tun_socket->clients, usage_id,sizeof(a_usage_id),l_usage_client);
-    }else
-        log_it(L_WARNING, "No tun socket for SF channel");
-
     l_srv_session->usage_active = l_usage_active;
     l_srv_session->usage_active->is_active = true;
     log_it(L_NOTICE,"Enable VPN service");
@@ -637,76 +844,6 @@ static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 }
 
 
-/**
- * @brief s_tun_create
- */
-static void s_tun_create(void)
-{
-    pthread_rwlock_wrlock(& s_raw_server_rwlock);
-    inet_aton(s_srv_vpn_addr, &s_raw_server->ipv4_network_addr);
-    inet_aton(s_srv_vpn_mask, &s_raw_server->ipv4_network_mask);
-    s_raw_server->ipv4_host.s_addr = (s_raw_server->ipv4_network_addr.s_addr | 0x01000000); // grow up some shit here!
-    s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_host.s_addr;
-
-    if((s_raw_server->tun_ctl_fd = open("/dev/net/tun", O_RDWR)) < 0) {
-        log_it(L_ERROR, "Opening /dev/net/tun error: '%s'", strerror(errno));
-    } else {
-        int err;
-        memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
-        s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-        if((err = ioctl(s_raw_server->tun_ctl_fd, TUNSETIFF, (void *) &s_raw_server->ifr)) < 0) {
-            log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ", strerror(errno));
-            close(s_raw_server->tun_ctl_fd);
-            s_raw_server->tun_ctl_fd = -1;
-            s_raw_server->tun_fd = -1;
-        } else {
-            char buf[256];
-            log_it(L_NOTICE, "Bringed up %s virtual network interface (%s/%s)", s_raw_server->ifr.ifr_name,
-                    inet_ntoa(s_raw_server->ipv4_host), s_srv_vpn_mask);
-            s_raw_server->tun_fd = s_raw_server->tun_ctl_fd; // Looks yes, its so
-            snprintf(buf, sizeof(buf), "ip link set %s up", s_raw_server->ifr.ifr_name);
-            int res = system(buf);
-            snprintf(buf, sizeof(buf), "ip addr add %s/%s dev %s ", inet_ntoa(s_raw_server->ipv4_host),
-                    s_srv_vpn_mask,
-                    s_raw_server->ifr.ifr_name);
-            res = system(buf);
-            res = 0;
-        }
-    }
-    pthread_rwlock_unlock(& s_raw_server_rwlock);
-
-}
-
-/**
- * @brief s_tun_destroy
- */
-static void s_tun_destroy(void)
-{
-    pthread_rwlock_wrlock(& s_raw_server_rwlock);
-    s_raw_server->tun_fd = -1;
-
-    pthread_rwlock_wrlock(&s_tun_sockets_rwlock);
-    ch_sf_tun_socket_t * l_tun_socket = NULL, *tmp = NULL;
-    HASH_ITER(hh, s_tun_sockets, l_tun_socket, tmp) {
-        l_tun_socket->es->kill_signal=true;
-    }
-    pthread_rwlock_unlock(&s_tun_sockets_rwlock);
-
-    pthread_rwlock_unlock(& s_raw_server_rwlock);
-}
-
-
-/**
- * @brief ch_sf_socket_delete
- * @param sf
- */
-static void ch_sf_socket_delete(ch_vpn_socket_proxy_t * a_vpn_socket_proxy)
-{
-    close(a_vpn_socket_proxy->sock);
-    pthread_mutex_destroy(& (a_vpn_socket_proxy->mutex) );
-    if (a_vpn_socket_proxy)
-        DAP_DELETE(a_vpn_socket_proxy);
-}
 
 
 /**
@@ -714,22 +851,22 @@ static void ch_sf_socket_delete(ch_vpn_socket_proxy_t * a_vpn_socket_proxy)
  * @param ch
  * @param arg
  */
-void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
+void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
+    a_ch->stream->esocket->flags |= DAP_SOCK_REASSIGN_ONCE; // We will try to reassign on another worker
+                                                            // to use FlowControl if its present in system
+                                                            // If not - we prevent jumping between workers with this trick
+    a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
+    dap_chain_net_srv_ch_vpn_t * l_srv_vpn = CH_VPN(a_ch);
 
-    a_stream_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
-    dap_chain_net_srv_ch_vpn_t * l_srv_vpn = CH_VPN(a_stream_ch);
-
-    if(a_stream_ch->stream->session->_inheritor == NULL && a_stream_ch->stream->session != NULL)
-        dap_chain_net_srv_stream_session_create(a_stream_ch->stream->session);
+    if(a_ch->stream->session->_inheritor == NULL && a_ch->stream->session != NULL)
+        dap_chain_net_srv_stream_session_create(a_ch->stream->session);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     l_srv_vpn->net_srv = dap_chain_net_srv_get(l_uid);
-    l_srv_vpn->ch = a_stream_ch;
+    l_srv_vpn->ch = a_ch;
 
-    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_stream_ch->stream->session->_inheritor;
-    pthread_mutex_init(&l_srv_vpn->mutex, NULL);
-    l_srv_vpn->raw_l3_sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
+    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
     l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
 
@@ -739,9 +876,7 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
         pthread_rwlock_rdlock(&s_clients_rwlock);
         HASH_FIND(hh,s_clients, &l_srv_vpn->usage_id,sizeof(l_srv_vpn->usage_id),l_usage_client );
         if (l_usage_client){
-            pthread_rwlock_wrlock(&l_usage_client->rwlock);
             l_usage_client->ch_vpn = l_srv_vpn;
-            pthread_rwlock_unlock(&l_usage_client->rwlock);
         }
         pthread_rwlock_unlock(&s_clients_rwlock);
     }
@@ -753,17 +888,20 @@ void s_new(dap_stream_ch_t* a_stream_ch, void* a_arg)
  * @param ch
  * @param arg
  */
-void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
+void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
 {
     log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->esocket->hostaddr);
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
-    pthread_mutex_lock(&(l_ch_vpn->mutex));
+
+
     // So complicated to update usage client to be sure that nothing breaks it
     usage_client_t * l_usage_client = NULL;
 
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
+        s_tun_send_msg_ip_unassigned_all(l_ch_vpn, l_ch_vpn->addr_ipv4); // Signal all the workers that we're switching off
+
         pthread_rwlock_wrlock(& s_raw_server_rwlock);
         if ( s_raw_server->ipv4_lease_last.s_addr == l_ch_vpn->addr_ipv4.s_addr ){
             s_raw_server->ipv4_lease_last.s_addr = ntohl( ntohl(s_raw_server->ipv4_lease_last.s_addr)-1 );
@@ -787,64 +925,14 @@ void srv_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
 
     HASH_FIND(hh,s_clients, &l_ch_vpn->usage_id,sizeof(l_ch_vpn->usage_id),l_usage_client );
     if (l_usage_client){
-        pthread_rwlock_wrlock(&l_usage_client->rwlock);
         l_usage_client->ch_vpn = NULL; // NULL the channel, nobody uses that indicates
-        pthread_rwlock_unlock(&l_usage_client->rwlock);
     }
 
     pthread_rwlock_unlock(&s_clients_rwlock);
 
-    ch_vpn_socket_proxy_t * cur, *tmp;
-    // in_addr_t raw_client_addr = CH_SF(ch)->tun_client_addr.s_addr;
-    HASH_ITER(hh, l_ch_vpn->socks , cur, tmp)
-    {
-        log_it(L_DEBUG, "delete socket: %i", cur->sock);
-        if(l_ch_vpn->socks){
-            HASH_DEL(l_ch_vpn->socks, cur);
-        }
-        if(cur)
-            free(cur);
-    }
-
-    if(l_ch_vpn->raw_l3_sock)
-        close(l_ch_vpn->raw_l3_sock);
     l_ch_vpn->ch = NULL;
     l_ch_vpn->net_srv = NULL;
     l_ch_vpn->is_allowed =false;
-    pthread_mutex_unlock(&(l_ch_vpn->mutex));
-    pthread_mutex_destroy(& l_ch_vpn->mutex);
-}
-
-static void s_ch_proxy_delete(ch_vpn_socket_proxy_t * a_sock_proxy)
-{
-    if( !a_sock_proxy)
-        return;
-
-    if(a_sock_proxy->sock > 0)
-        close(a_sock_proxy->sock);
-    // wait while mutex will be released if it be locked
-    pthread_mutex_lock(&a_sock_proxy->mutex);
-    pthread_mutex_unlock(&a_sock_proxy->mutex);
-
-    pthread_mutex_destroy(&(a_sock_proxy->mutex));
-    DAP_DELETE(a_sock_proxy);
-}
-
-static ch_vpn_pkt_t* srv_ch_sf_raw_read()
-{
-    ch_vpn_pkt_t*ret = NULL;
-    pthread_mutex_lock(&s_raw_server->pkt_out_mutex);
-    if(s_raw_server->pkt_out_rindex == (sizeof(s_raw_server->pkt_out) / sizeof(s_raw_server->pkt_out[0]))) {
-        s_raw_server->pkt_out_rindex = 0; // ring the buffer!
-    }
-    if((s_raw_server->pkt_out_rindex != s_raw_server->pkt_out_windex) || (s_raw_server->pkt_out_size == 0)) {
-        ret = s_raw_server->pkt_out[s_raw_server->pkt_out_rindex];
-        s_raw_server->pkt_out_rindex++;
-        s_raw_server->pkt_out_size--;
-    } //else
-      //  log_it(L_WARNING, "Packet drop on raw_read() operation, ring buffer is full");
-    pthread_mutex_unlock(&s_raw_server->pkt_out_mutex);
-    return ret;
 }
 
 /**
@@ -1099,258 +1187,55 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
 
     // TODO move address leasing to this structure
-    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_inhertor;
+    //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_inhertor;
 
-    //if ( pkt->hdr.type == DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT )
-    //    dap_chain_net_vpn_client_pkt_in( a_ch, l_pkt);
-    if(l_pkt->hdr.type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT) {
-        static bool client_connected = false;
-        ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
-        size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);
+    ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
+    size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);
 
-        int remote_sock_id = l_vpn_pkt->header.sock_id;
 
-        //log_it(L_DEBUG, "Got SF packet with id %d op_code 0x%02x", remote_sock_id, sf_pkt->header.op_code);
-        if(l_vpn_pkt->header.op_code >= 0xb0) { // Raw packets
-            switch (l_vpn_pkt->header.op_code) {
+    //log_it(L_DEBUG, "Got SF packet with id %d op_code 0x%02x", remote_sock_id, sf_pkt->header.op_code);
+    if(l_vpn_pkt->header.op_code >= 0xb0) { // Raw packets
+        switch (l_vpn_pkt->header.op_code) {
             case VPN_PACKET_OP_CODE_PING:
                 a_ch->stream->esocket->last_ping_request = time(NULL);
                 send_pong_pkt(a_ch);
-                break;
+            break;
             case VPN_PACKET_OP_CODE_PONG:
                 a_ch->stream->esocket->last_ping_request = time(NULL);
-                break;
+            break;
             // for client
             case VPN_PACKET_OP_CODE_VPN_ADDR_REPLY: { // Assigned address for peer
                 if(ch_sf_tun_addr_leased(CH_VPN(a_ch), l_vpn_pkt, l_vpn_pkt_size) < 0) {
                     log_it(L_ERROR, "Can't create tun");
-                }
-            }
-            break;
+                }else
+                    s_tun_send_msg_ip_assigned_all(CH_VPN(a_ch), CH_VPN(a_ch)->addr_ipv4);
+            } break;
             // for server
             case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
                 log_it(L_INFO, "Received address request  ");
                 s_ch_packet_in_vpn_address_request(a_ch, l_usage);
-            }
-                break;
+            } break;
             // for client only
             case VPN_PACKET_OP_CODE_VPN_RECV:{
                 a_ch->stream->esocket->last_ping_request = time(NULL); // not ping, but better  ;-)
-                            ch_sf_tun_send(CH_VPN(a_ch), l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
-            }
-            break;
+                // Find tun socket for current worker
+                ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
+                assert(l_tun);
+                // Unsafely send it
+                dap_events_socket_write_unsafe( l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
+            } break;
 
             // for servier only
             case VPN_PACKET_OP_CODE_VPN_SEND: {
-                struct in_addr in_saddr, in_daddr;
-                in_saddr.s_addr = ((struct iphdr*) l_vpn_pkt->data)->saddr;
-                in_daddr.s_addr = ((struct iphdr*) l_vpn_pkt->data)->daddr;
-
-                char str_daddr[43], str_saddr[43];
-                strncpy(str_saddr, inet_ntoa(in_saddr), sizeof(str_saddr)-1);
-                strncpy(str_daddr, inet_ntoa(in_daddr), sizeof(str_daddr)-1);
-
-                // The packet can't be written, errno == EINVAL !!!
-                //log_it(L_DEBUG, "VPN packet, source: %s; dest: %s", inet_ntoa(in_saddr), inet_ntoa(in_daddr));
-                int ret;
-                //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
-                /*struct sockaddr_in sin = { 0 };
-                sin.sin_family = AF_INET;
-                sin.sin_port = 0;
-                sin.sin_addr.s_addr = in_daddr.s_addr;*/
-
-
-                //if((ret=sendto(CH_SF(ch)->raw_l3_sock , sf_pkt->data,sf_pkt->header.op_data.data_size,0,(struct sockaddr *) &sin, sizeof (sin)))<0){
-                if((ret = write(s_raw_server->tun_fd, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size)) < 0) {
-                    log_it(L_ERROR, "write() returned error %d : '%s'", ret, strerror(errno));
-                    //log_it(L_ERROR,"raw socket ring buffer overflowed");
-                    ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
-                    pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
-                    pkt_out->header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
-                    pkt_out->header.sock_id = s_raw_server->tun_fd;
-                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                            pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-                } else {
-                    s_update_limits (a_ch, l_srv_session, l_usage,(size_t) ret );
-                    //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
-                    //        str_saddr, str_daddr, sf_pkt->header.op_data.data_size, ret);
-                    //log_it(L_DEBUG, "Raw IP sent %u bytes ", ret);
-                }
-                //}
-            }
-                break;
+                ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
+                assert(l_tun);
+                // Unsafely send it
+                size_t l_ret = dap_events_socket_write_unsafe( l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
+                if( l_ret)
+                    s_update_limits (a_ch, l_srv_session, l_usage,l_ret );
+            } break;
             default:
                 log_it(L_WARNING, "Can't process SF type 0x%02x", l_vpn_pkt->header.op_code);
-            }
-        } else { // All except CONNECT
-            ch_vpn_socket_proxy_t * sf_sock = NULL;
-            if(l_vpn_pkt->header.op_code != VPN_PACKET_OP_CODE_CONNECT) {
-
-                pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
-                //      log_it(L_DEBUG,"Looking in hash table with %d",remote_sock_id);
-                HASH_FIND_INT((CH_VPN(a_ch)->socks), &remote_sock_id, sf_sock);
-                pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-
-                if(sf_sock != NULL) {
-                    pthread_mutex_lock(&sf_sock->mutex); // Unlock it in your case as soon as possible to reduce lock time
-                    sf_sock->time_lastused = time(NULL);
-                    switch (l_vpn_pkt->header.op_code) {
-                    case VPN_PACKET_OP_CODE_SEND: {
-                        if(client_connected == false)
-                        {
-                            log_it(L_WARNING, "Drop Packet! User not connected!"); // Client need send
-                            pthread_mutex_unlock(&s_sf_socks_mutex);
-                            break;
-                        }
-                        int ret;
-                        if((ret = send(sf_sock->sock, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size, 0)) < 0) {
-                            log_it(L_INFO, "Disconnected from the remote host");
-                            pthread_mutex_unlock(&sf_sock->mutex);
-                            pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
-                            HASH_DEL(CH_VPN(a_ch)->socks, sf_sock);
-                            pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-
-                            pthread_mutex_lock(&s_sf_socks_mutex);
-                            HASH_DELETE(hh2, sf_socks, sf_sock);
-                            HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
-
-                            struct epoll_event ev = {0, {0}};
-                            ev.data.fd = sf_sock->sock;
-                            ev.events = EPOLLIN;
-                            if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
-                                log_it(L_ERROR, "Can't remove sock_id %d from the epoll fd", remote_sock_id);
-                                //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=0x%02x result=-2",sf_pkt->sock_id, sf_pkt->op_code);
-                            } else {
-                                log_it(L_NOTICE, "Removed sock_id %d from the the epoll fd", remote_sock_id);
-                                //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=0x%02x result=0",sf_pkt->sock_id, sf_pkt->op_code);
-                            }
-                            pthread_mutex_unlock(&s_sf_socks_mutex);
-
-                            s_ch_proxy_delete(sf_sock);
-                        } else {
-                            sf_sock->bytes_sent += ret;
-                            pthread_mutex_unlock(&sf_sock->mutex);
-                        }
-                        //log_it(L_INFO, "Send action from %d sock_id (sf_packet size %lu,  ch packet size %lu, have sent %d)"
-                        //        , sf_sock->id, sf_pkt->header.op_data.data_size, l_pkt->hdr.size, ret);
-                    }
-                        break;
-                    case VPN_PACKET_OP_CODE_DISCONNECT: {
-                        log_it(L_INFO, "Disconnect action from %d sock_id", sf_sock->id);
-
-                        pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
-                        HASH_DEL(CH_VPN(a_ch)->socks, sf_sock);
-                        pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-
-                        pthread_mutex_lock(&s_sf_socks_mutex);
-                        HASH_DELETE(hh2, sf_socks, sf_sock);
-                        HASH_DELETE(hh_sock, sf_socks_client, sf_sock);
-                        struct epoll_event ev  = {0, {0}};;
-                        ev.data.fd = sf_sock->sock;
-                        ev.events = EPOLLIN;
-                        if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) < 0) {
-                            log_it(L_ERROR, "Can't remove sock_id %d to the epoll fd", remote_sock_id);
-                            //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=%uc result=-2",sf_pkt->sock_id, sf_pkt->op_code);
-                        } else {
-                            log_it(L_NOTICE, "Removed sock_id %d from the epoll fd", remote_sock_id);
-                            //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=%uc result=0",sf_pkt->sock_id, sf_pkt->op_code);
-                        }
-                        pthread_mutex_unlock(&s_sf_socks_mutex);
-
-                        pthread_mutex_unlock(&sf_sock->mutex);
-                        s_ch_proxy_delete(sf_sock);
-                    }
-                        break;
-                    default: {
-                        log_it(L_WARNING, "Unprocessed op code 0x%02x", l_vpn_pkt->header.op_code);
-                        pthread_mutex_unlock(&sf_sock->mutex);
-                    }
-                    }
-                } //else
-                  //  log_it(L_WARNING, "Packet input: packet with sock_id %d thats not present in current stream channel",
-                  //          remote_sock_id);
-            } else {
-                HASH_FIND_INT(CH_VPN(a_ch)->socks, &remote_sock_id, sf_sock);
-                if(sf_sock) {
-                    log_it(L_WARNING, "Socket id %d is already used, take another number for socket id", remote_sock_id);
-                } else { // Connect action
-                    struct sockaddr_in remote_addr;
-                    char addr_str[1024];
-                    size_t addr_str_size =
-                            (l_vpn_pkt->header.op_connect.addr_size > (sizeof(addr_str) - 1)) ?
-                                    (sizeof(addr_str) - 1) :
-                                    l_vpn_pkt->header.op_connect.addr_size;
-                    memset(&remote_addr, 0, sizeof(remote_addr));
-                    remote_addr.sin_family = AF_INET;
-                    remote_addr.sin_port = htons(l_vpn_pkt->header.op_connect.port);
-
-                    memcpy(addr_str, l_vpn_pkt->data, addr_str_size);
-                    addr_str[addr_str_size] = 0;
-
-                    log_it(L_DEBUG, "Connect action to %s:%u (addr_size %lu)", addr_str, l_vpn_pkt->header.op_connect.port,
-                            l_vpn_pkt->header.op_connect.addr_size);
-                    if(inet_pton(AF_INET, addr_str, &(remote_addr.sin_addr)) < 0) {
-                        log_it(L_ERROR, "Wrong remote address '%s:%u'", addr_str, l_vpn_pkt->header.op_connect.port);
-                    } else {
-                        int s;
-                        if((s = socket(AF_INET, SOCK_STREAM, 0)) >= 0) {
-                            log_it(L_DEBUG, "Socket is created (%d)", s);
-                            if(connect(s, (struct sockaddr *) &remote_addr, sizeof(remote_addr)) >= 0) {
-                                fcntl(s, F_SETFL, O_NONBLOCK);
-                                log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", addr_str,
-                                        l_vpn_pkt->header.op_connect.port, remote_sock_id);
-                                ch_vpn_socket_proxy_t * sf_sock = NULL;
-                                sf_sock = DAP_NEW_Z(ch_vpn_socket_proxy_t);
-                                sf_sock->id = remote_sock_id;
-                                sf_sock->sock = s;
-                                sf_sock->ch = a_ch;
-                                pthread_mutex_init(&sf_sock->mutex, NULL);
-
-                                pthread_mutex_lock(&s_sf_socks_mutex);
-                                pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
-                                HASH_ADD_INT(CH_VPN(a_ch)->socks, id, sf_sock);
-                                log_it(L_DEBUG, "Added %d sock_id with sock %d to the hash table", sf_sock->id,
-                                        sf_sock->sock);
-                                HASH_ADD(hh2, sf_socks, id, sizeof(sf_sock->id), sf_sock);
-                                log_it(L_DEBUG, "Added %d sock_id with sock %d to the hash table", sf_sock->id,
-                                        sf_sock->sock);
-                                HASH_ADD(hh_sock, sf_socks_client, sock, sizeof(int), sf_sock);
-                                //log_it(L_DEBUG,"Added %d sock_id with sock %d to the socks hash table",sf->id,sf->sock);
-                                pthread_mutex_unlock(&s_sf_socks_mutex);
-                                pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-
-                                struct epoll_event ev = {0, {0}};
-                                ev.data.fd = s;
-                                ev.events = EPOLLIN | EPOLLERR;
-
-                                if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_ADD, s, &ev) == -1) {
-                                    log_it(L_ERROR, "Can't add sock_id %d to the epoll fd", remote_sock_id);
-                                    //stream_ch_pkt_write_f(ch,'i',"sock_id=%d op_code=%uc result=-2",sf_pkt->sock_id, sf_pkt->op_code);
-                                } else {
-                                    log_it(L_NOTICE, "Added sock_id %d  with sock %d to the epoll fd", remote_sock_id, s);
-                                    log_it(L_NOTICE, "Send Connected packet to User");
-                                    ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
-                                    pkt_out->header.sock_id = remote_sock_id;
-                                    pkt_out->header.op_code = VPN_PACKET_OP_CODE_CONNECTED;
-                                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT, pkt_out,
-                                            pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                                    free(pkt_out);
-                                    client_connected = true;
-                                }
-                                dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-                            } else {
-                                log_it(L_INFO, "Can't connect to the remote server %s", addr_str);
-                                dap_stream_ch_pkt_write_f_unsafe(a_ch, 'i', "sock_id=%d op_code=%c result=-1",
-                                        l_vpn_pkt->header.sock_id, l_vpn_pkt->header.op_code);
-                                dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-                            }
-                        } else {
-                            log_it(L_ERROR, "Can't create the socket");
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -1363,7 +1248,6 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    ch_vpn_socket_proxy_t * cur, *tmp;
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION( a_ch->stream->session );
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
 
@@ -1391,204 +1275,12 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         return;
     }
-
-    bool l_is_smth_out = false;
-//    log_it(L_DEBUG,"Socket forwarding packet out callback: %u sockets in hashtable", HASH_COUNT(CH_SF(ch)->socks) );
-    HASH_ITER(hh, l_ch_vpn->socks , cur, tmp)
-    {
-        bool l_signal_to_break = false;
-        pthread_mutex_lock(&(cur->mutex));
-        size_t i;
-        //log_it(L_DEBUG, "Socket with id %d has %u packets in output buffer", cur->id, cur->pkt_out_size);
-        if(cur->pkt_out_size) {
-            for(i = 0; i < cur->pkt_out_size; i++) {
-                ch_vpn_pkt_t * pout = cur->pkt_out[i];
-                if(pout) {
-                    size_t l_wrote_size;
-                    if((l_wrote_size = dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pout,
-                            pout->header.op_data.data_size + sizeof(pout->header)))>0 ) {
-                        l_is_smth_out = true;
-                        DAP_DELETE(pout);
-                        cur->pkt_out[i] = NULL;
-                    } else {
-                        log_it(L_WARNING, "Buffer is overflowed, breaking cycle to let the upper level cycle drop data to the output socket");
-                        l_is_smth_out = true;
-                        l_signal_to_break = true;
-                        break;
-                    }
-                    s_update_limits (a_ch, l_srv_session, l_usage,l_wrote_size );
-                }
-            }
-        }
-
-        if(l_signal_to_break) {
-            pthread_mutex_unlock(&(cur->mutex));
-            break;
-        }
-        cur->pkt_out_size = 0;
-        if(cur->signal_to_delete) {
-            log_it(L_NOTICE, "Socket id %d got signal to be deleted", cur->id);
-            pthread_mutex_lock(&( CH_VPN(a_ch)->mutex));
-            HASH_DEL(l_ch_vpn->socks, cur);
-            pthread_mutex_unlock(&( CH_VPN(a_ch)->mutex));
-
-            pthread_mutex_lock(&(s_sf_socks_mutex));
-            HASH_DELETE(hh2, sf_socks, cur);
-            HASH_DELETE(hh_sock, sf_socks_client, cur);
-            pthread_mutex_unlock(&(s_sf_socks_mutex));
-
-            pthread_mutex_unlock(&(cur->mutex));
-            s_ch_proxy_delete(cur);
-        } else
-            pthread_mutex_unlock(&(cur->mutex));
-    }
-    if(l_is_smth_out) {
-        if(a_ch->stream->conn_http)
-            a_ch->stream->conn_http->state_write = DAP_HTTP_CLIENT_STATE_DATA;
-    }
-
-    dap_stream_ch_set_ready_to_write_unsafe(a_ch, l_is_smth_out);
-}
-
-/**
- * @brief stream_sf_disconnect
- * @param sf
- */
-void srv_stream_sf_disconnect(ch_vpn_socket_proxy_t * sf_sock)
-{
-    struct epoll_event ev = {0, {0}};
-    ev.data.fd = sf_sock->sock;
-    ev.events = EPOLLIN | EPOLLERR;
-    if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, sf_sock->sock, &ev) == -1) {
-        log_it(L_ERROR, "Can't del sock_id %d from the epoll fd", sf_sock->id);
-        //stream_ch_pkt_write_f(sf->ch,'i',"sock_id=%d op_code=%uc result=-1",sf->id, STREAM_SF_PACKET_OP_CODE_RECV);
-    } else {
-        log_it(L_ERROR, "Removed sock_id %d from the epoll fd", sf_sock->id);
-        //stream_ch_pkt_write_f(sf->ch,'i',"sock_id=%d op_code=%uc result=0",sf->id, STREAM_SF_PACKET_OP_CODE_RECV);
-    }
-
-    // Compise signal to disconnect to another side, with special opcode STREAM_SF_PACKET_OP_CODE_DISCONNECT
-    ch_vpn_pkt_t * pkt_out;
-    pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + 1);
-    pkt_out->header.op_code = VPN_PACKET_OP_CODE_DISCONNECT;
-    pkt_out->header.sock_id = sf_sock->id;
-    sf_sock->pkt_out[sf_sock->pkt_out_size] = pkt_out;
-    sf_sock->pkt_out_size++;
-    sf_sock->signal_to_delete = true;
-}
-
-/**
-
- Socket forward
- **/
-
-void * srv_ch_sf_thread(void * a_arg)
-{
-    UNUSED(a_arg);
-    struct epoll_event ev = {0, {0}}, events[SF_MAX_EVENTS] = { {0, {0}} };
-    //pthread_mutex_lock(&sf_socks_mutex);
-    sf_socks_epoll_fd = epoll_create(SF_MAX_EVENTS);
-    sigset_t sf_sigmask;
-    sigemptyset(&sf_sigmask);
-    sigaddset(&sf_sigmask, SIGUSR2);
-
-    while(1) {
-        int nfds = epoll_pwait(sf_socks_epoll_fd, events, SF_MAX_EVENTS, 10000, &sf_sigmask);
-        if(nfds < 0) {
-            //log_it(L_CRITICAL,"Can't run epoll_wait: %s",strerror(errno));
-            continue;
-        }
-        if(nfds > 0)
-            log_it(L_DEBUG, "Epolled %d fd", nfds);
-        else
-            continue;
-        int n;
-        for(n = 0; n < nfds; ++n) {
-            int s = events[n].data.fd;
-
-            ch_vpn_socket_proxy_t * l_socket_proxy = NULL;
-            pthread_mutex_lock(&s_sf_socks_mutex);
-            HASH_FIND(hh_sock, sf_socks_client, &s, sizeof(s), l_socket_proxy);
-            pthread_mutex_unlock(&s_sf_socks_mutex);
-            if( l_socket_proxy ) {
-                dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (l_socket_proxy->ch->stream->session );
-                dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(l_socket_proxy->ch);
-                dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
-
-                if(events[n].events & EPOLLERR) {
-                    log_it(L_NOTICE, "Socket id %d has EPOLLERR flag on", s);
-                    pthread_mutex_lock(&(l_socket_proxy->mutex));
-                    srv_stream_sf_disconnect(l_socket_proxy);
-                    pthread_mutex_unlock(&(l_socket_proxy->mutex));
-                } else if(events[n].events & EPOLLIN) {
-                    char buf[1000000];
-                    ssize_t ret;
-                    pthread_mutex_lock(&(l_socket_proxy->mutex));
-                    if(l_socket_proxy->pkt_out_size < ((sizeof(l_socket_proxy->pkt_out) / sizeof(l_socket_proxy->pkt_out[0])) - 1)) {
-                        ret = recv(l_socket_proxy->sock, buf, sizeof(buf), 0);
-                        //log_it(L_DEBUG,"recv() returned %d",ret);
-                        if(ret > 0) {
-                            size_t buf_size = ret;
-                            s_update_limits(l_socket_proxy->ch,l_srv_session,l_usage,buf_size);
-                                ch_vpn_pkt_t * pout;
-                                pout = l_socket_proxy->pkt_out[l_socket_proxy->pkt_out_size] = (ch_vpn_pkt_t *) calloc(1,
-                                        buf_size + sizeof(pout->header));
-                                pout->header.op_code = VPN_PACKET_OP_CODE_RECV;
-                                pout->header.sock_id = l_socket_proxy->id;
-                                pout->header.usage_id = l_usage->id;
-                                pout->header.op_data.data_size = buf_size;
-                                memcpy(pout->data, buf, buf_size);
-                                l_socket_proxy->pkt_out_size++;
-                                pthread_mutex_unlock(&(l_socket_proxy->mutex));
-                                dap_stream_ch_set_ready_to_write_unsafe(l_socket_proxy->ch, true);
-                                pthread_mutex_unlock(&(l_socket_proxy->mutex));
-
-                        } else {
-                            log_it(L_NOTICE,
-                                    "Socket id %d returned error on recv() function - may be host has disconnected", s);
-                            pthread_mutex_unlock(&(l_socket_proxy->mutex));
-                            srv_stream_sf_disconnect(l_socket_proxy);
-                        }
-                    } else {
-                        log_it(L_WARNING, "Can't receive data, full of stack");
-                        pthread_mutex_unlock(&(l_socket_proxy->mutex));
-                    }
-                } else {
-                    log_it(L_WARNING, "Unprocessed flags 0x%08X", events[n].events);
-                }
-            } else {
-                if(epoll_ctl(sf_socks_epoll_fd, EPOLL_CTL_DEL, s, &ev) < 0) {
-                    log_it(L_ERROR, "Can't remove sock_id %d to the epoll fd", s);
-                } else {
-                    log_it(L_NOTICE, "Socket id %d is removed from the list", s);
-                }
-            }
-        }
-        //pthread_mutex_unlock(&sf_socks_mutex);
-    }
-    return NULL;
-}
-
-static volatile bool s_srv_ch_sf_thread_raw_is_exit = false;
-
-/* Signal handler. */
-static void s_sig_handle (int sig)
-{
-    UNUSED(sig);
-    s_srv_ch_sf_thread_raw_is_exit = true;
 }
 
 void m_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
-    if (! a_es->_inheritor) // There is moment between inheritor initialization and active live of event socket in worker.
-        return;
-
-    ch_sf_tun_socket_t * l_tun_socket = CH_SF_TUN_SOCKET( a_es );
-    pthread_rwlock_wrlock(&s_tun_sockets_rwlock);
-    HASH_DEL(s_tun_sockets,l_tun_socket);
-    DAP_DELETE(l_tun_socket);
-    a_es->_inheritor = NULL;
-    pthread_rwlock_unlock(&s_tun_sockets_rwlock);
+    s_tun_sockets[a_es->worker->id] = NULL;
+    dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->worker->id],false);
     log_it(L_NOTICE,"Destroyed TUN event socket");
 }
 
@@ -1613,54 +1305,23 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
         dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
 
         //
-        usage_client_t * l_tun_client = NULL;
-        bool l_tun_server_clients_locked = false;
-
+        dap_chain_net_srv_ch_vpn_info_t * l_vpn_info = NULL;
         // Try to find in worker's clients, without locks
-        if ( l_tun_socket->clients)
-            HASH_FIND_INT( s_clients,&in_daddr.s_addr,l_tun_client );
-
-        if ( l_tun_client == NULL){
-            // If not found - try to lock and find in global list
-            pthread_rwlock_rdlock(& s_raw_server->rwlock );
-            l_tun_server_clients_locked = true;
-            HASH_FIND_INT( s_clients,&in_daddr.s_addr,l_tun_client );
-            if ( l_tun_client ){
-                if ( s_raw_server->auto_cpu_reassignment ){
-                    //TODO: first implement dap_events_socket_reassign_worker()
-                }
-            }
+        if ( l_tun_socket->clients){
+            HASH_FIND_INT( l_tun_socket->clients,&in_daddr.s_addr,l_vpn_info );
         }
-
-        if(l_tun_client){
-            dap_chain_net_srv_ch_vpn_t * l_ch_vpn = NULL;
-            pthread_rwlock_rdlock(&s_clients_rwlock);
-            HASH_FIND(hh,s_ch_vpn_addrs, &in_daddr, sizeof (in_daddr), l_ch_vpn);
-
-            if(l_ch_vpn) { // Is present in hash table such destination address
-                dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (l_ch_vpn->ch->stream->session );
-                dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
-                ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + l_buf_in_size);
-                l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
-                l_pkt_out->header.sock_id = s_raw_server->tun_fd;
-                l_pkt_out->header.usage_id = l_ch_vpn->usage_id;
-                l_pkt_out->header.op_data.data_size = l_buf_in_size;
-                memcpy(l_pkt_out->data, a_es->buf_in, l_buf_in_size);
-                dap_stream_ch_pkt_write_unsafe(l_usage->client->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
-                        l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-                dap_stream_ch_set_ready_to_write_unsafe(l_ch_vpn->ch, true);
-                s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_buf_in_size);
+        // We found in local table, sending data (if possible)
+        if (l_vpn_info){
+            if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once ){
+                dap_events_socket_reassign_between_workers_mt( l_vpn_info->worker,l_vpn_info->esocket,a_es->worker);
+                l_vpn_info->is_reassigned_once = true;
+                s_tun_send_msg_esocket_reasigned_all_mt(l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->addr_ipv4,a_es->worker->id);
             }
-            pthread_rwlock_unlock(&s_clients_rwlock);
+            s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         }
-        a_es->buf_in_size = 0;
-
-        if (l_tun_server_clients_locked)
-            pthread_rwlock_unlock(&s_raw_server->rwlock);
     }
-
-    dap_events_socket_set_readable_unsafe(a_es, true);
 }
+
 
 void m_es_tun_error(dap_events_socket_t * a_es, int arg)
 {
@@ -1677,13 +1338,37 @@ void m_es_tun_new(dap_events_socket_t * a_es, void * arg)
         l_tun_socket->worker = a_es->worker;
         l_tun_socket->worker_id = l_tun_socket->worker->id;
         l_tun_socket->es = a_es;
-        pthread_rwlock_wrlock(&s_tun_sockets_rwlock);
-        HASH_ADD_INT( s_tun_sockets, worker_id, l_tun_socket);
-        pthread_rwlock_unlock(&s_tun_sockets_rwlock);
+        s_tun_sockets_queue_msg[a_es->worker->id] = dap_events_socket_create_type_queue_ptr_unsafe(a_es->worker, s_tun_recv_msg_callback );
         a_es->_inheritor = l_tun_socket;
         s_tun_attach_queue( a_es->fd );
         log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
     }else{
         log_it(L_ERROR, "Can't allocate memory for tun socket");
     }
+}
+
+/**
+ * @brief s_tun_attach_queue
+ * @param fd
+ * @return
+ */
+static int s_tun_attach_queue(int fd)
+{
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_flags = IFF_ATTACH_QUEUE;
+    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
+}
+
+/**
+ * @brief s_tun_deattach_queue
+ * @param fd
+ * @return
+ */
+static int s_tun_deattach_queue(int fd)
+{
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_flags = IFF_DETACH_QUEUE;
+    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
 }

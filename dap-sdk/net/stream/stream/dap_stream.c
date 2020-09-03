@@ -360,7 +360,7 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
    // int raw_size;
     unsigned int id=0;
 
-    log_it(L_DEBUG,"Prepare data stream");
+    //log_it(L_DEBUG,"Prepare data stream");
     if(a_http_client->in_query_string[0]){
         log_it(L_INFO,"Query string [%s]",a_http_client->in_query_string);
 //        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
@@ -414,7 +414,7 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
 static void s_http_client_headers_write(dap_http_client_t * a_http_client, void *a_arg)
 {
     (void) a_arg;
-    log_it(L_DEBUG,"s_http_client_headers_write()");
+    //log_it(L_DEBUG,"s_http_client_headers_write()");
     if(a_http_client->reply_status_code==200){
         dap_stream_t *sid=DAP_STREAM(a_http_client);
 
@@ -476,7 +476,7 @@ static void s_esocket_write(dap_events_socket_t* a_client , void * a_arg){
     size_t i;
     bool ready_to_write=false;
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
-    log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(l_http_client)->channel_count );
+    //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(l_http_client)->channel_count );
     for(i=0;i<DAP_STREAM(l_http_client)->channel_count; i++){
         dap_stream_ch_t * ch = DAP_STREAM(l_http_client)->channel[i];
         if(ch->ready_to_write){

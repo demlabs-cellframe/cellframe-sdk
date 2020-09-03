@@ -112,7 +112,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     }else
         log_it(L_WARNING, "Be carefull, you've wrapped socket 0 or -1 so it wasn't added to global list. Do it yourself when possible");
 
-    // log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
+    //log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
     return ret;
 }
@@ -129,9 +129,24 @@ void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct da
     dap_worker_add_events_socket(a_es,a_worker);
 }
 
-void dap_events_socket_reassign_between_workers_unsafe(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
+
+void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
-    dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, a_worker_new );
+    dap_events_socket_remove_from_worker_unsafe( a_es, a_es->worker );
+    a_es->was_reassigned = true;
+    if (a_es->callbacks.worker_unassign_callback)
+        a_es->callbacks.worker_unassign_callback(a_es, a_es->worker);
+
+    dap_events_socket_assign_on_worker_mt( a_es, a_worker_new );
+}
+
+void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
+{
+    dap_worker_msg_reassign_t * l_msg = DAP_NEW_Z(dap_worker_msg_reassign_t);
+    l_msg->esocket = a_es;
+    l_msg->worker_new = a_worker_new;
+    dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg);
+
 }
 
 /**

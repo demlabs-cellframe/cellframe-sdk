@@ -485,7 +485,7 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
 
     (void) arg;
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( cl );
-    log_it(L_WARNING,"HTTP client write callback in state %d",l_http_client->state_write);
+    //log_it(L_WARNING,"HTTP client write callback in state %d",l_http_client->state_write);
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:

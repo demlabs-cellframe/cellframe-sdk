@@ -529,61 +529,51 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);
 }
 
-void ch_sf_tun_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size) {
-    bool passPacket = true;
-    /*switch(ch_sf_snort_pkt(pkt_data,pkt_data_size)){
-     case SNORT_ALERT: passPacket=false; break;
-     default: passPacket=true;
-     }*/
-//    log_it(L_DEBUG,"==== ch_sf_tun_send()");
-    if(passPacket) {
-//        log_it(L_DEBUG,"==== ch_sf_tun_send() ++");
-        struct in_addr in_saddr, in_daddr, in_daddr_net;
-        in_saddr.s_addr = ((struct iphdr*) pkt_data)->saddr;
-        in_daddr.s_addr = ((struct iphdr*) pkt_data)->daddr;
-        in_daddr_net.s_addr = ch_sf->ch->stream->session->tun_client_addr.s_addr; //in_daddr_net.s_addr = in_daddr.s_addr & m_tun_server->int_network_mask.s_addr;
-        char * in_daddr_str = strdup(inet_ntoa(in_daddr));
-        char * in_saddr_str = strdup(inet_ntoa(in_saddr));
+/**
+ * @brief ch_sf_tun_send
+ * @param ch_sf
+ * @param pkt_data
+ * @param pkt_data_size
+ */
+void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size) {
+    log_it(L_CRITICAL, "Unimplemented tun_client_send");
 
-        dap_stream_ch_t * l_route_ch = NULL; //ch_sf_peer_ch_find(ch_sf->ch->stream->session, pkt_data, pkt_data_size);
+    struct in_addr in_saddr, in_daddr, in_daddr_net;
+    in_saddr.s_addr = ((struct iphdr*) pkt_data)->saddr;
+    in_daddr.s_addr = ((struct iphdr*) pkt_data)->daddr;
+    in_daddr_net.s_addr = ch_sf->ch->stream->session->tun_client_addr.s_addr; //in_daddr_net.s_addr = in_daddr.s_addr & m_tun_server->int_network_mask.s_addr;
+    char * in_daddr_str = strdup(inet_ntoa(in_daddr));
+    char * in_saddr_str = strdup(inet_ntoa(in_saddr));
 
-        if(l_route_ch) {
-//            log_it(L_DEBUG, "Route packet %s=>%s to %d socket", in_saddr_str,in_daddr_str,l_route_ch->stream->events_socket->socket);
-            ch_sf_pkt_send(l_route_ch, pkt_data, pkt_data_size);
-//        }else /*if(m_tun_server->int_network.s_addr != in_daddr_net.s_addr )*/{ // No ways to route so write it out to the OS network stack
-//        }else if(ch_sf_peer_ch_find(NULL, pkt_data,pkt_data_size)){ // No ways to route so write it out to the OS network stack
-        } else { // if(!ch_sf_peer_ch_check(pkt_data,pkt_data_size)){ // No ways to route so write it out to the OS network stack
-            int ret;
-//            log_it(L_DEBUG, "Route packet %s=>%s size %u to the OS network stack",in_saddr_str,
-//                   in_daddr_str,pkt_data_size);
-            //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
-            struct sockaddr_in sin = { 0 };
-            sin.sin_family = AF_INET;
-            sin.sin_port = 0;
-            sin.sin_addr.s_addr = in_daddr.s_addr;
-            if((ret = sendto(ch_sf->raw_l3_sock, pkt_data, pkt_data_size, 0, (struct sockaddr *) &sin, sizeof(sin)))
-                    < 0) {
-                //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){
-                log_it(L_ERROR, "write() returned error %d : '%s'", ret, strerror(errno));
-                //log_it(ERROR,"raw socket ring buffer overflowed");
-                ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
-                pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
-                pkt_out->header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
-                pkt_out->header.sock_id = s_fd_tun;
-                dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', pkt_out,
-                        pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-            } else {
-                //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
-                //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);
-//                log_it(L_DEBUG,"Raw IP sent %u bytes ",ret);
-            }
-        }/*else log_it(L_ERROR,"I don't know what to do with packet");*/
-
-        if(in_daddr_str)
-            free(in_daddr_str);
-        if(in_saddr_str)
-            free(in_saddr_str);
+    int ret;
+    //            log_it(L_DEBUG, "Route packet %s=>%s size %u to the OS network stack",in_saddr_str,
+    //                   in_daddr_str,pkt_data_size);
+    //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
+    struct sockaddr_in sin = { 0 };
+    sin.sin_family = AF_INET;
+    sin.sin_port = 0;
+    sin.sin_addr.s_addr = in_daddr.s_addr;
+    if((ret = /*sendto(ch_sf->raw_l3_sock, pkt_data, pkt_data_size, 0, (struct sockaddr *) &sin, sizeof(sin))*/-1  )
+            < 0) {
+        //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){
+        log_it(L_ERROR, "write() returned error %d : '%s'", ret, strerror(errno));
+        //log_it(ERROR,"raw socket ring buffer overflowed");
+        ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
+        pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
+        pkt_out->header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
+        pkt_out->header.sock_id = s_fd_tun;
+        dap_stream_ch_pkt_write_unsafe(ch_sf->ch, 'd', pkt_out,
+                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+    } else {
+        //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
+        //  str_saddr,str_daddr, sf_pkt->header.op_data.data_size,ret);
+    //                log_it(L_DEBUG,"Raw IP sent %u bytes ",ret);
     }
+
+    if(in_daddr_str)
+    free(in_daddr_str);
+    if(in_saddr_str)
+    free(in_saddr_str);
 }
 
 /**
@@ -616,79 +606,13 @@ int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pk
 
     char l_addr_buf[INET_ADDRSTRLEN];
     char l_gw_buf[INET_ADDRSTRLEN];
-    //char l_netmask_buf[INET_ADDRSTRLEN];
-    //char l_netaddr_buf[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &l_addr, l_addr_buf, sizeof(l_addr_buf));
     inet_ntop(AF_INET, &l_gw, l_gw_buf, sizeof(l_gw_buf));
-    //inet_ntop(AF_INET, &l_netmask, l_netmask_buf, sizeof(l_netmask_buf));
-    //inet_ntop(AF_INET, &l_netaddr, l_netaddr_buf, sizeof(l_netaddr_buf));
+    log_it(L_INFO,"Leased address %s with gateway %s", l_addr, l_gw_buf);
 
     // start new tun connection with vpn address and vpn gateway
     int l_res = dap_chain_net_vpn_client_tun_create(l_addr_buf, l_gw_buf);
     return l_res;
 
-    //log_it(L_DEBUG, "Raw IP packet daddr:%s saddr:%s  %u from %d bytes sent to tun/tap interface",
-
-//    n_client->addr = l_addr.s_addr;
-//    if(a_sf->ch->stream->session) {
-//        a_sf->ch->stream->session->tun_client_addr.s_addr = l_addr.s_addr;
-//        a_sf->ch->stream->session->tun_client_gw.s_addr = l_gw.s_addr;
-//        a_sf->ch->stream->session->tun_client_mask.s_addr = l_netmask.s_addr;
-//    }
-//    HASH_ADD_INT(m_tun_server->clients, addr, n_client);
-//    char l_addr_buf[INET_ADDRSTRLEN];
-//    char l_netmask_buf[INET_ADDRSTRLEN];
-//    char l_netaddr_buf[INET_ADDRSTRLEN];
-//    char l_gw_buf[INET_ADDRSTRLEN];
-//    char* err;
-//    pthread_mutex_unlock(&m_tun_server->clients_mutex);
-//    inet_ntop(AF_INET, &l_addr, l_addr_buf, sizeof(l_addr_buf));
-//    inet_ntop(AF_INET, &l_gw, l_gw_buf, sizeof(l_gw_buf));
-//    inet_ntop(AF_INET, &l_netmask, l_netmask_buf, sizeof(l_netmask_buf));
-//    inet_ntop(AF_INET, &l_netaddr, l_netaddr_buf, sizeof(l_netaddr_buf));
-//    log_it(L_NOTICE, "Registred tunnel %s=>%s  to %s/%s via remote socket %d", l_addr_buf, l_gw_buf, l_netaddr_buf,
-//            l_netmask_buf,
-//            a_sf->ch->stream->events_socket->socket);
-//    if(a_sf->ch->stream->is_client_to_uplink) {
-//        log_it(L_NOTICE, "Assign address %s to the network device %s", l_addr_buf, m_tun_server->ifr.ifr_name);
-//        if(exec_with_ret_f(&err, "ip address add %s/%s dev %s", l_addr_buf, l_netmask_buf, m_tun_server->ifr.ifr_name))
-//                {
-//            log_it(L_ERROR,
-//                    "Can't assign ip address, leased from remote server. Routing to the remote network will not work");
-//            log_it(L_ERROR, "exec returns: '%s'", err);
-//        }
-//        ch_sf_tun_peer_add(a_sf, l_addr.s_addr, l_gw.s_addr, l_netmask.s_addr & l_gw.s_addr, l_netmask.s_addr);
-//
-//        size_t i;
-//        log_it(L_DEBUG, "Found %u networks in reply", l_route_net_count);
-//        for(i = 0; i < l_route_net_count; i++) {
-//            in_addr_t l_r_netaddr;
-//            in_addr_t l_r_netmask;
-//
-//            memcpy(&l_r_netaddr, a_pkt->data + (3 + i * 2) * sizeof(in_addr_t), sizeof(in_addr_t));
-//            memcpy(&l_r_netmask, a_pkt->data + (4 + i * 2) * sizeof(in_addr_t), sizeof(in_addr_t));
-//
-//            if(!l_r_netaddr && !l_r_netmask) {
-//                log_it(L_DEBUG, "Ignores default route from upstream");
-//                continue;
-//            }
-//
-////            ch_sf_tun_peer_add(a_sf, 0,0,l_r_netaddr,l_r_netmask);
-//            ch_sf_tun_peer_add(a_sf, l_r_netaddr, l_r_netmask, l_r_netaddr, l_r_netmask);
-//            inet_ntop(AF_INET, &l_r_netmask, l_netmask_buf, sizeof(l_netmask_buf));
-//            inet_ntop(AF_INET, &l_r_netaddr, l_netaddr_buf, sizeof(l_netaddr_buf));
-//
-////            if(!l_r_netaddr && !l_r_netmask){
-////                log_it(L_DEBUG,"Ignores default route from upstream");
-////                log_it(L_DEBUG," %s/%s ",l_netaddr_buf, l_netmask_buf);
-////                continue;
-////            }
-//
-//            char *l_cmd = dap_strdup_printf("route add -net %s netmask %s dev %s metric 2",
-//                    l_netaddr_buf, l_netmask_buf, m_tun_server->ifr.ifr_ifrn.ifrn_name);
-//            exe_bash_cmd(l_cmd);
-//        }
-//
-//    }
 }
 

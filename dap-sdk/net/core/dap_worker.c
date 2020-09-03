@@ -432,14 +432,15 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_worker_msg_reassign_t * l_msg = (dap_worker_msg_reassign_t*) a_arg;
-    if (dap_events_socket_check_unsafe(a_es->worker,l_msg->esocket)){
-        dap_events_socket_t * l_es_reassign = l_msg->esocket;
-        dap_events_socket_remove_from_worker_unsafe( l_es_reassign, a_es->worker );
+    dap_events_socket_t * l_es_reassign = l_msg->esocket;
+    if (dap_events_socket_check_unsafe(a_es->worker,l_es_reassign)){
+        if( l_es_reassign->was_reassigned && l_es_reassign->flags & DAP_SOCK_REASSIGN_ONCE) {
+            log_it(L_INFO, "Reassgment request with DAP_SOCK_REASSIGN_ONCE allowed only once, declined reassigment from %u to %u",
+                   l_es_reassign->worker->id, l_msg->worker_new->id);
 
-        if (l_es_reassign->callbacks.worker_unassign_callback)
-            l_es_reassign->callbacks.worker_unassign_callback(l_es_reassign, a_es->worker);
-
-        dap_events_socket_assign_on_worker_mt( l_es_reassign, l_msg->worker_new );
+        }else{
+            dap_events_socket_reassign_between_workers_unsafe(l_es_reassign,l_msg->worker_new);
+        }
     }else{
         log_it(L_INFO, "While we were sending the reassign message, esocket %p has been disconnected", l_msg->esocket);
     }

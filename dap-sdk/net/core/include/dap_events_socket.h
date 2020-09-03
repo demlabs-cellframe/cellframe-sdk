@@ -67,6 +67,7 @@
 #define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
 #define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
 #define DAP_SOCK_ACTIVE            BIT( 3 )
+#define DAP_SOCK_REASSIGN_ONCE     BIT( 4 )   // This usable for FlowControl to prevent multiple reassigment
 
 // If set - queue limited to sizeof(void*) size of data transmitted
 #define DAP_SOCK_QUEUE_PTR         BIT( 8 )
@@ -141,6 +142,7 @@ typedef struct dap_events_socket {
     bool no_close;
     atomic_bool kill_signal;
     atomic_bool is_initalized;
+    bool was_reassigned; // Was reassigment at least once
 
     uint32_t buf_out_zero_count;
 
@@ -148,6 +150,7 @@ typedef struct dap_events_socket {
     bool is_pingable;
     bool is_read_direct; // If set - don't call read() in worker, let operate with handler to callback
     bool is_dont_reset_write_flag; // If set - don't reset write flag ever data is over
+
     // Input section
     union{
         uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
@@ -215,6 +218,7 @@ void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struc
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker);
 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
+void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 
 dap_events_socket_t * dap_events_socket_find_unsafe(int sock, struct dap_events * sh); // Find client by socket
 

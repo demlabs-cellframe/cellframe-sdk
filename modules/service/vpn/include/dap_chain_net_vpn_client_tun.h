@@ -31,4 +31,4 @@ int dap_chain_net_vpn_client_tun_delete(void);
 int dap_chain_net_vpn_client_tun_status(void);
 
 int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size);
-void ch_sf_tun_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size);
+void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, size_t pkt_data_size);
