@@ -73,7 +73,6 @@ void dap_http_client_new( dap_events_socket_t *cl, void *arg )
 {
     (void) arg;
 
-    log_it( L_NOTICE, "dap_http_client_new" );
 
     cl->_inheritor = DAP_NEW_Z( dap_http_client_t );
 
@@ -526,9 +525,13 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
         } break;
     case DAP_HTTP_CLIENT_STATE_DATA:
     {
-      if ( l_http_client->proc )
-        if ( l_http_client->proc->data_write_callback )
-          l_http_client->proc->data_write_callback( l_http_client, NULL );
+      if ( l_http_client->proc ){
+        if ( l_http_client->proc->data_write_callback ){
+            l_http_client->proc->data_write_callback( l_http_client, NULL );
+        }
+      }else{
+          log_it(L_WARNING, "No http proc, nothing to write");
+      }
     }
     break;
   }

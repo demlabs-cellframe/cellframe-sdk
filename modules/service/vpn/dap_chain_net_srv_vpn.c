@@ -1530,7 +1530,6 @@ void * srv_ch_sf_thread(void * a_arg)
                         if(ret > 0) {
                             size_t buf_size = ret;
                             s_update_limits(l_socket_proxy->ch,l_srv_session,l_usage,buf_size);
-                            if ( dap_stream_ch_get_ready_to_read(l_socket_proxy->ch) ){
                                 ch_vpn_pkt_t * pout;
                                 pout = l_socket_proxy->pkt_out[l_socket_proxy->pkt_out_size] = (ch_vpn_pkt_t *) calloc(1,
                                         buf_size + sizeof(pout->header));
@@ -1542,15 +1541,12 @@ void * srv_ch_sf_thread(void * a_arg)
                                 l_socket_proxy->pkt_out_size++;
                                 pthread_mutex_unlock(&(l_socket_proxy->mutex));
                                 dap_stream_ch_set_ready_to_write_unsafe(l_socket_proxy->ch, true);
-                            }else{
                                 pthread_mutex_unlock(&(l_socket_proxy->mutex));
-                            }
 
                         } else {
                             log_it(L_NOTICE,
                                     "Socket id %d returned error on recv() function - may be host has disconnected", s);
                             pthread_mutex_unlock(&(l_socket_proxy->mutex));
-                            dap_stream_ch_set_ready_to_write_unsafe(l_socket_proxy->ch, true);
                             srv_stream_sf_disconnect(l_socket_proxy);
                         }
                     } else {

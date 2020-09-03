@@ -123,20 +123,6 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
     }
 }
 
-struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch)
-{
-    struct dap_stream_ch_table_t *l_ret;
-    if(!a_ch)
-        return false;
-    pthread_mutex_lock(&s_ch_table_lock);
-    HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
-    if (l_ret) {
-        pthread_mutex_lock(&a_ch->mutex);
-    }
-    pthread_mutex_unlock(&s_ch_table_lock);
-    return l_ret;
-}
-
 /**
  * @brief stream_ch_delete Delete channel instance
  * @param ch Channel delete
@@ -207,34 +193,3 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready)
     }
 }
 
-/**
- * @brief dap_stream_ch_get_ready_to_read
- * @param a_ch
- * @return
- */
-bool dap_stream_ch_get_ready_to_read(dap_stream_ch_t * a_ch)
-{
-    if (!dap_stream_ch_valid(a_ch)) {
-        return false;
-    }
-    bool l_ret;
-    l_ret = a_ch->ready_to_read;
-    pthread_mutex_unlock(&a_ch->mutex);
-    return l_ret;
-}
-
-/**
- * @brief dap_stream_ch_get_ready_to_write
- * @param a_ch
- * @return
- */
-bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t * a_ch)
-{
-    if (!dap_stream_ch_valid(a_ch)) {
-        return false;
-    }
-    bool l_ret;
-    l_ret = a_ch->ready_to_write;
-    pthread_mutex_unlock(&a_ch->mutex);
-    return l_ret;
-}

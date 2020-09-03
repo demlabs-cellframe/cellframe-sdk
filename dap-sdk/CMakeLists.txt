@@ -1,3 +1,4 @@
+set(DAP_SDK_NATIVE_VERSION "2.0-11")
 # Core 
 if (DAPSDK_MODULES MATCHES "core")
     # Core

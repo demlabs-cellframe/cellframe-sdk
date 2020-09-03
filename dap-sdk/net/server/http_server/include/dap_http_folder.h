@@ -23,8 +23,8 @@
 #pragma once
 struct dap_http;
 
-extern int dap_http_folder_init();
-extern void dap_http_folder_deinit();
+int dap_http_folder_init(void);
+void dap_http_folder_deinit(void);
 
-extern int dap_http_folder_add(struct dap_http *sh, const char * url_path, const char * local_path); // Add folder for reading to the HTTP server
+int dap_http_folder_add(struct dap_http *sh, const char * url_path, const char * local_path); // Add folder for reading to the HTTP server
 
