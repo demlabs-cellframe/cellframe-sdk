@@ -597,6 +597,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     l_client->ch = a_ch;
                     l_client->stream_worker = a_ch->stream_worker;
                     l_client->ts_created = time(NULL);
+                    l_client->session_id = a_ch->stream->session->id;
                     l_srv->callback_client_success(l_srv, l_success->hdr.usage_id,  l_client, l_success, l_success_size );
                     //l_success->hdr.net_id, l_success->hdr.srv_uid, l_success->hdr.usage_id
                 }
