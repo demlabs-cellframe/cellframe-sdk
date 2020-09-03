@@ -46,8 +46,6 @@ typedef struct dap_stream_ch{
         uint64_t bytes_read;
     } stat;
 
-    uint8_t buf[500000];
-
     dap_stream_ch_proc_t * proc;
     void * internal;
     struct dap_stream_ch *me;

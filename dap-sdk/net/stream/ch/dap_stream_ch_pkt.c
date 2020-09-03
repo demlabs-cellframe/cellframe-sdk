@@ -164,16 +164,18 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
             (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type );
     }
 
-
-    if(a_data_size+sizeof(l_hdr)> sizeof(a_ch->buf) ){
-        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu", a_data_size, sizeof(a_ch->buf));
-        a_data_size=sizeof(a_ch->buf)-sizeof(l_hdr);
+    if(a_data_size > 250000){
+        printf("bazinga");
     }
-    memcpy(a_ch->buf,&l_hdr,sizeof(l_hdr) );
-    if( a_data_size )
-        memcpy(a_ch->buf+sizeof(l_hdr),a_data,a_data_size );
 
-    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
+    uint8_t * l_ch_buf = DAP_NEW_SIZE(uint8_t, a_data_size+sizeof(l_hdr));
+    assert(l_ch_buf);
+    memcpy(l_ch_buf,&l_hdr,sizeof(l_hdr) );
+    if( a_data_size )
+        memcpy(l_ch_buf+sizeof(l_hdr),a_data,a_data_size );
+
+    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,l_ch_buf,a_data_size+sizeof(l_hdr));
+    DAP_DELETE(l_ch_buf);
     a_ch->stat.bytes_write+=a_data_size;
     a_ch->ready_to_write=true;
     return l_ret;
