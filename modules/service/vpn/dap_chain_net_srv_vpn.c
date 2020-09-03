@@ -188,7 +188,7 @@ static void s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * a_ch_vpn_in
 static void s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, ch_vpn_pkt_t * l_pkt_out)
 {
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (l_ch_vpn->ch->stream->session );
-    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
+    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out,
             l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
@@ -767,7 +767,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 //    dap_stream_ch_chain_net_srv_pkt_request_t * l_request =  (dap_stream_ch_chain_net_srv_pkt_request_t *) a_request;
 //    dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
-    dap_chain_net_srv_usage_t * l_usage_active= dap_chain_net_srv_usage_find(l_srv_session,a_usage_id);
+    dap_chain_net_srv_usage_t * l_usage_active= dap_chain_net_srv_usage_find_unsafe(l_srv_session,a_usage_id);
     dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
             a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
 
@@ -1170,7 +1170,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
-    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
+    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if ( ! l_usage){
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
@@ -1251,7 +1251,7 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION( a_ch->stream->session );
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
 
-    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find(l_srv_session,  l_ch_vpn->usage_id);
+    dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
     if ( ! l_usage){
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);

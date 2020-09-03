@@ -85,5 +85,5 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
                                                                             dap_chain_net_t * a_net, dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                                dap_chain_net_srv_usage_t* a_usage);
-dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find (dap_chain_net_srv_stream_session_t * a_srv_session,
+dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                              uint32_t a_usage_id);

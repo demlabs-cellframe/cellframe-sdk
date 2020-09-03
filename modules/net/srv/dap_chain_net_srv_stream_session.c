@@ -107,12 +107,10 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
  * @param a_usage_id
  * @return
  */
-dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find (dap_chain_net_srv_stream_session_t * a_srv_session,
+dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                              uint32_t a_usage_id)
 {
     dap_chain_net_srv_usage_t * l_ret = NULL;
-    pthread_mutex_lock(&a_srv_session->parent->mutex);
     HASH_FIND_INT(a_srv_session->usages, &a_usage_id, l_ret);
-    pthread_mutex_unlock(&a_srv_session->parent->mutex);
     return  l_ret;
 }
