@@ -418,12 +418,12 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
             .delete_callback = m_client_tun_delete
     };
 
-    s_tun_events_socket = dap_events_socket_wrap_no_add(NULL, s_fd_tun, &l_s_callbacks);
+    s_tun_events_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), s_fd_tun, &l_s_callbacks);
     s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
     dap_worker_add_events_socket_auto(s_tun_events_socket);
     s_tun_events_socket->_inheritor = NULL;
 
-    return 0;
+    //return 0;
 
     //m_tunDeviceName = dev;
     //m_tunSocket = fd;
@@ -432,10 +432,12 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
 
 int dap_chain_net_vpn_client_tun_delete(void)
 {
-    pthread_mutex_lock(&s_clients_mutex);
-    dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket);
-    s_tun_events_socket = NULL;
-    pthread_mutex_unlock(&s_clients_mutex);
+    if(s_tun_events_socket) {
+        pthread_mutex_lock(&s_clients_mutex);
+        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket);
+        s_tun_events_socket = NULL;
+        pthread_mutex_unlock(&s_clients_mutex);
+    }
 
     // restore previous routing
     if(!s_conn_name || !s_last_used_connection_name)

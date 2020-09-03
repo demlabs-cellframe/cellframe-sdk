@@ -743,7 +743,8 @@ bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t 
  */
 void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_socket_t *a_es )
 {
-    dap_events_socket_queue_ptr_send( a_w->queue_es_delete, a_es );
+    if(a_w)
+        dap_events_socket_queue_ptr_send( a_w->queue_es_delete, a_es );
 }
 
 /**
