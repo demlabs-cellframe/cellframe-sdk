@@ -121,7 +121,6 @@ size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a
 }
 
 
-#define DAP_STREAM_PKT_ENCRYPTION_OVERHEAD 200 //intended overkill, it's about ~2*16+15 for oaes
 
 /**
  * @brief stream_ch_pkt_write
@@ -136,23 +135,22 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
     size_t ret=0;
     stream_pkt_hdr_t pkt_hdr;
 
-    size_t l_stream_buf_size = a_data_size + DAP_STREAM_PKT_ENCRYPTION_OVERHEAD;
-    uint8_t * l_stream_buf = DAP_NEW_SIZE(uint8_t, l_stream_buf_size);
-    assert(l_stream_buf);
+    if(a_data_size > STREAM_BUF_SIZE_MAX ){
+        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",a_data_size,sizeof(a_stream->buf));
+        a_data_size=sizeof(a_stream->buf);
+    }
 
     memset(&pkt_hdr,0,sizeof(pkt_hdr));
     memcpy(pkt_hdr.sig,c_dap_stream_sig,sizeof(pkt_hdr.sig));
 
-    pkt_hdr.size =(uint32_t) a_stream->session->key->enc_na(a_stream->session->key, a_data,a_data_size,l_stream_buf,l_stream_buf_size);
-    assert(pkt_hdr.size > 0 && pkt_hdr.size <= l_stream_buf_size);
+    pkt_hdr.size =(uint32_t) a_stream->session->key->enc_na(a_stream->session->key, a_data,a_data_size,a_stream->buf, STREAM_BUF_SIZE_MAX);
 //    printf("*[dap_stream_pkt_write] size=%d key=0x%x _inheritor_size=%d\n", pkt_hdr.size, sid->session->key,
 //            sid->session->key->_inheritor_size);
 
     ret+=dap_events_socket_write_unsafe(a_stream->esocket,&pkt_hdr,sizeof(pkt_hdr));
-    ret+=dap_events_socket_write_unsafe(a_stream->esocket,l_stream_buf,pkt_hdr.size);
+    ret+=dap_events_socket_write_unsafe(a_stream->esocket,a_stream->buf,pkt_hdr.size);
     dap_events_socket_set_writable_unsafe(a_stream->esocket, true);
 
-    DAP_DELETE(l_stream_buf);
     return ret;
 }
 
