@@ -268,7 +268,9 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->type = (uint8_t)a_op_code;
         DAP_DELETE(l_obj->group);
         l_obj->group = dap_strdup(a_group);
-        dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
+        dap_list_t *l_list_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
+        // Expect only one element in list
+        dap_store_obj_pkt_t *l_data_out = (dap_store_obj_pkt_t *)l_list_out->data;
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
@@ -278,7 +280,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
             dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id,
                                           l_chain_id, l_net->pub.cell_id, l_data_out, sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
-        DAP_DELETE(l_data_out);
+        dap_list_free_full(l_list_out, free);
     }
 }
 

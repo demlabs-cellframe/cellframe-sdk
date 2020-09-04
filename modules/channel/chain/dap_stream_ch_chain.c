@@ -628,12 +628,10 @@ bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
             bool l_is_stop = true;
             while(l_obj) {
                 size_t l_item_size_out = 0;
-                uint8_t *l_item = dap_db_log_pack(l_obj, &l_item_size_out);
+                dap_list_t *l_item = dap_db_log_pack(l_obj, &l_item_size_out);
                 // Item not found, maybe it has deleted? Then go to the next item
                 if(!l_item || !l_item_size_out) {
-                    //log_it(L_WARNING, "Log pack returned NULL??? data=0x%x (nothing to send) (rest=%d records)", l_obj, l_items_rest);
                     l_item_size_out = 0;
-                    // go to next item
                     l_obj = dap_db_log_list_get(l_db_list);
                 }
                 else {
@@ -641,12 +639,16 @@ bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     size_t l_items_rest = dap_db_log_list_get_count_rest(l_db_list);
                     log_it(L_INFO, "Send one global_db record data=0x%x len=%d (rest=%d/%d items)", l_item, l_item_size_out,
                             l_items_rest, l_items_total);*/
-                    dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
-                                                         l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
-                                                         l_ch_chain->request_cell_id, l_item, l_item_size_out);
+                    for (dap_list_t *l_iter = l_item; l_iter; l_iter = dap_list_next(l_iter)) {
+                        dap_store_obj_pkt_t *l_pkt = (dap_store_obj_pkt_t *)l_iter->data;
+                        uint32_t l_pkt_size = sizeof(dap_store_obj_pkt_t) + l_pkt->data_size;
+                        dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
+                                                             l_ch_chain->request_net_id, l_ch_chain->request_chain_id,
+                                                             l_ch_chain->request_cell_id, l_pkt, l_pkt_size);
+                    }
                     l_packet_out = true;
                     l_ch_chain->stats_request_gdb_processed++;
-                    DAP_DELETE(l_item);
+                    dap_list_free_full(l_item, free);
                     // sent the record, another will be sent
                     l_is_stop = false;
                     break;
