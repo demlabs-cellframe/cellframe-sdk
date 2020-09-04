@@ -39,14 +39,24 @@ typedef struct dap_json_rpc_error{
     void *next;
 }dap_json_rpc_error_t;
 
+typedef struct dap_json_rpc_error_JSON{
+    json_object *obj_code;
+    json_object *obj_msg;
+}dap_json_rpc_error_JSON_t;
+
 int dap_json_rpc_error_init(void);
 void dap_json_rpc_error_deinit(void);
+
+dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_create();
+void dap_json_rpc_error_JSON_free(dap_json_rpc_error_JSON_t *a_error_json);
+dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_add_data(int code, const char *msg);
 
 int dap_json_rpc_error_add(int a_code_error, const char *a_msg);
 
 dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error);
 
-json_object *dap_json_rpc_error_get_json_struct(dap_json_rpc_error_t *a_error);
+//json_object *dap_json_rpc_error_get_json_struct(dap_json_rpc_error_t *a_error);
+
 
 char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error);
 

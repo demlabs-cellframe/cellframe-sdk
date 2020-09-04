@@ -20,6 +20,24 @@ void dap_json_rpc_error_deinit(void){
     }
 }
 
+dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_create(){
+    dap_json_rpc_error_JSON_t *l_json = DAP_NEW(dap_json_rpc_error_JSON_t);
+    l_json->obj_msg = NULL;
+    l_json->obj_code = NULL;
+    return l_json;
+}
+void dap_json_rpc_error_JSON_free(dap_json_rpc_error_JSON_t *a_error_json){
+    json_object_put(a_error_json->obj_code);
+    json_object_put(a_error_json->obj_msg);
+    DAP_FREE(a_error_json);
+}
+dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_add_data(int code, const char *msg){
+    dap_json_rpc_error_JSON_t *l_json_err = dap_json_rpc_error_JSON_create();
+    l_json_err->obj_code = json_object_new_int(code);
+    l_json_err->obj_msg = json_object_new_string(msg);
+    return l_json_err;
+}
+
 int dap_json_rpc_error_add(int a_code_error, const char *a_msg){
     dap_json_rpc_error_t *l_el_search =dap_json_rpc_error_search_by_code(a_code_error);
     if (l_el_search != NULL)
@@ -47,17 +65,17 @@ dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error){
     return l_element;
 }
 
-json_object *dap_json_rpc_error_get_json_struct(dap_json_rpc_error_t *a_error){
-    log_it(L_NOTICE, "Translation JSON string to struct dap_json_rpc_error");
-    json_object *l_jobj_code = json_object_new_int64(a_error->code_error);
-    json_object *l_jobj_msg = json_object_new_string(a_error->msg);
-    json_object *l_jobj = json_object_new_object();
-    json_object_object_add(l_jobj, "code", l_jobj_code);
-    json_object_object_add(l_jobj, "message", l_jobj_msg);
-    json_object_put(l_jobj_code);
-    json_object_put(l_jobj_msg);
-    return l_jobj;
-}
+//json_object *dap_json_rpc_error_get_json_struct(dap_json_rpc_error_t *a_error){
+//    log_it(L_NOTICE, "Translation JSON string to struct dap_json_rpc_error");
+//    json_object *l_jobj_code = json_object_new_int64(a_error->code_error);
+//    json_object *l_jobj_msg = json_object_new_string(a_error->msg);
+//    json_object *l_jobj = json_object_new_object();
+//    json_object_object_add(l_jobj, "code", l_jobj_code);
+//    json_object_object_add(l_jobj, "message", l_jobj_msg);
+//    json_object_put(l_jobj_code);
+//    json_object_put(l_jobj_msg);
+//    return l_jobj;
+//}
 
 char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error){
     log_it(L_NOTICE, "Translation JSON string to struct dap_json_rpc_error");
