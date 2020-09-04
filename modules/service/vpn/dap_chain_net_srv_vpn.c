@@ -1339,9 +1339,12 @@ void m_es_tun_new(dap_events_socket_t * a_es, void * arg)
         l_tun_socket->worker_id = l_tun_socket->worker->id;
         l_tun_socket->es = a_es;
         s_tun_sockets_queue_msg[a_es->worker->id] = dap_events_socket_create_type_queue_ptr_unsafe(a_es->worker, s_tun_recv_msg_callback );
+        s_tun_sockets[a_es->worker->id] = l_tun_socket;
+
         a_es->_inheritor = l_tun_socket;
         s_tun_attach_queue( a_es->fd );
         log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
+
     }else{
         log_it(L_ERROR, "Can't allocate memory for tun socket");
     }

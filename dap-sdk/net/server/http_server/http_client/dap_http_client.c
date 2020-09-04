@@ -328,7 +328,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
 
 //  log_it( L_DEBUG, "dap_http_client_read..." );
     do{
-        log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", l_http_client->state_read, a_esocket->buf_in_size );
+        //log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", l_http_client->state_read, a_esocket->buf_in_size );
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
                 char l_buf_line[4096];

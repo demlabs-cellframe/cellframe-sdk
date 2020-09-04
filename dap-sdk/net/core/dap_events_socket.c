@@ -68,6 +68,7 @@ int dap_events_socket_init( )
 //    setrlimit(RLIMIT_MSGQUEUE,&l_mqueue_limit);
 #endif
 #endif
+    dap_timerfd_init();
     return 0;
 }
 
