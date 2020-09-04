@@ -391,10 +391,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NODE_ROLE_ARCHIVE:
                 case NODE_ROLE_CELL_MASTER: {
                     // Add other root nodes as synchronization links
-                    while (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
-                        int i = rand() % l_pvt_net->seed_aliases_count;
+                    for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
                         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                        dap_chain_node_info_read(l_net, l_link_addr);
+                        dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, l_link_addr);
+                        l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                     }
                 } break;
                 case NODE_ROLE_FULL:
