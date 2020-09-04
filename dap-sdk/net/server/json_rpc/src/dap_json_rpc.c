@@ -63,13 +63,13 @@ void dap_json_rpc_deinit(){
 void _json_rpc_http_proc(struct dap_http_simple *a_client, void *a_arg){
     log_it(L_DEBUG, "Proc json_rpc request");
     http_status_code_t *l_http_code = (http_status_code_t*)a_arg;
-    char *l_request_str = a_client->request_str;
-    dap_json_rpc_request_t *l_request = dap_json_rpc_request_from_json(l_request_str);
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_from_json(a_client->request);
     if (l_request){
         dap_json_rpc_request_handler(l_request, a_client);
     } else {
         *l_http_code = Http_Status_NotFound;
     }
+    *l_http_code = Http_Status_OK;
 }
 
 void dap_json_rpc_add_proc_http(struct dap_http *sh, const char *URL){
