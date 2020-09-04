@@ -382,7 +382,8 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
                         ss->service_key = strdup(header->value);
                     size_t count_channels = strlen(ss->active_channels);
                     for(size_t i = 0; i < count_channels; i++) {
-                        dap_stream_ch_new(sid, ss->active_channels[i]);
+                        dap_stream_ch_t * l_ch = dap_stream_ch_new(sid, ss->active_channels[i]);
+                        l_ch->ready_to_read = true;
                         //sid->channel[i]->ready_to_write = true;
                     }
 
@@ -391,7 +392,7 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
                     stream_states_update(sid);
                     a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
                     a_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-                    //dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
+                    dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
                     dap_events_socket_set_writable_unsafe(a_http_client->esocket,true); // Dirty hack, because previous function shouldn't
                     //                                                                    // set write flag off but it does!
                 }else{

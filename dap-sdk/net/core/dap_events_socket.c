@@ -133,6 +133,7 @@ void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct da
 
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
+    log_it(L_DEBUG, "reassign between workers");
     dap_events_socket_remove_from_worker_unsafe( a_es, a_es->worker );
     a_es->was_reassigned = true;
     if (a_es->callbacks.worker_unassign_callback)
@@ -885,6 +886,7 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
      sc->buf_out_size+=data_size;
+     dap_events_socket_set_writable_unsafe(sc, true);
      return data_size;
 }
 
@@ -908,6 +910,7 @@ size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * fo
     }else{
         log_it(L_ERROR,"Can't write out formatted data '%s'",format);
     }
+    dap_events_socket_set_writable_unsafe(sc, true);
     return (ret > 0) ? ret : 0;
 }
 

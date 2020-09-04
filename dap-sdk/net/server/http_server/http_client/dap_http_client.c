@@ -449,7 +449,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
 
                     // If no headers callback we go to the DATA processing
                     if( l_http_client->in_content_length ) {
-                        log_it( L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
+                        //log_it( L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
                         l_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
                     }
                 }
@@ -457,6 +457,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
             } break;
             case DAP_HTTP_CLIENT_STATE_DATA:{
                 size_t read_bytes = 0;
+                //log_it(L_DEBUG, "dap_http_client_read: DAP_HTTP_CLIENT_STATE_DATA");
                 if ( l_http_client->proc->data_read_callback ) {
                     l_http_client->proc->data_read_callback( l_http_client, &read_bytes );
                     dap_events_socket_shrink_buf_in( a_esocket, read_bytes );
@@ -506,7 +507,8 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
         case DAP_HTTP_CLIENT_STATE_HEADERS: {
             dap_http_header_t *hdr = l_http_client->out_headers;
             if ( hdr == NULL ) {
-                log_it(L_DEBUG, "Output: headers are over (reply status code %u)",l_http_client->reply_status_code);
+                log_it(L_DEBUG, "Output: headers are over (reply status code %u content_lentgh %u)",
+                       l_http_client->reply_status_code);
                 dap_events_socket_write_f_unsafe(cl, "\r\n");
                 if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
@@ -523,17 +525,17 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
         } break;
-    case DAP_HTTP_CLIENT_STATE_DATA:
-    {
-      if ( l_http_client->proc ){
-        if ( l_http_client->proc->data_write_callback ){
-            l_http_client->proc->data_write_callback( l_http_client, NULL );
+        case DAP_HTTP_CLIENT_STATE_DATA:
+        {
+          if ( l_http_client->proc ){
+            if ( l_http_client->proc->data_write_callback ){
+                l_http_client->proc->data_write_callback( l_http_client, NULL );
+            }
+          }else{
+              log_it(L_WARNING, "No http proc, nothing to write");
+          }
         }
-      }else{
-          log_it(L_WARNING, "No http proc, nothing to write");
-      }
-    }
-    break;
+        break;
   }
 }
 

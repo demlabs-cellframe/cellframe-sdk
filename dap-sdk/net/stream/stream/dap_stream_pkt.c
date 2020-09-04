@@ -149,8 +149,6 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
 
     ret+=dap_events_socket_write_unsafe(a_stream->esocket,&pkt_hdr,sizeof(pkt_hdr));
     ret+=dap_events_socket_write_unsafe(a_stream->esocket,a_stream->buf,pkt_hdr.size);
-    dap_events_socket_set_writable_unsafe(a_stream->esocket, true);
-
     return ret;
 }
 
@@ -193,7 +191,6 @@ void dap_stream_send_keepalive(dap_stream_t * a_stream)
     l_pkt.id = TECHICAL_CHANNEL_ID;
     l_pkt.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
 
-    if( dap_stream_pkt_write_unsafe( a_stream, &l_pkt, sizeof(l_pkt) ) )
-        dap_stream_set_ready_to_write( a_stream, true );
+    dap_stream_pkt_write_unsafe( a_stream, &l_pkt, sizeof(l_pkt) );
 }
 

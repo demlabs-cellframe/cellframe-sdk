@@ -1145,7 +1145,7 @@ void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv
                                        pkt_out->header.op_data.data_size + sizeof(pkt_out->header))) {
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
             }
-
+            s_tun_send_msg_ip_assigned_all(l_ch_vpn, l_ch_vpn->addr_ipv4);
         } else { // All the network is filled with clients, can't lease a new address
             log_it(L_WARNING, "All the network is filled with clients, can't lease a new address");
             ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
@@ -1289,11 +1289,10 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
     const static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
     uint8_t l_tmp_buf[tun_MTU];
 
-    if (! a_es->_inheritor) // There is moment between inheritor initialization and active live of event socket in worker.
-        return;
-
     ch_sf_tun_socket_t * l_tun_socket = CH_SF_TUN_SOCKET(a_es);
+    assert(l_tun_socket);
     size_t l_buf_in_size = a_es->buf_in_size;
+    //log_it(L_DEBUG,"m_es_tun_read() received ip pacet %u size", l_buf_in_size);
 
     if(l_buf_in_size) {
         struct iphdr *iph = (struct iphdr*) a_es->buf_in;
@@ -1312,14 +1311,18 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
         }
         // We found in local table, sending data (if possible)
         if (l_vpn_info){
-            if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once ){
+            /*if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once ){
+                log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->worker->id);
                 dap_events_socket_reassign_between_workers_mt( l_vpn_info->worker,l_vpn_info->esocket,a_es->worker);
                 l_vpn_info->is_reassigned_once = true;
                 s_tun_send_msg_esocket_reasigned_all_mt(l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->addr_ipv4,a_es->worker->id);
-            }
+            }*/
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
-        }
+        }//else{
+        //    log_it(L_DEBUG, "Can't find route for desitnation %s",str_daddr);
+        //}
     }
+    a_es->buf_in_size=0; // NULL it out because read it all
 }
 
 
