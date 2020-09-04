@@ -40,6 +40,15 @@ typedef enum dap_json_rpc_response_type_result{
     TYPE_RESPONSE_BOOLEAN
 }dap_json_rpc_response_type_result_t;
 
+typedef struct dap_json_rpc_response_JSON{
+    json_object *obj_result;
+    json_object *obj_error;
+    dap_json_rpc_error_JSON_t *struct_error;
+    json_object *obj_id;
+}dap_json_rpc_request_JSON_t;
+
+void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON);
+
 typedef struct dap_json_rpc_response{
     dap_json_rpc_response_type_result_t type_result;
     char* result_string;
@@ -49,6 +58,7 @@ typedef struct dap_json_rpc_response{
     dap_json_rpc_error_t* error;
     int64_t id;
 }dap_json_rpc_response_t;
+
 
 //dap_json_rpc_response_t *dap_json_rpc_response_create(void *a_result);
 void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response);

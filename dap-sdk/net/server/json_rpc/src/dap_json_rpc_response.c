@@ -2,6 +2,15 @@
 
 #define LOG_TAG "dap_json_rpc_response"
 
+void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON){
+    json_object_put(l_request_JSON->obj_error);
+    if (l_request_JSON->struct_error)
+        dap_json_rpc_error_JSON_free(l_request_JSON->struct_error);
+    json_object_put(l_request_JSON->obj_id);
+    json_object_put(l_request_JSON->obj_result);
+    DAP_FREE(l_request_JSON);
+}
+
 void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response){
     DAP_FREE(a_response->error);
     if (a_response->type_result == TYPE_RESPONSE_STRING){
@@ -11,34 +20,46 @@ void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response){
 }
 
 void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_simple_t *a_client){
-    char *str_response = NULL;
+    dap_json_rpc_request_JSON_t *l_JSON = DAP_NEW(dap_json_rpc_request_JSON_t);
     json_object *l_jobj = json_object_new_object();
-    json_object *l_jobj_error = NULL;
-    json_object *l_jobj_result = NULL;
+    l_JSON->obj_id = json_object_new_int64(a_response->id);
+    l_JSON->obj_error = NULL;
+    l_JSON->obj_result = NULL;
+    l_JSON->struct_error = NULL;
+//    a_response->l_JSON->obj_id = json_object_new_int64(a_response->id);
+    char *str_response = NULL;
+//    json_object *l_jobj_error = NULL;
+//    json_object *l_jobj_result = NULL;
     if (a_response->error == NULL){
         switch (a_response->type_result) {
         case TYPE_RESPONSE_STRING:
-            l_jobj_result = json_object_new_string(a_response->result_string);
+            l_JSON->obj_result = json_object_new_string(a_response->result_string);
             break;
         case TYPE_RESPONSE_DOUBLE:
-            l_jobj_result = json_object_new_double(a_response->result_double);
+            l_JSON->obj_result = json_object_new_double(a_response->result_double);
             break;
         case TYPE_RESPONSE_BOOLEAN:
-            l_jobj_result = json_object_new_boolean(a_response->result_boolean);
+            l_JSON->obj_result = json_object_new_boolean(a_response->result_boolean);
             break;
         case TYPE_RESPONSE_INTEGER:
-            l_jobj_result = json_object_new_int64(a_response->result_int);
+            l_JSON->obj_result = json_object_new_int64(a_response->result_int);
             break;
         }
     }else{
-        l_jobj_error = dap_json_rpc_error_get_json_struct(a_response->error);
+        l_JSON->struct_error = dap_json_rpc_error_JSON_add_data(a_response->error->code_error, a_response->error->msg);
+        l_JSON->obj_error = json_object_new_object();
+        json_object_object_add(l_JSON->obj_error, "code", l_JSON->struct_error->obj_code);
+        json_object_object_add(l_JSON->obj_error, "message", l_JSON->struct_error->obj_msg);
+//        l_JSON->obj_error = dap_json_rpc_error_get_json_struct(a_response->error);
     }
-    json_object_object_add(l_jobj, "result", l_jobj_result);
-    json_object_object_add(l_jobj, "error", l_jobj_error);
-    json_object_object_add(l_jobj, "id", json_object_new_int64(a_response->id));
-    str_response = strdup(json_object_to_json_string(l_jobj));
+    json_object_object_add(l_jobj, "result", l_JSON->obj_result);
+    json_object_object_add(l_jobj, "id", l_JSON->obj_id);
+    json_object_object_add(l_jobj, "error", l_JSON->obj_error);
+    str_response = dap_strdup(json_object_to_json_string(l_jobj));
     dap_http_simple_reply(a_client, str_response, strlen(str_response));
     DAP_FREE(str_response);
+    json_object_put(l_jobj);
+    dap_json_rpc_request_JSON_free(l_JSON);
 }
 
 dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json){
