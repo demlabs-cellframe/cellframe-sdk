@@ -138,8 +138,8 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_atom_iter_t* l_iter = l_chain->callback_atom_iter_create(l_chain);
     l_ch_chain->request_atom_iter = l_iter;
     l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_count, &l_lasts_sizes);
-    if(l_lasts&& l_lasts_sizes) {
-        for(size_t i = l_lasts_count - 1; i >= 0; i--) {
+    if (l_lasts && l_lasts_sizes) {
+        for(long int i = l_lasts_count - 1; i >= 0; i--) {
             dap_chain_atom_item_t * l_item = NULL;
             dap_chain_hash_fast_t l_atom_hash;
             dap_hash_fast(l_lasts[i], l_lasts_sizes[i],
@@ -559,11 +559,15 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_chain_pkt->hdr.net_id,
                                               l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
             }
+                break;
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS: {
                 dap_stream_ch_chain_sync_request_t l_sync_chains = {};
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_chain_pkt->hdr.net_id,
                                               l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_chains, sizeof(l_sync_chains));
             }
+                break;
+            case DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR:
+                break;
             default: {
                 dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                                                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
