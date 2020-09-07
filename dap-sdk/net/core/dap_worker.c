@@ -256,14 +256,15 @@ void *dap_worker_thread(void *arg)
             // Socket is ready to write
             if(((l_epoll_events[n].events & EPOLLOUT) || (l_cur->flags & DAP_SOCK_READY_TO_WRITE))
                     && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
-                //log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
+
+                //log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
+
                 if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,
                                              // continue to poll another esockets
                     continue;
                 }
-
                 if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
                     static const uint32_t buf_out_zero_count_max = 5;
@@ -307,15 +308,11 @@ void *dap_worker_thread(void *arg)
                     if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
                         log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
                         l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                        break;
                     }
                 }else{
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
-                    //}
-                    //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
                     if (l_bytes_sent) {
                         l_cur->buf_out_size -= l_bytes_sent;
-                        //log_it(L_DEBUG,"Output: left %u bytes in buffer",l_cur->buf_out_size);
                         if (l_cur->buf_out_size) {
                             memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
                         } else {

@@ -49,8 +49,8 @@ dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_
  * @return
  */
 size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
-                                     dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-        const void * a_data, size_t a_data_size)
+                                            dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+                                            const void * a_data, size_t a_data_size)
 {
     dap_stream_ch_chain_pkt_t * l_chain_pkt;
     size_t l_chain_pkt_size = sizeof (l_chain_pkt->hdr) + a_data_size;
@@ -69,8 +69,8 @@ size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_typ
 }
 
 size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
-                                     dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
-        const void * a_data, size_t a_data_size)
+                                        dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+                                        const void * a_data, size_t a_data_size)
 {
     dap_stream_ch_chain_pkt_t * l_chain_pkt;
     size_t l_chain_pkt_size = sizeof (l_chain_pkt->hdr) + a_data_size;

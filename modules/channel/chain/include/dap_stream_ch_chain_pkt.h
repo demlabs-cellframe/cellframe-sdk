@@ -57,7 +57,7 @@ typedef enum dap_stream_ch_chain_state{
     CHAIN_STATE_IDLE=0,
     CHAIN_STATE_SYNC_CHAINS,
     CHAIN_STATE_SYNC_GLOBAL_DB,
-    CHAIN_STATE_SYNC_ALL,
+    CHAIN_STATE_SYNC_ALL
 } dap_stream_ch_chain_state_t;
 
 typedef struct dap_stream_ch_chain_sync_request{
