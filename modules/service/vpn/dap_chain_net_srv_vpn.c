@@ -572,7 +572,7 @@ int s_vpn_tun_create(dap_config_t * g_config)
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
         int l_tun_fd;
-        if( (l_tun_fd = open("/dev/net/tun", O_RDWR)) < 0 ) {
+        if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
             err = -100;
             break;
@@ -1223,7 +1223,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 assert(l_tun);
                 // Unsafely send it
                 dap_events_socket_write_unsafe( l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
-                dap_events_socket_set_writable_unsafe(l_tun->es, true);
+                //dap_events_socket_set_writable_unsafe(l_tun->es, true);
             } break;
 
             // for servier only
@@ -1232,7 +1232,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 assert(l_tun);
                 // Unsafely send it
                 size_t l_ret = dap_events_socket_write_unsafe( l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
-                dap_events_socket_set_writable_unsafe(l_tun->es, true);
+                //dap_events_socket_set_writable_unsafe(l_tun->es, true);
                 if( l_ret)
                     s_update_limits (a_ch, l_srv_session, l_usage,l_ret );
             } break;
@@ -1288,9 +1288,6 @@ void m_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 
 void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
 {
-    const static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
-    uint8_t l_tmp_buf[tun_MTU];
-
     ch_sf_tun_socket_t * l_tun_socket = CH_SF_TUN_SOCKET(a_es);
     assert(l_tun_socket);
     size_t l_buf_in_size = a_es->buf_in_size;
@@ -1298,12 +1295,8 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
 
     if(l_buf_in_size) {
         struct iphdr *iph = (struct iphdr*) a_es->buf_in;
-        struct in_addr in_daddr, in_saddr;
+        struct in_addr in_daddr;
         in_daddr.s_addr = iph->daddr;
-        in_saddr.s_addr = iph->saddr;
-        char str_daddr[42], str_saddr[42];
-        dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
-        dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
 
         //
         dap_chain_net_srv_ch_vpn_info_t * l_vpn_info = NULL;
