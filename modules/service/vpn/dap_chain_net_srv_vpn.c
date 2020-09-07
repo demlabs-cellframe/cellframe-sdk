@@ -1313,12 +1313,12 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
         }
         // We found in local table, sending data (if possible)
         if (l_vpn_info){
-            /*if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once ){
+            if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once ){
                 log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->worker->id);
                 dap_events_socket_reassign_between_workers_mt( l_vpn_info->worker,l_vpn_info->esocket,a_es->worker);
                 l_vpn_info->is_reassigned_once = true;
                 s_tun_send_msg_esocket_reasigned_all_mt(l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->addr_ipv4,a_es->worker->id);
-            }*/
+            }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         }//else{
         //    log_it(L_DEBUG, "Can't find route for desitnation %s",str_daddr);
