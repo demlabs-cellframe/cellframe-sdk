@@ -66,7 +66,7 @@ typedef enum dap_client_error {
     ERROR_NETWORK_CONNECTION_TIMEOUT
 } dap_client_error_t;
 
-#define DAP_CLIENT_PROTOCOL_VERSION 22
+#define DAP_CLIENT_PROTOCOL_VERSION 23
 
 /**
  * @brief The dap_client struct

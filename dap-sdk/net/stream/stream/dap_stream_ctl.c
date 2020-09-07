@@ -121,17 +121,20 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
     if(l_dg){
         size_t l_channels_str_size = sizeof(ss->active_channels);
         char l_channels_str[sizeof(ss->active_channels)];
-        if(l_dg->url_path && strlen(l_dg->url_path) < 30 &&
-                sscanf(l_dg->url_path, "stream_ctl,channels=%s", l_channels_str) == 1) {
+        dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
+        int l_enc_headers;
+        int l_url_sscanf_res = sscanf(l_dg->url_path, "stream_ctl,channels=%16s,enc_type=%d,enc_headers=%d", l_channels_str, &l_enc_type, &l_enc_headers);
+        if(l_url_sscanf_res > 0){
+            if(l_url_sscanf_res < 3){
+                log_it(L_INFO, "legacy encryption mode used (OAES)");
+                l_enc_type = DAP_ENC_KEY_TYPE_OAES;
+            }
             l_new_session = true;
         }
         else if(strcmp(l_dg->url_path, "socket_forward" ) == 0) {
             l_channels_str[0]  = '\0';
             l_new_session = true;
         }
-        /* }else if (strcmp(dg->url_path,"stream_ctl")==0) {
-            l_new_session = true;
-        }*/
         else{
             log_it(L_ERROR,"ctl command unknown: %s",l_dg->url_path);
             enc_http_delegate_delete(l_dg);
@@ -144,7 +147,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
             char *key_str = calloc(1, KEX_KEY_STR_SIZE+1);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate( s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
+            ss->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
             dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http_client->in_headers, "KeyID");
             if (l_hdr_key_id) {
@@ -156,7 +159,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                 }
                 ss->acl = l_ks_key->acl_list;
             }
-            enc_http_reply_f(l_dg,"%u %s %u %d",ss->id, key_str, DAP_PROTOCOL_VERSION, s_socket_forward_key.type);
+            enc_http_reply_f(l_dg,"%u %s %u %d %d",ss->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
             *return_code = Http_Status_OK;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);

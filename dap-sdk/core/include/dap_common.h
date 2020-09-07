@@ -160,6 +160,9 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
     DAP_FREE( base_ptr );
 }
 
+/*
+ * 23: added support for encryption key type parameter and option to encrypt headers
+*/
 #define DAP_PROTOCOL_VERSION  23
 
 #if __SIZEOF_LONG__==8
