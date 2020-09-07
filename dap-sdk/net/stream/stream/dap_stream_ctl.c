@@ -156,7 +156,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                 }
                 ss->acl = l_ks_key->acl_list;
             }
-            enc_http_reply_f(l_dg,"%u %s",ss->id,key_str);
+            enc_http_reply_f(l_dg,"%u %s %u %d",ss->id, key_str, DAP_PROTOCOL_VERSION, s_socket_forward_key.type);
             *return_code = Http_Status_OK;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);

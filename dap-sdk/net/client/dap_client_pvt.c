@@ -1061,12 +1061,11 @@ void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data
         int l_arg_count;
         char l_stream_id[25] = { 0 };
         char *l_stream_key = DAP_NEW_Z_SIZE(char, 4096 * 3);
-        void * l_stream_key_raw = DAP_NEW_Z_SIZE(char, 4096);
-        size_t l_stream_key_raw_size = 0;
         uint32_t l_remote_protocol_version;
+        int l_encryption_type;
 
-        l_arg_count = sscanf(l_response_str, "%25s %4096s %u"
-                , l_stream_id, l_stream_key, &l_remote_protocol_version);
+        l_arg_count = sscanf(l_response_str, "%25s %4096s %u %d"
+                , l_stream_id, l_stream_key, &l_remote_protocol_version, &l_encryption_type);
         if(l_arg_count < 2) {
             log_it(L_WARNING, "STREAM_CTL Need at least 2 arguments in reply (got %d)", l_arg_count);
             l_client_internal->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
@@ -1087,16 +1086,20 @@ void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data
                 log_it(L_DEBUG, "Stream server id %s, stream key '%s'"
                         , l_stream_id, l_stream_key);
 
-                //l_stream_key_raw_size = dap_enc_base64_decode(l_stream_key,strlen(l_stream_key),
-                //                                             l_stream_key_raw,DAP_ENC_DATA_TYPE_B64);
                 // Delete old key if present
                 if(l_client_internal->stream_key)
                     dap_enc_key_delete(l_client_internal->stream_key);
 
                 strncpy(l_client_internal->stream_id, l_stream_id, sizeof(l_client_internal->stream_id) - 1);
-                l_client_internal->stream_key =
-                        dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, l_stream_key, strlen(l_stream_key), NULL, 0,
-                                32);
+                if(l_remote_protocol_version < 23 || l_arg_count < 4){
+                    l_client_internal->stream_key =
+                            dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_OAES, l_stream_key, strlen(l_stream_key), NULL, 0,
+                                    32);
+                }else{
+                    l_client_internal->stream_key =
+                            dap_enc_key_new_generate(l_encryption_type, l_stream_key, strlen(l_stream_key), NULL, 0,
+                                    32);
+                }
 
                 if(l_client_internal->stage == STAGE_STREAM_CTL) { // We are on the right stage
                     l_client_internal->stage_status = STAGE_STATUS_DONE;
@@ -1115,7 +1118,6 @@ void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data
 
         }
         DAP_DELETE(l_stream_key);
-        DAP_DELETE(l_stream_key_raw);
     }
 }
 

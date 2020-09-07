@@ -160,7 +160,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
     DAP_FREE( base_ptr );
 }
 
-#define DAP_PROTOCOL_VERSION  22
+#define DAP_PROTOCOL_VERSION  23
 
 #if __SIZEOF_LONG__==8
 #define DAP_UINT64_FORMAT_X  "lX"
