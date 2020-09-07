@@ -325,7 +325,9 @@ void *dap_worker_thread(void *arg)
                     }
                 }
             }
-
+            if (l_cur->buf_out_size) {
+                dap_events_socket_set_writable_unsafe(l_cur,true);
+            }
             if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close) {
                 // protect against double deletion
                 l_cur->kill_signal = true;

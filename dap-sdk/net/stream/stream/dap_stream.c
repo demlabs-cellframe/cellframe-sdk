@@ -472,25 +472,25 @@ static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
  * @param sh DAP client instance
  * @param arg Not used
  */
-static void s_esocket_write(dap_events_socket_t* a_client , void * a_arg){
+static void s_esocket_write(dap_events_socket_t* a_esocket , void * a_arg){
     (void) a_arg;
     size_t i;
-    bool ready_to_write=false;
-    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
+    bool l_ready_to_write=false;
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
     //log_it(L_DEBUG,"Process channels data output (%u channels)", DAP_STREAM(l_http_client)->channel_count );
     for(i=0;i<DAP_STREAM(l_http_client)->channel_count; i++){
         dap_stream_ch_t * ch = DAP_STREAM(l_http_client)->channel[i];
         if(ch->ready_to_write){
             if(ch->proc->packet_out_callback)
                 ch->proc->packet_out_callback(ch,NULL);
-            ready_to_write|=ch->ready_to_write;
+            l_ready_to_write|=ch->ready_to_write;
         }
     }
     if (s_dump_packet_headers ) {
         log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%u" ,
-               ready_to_write?"true":"false", a_client->buf_out_size );
+               l_ready_to_write?"true":"false", a_esocket->buf_out_size );
     }
-
+    dap_events_socket_set_writable_unsafe(a_esocket, l_ready_to_write);
     //log_it(L_DEBUG,"stream_dap_data_write ok");
 }
 
