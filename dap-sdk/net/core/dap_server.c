@@ -58,10 +58,12 @@
 
 #define LOG_TAG "dap_server"
 
+static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,
+                                             dap_events_socket_callbacks_t * a_callbacks, dap_server_t * a_server);
+
 static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr* a_remote_addr);
 static void s_es_server_error(dap_events_socket_t *a_es, int a_arg);
 static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg);
-
 static void s_server_delete(dap_server_t * a_server);
 /**
  * @brief dap_server_init
@@ -148,7 +150,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         listen(l_server->socket_listener, SOMAXCONN);
     }
 
-    fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
+    //fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
     pthread_mutex_init(&l_server->started_mutex,NULL);
     pthread_cond_init(&l_server->started_cond,NULL);
 
@@ -229,7 +231,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, s
     dap_events_socket_t * l_es_new = NULL;
     log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
     log_it(L_DEBUG, "Accepted new connection (sock %d from %d)", a_remote_socket, a_es->socket);
-    l_es_new = dap_server_events_socket_new(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
+    l_es_new = s_es_server_create(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
     getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr
                 , sizeof(l_es_new->hostaddr),l_es_new->service,sizeof(l_es_new->service),
@@ -241,14 +243,14 @@ static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, s
 
 
 /**
- * @brief dap_server_events_socket_new
+ * @brief s_esocket_new
  * @param a_events
  * @param a_sock
  * @param a_callbacks
  * @param a_server
  * @return
  */
-dap_events_socket_t * dap_server_events_socket_new(dap_events_t * a_events, int a_sock,
+static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,
                                              dap_events_socket_callbacks_t * a_callbacks, dap_server_t * a_server)
 {
     dap_events_socket_t * ret = NULL;

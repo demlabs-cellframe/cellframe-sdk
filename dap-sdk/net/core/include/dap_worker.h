@@ -31,8 +31,8 @@
 typedef struct dap_worker
 {
     uint32_t id;
-    dap_events_t *events;
-    dap_proc_queue_t * proc_queue;
+    dap_events_t* events;
+    dap_proc_queue_t* proc_queue;
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
@@ -45,8 +45,9 @@ typedef struct dap_worker
     dap_events_socket_t * queue_callback; // Queue for pure callback on worker
 
     dap_timerfd_t * timer_check_activity;
+#ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
-
+#endif
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;
     void * _inheritor;

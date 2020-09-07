@@ -572,7 +572,7 @@ int s_vpn_tun_create(dap_config_t * g_config)
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
         int l_tun_fd;
-        if( (l_tun_fd = open("/dev/net/tun", O_RDWR| O_NONBLOCK)) < 0 ) {
+        if( (l_tun_fd = open("/dev/net/tun", O_RDWR)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
             err = -100;
             break;
