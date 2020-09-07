@@ -182,14 +182,7 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
     dap_events_socket_t *client = udp_client->esocket;
 
     if( client != NULL && !check_close(client) && (client->flags & DAP_SOCK_READY_TO_WRITE) ) {
-
-      if ( sh->client_callbacks.write_callback )
-        sh->client_callbacks.write_callback( client, NULL );
-
       if ( client->buf_out_size > 0 ) {
-
-
-
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
         dap_udp_client_get_address( client, (unsigned int *)&addr.sin_addr.s_addr, &addr.sin_port );
@@ -211,6 +204,8 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
         sb_payload_ready = false;
       }
       LL_DELETE( udp->waiting_clients, udp_client );
+      if ( sh->client_callbacks.write_callback )
+        sh->client_callbacks.write_callback( client, NULL );
     }
     else if( client == NULL ) {
       LL_DELETE( udp->waiting_clients, udp_client );

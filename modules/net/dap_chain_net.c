@@ -496,7 +496,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
+                int timeout_ms = 30000; // 5 min = 300 sec = 300 000 ms
                 // TODO add progress info to console
                 l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (l_res) {
@@ -556,7 +556,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id,
                                                      l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
-                    int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                    int timeout_ms = 20000; // 2 min = 120 sec = 120 000 ms
                     // TODO add progress info to console
                     if (dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id())) {
                         l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);

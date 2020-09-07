@@ -498,7 +498,7 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
             log_it( L_INFO," HTTP response with %u status code", l_http_client->reply_status_code );
             dap_events_socket_write_f_unsafe(cl, "HTTP/1.1 %u %s\r\n",l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
                             l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
-
+            dap_events_socket_set_writable_unsafe(cl, true);
             dap_http_client_out_header_generate( l_http_client );
             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
         } break;
@@ -508,6 +508,7 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
             if ( hdr == NULL ) {
                 log_it(L_DEBUG, "Output: headers are over (reply status code %u)",l_http_client->reply_status_code);
                 dap_events_socket_write_f_unsafe(cl, "\r\n");
+                dap_events_socket_set_writable_unsafe(cl, true);
                 if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
                 } else {
@@ -520,6 +521,7 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
             } else {
                 //log_it(L_WARNING,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_events_socket_write_f_unsafe(cl, "%s: %s\r\n", hdr->name, hdr->value);
+                dap_events_socket_set_writable_unsafe(cl, true);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
         } break;
