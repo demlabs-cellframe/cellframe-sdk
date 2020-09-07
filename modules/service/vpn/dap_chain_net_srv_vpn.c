@@ -79,8 +79,8 @@
 typedef struct vpn_local_network {
     struct in_addr ipv4_lease_last;
     struct in_addr ipv4_network_mask;
-    struct in_addr ipv4_host;
     struct in_addr ipv4_network_addr;
+    struct in_addr ipv4_gw;
     int tun_ctl_fd;
     int tun_fd;
     struct ifreq ifr;
@@ -551,10 +551,10 @@ int s_vpn_tun_create(dap_config_t * g_config)
         return -1;
     }
 
-    inet_aton(c_addr, &s_raw_server->ipv4_host );
+    inet_aton(c_addr, &s_raw_server->ipv4_network_addr );
     inet_aton(c_mask, &s_raw_server->ipv4_network_mask );
-    s_raw_server->ipv4_network_addr.s_addr= (s_raw_server->ipv4_host.s_addr | 0x01000000); // grow up some shit here!
-    s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_network_addr.s_addr;
+    s_raw_server->ipv4_gw.s_addr= (s_raw_server->ipv4_network_addr.s_addr | 0x01000000); // grow up some shit here!
+    s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
 
     s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", false);
     log_it(L_NOTICE,"auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment);
@@ -589,10 +589,10 @@ int s_vpn_tun_create(dap_config_t * g_config)
 
     if (! err ){
         char buf[256];
-        log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->ifr.ifr_name,inet_ntoa(s_raw_server->ipv4_network_addr),c_mask);
+        log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->ifr.ifr_name,inet_ntoa(s_raw_server->ipv4_gw),c_mask);
         snprintf(buf,sizeof(buf),"ip link set %s up",s_raw_server->ifr.ifr_name);
         system(buf);
-        snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_network_addr),c_mask, s_raw_server->ifr.ifr_name );
+        snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->ifr.ifr_name );
         system(buf);
     }
 
@@ -1079,22 +1079,22 @@ void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv
         pthread_rwlock_unlock( &s_clients_rwlock );
 
         ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t,
-                sizeof(l_pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_host));
+                sizeof(l_pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_network_addr));
         l_pkt_out->header.sock_id = s_raw_server->tun_fd;
         l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REPLY;
-        l_pkt_out->header.op_data.data_size = sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_host);
+        l_pkt_out->header.op_data.data_size = sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_gw);
         l_pkt_out->header.usage_id = a_usage->id;
 
         memcpy(l_pkt_out->data, &l_ch_vpn->addr_ipv4, sizeof(l_ch_vpn->addr_ipv4));
-        memcpy(l_pkt_out->data + sizeof(l_ch_vpn->addr_ipv4), &s_raw_server->ipv4_host,
-                sizeof(s_raw_server->ipv4_host));
+        memcpy(l_pkt_out->data + sizeof(l_ch_vpn->addr_ipv4), &s_raw_server->ipv4_gw ,
+                sizeof(s_raw_server->ipv4_gw));
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA , l_pkt_out,
                 l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
         log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(l_ch_vpn->addr_ipv4));
-        log_it(L_INFO, "\tgateway %s", inet_ntoa(s_raw_server->ipv4_host));
-        log_it(L_INFO, "\tmask %s", inet_ntoa(s_raw_server->ipv4_network_mask));
-        log_it(L_INFO, "\taddr %s", inet_ntoa(s_raw_server->ipv4_network_addr));
+        log_it(L_INFO, "\tnet gateway %s", inet_ntoa(s_raw_server->ipv4_network_addr));
+        log_it(L_INFO, "\tnet mask %s", inet_ntoa(s_raw_server->ipv4_network_mask));
+        log_it(L_INFO, "\tgw %s", inet_ntoa(s_raw_server->ipv4_gw));
         log_it(L_INFO, "\tlast_addr %s", inet_ntoa(s_raw_server->ipv4_lease_last));
         l_srv_vpn->ipv4_unleased = l_item_ipv4->next;
         DAP_DELETE(l_item_ipv4);
@@ -1102,7 +1102,7 @@ void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv
         struct in_addr n_addr = { 0 }, n_addr_max;
         n_addr.s_addr = ntohl(s_raw_server->ipv4_lease_last.s_addr);
         n_addr.s_addr++;
-        n_addr_max.s_addr = (ntohl(s_raw_server->ipv4_network_addr.s_addr)
+        n_addr_max.s_addr = (ntohl(s_raw_server->ipv4_gw.s_addr)
                              | ~ntohl(s_raw_server->ipv4_network_mask.s_addr));
 
         //  Just for log output we revert it back and forward
@@ -1122,24 +1122,24 @@ void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv
             l_ch_vpn->addr_ipv4.s_addr = n_addr.s_addr;
 
             log_it(L_NOTICE, "VPN client address %s leased", inet_ntoa(n_addr));
-            log_it(L_INFO, "\tgateway %s", inet_ntoa(s_raw_server->ipv4_host));
-            log_it(L_INFO, "\tmask %s", inet_ntoa(s_raw_server->ipv4_network_mask));
-            log_it(L_INFO, "\taddr %s", inet_ntoa(s_raw_server->ipv4_network_addr));
+            log_it(L_INFO, "\tgateway %s", inet_ntoa(s_raw_server->ipv4_gw ));
+            log_it(L_INFO, "\tnet mask %s", inet_ntoa(s_raw_server->ipv4_network_mask));
+            log_it(L_INFO, "\tnet addr %s", inet_ntoa(s_raw_server->ipv4_network_addr ));
             log_it(L_INFO, "\tlast_addr %s", inet_ntoa(s_raw_server->ipv4_lease_last));
             pthread_rwlock_wrlock( &s_clients_rwlock );
             HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
             pthread_rwlock_unlock( &s_clients_rwlock );
 
             ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1,
-                    sizeof(pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_host));
+                    sizeof(pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_gw));
             pkt_out->header.sock_id = s_raw_server->tun_fd;
             pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REPLY;
-            pkt_out->header.op_data.data_size = sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_host);
+            pkt_out->header.op_data.data_size = sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_gw);
             pkt_out->header.usage_id = a_usage->id;
 
             memcpy(pkt_out->data, &l_ch_vpn->addr_ipv4, sizeof(l_ch_vpn->addr_ipv4));
-            memcpy(pkt_out->data + sizeof(l_ch_vpn->addr_ipv4), &s_raw_server->ipv4_host,
-                    sizeof(s_raw_server->ipv4_host));
+            memcpy(pkt_out->data + sizeof(l_ch_vpn->addr_ipv4), &s_raw_server->ipv4_gw,
+                    sizeof(s_raw_server->ipv4_gw));
 
             if(dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                                        pkt_out->header.op_data.data_size + sizeof(pkt_out->header))) {

@@ -275,8 +275,8 @@ void *dap_worker_thread(void *arg)
                         l_cur->buf_out_zero_count++;
 
                         if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                            log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
-                                    buf_out_zero_count_max);
+                            //log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
+                            //        buf_out_zero_count_max);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
