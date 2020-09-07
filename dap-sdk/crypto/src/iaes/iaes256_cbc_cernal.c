@@ -23,6 +23,12 @@ void swap_endian(uint32_t *buff, unsigned long len)
 
 void AES256_enc_cernelT(uint32_t * in, uint32_t * out, uint32_t * masterkey)
 {           //first round includes replacement of byte order
+    uint32_t t0, t1, t2, t3;
+    uint32_t s0, s1, s2, s3;
+    uint32_t k0, k1, k2, k3;
+    uint32_t k4, k5, k6, k7;
+    uint32_t temp;
+
     /*r1*/	s0 = ((in[0] & 0xff) << 24) ^ ((in[0] >> 8) & 0xff) << 16 ^ ((in[0] >> 16) & 0xff) << 8 ^ (in[0] >> 24) ^ masterkey[0];
             s1 = ((in[1] & 0xff) << 24) ^ ((in[1] >> 8) & 0xff) << 16 ^ ((in[1] >> 16) & 0xff) << 8 ^ (in[1] >> 24) ^ masterkey[1];
             s2 = ((in[2] & 0xff) << 24) ^ ((in[2] >> 8) & 0xff) << 16 ^ ((in[2] >> 16) & 0xff) << 8 ^ (in[2] >> 24) ^ masterkey[2];
@@ -372,6 +378,8 @@ void Key_Shedule_for_decrypT(uint32_t * key, uint32_t * rounds_keys)
 
 void AES256_dec_cernelT(uint32_t * in, uint32_t * out, uint32_t * decr_key)
 {/*r1-xor*/
+    uint32_t t0, t1, t2, t3;
+    uint32_t s0, s1, s2, s3;
     //first round includes replacement of byte order
     s0 = ((in[0] & 0xff) << 24) ^ ((in[0] >> 8) & 0xff) << 16 ^ ((in[0] >> 16) & 0xff) << 8 ^ (in[0] >> 24) ^ decr_key[0];
     s1 = ((in[1] & 0xff) << 24) ^ ((in[1] >> 8) & 0xff) << 16 ^ ((in[1] >> 16) & 0xff) << 8 ^ (in[1] >> 24) ^ decr_key[1];
