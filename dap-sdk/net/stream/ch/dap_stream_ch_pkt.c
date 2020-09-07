@@ -164,18 +164,26 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
             (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type );
     }
 
+    uint8_t * l_buf_selected = a_ch->buf;
+    uint8_t * l_buf_allocated = NULL;
+    size_t  l_buf_size_required = a_data_size + sizeof(l_hdr);
 
-    if(a_data_size+sizeof(l_hdr)> sizeof(a_ch->buf) ){
-        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu", a_data_size, sizeof(a_ch->buf));
-        a_data_size=sizeof(a_ch->buf)-sizeof(l_hdr);
+    if(l_buf_size_required > sizeof(a_ch->buf) ){
+        log_it(L_WARNING,"packet size is way too big: %lu bytes", a_data_size);
+        l_buf_allocated = DAP_NEW_Z_SIZE(uint8_t, l_buf_size_required);
+        l_buf_selected = l_buf_allocated;
     }
-    memcpy(a_ch->buf,&l_hdr,sizeof(l_hdr) );
+    
+    memcpy(l_buf_selected,&l_hdr,sizeof(l_hdr) );
     if( a_data_size )
-        memcpy(a_ch->buf+sizeof(l_hdr),a_data,a_data_size );
+        memcpy(l_buf_selected+sizeof(l_hdr),a_data,a_data_size );
 
-    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,a_ch->buf,a_data_size+sizeof(l_hdr));
+    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,l_buf_selected,a_data_size+sizeof(l_hdr));
     a_ch->stat.bytes_write+=a_data_size;
     a_ch->ready_to_write=true;
+
+    if(l_buf_allocated)
+        DAP_DELETE(l_buf_allocated);
     return l_ret;
 
 }
@@ -196,4 +204,3 @@ size_t dap_stream_ch_pkt_write_f_unsafe(struct dap_stream_ch * a_ch, uint8_t a_t
     size_t ret=dap_stream_ch_pkt_write_unsafe(a_ch,a_type,l_buf,strlen(l_buf));
     return ret;
 }
-
