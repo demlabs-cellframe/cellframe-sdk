@@ -228,14 +228,10 @@ inline static bool _is_supported_user_agents_list_setted()
 inline static void _set_only_write_http_client_state(dap_http_client_t* http_client)
 {
 //  log_it(L_DEBUG,"_set_only_write_http_client_state");
-//  Sleep(300);
-
-  http_client->esocket->flags = DAP_SOCK_READY_TO_WRITE; // To not to touch epoll_fd we clean flags by ourself
-//  http_client->state_write=DAP_HTTP_CLIENT_STATE_NONE;
 
   http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
   dap_events_socket_set_writable_unsafe(http_client->esocket,true);
-//  http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+  dap_events_socket_set_readable_unsafe(http_client->esocket, false);
 }
 
 static void _copy_reply_and_mime_to_response( dap_http_simple_t *cl_sh )
@@ -380,6 +376,7 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
     l_http_simple->reply_sent += dap_events_socket_write_unsafe( a_http_client->esocket,
                                               l_http_simple->reply_byte + l_http_simple->reply_sent,
                                               a_http_client->out_content_length - l_http_simple->reply_sent );
+    dap_events_socket_set_writable_unsafe(a_http_client->esocket, true);
 
     if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
         log_it(L_INFO, "All the reply (%u) is sent out", a_http_client->out_content_length );

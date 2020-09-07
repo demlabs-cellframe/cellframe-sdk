@@ -297,6 +297,7 @@ void dap_http_folder_data_write(dap_http_client_t * cl_ht, void * arg)
     dap_http_file_t * cl_ht_file= DAP_HTTP_FILE(cl_ht);
     cl_ht->esocket->buf_out_size=fread(cl_ht->esocket->buf_out,1,sizeof(cl_ht->esocket->buf_out),cl_ht_file->fd);
     cl_ht_file->position+=cl_ht->esocket->buf_out_size;
+    dap_events_socket_set_writable_unsafe(cl_ht->esocket, true);
 
     if(feof(cl_ht_file->fd)!=0){
         log_it(L_INFO, "All the file %s is sent out",cl_ht_file->local_path);

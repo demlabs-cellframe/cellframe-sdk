@@ -268,7 +268,9 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->type = (uint8_t)a_op_code;
         DAP_DELETE(l_obj->group);
         l_obj->group = dap_strdup(a_group);
-        dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
+        dap_list_t *l_list_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
+        // Expect only one element in list
+        dap_store_obj_pkt_t *l_data_out = (dap_store_obj_pkt_t *)l_list_out->data;
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
@@ -278,7 +280,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
             dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id,
                                           l_chain_id, l_net->pub.cell_id, l_data_out, sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
-        DAP_DELETE(l_data_out);
+        dap_list_free_full(l_list_out, free);
     }
 }
 
@@ -389,10 +391,10 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 case NODE_ROLE_ARCHIVE:
                 case NODE_ROLE_CELL_MASTER: {
                     // Add other root nodes as synchronization links
-                    while (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
-                        int i = rand() % l_pvt_net->seed_aliases_count;
+                    for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
                         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                        dap_chain_node_info_read(l_net, l_link_addr);
+                        dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, l_link_addr);
+                        l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                     }
                 } break;
                 case NODE_ROLE_FULL:
@@ -494,7 +496,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 }
 
                 // wait for finishing of request
-                int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
+                int timeout_ms = 30000; // 5 min = 300 sec = 300 000 ms
                 // TODO add progress info to console
                 l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (l_res) {
@@ -554,7 +556,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id,
                                                      l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
-                    int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                    int timeout_ms = 20000; // 2 min = 120 sec = 120 000 ms
                     // TODO add progress info to console
                     if (dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id())) {
                         l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
