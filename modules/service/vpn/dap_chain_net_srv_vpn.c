@@ -1166,6 +1166,7 @@ void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv
             DAP_DELETE(l_item_ipv4);
             l_srv_session->stats.packets_sent++;
             l_srv_session->stats.bytes_sent+= l_data_wrote;
+            s_tun_send_msg_ip_assigned_all(l_ch_vpn, l_ch_vpn->addr_ipv4);
         }
     }else{
         struct in_addr n_addr = { 0 }, n_addr_max;
