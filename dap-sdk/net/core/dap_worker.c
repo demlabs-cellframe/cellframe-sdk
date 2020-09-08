@@ -267,8 +267,8 @@ void *dap_worker_thread(void *arg)
                 }
                 if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
-                    static const uint32_t buf_out_zero_count_max = 5;
-                    l_cur->buf_out[l_cur->buf_out_size] = 0;
+                    static const uint32_t buf_out_zero_count_max = 2;
+                    //l_cur->buf_out[l_cur->buf_out_size] = 0;
 
                     if(!l_cur->buf_out_size) {
 
@@ -276,8 +276,8 @@ void *dap_worker_thread(void *arg)
                         l_cur->buf_out_zero_count++;
 
                         if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                            //log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
-                            //        buf_out_zero_count_max);
+                            log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
+                                    buf_out_zero_count_max);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
