@@ -440,7 +440,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             log_it(L_DEBUG, "STREAM_CTL request size %u", strlen(l_request));
 
             char *l_suburl;
-            if(a_client_pvt->uplink_protocol_version < 23){
+
+            uint32_t l_least_common_dap_protocol = min(a_client_pvt->remote_protocol_version,
+                                                       a_client_pvt->uplink_protocol_version);
+
+            if(l_least_common_dap_protocol < 23){
                 l_suburl = dap_strdup_printf("stream_ctl,channels=%s",
                                              a_client_pvt->active_channels);
             }else{
@@ -962,9 +966,18 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_re
                         json_parse_count++;
                     }
                 }
+                if(json_object_get_type(val) == json_type_int) {
+                    int val = json_object_get_int(val);
+                    if(!strcmp(key, "dap_protocol_version")) {
+                        l_client_pvt->remote_protocol_version = val;
+                        json_parse_count++;
+                    }
+                }
             }
             // free jobj
             json_object_put(jobj);
+            if(!l_client_pvt->remote_protocol_version)
+                l_client_pvt->remote_protocol_version = DAP_PROTOCOL_VERSION_DEFAULT;
         }
         //char l_session_id_b64[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1] = { 0 };
         //char *l_bob_message_b64 = DAP_NEW_Z_SIZE(char, a_response_size - sizeof(l_session_id_b64) + 1);

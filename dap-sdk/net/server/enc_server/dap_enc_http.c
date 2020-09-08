@@ -75,6 +75,7 @@ static void _enc_http_write_reply(struct dap_http_simple *cl_st,
     struct json_object *jobj = json_object_new_object();
     json_object_object_add(jobj, "encrypt_id", json_object_new_string(encrypt_id));
     json_object_object_add(jobj, "encrypt_msg", json_object_new_string(encrypt_msg));
+    json_object_object_add(jobj, "dap_protocol_version", json_object_new_int(DAP_PROTOCOL_VERSION));
     const char* json_str = json_object_to_json_string(jobj);
     dap_http_simple_reply(cl_st, (void*) json_str,
                           (size_t) strlen(json_str));
