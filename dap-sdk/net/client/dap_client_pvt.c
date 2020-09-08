@@ -79,6 +79,8 @@
 
 static void s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
+const static dap_enc_key_type_t s_dap_client_pvt_preferred_encryption_type = DAP_ENC_KEY_TYPE_IAES;
+
 // ENC stage callbacks
 void m_enc_init_response(dap_client_t *, void *, size_t);
 void m_enc_init_error(dap_client_t *, int);
