@@ -256,18 +256,19 @@ void *dap_worker_thread(void *arg)
             // Socket is ready to write
             if(((l_epoll_events[n].events & EPOLLOUT) || (l_cur->flags & DAP_SOCK_READY_TO_WRITE))
                     && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
-                //log_it(DEBUG, "Main loop output: %u bytes to send",sa_cur->buf_out_size);
+
+                //log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
+
                 if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,
                                              // continue to poll another esockets
                     continue;
                 }
-
                 if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
 
-                    static const uint32_t buf_out_zero_count_max = 5;
-                    l_cur->buf_out[l_cur->buf_out_size] = 0;
+                    static const uint32_t buf_out_zero_count_max = 2;
+                    //l_cur->buf_out[l_cur->buf_out_size] = 0;
 
                     if(!l_cur->buf_out_size) {
 
@@ -275,8 +276,8 @@ void *dap_worker_thread(void *arg)
                         l_cur->buf_out_zero_count++;
 
                         if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                            log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
-                                    buf_out_zero_count_max);
+                            //log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
+                            //        buf_out_zero_count_max);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
@@ -307,35 +308,42 @@ void *dap_worker_thread(void *arg)
                     if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
                         log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
                         l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                        break;
                     }
                 }else{
+
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
-                    //}
-                    //log_it(L_DEBUG,"Output: sent %u bytes",total_sent);
                     if (l_bytes_sent) {
-                        l_cur->buf_out_size -= l_bytes_sent;
-                        //log_it(L_DEBUG,"Output: left %u bytes in buffer",l_cur->buf_out_size);
-                        if (l_cur->buf_out_size) {
-                            memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
-                        } else {
-                            if (!l_cur->is_dont_reset_write_flag)
-                                dap_events_socket_set_writable_unsafe(l_cur, false);
+                        if ( l_bytes_sent <= l_cur->buf_out_size ){
+                            l_cur->buf_out_size -= l_bytes_sent;
+                            if (l_cur->buf_out_size ) {
+                                memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
+                            }
+                        }else{
+                            log_it(L_ERROR, "Wrong bytes sent, %zd more then was in buffer %zd",l_bytes_sent, l_cur->buf_out_size);
+                            l_cur->buf_out_size = 0;
                         }
                     }
                 }
             }
-
-            if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close) {
+            if (l_cur->buf_out_size) {
+                dap_events_socket_set_writable_unsafe(l_cur,true);
+            }
+            if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close  && l_cur->buf_out_size == 0) {
                 // protect against double deletion
                 l_cur->kill_signal = true;
                 //dap_events_socket_remove_and_delete(cur, true);
                 log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
+            } else if (l_cur->buf_out_size ){
+                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->hostaddr, l_cur->socket, l_tn,
+                       l_cur->buf_out_size);
             }
 
-            if(l_cur->kill_signal) {
+            if(l_cur->kill_signal && l_cur->buf_out_size == 0) {
                 log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, l_tn);
                 dap_events_socket_remove_and_delete_unsafe( l_cur, false);
+            }else if (l_cur->buf_out_size ){
+                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ] but buffer is not empty(%zd)", l_cur->socket, l_tn,
+                       l_cur->buf_out_size);
             }
 
         }

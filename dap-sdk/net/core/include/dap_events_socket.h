@@ -91,12 +91,9 @@ typedef struct dap_events_socket_callbacks {
     union{
         dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
         dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
-        dap_events_socket_callback_event_t event_callback; // Timer callback for listening socket
-        dap_events_socket_callback_queue_t queue_callback; // Timer callback for listening socket
-        dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // Timer callback for listening socket
-        dap_events_socket_callback_t action_callback; // Callback for action with socket
-                                                      // for events and timers thats pointer
-                                                      // to processing callback
+        dap_events_socket_callback_event_t event_callback; // Event callback for listening socket
+        dap_events_socket_callback_queue_t queue_callback; // Queue callback for listening socket
+        dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // queue_ptr callback for listening socket
     };
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
