@@ -967,9 +967,9 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_re
                     }
                 }
                 if(json_object_get_type(val) == json_type_int) {
-                    int val = json_object_get_int(val);
+                    int val_int = (uint32_t)json_object_get_int(val);
                     if(!strcmp(key, "dap_protocol_version")) {
-                        l_client_pvt->remote_protocol_version = val;
+                        l_client_pvt->remote_protocol_version = val_int;
                         json_parse_count++;
                     }
                 }
@@ -981,7 +981,7 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_re
         }
         //char l_session_id_b64[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1] = { 0 };
         //char *l_bob_message_b64 = DAP_NEW_Z_SIZE(char, a_response_size - sizeof(l_session_id_b64) + 1);
-        if(json_parse_count == 2) { //if (sscanf (a_response,"%s %s",l_session_id_b64, l_bob_message_b64) == 2 ){
+        if(json_parse_count >= 2 && json_parse_count <=3) { //if (sscanf (a_response,"%s %s",l_session_id_b64, l_bob_message_b64) == 2 ){
             l_client_pvt->session_key_id = DAP_NEW_Z_SIZE(char, strlen(l_session_id_b64) + 1);
             dap_enc_base64_decode(l_session_id_b64, strlen(l_session_id_b64),
                     l_client_pvt->session_key_id, DAP_ENC_DATA_TYPE_B64);
