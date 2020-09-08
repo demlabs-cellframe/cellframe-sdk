@@ -285,7 +285,7 @@ void *dap_worker_thread(void *arg)
                         l_cur->buf_out_zero_count = 0;
                 }
                 //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
-                size_t l_bytes_sent =0;
+                ssize_t l_bytes_sent =0;
                 int l_errno;
                 switch (l_cur->type){
                     case DESCRIPTOR_TYPE_SOCKET:
