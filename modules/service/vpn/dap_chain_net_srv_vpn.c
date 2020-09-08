@@ -196,8 +196,8 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     size_t l_data_to_send = (l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent );
-    if ( l_data_sent != l_data_to_send){
-        log_it(L_WARNING, "Wasn't sent all the data in tunnel: probably buffer overflow");
+    if ( l_data_sent < l_data_to_send){
+        log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
         l_srv_session->stats.bytes_recv_lost += l_data_to_send - l_data_sent;
         l_srv_session->stats.packets_recv_lost++;
         return false;
@@ -226,14 +226,17 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             if(s_debug_more){
                 char l_str_daddr[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
-                log_it(L_INFO, "Sent packet for desitnation %s in own context",l_str_daddr);
+                log_it(L_DEBUG, "Sent packet size %zd for desitnation in own context", a_data_size);
             }
 
             s_tun_client_send_data_unsafe(l_ch_vpn_info->ch_vpn,l_pkt_out);
+            DAP_DELETE(l_pkt_out);
         }else{
             log_it(L_WARNING, "Was no esocket %p on worker #%u, lost %zd data",l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id,a_data_size );
+            DAP_DELETE(l_pkt_out);
+            return false;
         }
-        DAP_DELETE(l_pkt_out);
+
     }else{
         struct tun_socket_msg * l_msg= DAP_NEW_Z(struct tun_socket_msg);
         l_msg->type = TUN_SOCKET_MSG_CH_VPN_SEND;
@@ -249,7 +252,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         if(s_debug_more){
             char l_str_daddr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
-            log_it(L_INFO, "Sent packet for desitnation %s between contexts",l_str_daddr);
+            log_it(L_INFO, "Sent packet for desitnation %zd between contexts",a_data_size);
         }
 
     }

@@ -276,8 +276,8 @@ void *dap_worker_thread(void *arg)
                         l_cur->buf_out_zero_count++;
 
                         if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                            log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
-                                    buf_out_zero_count_max);
+                            //log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
+                            //        buf_out_zero_count_max);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                         }
                     }
@@ -310,14 +310,17 @@ void *dap_worker_thread(void *arg)
                         l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     }
                 }else{
+
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
                     if (l_bytes_sent) {
-                        l_cur->buf_out_size -= l_bytes_sent;
-                        if (l_cur->buf_out_size) {
-                            memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
-                        } else {
-                            if (!l_cur->is_dont_reset_write_flag)
-                                dap_events_socket_set_writable_unsafe(l_cur, false);
+                        if ( l_bytes_sent <= l_cur->buf_out_size ){
+                            l_cur->buf_out_size -= l_bytes_sent;
+                            if (l_cur->buf_out_size ) {
+                                memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
+                            }
+                        }else{
+                            log_it(L_ERROR, "Wrong bytes sent, %zd more then was in buffer %zd",l_bytes_sent, l_cur->buf_out_size);
+                            l_cur->buf_out_size = 0;
                         }
                     }
                 }
@@ -325,16 +328,22 @@ void *dap_worker_thread(void *arg)
             if (l_cur->buf_out_size) {
                 dap_events_socket_set_writable_unsafe(l_cur,true);
             }
-            if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close) {
+            if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close  && l_cur->buf_out_size == 0) {
                 // protect against double deletion
                 l_cur->kill_signal = true;
                 //dap_events_socket_remove_and_delete(cur, true);
                 log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
+            } else if (l_cur->buf_out_size ){
+                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->hostaddr, l_cur->socket, l_tn,
+                       l_cur->buf_out_size);
             }
 
-            if(l_cur->kill_signal) {
+            if(l_cur->kill_signal && l_cur->buf_out_size == 0) {
                 log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, l_tn);
                 dap_events_socket_remove_and_delete_unsafe( l_cur, false);
+            }else if (l_cur->buf_out_size ){
+                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ] but buffer is not empty(%zd)", l_cur->socket, l_tn,
+                       l_cur->buf_out_size);
             }
 
         }
