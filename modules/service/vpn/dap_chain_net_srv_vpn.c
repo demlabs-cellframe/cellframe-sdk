@@ -1166,6 +1166,7 @@ void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv
             DAP_DELETE(l_item_ipv4);
             l_srv_session->stats.packets_sent++;
             l_srv_session->stats.bytes_sent+= l_data_wrote;
+            s_tun_send_msg_ip_assigned_all(l_ch_vpn, l_ch_vpn->addr_ipv4);
         }
     }else{
         struct in_addr n_addr = { 0 }, n_addr_max;
@@ -1329,7 +1330,6 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 assert(l_tun);
                 // Unsafely send it
                 size_t l_ret = s_stream_session_esocket_send(l_srv_session, l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
-                //dap_events_socket_set_writable_unsafe(l_tun->es, true);
                 if( l_ret)
                     s_update_limits (a_ch, l_srv_session, l_usage,l_ret );
             } break;
@@ -1377,16 +1377,17 @@ static size_t s_stream_session_esocket_send(dap_chain_net_srv_stream_session_t *
     }
 
     if(l_data_left_to_send){
-        if ( dap_events_socket_write_unsafe( l_es, a_data +l_direct_wrote,l_data_left_to_send
-                                             ) < l_data_left_to_send ){
-            log_it(L_WARNING,"Loosing data, probably buffers are overfilling, lost %zd bytes", l_data_left_to_send);
+        //if ( dap_events_socket_write_unsafe( l_es, a_data +l_direct_wrote,l_data_left_to_send
+        //                                     ) < l_data_left_to_send ){
+            //log_it(L_WARNING,"Loosing data, probably buffers are overfilling, lost %zd bytes", l_data_left_to_send);
+            log_it(L_WARNING,"Loosing data, lost %zd bytes", l_data_left_to_send);
             l_srv_session->stats.bytes_sent_lost += l_data_left_to_send;
             l_srv_session->stats.packets_sent_lost++;
-        }else{
+        /*}else{
             l_ret += l_data_left_to_send;
             l_srv_session->stats.packets_sent++;
             l_srv_session->stats.bytes_sent+= l_direct_wrote;
-        }
+        }*/
     }
     return l_ret;
 }

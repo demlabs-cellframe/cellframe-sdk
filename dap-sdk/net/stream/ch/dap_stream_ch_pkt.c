@@ -162,8 +162,8 @@ bool dap_stream_ch_check_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t *
  */
 size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size)
 {
-    if (! a_data_size){
-        log_it(L_WARNING,"Zero data size to write out in channel");
+    if (!a_data_size || !a_ch || !a_data) {
+        log_it(L_WARNING, "NULL ptr or zero data size to write out in channel");
         return 0;
     }
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );

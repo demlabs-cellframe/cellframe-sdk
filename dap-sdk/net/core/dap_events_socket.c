@@ -885,6 +885,10 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
+    if(sc->buf_out_size>sizeof(sc->buf_out)){
+        log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", sc->buf_out_size, sizeof(sc->buf_out));
+        return 0;
+    }
     //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
      data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
