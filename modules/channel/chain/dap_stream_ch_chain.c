@@ -138,7 +138,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_atom_iter_t* l_iter = l_chain->callback_atom_iter_create(l_chain);
     l_ch_chain->request_atom_iter = l_iter;
     l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_count, &l_lasts_sizes);
-    log_it(L_INFO, "Found %d atoms for synchronization", l_lasts_count);
+    log_it(L_INFO, "Found %d last atoms for synchronization", l_lasts_count);
     if (l_lasts && l_lasts_sizes) {
         for(long int i = l_lasts_count - 1; i >= 0; i--) {
             dap_chain_atom_item_t * l_item = NULL;

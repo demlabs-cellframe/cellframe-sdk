@@ -277,8 +277,12 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
             dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+            if (!l_ch_chain) {
+                continue;
+            }
             dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id,
-                                          l_chain_id, l_net->pub.cell_id, l_data_out, sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
+                                                 l_chain_id, l_net->pub.cell_id, l_data_out,
+                                                 sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
         dap_list_free_full(l_list_out, free);
     }
@@ -487,7 +491,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 // find dap_chain_id_t
                 dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
                 dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {};
-
+                l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
                 size_t l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id,
                                                                 l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 if (l_res == 0) {
@@ -509,6 +513,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 default:
                     log_it(L_INFO, "Node sync error %d",l_res);
                 }
+                l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
                 l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, l_net->pub.id,
                                                          l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
@@ -557,21 +562,20 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                                      l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
                     int timeout_ms = 20000; // 2 min = 120 sec = 120 000 ms
-                    // TODO add progress info to console
-                    if (dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id())) {
-                        l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
-                        switch (l_res) {
-                        case -1:
-                            log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
-                            break;
-                        case 0:
-                            l_need_flush = true;
-                            log_it(L_INFO, "Sync of chain '%s' completed ", l_chain->name);
-                            break;
-                        default:
-                            log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
-                        }
+                    // TODO add progress info to console                      
+                    l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
+                    switch (l_res) {
+                    case -1:
+                        log_it(L_WARNING,"Timeout with sync of chain '%s' ", l_chain->name);
+                        break;
+                    case 0:
+                        l_need_flush = true;
+                        log_it(L_INFO, "Sync of chain '%s' completed ", l_chain->name);
+                        break;
+                    default:
+                        log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
                     }
+                    l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, l_net->pub.id,
                                                      l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
