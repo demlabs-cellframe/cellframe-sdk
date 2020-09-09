@@ -79,6 +79,8 @@
 
 static void s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
+const static dap_enc_key_type_t s_dap_client_pvt_preferred_encryption_type = DAP_ENC_KEY_TYPE_IAES;
+
 // ENC stage callbacks
 void m_enc_init_response(dap_client_t *, void *, size_t);
 void m_enc_init_error(dap_client_t *, int);
@@ -397,7 +399,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
     case STAGE_STATUS_IN_PROGRESS: {
         switch (a_client_pvt->stage) {
         case STAGE_ENC_INIT: {
-            log_it(L_INFO, "Go to stage ENC: prepare the request");         
+            log_it(L_INFO, "Go to stage ENC: prepare the request");
             a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
             if (!a_client_pvt->session_key_open) {
                 log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
@@ -467,7 +469,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                 break;
             }
-#ifdef _WIN32 
+#ifdef _WIN32
             {
               int buffsize = 65536;
               int optsize = sizeof( int );
@@ -1347,4 +1349,3 @@ void m_es_stream_error(dap_events_socket_t * a_es, int a_arg)
     }
     log_it(L_INFO, "m_es_stream_error: code %d", a_arg);
 }
-

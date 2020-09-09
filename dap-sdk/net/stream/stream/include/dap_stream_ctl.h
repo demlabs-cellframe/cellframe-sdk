@@ -21,6 +21,7 @@
 #pragma once
 
 #include "dap_enc.h"
+#include "dap_config.h"
 typedef struct dap_http dap_http_t;
 #define KEX_KEY_STR_SIZE 128
 

@@ -936,7 +936,6 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
  */
 void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
 {
-    log_it(L_DEBUG, "ch_sf_delete() for %s", ch->stream->esocket->hostaddr);
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
 
