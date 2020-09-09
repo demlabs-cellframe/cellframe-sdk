@@ -69,30 +69,15 @@ static struct {
     dap_enc_key_type_t type;
 } s_socket_forward_key;
 
-static const dap_enc_key_type_t s_dap_stream_default_preferred_encryption = DAP_ENC_KEY_TYPE_IAES;
-
 /**
  * @brief stream_ctl_init Initialize stream control module
  * @return Zero if ok others if not
  */
-int dap_stream_ctl_init(dap_config_t * a_config,
-                        size_t socket_forward_key_size)
+int dap_stream_ctl_init(size_t socket_forward_key_size)
 {
     s_socket_forward_key.size = socket_forward_key_size;
+    s_socket_forward_key.type = dap_stream_get_preferred_encryption_type();
 
-    const char *l_preferred_encryption_name = dap_config_get_item_str(a_config, "stream", "preferred_encryption");
-    if(!l_preferred_encryption_name){
-        s_socket_forward_key.type = s_dap_stream_default_preferred_encryption;
-    }else{
-        dap_enc_key_type_t l_found_key_type = dap_enc_key_type_find_by_name(l_preferred_encryption_name);
-
-        if(l_found_key_type != DAP_ENC_KEY_TYPE_INVALID)
-            s_socket_forward_key.type = l_found_key_type;
-        else
-            s_socket_forward_key.type = s_dap_stream_default_preferred_encryption;
-    }
-
-    log_it(L_NOTICE,"Initialized stream control module: ecryption type is set to %s", dap_enc_get_type_name(s_socket_forward_key.type));
     return 0;
 }
 
@@ -135,7 +120,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         size_t l_channels_str_size = sizeof(ss->active_channels);
         char l_channels_str[sizeof(ss->active_channels)];
         dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
-        int l_enc_headers;
+        int l_enc_headers = 0;
         int l_url_sscanf_res = sscanf(l_dg->url_path, "stream_ctl,channels=%16s,enc_type=%d,enc_headers=%d", l_channels_str, &l_enc_type, &l_enc_headers);
         if(l_url_sscanf_res > 0){
             if(l_url_sscanf_res < 3){

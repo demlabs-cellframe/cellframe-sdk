@@ -90,11 +90,28 @@ bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000  };
 static bool s_detect_loose_packet(dap_stream_t * a_stream);
 
+dap_enc_key_type_t s_stream_get_preferred_encryption_type = DAP_ENC_KEY_TYPE_IAES;
+
+void s_dap_stream_load_preferred_encryption_type(dap_config_t * a_config){
+    const char * l_preferred_encryption_name = dap_config_get_item_str(a_config, "stream", "preferred_encryption");
+    if(l_preferred_encryption_name){
+        dap_enc_key_type_t l_found_key_type = dap_enc_key_type_find_by_name(l_preferred_encryption_name);
+        if(l_found_key_type != DAP_ENC_KEY_TYPE_INVALID)
+            s_stream_get_preferred_encryption_type = l_found_key_type;
+    }
+
+    log_it(L_NOTICE,"ecryption type is set to %s", dap_enc_get_type_name(s_stream_get_preferred_encryption_type));
+}
+
+dap_enc_key_type_t dap_stream_get_preferred_encryption_type(){
+    return s_stream_get_preferred_encryption_type;
+}
+
 /**
  * @brief stream_init Init stream module
  * @return  0 if ok others if not
  */
-int dap_stream_init( bool a_dump_packet_headers)
+int dap_stream_init(dap_config_t * a_config)
 {
     if( dap_stream_ch_init() != 0 ){
         log_it(L_CRITICAL, "Can't init channel types submodule");
@@ -105,7 +122,8 @@ int dap_stream_init( bool a_dump_packet_headers)
         return -2;
     }
 
-    s_dump_packet_headers = a_dump_packet_headers;
+    s_dap_stream_load_preferred_encryption_type(a_config);
+    s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
     s_keep_alive_loop_quit_signal = false;
     pthread_mutex_init( &s_mutex_keepalive_list, NULL );
     //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
