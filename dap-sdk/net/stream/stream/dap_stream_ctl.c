@@ -69,17 +69,30 @@ static struct {
     dap_enc_key_type_t type;
 } s_socket_forward_key;
 
+static const dap_enc_key_type_t s_dap_stream_default_preferred_encryption = DAP_ENC_KEY_TYPE_IAES;
 
 /**
  * @brief stream_ctl_init Initialize stream control module
  * @return Zero if ok others if not
  */
-int dap_stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
+int dap_stream_ctl_init(dap_config_t * a_config,
                         size_t socket_forward_key_size)
 {
-    s_socket_forward_key.type = socket_forward_key_type;
     s_socket_forward_key.size = socket_forward_key_size;
-    log_it(L_NOTICE,"Initialized stream control module");
+
+    const char *l_preferred_encryption_name = dap_config_get_item_str(a_config, "stream", "preferred_encryption");
+    if(!l_preferred_encryption_name){
+        s_socket_forward_key.type = s_dap_stream_default_preferred_encryption;
+    }else{
+        dap_enc_key_type_t l_found_key_type = dap_enc_key_type_find_by_name(l_preferred_encryption_name);
+
+        if(l_found_key_type != DAP_ENC_KEY_TYPE_INVALID)
+            s_socket_forward_key.type = l_found_key_type;
+        else
+            s_socket_forward_key.type = s_dap_stream_default_preferred_encryption;
+    }
+
+    log_it(L_NOTICE,"Initialized stream control module: ecryption type is set to %s", dap_enc_get_type_name(s_socket_forward_key.type));
     return 0;
 }
 
