@@ -676,6 +676,7 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_c
     dap_chain_cs_dag_event_item_t * l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
     l_event_last->ts_added = a_event_item->ts_added;
     l_event_last->event = a_event_item->event;
+    l_event_last->event_size = a_event_item->event_size;
     dap_hash_fast(l_event_last->event, a_event_item->event_size,&l_event_last->hash );
     HASH_ADD(hh,PVT(a_dag)->events_lasts_unlinked,hash, sizeof(l_event_last->hash),l_event_last);
 }
@@ -854,26 +855,24 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
                                                                   size_t ** a_lasts_size_array )
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG( a_atom_iter->chain );
-
-    if ( HASH_COUNT( PVT(l_dag)->events_lasts_unlinked ) > 0 ) {
+    dap_chain_atom_ptr_t * l_ret = NULL;
+    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
+    size_t l_lasts_size = HASH_COUNT( PVT(l_dag)->events_lasts_unlinked );
+    if ( l_lasts_size > 0 ) {
         if( a_lasts_size)
-            *a_lasts_size = HASH_COUNT( PVT(l_dag)->events_lasts_unlinked );
-        dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE( dap_chain_atom_ptr_t,
-                                           sizeof (dap_chain_atom_ptr_t*) * HASH_COUNT( PVT(l_dag)->events_lasts_unlinked ) );
-
+            *a_lasts_size = l_lasts_size;
+        l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, sizeof(dap_chain_atom_ptr_t *) * l_lasts_size);
         dap_chain_cs_dag_event_item_t * l_event_item = NULL, *l_event_item_tmp = NULL;
         size_t i = 0;
-        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-        *a_lasts_size_array = DAP_NEW_Z_SIZE(size_t,sizeof (size_t)* HASH_CNT(hh,PVT(l_dag)->events_lasts_unlinked));
+        *a_lasts_size_array = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_lasts_size);
         HASH_ITER(hh,PVT(l_dag)->events_lasts_unlinked, l_event_item,l_event_item_tmp){
             l_ret[i] = l_event_item->event;
             (*a_lasts_size_array)[i] = l_event_item->event_size;
             i++;
-        }
-        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-        return l_ret;
+        }    
     }
-    return NULL;
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    return l_ret;
 }
 
 /**
