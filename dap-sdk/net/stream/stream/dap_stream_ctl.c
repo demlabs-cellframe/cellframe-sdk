@@ -44,7 +44,7 @@
 
 #include "dap_http.h"
 #include "dap_http_client.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_simple.h"
 
 #include "dap_stream_session.h"
@@ -146,7 +146,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
             ss->key = dap_enc_key_new_generate( s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
-            dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http->in_headers, "KeyID");
+            dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http_client->in_headers, "KeyID");
             if (l_hdr_key_id) {
                 dap_enc_ks_key_t *l_ks_key = dap_enc_ks_find(l_hdr_key_id->value);
                 if (!l_ks_key) {

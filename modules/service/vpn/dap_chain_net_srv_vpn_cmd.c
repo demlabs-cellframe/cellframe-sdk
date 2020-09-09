@@ -230,6 +230,5 @@ int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_repl
 
 int dap_chain_net_srv_vpn_cmd_init()
 {
-
-
+    return 0;
 }

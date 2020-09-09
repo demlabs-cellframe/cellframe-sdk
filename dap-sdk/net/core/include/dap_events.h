@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2019
+ * Copyright  (c) 2017-2020
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -22,23 +22,13 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
-#ifndef WIN32
-#include <netinet/in.h>
-
-#include <stdint.h>
 #include <pthread.h>
-#include <stdatomic.h>
-#define EPOLL_HANDLE  int
-#else
-#define EPOLL_HANDLE  HANDLE
-#endif
-
 #include "uthash.h"
 #include "dap_events_socket.h"
 #include "dap_server.h"
-
+#include "dap_worker.h"
 struct dap_events;
+#define DAP_MAX_EPOLL_EVENTS    8192
 
 typedef void (*dap_events_callback_t) (struct dap_events *, void *arg); // Callback for specific server's operations
 
@@ -46,47 +36,29 @@ typedef struct dap_thread {
   pthread_t tid;
 } dap_thread_t;
 
-struct dap_worker;
-
 typedef struct dap_events {
-
-  dap_events_socket_t *sockets; // Hashmap of event sockets
-  dap_events_socket_t *dlsockets; // Dlist of event sockets
-  dap_events_socket_t *to_kill_sockets; // Dlist of event sockets
-
-  pthread_rwlock_t sockets_rwlock;
-  void *_inheritor;  // Pointer to the internal data, HTTP for example
-  dap_thread_t proc_thread;
-  pthread_rwlock_t servers_rwlock;
-
+    dap_events_socket_t *sockets; // Hashmap of event sockets
+    pthread_rwlock_t sockets_rwlock;
+    void *_inheritor;  // Pointer to the internal data, HTTP for example
+    dap_thread_t proc_thread;
 } dap_events_t;
 
-typedef struct dap_worker
-{
-  atomic_uint event_sockets_count;
-  //uint32_t event_to_kill_count;
-
-  EPOLL_HANDLE epoll_fd;
-  uint32_t number_thread;
-  pthread_mutex_t locker_on_count;
-  dap_events_t *events;
-
-} dap_worker_t;
-
-int32_t  dap_events_init( uint32_t a_threads_count, size_t conn_t ); // Init server module
+int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout ); // Init server module
 void dap_events_deinit( ); // Deinit server module
 
-void dap_events_thread_wake_up( dap_thread_t *th );
 dap_events_t* dap_events_new( );
-void dap_events_delete( dap_events_t * sh );
+dap_events_t* dap_events_get_default( );
+void dap_events_delete( dap_events_t * a_events );
 
-int32_t dap_events_start( dap_events_t *sh );
-void dap_events_stop();
-int32_t dap_events_wait( dap_events_t *sh );
+int32_t dap_events_start( dap_events_t *a_events );
+void dap_events_stop_all();
+int32_t dap_events_wait( dap_events_t *a_events );
 
-uint32_t dap_worker_get_index_min( );
-dap_worker_t *dap_worker_get_min( );
+void dap_events_worker_print_all( );
+uint32_t dap_events_worker_get_index_min( );
+uint32_t dap_events_worker_get_count();
+dap_worker_t *dap_events_worker_get_auto( );
 
-void dap_worker_add_events_socket( dap_events_socket_t * a_events_socket );
-void dap_worker_print_all( );
-
+dap_worker_t * dap_events_worker_get(uint8_t a_index);
+uint32_t dap_get_cpu_count();
+void dap_cpu_assign_thread_on(uint32_t a_cpu_id);

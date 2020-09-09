@@ -44,4 +44,4 @@ typedef struct dap_stream_ch_chain_net_srv {
 
 void dap_stream_ch_chain_net_srv_set_srv_uid(dap_stream_ch_t* a_ch, dap_chain_net_srv_uid_t a_srv_uid);
 uint8_t dap_stream_ch_chain_net_srv_get_id();
-
+int dap_stream_ch_chain_net_srv_init(void);

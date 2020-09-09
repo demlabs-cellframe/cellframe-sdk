@@ -443,6 +443,18 @@ dap_stream_t * dap_client_get_stream(dap_client_t * a_client)
     return (l_client_internal) ? l_client_internal->stream : NULL;
 }
 
+/**
+ * @brief dap_client_get_stream_worker
+ * @param a_client
+ * @return
+ */
+dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client)
+{
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    return (l_client_internal) ? l_client_internal->stream_worker : NULL;
+
+}
+
 dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id)
 {
     dap_stream_ch_t * l_ch = NULL;

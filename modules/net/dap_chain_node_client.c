@@ -50,6 +50,7 @@
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_net_srv_common.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
@@ -126,6 +127,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         SetEvent( l_node_client->wait_cond );
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
+        return;
     }
 
     if(l_node_client && l_node_client->keep_connection &&
@@ -273,127 +275,19 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;
 
         if(l_request) {
-            uint64_t l_id_last_here = 1;
-            // for sync chain not used time
-            //if(a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS)
-            //    l_id_last_here =(uint64_t) dap_db_log_get_last_id();
-            if(1) {//if(l_request->id_start < l_id_last_here) {
-                log_it(L_INFO, "Remote is synced but we have updates for it");
-                bool l_is_sync = true;
-                // Get log diff
-                if(a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
-                    a_ch_chain->request_last_ts = dap_db_log_get_last_id();
-                    uint64_t l_start_item = l_request->id_start;
-                    dap_db_log_list_t *l_db_log = NULL;
-                    // If the current global_db has been truncated, but the remote node has not known this
-                    uint64_t l_last_id = dap_db_log_get_last_id();
-                    if(l_request->id_start > a_ch_chain->request_last_ts){
-                        dap_chain_net_t *l_net = dap_chain_net_by_id(a_pkt->hdr.net_id);
-                        dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, a_ch_chain->request.node_addr);
-                        l_db_log = dap_db_log_list_start(l_start_item + 1, l_add_groups);
-                        if(!l_db_log)
-                            l_start_item = 0;
-                    }
-                    //dap_list_t *l_list = dap_db_log_get_list(l_request->id_start + 1);
-                    if(!l_db_log){
-                        dap_chain_net_t *l_net = dap_chain_net_by_id(a_pkt->hdr.net_id);
-                        dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, a_ch_chain->request.node_addr);
-                        l_db_log = dap_db_log_list_start(l_start_item + 1, l_add_groups);
-                    }
-                    if(l_db_log) {
-                        // Add it to outgoing list
-                        //l_list->prev = a_ch_chain->request_global_db_trs;
-                        a_ch_chain->request_global_db_trs = l_db_log;//l_list;
-                    }
-                    else
-                        l_is_sync = false;
-                }
-                if(l_is_sync) {
-                    a_ch_chain->request_net_id.uint64 = a_pkt->hdr.net_id.uint64;
-                    a_ch_chain->request_cell_id.uint64 = a_pkt->hdr.cell_id.uint64;
-                    a_ch_chain->request_chain_id.uint64 = a_pkt->hdr.chain_id.uint64;
-                    a_ch_chain->state = dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(a_pkt_type);//CHAIN_STATE_SYNC_CHAINS;//GLOBAL_DB;
-
-                    // type of first packet
-                    uint8_t l_type =
-                            (a_pkt_type != DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS) ?
-                                    DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB :
-                                    DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN;
-                    if(l_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN)
-                    {
-                        dap_chain_t * l_chain = dap_chain_find_by_id(a_pkt->hdr.net_id, a_pkt->hdr.chain_id);
-                        if (l_chain ){
-                            dap_chain_atom_iter_t* l_iter = l_chain ? l_chain->callback_atom_iter_create(l_chain) : NULL;
-                            if ( l_iter ){
-                                //a_ch_chain->request_atom_iter = l_iter;
-
-                                dap_chain_atom_ptr_t * l_lasts = NULL;
-                                size_t l_lasts_size = 0;
-                                l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_size);
-                                if ( l_lasts){
-                                    for(size_t i = 0; i < l_lasts_size; i++) {
-                                        dap_chain_atom_item_t * l_item = NULL;
-                                        dap_chain_hash_fast_t l_atom_hash;
-                                        dap_hash_fast(l_lasts[i], l_chain->callback_atom_get_size(l_lasts[i]), &l_atom_hash);
-                                        pthread_mutex_lock(&a_ch_chain->mutex);
-                                        HASH_FIND(hh, a_ch_chain->request_atoms_lasts, &l_atom_hash, sizeof(l_atom_hash), l_item);
-                                        if(l_item == NULL) { // Not found, add new lasts
-                                            l_item = DAP_NEW_Z(dap_chain_atom_item_t);
-                                            l_item->atom = l_lasts[i];
-                                            memcpy(&l_item->atom_hash, &l_atom_hash, sizeof(l_atom_hash));
-                                            HASH_ADD(hh, a_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash), l_item);
-                                        }
-                                        //else
-                                        //    DAP_DELETE(l_lasts[i]);
-                                        pthread_mutex_unlock(&a_ch_chain->mutex);
-                                    }
-                                    DAP_DELETE(l_lasts);
-                                }
-                                DAP_DELETE(l_iter);
-                            }else{
-                                log_it(L_ERROR, "Can't create iterator for chain_id 0x%016X", a_pkt->hdr.chain_id );
-                            }
-                        }else {
-                            log_it(L_WARNING, "Can't find chain_id 0x%016X", a_pkt->hdr.chain_id );
-                        }
-                    }
-                    dap_chain_node_addr_t l_node_addr = { 0 };
-                    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ch_chain->request_net_id);
-                    l_node_addr.uint64 = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
-                    dap_stream_ch_chain_pkt_write(a_ch_chain->ch, l_type,
-                            a_ch_chain->request_net_id, a_ch_chain->request_chain_id,
-                            a_ch_chain->request_cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));
-
-                    log_it(L_INFO, "Sync for remote tr type=%d", a_pkt_type);//_count=%d", dap_list_length(l_list));
-                    dap_stream_ch_set_ready_to_write(a_ch_chain->ch, true);
-                }
-                else {
-                    log_it(L_INFO, "Remote node has lastes timestamp for us type=%d", a_pkt_type);
-                    pthread_mutex_lock(&l_node_client->wait_mutex);
-                    l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-#ifndef _WIN32
-                    pthread_cond_signal(&l_node_client->wait_cond);
-#else
-                    SetEvent( l_node_client->wait_cond );
-#endif
-                    pthread_mutex_unlock(&l_node_client->wait_mutex);
-                }
-            }
-        } else {
-            log_it(L_INFO, "Sync notify without request to sync back, stay in SYNCED state");
-            pthread_mutex_lock(&l_node_client->wait_mutex);
-            l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-#ifndef _WIN32
-            pthread_cond_signal(&l_node_client->wait_cond);
-#else
-            SetEvent( l_node_client->wait_cond );
-#endif
-            pthread_mutex_unlock(&l_node_client->wait_mutex);
+            // Process it if need
         }
-
+        log_it(L_INFO, "Sync notify without request to sync back, stay in SYNCED state");
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+#ifndef _WIN32
+        pthread_cond_signal(&l_node_client->wait_cond);
+#else
+        SetEvent( l_node_client->wait_cond );
+#endif
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
     }
-    default: {
-    }
+    default: break;
     }
 }
 
@@ -492,7 +386,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     switch (a_pkt_type) {
     // get new generated current node address
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
-            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t *) a_pkt->data;
+            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
             if(a_pkt->hdr.size != l_request_size) {
                 log_it(L_WARNING, "Wrong request size, less or more than required");
@@ -622,13 +516,11 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     if(!a_client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
         return -1;
 
-//    dap_stream_t *l_stream = dap_client_get_stream(a_client->client);
+    dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->client);
     dap_stream_ch_t * l_ch = dap_client_get_stream_ch(a_client->client, a_ch_id);
     if(l_ch) {
 //        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-
-        dap_stream_ch_pkt_write(l_ch, a_type, a_pkt_data, a_pkt_data_size);
-        dap_stream_ch_set_ready_to_write(l_ch, true);
+        dap_stream_ch_pkt_write_mt(l_stream_worker , l_ch , a_type, a_pkt_data, a_pkt_data_size);
         return 0;
     } else
         return -1;

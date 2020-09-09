@@ -77,7 +77,7 @@ static char* dap_db_new_history_timestamp()
  *
  * return dap_store_obj_pkt_t*
  */
-uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
+dap_list_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
 {
     if(!a_obj)
         return NULL;
@@ -122,15 +122,18 @@ uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
         i++;
     }
     // serialize data
-    dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
+    dap_list_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
 
     dap_store_obj_free(l_store_obj, l_count);
     dap_strfreev(l_keys);
 
     if(l_data_out && a_data_size_out) {
-        *a_data_size_out = sizeof(dap_store_obj_pkt_t) + l_data_out->data_size;
+        *a_data_size_out = 0;
+        for (dap_list_t *l_iter = l_data_out; l_iter; l_iter = dap_list_next(l_iter)) {
+            *a_data_size_out += sizeof(dap_store_obj_pkt_t) + ((dap_store_obj_pkt_t *)l_data_out)->data_size;
+        }
     }
-    return (uint8_t*) l_data_out;
+    return l_data_out;
 
 }
 
@@ -1326,7 +1329,6 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
 
     size_t l_add_groups_num = 0;// number of group
-    //size_t l_add_groups_items_num = 0;// number items in all groups
     dap_list_t *l_add_groups_mask = a_add_groups_mask;
     // calc l_add_groups_num
     while(l_add_groups_mask) {
@@ -1337,7 +1339,6 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
 
-    //size_t l_add_groups_num = dap_list_length(a_add_groups_mask);
     size_t l_data_size_out_main = dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id);
     size_t *l_data_size_out_add_items = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_add_groups_num);
     uint64_t *l_group_last_id = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_add_groups_num);
@@ -1366,9 +1367,6 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
     }
     if(!(l_data_size_out_main + l_data_size_out_add_items_count))
         return NULL;
-    // debug
-//    if(l_data_size_out>11)
-//        l_data_size_out = 11;
     l_dap_db_log_list->item_start = first_id;
     l_dap_db_log_list->item_last = first_id + l_data_size_out_main;
     l_dap_db_log_list->items_number_main = l_data_size_out_main;
@@ -1381,31 +1379,9 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
     l_dap_db_log_list->group_names = l_group_names;
     l_dap_db_log_list->group_cur = -1;
     l_dap_db_log_list->add_groups = a_add_groups_mask;
-    // there are too few items, read items right now
-    if(0) {//l_data_size_out <= 10) {
-        dap_list_t *l_list = NULL;
-        // read first items
-        size_t l_objs_count = 0;
-        dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_objs_count);
-        for(size_t i = 0; i < l_objs_count; i++) {
-            dap_store_obj_t *l_obj_cur = l_objs + i;
-            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
-            l_item->id = l_obj_cur->id;
-            l_item->key = dap_strdup(l_obj_cur->key);
-            l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
-            l_list = dap_list_append(l_list, l_item);
-        }
-        l_dap_db_log_list->list_write = l_list;
-        l_dap_db_log_list->list_read = l_list;
-        //log_it(L_DEBUG, "loaded items n=%d", l_data_size_out);
-        dap_store_obj_free(l_objs, l_objs_count);
-    }
-    // start thread for items loading
-    else {
-        l_dap_db_log_list->is_process = true;
-        pthread_mutex_init(&l_dap_db_log_list->list_mutex, NULL);
-        pthread_create(&l_dap_db_log_list->thread, NULL, s_list_thread_proc, l_dap_db_log_list);
-    }
+    l_dap_db_log_list->is_process = true;
+    pthread_mutex_init(&l_dap_db_log_list->list_mutex, NULL);
+    pthread_create(&l_dap_db_log_list->thread, NULL, s_list_thread_proc, l_dap_db_log_list);
     return l_dap_db_log_list;
 }
 

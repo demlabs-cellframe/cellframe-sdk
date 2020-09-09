@@ -47,7 +47,7 @@
 
 #include "dap_common.h"
 #include "dap_server.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http.h"
 #include "dap_http_header.h"
 #include "dap_http_client.h"
@@ -99,11 +99,11 @@ int dap_http_new( dap_server_t *sh, const char * server_name )
   shttp->server = sh;
   strncpy( shttp->server_name, server_name, sizeof(shttp->server_name)-1 );
 
-  sh->client_new_callback    = dap_http_client_new;
-  sh->client_delete_callback = dap_http_client_delete;
-  sh->client_read_callback   = dap_http_client_read;
-  sh->client_write_callback  = dap_http_client_write;
-  sh->client_error_callback  = dap_http_client_error;
+  sh->client_callbacks.new_callback    = dap_http_client_new;
+  sh->client_callbacks.delete_callback = dap_http_client_delete;
+  sh->client_callbacks.read_callback   = dap_http_client_read;
+  sh->client_callbacks.write_callback  = dap_http_client_write;
+  sh->client_callbacks.error_callback  = dap_http_client_error;
 
   return 0;
 }
@@ -144,7 +144,7 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                       ,dap_http_client_callback_t headers_write_callback
                       ,dap_http_client_callback_t data_read_callback
                       ,dap_http_client_callback_t data_write_callback
-                      ,dap_http_client_callback_t error_callback
+                      ,dap_http_client_callback_error_t error_callback
 
                       )
 {

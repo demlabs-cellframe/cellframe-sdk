@@ -690,12 +690,5 @@ uint32_t rcon[] =
     0xab000000, 0x4d000000, 0x9a000000, 0x2f000000
 };
 
-//define AES_VAR
-uint32_t k0, k1, k2, k3;
-uint32_t k4, k5, k6, k7;
-uint32_t temp;
-uint32_t t0, t1, t2, t3;
-uint32_t s0, s1, s2, s3;
-
 
 #endif // TABLES_H

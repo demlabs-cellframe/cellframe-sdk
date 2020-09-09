@@ -1,27 +1,26 @@
 /*
  * Authors:
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
+ * DeM Labs Ltd.   https://demlabs.net
  * Copyright  (c) 2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP SDK the open source project
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
+    DAP SDK is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
- DAP is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    DAP SDK is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
- */
-#ifndef WIN32
+    You should have received a copy of the GNU General Public License
+    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+#ifdef DAP_OS_UNIX
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -33,38 +32,14 @@
 #include <inttypes.h>
 
 #include "dap_common.h"
+#include "dap_events.h"
+#include "dap_worker.h"
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
 
 #define LOG_TAG "dap_timerfd"
+static void s_es_callback_timer(struct dap_events_socket *a_event_sock);
 
-void callback_timerfd_read(struct dap_events_socket *a_event_sock, void * arg)
-{
-    uint64_t l_ptiu64;
-    size_t l_read_ret;
-    do {
-        l_read_ret = dap_events_socket_read(a_event_sock, &l_ptiu64, sizeof(l_ptiu64));
-
-        if(l_read_ret > 0) {
-            dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
-            //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
-            struct itimerspec l_ts;
-            // first expiration in 0 seconds after times start
-            l_ts.it_interval.tv_sec = 0;
-            l_ts.it_interval.tv_nsec = 0;
-            // timeout for timer
-            l_ts.it_value.tv_sec = l_timerfd->timeout_ms / 1000;
-            l_ts.it_value.tv_nsec = (l_timerfd->timeout_ms % 1000) * 1000000;
-            if(timerfd_settime(l_timerfd->tfd, 0, &l_ts, NULL) < 0) {
-                log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
-            }
-            // run user's callback
-            if(l_timerfd->callback)
-                l_timerfd->callback(l_timerfd->callback_arg);
-        }
-    } while(l_read_ret > 0);
-    dap_events_socket_set_readable(a_event_sock, true);
-}
 
 /**
  * @brief dap_events_socket_init Init clients module
@@ -82,7 +57,21 @@ int dap_timerfd_init()
  * @param a_callback
  * @return new allocated dap_timerfd_t structure or NULL if error
  */
-dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t *a_callback, void *a_callback_arg)
+dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
+{
+     return dap_timerfd_start_on_worker(dap_events_worker_get_auto(), a_timeout_ms, a_callback, a_callback_arg );
+}
+
+/**
+ * @brief dap_timerfd_start_on_worker
+ * @param a_worker
+ * @param a_timeout_ms
+ * @param a_callback
+ * @param a_callback_arg
+ * @return
+ */
+dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
+
 {
     struct itimerspec l_ts;
     int l_tfd = timerfd_create(CLOCK_MONOTONIC, 0);
@@ -106,15 +95,12 @@ dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t *
     dap_timerfd_t *l_timerfd = DAP_NEW(dap_timerfd_t);
 
     // create events_socket for timer file descriptor
-    static dap_events_socket_callbacks_t l_s_callbacks = {
-        .read_callback = callback_timerfd_read,
-        .write_callback = NULL,
-        .error_callback = NULL,
-        .delete_callback = NULL
-    };
-    dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(NULL, l_tfd, &l_s_callbacks);
-    l_events_socket->type = DESCRIPTOR_TYPE_FILE;
-    dap_events_socket_create_after(l_events_socket);
+    dap_events_socket_callbacks_t l_s_callbacks;
+    memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
+    l_s_callbacks.timer_callback = s_es_callback_timer;
+
+    dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(a_worker->events, l_tfd, &l_s_callbacks);
+    l_events_socket->type = DESCRIPTOR_TYPE_TIMER;
     // pass l_timerfd to events_socket
     l_events_socket->_inheritor = l_timerfd;
 
@@ -124,29 +110,45 @@ dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t *
     l_timerfd->events_socket = l_events_socket;
     l_timerfd->callback = a_callback;
     l_timerfd->callback_arg = a_callback_arg;
+    dap_worker_add_events_socket(l_events_socket, a_worker);
+
     return l_timerfd;
+}
+
+/**
+ * @brief s_es_callback_timer
+ * @param a_event_sock
+ */
+static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
+{
+    uint64_t l_ptiu64;
+    dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
+    //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
+    struct itimerspec l_ts;
+    // first expiration in 0 seconds after times start
+    l_ts.it_interval.tv_sec = 0;
+    l_ts.it_interval.tv_nsec = 0;
+    // timeout for timer
+    l_ts.it_value.tv_sec = l_timerfd->timeout_ms / 1000;
+    l_ts.it_value.tv_nsec = (l_timerfd->timeout_ms % 1000) * 1000000;
+    if(timerfd_settime(l_timerfd->tfd, 0, &l_ts, NULL) < 0) {
+        log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
+    }
+    // run user's callback
+    if(l_timerfd->callback)
+        l_timerfd->callback(l_timerfd->callback_arg);
+    dap_events_socket_set_readable_unsafe(a_event_sock, true);
 }
 
 /**
  * @brief dap_timerfd_stop
  * @param a_tfd
  * @param a_callback
- * @return 0 or <0 if error
  */
-int dap_timerfd_delete(dap_timerfd_t *l_timerfd)
+void dap_timerfd_delete(dap_timerfd_t *l_timerfd)
 {
-    if(!l_timerfd || l_timerfd->tfd < 1 || !l_timerfd->events_socket) {
-        return -1;
-    }
-
-    if(close(l_timerfd->tfd) == -1) {
-        log_it(L_WARNING, "dap_timerfd_stop() failed to close timerfd: errno=%d\n", errno);
-        return -2;
-    }
-
-    dap_events_socket_kill_socket(l_timerfd->events_socket);
-    l_timerfd->events_socket = NULL;
-    DAP_DELETE(l_timerfd);
-    return 0;
+    dap_events_socket_remove_and_delete_mt(l_timerfd->events_socket->worker, l_timerfd->events_socket);
 }
+#else
+#error "No dap_timerfd realization for your platform"
 #endif

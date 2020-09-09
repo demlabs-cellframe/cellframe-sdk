@@ -67,7 +67,7 @@ EPOLL_HANDLE efd_read  = (EPOLL_HANDLE)-1;
 
 //static void write_cb( EPOLL_HANDLE efd, int revents );
 
-int check_close( dap_client_remote_t *client );
+int check_close( dap_events_socket_t *client );
 
 /**
  */
@@ -113,8 +113,8 @@ void dap_udp_server_delete( dap_server_t *sh )
 //  HASH_ITER( hh, udps->hclients, client, tmp )
 //    dap_client_remote_remove( client );
 
-  if ( sh->server_delete_callback )
-    sh->server_delete_callback( sh, NULL );
+  if ( sh->delete_callback )
+    sh->delete_callback( sh, NULL );
 
   if ( sh->_inheritor )
     free( sh->_inheritor );
@@ -179,17 +179,10 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
         //log_it(L_INFO,"write_cb");
         //pthread_mutex_lock(&udp_client->mutex_on_client);
 
-    dap_client_remote_t *client = udp_client->client;
+    dap_events_socket_t *client = udp_client->esocket;
 
     if( client != NULL && !check_close(client) && (client->flags & DAP_SOCK_READY_TO_WRITE) ) {
-
-      if ( sh->client_write_callback )
-        sh->client_write_callback( client, NULL );
-
       if ( client->buf_out_size > 0 ) {
-
-
-
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
         dap_udp_client_get_address( client, (unsigned int *)&addr.sin_addr.s_addr, &addr.sin_port );
@@ -211,6 +204,8 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
         sb_payload_ready = false;
       }
       LL_DELETE( udp->waiting_clients, udp_client );
+      if ( sh->client_callbacks.write_callback )
+        sh->client_callbacks.write_callback( client, NULL );
     }
     else if( client == NULL ) {
       LL_DELETE( udp->waiting_clients, udp_client );
@@ -226,25 +221,26 @@ static void write_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
  * @param client Client structure
  * @return 1 if client deleted, 0 if client is no need to delete
  */
-int check_close( dap_client_remote_t *client )
+int check_close( dap_events_socket_t *client )
 {
-  dap_udp_client_t *client_check, *tmp;
+    dap_udp_client_t *client_check, *tmp;
 
-  if( !(client->flags & DAP_SOCK_SIGNAL_CLOSE) ) return 0;
+    if( !(client->flags & DAP_SOCK_SIGNAL_CLOSE) )
+        return 0;
 
-  dap_udp_client_t *udp_client = DAP_UDP_CLIENT( client );
-  dap_server_t *sh = client->server;
-  dap_udp_server_t *udp_server = DAP_UDP_SERVER( sh );
+    dap_udp_client_t *udp_client = DAP_UDP_CLIENT( client );
+    dap_server_t *sh = client->server;
+    dap_udp_server_t *udp_server = DAP_UDP_SERVER( sh );
 
-  LL_FOREACH_SAFE( udp_server->waiting_clients, client_check, tmp ) {
+    LL_FOREACH_SAFE( udp_server->waiting_clients, client_check, tmp ) {
 
     if ( client_check->host_key == udp_client->host_key )
-      LL_DELETE( udp_server->waiting_clients, client_check );
-  }
+        LL_DELETE( udp_server->waiting_clients, client_check );
+    }
 
-  dap_client_remote_remove( client );
+    dap_events_socket_remove_and_delete_mt(client->worker, client );
 
-  return 1;
+    return 1;
 }
 
 /**
@@ -263,7 +259,7 @@ static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
 
     int32_t bytes = (int32_t) recvfrom( sh->socket_listener, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, &clientlen );
 
-    dap_client_remote_t *client = dap_udp_client_find( sh, clientaddr.sin_addr.s_addr, clientaddr.sin_port );
+    dap_events_socket_t *client = dap_udp_client_find( sh, clientaddr.sin_addr.s_addr, clientaddr.sin_port );
 
     if( client != NULL && check_close(client) != 0 )
             return;
@@ -304,8 +300,8 @@ static void read_cb( EPOLL_HANDLE efd, int revents, dap_server_t *sh )
             memcpy( client->buf_in + client->buf_in_size,buf + bytes_processed, bytes_to_transfer );
             client->buf_in_size += bytes_to_transfer;
 
-            if ( sh->client_read_callback )
-                sh->client_read_callback( client, NULL );
+            if ( sh->client_callbacks.read_callback )
+                sh->client_callbacks.read_callback( client, NULL );
 
             bytes_processed += bytes_to_transfer;
             bytes_recieved -= bytes_to_transfer;

@@ -37,14 +37,14 @@ typedef struct dap_stream_ch_proc{
     void * internal;
 } stream_ch_proc_t;
 
-extern int stream_ch_proc_init();
-extern void stream_ch_proc_deinit();
+int stream_ch_proc_init();
+void stream_ch_proc_deinit();
 
-extern void dap_stream_ch_proc_add(uint8_t id,
+void dap_stream_ch_proc_add(uint8_t id,
                           dap_stream_ch_callback_t new_callback, dap_stream_ch_callback_t delete_callback,
                           dap_stream_ch_callback_t packet_in_callback,
                           dap_stream_ch_callback_t packet_out_callback
                           );
-extern stream_ch_proc_t* stream_ch_proc_find(uint8_t id);
+stream_ch_proc_t* stream_ch_proc_find(uint8_t id);
 
 #endif

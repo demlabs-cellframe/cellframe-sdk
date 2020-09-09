@@ -1098,7 +1098,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 DAP_DELETE(l_remote_node_info);
                 return -1;*/
             }
-            /*                if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
+            /*                if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
              l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
              sizeof(l_sync_request))) {
              dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
@@ -1130,7 +1130,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         //l_s_ch_chain->request_cell_id.uint64 = l_chain_cell_id_null.uint64;
         //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
 
-        if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+        if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1139,7 +1139,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
-        dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+        dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
         // wait for finishing of request
         int timeout_ms = 420000; // 7 min = 420 sec = 420 000 ms
         // TODO add progress info to console
@@ -1165,7 +1165,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
             // send request
             dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-            if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+            if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id, l_chain->id, l_remote_node_info->hdr.cell_id, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1176,7 +1176,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 return -3;
             }
             log_it(L_NOTICE, "Requested syncronization for chain \"%s\"", l_chain->name);
-            dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
 
             // wait for finishing of request
             timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
@@ -2001,7 +2001,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
     }
 }
 
-void s_com_mempool_list_print_for_chain(const dap_chain_net_t * a_net, const dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
+void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
     if(!l_gdb_group_mempool){
         dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);

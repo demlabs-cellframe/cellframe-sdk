@@ -238,15 +238,15 @@ uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
     l_hdr.type = dap_cert_FILE_TYPE_PUBLIC;
     if ( l_priv_key_data ){
         l_hdr.type =  dap_cert_FILE_TYPE_PRIVATE;
-        log_it(L_DEBUG,"Private key size %u",l_priv_key_data_size);
+        //log_it(L_DEBUG,"Private key size %u",l_priv_key_data_size);
     }
     if (l_pub_key_data){
-        log_it(L_DEBUG,"Public key size %u",l_pub_key_data_size);
+        //log_it(L_DEBUG,"Public key size %u",l_pub_key_data_size);
     }else{
         log_it(L_ERROR,"No public or private key in certificate, nothing to save");
         goto lb_exit;
     }
-    log_it(L_DEBUG,"Key private data size %u",l_key->_inheritor_size);
+    //log_it(L_DEBUG,"Key private data size %u",l_key->_inheritor_size);
 
     l_hdr.version = dap_cert_FILE_VERSION;
     l_hdr.data_size = l_pub_key_data_size;
@@ -290,7 +290,7 @@ lb_exit:
         DAP_DELETE(l_metadata);
     }
 
-    log_it(L_NOTICE,"Certificate \"%s\" successfully serialized",a_cert->name);
+    //log_it(L_NOTICE,"Certificate \"%s\" successfully serialized",a_cert->name);
 
     if(a_cert_size_out)
         *a_cert_size_out = l_data_offset;
@@ -378,7 +378,7 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
             l_data_offset += l_hdr.metadata_size;
         }
         dap_enc_key_update(l_ret->enc_key);
-        log_it(L_NOTICE,"Successfully loaded certificate %s", l_ret->name);
+        //log_it(L_NOTICE,"Successfully loaded certificate %s", l_ret->name);
     }else
         log_it(L_ERROR,"Unrecognizable certificate version, corrupted file or you have too old software");
 

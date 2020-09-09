@@ -1041,3 +1041,23 @@ void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
     dap_lendian_put32(a_buf, a_val);
     dap_lendian_put32(a_buf + 4, a_val >> 32);
 }
+
+/**
+ * dap_usleep:
+ * @a_microseconds: number of microseconds to pause
+ *
+ * Pauses the current thread for the given number of microseconds.
+ */
+void dap_usleep(time_t a_microseconds)
+{
+#ifdef DAP_OS_WINDOWS
+    Sleep (a_microseconds / 1000);
+#else
+    struct timespec l_request, l_remaining;
+    l_request.tv_sec = a_microseconds / DAP_USEC_PER_SEC;
+    l_request.tv_nsec = 1000 * (a_microseconds % DAP_USEC_PER_SEC);
+    while(nanosleep(&l_request, &l_remaining) == -1 && errno == EINTR)
+        l_request = l_remaining;
+#endif
+}
+

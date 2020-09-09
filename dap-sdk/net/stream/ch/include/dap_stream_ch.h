@@ -23,8 +23,9 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdint.h>
-
+#include "uthash.h"
 typedef struct dap_stream dap_stream_t;
+typedef struct dap_stream_worker dap_stream_worker_t;
 typedef struct dap_stream_pkt dap_stream_pkt_t;
 typedef struct dap_stream_ch_proc dap_stream_ch_proc_t;
 typedef struct dap_stream_ch dap_stream_ch_t;
@@ -39,6 +40,7 @@ typedef struct dap_stream_ch{
     bool ready_to_write;
     bool ready_to_read;
     dap_stream_t * stream;
+    dap_stream_worker_t * stream_worker;
     struct{
         uint64_t bytes_write;
         uint64_t bytes_read;
@@ -48,21 +50,17 @@ typedef struct dap_stream_ch{
 
     dap_stream_ch_proc_t * proc;
     void * internal;
+    struct dap_stream_ch *me;
+    UT_hash_handle hh_worker;
 } dap_stream_ch_t;
 
 int dap_stream_ch_init();
 void dap_stream_ch_deinit();
 
 dap_stream_ch_t* dap_stream_ch_new( dap_stream_t * dap_stream,uint8_t id);
-
-void dap_stream_ch_set_ready_to_read(dap_stream_ch_t * ch,bool is_ready);
-void dap_stream_ch_set_ready_to_write(dap_stream_ch_t * ch,bool is_ready);
-
-bool dap_stream_ch_get_ready_to_read(dap_stream_ch_t *a_ch);
-bool dap_stream_ch_get_ready_to_write(dap_stream_ch_t *a_ch);
-
+void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * ch,bool is_ready);
+void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready);
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
 
-struct dap_stream_ch_table_t *dap_stream_ch_valid(dap_stream_ch_t *a_ch);
 
 #endif

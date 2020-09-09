@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -39,7 +40,8 @@
 //#include "config.h"
 
 
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
+#include "dap_worker.h"
 #include "dap_http_client.h"
 
 #include "dap_enc.h"
@@ -105,7 +107,7 @@ static size_t s_encode_dummy(const void * a_buf, size_t a_buf_size, void * a_buf
  * @param pkt
  * @param buf_out
  */
-size_t dap_stream_pkt_read( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size)
+size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size)
 {
     size_t ds = a_stream->session->key->dec_na(a_stream->session->key,a_pkt->data,a_pkt->hdr.size,a_buf_out, a_buf_out_size);
 //    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
@@ -119,6 +121,7 @@ size_t dap_stream_pkt_read( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, v
 }
 
 
+#define DAP_STREAM_CH_PKT_ENCRYPTION_OVERHEAD 200 //in fact is's about 2*16+15 for OAES
 
 /**
  * @brief stream_ch_pkt_write
@@ -128,42 +131,61 @@ size_t dap_stream_pkt_read( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, v
  * @return
  */
 
-size_t dap_stream_pkt_write(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
+size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
 {
     size_t ret=0;
     stream_pkt_hdr_t pkt_hdr;
 
-    if(a_data_size > STREAM_BUF_SIZE_MAX ){
-        log_it(L_ERROR,"Too big data size %lu, bigger than encryption buffer size %lu",a_data_size,sizeof(a_stream->buf));
-        a_data_size=sizeof(a_stream->buf);
+    uint8_t * l_buf_allocated = NULL;
+    uint8_t * l_buf_selected = a_stream->buf;
+    size_t  l_buf_size_required = a_data_size + DAP_STREAM_CH_PKT_ENCRYPTION_OVERHEAD;
+    
+    if(l_buf_size_required > sizeof(a_stream->buf) ){
+        l_buf_allocated = DAP_NEW_SIZE(uint8_t, l_buf_size_required);
+        l_buf_selected = l_buf_allocated;
     }
 
     memset(&pkt_hdr,0,sizeof(pkt_hdr));
     memcpy(pkt_hdr.sig,c_dap_stream_sig,sizeof(pkt_hdr.sig));
 
-    pkt_hdr.size =(uint32_t) a_stream->session->key->enc_na(a_stream->session->key, a_data,a_data_size,a_stream->buf, STREAM_BUF_SIZE_MAX);
-//    printf("*[dap_stream_pkt_write] size=%d key=0x%x _inheritor_size=%d\n", pkt_hdr.size, sid->session->key,
-//            sid->session->key->_inheritor_size);
+    pkt_hdr.size =(uint32_t) dap_enc_code( a_stream->session->key, a_data,a_data_size,l_buf_selected, l_buf_size_required, DAP_ENC_DATA_TYPE_RAW);
 
-    if(a_stream->conn_udp){
-        ret+=dap_udp_client_write(a_stream->conn,&pkt_hdr,sizeof(pkt_hdr));
-        ret+=dap_udp_client_write(a_stream->conn,a_stream->buf,pkt_hdr.size);
-        dap_client_remote_ready_to_write(a_stream->conn, true);
-    }
-    else if(a_stream->conn){
-        ret+=dap_client_remote_write(a_stream->conn,&pkt_hdr,sizeof(pkt_hdr));
-        ret+=dap_client_remote_write(a_stream->conn,a_stream->buf,pkt_hdr.size);
-        dap_client_remote_ready_to_write(a_stream->conn, true);
-    }
-    else if(a_stream->events_socket) {
-        ret += dap_events_socket_write(a_stream->events_socket, &pkt_hdr, sizeof(pkt_hdr));
-        ret += dap_events_socket_write(a_stream->events_socket, a_stream->buf, pkt_hdr.size);
-        dap_events_socket_set_writable(a_stream->events_socket, true);
-    }
+    ret+=dap_events_socket_write_unsafe(a_stream->esocket,&pkt_hdr,sizeof(pkt_hdr));
+    ret+=dap_events_socket_write_unsafe(a_stream->esocket,l_buf_selected,pkt_hdr.size);
+    dap_events_socket_set_writable_unsafe(a_stream->esocket, true);
 
+    if(l_buf_allocated)
+        DAP_DELETE(l_buf_allocated);
     return ret;
 }
 
+/**
+ * @brief dap_stream_pkt_write_mt
+ * @param a_stream_session
+ * @param a_es
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
+{
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
+    stream_pkt_hdr_t *l_pkt_hdr;
+    l_msg->data_size = 16-a_data_size%16+a_data_size+sizeof(*l_pkt_hdr);
+    l_msg->data = DAP_NEW_SIZE(void,l_msg->data_size);
+    l_pkt_hdr=(stream_pkt_hdr_t*) l_msg->data;
+    memset(l_pkt_hdr,0,sizeof(*l_pkt_hdr));
+    memcpy(l_pkt_hdr->sig,c_dap_stream_sig,sizeof(l_pkt_hdr->sig));
+    l_msg->data_size=sizeof (*l_pkt_hdr) +dap_enc_code(a_key, a_data,a_data_size, ((byte_t*)l_msg->data)+sizeof (*l_pkt_hdr),l_msg->data_size-sizeof (*l_pkt_hdr),DAP_ENC_DATA_TYPE_RAW);
+
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return a_data_size;
+}
 
 
 /**
@@ -176,7 +198,5 @@ void dap_stream_send_keepalive(dap_stream_t * a_stream)
     l_pkt.id = TECHICAL_CHANNEL_ID;
     l_pkt.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
 
-    if( dap_stream_pkt_write( a_stream, &l_pkt, sizeof(l_pkt) ) )
-        dap_stream_set_ready_to_write( a_stream, true );
+    dap_stream_pkt_write_unsafe( a_stream, &l_pkt, sizeof(l_pkt) );
 }
-

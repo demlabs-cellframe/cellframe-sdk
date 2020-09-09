@@ -72,7 +72,11 @@ void dap_stream_session_deinit();
 
 dap_stream_session_t * dap_stream_session_pure_new();
 dap_stream_session_t * dap_stream_session_new(unsigned int media_id, bool open_preview);
-dap_stream_session_t * dap_stream_session_id(unsigned int id);
+dap_stream_session_t * dap_stream_session_id_mt(unsigned int id);
+dap_stream_session_t *dap_stream_session_id_unsafe( unsigned int id );
+void dap_stream_session_lock();
+void dap_stream_session_unlock();
+
 int dap_stream_session_open(dap_stream_session_t * a_session); /*Lock for opening for single client , return 0 if ok*/
-int dap_stream_session_close(unsigned int id);
+int dap_stream_session_close_mt(unsigned int id);
 

@@ -26,7 +26,7 @@
 #include "dap_dns_server.h"
 #include "dap_udp_server.h"
 #include "dap_udp_client.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
@@ -191,7 +191,7 @@ dap_dns_zone_callback_t dap_dns_zone_find(char *hostname) {
  * @param arg Unused
  * @return none
  */
-void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
+void dap_dns_client_read(dap_events_socket_t *client, void * arg) {
     UNUSED(arg);
     if (client->buf_in_size < DNS_HEADER_SIZE) {        // Bad request
         return;
@@ -200,7 +200,7 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
     dap_dns_buf_t *dns_reply = DAP_NEW(dap_dns_buf_t);
     dns_message->data = DAP_NEW_SIZE(char, client->buf_in_size + 1);
     dns_message->data[client->buf_in_size] = 0;
-    dap_client_remote_read(client, dns_message->data, client->buf_in_size);
+    dap_events_socket_pop_from_buf_in(client, dns_message->data, client->buf_in_size);
     dns_message->ptr = 0;
 
     // Parse incoming DNS message
@@ -332,8 +332,8 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
     dns_reply->data[2] = msg_flags.val >> 8;
     dns_reply->data[3] = msg_flags.val;
     // Send DNS reply
-    dap_udp_client_write(client, dns_reply->data, dns_reply->ptr);
-    dap_udp_client_ready_to_write(client, true);
+    dap_events_socket_write_unsafe( client, dns_reply->data, dns_reply->ptr);
+    dap_events_socket_set_writable_unsafe( client, true);
     dap_string_free(dns_hostname, true);
 cleanup:
     DAP_DELETE(dns_reply->data);
@@ -351,10 +351,10 @@ void dap_dns_server_start() {
         log_it(L_ERROR, "Can't start DNS server");
         return;
     }
-    s_dns_server->instance->client_read_callback = dap_dns_client_read;
-    s_dns_server->instance->client_write_callback = NULL;
-    s_dns_server->instance->client_new_callback = NULL;
-    s_dns_server->instance->client_delete_callback = NULL;
+    s_dns_server->instance->client_callbacks.read_callback = dap_dns_client_read;
+    s_dns_server->instance->client_callbacks.write_callback = NULL;
+    s_dns_server->instance->client_callbacks.new_callback = NULL;
+    s_dns_server->instance->client_callbacks.delete_callback = NULL;
     dap_dns_zone_register(&s_root_alias[0], dap_dns_resolve_hostname);  // root resolver
     pthread_create(&s_dns_server->udp_thread, NULL, (void *)dap_udp_server_loop, s_dns_server->instance);
 }

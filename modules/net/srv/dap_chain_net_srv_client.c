@@ -42,7 +42,7 @@ int dap_chain_net_srv_client_init(dap_chain_net_srv_uid_t a_uid,
         dap_chain_net_srv_callback_data_t a_callback_response_error,
         dap_chain_net_srv_callback_data_t a_callback_receipt_next_success,
         dap_chain_net_srv_callback_data_t a_callback_client_success,
-        dap_chain_net_srv_callback_data_t a_callback_client_sign_request,
+        dap_chain_net_srv_callback_sign_request_t a_callback_client_sign_request,
         void *a_inhertor) {
 
     dap_chain_net_srv_t *l_srv_custom = dap_chain_net_srv_get(a_uid);

@@ -119,7 +119,7 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
 char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
 
 // Get data according the history log
-uint8_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out);
+dap_list_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out);
 
 // Get data according the history log
 //char* dap_db_history_tx(dap_chain_hash_fast_t * a_tx_hash, const char *a_group_mempool);

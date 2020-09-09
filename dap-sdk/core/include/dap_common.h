@@ -162,6 +162,20 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #define DAP_PROTOCOL_VERSION  22
 
+#if __SIZEOF_LONG__==8
+#define DAP_UINT64_FORMAT_X  "lX"
+#define     DAP_UINT64_FORMAT_x  "lx"
+#define DAP_UINT64_FORMAT_u  "lu"
+#define DAP_UINT64_FORMAT_U  "lU"
+#elif __SIZEOF_LONG__==4
+#define DAP_UINT64_FORMAT_X  "llX"
+#define DAP_UINT64_FORMAT_x  "llx"
+#define DAP_UINT64_FORMAT_u  "llu"
+#define DAP_UINT64_FORMAT_U  "llU"
+#else
+#error "DAP_UINT64_FORMAT_* are undefined for your platform"
+#endif
+
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
   #define HIWORD( l ) ((uint16_t) ((((uintptr_t) (l)) >> 16) & 0xFFFF))
@@ -411,6 +425,12 @@ uint32_t dap_lendian_get32(const uint8_t *a_buf);
 void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val);
 uint64_t dap_lendian_get64(const uint8_t *a_buf);
 void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
+
+// crossplatform usleep
+#define DAP_USEC_PER_SEC 1000000
+void dap_usleep(time_t a_microseconds);
+
+
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);

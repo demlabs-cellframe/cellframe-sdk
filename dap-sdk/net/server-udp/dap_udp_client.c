@@ -70,7 +70,7 @@ extern bool sb_payload_ready;
  * @param port Client port
  * @return Pointer to the new list's node
  */
-dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE efd, unsigned long host, unsigned short port )
+dap_events_socket_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE efd, unsigned long host, unsigned short port )
 {
   dap_udp_server_t *udp_server = DAP_UDP_SERVER( dap_srv );
   log_it( L_DEBUG, "Client structure create with host = %x, port = %d", host, port );
@@ -78,14 +78,10 @@ dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE 
   dap_udp_client_t *inh = DAP_NEW_Z( dap_udp_client_t );
   inh->host_key = get_key( host, port );
 
-  dap_client_remote_t *ret = DAP_NEW_Z( dap_client_remote_t );
-  inh->client = ret;
-
-  ret->pevent.events = EPOLLIN | EPOLLERR;
-  ret->pevent.data.fd = dap_srv->socket_listener;
+  dap_events_socket_t *ret = dap_events_socket_wrap_no_add( dap_srv->es_listener->events, dap_srv->socket_listener, &dap_srv->client_callbacks);
+  inh->esocket = ret;
 
   ret->server = dap_srv;
-  ret->efd = efd;
 
   ret->flags = DAP_SOCK_READY_TO_READ;
 
@@ -101,8 +97,8 @@ dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE 
   HASH_ADD_INT( udp_server->hclients, host_key, inh );
   pthread_mutex_unlock( &udp_server->mutex_on_list );
 
-  if( dap_srv->client_new_callback )
-    dap_srv->client_new_callback( ret, NULL ); // Init internal structure
+  if( dap_srv->client_callbacks.new_callback )
+    dap_srv->client_callbacks.new_callback( ret, NULL ); // Init internal structure
 
   return ret;
 }
@@ -113,7 +109,7 @@ dap_client_remote_t *dap_udp_client_create( dap_server_t *dap_srv, EPOLL_HANDLE 
  * @param host Variable for host address
  * @param host Variable for port
  */
-void dap_udp_client_get_address( dap_client_remote_t *client, unsigned int* host, unsigned short* port )
+void dap_udp_client_get_address( dap_events_socket_t *client, unsigned int* host, unsigned short* port )
 {
   dap_udp_client_t* udp_client = DAP_UDP_CLIENT( client );
   *host = udp_client->host_key >> 32;
@@ -127,7 +123,7 @@ void dap_udp_client_get_address( dap_client_remote_t *client, unsigned int* host
  * @param port Source port
  * @return Pointer to client or NULL if not found
  */
-dap_client_remote_t *dap_udp_client_find( dap_server_t *dap_srv, unsigned long host, unsigned short port )
+dap_events_socket_t *dap_udp_client_find( dap_server_t *dap_srv, unsigned long host, unsigned short port )
 {
   dap_udp_client_t *inh = NULL;
   dap_udp_server_t *udp_server = DAP_UDP_SERVER( dap_srv );
@@ -141,78 +137,14 @@ dap_client_remote_t *dap_udp_client_find( dap_server_t *dap_srv, unsigned long h
   if( inh == NULL )
     return NULL;
   else
-    return inh->client;
-}
-
-/**
- * @brief udp_client_ready_to_read Set ready_to_read flag
- * @param dap_rclient Client structure
- * @param is_ready Flag value
- */
-void dap_udp_client_ready_to_read( dap_client_remote_t *sc, bool is_ready )
-{
-  if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ) )
-    return;
-
-  if ( is_ready )
-    sc->flags |= DAP_SOCK_READY_TO_READ;
-  else
-    sc->flags ^= DAP_SOCK_READY_TO_READ;
-
-  int events = EPOLLERR;
-
-  if( sc->flags & DAP_SOCK_READY_TO_READ )
-    events |= EPOLLIN;
-
-  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
-    events |= EPOLLOUT;
-
-  sc->pevent.events = events;
-
-  if( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->server->socket_listener, &sc->pevent) != 0 ) {
-    log_it( L_ERROR, "epoll_ctl failed 002" );
-  }
-}
-
-/**
- * @brief udp_client_ready_to_write Set ready_to_write flag
- * @param dap_rclient Client structure
- * @param is_ready Flag value
- */
-void dap_udp_client_ready_to_write( dap_client_remote_t *sc, bool is_ready )
-{
-  if ( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) )
-    return;
-
-  if ( is_ready )
-    sc->flags |= DAP_SOCK_READY_TO_WRITE;
-  else
-    sc->flags ^= DAP_SOCK_READY_TO_WRITE;
-  int events = EPOLLERR;
-
-  if( sc->flags & DAP_SOCK_READY_TO_READ )
-    events |= EPOLLIN;
-
-  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
-  {
-    dap_udp_server_t *udp_server = DAP_UDP_SERVER(sc->server);
-    pthread_mutex_lock(&udp_server->mutex_on_list);
-    sb_payload_ready = true;
-    pthread_mutex_unlock(&udp_server->mutex_on_list );
-  }
-
-  sc->pevent.events = events;
-
-  if ( epoll_ctl(sc->efd, EPOLL_CTL_MOD, sc->pevent.data.fd, &sc->pevent) != 0 ) {
-    log_it( L_ERROR, "epoll_ctl failed 003" );
-  }
+    return inh->esocket;
 }
 
 /**
  * @brief add_waiting_client Add Client to write queue
  * @param client Client instance
  */
-void add_waiting_client( dap_client_remote_t *dap_rclient )
+void add_waiting_client( dap_events_socket_t *dap_rclient )
 {
     dap_udp_client_t* udp_cl, *tmp;
 
@@ -231,20 +163,20 @@ void add_waiting_client( dap_client_remote_t *dap_rclient )
     pthread_mutex_unlock( &udp_server->mutex_on_list );
 }
 
-size_t dap_udp_client_write( dap_client_remote_t *dap_rclient, const void *data, size_t data_size )
+size_t dap_udp_client_write_unsafe( dap_events_socket_t *dap_rclient, const void *data, size_t data_size )
 {
-    size_t size = dap_client_remote_write( dap_rclient, data, data_size );
+    size_t size = dap_events_socket_write_unsafe( dap_rclient, data, data_size );
     add_waiting_client( dap_rclient );
     return size;
 }
 
-size_t dap_udp_client_write_f( dap_client_remote_t *dap_rclient, const char * a_format, ... )
+size_t dap_udp_client_write_f( dap_events_socket_t *dap_rclient, const char * a_format, ... )
 {
     size_t size = 0;
     va_list va;
 
     va_start( va, a_format );
-    size = dap_client_remote_write_f( dap_rclient, a_format, va );
+    size = dap_events_socket_write_f_unsafe( dap_rclient, a_format, va );
     va_end( va );
 
     add_waiting_client( dap_rclient );

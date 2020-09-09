@@ -27,6 +27,8 @@
 #include <stdint.h>
 #include <string.h>
 #include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
 #include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_enc_base58"
@@ -225,7 +227,7 @@ char* dap_enc_base58_from_hex_str_to_str(const char *a_in_str)
         return NULL;
     // from "0x..." to binary
     char *l_out_str = DAP_NEW_Z_SIZE(char, a_in_hash_len / 2 + 1);
-    size_t len = dap_hex2bin(l_out_str, a_in_str+2, a_in_hash_len-2);
+    size_t len = dap_hex2bin((uint8_t*)l_out_str, a_in_str+2, a_in_hash_len-2);
     // from binary to base58
     char *l_base58_out = dap_enc_base58_encode_to_str(l_out_str, len/2);
     DAP_DELETE(l_out_str);

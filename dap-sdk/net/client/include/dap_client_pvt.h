@@ -42,6 +42,7 @@ typedef struct dap_client_internal
     dap_events_socket_t * stream_es;
     int stream_socket;
     dap_stream_t* stream;
+    dap_stream_worker_t* stream_worker;
     dap_events_t * events;
 
     dap_enc_key_t * session_key_open; // Open assymetric keys exchange

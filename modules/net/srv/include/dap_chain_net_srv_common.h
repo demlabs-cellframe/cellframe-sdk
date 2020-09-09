@@ -73,7 +73,7 @@ typedef struct dap_chain_net_srv_abstract
     char decription[128];
 }DAP_ALIGN_PACKED dap_chain_net_srv_abstract_t;
 
-typedef void (*dap_chain_callback_trafic_t)(dap_client_remote_t *, dap_stream_ch_t *);
+typedef void (*dap_chain_callback_trafic_t)(dap_events_socket_t *, dap_stream_ch_t *);
 
 typedef struct dap_chain_net_srv_price
 {
