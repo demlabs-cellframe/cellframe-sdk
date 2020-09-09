@@ -837,7 +837,18 @@ const char *dap_enc_get_type_name(dap_enc_key_type_t a_key_type)
     if(s_callbacks[a_key_type].name) {
         return s_callbacks[a_key_type].name;
     }
-    log_it(L_ERROR, "name not realize for current key type");
+    log_it(L_WARNING, "name was not set for key type %d", a_key_type);
     return 0;
 
 }
+
+dap_enc_key_type_t dap_enc_key_type_find_by_name(const char * a_name){
+    for(dap_enc_key_type_t i = 0; i <= DAP_ENC_KEY_TYPE_LAST; i++){
+        const char * l_current_key_name = dap_enc_get_type_name(i);
+        if(l_current_key_name && !strcmp(a_name, l_current_key_name))
+            return i;
+    }
+    log_it(L_WARNING, "no key type with name %s", a_name);
+    return DAP_ENC_KEY_TYPE_INVALID;
+}
+
