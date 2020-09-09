@@ -134,6 +134,9 @@ void *dap_worker_thread(void *arg)
                         //if(!(events[n].events & EPOLLIN))
                         //cur->no_close = false;
                         if (l_sock_err) {
+                            dap_events_socket_set_readable_unsafe(l_cur, false);
+                            dap_events_socket_set_writable_unsafe(l_cur, false);
+                            l_cur->buf_out_size = 0;
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                         }
@@ -150,6 +153,9 @@ void *dap_worker_thread(void *arg)
                         log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
                     default: ;
                 }
+                dap_events_socket_set_readable_unsafe(l_cur, false);
+                dap_events_socket_set_writable_unsafe(l_cur, false);
+                l_cur->buf_out_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 l_cur->callbacks.error_callback(l_cur, 0); // Call callback to process error event
             }
@@ -157,7 +163,10 @@ void *dap_worker_thread(void *arg)
             if (l_epoll_events[n].events & EPOLLRDHUP) {
                 log_it(L_INFO, "Client socket disconnected");
                 dap_events_socket_set_readable_unsafe(l_cur, false);
+                dap_events_socket_set_writable_unsafe(l_cur, false);
+                l_cur->buf_out_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+
             }
 
             if(l_epoll_events[n].events & EPOLLIN) {
@@ -244,6 +253,7 @@ void *dap_worker_thread(void *arg)
                             log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_cur->buf_out_size = 0;
                         }
                     }
                     else if (!(l_epoll_events[n].events & EPOLLRDHUP) || !(l_epoll_events[n].events & EPOLLERR)) {
@@ -308,6 +318,8 @@ void *dap_worker_thread(void *arg)
                     if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
                         log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
                         l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                        l_cur->buf_out_size = 0;
+
                     }
                 }else{
 
@@ -349,7 +361,7 @@ void *dap_worker_thread(void *arg)
         }
 
     } // while
-
+    log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);
     return NULL;
 }
 
