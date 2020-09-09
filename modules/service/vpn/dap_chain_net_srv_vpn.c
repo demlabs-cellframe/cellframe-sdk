@@ -1378,16 +1378,17 @@ static size_t s_stream_session_esocket_send(dap_chain_net_srv_stream_session_t *
     }
 
     if(l_data_left_to_send){
-        if ( dap_events_socket_write_unsafe( l_es, a_data +l_direct_wrote,l_data_left_to_send
-                                             ) < l_data_left_to_send ){
-            log_it(L_WARNING,"Loosing data, probably buffers are overfilling, lost %zd bytes", l_data_left_to_send);
+        //if ( dap_events_socket_write_unsafe( l_es, a_data +l_direct_wrote,l_data_left_to_send
+        //                                     ) < l_data_left_to_send ){
+            //log_it(L_WARNING,"Loosing data, probably buffers are overfilling, lost %zd bytes", l_data_left_to_send);
+            log_it(L_WARNING,"Loosing data, lost %zd bytes", l_data_left_to_send);
             l_srv_session->stats.bytes_sent_lost += l_data_left_to_send;
             l_srv_session->stats.packets_sent_lost++;
-        }else{
+        /*}else{
             l_ret += l_data_left_to_send;
             l_srv_session->stats.packets_sent++;
             l_srv_session->stats.bytes_sent+= l_direct_wrote;
-        }
+        }*/
     }
     return l_ret;
 }
