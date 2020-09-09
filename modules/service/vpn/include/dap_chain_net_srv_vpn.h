@@ -90,7 +90,7 @@ typedef struct ch_vpn_pkt {
             } raw; // Raw access to OP bytes
         };
     } DAP_ALIGN_PACKED header;
-    uint8_t data[]; // Binary data nested by packet
+    byte_t data[]; // Binary data nested by packet
 }DAP_ALIGN_PACKED ch_vpn_pkt_t;
 
 typedef struct ch_sf_tun_socket ch_sf_tun_socket_t;

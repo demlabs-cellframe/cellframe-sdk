@@ -61,14 +61,29 @@ typedef struct dap_chain_net_srv_usage{
 
 typedef void (*dap_response_success_callback_t) (dap_stream_ch_chain_net_srv_pkt_success_t*, void*);
 
+typedef struct dap_net_stats{
+        uintmax_t bytes_sent;
+        uintmax_t bytes_recv;
+        uintmax_t bytes_sent_lost;
+        uintmax_t bytes_recv_lost;
+
+        uintmax_t packets_sent;
+        uintmax_t packets_recv;
+        uintmax_t packets_sent_lost;
+        intmax_t packets_recv_lost;
+} dap_net_stats_t;
+
 typedef struct dap_chain_net_srv_stream_session {
     dap_stream_session_t * parent;
     dap_chain_net_srv_usage_t * usages;
     dap_chain_net_srv_usage_t * usage_active;
 
-    uint128_t limits_bytes; // Bytes left
+    uintmax_t limits_bytes; // Bytes left
     time_t limits_ts; // Timestamp until its activte
     dap_chain_net_srv_price_unit_uid_t limits_units_type;
+
+    // Some common stats
+    volatile dap_net_stats_t stats;
 
     time_t ts_activated;
     dap_sign_t* user_sign; // User's signature for auth if reconnect

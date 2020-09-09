@@ -676,6 +676,7 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_c
     dap_chain_cs_dag_event_item_t * l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
     l_event_last->ts_added = a_event_item->ts_added;
     l_event_last->event = a_event_item->event;
+    l_event_last->event_size = a_event_item->event_size;
     dap_hash_fast(l_event_last->event, a_event_item->event_size,&l_event_last->hash );
     HASH_ADD(hh,PVT(a_dag)->events_lasts_unlinked,hash, sizeof(l_event_last->hash),l_event_last);
 }

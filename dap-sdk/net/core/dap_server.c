@@ -150,7 +150,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         listen(l_server->socket_listener, SOMAXCONN);
     }
 
-    //fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
+    fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
     pthread_mutex_init(&l_server->started_mutex,NULL);
     pthread_cond_init(&l_server->started_cond,NULL);
 

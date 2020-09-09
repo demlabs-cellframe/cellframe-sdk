@@ -508,7 +508,7 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
             dap_http_header_t *hdr = l_http_client->out_headers;
             if ( hdr == NULL ) {
                 log_it(L_DEBUG, "Output: headers are over (reply status code %u content_lentgh %u)",
-                       l_http_client->reply_status_code);
+                       l_http_client->reply_status_code, l_http_client->out_content_length);
                 dap_events_socket_write_f_unsafe(cl, "\r\n");
                 dap_events_socket_set_writable_unsafe(cl, true);
                 if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {

@@ -132,6 +132,26 @@ size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch
     return a_data_size;
 }
 
+/**
+ * @brief dap_stream_ch_check_unsafe
+ * @param a_worker
+ * @param a_ch
+ * @return
+ */
+bool dap_stream_ch_check_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t * a_ch)
+{
+    if (a_ch){
+        if ( a_worker->channels){
+            dap_stream_ch_t * l_ch = NULL;
+            HASH_FIND(hh_worker,a_worker->channels ,&a_ch, sizeof(a_ch), l_ch );
+            return l_ch == a_ch;
+        }else
+            return false;
+    }else
+        return false;
+}
+
+
 
 /**
  * @brief stream_ch_pkt_write

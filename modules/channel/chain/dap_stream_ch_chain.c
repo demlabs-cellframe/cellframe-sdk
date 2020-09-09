@@ -140,7 +140,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     l_lasts = l_chain->callback_atom_iter_get_lasts(l_iter, &l_lasts_count, &l_lasts_sizes);
     log_it(L_INFO, "Found %d last atoms for synchronization", l_lasts_count);
     if (l_lasts && l_lasts_sizes) {
-        for(long int i = l_lasts_count - 1; i >= 0; i--) {
+        for(long int i = 0; i < l_lasts_count; i++) {
             dap_chain_atom_item_t * l_item = NULL;
             dap_chain_hash_fast_t l_atom_hash;
             dap_hash_fast(l_lasts[i], l_lasts_sizes[i], &l_atom_hash);
@@ -150,6 +150,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
             if(l_item == NULL) { // Not found, add new lasts
                 l_item = DAP_NEW_Z(dap_chain_atom_item_t);
                 l_item->atom = l_lasts[i];
+                l_item->atom_size = l_lasts_sizes[i];
                 memcpy(&l_item->atom_hash, &l_atom_hash, sizeof(l_atom_hash));
                 HASH_ADD(hh, l_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_atom_hash),
                         l_item);
@@ -743,14 +744,14 @@ bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         l_packet_out = true;
                         l_ch_chain->stats_request_atoms_processed++;
                         // Then parse links and populate new lasts
-                        size_t l_lasts_size = 0;
+                        size_t l_links_count = 0;
                         dap_chain_atom_ptr_t * l_links = NULL;
                         size_t *l_links_sizes = NULL;
                         dap_chain_atom_iter_t* l_iter = l_chain->callback_atom_iter_create_from(l_chain, l_atom_item->atom, l_atom_item->atom_size);
-                        l_links = l_chain->callback_atom_iter_get_links(l_iter, &l_lasts_size, &l_links_sizes);
+                        l_links = l_chain->callback_atom_iter_get_links(l_iter, &l_links_count, &l_links_sizes);
                         DAP_DELETE(l_iter);
                         if (l_links && l_links_sizes) {
-                            for(size_t i = 0; i < l_lasts_size; i++) { // Find links
+                            for(size_t i = 0; i < l_links_count; i++) { // Find links
                                 dap_chain_atom_item_t * l_link_item = NULL;
                                 dap_chain_hash_fast_t l_link_hash;
                                 dap_hash_fast(l_links[i], l_links_sizes[i], &l_link_hash);
@@ -759,6 +760,7 @@ bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                 if(l_link_item == NULL) { // Not found, add new lasts
                                     l_link_item = DAP_NEW_Z(dap_chain_atom_item_t);
                                     l_link_item->atom = l_links[i];// do not use memory cause it will be deleted
+                                    l_link_item->atom_size = l_links_sizes[i];
                                     memcpy(&l_link_item->atom_hash, &l_link_hash, sizeof(l_link_hash));
                                     HASH_ADD(hh, l_ch_chain->request_atoms_lasts, atom_hash, sizeof(l_link_hash), l_link_item);
                                 }

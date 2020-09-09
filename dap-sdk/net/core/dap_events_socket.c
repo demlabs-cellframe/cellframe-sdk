@@ -148,7 +148,6 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
     l_msg->esocket = a_es;
     l_msg->worker_new = a_worker_new;
     dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg);
-
 }
 
 /**
@@ -254,7 +253,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     int l_pipe[2];
     int l_errno;
     char l_errbuf[128];
-    if( pipe2(l_pipe,O_DIRECT) < 0 ){
+    if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
         l_errno = errno;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         switch (l_errno) {
@@ -483,8 +482,12 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     int l_errno = errno;
     if (ret == sizeof(a_arg) )
         return  0;
-    else
+    else{
+        char l_errbuf[128];
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
         return l_errno;
+    }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     struct timespec l_timeout;
     clock_gettime(CLOCK_REALTIME, &l_timeout);
