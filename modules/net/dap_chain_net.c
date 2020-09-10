@@ -398,7 +398,12 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
                         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
                         dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, l_link_addr);
-                        l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                        if(l_link_node_info) {
+                            l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_addr);
+                        }
+                        else{
+                            log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_link_addr));
+                        }
                     }
                 } break;
                 case NODE_ROLE_FULL:
@@ -410,14 +415,16 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         int i = rand() % l_pvt_net->seed_aliases_count;
                         dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
                         dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
-                        dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        int res = 0;//dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
-                        memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
-                        DAP_DELETE(l_remote_node_info);
-                        if (res) {
-                            DAP_DELETE(l_link_node_info);
-                        } else {
+                        if(l_remote_node_info) {
+                            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                            int res = 0; //dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                            memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
                             l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                            //DAP_DELETE(l_link_node_info);
+                            DAP_DELETE(l_remote_node_info);
+                        }
+                        else{
+                            log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_remote_addr));
                         }
                         if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
                             l_pvt_net->state = NET_STATE_OFFLINE;
