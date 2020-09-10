@@ -121,11 +121,13 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         char l_channels_str[sizeof(ss->active_channels)];
         dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
         int l_enc_headers = 0;
+        bool l_is_legacy=false;
         int l_url_sscanf_res = sscanf(l_dg->url_path, "stream_ctl,channels=%16s,enc_type=%d,enc_headers=%d", l_channels_str, &l_enc_type, &l_enc_headers);
         if(l_url_sscanf_res > 0){
             if(l_url_sscanf_res < 3){
                 log_it(L_INFO, "legacy encryption mode used (OAES)");
                 l_enc_type = DAP_ENC_KEY_TYPE_OAES;
+                l_is_legacy = true;
             }
             l_new_session = true;
         }
@@ -157,7 +159,10 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                 }
                 ss->acl = l_ks_key->acl_list;
             }
-            enc_http_reply_f(l_dg,"%u %s %u %d %d",ss->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
+            if (l_is_legacy)
+                enc_http_reply_f(l_dg,"%u %s",ss->id, key_str);
+            else
+                enc_http_reply_f(l_dg,"%u %s %u %d %d",ss->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
             *return_code = Http_Status_OK;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);
