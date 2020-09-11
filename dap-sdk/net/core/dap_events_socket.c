@@ -39,10 +39,11 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include "wepoll.h"
-#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "dap_common.h"
+#include "dap_list.h"
 #include "dap_worker.h"
 #include "dap_events.h"
 
@@ -476,6 +477,75 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
         log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
 }
 
+
+typedef struct dap_events_socket_buf_item
+{
+    dap_events_socket_t * es;
+    void *arg;
+} dap_events_socket_buf_item_t;
+
+typedef struct dap_events_socket_buf
+{
+    pthread_rwlock_t rwlock;
+    dap_list_t *items_list;
+    pthread_t thread;
+} dap_events_socket_buf_t;
+static dap_events_socket_buf_t * s_dap_events_socket_buf = NULL;
+
+int dap_events_socket_queue_ptr_send(dap_events_socket_t * a_es, void* a_arg);
+/**
+ * @brief dap_events_socket_buf_thread
+ * @param arg
+ * @return
+ */
+void *dap_events_socket_buf_thread(void *arg)
+{
+    dap_list_t *l_item_last = dap_list_last(s_dap_events_socket_buf->items_list);
+    dap_list_t *l_item_cur = l_item_last;
+    // peek items from the end of the list
+    while(l_item_cur) {
+        //pthread_rwlock_rdlock(&s_dap_events_socket_buf->rwlock);
+        dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) l_item_cur->data;
+        //pthread_rwlock_unlock(&s_dap_events_socket_buf->rwlock);
+
+        //if error repeats, then sleep for 100 ms
+        if(dap_events_socket_queue_ptr_send(l_item->es, l_item->arg) == EAGAIN)
+            dap_usleep(100000);
+        dap_list_t *l_prev_item = l_item_cur->prev;
+        if(!l_prev_item) {
+            pthread_rwlock_wrlock(&s_dap_events_socket_buf->rwlock);
+            if(l_item_cur == s_dap_events_socket_buf->items_list)
+                s_dap_events_socket_buf->items_list = NULL;
+            // set flag to end of thread
+            s_dap_events_socket_buf->thread = 0;
+            pthread_rwlock_unlock(&s_dap_events_socket_buf->rwlock);
+        }
+        DAP_DELETE(l_item_cur->data);
+        dap_list_delete_link(l_item_cur, l_item_cur);
+        l_item_cur = l_prev_item;
+    };
+    pthread_exit(0);
+}
+
+static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
+{
+    if(!s_dap_events_socket_buf) {
+        s_dap_events_socket_buf = DAP_NEW_Z(dap_events_socket_buf_t);
+        pthread_rwlock_init(&s_dap_events_socket_buf->rwlock, NULL);
+    }
+    dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t);
+    l_item->es = a_es;
+    l_item->arg = a_arg;
+    pthread_rwlock_wrlock(&s_dap_events_socket_buf->rwlock);
+    // add an item to the beginning of the list
+    s_dap_events_socket_buf->items_list = dap_list_prepend(s_dap_events_socket_buf->items_list, l_item);
+    // start a thread if it not be started yet
+    if(!s_dap_events_socket_buf->thread) {
+        pthread_create(&s_dap_events_socket_buf->thread, NULL, dap_events_socket_buf_thread, NULL);
+    }
+    pthread_rwlock_unlock(&s_dap_events_socket_buf->rwlock);
+}
+
 /**
  * @brief dap_events_socket_send_event
  * @param a_es
@@ -491,6 +561,9 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     else{
         char l_errbuf[128];
         log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
+        // Try again
+        if(l_errno == EAGAIN)
+            add_ptr_to_buf(a_es, a_arg);
         return l_errno;
     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
