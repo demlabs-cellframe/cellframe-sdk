@@ -344,10 +344,8 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
  */
 static int s_net_states_proc(dap_chain_net_t * l_net)
 {
-
     dap_chain_net_pvt_t *l_pvt_net = PVT(l_net);
-
-    int ret=0;
+    int ret = 0;
 
     switch (l_pvt_net->state) {
         case NET_STATE_OFFLINE: {
@@ -373,71 +371,89 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
 
         case NET_STATE_LINKS_PREPARE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE",l_net->pub.name);
+            uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(l_net);
             if (l_pvt_net->node_info) {
                 for (size_t i = 0; i < l_pvt_net->node_info->hdr.links_number; i++) {
                     dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_pvt_net->node_info->links[i]);
-                    if (!l_link_node_info || l_link_node_info->hdr.address.uint64 == l_pvt_net->node_info->hdr.address.uint64) {
+                    if (!l_link_node_info || l_link_node_info->hdr.address.uint64 == l_own_addr) {
                         continue;   // Do not link with self
                     }
                     l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                    if (dap_list_length(l_pvt_net->links_info) >= s_max_links_count) {
+                        break;
+                    }
                 }
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, find nearest 3 links and fill global_db");
             }
-            if (!l_pvt_net->seed_aliases_count) {
-                log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
-                l_pvt_net->state_target = l_pvt_net->state = NET_STATE_OFFLINE;
-                break;
-            }
-            switch (l_pvt_net->node_role.enums) {
-                case NODE_ROLE_ROOT:
-                case NODE_ROLE_ROOT_MASTER:
-                case NODE_ROLE_ARCHIVE:
-                case NODE_ROLE_CELL_MASTER: {
-                    // Add other root nodes as synchronization links
-                    for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
-                        dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                        dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, l_link_addr);
-                        if(l_link_node_info) {
-                            l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_addr);
-                        }
-                        else{
-                            log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_link_addr));
-                        }
+            if (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
+                if (l_pvt_net->seed_aliases_count) {
+                    switch (l_pvt_net->node_role.enums) {
+                        case NODE_ROLE_ROOT:
+                        case NODE_ROLE_ROOT_MASTER:
+                        case NODE_ROLE_ARCHIVE:
+                        case NODE_ROLE_CELL_MASTER: {
+                            // Add other root nodes as synchronization links
+                            for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
+                                dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
+                                if (l_link_addr->uint64 == l_own_addr) {
+                                    continue;   // Do not link with self
+                                }
+                                dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, l_link_addr);
+                                if(l_link_node_info) {
+                                    l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                                }
+                                else{
+                                    log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_link_addr));
+                                }
+                                if (dap_list_length(l_pvt_net->links_info) >= s_max_links_count) {
+                                    break;
+                                }
+                            }
+                        } break;
+                        case NODE_ROLE_FULL:
+                        case NODE_ROLE_MASTER:
+                        case NODE_ROLE_LIGHT:
+                        default: {
+                            // Get DNS request result from root nodes as synchronization links
+                            while (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
+                                int i = rand() % l_pvt_net->seed_aliases_count;
+                                dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
+                                dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
+                                if(l_remote_node_info) {
+                                    dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                                    int res = 0; //dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                                    memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
+                                    if (l_link_node_info->hdr.address.uint64 != l_own_addr) {
+                                        l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                                    }
+                                    DAP_DELETE(l_remote_node_info);
+                                }
+                                else{
+                                    log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_remote_addr));
+                                }
+                                if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
+                                    l_pvt_net->state = NET_STATE_OFFLINE;
+                                    break;
+                                }
+                            }
+                        } break;
                     }
-                } break;
-                case NODE_ROLE_FULL:
-                case NODE_ROLE_MASTER:
-                case NODE_ROLE_LIGHT:
-                default: {
-                    // Get DNS request result from root nodes as synchronization links
-                    while (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
-                        int i = rand() % l_pvt_net->seed_aliases_count;
-                        dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                        dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
-                        if(l_remote_node_info) {
-                            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                            int res = 0; //dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
-                            memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
-                            l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
-                            //DAP_DELETE(l_link_node_info);
-                            DAP_DELETE(l_remote_node_info);
-                        }
-                        else{
-                            log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_remote_addr));
-                        }
-                        if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
-                            l_pvt_net->state = NET_STATE_OFFLINE;
-                            break;
-                        }
+                } else {
+                    log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
+                    if (!dap_list_length(l_pvt_net->links_info)) {   // No links can be prepared, go offline
+                        l_pvt_net->state_target = NET_STATE_OFFLINE;
                     }
-                } break;
+                }
             }
             if (l_pvt_net->state_target != NET_STATE_OFFLINE) {
-                l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
-                log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_pvt_net->links_info));
+                if (dap_list_length(l_pvt_net->links_info)) {
+                    l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
+                    log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_pvt_net->links_info));
+                }
+            // If no links prepared go again to NET_STATE_LINKS_PREPARE
             } else {
-                l_pvt_net->state = l_pvt_net->state_target = NET_STATE_OFFLINE;
+                l_pvt_net->state = NET_STATE_OFFLINE;
             }
         } break;
 
@@ -454,13 +470,11 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         log_it(L_DEBUG, "Established connection with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
                         l_pvt_net->links = dap_list_append(l_pvt_net->links, l_node_client);
                     } else {
+                        log_it(L_DEBUG, "Can't establish link with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
                         dap_chain_node_client_close(l_node_client);
                         l_node_client = NULL;
                     }
-                }
-                if (!l_node_client) {
-                    log_it(L_DEBUG, "Can't establish link with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
-                }
+                }                    
                 if (dap_list_length(l_pvt_net->links) >= s_required_links_count) {
                     break;
                 }
@@ -491,9 +505,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 // no limit
                 l_sync_gdb.id_end = (uint64_t)0;
 
-                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr(l_net) ?
-                                                  dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                                  dap_db_get_cur_node_addr(l_net->pub.name);
+                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                 log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end);
                 // find dap_chain_id_t
                 dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
