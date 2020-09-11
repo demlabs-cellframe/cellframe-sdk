@@ -639,18 +639,25 @@ dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
  */
 dap_enc_key_t* dap_enc_key_dup(dap_enc_key_t * a_key)
 {
-    dap_enc_key_t * l_ret = DAP_NEW_S_SIZE(dap_enc_key_t,sizeof(*l_ret) );
-    memcpy(l_ret,a_key,sizeof (*a_key));
-
-    l_ret->priv_key_data = DAP_NEW_Z_SIZE(byte_t, l_ret->priv_key_data_size);
-    memcpy(l_ret->priv_key_data, a_key->priv_key_data, a_key->priv_key_data_size);
-    l_ret->pub_key_data = DAP_NEW_Z_SIZE(byte_t, a_key->pub_key_data_size);
-    memcpy(l_ret->pub_key_data, a_key->pub_key_data, a_key->pub_key_data_size);
+    if (!a_key || a_key->type == DAP_ENC_KEY_TYPE_INVALID) {
+        return NULL;
+    }
+    dap_enc_key_t *l_ret = dap_enc_key_new(a_key->type);
+    if (l_ret->priv_key_data_size) {
+        l_ret->priv_key_data = DAP_NEW_Z_SIZE(byte_t, a_key->priv_key_data_size);
+        l_ret->priv_key_data_size = a_key->priv_key_data_size;
+        memcpy(l_ret->priv_key_data, a_key->priv_key_data, a_key->priv_key_data_size);
+    }
+    if (a_key->pub_key_data_size) {
+        l_ret->pub_key_data = DAP_NEW_Z_SIZE(byte_t, a_key->pub_key_data_size);
+        l_ret->pub_key_data_size =  a_key->pub_key_data_size;
+        memcpy(l_ret->pub_key_data, a_key->pub_key_data, a_key->pub_key_data_size);
+    }
     if(a_key->_inheritor_size) {
-        l_ret->_inheritor = DAP_NEW_Z_SIZE(byte_t, a_key->_inheritor_size );
+        l_ret->_inheritor = DAP_NEW_Z_SIZE(byte_t, a_key->_inheritor_size);
+        l_ret->_inheritor_size = a_key->_inheritor_size;
         memcpy(l_ret->_inheritor, a_key->_inheritor, a_key->_inheritor_size);
     }
-
     return l_ret;
 }
 
