@@ -459,9 +459,8 @@ dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch
 {
     dap_stream_ch_t * l_ch = NULL;
     dap_client_pvt_t * l_client_internal = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
-    if(l_client_internal && l_client_internal->stream)
+    if(l_client_internal && l_client_internal->stream && l_client_internal->stream_es)
         for(int i = 0; i < l_client_internal->stream->channel_count; i++) {
-            dap_stream_ch_proc_t *l_ch_id = l_client_internal->stream->channel[i]->proc;
             if(l_client_internal->stream->channel[i]->proc->id == a_ch_id) {
                 l_ch = l_client_internal->stream->channel[i];
                 break;
