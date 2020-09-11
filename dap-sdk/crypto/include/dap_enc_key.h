@@ -43,7 +43,7 @@ typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 
 typedef enum dap_enc_key_type{
 
-
+                           DAP_ENC_KEY_TYPE_INVALID = -1,
                            DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
                            DAP_ENC_KEY_TYPE_OAES,// from https://github.com/monero-project/monero/tree/master/src/crypto
 
@@ -123,7 +123,8 @@ typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_SIG_RINGCT20,//ring signature for confidentional transaction
 
-                           DAP_ENC_KEY_TYPE_NULL = 0
+                           DAP_ENC_KEY_TYPE_LAST = DAP_ENC_KEY_TYPE_SIG_RINGCT20,
+                           DAP_ENC_KEY_TYPE_NULL = 0 // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
 
                          }  dap_enc_key_type_t;
 
@@ -244,6 +245,7 @@ int dap_enc_key_init(void);
 void dap_enc_key_deinit(void);
 
 const char *dap_enc_get_type_name(dap_enc_key_type_t a_key_type);
+dap_enc_key_type_t dap_enc_key_type_find_by_name(const char * a_name);
 size_t dap_enc_key_get_enc_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size);
 

@@ -519,6 +519,27 @@ int send_select_break( )
   return 0;
 }
 
+
+int exec_with_ret(char** repl, const char * a_cmd) {
+    FILE * fp;
+    size_t buf_len = 0;
+    char buf[4096] = {0};
+    fp = popen(a_cmd, "r");
+    if (!fp) {
+        log_it(L_ERROR,"Cmd execution error: '%s'", strerror(errno));
+        return(255);
+    }
+    memset(buf, 0, sizeof(buf));
+    fgets(buf, sizeof(buf) - 1, fp);
+    buf_len = strlen(buf);
+    if(repl) {
+        if(buf[buf_len - 1] == '\n')
+            buf[buf_len - 1] ='\0';
+        *repl = strdup(buf);
+    }
+    return pclose(fp);
+}
+
 #ifdef ANDROID1
 static u_long myNextRandom = 1;
 
