@@ -326,18 +326,23 @@ static void dap_client_pvt_delete_in(dap_client_pvt_t * a_client_pvt)
 
     if(a_client_pvt->session_key_id)
         DAP_DELETE(a_client_pvt->session_key_id);
+    a_client_pvt->session_key_id = NULL;
 
     if(a_client_pvt->active_channels)
         DAP_DELETE(a_client_pvt->active_channels);
+    a_client_pvt->active_channels = NULL;
 
     if(a_client_pvt->session_key)
         dap_enc_key_delete(a_client_pvt->session_key);
+    a_client_pvt->session_key = NULL;
 
     if(a_client_pvt->session_key_open)
         dap_enc_key_delete(a_client_pvt->session_key_open);
+    a_client_pvt->session_key_open = NULL;
 
     if(a_client_pvt->stream_key)
         dap_enc_key_delete(a_client_pvt->stream_key);
+    a_client_pvt->stream_key = NULL;
 
     //a_client_pvt->client = NULL;
    // DAP_DELETE(a_client_pvt);

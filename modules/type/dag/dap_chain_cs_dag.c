@@ -787,6 +787,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_atom_iter->chain = a_chain;
     l_atom_iter->cur = a_atom;
+    l_atom_iter->cur_size = a_atom_size;
 
     if ( a_atom ){
         dap_chain_hash_fast_t l_atom_hash;
@@ -976,8 +977,8 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_
         l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
         // if l_event_item=NULL then items are over
         a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
+        a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
     }
-    a_atom_iter->cur_size = a_atom_iter->cur?a_atom_iter->cur_size: 0;
     if(a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
 
