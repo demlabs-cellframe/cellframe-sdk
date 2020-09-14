@@ -549,7 +549,7 @@ void *dap_events_socket_buf_thread(void *arg)
     // if timeout or
     if(l_res >= 0)
         dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
-
+    DAP_DELETE(l_item);
     pthread_exit(0);
 }
 
