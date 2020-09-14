@@ -30,6 +30,7 @@
 #include <errno.h>
 #ifndef _WIN32
 #include <sys/epoll.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include <fcntl.h>
 #else
@@ -484,15 +485,49 @@ typedef struct dap_events_socket_buf_item
     void *arg;
 } dap_events_socket_buf_item_t;
 
-typedef struct dap_events_socket_buf
-{
-    pthread_rwlock_t rwlock;
-    dap_list_t *items_list;
-    pthread_t thread;
-} dap_events_socket_buf_t;
-static dap_events_socket_buf_t * s_dap_events_socket_buf = NULL;
-
 int dap_events_socket_queue_ptr_send(dap_events_socket_t * a_es, void* a_arg);
+
+/**
+ *  Waits on the socket
+ *  return 0: timeout, 1: may send data, -1 error
+ */
+static int wait_send_socket(int a_sockfd, long timeout_ms)
+{
+    struct timeval l_tv;
+    fd_set l_outfd, l_errfd;
+
+    l_tv.tv_sec = timeout_ms / 1000;
+    l_tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+    FD_ZERO(&l_outfd);
+    FD_ZERO(&l_errfd);
+    FD_SET(a_sockfd, &l_errfd);
+    FD_SET(a_sockfd, &l_outfd);
+
+    while(1) {
+#ifdef DAP_OS_WINDOWS
+    int l_res = select(1, NULL, &l_outfd, &l_errfd, &l_tv);
+#else
+        int l_res = select(a_sockfd + 1, NULL, &l_outfd, &l_errfd, &l_tv);
+#endif
+        if(l_res == 0){
+            log_it(L_DEBUG, "socket %d timed out", a_sockfd);
+        }
+        if(l_res == -1) {
+            if(errno == EINTR)
+                continue;
+            log_it(L_DEBUG, "socket %d waiting errno=%d", errno);
+            return l_res;
+        }
+        break;
+    };
+
+    if(FD_ISSET(a_sockfd, &l_outfd))
+        return 1;
+
+    return -1;
+}
+
 /**
  * @brief dap_events_socket_buf_thread
  * @param arg
@@ -500,50 +535,31 @@ int dap_events_socket_queue_ptr_send(dap_events_socket_t * a_es, void* a_arg);
  */
 void *dap_events_socket_buf_thread(void *arg)
 {
-    dap_list_t *l_item_last = dap_list_last(s_dap_events_socket_buf->items_list);
-    dap_list_t *l_item_cur = l_item_last;
-    // peek items from the end of the list
-    while(l_item_cur) {
-        //pthread_rwlock_rdlock(&s_dap_events_socket_buf->rwlock);
-        dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) l_item_cur->data;
-        //pthread_rwlock_unlock(&s_dap_events_socket_buf->rwlock);
+    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) arg;
+    if(!l_item) {
+        pthread_exit(0);
+    }
+    int l_res = 0;
+    //int l_count = 0;
+    //while(l_res < 1 && l_count < 3) {
+    // wait max 5 min
+    l_res = wait_send_socket(l_item->es->fd2, 300000);
+    //    l_count++;
+    //}
+    // if timeout or
+    if(l_res >= 0)
+        dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
 
-        //if error repeats, then sleep for 100 ms
-        if(dap_events_socket_queue_ptr_send(l_item->es, l_item->arg) == EAGAIN)
-            dap_usleep(100000);
-        dap_list_t *l_prev_item = l_item_cur->prev;
-        if(!l_prev_item) {
-            pthread_rwlock_wrlock(&s_dap_events_socket_buf->rwlock);
-            if(l_item_cur == s_dap_events_socket_buf->items_list)
-                s_dap_events_socket_buf->items_list = NULL;
-            // set flag to end of thread
-            s_dap_events_socket_buf->thread = 0;
-            pthread_rwlock_unlock(&s_dap_events_socket_buf->rwlock);
-        }
-        DAP_DELETE(l_item_cur->data);
-        dap_list_delete_link(l_item_cur, l_item_cur);
-        l_item_cur = l_prev_item;
-    };
     pthread_exit(0);
 }
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 {
-    if(!s_dap_events_socket_buf) {
-        s_dap_events_socket_buf = DAP_NEW_Z(dap_events_socket_buf_t);
-        pthread_rwlock_init(&s_dap_events_socket_buf->rwlock, NULL);
-    }
     dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t);
     l_item->es = a_es;
     l_item->arg = a_arg;
-    pthread_rwlock_wrlock(&s_dap_events_socket_buf->rwlock);
-    // add an item to the beginning of the list
-    s_dap_events_socket_buf->items_list = dap_list_prepend(s_dap_events_socket_buf->items_list, l_item);
-    // start a thread if it not be started yet
-    if(!s_dap_events_socket_buf->thread) {
-        pthread_create(&s_dap_events_socket_buf->thread, NULL, dap_events_socket_buf_thread, NULL);
-    }
-    pthread_rwlock_unlock(&s_dap_events_socket_buf->rwlock);
+    pthread_t l_thread;
+    pthread_create(&l_thread, NULL, dap_events_socket_buf_thread, l_item);
 }
 
 /**
