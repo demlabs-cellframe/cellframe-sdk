@@ -73,9 +73,9 @@ static struct {
  * @brief stream_ctl_init Initialize stream control module
  * @return Zero if ok others if not
  */
-int dap_stream_ctl_init(size_t socket_forward_key_size)
+int dap_stream_ctl_init()
 {
-    s_socket_forward_key.size = socket_forward_key_size;
+    s_socket_forward_key.size = 32; // Why do we set it, not autodeceting?
     s_socket_forward_key.type = dap_stream_get_preferred_encryption_type();
 
     return 0;

@@ -26,6 +26,6 @@ typedef struct dap_http dap_http_t;
 #define KEX_KEY_STR_SIZE 128
 
 
-int dap_stream_ctl_init(size_t socket_forward_key_size);
+int dap_stream_ctl_init();
 void dap_stream_ctl_deinit();
 void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url);
