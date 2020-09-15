@@ -138,8 +138,6 @@ void dap_client_set_auth_cert(dap_client_t * a_client, dap_cert_t *a_cert);
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);
 
-#define DAP_CLIENT(a) (a ? (dap_client_t *) (a)->_inheritor : NULL)
-
 #ifdef __cplusplus
 }
 #endif
