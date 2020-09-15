@@ -612,7 +612,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         log_it(L_ERROR, "Error state, doing callback if present");
         if(a_client_pvt->stage_status_error_callback) {
             //dap_client_pvt_ref(a_client_pvt);
-            a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*)l_is_last_attempt);
+            if(a_client_pvt == a_client_pvt->client->_internal)
+                a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
+            else {
+                log_it(L_ERROR, "client_pvt->client=%x corrupted", a_client_pvt->client->_internal);
+            }
             //dap_client_pvt_unref(a_client_pvt);
             // Expecting that its one-shot callback
             //a_client_internal->stage_status_error_callback = NULL;
@@ -1241,7 +1245,11 @@ void m_es_stream_delete(dap_events_socket_t *a_es, void *arg)
     log_it(L_DEBUG, "client_pvt=0x%x", l_client_pvt);
 
     if (l_client_pvt->stage_status_error_callback) {
-        l_client_pvt->stage_status_error_callback(l_client_pvt->client, (void *)true);
+        if(l_client_pvt == l_client_pvt->client->_internal)
+            l_client_pvt->stage_status_error_callback(l_client_pvt->client, (void *) true);
+        else {
+            log_it(L_ERROR, "client_pvt->client=%x corrupted", l_client_pvt->client->_internal);
+        }
     }
     dap_stream_delete(l_client_pvt->stream);
     l_client_pvt->stream = NULL;
