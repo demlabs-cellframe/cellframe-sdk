@@ -36,8 +36,10 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_net.h"
 
 typedef struct dap_ledger {
+    dap_chain_net_t *net;
     void *_internal;
 } dap_ledger_t;
 
@@ -52,7 +54,7 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 // Check the double spending  in all cells
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
-dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags);
+dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, dap_chain_net_t *a_net);
 
 // Remove dap_ledger_t structure
 void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger);
@@ -67,11 +69,19 @@ void dap_chain_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_i
  * @param a_tx
  * @return
  */
-static inline dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
+DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
 {
     dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
     return tx_hash;
+}
+
+DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
+{
+   if (a_ledger) {
+       return dap_strdup_printf("local.%s.ledger-cahce.%s", a_ledger->net->pub.name, a_suffix);
+   }
+   return NULL;
 }
 
 /**
@@ -80,6 +90,7 @@ static inline dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain
  * return 1 OK, -1 error
  */
 int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 
 int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
@@ -97,12 +108,15 @@ int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_t
  */
 
 int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
+int dap_chain_ledger_token_load(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token);
 
 /**
  * Add token emission datum
  */
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
+        const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger,
         const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size);
 
 // Check if it addable

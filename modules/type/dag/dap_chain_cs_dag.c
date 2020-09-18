@@ -251,12 +251,12 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
   switch (l_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TOKEN_DECL: {
       dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-      return dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
+      return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
     }
       break;
     case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
       dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-      return dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
+      return dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
     }
       break;
     case DAP_CHAIN_DATUM_TX: {
@@ -270,7 +270,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
       HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
 
       // don't save bad transactions to base
-      if(dap_chain_ledger_tx_add(a_ledger, l_tx) != 1) {
+      if(dap_chain_ledger_tx_load(a_ledger, l_tx) != 1) {
         return -1;
       }
     }
