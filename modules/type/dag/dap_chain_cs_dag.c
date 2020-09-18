@@ -482,7 +482,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             if(l_dag->callback_cs_event_create)
                 l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked,&l_event_size);
             if ( l_event&&l_event_size){ // Event is created
-
                 if (l_dag->is_add_directy) {
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
                         // add events to file
@@ -593,24 +592,29 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
     }
     // genesis or seed mode
     if (l_event->header.hash_count == 0){
-      if(s_seed_mode && !PVT(l_dag)->events)
-        return ATOM_ACCEPT;
-
-      if (l_dag->is_static_genesis_event ){
-        dap_chain_hash_fast_t l_event_hash;
-        dap_chain_cs_dag_event_calc_hash(l_event,a_atom_size, &l_event_hash);
-        if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
-          char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-          char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
-
-          log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
-          DAP_DELETE(l_event_hash_str);
-          DAP_DELETE(l_genesis_event_hash_str);
-          return ATOM_REJECT;
-        }else{
-          return ATOM_ACCEPT;
+        if(s_seed_mode && !PVT(l_dag)->events){
+            log_it(L_NOTICE,"Accepting genesis event");
+            return ATOM_ACCEPT;
+        }else if(s_seed_mode){
+            log_it(L_WARNING,"Cant accept genesis event: already present data in DAG, ->events is not NULL");
+            return  ATOM_REJECT;
         }
-      }
+
+        if (l_dag->is_static_genesis_event ){
+            dap_chain_hash_fast_t l_event_hash;
+            dap_chain_cs_dag_event_calc_hash(l_event,a_atom_size, &l_event_hash);
+            if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
+                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
+                char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
+
+                log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
+                DAP_DELETE(l_event_hash_str);
+                DAP_DELETE(l_genesis_event_hash_str);
+                return ATOM_REJECT;
+            }else{
+                return ATOM_ACCEPT;
+            }
+        }
     }
 
     //chain coherence
