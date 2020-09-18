@@ -32,7 +32,8 @@ extern "C"{
 
 typedef void (notification_handler_func_t)(dap_json_rpc_params_t *a_param);
 
-typedef struct dap_json_rpc_notification_handler{
+typedef struct dap_json_rpc_notification_handler
+{
     char *method;
     notification_handler_func_t *func;
     UT_hash_handle  hh;

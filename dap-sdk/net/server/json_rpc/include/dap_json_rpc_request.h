@@ -34,7 +34,8 @@
 extern "C"{
 #endif
 
-typedef struct dap_json_rpc_request{
+typedef struct dap_json_rpc_request
+{
     char* method;
     dap_json_rpc_params_t *params;
     uint64_t id;

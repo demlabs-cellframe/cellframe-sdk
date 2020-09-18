@@ -5,7 +5,8 @@
 static dap_json_rpc_response_handler_t *s_response_handlers = NULL;
 static uint64_t s_delta = 0;
 
-int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_response_handler_func_t *func){
+int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_response_handler_func_t *func)
+{
     dap_json_rpc_response_handler_t *l_handler = NULL;
     HASH_FIND_INT(s_response_handlers, &a_id, l_handler);
     if (l_handler == NULL){
@@ -18,12 +19,14 @@ int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_respo
     }
     return 1;
 }
-uint64_t dap_json_rpc_response_registration(dap_json_rpc_response_handler_func_t *func){
+uint64_t dap_json_rpc_response_registration(dap_json_rpc_response_handler_func_t *func)
+{
     uint64_t l_id_registration_response = dap_json_rpc_response_get_new_id();
     int res = dap_json_rpc_response_registration_with_id(l_id_registration_response, func);
     return res;
 }
-void dap_json_rpc_response_unregistration(uint64_t a_id){
+void dap_json_rpc_response_unregistration(uint64_t a_id)
+{
     dap_json_rpc_response_handler_t *l_handler = NULL;
     HASH_FIND_INT(s_response_handlers, &a_id, l_handler);
     if (l_handler != NULL){
@@ -33,7 +36,8 @@ void dap_json_rpc_response_unregistration(uint64_t a_id){
     }
 }
 
-void dap_json_rpc_response_handler(dap_json_rpc_response_t *a_response){
+void dap_json_rpc_response_handler(dap_json_rpc_response_t *a_response)
+{
     dap_json_rpc_response_handler_t *l_handler = NULL;
     HASH_FIND_INT(s_response_handlers, (void*)a_response->id, l_handler);
     if (l_handler != NULL){
@@ -45,13 +49,15 @@ void dap_json_rpc_response_handler(dap_json_rpc_response_t *a_response){
     }
 }
 
-uint64_t dap_json_rpc_response_get_new_id(void){
+uint64_t dap_json_rpc_response_get_new_id(void)
+{
     uint64_t l_ret = s_delta;
     s_delta++;
     return l_ret;
 }
 
-void dap_json_rpc_response_accepted(void *a_data, size_t a_size_data, void *a_obj){
+void dap_json_rpc_response_accepted(void *a_data, size_t a_size_data, void *a_obj)
+{
     (void) a_obj;
     log_it(L_NOTICE, "Pre handling response");
     char *l_str = DAP_NEW_SIZE(char, a_size_data);

@@ -31,10 +31,10 @@
 extern "C"{
 #endif
 
-//typedef void dap_json_rpc_response_handler_func(dap_json_rpc_response_t *a_response);
 typedef void (dap_json_rpc_response_handler_func_t)(dap_json_rpc_response_t *a_response);
 
-typedef struct dap_json_rpc_response_handler{
+typedef struct dap_json_rpc_response_handler
+{
     dap_json_rpc_response_handler_func_t *func;
     uint64_t id;
     UT_hash_handle hh;

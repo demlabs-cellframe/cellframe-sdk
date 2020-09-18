@@ -5,7 +5,8 @@
 static dap_json_rpc_notification_handler_t *s_handler_notifications = NULL;
 
 
-int dap_json_rpc_notification_registration(const char *a_method, notification_handler_func_t *a_notification_func){
+int dap_json_rpc_notification_registration(const char *a_method, notification_handler_func_t *a_notification_func)
+{
     dap_json_rpc_notification_handler_t *l_handler;
     HASH_FIND_STR(s_handler_notifications, a_method, l_handler);
     if (l_handler == 0){
@@ -18,7 +19,8 @@ int dap_json_rpc_notification_registration(const char *a_method, notification_ha
     }
     return 1;
 }
-void dap_json_rpc_notification_unregistration(const char *a_method){
+void dap_json_rpc_notification_unregistration(const char *a_method)
+{
     dap_json_rpc_notification_handler_t *l_handler;
     HASH_FIND_STR(s_handler_notifications, a_method, l_handler);
     if (l_handler != NULL){
@@ -29,7 +31,8 @@ void dap_json_rpc_notification_unregistration(const char *a_method){
     }
 }
 
-void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_params_t *a_params){
+void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_params_t *a_params)
+{
     dap_json_rpc_notification_handler_t *l_handler = NULL;
     HASH_FIND_STR(s_handler_notifications, a_name_method, l_handler);
     if (l_handler != NULL){

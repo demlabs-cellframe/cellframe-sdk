@@ -40,7 +40,8 @@ extern "C"{
 
 typedef void (handler_func_t)(dap_json_rpc_params_t *a_params, dap_json_rpc_response_t *a_response);
 
-typedef  struct dap_json_rpc_request_handler{
+typedef  struct dap_json_rpc_request_handler
+{
     char *name;
     handler_func_t *func;
     UT_hash_handle hh;
@@ -49,8 +50,7 @@ typedef  struct dap_json_rpc_request_handler{
 int dap_json_rpc_registration_request_handler(const char *a_name, handler_func_t *a_func);
 int dap_json_rpc_unregistration_request_handler(const char *a_name);
 
-void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_http_simple_t *a_client); // *a_client_remote);
-
+void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request, dap_http_simple_t *a_client);
 #ifdef __cplusplus
 }
 #endif

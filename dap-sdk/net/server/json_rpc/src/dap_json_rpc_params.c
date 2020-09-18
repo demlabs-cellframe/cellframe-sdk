@@ -2,7 +2,8 @@
 
 #define LOG_TAG "dap_json_rpc_params"
 
-dap_json_rpc_params_t* dap_json_rpc_params_create(void){
+dap_json_rpc_params_t* dap_json_rpc_params_create(void)
+{
     dap_json_rpc_params_t *l_params = DAP_NEW(dap_json_rpc_params_t);
     l_params->lenght = 0;
     return l_params;
@@ -10,17 +11,14 @@ dap_json_rpc_params_t* dap_json_rpc_params_create(void){
 
 
 void dap_json_rpc_params_add_data(dap_json_rpc_params_t *a_params, const void *a_value,
-                                  dap_json_rpc_type_param_t a_type){
+                                  dap_json_rpc_type_param_t a_type)
+{
     log_it(L_DEBUG, "Add data in params");
     dap_json_rpc_param_t *l_param = DAP_NEW(dap_json_rpc_param_t);
     //l_param->name_param = dap_strdup(a_name);
     l_param->type = a_type;
     size_t l_len_value;
     switch (a_type) {
-//    case TYPE_PARAM_ARRAY:
-//        break;
-//    case TYPE_PARAM_OBJECT:
-//        break;
     case TYPE_PARAM_STRING:
         l_param->value_param = dap_strdup((char*)a_value);
         break;
@@ -45,7 +43,8 @@ void dap_json_rpc_params_add_data(dap_json_rpc_params_t *a_params, const void *a
     }
     dap_json_rpc_params_add_param(a_params, l_param);
 }
-void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc_param_t *a_param){
+void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc_param_t *a_param)
+{
     uint32_t l_len_new_params = a_params->lenght + 1;
     dap_json_rpc_param_t **l_new_params = DAP_NEW_SIZE(dap_json_rpc_param_t*, l_len_new_params);
     memcpy(l_new_params, a_params->params, sizeof(dap_json_rpc_param_t*) * a_params->lenght);
@@ -56,7 +55,8 @@ void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc
     a_params->lenght++;
 }
 
-void dap_json_rpc_params_remove_all(dap_json_rpc_params_t *a_params){
+void dap_json_rpc_params_remove_all(dap_json_rpc_params_t *a_params)
+{
     log_it(L_DEBUG, "Clean params");
     for (uint32_t i=0x0 ; i < dap_json_rpc_params_lenght(a_params); i++){
         dap_json_rpc_param_remove(a_params->params[i]);
@@ -64,35 +64,33 @@ void dap_json_rpc_params_remove_all(dap_json_rpc_params_t *a_params){
     DAP_FREE(a_params);
 }
 
-//void dap_json_rpc_params_remove_param(dap_json_rpc_params_t *a_params, uint32_t index){
-//    if (a_params->lenght > index){
-//        a_params->params[index]
-//    }
-//}
-
-uint32_t dap_json_rpc_params_lenght(dap_json_rpc_params_t *a_params){
+uint32_t dap_json_rpc_params_lenght(dap_json_rpc_params_t *a_params)
+{
     return a_params->lenght;
 }
 
-void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index){
+void *dap_json_rpc_params_get(dap_json_rpc_params_t *a_params, uint32_t index)
+{
     if (a_params->lenght > index)
         return a_params->params[index]->value_param;
     return NULL;
 }
 
-dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params_t *a_params, uint32_t index){
+dap_json_rpc_type_param_t dap_json_rpc_params_get_type_param(dap_json_rpc_params_t *a_params, uint32_t index)
+{
     if (a_params->lenght > index)
         return a_params->params[index]->type;
     return TYPE_PARAM_NULL;
 }
 
-void dap_json_rpc_param_remove(dap_json_rpc_param_t *param){
+void dap_json_rpc_param_remove(dap_json_rpc_param_t *param)
+{
     DAP_FREE(param->value_param);
-    //DAP_FREE(param->name_param);
     DAP_FREE(param);
 }
 
-dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list){
+dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *a_array_list)
+{
     log_it(L_NOTICE, "Translation json_object to dap_json_rpc_params");
     if (a_array_list == NULL)
         return NULL;
@@ -130,7 +128,8 @@ dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *
     return  l_params;
 }
 
-char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){
+char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params)
+{
     log_it(L_NOTICE, "Translation struct params to JSON string");
     json_object *l_jobj_array = json_object_new_array();
     for (uint32_t i = 0; i <= a_params->lenght; i++){
@@ -158,33 +157,4 @@ char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params){
     char *l_str = dap_strjoin(NULL, "\"params\":", json_object_to_json_string(l_jobj_array), NULL);
     json_object_put(l_jobj_array);
     return l_str;
-    /*char *l_str = "[";
-    uint32_t l_pre_lenght = a_params->lenght - 1;
-    for (uint32_t i = 0; i <= l_pre_lenght;i++){
-        switch (a_params->params[i]->type){
-        case TYPE_PARAM_DOUBLE:
-            //l_str = dap_strjoin(NULL, l_str, (double)a_params->params[i]->value_param);
-            break;
-        case TYPE_PARAM_INTEGER:
-            l_str = dap_strjoin(NULL, l_str, (int64_t)a_params->params[i]->value_param);
-            break;
-         case TYPE_PARAM_BOOLEAN:
-            if((bool)a_params->params[i]->value_param){
-                l_str = dap_strjoin(NULL, l_str, "true");
-            }else{
-                l_str = dap_strjoin(NULL, l_str, "false");
-            }
-            break;
-        case TYPE_PARAM_STRING:
-            l_str = dap_strjoin(NULL, l_str, (char*)a_params->params[i]->value_param);
-            break;
-        default:
-            l_str = dap_strjoin(NULL, l_str, "null");
-        }
-        if (i != l_pre_lenght){
-            l_str = dap_strjoin(NULL, l_str, ",");
-        }
-    }
-    l_str = dap_strjoin(NULL, l_str, "]");
-    return l_str;*/
 }
