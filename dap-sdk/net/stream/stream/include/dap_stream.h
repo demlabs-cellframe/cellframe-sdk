@@ -26,6 +26,8 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <pthread.h>
+
+#include "dap_config.h"
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
 
@@ -91,7 +93,7 @@ typedef struct dap_stream {
 
 #define DAP_STREAM(a) ((dap_stream_t *) (a)->_inheritor )
 
-int dap_stream_init(bool a_dump_packet_headers);
+int dap_stream_init(dap_config_t * g_config);
 
 bool dap_stream_get_dump_packet_headers();
 
@@ -109,5 +111,7 @@ void dap_stream_proc_pkt_in(dap_stream_t * sid);
 
 void dap_stream_es_rw_states_update(struct dap_stream *a_stream);
 void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready);
+
+dap_enc_key_type_t dap_stream_get_preferred_encryption_type();
 
 

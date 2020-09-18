@@ -95,6 +95,7 @@ typedef struct dap_events_socket_callbacks {
         dap_events_socket_callback_queue_t queue_callback; // Queue callback for listening socket
         dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // queue_ptr callback for listening socket
     };
+
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
     dap_events_socket_callback_t read_callback; // Read function

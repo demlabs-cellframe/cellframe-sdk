@@ -30,6 +30,7 @@
 #include <errno.h>
 #ifndef _WIN32
 #include <sys/epoll.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include <fcntl.h>
 #else
@@ -39,10 +40,11 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include "wepoll.h"
-#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "dap_common.h"
+#include "dap_list.h"
 #include "dap_worker.h"
 #include "dap_events.h"
 
@@ -187,6 +189,7 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     int l_pipe[2];
     int l_errno;
     char l_errbuf[128];
+    l_errbuf[0]=0;
     if( pipe(l_pipe) < 0 ){
         l_errno = errno;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -253,6 +256,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     int l_pipe[2];
     int l_errno;
     char l_errbuf[128];
+    l_errbuf[0]=0;
     if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
         l_errno = errno;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -290,7 +294,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     l_es->mqd = mq_open(l_mq_name,O_CREAT|O_RDWR,S_IRWXU, &l_mq_attr);
     if (l_es->mqd == -1 ){
         int l_errno = errno;
-        char l_errbuf[128]={0};
+        char l_errbuf[128];
+        l_errbuf[0]=0;
         strerror_r(l_errno,l_errbuf,sizeof (l_errbuf) );
         DAP_DELETE(l_es);
         l_es = NULL;
@@ -357,7 +362,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             ssize_t l_ret = mq_timedreceive(a_esocket->mqd,(char*) &l_queue_ptr, sizeof (l_queue_ptr),NULL,&s_timeout );
             if (l_ret == -1){
                 int l_errno = errno;
-                char l_errbuf[128]={0};
+                char l_errbuf[128];
+                l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
                 log_it(L_ERROR, "Error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
                 return -1;
@@ -398,6 +404,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     if((l_es->fd = eventfd(0,0) ) < 0 ){
         int l_errno = errno;
         char l_errbuf[128];
+        l_errbuf[0]=0;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         switch (l_errno) {
             case EINVAL: log_it(L_CRITICAL, "An unsupported value was specified in flags: \"%s\" (%d)", l_errbuf, l_errno); break;
@@ -459,6 +466,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
         }else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) ){  // we use blocked socket for now but who knows...
             int l_errno = errno;
             char l_errbuf[128];
+            l_errbuf[0]=0;
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_WARNING, "Can't read packet from event fd: \"%s\"(%d)", l_errbuf, l_errno);
         }else
@@ -468,6 +476,90 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #endif
     }else
         log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
+}
+
+
+typedef struct dap_events_socket_buf_item
+{
+    dap_events_socket_t * es;
+    void *arg;
+} dap_events_socket_buf_item_t;
+
+int dap_events_socket_queue_ptr_send(dap_events_socket_t * a_es, void* a_arg);
+
+/**
+ *  Waits on the socket
+ *  return 0: timeout, 1: may send data, -1 error
+ */
+static int wait_send_socket(int a_sockfd, long timeout_ms)
+{
+    struct timeval l_tv;
+    fd_set l_outfd, l_errfd;
+
+    l_tv.tv_sec = timeout_ms / 1000;
+    l_tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+    FD_ZERO(&l_outfd);
+    FD_ZERO(&l_errfd);
+    FD_SET(a_sockfd, &l_errfd);
+    FD_SET(a_sockfd, &l_outfd);
+
+    while(1) {
+#ifdef DAP_OS_WINDOWS
+    int l_res = select(1, NULL, &l_outfd, &l_errfd, &l_tv);
+#else
+        int l_res = select(a_sockfd + 1, NULL, &l_outfd, &l_errfd, &l_tv);
+#endif
+        if(l_res == 0){
+            log_it(L_DEBUG, "socket %d timed out", a_sockfd);
+        }
+        if(l_res == -1) {
+            if(errno == EINTR)
+                continue;
+            log_it(L_DEBUG, "socket %d waiting errno=%d", errno);
+            return l_res;
+        }
+        break;
+    };
+
+    if(FD_ISSET(a_sockfd, &l_outfd))
+        return 1;
+
+    return -1;
+}
+
+/**
+ * @brief dap_events_socket_buf_thread
+ * @param arg
+ * @return
+ */
+void *dap_events_socket_buf_thread(void *arg)
+{
+    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) arg;
+    if(!l_item) {
+        pthread_exit(0);
+    }
+    int l_res = 0;
+    //int l_count = 0;
+    //while(l_res < 1 && l_count < 3) {
+    // wait max 5 min
+    l_res = wait_send_socket(l_item->es->fd2, 300000);
+    //    l_count++;
+    //}
+    // if timeout or
+    if(l_res >= 0)
+        dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
+    DAP_DELETE(l_item);
+    pthread_exit(0);
+}
+
+static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
+{
+    dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t);
+    l_item->es = a_es;
+    l_item->arg = a_arg;
+    pthread_t l_thread;
+    pthread_create(&l_thread, NULL, dap_events_socket_buf_thread, l_item);
 }
 
 /**
@@ -484,8 +576,10 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         return  0;
     else{
         char l_errbuf[128];
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
+        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
+        // Try again
+        if(l_errno == EAGAIN)
+            add_ptr_to_buf(a_es, a_arg);
         return l_errno;
     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
@@ -623,6 +717,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
     if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 ){
         int l_errno = errno;
         char l_errbuf[128];
+        l_errbuf[0]=0;
         strerror_r( l_errno, l_errbuf, sizeof (l_errbuf));
         log_it( L_ERROR,"Can't update read client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno );
     }
@@ -659,6 +754,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool a_is_r
         if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
             int l_errno = errno;
             char l_errbuf[128];
+            l_errbuf[0]=0;
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_ERROR,"Can't update write client socket state in the epoll_fd %d: \"%s\" (%d)",
                    sc->worker->epoll_fd, l_errbuf, l_errno);
