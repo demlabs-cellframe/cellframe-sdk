@@ -231,9 +231,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         dap_chain_addr_t l_addr = { 0 };
 
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
-            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0,a_dag_event_size);
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, a_dag_event_size,l_sig_pos);
             if ( l_sign == NULL){
-                log_it(L_WARNING, "Event is NOT signed with anything");
+                log_it(L_WARNING, "Event is NOT signed with anything: sig pos %zd, event size %zd", a_dag_event_size);
                 return -4;
             }
 
