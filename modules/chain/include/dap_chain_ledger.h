@@ -36,10 +36,9 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_net.h"
 
 typedef struct dap_ledger {
-    dap_chain_net_t *net;
+    char *net_name;
     void *_internal;
 } dap_ledger_t;
 
@@ -54,7 +53,7 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 // Check the double spending  in all cells
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
-dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, dap_chain_net_t *a_net);
+dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
 
 // Remove dap_ledger_t structure
 void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger);
@@ -79,7 +78,7 @@ DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_c
 DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
 {
    if (a_ledger) {
-       return dap_strdup_printf("local.%s.ledger-cahce.%s", a_ledger->net->pub.name, a_suffix);
+       return dap_strdup_printf("local.ledger-cahce.%s.%s", a_ledger->net_name, a_suffix);
    }
    return NULL;
 }

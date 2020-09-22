@@ -1381,7 +1381,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
         }
         // init LEDGER model
-        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net);
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name);
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
                                                              ,&PVT(l_net)->seed_aliases_count);

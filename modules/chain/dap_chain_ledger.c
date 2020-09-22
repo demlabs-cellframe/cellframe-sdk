@@ -52,7 +52,6 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
-#include "dap_chain_net.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_ledger"
@@ -433,7 +432,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_ledger_wallet_balance_t *l_balance_item = DAP_NEW_Z(dap_ledger_wallet_balance_t);
-        l_balance_item->key = DAP_NEW_Z_SIZE(char, l_objs[i].value_len);
+        l_balance_item->key = DAP_NEW_Z_SIZE(char, strlen(l_objs[i].key) + 1);
         strcpy(l_balance_item->key, l_objs[i].key);
         char *l_ptr = strchr(l_balance_item->key, ' ');
         if (l_ptr++) {
@@ -452,10 +451,10 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
  * @param a_check_flags
  * @return dap_ledger_t
  */
-dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, dap_chain_net_t *a_net)
+dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
 {
     dap_ledger_t *l_ledger = dap_chain_ledger_handle_new();
-    l_ledger->net = a_net;
+    l_ledger->net_name = a_net_name;
     dap_ledger_private_t *l_ledger_priv = PVT(l_ledger);
     l_ledger_priv->check_flags = a_check_flags;
     l_ledger_priv->check_ds = a_check_flags & DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
@@ -1494,7 +1493,7 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
                 !memcmp(PVT(a_ledger)->last_tx.hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t))) {
             PVT(a_ledger)->last_tx.found = true;
         }
-        if (PVT(a_ledger)->last_thres_tx.found &&
+        if (!PVT(a_ledger)->last_thres_tx.found &&
                 !memcmp(PVT(a_ledger)->last_thres_tx.hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t))) {
             PVT(a_ledger)->last_thres_tx.found = true;
         }

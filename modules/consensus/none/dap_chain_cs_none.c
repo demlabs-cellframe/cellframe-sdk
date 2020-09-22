@@ -138,6 +138,7 @@ static void s_history_callback_notify(void * a_arg, const char a_op_code, const 
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
         log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%u",l_net->pub.name,
                l_gdb->chain->name, a_op_code, a_group, a_key, a_value_size);
+        dap_chain_node_mempool_autoproc_notify((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
         dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
     }
 }
@@ -261,19 +262,12 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
 static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net)
 {
     dap_chain_gdb_private_t *l_gdb_priv = PVT(a_gdb);
-    // protect from reloading
-    if(dap_chain_ledger_count( a_net->pub.ledger ) > 0)
-        return 0;
-
     size_t l_data_size = 0;
-
-
     //  Read the entire database into an array of size bytes
     dap_global_db_obj_t *data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
         s_chain_callback_atom_add(a_gdb->chain,data[i].value, data[i].value_len);
-
     }
     dap_chain_global_db_objs_delete(data, l_data_size);
     return 0;
