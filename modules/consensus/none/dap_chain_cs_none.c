@@ -65,8 +65,6 @@ typedef struct dap_chain_gdb_private
 
 #define PVT(a) ( (a) ? (dap_chain_gdb_private_t* ) (a)->_internal : NULL)
 
-static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net);
-
 // Atomic element organization callbacks
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Accept new event in gdb
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
@@ -177,7 +175,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
-    dap_chain_gdb_ledger_load(l_gdb, l_net);
+    dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
     l_gdb_priv->is_load_mode = false;
 
     a_chain->callback_delete = dap_chain_gdb_delete;
@@ -259,15 +257,14 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  *
  * return 0 if OK otherwise  negative error code
  */
-static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net)
+int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
 {
-    dap_chain_gdb_private_t *l_gdb_priv = PVT(a_gdb);
     size_t l_data_size = 0;
     //  Read the entire database into an array of size bytes
-    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
+    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(a_gdb_group, &l_data_size);
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
-        s_chain_callback_atom_add(a_gdb->chain,data[i].value, data[i].value_len);
+        s_chain_callback_atom_add(a_chain, data[i].value, data[i].value_len);
     }
     dap_chain_global_db_objs_delete(data, l_data_size);
     return 0;

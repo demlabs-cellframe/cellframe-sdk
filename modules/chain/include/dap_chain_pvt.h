@@ -41,6 +41,8 @@ typedef struct dap_chain_pvt
 {
     dap_chain_t * chain;
     char * file_storage_dir;
+    char * cs_name;
+    int celled;
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *) a->_pvt  )
