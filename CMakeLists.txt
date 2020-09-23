@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.5-17")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.6-1")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -55,7 +55,7 @@ endif()
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_server_core dap_enc_server dap_http_server dap_udp_server dap_session 
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_server_core dap_json_rpc dap_enc_server dap_http_server dap_udp_server dap_session 
 	dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_mempool magic)
 endif()
 
