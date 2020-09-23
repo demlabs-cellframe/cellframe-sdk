@@ -7,6 +7,7 @@ endif()
 
 add_subdirectory(http_server)
 add_subdirectory(enc_server)
+add_subdirectory(json_rpc)
 
 if (BUILD_LIB_DAP_SERVER_TESTS)
     enable_testing()

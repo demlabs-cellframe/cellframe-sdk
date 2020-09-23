@@ -54,12 +54,12 @@
     #define DAP_EVENTS_CAPS_PIPE_POSIX
 #endif
 
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-#include <sys/epoll.h>
-#define EPOLL_HANDLE  int
-#elif defined (DAP_EVENTS_CAPS_WEPOLL)
+#if defined(DAP_EVENTS_CAPS_WEPOLL)
 #include "wepoll.h"
 #define EPOLL_HANDLE  HANDLE
+#elif defined (DAP_EVENTS_CAPS_EPOLL)
+#include <sys/epoll.h>
+#define EPOLL_HANDLE  int
 #endif
 
 #define BIT( x ) ( 1 << x )
