@@ -1575,7 +1575,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, "balances");
     HASH_ITER(hh, l_ledger_priv->balance_accounts, l_balance_current, l_balance_tmp) {
         HASH_DEL(l_ledger_priv->balance_accounts, l_balance_current);
-        dap_chain_global_db_gr_del(l_ledger_priv->balance_accounts->key, l_gdb_group);
+        dap_chain_global_db_gr_del(l_balance_current->key, l_gdb_group);
         DAP_DELETE(l_balance_current->key);
         DAP_DELETE(l_balance_current);
     }

@@ -1254,8 +1254,11 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
             dap_chain_ledger_purge(l_net->pub.ledger);
             dap_chain_t *l_chain;
             DL_FOREACH(l_net->pub.chains, l_chain) {
+                if (l_chain->callback_purge) {
+                    l_chain->callback_purge(l_chain);
+                }
                 if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) {
-                    dap_chain_gdb_ledger_load(dap_chain_gdb_get_group(l_chain), l_chain);
+                    dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
                 } else {
                     dap_chain_load_all(l_chain);
                 }

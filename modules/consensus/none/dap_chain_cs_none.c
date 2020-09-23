@@ -141,6 +141,11 @@ static void s_history_callback_notify(void * a_arg, const char a_op_code, const 
     }
 }
 
+static void s_dap_chain_gdb_callback_purge(dap_chain_t *a_chain)
+{
+    PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = true;
+}
+
 /**
  * @brief dap_chain_gdb_new
  * @param a_chain
@@ -176,9 +181,9 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // load ledger
     l_gdb_priv->is_load_mode = true;
     dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
-    l_gdb_priv->is_load_mode = false;
 
     a_chain->callback_delete = dap_chain_gdb_delete;
+    a_chain->callback_purge = s_dap_chain_gdb_callback_purge;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add; // Accept new element in chain
@@ -267,6 +272,7 @@ int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
         s_chain_callback_atom_add(a_chain, data[i].value, data[i].value_len);
     }
     dap_chain_global_db_objs_delete(data, l_data_size);
+    PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = false;
     return 0;
 }
 
