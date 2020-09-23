@@ -117,6 +117,7 @@ typedef struct dap_chain{
 
     dap_chain_callback_new_cfg_t callback_created;
     dap_chain_callback_t callback_delete;
+    dap_chain_callback_t callback_purge;
 
     dap_chain_callback_atom_t callback_atom_add;
     dap_chain_callback_atom_verify_t callback_atom_verify;
