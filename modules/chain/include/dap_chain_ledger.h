@@ -78,7 +78,7 @@ DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_c
 DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
 {
    if (a_ledger) {
-       return dap_strdup_printf("local.ledger-cahce.%s.%s", a_ledger->net_name, a_suffix);
+       return dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix);
    }
    return NULL;
 }
