@@ -144,11 +144,6 @@ typedef struct dap_events_socket {
 
     uint32_t buf_out_zero_count;
 
-    // Flags
-    bool is_pingable;
-    bool is_read_direct; // If set - don't call read() in worker, let operate with handler to callback
-    bool is_dont_reset_write_flag; // If set - don't reset write flag ever data is over
-
     // Input section
     union{
         uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
@@ -165,7 +160,7 @@ typedef struct dap_events_socket {
     // Stored string representation
     char hostaddr[1024]; // Address
     char service[128];
-    struct sockaddr remote_addr;
+    struct sockaddr_in remote_addr; // For UDP datagrams
 
     // Links to related objects
     dap_events_t *events;

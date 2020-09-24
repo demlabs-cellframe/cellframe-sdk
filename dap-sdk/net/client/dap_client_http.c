@@ -30,7 +30,8 @@
 // for Unix-like systems
 #include <sys/types.h>
 #include <sys/socket.h>
-//#include <bits/socket_type.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 #endif
 #include <unistd.h>
 #include <errno.h>
