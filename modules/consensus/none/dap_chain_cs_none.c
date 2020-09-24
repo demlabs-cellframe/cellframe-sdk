@@ -114,7 +114,7 @@ static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 int dap_chain_gdb_init(void)
 {
     dap_chain_cs_add(CONSENSUS_NAME, s_cs_callback_new);
-    dap_chain_class_add(CONSENSUS_NAME, dap_chain_gdb_new);
+    dap_chain_cs_type_add(CONSENSUS_NAME, dap_chain_gdb_new);
 
     log_it(L_NOTICE, "Initialized GDB chain items organization class");
     return 0;

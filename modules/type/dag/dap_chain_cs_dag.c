@@ -128,7 +128,7 @@ static bool s_seed_mode = false;
 int dap_chain_cs_dag_init(void)
 {
     srand((unsigned int) time(NULL));
-    dap_chain_class_add( "dag", dap_chain_cs_dag_new );
+    dap_chain_cs_type_add( "dag", dap_chain_cs_dag_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, NULL, "DAG commands",
         "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H hex|base58(default)]\n"
