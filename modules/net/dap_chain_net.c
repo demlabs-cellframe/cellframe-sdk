@@ -38,6 +38,7 @@
 #ifdef DAP_OS_UNIX
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #endif
 
@@ -66,10 +67,12 @@
 #include "dap_enc_http.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
+#include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_cs_none.h"
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
@@ -422,9 +425,9 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                 dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
                                 if(l_remote_node_info) {
                                     dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                                    int res = 0; //dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
-                                    memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
-                                    if (l_link_node_info->hdr.address.uint64 != l_own_addr) {
+                                    int l_res = dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                                    //memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
+                                    if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                         l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                                     }
                                     DAP_DELETE(l_remote_node_info);
@@ -865,7 +868,8 @@ int dap_chain_net_init()
             "\tPrint list of authority cetificates from GDB group\n"
         "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-                                        );
+        "net -net <chain net name> ledger reload\n"
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"                                        );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_global_db_add_history_group_prefix("global", GROUP_LOCAL_HISTORY);
 
@@ -1004,12 +1008,14 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
         const char *l_get_str = NULL;
         const char *l_stats_str = NULL;
         const char *l_ca_str = NULL;
+        const char *l_ledger_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "go", &l_go_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "get", &l_get_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "ca", &l_ca_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "ledger", &l_ledger_str);
 
         if ( l_stats_str ){
             if ( strcmp(l_stats_str,"tx") == 0 ) {
@@ -1245,6 +1251,19 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                                                   "Subcommand \"ca\" requires one of parameter: add, list, del\n");
                 ret = -5;
             }
+        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
+            dap_chain_ledger_purge(l_net->pub.ledger);
+            dap_chain_t *l_chain;
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                if (l_chain->callback_purge) {
+                    l_chain->callback_purge(l_chain);
+                }
+                if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) {
+                    dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
+                } else {
+                    dap_chain_load_all(l_chain);
+                }
+            }
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,"Command requires one of subcomand: sync, links\n");
             ret = -1;
@@ -1381,7 +1400,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
         }
         // init LEDGER model
-        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags);
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name);
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
                                                              ,&PVT(l_net)->seed_aliases_count);

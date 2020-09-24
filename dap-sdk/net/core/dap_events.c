@@ -39,7 +39,7 @@
 #include <sys/stat.h>
 #endif
 
-#include <netdb.h>
+//#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>

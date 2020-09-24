@@ -50,7 +50,6 @@
 #include "dap_http.h"
 #include "dap_http_client.h"
 #include "dap_http_header.h"
-#include "dap_udp_server.h"
 #include "dap_stream_worker.h"
 
 #define LOG_TAG "dap_stream"
@@ -168,13 +167,12 @@ void dap_stream_add_proc_http(struct dap_http * a_http, const char * a_url)
  * @brief stream_add_proc_udp Add processor callback for streaming
  * @param a_udp_server UDP server instance
  */
-void dap_stream_add_proc_udp(dap_udp_server_t * a_udp_server)
+void dap_stream_add_proc_udp(dap_server_t *a_udp_server)
 {
-    dap_server_t* l_server =  a_udp_server->dap_server;
-    l_server->client_callbacks.read_callback = s_esocket_data_read;
-    l_server->client_callbacks.write_callback = s_esocket_write;
-    l_server->client_callbacks.delete_callback = s_esocket_callback_delete;
-    l_server->client_callbacks.new_callback = s_udp_esocket_new;
+    a_udp_server->client_callbacks.read_callback = s_esocket_data_read;
+    a_udp_server->client_callbacks.write_callback = s_esocket_write;
+    a_udp_server->client_callbacks.delete_callback = s_esocket_callback_delete;
+    a_udp_server->client_callbacks.new_callback = s_udp_esocket_new;
 }
 
 /**

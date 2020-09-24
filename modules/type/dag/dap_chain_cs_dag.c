@@ -78,6 +78,8 @@ typedef struct dap_chain_cs_dag_pvt {
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
+static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
+
 // Atomic element organization callbacks
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                      //    Accept new event in dag
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                   //    Verify new event in dag
@@ -168,6 +170,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_rwlock_init(& PVT(l_dag)->events_rwlock,NULL);
 
     a_chain->callback_delete = dap_chain_cs_dag_delete;
+    a_chain->callback_purge = s_dap_chain_cs_dag_purge;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
@@ -227,6 +230,34 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     return 0;
 }
 
+static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
+{
+    dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
+    pthread_rwlock_wrlock(&l_dag_pvt->events_rwlock);
+    dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
+    HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events_treshold, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->events_treshold_conflicted, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events_treshold_conflicted, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->tx_events, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->tx_events, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    pthread_rwlock_unlock(&l_dag_pvt->events_rwlock);
+}
+
 /**
  * @brief dap_chain_cs_dag_delete
  * @param a_dag
@@ -234,6 +265,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  */
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
+    s_dap_chain_cs_dag_purge(a_chain);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_rwlock_destroy(& PVT(l_dag)->events_rwlock);
 
@@ -251,12 +283,12 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
   switch (l_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TOKEN_DECL: {
       dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-      return dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
+      return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
     }
       break;
     case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
       dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-      return dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
+      return dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
     }
       break;
     case DAP_CHAIN_DATUM_TX: {
@@ -270,7 +302,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
       HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
 
       // don't save bad transactions to base
-      if(dap_chain_ledger_tx_add(a_ledger, l_tx) != 1) {
+      if(dap_chain_ledger_tx_load(a_ledger, l_tx) != 1) {
         return -1;
       }
     }
