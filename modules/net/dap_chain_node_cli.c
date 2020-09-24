@@ -40,6 +40,7 @@
 //#include <sys/select.h>
 #include <netinet/in.h>
 #include <sys/un.h>
+#include <sys/stat.h>
 //#define closesocket close
 //typedef int SOCKET;
 //#define SOCKET_ERROR    -1  // for win32 =  (-1)
