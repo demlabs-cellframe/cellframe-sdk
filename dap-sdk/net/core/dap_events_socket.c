@@ -748,7 +748,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool a_is_r
 
     sc->ev.events = events;
 
-    if (sc->worker && sc->server->type != DAP_SERVER_UDP)
+    if ((!sc->server && sc->worker) || (sc->worker && sc->server->type != DAP_SERVER_UDP))
         if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
             int l_errno = errno;
             char l_errbuf[128];
