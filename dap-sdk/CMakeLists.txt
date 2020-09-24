@@ -1,4 +1,4 @@
-set(DAP_SDK_NATIVE_VERSION "2.0-11")
+set(DAP_SDK_NATIVE_VERSION "2.0-13")
 # Core 
 if (DAPSDK_MODULES MATCHES "core")
     # Core
@@ -22,5 +22,5 @@ endif()
 # Networking server
 if (DAPSDK_MODULES MATCHES "network-server")
     add_subdirectory(net/server)
-    add_subdirectory(net/server-udp)
+#    add_subdirectory(net/server-udp)
 endif()

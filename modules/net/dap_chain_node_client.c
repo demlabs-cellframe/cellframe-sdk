@@ -38,6 +38,10 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <pthread.h>
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #endif
 
 #include "dap_common.h"

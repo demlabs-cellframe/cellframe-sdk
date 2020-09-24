@@ -152,7 +152,6 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
 
     ret+=dap_events_socket_write_unsafe(a_stream->esocket,&pkt_hdr,sizeof(pkt_hdr));
     ret+=dap_events_socket_write_unsafe(a_stream->esocket,l_buf_selected,pkt_hdr.size);
-    dap_events_socket_set_writable_unsafe(a_stream->esocket, true);
 
     if(l_buf_allocated)
         DAP_DELETE(l_buf_allocated);
