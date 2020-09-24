@@ -1,4 +1,4 @@
-set(DAP_SDK_NATIVE_VERSION "2.0-12")
+set(DAP_SDK_NATIVE_VERSION "2.0-13")
 # Core 
 if (DAPSDK_MODULES MATCHES "core")
     # Core
