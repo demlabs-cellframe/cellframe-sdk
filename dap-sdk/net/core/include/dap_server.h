@@ -51,7 +51,7 @@
 #include "dap_cpu_monitor.h"
 #include "dap_events_socket.h"
 
-typedef enum dap_server_type {DAP_SERVER_TCP} dap_server_type_t;
+typedef enum dap_server_type {DAP_SERVER_TCP, DAP_SERVER_UDP} dap_server_type_t;
 
 
 
@@ -86,3 +86,4 @@ int dap_server_init( ); // Init server module
 void  dap_server_deinit( void ); // Deinit server module
 
 dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16_t a_port, dap_server_type_t a_type);
+void dap_server_delete(dap_server_t *a_server);

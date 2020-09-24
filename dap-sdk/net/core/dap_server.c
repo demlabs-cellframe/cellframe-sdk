@@ -64,7 +64,6 @@ static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_s
 static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr* a_remote_addr);
 static void s_es_server_error(dap_events_socket_t *a_es, int a_arg);
 static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg);
-static void s_server_delete(dap_server_t * a_server);
 /**
  * @brief dap_server_init
  * @return
@@ -86,14 +85,17 @@ void dap_server_deinit()
  * @brief dap_server_delete
  * @param a_server
  */
-void s_server_delete(dap_server_t * a_server)
+void dap_server_delete(dap_server_t *a_server)
 {
-    if(a_server->delete_callback)
+   dap_events_socket_remove_and_delete_mt(a_server->es_listener->worker, a_server->es_listener);
+   if(a_server->delete_callback)
         a_server->delete_callback(a_server,NULL);
    if( a_server->address )
        DAP_DELETE(a_server->address );
    if( a_server->_inheritor )
        DAP_DELETE( a_server->_inheritor );
+   pthread_mutex_destroy(&a_server->started_mutex);
+   pthread_cond_destroy(&a_server->started_cond);
    DAP_DELETE(a_server);
 }
 
@@ -117,6 +119,8 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 
     if(l_server->type == DAP_SERVER_TCP)
         l_server->socket_listener = socket(AF_INET, SOCK_STREAM, 0);
+    else if (l_server->type == DAP_SERVER_UDP)
+        l_server->socket_listener = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (l_server->socket_listener < 0) {
         int l_errno = errno;
@@ -166,6 +170,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
         assert(l_w);
         dap_events_socket_t * l_es = dap_events_socket_wrap2( l_server, a_events, l_server->socket_listener, &l_callbacks);
+        l_server->es_listener = l_es;
 
         if ( l_es){
             l_es->type = DESCRIPTOR_TYPE_SOCKET_LISTENING;

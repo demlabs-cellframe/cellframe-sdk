@@ -116,7 +116,6 @@ typedef struct _dap_dns_zone_hash_t {
 
 typedef struct _dap_dns_server_t {
     dap_server_t *instance;
-    pthread_t udp_thread;
     dap_dns_zone_hash_t *hash_table;
 } dap_dns_server_t;
 

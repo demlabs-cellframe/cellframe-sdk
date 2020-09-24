@@ -165,7 +165,7 @@ typedef struct dap_events_socket {
     // Stored string representation
     char hostaddr[1024]; // Address
     char service[128];
-    struct sockaddr remote_addr;
+    struct sockaddr_in remote_addr; // For UDP datagrams
 
     // Links to related objects
     dap_events_t *events;
