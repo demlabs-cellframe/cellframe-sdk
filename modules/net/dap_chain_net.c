@@ -38,6 +38,7 @@
 #ifdef DAP_OS_UNIX
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #endif
 
@@ -424,9 +425,9 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                 dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
                                 if(l_remote_node_info) {
                                     dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                                    int res = 0; //dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
-                                    memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
-                                    if (l_link_node_info->hdr.address.uint64 != l_own_addr) {
+                                    int l_res = dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
+                                    //memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
+                                    if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                         l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                                     }
                                     DAP_DELETE(l_remote_node_info);

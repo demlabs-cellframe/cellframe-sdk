@@ -652,12 +652,10 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   ret->socket = a_sock;
   ret->events = a_events;
   ret->server = a_server;
-  ret->is_dont_reset_write_flag = true;
 
   memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
 
   ret->flags = DAP_SOCK_READY_TO_READ;
-  ret->is_pingable = true;
   ret->last_time_active = ret->last_ping_request = time( NULL );
 
   pthread_rwlock_wrlock( &a_events->sockets_rwlock );
@@ -693,7 +691,7 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
  */
 void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_ready )
 {
-  if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ) )
+  if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ))
     return;
 
   sc->ev.events = sc->ev_base_flags;
@@ -730,7 +728,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_rea
  */
 void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool a_is_ready )
 {
-    if ( a_is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE) ) {
+    if ( a_is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE)) {
         return;
     }
 
@@ -750,7 +748,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool a_is_r
 
     sc->ev.events = events;
 
-    if (sc->worker)
+    if (sc->worker && sc->server->type != DAP_SERVER_UDP)
         if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
             int l_errno = errno;
             char l_errbuf[128];
