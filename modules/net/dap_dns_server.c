@@ -24,8 +24,6 @@
 
 #include <errno.h>
 #include "dap_dns_server.h"
-#include "dap_udp_server.h"
-#include "dap_udp_client.h"
 #include "dap_events_socket.h"
 #include "dap_common.h"
 #include "dap_chain_net.h"
@@ -38,6 +36,9 @@
 
 #ifndef _WIN32
 #include <unistd.h> // for close
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #define closesocket close
 #define INVALID_SOCKET -1
 #endif
@@ -333,7 +334,6 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
     dns_reply->data[3] = msg_flags.val;
     // Send DNS reply
     dap_events_socket_write_unsafe(a_es, dns_reply->data, dns_reply->ptr);
-    dap_events_socket_set_writable_unsafe(a_es, true);
     dap_string_free(dns_hostname, true);
 cleanup:
     DAP_DELETE(dns_reply->data);
@@ -345,12 +345,13 @@ cleanup:
 
 void dap_dns_server_start(dap_events_t *a_ev) {
     s_dns_server = DAP_NEW_Z(dap_dns_server_t);
-    s_dns_server->instance = dap_server_new(a_ev, NULL, DNS_LISTEN_PORT, DAP_SERVER_UDP);
+    dap_events_socket_callbacks_t l_cb = {};
+    l_cb.read_callback = dap_dns_client_read;
+    s_dns_server->instance = dap_server_new(a_ev, NULL, DNS_LISTEN_PORT, DAP_SERVER_UDP, &l_cb);
     if (!s_dns_server->instance) {
         log_it(L_ERROR, "Can't start DNS server");
         return;
     }
-    s_dns_server->instance->client_callbacks.read_callback = dap_dns_client_read;
     dap_dns_zone_register(&s_root_alias[0], dap_dns_resolve_hostname);  // root resolver
 }
 
