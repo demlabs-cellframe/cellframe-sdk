@@ -185,7 +185,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         l_server->es_listeners = dap_list_append(l_server->es_listeners, l_es);
 
         if (l_es) {
-            l_es->type = l_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET;
+            l_es->type = l_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             // Prepare for multi thread listening
             l_es->ev_base_flags  = EPOLLET| EPOLLIN | EPOLLEXCLUSIVE;
