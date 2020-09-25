@@ -26,6 +26,7 @@
 #include "dap_hash.h"
 
 #include "dap_chain_block.h"
+#include "dap_chain_block_cache.h"
 
 #define LOG_TAG "dap_chain_block"
 
@@ -61,31 +62,29 @@ dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block )
     }else{
         l_block->hdr.signature = DAP_CHAIN_BLOCK_SIGNATURE;
         l_block->hdr.version = 1;
-        l_block->hdr.timestamp = time(NULL);
+        l_block->hdr.ts_created = time(NULL);
         if( a_prev_block ){
-            memcpy(&l_block->hdr.prev_block,a_prev_block,sizeof(l_block->hdr.prev_block));
+            dap_chain_block_meta_add(l_block, DAP_CHAIN_BLOCK_META_PREV,a_prev_block,sizeof (*a_prev_block) );
         }else{
             log_it(L_INFO, "Genesis block produced");
-            memset(&l_block->hdr.prev_block,0xff,sizeof(l_block->hdr.prev_block));
         }
-
-        l_block->hdr.size = sizeof(l_block->hdr);
         return l_block;
     }
 
 
 }
 
-/**
- * @brief dap_chain_block_datum_add
- * @param a_block
- * @param a_datum
- * @param a_datum_size
- * @return
- */
-dap_chain_datum_t * dap_chain_block_datum_add(dap_chain_block_t * a_block, dap_chain_datum_t * a_datum, size_t a_datum_size);
+// Add metadata in block
+size_t dap_chain_block_meta_add(dap_chain_block_t * a_block, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size)
+{
+
+}
+
+
+size_t dap_chain_block_datum_add(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size)
 {
     if ( a_block) {
+        dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_get(a_block, )
         uint32_t l_sections_size = ( a_block->hdr.size - sizeof(a_block->hdr) );
         if(   l_sections_size > a_section_offset ){
             if( l_sections_size > (a_section_offset + a_section_data_size ) ) {
@@ -107,5 +106,5 @@ dap_chain_datum_t * dap_chain_block_datum_add(dap_chain_block_t * a_block, dap_c
     }
 }
 
-void dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, dap_chain_hash_fast_t* a_datum_hash);
+void dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
 

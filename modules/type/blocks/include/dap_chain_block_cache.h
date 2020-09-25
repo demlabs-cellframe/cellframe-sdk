@@ -56,6 +56,6 @@ typedef struct dap_chain_block_cache{
 int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block, size_t a_block_size);
+dap_chain_block_cache_t * dap_chain_block_cache_get(dap_chain_block_t * a_block, size_t a_block_size);
 void dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);

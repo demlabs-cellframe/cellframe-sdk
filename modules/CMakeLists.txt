@@ -39,7 +39,7 @@ endif()
 
 # Consensus type dag
 if (CELLFRAME_MODULES MATCHES "cs-blocks")
-    add_subdirectory(type/blocks)
+#    add_subdirectory(type/blocks)
 endif()
 
 # No consensus

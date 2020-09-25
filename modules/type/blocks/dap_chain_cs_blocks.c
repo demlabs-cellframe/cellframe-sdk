@@ -22,6 +22,7 @@
 */
 #include "dap_common.h"
 
+#include "dap_enc_base58.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 #include "dap_chain_cs.h"
@@ -29,6 +30,7 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 #define LOG_TAG "dap_chain_cs_blocks"
 
 typedef struct dap_chain_cs_blocks_pvt
@@ -37,14 +39,20 @@ typedef struct dap_chain_cs_blocks_pvt
 
     dap_chain_block_cache_t * block_cache_first; // Mapped area start
     dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
+
+
     uint64_t blocks_count;
     uint64_t difficulty;
 
+    dap_chain_block_t * block_new;
+    size_t block_new_size;
 } dap_chain_cs_blocks_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *) a->_pvt )
 
-static int s_cli_blocks(int argc, char ** argv, void *arg_func, char **a_str_reply);
+static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
+static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
+static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
 
 // Callbacks
 static void s_callback_delete(dap_chain_t * a_chain);
@@ -163,6 +171,11 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     a_chain->callback_datums_pool_proc = s_callback_datums_pool_proc;
 
+    dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
+    l_cs_blocks->_pvt = l_cs_blocks_pvt;
+
+    dap_chain_node_role_t l_net_role= dap_chain_net_get_role( dap_chain_net_by_id(a_chain->net_id) );
+
     // Datum operations callbacks
 /*
     a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
@@ -174,6 +187,60 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 }
 
 
+
+/**
+ * @brief s_cli_parse_cmd_hash
+ * @param a_argv
+ * @param a_arg_index
+ * @param a_argc
+ * @param a_str_reply
+ * @param a_param
+ * @param a_datum_hash
+ * @return
+ */
+static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param,
+                                dap_chain_hash_fast_t * a_datum_hash)
+{
+    assert(a_datum_hash);
+
+    const char *l_datum_hash_str = NULL;
+    dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, a_param, &l_datum_hash_str);
+
+    return dap_enc_base58_hex_to_hash(l_datum_hash_str, a_datum_hash);
+}
+
+/**
+ * @brief s_cli_meta_hash_print
+ * @param a_str_tmp
+ * @param a_meta_title
+ * @param a_meta
+ */
+static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
+{
+    if(a_meta->hdr.size == sizeof (dap_chain_hash_fast_t) ){
+        char * l_hash_str = dap_chain_hash_fast_to_str_new( (dap_chain_hash_fast_t *) a_meta->data);
+        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\"\n", a_meta_title,l_hash_str);
+        DAP_DELETE(l_hash_str);
+    }else{
+        char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.size*2+3);
+        dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.size);
+        dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex );
+    }
+}
+
+/**
+ * @brief s_cli_meta_hex_print
+ * @param a_str_tmp
+ * @param a_meta_title
+ * @param a_meta
+ */
+static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
+{
+    char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.size*2+3);
+    dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.size);
+    dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex );
+}
+
 /**
  * @brief s_cli_blocks
  * @param argc
@@ -182,32 +249,36 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
  * @param a_str_reply
  * @return
  */
-static int s_cli_blocks(int argc, char ** argv, void *arg_func, char **a_str_reply)
+static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
 {
-    (void) arg_func;
+    (void) a_arg_func;
     enum {
-        SUBCMD_NEW,
+        SUBCMD_UNDEFINED =0,
+        SUBCMD_NEW_FLUSH,
         SUBCMD_NEW_DATUM_ADD,
         SUBCMD_NEW_DATUM_DEL,
         SUBCMD_NEW_DATUM_LIST,
         SUBCMD_NEW_COMPLETE,
         SUBCMD_DUMP,
         SUBCMD_LIST,
-        SUBCMD_UNDEFINED
+        SUBCMD_DROP
     } l_subcmd={0};
 
-    const char* l_subcmd_str[]={
-        [SUBCMD_NEW]="new",
+    const char* l_subcmd_strs[]={
+        [SUBCMD_NEW_FLUSH]="new",
         [SUBCMD_NEW_DATUM_ADD]="new_datum_add",
         [SUBCMD_NEW_DATUM_DEL]="new_datum_del",
         [SUBCMD_NEW_DATUM_LIST]="new_datum_del",
         [SUBCMD_NEW_COMPLETE]="new_complete",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
+        [SUBCMD_DROP]="drop",
         [SUBCMD_UNDEFINED]=NULL
     };
-    const size_t l_subcmd_str_count=sizeof(l_subcmd_str)/sizeof(*l_subcmd_str)-1;
+    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs)-1;
     const char* l_subcmd_str_args[l_subcmd_str_count];
+    const char* l_subcmd_str_arg;
+    const char* l_subcmd_str;
 
 
     int arg_index = 1;
@@ -215,53 +286,51 @@ static int s_cli_blocks(int argc, char ** argv, void *arg_func, char **a_str_rep
     const char * l_net_name = NULL;
     const char * l_chain_name = NULL;
 
-
     dap_chain_t * l_chain = NULL;
     dap_chain_cs_blocks_t * l_blocks = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain", &l_chain_name);
+    // Parse default values
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
+        return -11;
 
-    for (size_t i=0; i<l_subcmd_str_count; i++){
-        int l_opt_idx = dap_chain_node_cli_check_option(argv, arg_index,argc, l_subcmd_str[i]);
-        if( l_opt_idx >= 0 ){
-            dap_chain_node_cli_find_option_val(argv, l_opt_idx, argc, l_subcmd_str[i], &l_subcmd_str_args[i] );
-            l_subcmd = i;
-        }
-    }
-
-    if ( l_net_name == NULL){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Need -net <net name> param!");
-        return -1;
-    }
-    l_net = dap_chain_net_by_name( l_net_name );
-    if ( l_net == NULL ){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find network \"%s\"",l_net_name);
-        return -2;
-
-    }
-
-    if ( l_chain_name == NULL){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Need -chain <chain name> param!");
-        return -3;
-    }
-    l_chain = dap_chain_net_get_chain_by_name(l_net,l_chain_name);
-    if ( l_chain == NULL ){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find chain \"%s\" in network \"%s\"",
-                                          l_chain_name, l_net_name);
-        return -4;
-    }
     l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 
+    // Parse commands
+    for (size_t i=0; i<l_subcmd_str_count; i++){
+        int l_opt_idx = dap_chain_node_cli_check_option(a_argv, arg_index,a_argc, l_subcmd_strs[i]);
+        if( l_opt_idx >= 0 ){
+            dap_chain_node_cli_find_option_val(a_argv, l_opt_idx, a_argc, l_subcmd_strs[i], &l_subcmd_str_args[i] );
+            l_subcmd = i;
+            l_subcmd_str = l_subcmd_strs[i];
+            l_subcmd_str_arg = l_subcmd_str_args[i];
+        }
+    }
+    int ret=-1000;
+    // Do subcommand action
     switch ( l_subcmd ){
-        case SUBCMD_NEW:{
+        // Flush memory for the new block
+        case SUBCMD_NEW_FLUSH:{
+            if ( PVT(l_blocks)->block_new )
+                DAP_DELETE( PVT(l_blocks)->block_new );
+            PVT(l_blocks)->block_new = dap_chain_block_new( PVT(l_blocks)->block_cache_last? &PVT(l_blocks)->block_cache_last->block_hash: NULL );
+            PVT(l_blocks)->block_new_size = sizeof (PVT(l_blocks)->block_new->hdr);
         } break;
+
+        // Add datum to the forming new block
         case SUBCMD_NEW_DATUM_LIST:{
 
         }break;
         case SUBCMD_NEW_DATUM_DEL:{
-
+            if ( PVT(l_blocks)->block_new ){
+                dap_chain_hash_fast_t l_datum_hash;
+                s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
+                dap_chain_block_datum_del_by_hash( PVT(l_blocks)->block_new, PVT(l_blocks)->block_new_size, &l_datum_hash );
+            }else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                          "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
+                ret = -12;
+            }
         }break;
         case SUBCMD_NEW_DATUM_ADD:{
             size_t l_datums_count=1;
@@ -269,11 +338,12 @@ static int s_cli_blocks(int argc, char ** argv, void *arg_func, char **a_str_rep
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
             size_t l_datum_size = 0;
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get( l_datum_hash_hex_str ,
+
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get( l_subcmd_str_arg ,
                                                                                               &l_datum_size,
                                                                l_gdb_group_mempool);
             l_datums[0] = l_datum;
-            if ( s_chain_callback_datums_pool_proc(l_chain,l_datums,l_datums_count ) == l_datums_count ){
+            if ( s_callback_datums_pool_proc(l_chain,l_datums,l_datums_count ) == l_datums_count ){
                 for ( size_t i = 0; i <l_datums_count; i++){
                    dap_chain_hash_fast_t l_datum_hash;
                    dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
@@ -292,192 +362,121 @@ static int s_cli_blocks(int argc, char ** argv, void *arg_func, char **a_str_rep
                    }
                 }
             }else {
-                if(!dap_strcmp(l_hash_out_type,"hex")){
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Warning! Can't convert datum %s from mempool to event in the new forming round ", l_datum_hash_hex_str);
-                }
-            else {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "Warning! Can't convert datum %s from mempool to event in the new forming round ", l_datum_hash_base58_str);
+                        "Warning! Can't convert datum %s from mempool to the new forming block's section  ", l_subcmd_str_arg);
+                ret = -13;
             }
-                ret = -12;
 
-            }
             DAP_DELETE(l_gdb_group_mempool);
-            DAP_DELETE(l_datum_hash_hex_str);
-            DAP_DELETE(l_datum_hash_base58_str);
+        }break;
+
+        case SUBCMD_NEW_COMPLETE:{
+            dap_chain_net_sync_all(l_net);
+        } break;
+
+        case SUBCMD_DROP:{
             dap_chain_net_sync_all(l_net);
         }break;
-        case SUBCMD_EVENT_CANCEL:{
-            char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
-            if ( dap_chain_global_db_gr_del( dap_strdup(l_event_hash_hex_str) ,l_gdb_group_events ) ){
-                if(!dap_strcmp(l_hash_out_type, "hex")){
-                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                            "Successfuly removed event %s from the new forming round ",
-                            l_event_hash_hex_str);
+        case SUBCMD_DUMP:{
+            dap_chain_block_t  * l_block;
+            size_t l_block_size = 0;
+            dap_chain_hash_fast_t l_block_hash={0};
+            dap_enc_base58_hex_to_hash( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
+            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
+            if ( l_block){
+                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get(l_block, l_block_size);
+                if ( l_block_cache ){
+                    dap_string_t * l_str_tmp = dap_string_new(NULL);
+                    char buf[50];
+                    time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
+                     // Header
+                    dap_string_append_printf(l_str_tmp,"Block %s:\n", l_subcmd_str_arg);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tversion: 0x%04sX\n",l_block->hdr.version);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016llX\n",l_block->hdr.cell_id.uint64);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016llX\n",l_block->hdr.chain_id.uint64);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n",ctime_r(&l_ts_reated, buf) );
+
+                    // Prepare to parse data section
+                    size_t l_offset = 0;
+
+                    // Parse Metadata
+                    dap_string_append_printf(l_str_tmp,"\tMetadata. Count: %us\n",l_block->hdr.meta_count );
+                    for (uint16_t i=0; i < l_block->hdr.meta_count  &&  l_offset < l_block_size-sizeof (l_block->hdr); i++){
+                        dap_chain_block_meta_t * l_meta =(dap_chain_block_meta_t *) (l_block->meta_n_datum_n_sign + l_offset);
+                        switch (l_meta->hdr.type) {
+                            case DAP_CHAIN_BLOCK_META_GENESIS:{
+                                dap_string_append_printf(l_str_tmp,"\t\tGENESIS\n");
+                            }break;
+                            case DAP_CHAIN_BLOCK_META_PREV:{
+                                s_cli_meta_hash_print(l_str_tmp, "PREV", l_meta);
+                            }break;
+                            case DAP_CHAIN_BLOCK_META_ANCHOR:{
+                                s_cli_meta_hash_print(l_str_tmp, "ANCHOR", l_meta);
+                            }break;
+                            case DAP_CHAIN_BLOCK_META_LINK:{
+                                s_cli_meta_hash_print(l_str_tmp, "LINK", l_meta);
+                            }break;
+                            case DAP_CHAIN_BLOCK_META_NONCE:{
+                                s_cli_meta_hex_print(l_str_tmp,"NONCE", l_meta);
+                            }break;
+                            case DAP_CHAIN_BLOCK_META_NONCE2:{
+                                s_cli_meta_hex_print(l_str_tmp,"NONCE2", l_meta);
+                            }break;
+                            default:{
+                                char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.size*2+3);
+                                dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.size);
+                                dap_string_append_printf(l_str_tmp,"\t\t\0x%0X: 0x%s\n", l_data_hex );
+                            }
+                        }
+                        l_offset += l_meta->hdr.size + sizeof (l_meta->hdr);
+                    }
+                    for (uint16_t i=0; i < l_block->hdr.meta_count  &&  l_offset < l_block_size-sizeof (l_block->hdr); i++){
+                        dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_block->hashes_n_datum_n_signs + l_offset);
+                        size_t l_datum_size =  dap_chain_datum_size(l_datum);
+                        time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
+
+                        // Nested datums
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\tdatum:\tdatum_size: %u\n",l_datum_size);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype_id:=%s\n", c_datum_type_str[l_datum->header.type_id]);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tts_create=%s\n",ctime_r( &l_datum_ts_create,buf ));
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
+                    }
+                    // Signatures
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\tsigns:\tcount: %us\n",l_block->hdr.sign_count);
+                    l_offset += l_datum_size;
+                    while (l_offset + sizeof (l_block->header) < l_event_size ){
+                        dap_sign_t * l_sign =(dap_sign_t *) (l_block->hashes_n_datum_n_signs +l_offset);
+                        size_t l_sign_size = dap_sign_get_size(l_sign);
+                        if (l_sign_size == 0 ){
+                            dap_string_append_printf(l_str_tmp,"\t\t\t\tERROR: wrong sign size 0, stop parsing headers\n");
+                            break;
+                        }
+                        dap_chain_addr_t l_addr = {0};
+                        dap_chain_hash_fast_t l_pkey_hash;
+                        dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                        dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+                        char * l_addr_str = dap_chain_addr_to_str(&l_addr);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\taddr: %s"
+                                                           "n", dap_sign_type_to_str( l_sign->header.type ),
+                                                 l_addr_str );
+                        l_offset += l_sign_size;
+                        DAP_DELETE( l_addr_str);
+                    }
+                    dap_chain_net_dump_datum(l_str_tmp, l_datum, l_hash_out_type);
+
+                    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_string_free(l_str_tmp,false);
+                    ret=0;
                 }
-                else{
-                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                            "Successfuly removed event %s from the new forming round ",
-                            l_event_hash_base58_str);
-                }
-                ret = 0;
-            }else {
-                dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
-
-                if ( l_event_item ){
-                    HASH_DELETE(hh, PVT(l_dag)->events, l_event_item);
-                    if(!dap_strcmp(l_hash_out_type, "hex")) {
-                        log_it(L_WARNING, "Dropped event %s from chains! Hope you know what are you doing!",
-                                l_event_hash_hex_str);
-                        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                "Dropped event 0x%s from chains! Hope you know what are you doing! ",
-                                l_event_hash_hex_str);
-                    }
-                    else {
-                        log_it(L_WARNING, "Dropped event %s from chains! Hope you know what are you doing!",
-                                l_event_hash_base58_str);
-                        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                "Dropped event 0x%s from chains! Hope you know what are you doing! ",
-                                l_event_hash_base58_str);
-                    }
-                    dap_chain_save_all(l_chain);
-                }else {
-                    if(!dap_strcmp(l_hash_out_type, "hex")) {
-                        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                "Can't remove event 0x%s ",
-                                l_event_hash_hex_str);
-                    }
-                    else {
-                        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                "Can't remove event 0x%s ",
-                                l_event_hash_base58_str);
-                    }
-                    ret = -1;
-                }
-            }
-            DAP_DELETE(l_event_hash_hex_str);
-            DAP_DELETE(l_event_hash_base58_str);
-            DAP_DELETE( l_gdb_group_events );
-            dap_chain_net_sync_gdb(l_net);
-        }break;
-        case SUBCMD_EVENT_DUMP:{
-            dap_chain_cs_dag_event_t * l_event = NULL;
-            size_t l_event_size = 0;
-            if ( l_from_events_str ){
-                if ( strcmp(l_from_events_str,"round.new") == 0 ){
-                    const char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
-                    l_event = (dap_chain_cs_dag_event_t *)  dap_chain_global_db_gr_get
-                                          ( l_event_hash_str ,&l_event_size,l_gdb_group_events );
-                }else if ( strncmp(l_from_events_str,"round.",6) == 0){
-
-                }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
-                    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                    HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                    if ( l_event_item )
-                        l_event = l_event_item->event;
-                    else {
-                        ret = -23;
-                        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                          "Can't find events in events_last table\n");
-                        break;
-                    }
-                }else if ( strcmp(l_from_events_str,"events") == 0){
-                    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                    HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                    if ( l_event_item )
-                        l_event = l_event_item->event;
-                    else {
-                        ret = -24;
-                        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                          "Can't find events in events table\n");
-                        break;
-                    }
-
-                }else {
-                    ret = -22;
-                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                      "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, round.0x0123456789ABCDEF", l_from_events_str);
-                    break;
-
-                }
-            } else {
-                ret = -21;
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "No events_from option");
-                break;
-            }
-            if ( l_event ){
-                dap_string_t * l_str_tmp = dap_string_new(NULL);
-                char buf[50];
-                time_t l_ts_reated = (time_t) l_event->header.ts_created;
-                 // Header
-                dap_string_append_printf(l_str_tmp,"Event %s:\n", l_event_hash_str);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\tversion: 0x%04sX\n",l_event->header.version);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\tcell_id: 0x%016llX\n",l_event->header.cell_id.uint64);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\tchain_id: 0x%016llX\n",l_event->header.chain_id.uint64);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\tts_created: %s\n",ctime_r(&l_ts_reated, buf) );
-
-                // Hash links
-                dap_string_append_printf(l_str_tmp,"\t\t\t\thashes:\tcount: %us\n",l_event->header.hash_count);
-                for (uint16_t i=0; i < l_event->header.hash_count; i++){
-                    dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs +
-                            i*sizeof (dap_chain_hash_fast_t));
-                    char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\thash: %s\n",l_hash_str);
-                    DAP_DELETE(l_hash_str);
-                }
-                size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
-                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
-                size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
-
-                // Nested datum
-                dap_string_append_printf(l_str_tmp,"\t\t\t\tdatum:\tdatum_size: %u\n",l_datum_size);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype_id:=%s\n", c_datum_type_str[l_datum->header.type_id]);
-                dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tts_create=%s\n",ctime_r( &l_datum_ts_create,buf ));
-                dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
-
-                // Signatures
-                dap_string_append_printf(l_str_tmp,"\t\t\t\tsigns:\tcount: %us\n",l_event->header.signs_count);
-                l_offset += l_datum_size;
-                while (l_offset + sizeof (l_event->header) < l_event_size ){
-                    dap_sign_t * l_sign =(dap_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
-                    size_t l_sign_size = dap_sign_get_size(l_sign);
-                    if (l_sign_size == 0 ){
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\tERROR: wrong sign size 0, stop parsing headers\n");
-                        break;
-                    }
-                    dap_chain_addr_t l_addr = {0};
-                    dap_chain_hash_fast_t l_pkey_hash;
-                    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                    dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-                    char * l_addr_str = dap_chain_addr_to_str(&l_addr);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\taddr: %s"
-                                                       "n", dap_sign_type_to_str( l_sign->header.type ),
-                                             l_addr_str );
-                    l_offset += l_sign_size;
-                    DAP_DELETE( l_addr_str);
-                }
-                dap_chain_net_dump_datum(l_str_tmp, l_datum, l_hash_out_type);
-
-                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-                dap_string_free(l_str_tmp,false);
-                ret=0;
             }else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Can't find event 0x%s in the new forming round ",
+                                                  "Can't find blocl 0x%s in the new forming round ",
                                                   l_event_hash_str);
                 ret=-10;
             }
         }break;
-        case SUBCMD_EVENT_LIST:{
+        case SUBCMD_LIST:{
             if( (l_from_events_str == NULL) ||
                     (strcmp(l_from_events_str,"round.new") == 0) ){
                 char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
@@ -538,11 +537,12 @@ static int s_cli_blocks(int argc, char ** argv, void *arg_func, char **a_str_rep
 
         case SUBCMD_UNDEFINED: {
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                                              "Undefined event subcommand \"%s\" ",
-                                              l_event_cmd_str);
+                                              "Undefined block subcommand \"%s\" ",
+                                              l_subcmd_str);
             ret=-11;
         }
     }
+    return ret;
 }
 
 

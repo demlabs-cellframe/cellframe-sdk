@@ -166,6 +166,21 @@ void dap_chain_delete(dap_chain_t * a_chain)
 }
 
 /**
+ * @brief dap_chain_get_atom_by_hash
+ * @param a_chain
+ * @param a_atom_hash
+ * @param a_atom_size
+ * @return
+ */
+dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size)
+{
+    dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain);
+    dap_chain_atom_ptr_t *l_ret = a_chain->callback_atom_find_by_hash(l_iter, a_atom_hash, a_atom_size);
+    a_chain->callback_atom_iter_delete(l_iter);
+    return l_ret;
+}
+
+/**
  * @brief dap_chain_find_by_id
  * @param a_chain_net_id
  * @param a_chain_id

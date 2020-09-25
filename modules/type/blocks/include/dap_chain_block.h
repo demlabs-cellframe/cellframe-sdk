@@ -29,8 +29,8 @@
 #include "dap_chain_datum_hashtree_roots.h"
 
 #define DAP_CHAIN_BLOCK_SIGNATURE 0xDA05BF8E
-
 #define DAP_CHAIN_BLOCK_ID_SIZE 4
+
 
 typedef union dap_chain_block_typeid{
     uint8_t data[DAP_CHAIN_BLOCK_ID_SIZE];
@@ -44,7 +44,8 @@ typedef struct dap_chain_block_hdr{
    uint32_t signature; /// @param signature @brief Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
    int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
    dap_chain_cell_id_t cell_id; /// Cell id
-   uint32_t size_ex_signs; /// @param size of the whole block except signatures meta
+   dap_chain_cell_id_t chain_id; /// Chain id
+   uint32_t meta_n_datums_size; /// @param size of the whole block except signatures meta
    dap_chain_time_t ts_created; /// @param timestamp @brief Block create time timestamp
    uint16_t meta_count; // Meta values number
    uint16_t datum_count; // Datums's count
@@ -52,10 +53,22 @@ typedef struct dap_chain_block_hdr{
 
 // Metadata item
 typedef struct dap_chain_block_meta{
-    uint8_t type; /// Meta type
-    uint16_t size;   /// Data size trailing the section
+    struct {
+        uint8_t type; /// Meta type
+        uint16_t size;   /// Data size trailing the section
+    } DAP_ALIGN_PACKED hdr;
     byte_t data[]; /// Section's data
 } DAP_ALIGN_PACKED dap_chain_block_meta_t;
+
+// Block metadata types
+
+#define DAP_CHAIN_BLOCK_META_GENESIS           0x01
+#define DAP_CHAIN_BLOCK_META_PREV              0x10
+#define DAP_CHAIN_BLOCK_META_ANCHOR            0x11
+#define DAP_CHAIN_BLOCK_META_LINK              0x12
+#define DAP_CHAIN_BLOCK_META_NONCE             0x20
+#define DAP_CHAIN_BLOCK_META_NONCE2            0x21
+
 
 // Section with datum
 typedef struct  dap_chain_block_datum{
@@ -80,6 +93,9 @@ void dap_chain_block_deinit();
 // Create new block
 dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block );
 
+// Add metadata in block
+size_t dap_chain_block_meta_add(dap_chain_block_t * a_block, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size);
+
 // Add datum in block
-dap_chain_datum_t * dap_chain_block_datum_add(dap_chain_block_t * a_block, dap_chain_datum_t * a_datum, size_t a_datum_size);
-void dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, dap_chain_hash_fast_t* a_datum_hash);
+size_t dap_chain_block_datum_add(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
+size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
