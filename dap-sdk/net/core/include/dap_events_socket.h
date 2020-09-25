@@ -111,6 +111,7 @@ typedef struct dap_events_socket_callbacks {
 
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET = 0,
+    DESCRIPTOR_TYPE_SOCKET_UDP,
     DESCRIPTOR_TYPE_SOCKET_LISTENING,
     DESCRIPTOR_TYPE_QUEUE,
     DESCRIPTOR_TYPE_PIPE,
