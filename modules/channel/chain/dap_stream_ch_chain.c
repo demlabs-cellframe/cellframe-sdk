@@ -152,6 +152,9 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 l_ch_chain->request_cell_id, &l_request, sizeof(l_request));
         DAP_DEL_Z(l_ch_chain->request_atom_iter);
         l_ch_chain->state = CHAIN_STATE_IDLE;
+        if (l_ch_chain->callback_notify_packet_out)
+            l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
+                                                    NULL, 0, l_ch_chain->callback_notify_arg);
     }
     dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
     dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
