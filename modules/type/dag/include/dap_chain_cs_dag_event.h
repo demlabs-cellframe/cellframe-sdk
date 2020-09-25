@@ -74,7 +74,6 @@ dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event
  * @param a_event
  * @return
  */
-
 /**
 static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t * a_event)
 {
@@ -96,6 +95,7 @@ static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *
     return sizeof( a_event->header ) + l_hashes_size +l_signs_offset +l_datum_size;
 }
 **/
+
 /**
  * @brief dap_chain_cs_dag_event_calc_size_excl_signs
  * @param a_event
