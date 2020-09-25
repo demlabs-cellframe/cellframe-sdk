@@ -193,16 +193,19 @@ void *dap_worker_thread(void *arg)
                     break;
                     case DESCRIPTOR_TYPE_SOCKET:
                         l_must_read_smth = true;
-                        if (!l_cur->server || l_cur->server->type == DAP_SERVER_TCP) {
-                            l_bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                                sizeof(l_cur->buf_in) - l_cur->buf_in_size, 0);
-                        } else if (l_cur->server && l_cur->server->type == DAP_SERVER_UDP) {
-                            socklen_t l_size = sizeof(l_cur->remote_addr);
-                            l_bytes_read = recvfrom(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                                    sizeof(l_cur->buf_in) - l_cur->buf_in_size, 0,
-                                                    (struct sockaddr *)&l_cur->remote_addr, &l_size);
-                        }
+                        l_bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
+                                            sizeof(l_cur->buf_in) - l_cur->buf_in_size, 0);
                         l_errno = errno;
+                    break;
+                    case DESCRIPTOR_TYPE_SOCKET_UDP: {
+                        l_must_read_smth = true;
+                        socklen_t l_size = sizeof(l_cur->remote_addr);
+                        l_bytes_read = recvfrom(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
+                                                sizeof(l_cur->buf_in) - l_cur->buf_in_size, 0,
+                                                (struct sockaddr *)&l_cur->remote_addr, &l_size);
+
+                        l_errno = errno;
+                    }
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                         // Accept connection
@@ -311,14 +314,14 @@ void *dap_worker_thread(void *arg)
                 int l_errno;
                 switch (l_cur->type){
                     case DESCRIPTOR_TYPE_SOCKET:
-                        if (!l_cur->server || l_cur->server->type == DAP_SERVER_TCP) {
-                            l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
-                                                l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
-                        } else if (l_cur->server && l_cur->server->type == DAP_SERVER_UDP) {
-                            l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
-                                                  l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
-                                                  (struct sockaddr *)&l_cur->remote_addr, sizeof(l_cur->remote_addr));
-                        }
+                        l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
+                                            l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
+                        l_errno = errno;
+                    break;
+                    case DESCRIPTOR_TYPE_SOCKET_UDP:
+                        l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
+                                              l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
+                                              (struct sockaddr *)&l_cur->remote_addr, sizeof(l_cur->remote_addr));
                         l_errno = errno;
                     break;
                     case DESCRIPTOR_TYPE_PIPE:
