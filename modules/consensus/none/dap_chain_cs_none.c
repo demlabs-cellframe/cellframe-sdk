@@ -273,7 +273,6 @@ static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
         s_chain_callback_atom_add(a_gdb->chain,data[i].value, data[i].value_len);
-
     }
     dap_chain_global_db_objs_delete(data, l_data_size);
     return 0;
