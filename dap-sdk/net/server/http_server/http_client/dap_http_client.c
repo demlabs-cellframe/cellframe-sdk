@@ -369,7 +369,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
 
                 char *l_query_string;
                 if( (l_query_string = strchr(l_http_client->url_path, '?')) != NULL ) {
-                    size_t len_after = strlen( l_query_string + 1 );
+                    size_t len_after = MIN(strlen( l_query_string + 1 ), sizeof (l_http_client->url_path)-1);
 
                     if ( len_after ) {
                         if( len_after > (sizeof(l_http_client->in_query_string) - 1) ){

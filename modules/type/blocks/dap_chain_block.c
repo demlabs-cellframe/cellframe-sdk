@@ -63,8 +63,9 @@ dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block )
         l_block->hdr.signature = DAP_CHAIN_BLOCK_SIGNATURE;
         l_block->hdr.version = 1;
         l_block->hdr.ts_created = time(NULL);
+        size_t l_block_size = sizeof (l_block->hdr);
         if( a_prev_block ){
-            dap_chain_block_meta_add(l_block, DAP_CHAIN_BLOCK_META_PREV,a_prev_block,sizeof (*a_prev_block) );
+            l_block_size = dap_chain_block_meta_add(l_block, l_block_size, DAP_CHAIN_BLOCK_META_PREV,a_prev_block,sizeof (*a_prev_block) );
         }else{
             log_it(L_INFO, "Genesis block produced");
         }
@@ -77,37 +78,22 @@ dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block )
 // Add metadata in block
 size_t dap_chain_block_meta_add(dap_chain_block_t * a_block, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size)
 {
-
+    return a_block_size;
 }
 
 
 size_t dap_chain_block_datum_add(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size)
 {
     if ( a_block) {
-        dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_get(a_block, )
-        uint32_t l_sections_size = ( a_block->hdr.size - sizeof(a_block->hdr) );
-        if(   l_sections_size > a_section_offset ){
-            if( l_sections_size > (a_section_offset + a_section_data_size ) ) {
-                dap_chain_datum_t * l_section = (dap_chain_datum_t *) ( a_block->datums +a_section_offset) ;
-                l_section->header.type_id = a_section_type;
-                return l_section;
-            }else{
-                log_it(L_ERROR, "Section data size %lu is bigger then left for sections in block (%lu)"
-                       ,a_section_data_size,l_sections_size - a_section_offset );
-                return NULL;
-            }
-        }else{
-            log_it(L_ERROR, "Section offset %lu is bigger then section size %lu",a_section_offset,l_sections_size);
-            return NULL;
-        }
+        //
     }else{
         log_it(L_ERROR, "Block is NULL");
-        return NULL;
+        return a_block_size;
     }
 }
 
 size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash)
 {
-
+    return a_block_size;
 }
 

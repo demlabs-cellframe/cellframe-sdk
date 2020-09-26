@@ -53,16 +53,28 @@ void dap_chain_block_cache_deinit()
  * @param a_block_size
  * @return
  */
-dap_chain_block_cache_t * dap_chain_block_cache_get(dap_chain_block_t * a_block, size_t a_block_size)
+dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block, size_t a_block_size)
 {
     if (! a_block)
         return NULL;
 
     dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
     l_block_cache->block = a_block;
+    l_block_cache->block_size= a_block_size;
     dap_chain_block_cache_update(l_block_cache);
+
     log_it(L_DEBUG,"Block cache created");
     return l_block_cache;
+}
+
+/**
+ * @brief dap_chain_block_cache_get_by_hash
+ * @param a_block_hash
+ * @return
+ */
+dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_hash_fast_t a_block_hash)
+{
+    return NULL;
 }
 
 /**
