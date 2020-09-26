@@ -29,7 +29,11 @@
 typedef struct dap_chain_block_cache{
     // Block's general non-nested attributes
     dap_chain_hash_fast_t block_hash;
+    char* block_hash_str;
     size_t block_size;
+
+    // Local platform values representation
+    time_t ts_created;
 
     // Block's datums
     uint32_t datum_count;

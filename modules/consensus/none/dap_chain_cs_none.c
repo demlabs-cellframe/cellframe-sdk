@@ -195,8 +195,8 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_delete = s_chain_callback_atom_iter_delete;
 
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
-    a_chain->callback_datums_pool_proc = s_chain_callback_datums_pool_proc;
-    a_chain->callback_datums_pool_proc_with_group = s_chain_callback_datums_pool_proc_with_group;
+    a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
+    a_chain->callback_add_datums_with_group = s_chain_callback_datums_pool_proc_with_group;
 
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_chain_callback_atom_iter_get_first; // Get the fisrt element from chain

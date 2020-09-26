@@ -58,3 +58,4 @@ int dap_chain_cs_blocks_init();
 void dap_chain_cs_blocks_deinit();
 
 int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
+void dap_chain_cs_blocks_delete(dap_chain_t * a_chain);

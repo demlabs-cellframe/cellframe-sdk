@@ -106,5 +106,8 @@ size_t dap_chain_block_datum_add(dap_chain_block_t * a_block, size_t a_block_siz
     }
 }
 
-void dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
+size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash)
+{
+
+}
 

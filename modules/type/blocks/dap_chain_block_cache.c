@@ -74,7 +74,6 @@ void dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache)
     assert(a_block_cache);
     assert(a_block_cache->block);
     dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
-    a_block_cache->meta_size
 }
 
 /**

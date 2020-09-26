@@ -79,8 +79,8 @@ typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_c
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  ,size_t*);
 typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
 
-typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
-typedef size_t (*dap_chain_datum_callback_datum_pool_proc_add_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
+typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
+typedef size_t (*dap_chain_callback_add_datums_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
@@ -122,8 +122,8 @@ typedef struct dap_chain{
     dap_chain_callback_atom_t callback_atom_add;
     dap_chain_callback_atom_verify_t callback_atom_verify;
 
-    dap_chain_datum_callback_datum_pool_proc_add_t callback_datums_pool_proc;
-    dap_chain_datum_callback_datum_pool_proc_add_with_group_t callback_datums_pool_proc_with_group;
+    dap_chain_callback_add_datums_t callback_add_datums;
+    dap_chain_callback_add_datums_with_group_t callback_add_datums_with_group;
 
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
 

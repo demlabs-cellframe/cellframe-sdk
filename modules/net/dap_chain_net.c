@@ -2094,7 +2094,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
                     }
                 }
             }
-            size_t l_objs_processed = l_chain->callback_datums_pool_proc(l_chain, l_datums, l_datums_size);
+            size_t l_objs_processed = l_chain->callback_add_datums(l_chain, l_datums, l_datums_size);
             // Delete processed objects
             size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
             for(size_t i = 0; i < l_objs_processed; i++) {

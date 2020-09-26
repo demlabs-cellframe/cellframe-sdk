@@ -193,7 +193,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_tx_find_by_hash = s_chain_callback_atom_iter_find_by_tx_hash;
 
 
-    a_chain->callback_datums_pool_proc = s_chain_callback_datums_pool_proc;
+    a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
 
     // Datum operations callbacks
 /*

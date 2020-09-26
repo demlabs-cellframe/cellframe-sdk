@@ -70,12 +70,6 @@ typedef struct dap_chain_block_meta{
 #define DAP_CHAIN_BLOCK_META_NONCE2            0x21
 
 
-// Section with datum
-typedef struct  dap_chain_block_datum{
-    uint32_t size_t;
-    dap_chain_datum_t datum;
-}DAP_ALIGN_PACKED dap_chain_block_datum_t;
-
 /**
  * @struct dap_chain_block
  * @brief The dap_chain_block struct
