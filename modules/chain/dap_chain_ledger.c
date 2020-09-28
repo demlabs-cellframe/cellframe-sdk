@@ -743,11 +743,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         bool l_is_blank = dap_hash_fast_is_blank(&l_tx_prev_hash);
         char l_tx_prev_hash_str[70];
         if (l_is_blank){
-           //log_it(L_DEBUG, "Tx check: blank prev hash ");
+           log_it(L_DEBUG, "Tx check: blank prev hash ");
            dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
         }else{
             dap_chain_hash_fast_to_str(&l_tx_prev_hash,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
-            //log_it(L_DEBUG, "Tx check:  tx prev hash %s",l_tx_prev_hash_str);
+            log_it(L_DEBUG, "Tx check:  tx prev hash %s",l_tx_prev_hash_str);
         }
 
         if(l_is_blank || l_is_first_transaction) {
@@ -1064,23 +1064,26 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
  */
 int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
-    if(!a_tx)
+    if(!a_tx){
+        log_it(L_ERROR, "NULL tx detected");
         return -1;
+    }
     int ret = 1;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
 
-    int l_ret_check;
-    if( (l_ret_check = dap_chain_ledger_tx_cache_check(
-             a_ledger, a_tx, &l_list_bound_items, &l_list_tx_out)) < 0){
-        log_it (L_DEBUG, "dap_chain_ledger_tx_add() tx not passed the check: code %d ",l_ret_check);
-        return -1;
-    }
     dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
     char l_tx_hash_str[70];
     dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-    //log_it ( L_INFO, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
+
+    int l_ret_check;
+    if( (l_ret_check = dap_chain_ledger_tx_cache_check(
+             a_ledger, a_tx, &l_list_bound_items, &l_list_tx_out)) < 0){
+        log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
+        return -1;
+    }
+    log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
 
 
     char *l_token_ticker = NULL, *l_token_ticker_old = NULL;
