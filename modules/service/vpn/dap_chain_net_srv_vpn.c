@@ -69,6 +69,8 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client.h"
 #include "dap_chain_net_vpn_client_tun.h"
+#include "dap_chain_net_srv_vpn_cmd.h"
+#include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
 
@@ -769,6 +771,10 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
+    // add console command to display vpn statistics
+    dap_chain_node_cli_cmd_item_create ("vpn_stat", com_vpn_statistics, NULL, "VPN statistics",
+            "vpn_stat -net <net name> [-full]\n"
+            );
     return 0;
 }
 
@@ -934,9 +940,9 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
  * @param ch
  * @param arg
  */
-void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg)
+void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
 {
-    dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(ch);
+    dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
 
 

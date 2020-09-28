@@ -680,6 +680,32 @@ void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 }
 
 /**
+ * @brief dap_chain_node_cli_check_option
+ * @param argv
+ * @param arg_start
+ * @param arg_end
+ * @param opt_name
+ * @return
+ */
+int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, const char *opt_name)
+{
+    int arg_index = arg_start;
+    const char *arg_string;
+
+    while(arg_index < arg_end)
+    {
+        char * l_argv_cur = argv[arg_index];
+        arg_string = l_argv_cur;
+        // find opt_name
+        if(arg_string && opt_name && arg_string[0] && opt_name[0] && !strcmp(arg_string, opt_name)) {
+                return arg_index;
+        }
+        arg_index++;
+    }
+    return -1;
+}
+
+/**
  * find option value
  *
  * return index of string in argv, or 0 if not found

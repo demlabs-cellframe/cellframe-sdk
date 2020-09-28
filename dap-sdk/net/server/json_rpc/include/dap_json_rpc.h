@@ -1,9 +1,9 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexey V. Stratulat <alexey.stratulat@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * DeM Labs Open source community https://gitlab.demlabs.net/cellframe/cellframe-sdk
+ * Copyright  (c) 2017-2020
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -21,20 +21,27 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+
 #pragma once
-#include "dap_chain_block.h"
-#include "dap_hash.h"
+#include "dap_http_simple.h"
+#include "include/http_status_code.h"
+#include "dap_strfuncs.h"
+#include "dap_json_rpc_request.h"
+#include "dap_json_rpc_request_handler.h"
 
-typedef struct dap_chain_block_cache{
-    dap_chain_hash_t block_hash;
-    uint32_t sections_size;
+#ifdef __cplusplus
+extern "C"{
+#endif
 
-    double block_mine_time;
-    dap_chain_block_t * block;
-} dap_chain_block_cache_t;
+typedef enum dap_json_rpc_version{
+    RPC_VERSION_1
+}dap_json_rpc_version_t;
 
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block);
-void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);
-dap_chain_block_t* dap_chain_block_cache_sections_size_grow(dap_chain_block_cache_t * a_block_cache,size_t a_sections_size_grow );
+int dap_json_rpc_init();
+void dap_json_rpc_deinit();
+void dap_json_rpc_add_proc_http(struct dap_http *sh, const char *URL);
 
-void dap_chain_block_cache_dump(dap_chain_block_cache_t * a_block_cache);
+#ifdef __cplusplus
+}
+#endif

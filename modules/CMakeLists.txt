@@ -7,6 +7,7 @@ endif()
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
+    add_subdirectory(chain/btc_rpc)
     add_subdirectory(wallet)
     add_subdirectory(global-db)
 endif()
@@ -37,8 +38,8 @@ if (CELLFRAME_MODULES MATCHES "cs-dag")
 endif()
 
 # Consensus type dag
-if (CELLFRAME_MODULES MATCHES "cs-block")
-    add_subdirectory(type/block)
+if (CELLFRAME_MODULES MATCHES "cs-blocks")
+    add_subdirectory(type/blocks)
 endif()
 
 # No consensus

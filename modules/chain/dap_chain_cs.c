@@ -66,7 +66,7 @@ void dap_chain_cs_deinit(void)
  * @param a_cs_str
  * @param a_callback_init
  */
-void dap_chain_class_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
+void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) );
@@ -80,7 +80,7 @@ void dap_chain_class_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a
  * @param a_chain_cfg
  * @return
  */
-int dap_chain_class_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+int dap_chain_cs_type_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_callback_new_cfg_item_t *l_item = NULL;
 
@@ -123,7 +123,7 @@ int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     if ( l_item ) {
         log_it(L_NOTICE,"Consensus \"%s\" found, prepare to parse config file",l_item->name );
         l_item->callback_init( a_chain, a_chain_cfg);
-        // TODO
+        DAP_CHAIN_PVT(a_chain)->cs_name = l_item->name;
         return 0;
     } else {
         log_it(L_ERROR,"Can't find consensus \"%s\"",dap_config_get_item_str( a_chain_cfg, "chain", "consensus"));
