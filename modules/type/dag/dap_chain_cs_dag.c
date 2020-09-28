@@ -888,11 +888,15 @@ static dap_chain_datum_t* s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t * a_ret_size )
 {
+    if(! a_atom_iter){
+        log_it(L_ERROR, "NULL iterator on input for atom_iter_get_first function");
+        return NULL;
+    }
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
     dap_chain_cs_dag_pvt_t *l_dag_pvt = l_dag ? PVT(l_dag) : NULL;
     a_atom_iter->cur_item = l_dag_pvt->events;
     a_atom_iter->cur = (dap_chain_cs_dag_event_t*) (l_dag_pvt->events ? l_dag_pvt->events->event : NULL);
-    a_atom_iter->cur_size =l_dag_pvt->events->event_size;
+    a_atom_iter->cur_size = l_dag_pvt->events ? l_dag_pvt->events->event_size : 0;
 
 //    a_atom_iter->cur =  a_atom_iter->cur ?
 //                (dap_chain_cs_dag_event_t*) PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events->event : NULL;
