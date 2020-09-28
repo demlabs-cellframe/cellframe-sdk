@@ -302,6 +302,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
       l_tx_event->event_size = a_event_item->event_size;
       memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
 
+
       HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
 
       // don't save bad transactions to base
@@ -319,22 +320,24 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item ){
     int res = a_dag->callback_cs_verify(a_dag,a_event_item->event, a_event_item->event_size);
 
+    if (res != 0) {
+        if ( memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0 ){
+            res = 0;
+        }
+    }
+
     if(res == 0){
         char l_buf_hash[128];
         dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
         log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
-        res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+        s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
         //All correct, no matter for result
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
         s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
     } else {
-        if ( memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0 ){
-            res = 0;
-        }else{
-            char l_buf_hash[128];
-            dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
-            log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash,  res );
-        }
+        char l_buf_hash[128];
+        dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
+        log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash,  res );
     }
     return res;
 }
