@@ -337,7 +337,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
             if ( PVT(l_blocks)->block_new ){
                 dap_chain_hash_fast_t l_datum_hash;
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
-                dap_chain_block_datum_del_by_hash( PVT(l_blocks)->block_new, PVT(l_blocks)->block_new_size, &l_datum_hash );
+                PVT(l_blocks)->block_new_size=dap_chain_block_datum_del_by_hash( PVT(l_blocks)->block_new, PVT(l_blocks)->block_new_size, &l_datum_hash );
             }else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                           "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
