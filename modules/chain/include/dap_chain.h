@@ -64,6 +64,7 @@ typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t*, dap_config_t *);
 typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *, dap_chain_atom_ptr_t, size_t );
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
@@ -120,6 +121,7 @@ typedef struct dap_chain{
     dap_chain_callback_t callback_purge;
 
     dap_chain_callback_atom_t callback_atom_add;
+    dap_chain_callback_atom_form_treshold_t callback_atom_add_from_treshold;
     dap_chain_callback_atom_verify_t callback_atom_verify;
 
     dap_chain_callback_add_datums_t callback_add_datums;

@@ -133,14 +133,20 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
                          sizeof(l_element_size) ){
                         if ( l_element_size > 0){
                             dap_chain_atom_ptr_t * l_element = DAP_NEW_Z_SIZE (dap_chain_atom_ptr_t, l_element_size );
-                            if (l_element){
-                                if ( fread( l_element,1,l_element_size,l_cell->file_storage ) == l_element_size ) {
+                            if ( l_element){
+                                size_t l_read_bytes = fread( l_element,1,l_element_size,l_cell->file_storage );
+                                if ( l_read_bytes == l_element_size ) {
                                     a_chain->callback_atom_add (a_chain, l_element, l_element_size);
+                                }else{
+                                    log_it (L_ERROR, "Can't read %zd bytes (processed only %zd), stop cell load process", l_element_size,
+                                            l_read_bytes);
+                                    break;
                                 }
                             }else{
                                 log_it (L_ERROR, "Can't allocate %zd bytes, stop cell load process", l_element_size);
                                 break;
                             }
+
                         } else {
                             log_it (L_ERROR, "Zero element size, file is corrupted");
                             break;

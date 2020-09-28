@@ -393,6 +393,15 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 
         }
         return l_verified >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
+    }else if (a_dag_event->header.hash_count == 0){
+        dap_chain_hash_fast_t l_event_hash;
+        dap_chain_cs_dag_event_calc_hash(a_dag_event,a_dag_event_size, &l_event_hash);
+        if ( memcmp( &l_event_hash, &a_dag->static_genesis_event_hash, sizeof(l_event_hash) ) == 0 ){
+            return 0;
+        }else{
+            log_it(L_WARNING,"Wrong genesis event %p: hash is not equels to what in config", a_dag_event);
+            return -20; // Wrong signatures number
+        }
     }else{
         log_it(L_WARNING,"Wrong signatures number with event %p", a_dag_event);
         return -2; // Wrong signatures number

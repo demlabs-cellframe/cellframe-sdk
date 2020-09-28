@@ -79,9 +79,11 @@ typedef struct dap_chain_cs_dag_pvt {
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
+dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
 
 // Atomic element organization callbacks
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                      //    Accept new event in dag
+static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out);                    //    Accept new event in dag from treshold
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
 
@@ -174,6 +176,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
+    a_chain->callback_atom_add_from_treshold = s_chain_callback_atom_add_from_treshold;  // Accept new elements in chain from treshold
     a_chain->callback_atom_verify = s_chain_callback_atom_verify ;  // Verify new element in chain
     a_chain->callback_atom_get_hdr_static_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
 
@@ -325,9 +328,13 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
         s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
     } else {
-        char l_buf_hash[128];
-        dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
-        log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash,  res );
+        if ( memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0 ){
+            res = 0;
+        }else{
+            char l_buf_hash[128];
+            dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
+            log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash,  res );
+        }
     }
     return res;
 }
@@ -401,8 +408,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
              ret = ATOM_REJECT;
         }
     }
-
-    while(dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger));
+    // will added in callback s_chain_callback_atom_add_from_treshold()
+    //while(dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger));
     pthread_rwlock_unlock( l_events_rwlock );
 
     if(ret == ATOM_PASS){
@@ -412,6 +419,29 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
    DAP_DELETE(l_event_hash_str);
 
     return ret;
+}
+
+
+/**
+ * @brief s_chain_callback_atom_add_from_treshold Accept new event in dag
+ * @param a_chain DAG object
+ * @return true if added one item, otherwise false
+ */
+static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out)
+{
+    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    pthread_rwlock_t * l_events_rwlock = &PVT(l_dag)->events_rwlock;
+
+    pthread_rwlock_wrlock(l_events_rwlock);
+    dap_chain_cs_dag_event_item_t *l_item = dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger);
+    pthread_rwlock_unlock(l_events_rwlock);
+//    dap_chain_cs_dag_event_calc_size()
+    if(l_item) {
+        if(a_event_size_out)
+            *a_event_size_out = l_item->event_size;
+        return l_item->event;
+    }
+    return NULL;
 }
 
 /**
@@ -531,6 +561,24 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                         if (dap_chain_cell_file_append(l_cell, l_event, l_event_size )  < 0) {
                             log_it(L_ERROR, "Can't add new event to the file '%s'", l_cell->file_storage_path);
                             continue;
+                        }
+                        // add all atoms from treshold
+                        {
+                            dap_chain_atom_ptr_t l_atom_treshold;
+                            do {
+                                size_t l_atom_treshold_size;
+                                // add in ledger
+                                l_atom_treshold = s_chain_callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+                                // add into file
+                                if(l_atom_treshold) {
+                                    int l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                                    if(l_res < 0) {
+                                        log_it(L_ERROR, "Can't save event 0x%x from treshold to the file '%s'",
+                                                l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
+                                    }
+                                }
+                            }
+                            while(l_atom_treshold);
                         }
                         l_datum_processed++;
                     }
@@ -769,7 +817,7 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
  * @param a_dag
  * @returns true if some atoms were moved from threshold to events
  */
-bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger)
+dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger)
 {
     bool res = false;
     // TODO Process finish treshold. For now - easiest from possible
@@ -787,18 +835,25 @@ bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a
                 int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 if(! l_add_res){
                     log_it(L_DEBUG, "... added", l_event_hash_str);
+                    DAP_DELETE(l_event_hash_str);
+                    res = true;
+                    break;
                 }else{
                     log_it(L_DEBUG, "... error adding", l_event_hash_str);
                     //todo: delete event
                 }
                 DAP_DELETE(l_event_hash_str);
-                res = true;
+                //res = true;
             }else if(ret == DAP_THRESHOLD_CONFLICTING)
                 HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
 
         }
     }
-    return res;
+    //return res;
+    if(res){
+        return l_event_item;
+    }
+    return NULL;
 }
 
 /**
@@ -868,11 +923,15 @@ static dap_chain_datum_t* s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t * a_ret_size )
 {
+    if(! a_atom_iter){
+        log_it(L_ERROR, "NULL iterator on input for atom_iter_get_first function");
+        return NULL;
+    }
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
     dap_chain_cs_dag_pvt_t *l_dag_pvt = l_dag ? PVT(l_dag) : NULL;
     a_atom_iter->cur_item = l_dag_pvt->events;
     a_atom_iter->cur = (dap_chain_cs_dag_event_t*) (l_dag_pvt->events ? l_dag_pvt->events->event : NULL);
-    a_atom_iter->cur_size =l_dag_pvt->events->event_size;
+    a_atom_iter->cur_size = l_dag_pvt->events ? l_dag_pvt->events->event_size : 0;
 
 //    a_atom_iter->cur =  a_atom_iter->cur ?
 //                (dap_chain_cs_dag_event_t*) PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events->event : NULL;
