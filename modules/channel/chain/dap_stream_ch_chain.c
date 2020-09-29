@@ -251,10 +251,12 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         do{
                             size_t l_atom_treshold_size;
                             // add into ledger
+                            log_it(L_DEBUG, "Try to add atom from treshold");
                             l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
                             // add into file
                             if(l_atom_treshold) {
                                 l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                                log_it(L_DEBUG, "Added atom from treshold");
                                 if(l_res < 0) {
                                     log_it(L_ERROR, "Can't save event 0x%x from treshold to the file '%s'",
                                             l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
@@ -517,7 +519,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 memcpy(&l_ch_chain->request_net_id, &l_chain_pkt->hdr.net_id, sizeof(dap_chain_net_id_t));
                 memcpy(&l_ch_chain->request_chain_id, &l_chain_pkt->hdr.chain_id, sizeof(dap_chain_id_t));
                 memcpy(&l_ch_chain->request_cell_id, &l_chain_pkt->hdr.cell_id, sizeof(dap_chain_cell_id_t));
-                l_ch_chain->pkt_data = DAP_CALLOC(1, l_chain_pkt_data_size);
+                l_ch_chain->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
                 memcpy(l_ch_chain->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
                 l_ch_chain->pkt_data_size = l_chain_pkt_data_size;
                 dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);

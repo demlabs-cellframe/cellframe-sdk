@@ -272,19 +272,20 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
       break;
     case DAP_CHAIN_DATUM_TX: {
       dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+      // don't save bad transactions to base
+      int l_ret = dap_chain_ledger_tx_add(a_ledger, l_tx);
+      if( l_ret !=0 ) {
+        return l_ret;
+      }
       dap_chain_cs_dag_event_item_t * l_tx_event= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
       l_tx_event->ts_added = a_event_item->ts_added;
       l_tx_event->event = a_event_item->event;
       l_tx_event->event_size = a_event_item->event_size;
       memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
 
-
       HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
 
-      // don't save bad transactions to base
-      if(dap_chain_ledger_tx_add(a_ledger, l_tx) != 1) {
-        return -1;
-      }
+
     }
       break;
     default:
@@ -375,8 +376,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
         if(!l_consensus_check){
              log_it(L_DEBUG, "... added");
+        }else if (l_consensus_check == -5){
+            log_it(L_DEBUG, "... tresholded");
+            ret = ATOM_MOVE_TO_THRESHOLD;
         }else{
-             log_it(L_DEBUG, "... error adding");
+             log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
              ret = ATOM_REJECT;
         }
     }

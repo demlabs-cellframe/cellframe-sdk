@@ -1081,7 +1081,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
     if( (l_ret_check = dap_chain_ledger_tx_cache_check(
              a_ledger, a_tx, &l_list_bound_items, &l_list_tx_out)) < 0){
         log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
-        return -1;
+        return l_ret_check*100;
     }
     log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
 
