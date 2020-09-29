@@ -229,20 +229,24 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         size_t l_atom_size =0;
         if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) == NULL ) {
             dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
-            if(l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
+            if ((l_atom_add_res == ATOM_ACCEPT || l_atom_add_res == ATOM_MOVE_TO_THRESHOLD) &&
+                    dap_chain_has_file_store(l_chain)) {
                 // append to file
                 dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_ch_chain->request_cell_id);
-                if(l_cell){
-                    // add one atom only
-                    int l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
-                    // rewrite all file
-                    //l_res = dap_chain_cell_file_update(l_cell);
-                    if(l_res < 0) {
-                        log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
-                                l_cell ? l_cell->file_storage_path : "[null]");
+                int l_res;
+                if (l_cell) {
+                    if (l_atom_add_res == ATOM_ACCEPT) {
+                        // add one atom only
+                        l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
+                        // rewrite all file
+                        //l_res = dap_chain_cell_file_update(l_cell);
+                        if(l_res < 0) {
+                            log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
+                                    l_cell ? l_cell->file_storage_path : "[null]");
+                        }
                     }
                     // add all atoms from treshold
-                    if(l_res && l_chain->callback_atom_add_from_treshold){
+                    if (l_chain->callback_atom_add_from_treshold){
                         dap_chain_atom_ptr_t l_atom_treshold;
                         do{
                             size_t l_atom_treshold_size;
@@ -251,7 +255,7 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
                             // add into file
                             if(l_atom_treshold) {
-                                int l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                                l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
                                 log_it(L_DEBUG, "Added atom from treshold");
                                 if(l_res < 0) {
                                     log_it(L_ERROR, "Can't save event 0x%x from treshold to the file '%s'",

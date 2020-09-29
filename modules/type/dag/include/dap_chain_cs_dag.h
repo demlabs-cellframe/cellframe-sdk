@@ -22,6 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "uthash.h"
 #include "dap_chain.h"
 #include "dap_chain_cs_dag_event.h"
 
@@ -36,6 +37,10 @@ typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(d
                                                                                dap_chain_datum_t *,
                                                                                dap_chain_hash_fast_t *,
                                                                                size_t, size_t*);
+typedef struct dap_chain_cs_dag_hal_item {
+    dap_chain_hash_fast_t hash;
+    UT_hash_handle hh;
+} dap_chain_cs_dag_hal_item_t;
 
 typedef struct dap_chain_cs_dag
 {
@@ -45,6 +50,7 @@ typedef struct dap_chain_cs_dag
     bool is_add_directy;
     bool is_static_genesis_event;
     dap_chain_hash_fast_t static_genesis_event_hash;
+    dap_chain_cs_dag_hal_item_t *hal;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
