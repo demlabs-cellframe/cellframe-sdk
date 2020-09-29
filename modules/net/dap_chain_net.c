@@ -428,6 +428,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                     int l_res = dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
                                     if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                         l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                                        l_tries = 0;
                                     }
                                     DAP_DELETE(l_remote_node_info);
                                 }
