@@ -213,6 +213,13 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             log_it( L_ERROR, "Can't read hash from static_genesis_event \"%s\", ret code %d ", l_static_genesis_event_hash_str, lhr);
         }
     }
+    uint16_t l_list_len = 0;
+    char **l_hard_accept_list = dap_config_get_array_str(a_chain_cfg, "dag", "hard_accept_list", &l_list_len);
+    for (uint16_t i = 0; i < l_list_len; i++) {
+        dap_chain_cs_dag_hal_item_t *l_hal_item = DAP_NEW_Z(dap_chain_cs_dag_hal_item_t);
+        dap_chain_str_to_hash_fast(l_hard_accept_list[i], &l_hal_item->hash);
+        HASH_ADD(hh, l_dag->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
+    }
 
     l_dag->is_static_genesis_event = (l_static_genesis_event_hash_str != NULL) && dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
 
@@ -287,26 +294,19 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
   return 0;
 }
 
-static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item ){
+static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item )
+{
     int res = a_dag->callback_cs_verify(a_dag,a_event_item->event, a_event_item->event_size);
 
-    if (res != 0) {
-        if ( memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0 ){
-            res = 0;
-        }
-    }
-
-    if(res == 0){
-        char l_buf_hash[128];
-        dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
+    char l_buf_hash[128];
+    dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
+    if (res == 0 || memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0) {
         log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
         s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
         //All correct, no matter for result
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
         s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
     } else {
-        char l_buf_hash[128];
-        dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
         log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash,  res );
     }
     return res;
@@ -643,8 +643,18 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
     dap_chain_atom_verify_res_t res = ATOM_ACCEPT;
 
     if(sizeof (l_event->header) >= a_atom_size){
-        log_it(L_WARNING,"Size of atom is %zd that is equel or less then header %zd",a_atom_size,sizeof (l_event->header));
+        log_it(L_WARNING,"Size of atom is %zd that is equal or less then header %zd",a_atom_size,sizeof (l_event->header));
         return  ATOM_REJECT;
+    }
+    // Hard accept list
+    if (l_dag->hal) {
+        dap_chain_hash_fast_t l_event_hash;
+        dap_chain_cs_dag_event_calc_hash(l_event,a_atom_size, &l_event_hash);
+        dap_chain_cs_dag_hal_item_t *l_hash_found = NULL;
+        HASH_FIND(hh, l_dag->hal, &l_event_hash, sizeof(l_event_hash), l_hash_found);
+        if (l_hash_found) {
+            return ATOM_ACCEPT;
+        }
     }
     // genesis or seed mode
     if (l_event->header.hash_count == 0){
