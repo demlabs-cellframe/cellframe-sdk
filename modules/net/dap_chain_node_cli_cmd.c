@@ -3905,7 +3905,9 @@ int com_stats(int argc, char ** argv, void *arg_func, char **str_reply)
 
 int com_exit(int argc, char ** argv, void *arg_func, char **str_reply)
 {
+    //dap_events_stop_all();
     exit(0);
+    return 0;
 }
 
 

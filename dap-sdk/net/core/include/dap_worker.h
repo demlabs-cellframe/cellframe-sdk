@@ -36,11 +36,14 @@ typedef struct dap_worker
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
+    // Signal to exit
+    bool signal_exit;
     // worker control queues
     dap_events_socket_t * queue_es_new; // Events socket for new socket
     dap_events_socket_t * queue_es_delete; // Events socke
     dap_events_socket_t * queue_es_reassign; // Reassign between workers
     dap_events_socket_t * queue_es_io; // Events socket for new socket
+    dap_events_socket_t * event_exit; // Events socket for exit
 
     dap_events_socket_t * queue_callback; // Queue for pure callback on worker
 

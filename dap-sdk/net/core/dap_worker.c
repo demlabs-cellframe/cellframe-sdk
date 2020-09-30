@@ -48,6 +48,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 /**
  * @brief dap_worker_init
@@ -88,6 +89,7 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_io = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_io_callback);
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_reassign_callback );
     l_worker->queue_callback= dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_callback_callback);
+    l_worker->event_exit = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback );
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -379,6 +381,11 @@ void *dap_worker_thread(void *arg)
                        l_cur->buf_out_size);
             }
 
+
+            if( l_worker->signal_exit){
+                log_it(L_NOTICE,"Worker :%u finished", l_worker->id);
+                return NULL;
+            }
         }
 
     } // while
@@ -503,6 +510,18 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
 }
 
 /**
+ * @brief s_event_exit_callback
+ * @param a_es
+ * @param a_flags
+ */
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
+{
+    (void) a_flags;
+    a_es->worker->signal_exit = true;
+    log_it(L_NOTICE, "Worker :%u signaled to exit", a_es->worker->id);
+}
+
+/**
  * @brief s_pipe_data_out_read_callback
  * @param a_es
  * @param a_arg
@@ -570,6 +589,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
     int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
     if(l_ret != 0 ){
         char l_errbuf[128];
+        *l_errbuf = 0;
         strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
         log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
     }
@@ -586,6 +606,7 @@ void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t 
     int l_ret=dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
     if(l_ret != 0 ){
         char l_errbuf[128];
+        *l_errbuf = 0;
         strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
         log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
     }
