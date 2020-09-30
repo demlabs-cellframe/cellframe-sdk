@@ -284,8 +284,6 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
       memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
 
       HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
-
-
     }
       break;
     default:
