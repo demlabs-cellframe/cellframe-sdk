@@ -1110,17 +1110,17 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         if (l_ret_check == DAP_CHAIN_LEDGER_TX_NO_PREVIOUS) {
             HASH_FIND(hh, l_ledger_priv->treshold_txs, l_tx_hash, sizeof(*l_tx_hash), l_item_tmp);
             if (!l_item_tmp) {
-                size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
                 l_item_tmp = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
                 memcpy(&l_item_tmp->tx_hash_fast, l_tx_hash, sizeof(dap_chain_hash_fast_t));
+                size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
                 l_item_tmp->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, l_tx_size);
                 memcpy(l_item_tmp->tx, a_tx, l_tx_size);
                 HASH_ADD(hh, l_ledger_priv->treshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp);
                 log_it (L_DEBUG, "dap_chain_ledger_tx_add() tx %s added to threshold", l_tx_hash_str);
             }
-            return l_ret_check*100;
+        } else {
+            log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
         }
-        log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
         return l_ret_check*100;
     }
     log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
