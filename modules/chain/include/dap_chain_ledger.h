@@ -52,6 +52,9 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 // Check the double spending  in all cells
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
+// Error code for no previous transaction (candidate to threshold)
+#define DAP_CHAIN_LEDGER_TX_NO_PREVIOUS          -5
+
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags);
 
 // Remove dap_ledger_t structure
