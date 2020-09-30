@@ -260,7 +260,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t 
             }
         }
     }
-    if (a_chain->callback_datums_pool_proc(a_chain, &a_datum, 1) != 1) {
+    if (a_chain->callback_add_datums(a_chain, &a_datum, 1) != 1) {
         return false;
     }
     return true;

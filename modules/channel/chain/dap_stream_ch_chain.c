@@ -152,6 +152,9 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 l_ch_chain->request_cell_id, &l_request, sizeof(l_request));
         DAP_DEL_Z(l_ch_chain->request_atom_iter);
         l_ch_chain->state = CHAIN_STATE_IDLE;
+        if (l_ch_chain->callback_notify_packet_out)
+            l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
+                                                    NULL, 0, l_ch_chain->callback_notify_arg);
     }
     dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
     dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
@@ -351,9 +354,9 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         // apply received transaction
         dap_chain_t *l_chain = dap_chain_find_by_id(l_ch_chain->request_net_id, l_ch_chain->request_chain_id);
         if(l_chain) {
-            if(l_chain->callback_datums_pool_proc_with_group){
+            if(l_chain->callback_add_datums_with_group){
                 void * restrict l_store_obj_value = l_store_obj->value;
-                l_chain->callback_datums_pool_proc_with_group(l_chain,
+                l_chain->callback_add_datums_with_group(l_chain,
                         (dap_chain_datum_t** restrict) l_store_obj_value, 1,
                         l_store_obj[i].group);
             }

@@ -65,8 +65,6 @@ typedef struct dap_chain_gdb_private
 
 #define PVT(a) ( (a) ? (dap_chain_gdb_private_t* ) (a)->_internal : NULL)
 
-static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net);
-
 // Atomic element organization callbacks
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Accept new event in gdb
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
@@ -114,7 +112,7 @@ static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 int dap_chain_gdb_init(void)
 {
     dap_chain_cs_add(CONSENSUS_NAME, s_cs_callback_new);
-    dap_chain_class_add(CONSENSUS_NAME, dap_chain_gdb_new);
+    dap_chain_cs_type_add(CONSENSUS_NAME, dap_chain_gdb_new);
 
     log_it(L_NOTICE, "Initialized GDB chain items organization class");
     return 0;
@@ -138,8 +136,14 @@ static void s_history_callback_notify(void * a_arg, const char a_op_code, const 
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
         log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%u",l_net->pub.name,
                l_gdb->chain->name, a_op_code, a_group, a_key, a_value_size);
+        dap_chain_node_mempool_autoproc_notify((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
         dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
     }
+}
+
+static void s_dap_chain_gdb_callback_purge(dap_chain_t *a_chain)
+{
+    PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = true;
 }
 
 /**
@@ -176,10 +180,10 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
-    dap_chain_gdb_ledger_load(l_gdb, l_net);
-    l_gdb_priv->is_load_mode = false;
+    dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
 
     a_chain->callback_delete = dap_chain_gdb_delete;
+    a_chain->callback_purge = s_dap_chain_gdb_callback_purge;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add; // Accept new element in chain
@@ -191,8 +195,8 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_delete = s_chain_callback_atom_iter_delete;
 
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
-    a_chain->callback_datums_pool_proc = s_chain_callback_datums_pool_proc;
-    a_chain->callback_datums_pool_proc_with_group = s_chain_callback_datums_pool_proc_with_group;
+    a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
+    a_chain->callback_add_datums_with_group = s_chain_callback_datums_pool_proc_with_group;
 
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_chain_callback_atom_iter_get_first; // Get the fisrt element from chain
@@ -258,23 +262,17 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  *
  * return 0 if OK otherwise  negative error code
  */
-static int dap_chain_gdb_ledger_load(dap_chain_gdb_t *a_gdb, dap_chain_net_t *a_net)
+int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
 {
-    dap_chain_gdb_private_t *l_gdb_priv = PVT(a_gdb);
-    // protect from reloading
-    if(dap_chain_ledger_count( a_net->pub.ledger ) > 0)
-        return 0;
-
     size_t l_data_size = 0;
-
-
     //  Read the entire database into an array of size bytes
-    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(l_gdb_priv->group_datums , &l_data_size);
+    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(a_gdb_group, &l_data_size);
     // make list of datums
     for(size_t i = 0; i < l_data_size; i++) {
-        s_chain_callback_atom_add(a_gdb->chain,data[i].value, data[i].value_len);
+        s_chain_callback_atom_add(a_chain, data[i].value, data[i].value_len);
     }
     dap_chain_global_db_objs_delete(data, l_data_size);
+    PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = false;
     return 0;
 }
 
@@ -321,11 +319,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (l_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-            dap_chain_ledger_token_add(a_chain->ledger,l_token, l_datum->header.data_size);
+            dap_chain_ledger_token_load(a_chain->ledger,l_token, l_datum->header.data_size);
         }break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-            dap_chain_ledger_token_emission_add(a_chain->ledger, l_token_emission, l_datum->header.data_size);
+            dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_emission, l_datum->header.data_size);
         }break;
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
@@ -334,7 +332,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
 
             // don't save bad transactions to base
-            if(dap_chain_ledger_tx_add(a_chain->ledger, l_tx) != 1)
+            if(dap_chain_ledger_tx_load(a_chain->ledger, l_tx) != 1)
                 return ATOM_REJECT;
             //}else
             //    return -2;

@@ -2245,8 +2245,8 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                                              l_verify_datum);
                     ret = -9;
                 }else{
-                    if (l_chain->callback_datums_pool_proc){
-                        if (l_chain->callback_datums_pool_proc(l_chain, &l_datum, 1) ==0 ){
+                    if (l_chain->callback_add_datums){
+                        if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
                             dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
                             ret = -6;
                         }else{

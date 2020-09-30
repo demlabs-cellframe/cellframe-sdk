@@ -88,7 +88,7 @@ typedef struct dap_chain_datum{
         /// Create timestamp (GM time)
         uint64_t ts_create;
     } DAP_ALIGN_PACKED header;
-    uint8_t data[]; /// Stored datum body
+    byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
 

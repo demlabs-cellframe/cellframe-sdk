@@ -73,6 +73,7 @@ void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...);
 
 int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value);
+int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, const char *opt_name);
 
 
 /**
