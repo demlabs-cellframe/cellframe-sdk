@@ -1926,7 +1926,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
                 return dap_chain_net_get_gdb_group_mempool(l_chain);
         }
     }
-    return NULL;
+    return dap_strdup_printf("%s.%s",l_net->pub.gdb_groups_prefix,"mempool");
 }
 
 
