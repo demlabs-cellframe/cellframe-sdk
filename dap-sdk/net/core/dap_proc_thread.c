@@ -24,9 +24,10 @@
 #include <assert.h>
 #include "dap_server.h"
 
-#if defined(DAP_EVENTS_CAPS_WEPOLL)
-#elif defined(DAP_EVENTS_CAPS_EPOLL)
+#if defined(DAP_EVENTS_CAPS_EPOLL)
 #include <sys/epoll.h>
+#elif defined (DAP_EVENTS_CAPS_POLL)
+#include <poll.h>
 #else
 #error "Unimplemented poll for this platform"
 #endif
@@ -181,6 +182,24 @@ static void * s_proc_thread_function(void * a_arg)
         log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
         return NULL;
     }
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    size_t l_poll_count_max = DAP_MAX_EVENTS_COUNT;
+    size_t l_poll_count = 0;
+    bool l_poll_compress = false;
+    struct pollfd * l_poll = DAP_NEW_Z_SIZE(struct pollfd,l_poll_count_max *sizeof (*l_poll));
+    dap_events_socket_t ** l_esockets = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_poll_count_max *sizeof (*l_esockets));
+
+    // Add proc queue
+    l_poll[0].fd = l_thread->proc_queue->esocket->fd;
+    l_poll[0].events = l_thread->proc_queue->esocket->poll_base_flags;
+    l_esockets[0] = l_thread->proc_queue->esocket;
+    l_poll_count++;
+
+    // Add proc event
+    l_poll[1].fd = l_thread->proc_event->fd;
+    l_poll[1].events = l_thread->proc_event->poll_base_flags;
+    l_esockets[1] = l_thread->proc_event;
+    l_poll_count++;
 
 #else
 #error "Unimplemented poll events analog for this platform"
@@ -196,6 +215,10 @@ static void * s_proc_thread_function(void * a_arg)
 #ifdef DAP_EVENTS_CAPS_EPOLL
         //log_it(L_DEBUG, "Epoll_wait call");
         int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
+        size_t l_sockets_max = l_selected_sockets;
+#elif defined (DAP_EVENTS_CAPS_POLL)
+        int l_selected_sockets = poll(l_poll,l_poll_count,-1);
+        size_t l_sockets_max = l_poll_count;
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
@@ -209,30 +232,50 @@ static void * s_proc_thread_function(void * a_arg)
             log_it(L_ERROR, "Proc thread #%d got errno:\"%s\" (%d)", l_thread->cpu_id , l_errbuf, l_errno);
             break;
         }
-        time_t l_cur_time = time( NULL);
-        for(int32_t n = 0; n < l_selected_sockets; n++) {
+        for(size_t n = 0; n < l_sockets_max; n++) {
             dap_events_socket_t * l_cur;
+            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error;
+#ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
             uint32_t l_cur_events = l_epoll_events[n].events;
+            l_flag_hup = l_cur_events & EPOLLHUP;
+            l_flag_rdhup = l_cur_events & EPOLLHUP;
+            l_flag_write = l_cur_events & EPOLLOUT;
+            l_flag_read = l_cur_events & EPOLLIN;
+            l_flag_error = l_cur_events & EPOLLERR;
+#elif defined ( DAP_EVENTS_CAPS_POLL)
+            if(n>=(int32_t)l_poll_count){
+                log_it(L_WARNING,"selected_sockets(%d) is bigger then poll count (%u)", l_selected_sockets, l_poll_count);
+                break;
+            }
+            short l_cur_events = l_poll[n].revents ;
+            if (!l_cur_events)
+                continue;
+            l_cur = l_esockets[n];
+            l_flag_hup = l_cur_events & POLLHUP;
+            l_flag_rdhup = l_cur_events & POLLHUP;
+            l_flag_write = l_cur_events & POLLOUT;
+            l_flag_read = l_cur_events & POLLIN;
+            l_flag_error = l_cur_events & POLLERR;
+#else
+#error "Unimplemented fetch esocket after poll"
+#endif
+
             if(!l_cur) {
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
+            time_t l_cur_time = time( NULL);
             l_cur->last_time_active = l_cur_time;
-            if (l_cur_events & EPOLLERR ){
-                char l_buferr[128];
-                strerror_r(errno,l_buferr, sizeof (l_buferr));
-                log_it(L_ERROR,"Some error happend in proc thread #%u: %s", l_thread->cpu_id, l_buferr);
-            }
-            if (l_cur_events & EPOLLERR ){
+            if (l_flag_error){
                 int l_errno = errno;
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
-                log_it(L_ERROR,"Some error with %d socket: %s(%d)", l_cur->socket, l_errbuf, l_errno);
+                log_it(L_ERROR,"Some error on proc thread #%u with %d socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
                 if(l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur,errno);
             }
-            if (l_cur_events & EPOLLIN ){
+            if (l_flag_read ){
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_QUEUE:
                             dap_events_socket_queue_proc_input_unsafe(l_cur);
@@ -255,12 +298,38 @@ static void * s_proc_thread_function(void * a_arg)
                 if(l_cur->_inheritor)
                     DAP_DELETE(l_cur->_inheritor);
                 DAP_DELETE(l_cur);
+#elif defined (DAP_EVENTS_CAPS_POLL)
+                l_poll[n].fd = -1;
+                l_poll_compress = true;
 #else
 #error "Unimplemented poll ctl analog for this platform"
 #endif
             }
 
         }
+#ifdef DAP_EVENTS_CAPS_POLL
+      /***********************************************************/
+       /* If the compress_array flag was turned on, we need       */
+       /* to squeeze together the array and decrement the number  */
+       /* of file descriptors. We do not need to move back the    */
+       /* events and revents fields because the events will always*/
+       /* be POLLIN in this case, and revents is output.          */
+       /***********************************************************/
+       if ( l_poll_compress){
+           l_poll_compress = false;
+           for (size_t i = 0; i < l_poll_count ; i++)  {
+               if ( l_poll[i].fd == -1){
+                   for(size_t j = i; j < l_poll_count-1; j++){
+                       l_poll[j].fd = l_poll[j+1].fd;
+                       l_esockets[j] = l_esockets[j+1];
+                       l_esockets[j]->poll_index = j;
+                   }
+                   i--;
+                   l_poll_count--;
+               }
+           }
+       }
+#endif
     }
     log_it(L_NOTICE, "Stop processing thread #%u", l_thread->cpu_id);
     return NULL;

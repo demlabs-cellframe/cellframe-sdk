@@ -50,6 +50,13 @@ typedef struct dap_worker
     dap_timerfd_t * timer_check_activity;
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
+#elif defined ( DAP_EVENTS_CAPS_POLL)
+    int poll_fd;
+    struct pollfd * poll;
+    dap_events_socket_t ** poll_esocket;
+    size_t poll_count;
+    size_t poll_count_max;
+    bool poll_compress; // Some of fd's became NULL so arrays need to be reassigned
 #endif
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;
@@ -81,6 +88,7 @@ typedef struct dap_worker_msg_callback{
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
 
+int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker);
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
 dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg);

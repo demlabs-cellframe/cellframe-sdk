@@ -28,7 +28,7 @@
 #include "dap_server.h"
 #include "dap_worker.h"
 struct dap_events;
-#define DAP_MAX_EPOLL_EVENTS    8192
+#define DAP_MAX_EVENTS_COUNT    8192
 
 typedef void (*dap_events_callback_t) (struct dap_events *, void *arg); // Callback for specific server's operations
 

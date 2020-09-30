@@ -106,6 +106,8 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+    #elif defined(DAP_EVENTS_CAPS_POLL)
+    ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #endif
 
     if ( a_sock!= 0 && a_sock != -1){
@@ -153,22 +155,6 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
 }
 
 /**
- * @brief dap_events_socket_assign_on_worker_unsafe
- * @param a_es
- * @param a_worker
- */
-void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struct dap_worker * a_worker)
-{
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    int l_event_fd = a_es->fd;
-    //log_it( L_INFO, "Create event descriptor with queue %d (%p) and add it on epoll fd %d", l_event_fd, l_es, a_w->epoll_fd);
-    a_es->ev.events = a_es->ev_base_flags;
-    a_es->ev.data.ptr = a_es;
-    epoll_ctl(a_worker->epoll_fd, EPOLL_CTL_ADD, l_event_fd, &a_es->ev);
-#endif
-}
-
-/**
  * @brief s_create_type_pipe
  * @param a_w
  * @param a_callback
@@ -183,7 +169,13 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     l_es->worker = a_w;
     l_es->events = a_w->events;
     l_es->callbacks.read_callback = a_callback; // Arm event callback
+#if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
+#else
+#error "Not defined s_create_type_pipe for your platform"
+#endif
 
 #if defined(DAP_EVENTS_CAPS_PIPE_POSIX)
     int l_pipe[2];
@@ -216,7 +208,7 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
     dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
-    dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+    dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
 
@@ -230,7 +222,7 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, 
 dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
     dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
-    dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+    dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
 
@@ -250,7 +242,15 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         l_es->worker = a_w;
     }
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
+#else
+#error "Not defined s_create_type_queue_ptr for your platform"
+#endif
+
 
 #ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     int l_pipe[2];
@@ -337,7 +337,7 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
     assert(l_es);
     // If no worker - don't assign
     if ( a_w)
-        dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+        dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
 
@@ -398,7 +398,13 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
         l_es->worker = a_w;
     }
     l_es->callbacks.event_callback = a_callback; // Arm event callback
+#if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
+#else
+#error "Not defined s_create_type_event for your platform"
+#endif
 
 #ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
     if((l_es->fd = eventfd(0,0) ) < 0 ){
@@ -448,7 +454,7 @@ dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * 
     dap_events_socket_t * l_es = s_create_type_event(a_w, a_callback);
     // If no worker - don't assign
     if ( a_w)
-        dap_events_socket_assign_on_worker_unsafe(l_es,a_w);
+        dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
 
@@ -597,6 +603,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
 #endif
 }
 
+
+
 /**
  * @brief dap_events_socket_event_signal
  * @param a_es
@@ -684,79 +692,85 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
     return ret;
 }
 
+static void s_worker_poll_mod(dap_events_socket_t * a_esocket)
+{
+#if defined (DAP_EVENTS_CAPS_EPOLL)
+    int events = a_esocket->ev_base_flags | EPOLLERR;
+
+    // Check & add
+    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+        events |= EPOLLIN;
+
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+        events |= EPOLLOUT;
+
+    a_esocket->ev.events = events;
+
+    if ( epoll_ctl(a_esocket->worker->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ){
+        int l_errno = errno;
+        char l_errbuf[128];
+        l_errbuf[0]=0;
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't update client socket state in the epoll_fd %d: \"%s\" (%d)",
+               a_esocket->worker->epoll_fd, l_errbuf, l_errno);
+    }
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    if (a_esocket->poll_index < a_esocket->worker->poll_count ){
+        struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
+        l_poll->events = a_esocket->poll_base_flags | POLLERR ;
+        // Check & add
+        if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+            l_poll->events |= POLLIN;
+        if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+            l_poll->events |= POLLOUT;
+    }else{
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
+               a_esocket->worker->poll_count);
+    }
+
+#else
+#error "Not defined dap_events_socket_set_writable_unsafe for your platform"
+#endif
+
+}
+
 /**
  * @brief dap_events_socket_ready_to_read
  * @param sc
  * @param isReady
  */
-void dap_events_socket_set_readable_unsafe( dap_events_socket_t *sc, bool is_ready )
+void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool is_ready )
 {
-  if( is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_READ))
-    return;
+    if( is_ready == (bool)(a_esocket->flags & DAP_SOCK_READY_TO_READ))
+        return;
 
-  sc->ev.events = sc->ev_base_flags;
-  sc->ev.events |= EPOLLERR;
+    if ( is_ready )
+        a_esocket->flags |= DAP_SOCK_READY_TO_READ;
+    else
+        a_esocket->flags ^= DAP_SOCK_READY_TO_READ;
 
-  if ( is_ready )
-    sc->flags |= DAP_SOCK_READY_TO_READ;
-  else
-    sc->flags ^= DAP_SOCK_READY_TO_READ;
-
-  int events = EPOLLERR;
-
-  if( sc->flags & DAP_SOCK_READY_TO_READ )
-    events |= EPOLLIN;
-
-  if( sc->flags & DAP_SOCK_READY_TO_WRITE )
-    events |= EPOLLOUT;
-
-  sc->ev.events = events;
-  if (sc->worker)
-    if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) == -1 ){
-        int l_errno = errno;
-        char l_errbuf[128];
-        l_errbuf[0]=0;
-        strerror_r( l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it( L_ERROR,"Can't update read client socket state in the epoll_fd: \"%s\" (%d)", l_errbuf, l_errno );
-    }
+    if( a_esocket->worker)
+        s_worker_poll_mod( a_esocket);
 }
 
 /**
  * @brief dap_events_socket_ready_to_write
- * @param sc
+ * @param a_esocket
  * @param isReady
  */
-void dap_events_socket_set_writable_unsafe( dap_events_socket_t *sc, bool a_is_ready )
+void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool a_is_ready )
 {
-    if ( a_is_ready == (bool)(sc->flags & DAP_SOCK_READY_TO_WRITE)) {
+    if ( a_is_ready == (bool)(a_esocket->flags & DAP_SOCK_READY_TO_WRITE)) {
         return;
     }
 
     if ( a_is_ready )
-        sc->flags |= DAP_SOCK_READY_TO_WRITE;
+        a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
     else
-        sc->flags ^= DAP_SOCK_READY_TO_WRITE;
+        a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
 
-    int events = sc->ev_base_flags | EPOLLERR;
-
-    // Check & add
-    if( sc->flags & DAP_SOCK_READY_TO_READ )
-        events |= EPOLLIN;
-
-    if( sc->flags & DAP_SOCK_READY_TO_WRITE )
-        events |= EPOLLOUT;
-
-    sc->ev.events = events;
-
-    if (sc->worker && sc->type != DESCRIPTOR_TYPE_SOCKET_UDP)
-        if ( epoll_ctl(sc->worker->epoll_fd, EPOLL_CTL_MOD, sc->socket, &sc->ev) ){
-            int l_errno = errno;
-            char l_errbuf[128];
-            l_errbuf[0]=0;
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_ERROR,"Can't update write client socket state in the epoll_fd %d: \"%s\" (%d)",
-                   sc->worker->epoll_fd, l_errbuf, l_errno);
-        }
+    if( a_esocket->worker )
+        s_worker_poll_mod(a_esocket);
 }
 
 /**
@@ -817,6 +831,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         // Socket already removed from worker
         return;
     }
+#ifdef DAP_EVENTS_CAPS_EPOLL
+
     if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
         int l_errno = errno;
         char l_errbuf[128];
@@ -825,6 +841,16 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
                 a_worker->epoll_fd, l_errbuf, l_errno);
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    if (a_es->poll_index < a_worker->poll_count ){
+        a_worker->poll[a_es->poll_index].fd = -1;
+    }else{
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
+    }
+#else
+#error "Unimplemented new esocket on worker callback for current platform"
+#endif
+
     a_worker->event_sockets_count--;
     if(a_worker->esockets)
         HASH_DELETE(hh_worker,a_worker->esockets, a_es);

@@ -250,7 +250,7 @@ int dap_events_start( dap_events_t *a_events )
         l_worker->events = a_events;
         l_worker->proc_queue = dap_proc_thread_get(i)->proc_queue;
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        l_worker->epoll_fd = epoll_create( DAP_MAX_EPOLL_EVENTS );
+        l_worker->epoll_fd = epoll_create( DAP_MAX_EVENTS_COUNT );
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
         //log_it(L_DEBUG, "Created event_fd %d for worker %u", l_worker->epoll_fd,i);
