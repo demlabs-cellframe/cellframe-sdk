@@ -852,9 +852,10 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         }
     }
 
-    size_t l_key_hdr_str_size_max = strlen(a_client_internal->session_key_id) + 10;
+    size_t l_key_hdr_str_size_max = a_client_internal->session_key_id ? strlen(a_client_internal->session_key_id) + 10 : 12;
     char *l_key_hdr_str = DAP_NEW_Z_SIZE(char, l_key_hdr_str_size_max);
-    snprintf(l_key_hdr_str, l_key_hdr_str_size_max, "KeyID: %s", a_client_internal->session_key_id);
+    snprintf(l_key_hdr_str, l_key_hdr_str_size_max, "KeyID: %s",
+             a_client_internal->session_key_id ? a_client_internal->session_key_id : "NULL");
 
     char *a_custom_new[2];
     size_t a_custom_count = 1;
