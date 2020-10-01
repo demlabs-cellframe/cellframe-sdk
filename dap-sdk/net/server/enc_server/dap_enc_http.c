@@ -106,7 +106,8 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
                                       &l_enc_type,&l_pkey_exchange_type,&l_pkey_exchange_size);
 
-
+        log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_type),
+               dap_enc_get_type_name(l_pkey_exchange_type));
         uint8_t alice_msg[cl_st->request_size];
         size_t l_decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
         dap_chain_hash_fast_t l_sign_hash = {};

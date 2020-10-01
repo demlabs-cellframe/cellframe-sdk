@@ -121,25 +121,34 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         char l_channels_str[sizeof(ss->active_channels)];
         dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
         int l_enc_headers = 0;
-        bool l_is_legacy=false;
-        int l_url_sscanf_res = sscanf(l_dg->url_path, "stream_ctl,channels=%16s,enc_type=%d,enc_headers=%d", l_channels_str, &l_enc_type, &l_enc_headers);
-        if(l_url_sscanf_res > 0){
-            if(l_url_sscanf_res < 3){
-                log_it(L_INFO, "legacy encryption mode used (OAES)");
-                l_enc_type = DAP_ENC_KEY_TYPE_OAES;
-                l_is_legacy = true;
+        bool l_is_legacy=true;
+        char * l_tok_tmp = NULL;
+        char * l_tok = strtok_r(l_dg->url_path, ",",&l_tok_tmp)   ;
+        do {
+            char * l_subtok_tmp = NULL;
+            char * l_subtok_name = strtok_r(l_tok, "=",&l_subtok_tmp);
+            char * l_subtok_value = strtok_r(NULL, "=",&l_subtok_tmp);
+            if (l_subtok_value){
+                log_it(L_DEBUG, "tok = %s value =%s",l_subtok_name,l_subtok_value);
+                if ( strcmp(l_subtok_name,"channels")==0 ){
+                    strncpy(l_channels_str,l_subtok_value,sizeof (l_channels_str)-1);
+                    log_it(L_DEBUG,"Param: channels=%s",l_channels_str);
+                }else if(strcmp(l_subtok_name,"enc_type")==0){
+                    l_enc_type = atoi(l_subtok_value);
+                    log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
+                    l_is_legacy = false;
+                }else if(strcmp(l_subtok_name,"enc_headers")==0){
+                    l_enc_headers = atoi(l_subtok_value);
+                    log_it(L_DEBUG,"Param: enc_headers=%d",l_enc_headers);
+                }
             }
+            l_tok = strtok_r(NULL, ",",&l_tok_tmp)   ;
+        } while(l_tok);
+        l_new_session = true;
+        if(l_is_legacy){
+            log_it(L_INFO, "legacy encryption mode used (OAES)");
+            l_enc_type = DAP_ENC_KEY_TYPE_OAES;
             l_new_session = true;
-        }
-        else if(strcmp(l_dg->url_path, "socket_forward" ) == 0) {
-            l_channels_str[0]  = '\0';
-            l_new_session = true;
-        }
-        else{
-            log_it(L_ERROR,"ctl command unknown: %s",l_dg->url_path);
-            enc_http_delegate_delete(l_dg);
-            *return_code = Http_Status_MethodNotAllowed;
-            return;
         }
         if(l_new_session){
 

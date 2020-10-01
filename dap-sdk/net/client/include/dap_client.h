@@ -34,6 +34,7 @@
  * @brief The dap_client_stage enum. Top level of client's state machine
  **/
 typedef enum dap_client_stage {
+    STAGE_UNDEFINED=-1,
     STAGE_BEGIN=0,
     STAGE_ENC_INIT=1,
     STAGE_STREAM_CTL=2,

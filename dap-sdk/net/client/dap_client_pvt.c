@@ -421,7 +421,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 l_sign_size = dap_sign_get_size(l_sign);
             }
             uint8_t l_data[l_key_size + l_sign_size];
-            memcpy(l_data, a_client_pvt->session_key_open->pub_key_data, l_key_size);
+            memcpy(l_data,a_client_pvt->session_key_open->pub_key_data, l_key_size);
             if (l_sign) {
                 memcpy(l_data + l_key_size, l_sign, l_sign_size);
             }
