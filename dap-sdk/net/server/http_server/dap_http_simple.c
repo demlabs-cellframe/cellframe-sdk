@@ -354,7 +354,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
-        dap_proc_queue_add_callback( l_http_simple->worker->proc_queue, s_proc_queue_callback, l_http_simple);
+        dap_proc_queue_add_callback( l_http_simple->worker, s_proc_queue_callback, l_http_simple);
 
     }
 }
@@ -417,7 +417,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
         dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
-        dap_proc_queue_add_callback( l_http_simple->worker->proc_queue , s_proc_queue_callback, l_http_simple);
+        dap_proc_queue_add_callback( l_http_simple->worker , s_proc_queue_callback, l_http_simple);
     }
 }
 
