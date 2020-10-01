@@ -420,7 +420,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                         default: {
                             // Get DNS request result from root nodes as synchronization links
                             int l_max_tries = 5;
-                            int l_tries =0;
+                            int l_tries = 0;
                             while (dap_list_length(l_pvt_net->links_info) < s_max_links_count && l_tries < l_max_tries) {
                                 int i = rand() % l_pvt_net->seed_aliases_count;
                                 dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
@@ -428,9 +428,9 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                 if(l_remote_node_info) {
                                     dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                                     int l_res = dap_dns_client_get_addr(l_remote_node_info->hdr.ext_addr_v4.s_addr, l_net->pub.name, l_link_node_info);
-                                    //memcpy(l_link_node_info, l_remote_node_info, sizeof(dap_chain_node_info_t));
                                     if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                         l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+                                        l_tries = 0;
                                     }
                                     DAP_DELETE(l_remote_node_info);
                                 }
@@ -443,8 +443,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                                 }
                                 l_tries++;
                             }
-
-                            if (!l_pvt_net->links){
+                            if (dap_list_length(l_pvt_net->links_info) < s_max_links_count) {
                                 for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
                                     dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
                                     if (l_link_addr->uint64 == l_own_addr) {

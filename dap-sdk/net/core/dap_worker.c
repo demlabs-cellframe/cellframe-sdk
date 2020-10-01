@@ -48,6 +48,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 /**
  * @brief dap_worker_init
@@ -75,7 +76,7 @@ void *dap_worker_thread(void *arg)
 {
     dap_events_socket_t *l_cur;
     dap_worker_t *l_worker = (dap_worker_t *) arg;
-    time_t l_next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
+    //time_t l_next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
     uint32_t l_tn = l_worker->id;
 
     dap_cpu_assign_thread_on(l_worker->id);
@@ -83,25 +84,36 @@ void *dap_worker_thread(void *arg)
     l_shed_params.sched_priority = 0;
     pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
 
+#ifdef DAP_EVENTS_CAPS_EPOLL
+    struct epoll_event l_epoll_events[ DAP_MAX_EPOLL_EVENTS]= {{0}};
+    log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    l_worker->poll_count_max = _SC_PAGE_SIZE;
+    l_worker->poll = DAP_NEW_Z_SIZE(struct pollfd,l_worker->poll_count_max*sizeof (struct pollfd));
+    l_worker->poll_esocket = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_worker->poll_count_max*sizeof (dap_events_socket_t*));
+#else
+#error "Unimplemented socket array for this platform"
+#endif
+
+
     l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
     l_worker->queue_es_io = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_io_callback);
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_reassign_callback );
     l_worker->queue_callback= dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_callback_callback);
+    l_worker->event_exit = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback );
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
-#ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events[ DAP_MAX_EPOLL_EVENTS]= {{0}};
-    log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
-#else
-#error "Unimplemented socket array for this platform"
-#endif
 
     pthread_cond_broadcast(&l_worker->started_cond);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
 #ifdef DAP_EVENTS_CAPS_EPOLL
         int l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
+        size_t l_sockets_max = l_selected_sockets;
+#elif defined(DAP_EVENTS_CAPS_POLL)
+        int l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, -1);
+        size_t l_sockets_max = l_worker->poll_count;
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
@@ -116,20 +128,40 @@ void *dap_worker_thread(void *arg)
         }
 
         time_t l_cur_time = time( NULL);
-        for(int32_t n = 0; n < l_selected_sockets; n++) {
+        for(size_t n = 0; n < l_sockets_max; n++) {
 
+            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error;
+#ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
+            l_flag_hup = l_epoll_events[n].events & EPOLLHUP;
+            l_flag_rdhup = l_epoll_events[n].events & EPOLLHUP;
+            l_flag_write = l_epoll_events[n].events & EPOLLOUT;
+            l_flag_read = l_epoll_events[n].events & EPOLLIN;
+            l_flag_error = l_epoll_events[n].events & EPOLLERR;
+#elif defined ( DAP_EVENTS_CAPS_POLL)
+            short l_cur_events =l_worker->poll[n].revents;
+            if (!l_cur_events) // No events for this socket
+                continue;
+            l_flag_hup =  l_cur_events& POLLHUP;
+            l_flag_rdhup = l_cur_events & POLLHUP;
+            l_flag_write = l_cur_events & POLLOUT;
+            l_flag_read = l_cur_events & POLLIN;
+            l_flag_error = l_cur_events & POLLERR;
+            l_cur = l_worker->poll_esocket[n];
+            //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
+#else
+#error "Unimplemented fetch esocket after poll"
+#endif
             if(!l_cur) {
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
             l_cur->last_time_active = l_cur_time;
+//            log_it(L_DEBUG, "Worker=%d fd=%d", l_worker->id, l_cur->socket);
 
-            //log_it(L_DEBUG, "Worker=%d fd=%d socket=%d event=0x%x(%d)", l_worker->id,
-            //       l_worker->epoll_fd,l_cur->socket, l_epoll_events[n].events,l_epoll_events[n].events);
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
-            if(l_epoll_events[n].events & EPOLLHUP) { // && events[n].events & EPOLLERR) {
+            if( l_flag_hup) { // && events[n].events & EPOLLERR) {
                 switch (l_cur->type ){
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                     case DESCRIPTOR_TYPE_SOCKET:
@@ -148,7 +180,7 @@ void *dap_worker_thread(void *arg)
                 }
             }
 
-            if(l_epoll_events[n].events & EPOLLERR) {
+            if(l_flag_error) {
                 switch (l_cur->type ){
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                     case DESCRIPTOR_TYPE_SOCKET:
@@ -163,7 +195,7 @@ void *dap_worker_thread(void *arg)
                 l_cur->callbacks.error_callback(l_cur, 0); // Call callback to process error event
             }
 
-            if (l_epoll_events[n].events & EPOLLRDHUP) {
+            if (l_flag_hup) {
                 log_it(L_INFO, "Client socket disconnected");
                 dap_events_socket_set_readable_unsafe(l_cur, false);
                 dap_events_socket_set_writable_unsafe(l_cur, false);
@@ -172,7 +204,7 @@ void *dap_worker_thread(void *arg)
 
             }
 
-            if(l_epoll_events[n].events & EPOLLIN) {
+            if(l_flag_read) {
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_cur->buf_in_size == sizeof(l_cur->buf_in)) {
@@ -271,7 +303,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->buf_out_size = 0;
                         }
                     }
-                    else if (!(l_epoll_events[n].events & EPOLLRDHUP) || !(l_epoll_events[n].events & EPOLLERR)) {
+                    else if (! l_flag_rdhup || !l_flag_error) {
                         log_it(L_WARNING, "EPOLLIN triggered but nothing to read");
                         dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
@@ -279,7 +311,7 @@ void *dap_worker_thread(void *arg)
             }
 
             // Socket is ready to write
-            if(((l_epoll_events[n].events & EPOLLOUT) || (l_cur->flags & DAP_SOCK_READY_TO_WRITE))
+            if(( l_flag_write || (l_cur->flags & DAP_SOCK_READY_TO_WRITE))
                     && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
 
                 //log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
@@ -346,7 +378,7 @@ void *dap_worker_thread(void *arg)
 
                     //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
                     if (l_bytes_sent) {
-                        if ( l_bytes_sent <= l_cur->buf_out_size ){
+                        if ( l_bytes_sent <= (ssize_t) l_cur->buf_out_size ){
                             l_cur->buf_out_size -= l_bytes_sent;
                             if (l_cur->buf_out_size ) {
                                 memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
@@ -379,8 +411,35 @@ void *dap_worker_thread(void *arg)
                        l_cur->buf_out_size);
             }
 
-        }
 
+            if( l_worker->signal_exit){
+                log_it(L_NOTICE,"Worker :%u finished", l_worker->id);
+                return NULL;
+            }
+        }
+#ifdef DAP_EVENTS_CAPS_POLL
+      /***********************************************************/
+       /* If the compress_array flag was turned on, we need       */
+       /* to squeeze together the array and decrement the number  */
+       /* of file descriptors. We do not need to move back the    */
+       /* events and revents fields because the events will always*/
+       /* be POLLIN in this case, and revents is output.          */
+       /***********************************************************/
+       if ( l_worker->poll_compress){
+           l_worker->poll_compress = false;
+           for (size_t i = 0; i < l_worker->poll_count ; i++)  {
+               if ( l_worker->poll[i].fd == -1){
+                   for(size_t j = i; j < l_worker->poll_count-1; j++){
+                       l_worker->poll[j].fd = l_worker->poll[j+1].fd;
+                       l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
+                       l_worker->poll_esocket[j]->poll_index = j;
+                   }
+                   i--;
+                   l_worker->poll_count--;
+               }
+           }
+       }
+#endif
     } // while
     log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);
     return NULL;
@@ -405,7 +464,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
         int l_cpu = w->id;
         setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
     }
-    bool l_socket_present = (l_es_new->worker && l_es_new->is_initalized) ? true : false;
+
     l_es_new->worker = w;
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
@@ -415,23 +474,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if (l_es_new->socket>0){
-        int l_ret = -1;
-#ifdef DAP_EVENTS_CAPS_EPOLL
-        // Init events for EPOLL
-        l_es_new->ev.events = l_es_new->ev_base_flags ;
-        if(l_es_new->flags & DAP_SOCK_READY_TO_READ )
-            l_es_new->ev.events |= EPOLLIN;
-        if(l_es_new->flags & DAP_SOCK_READY_TO_WRITE )
-            l_es_new->ev.events |= EPOLLOUT;
-        l_es_new->ev.data.ptr = l_es_new;
-        if (l_socket_present) {
-            // Update only flags, socket already present in worker
-            return;
-        }
-        l_ret = epoll_ctl(w->epoll_fd, EPOLL_CTL_ADD, l_es_new->socket, &l_es_new->ev);
-#else
-#error "Unimplemented new esocket on worker callback for current platform"
-#endif
+        int l_ret = dap_worker_add_events_socket_unsafe(l_es_new,w);
         if (  l_ret != 0 ){
             log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
         }else{
@@ -503,6 +546,18 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
 }
 
 /**
+ * @brief s_event_exit_callback
+ * @param a_es
+ * @param a_flags
+ */
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
+{
+    (void) a_flags;
+    a_es->worker->signal_exit = true;
+    log_it(L_NOTICE, "Worker :%u signaled to exit", a_es->worker->id);
+}
+
+/**
  * @brief s_pipe_data_out_read_callback
  * @param a_es
  * @param a_arg
@@ -570,9 +625,51 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
     int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
     if(l_ret != 0 ){
         char l_errbuf[128];
+        *l_errbuf = 0;
         strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
         log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
     }
+}
+
+/**
+ * @brief dap_worker_add_events_socket_unsafe
+ * @param a_worker
+ * @param a_esocket
+ */
+int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
+{
+
+#ifdef DAP_EVENTS_CAPS_EPOLL
+        // Init events for EPOLL
+        a_esocket->ev.events = a_esocket->ev_base_flags ;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+            a_esocket->ev.events |= EPOLLIN;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+            a_esocket->ev.events |= EPOLLOUT;
+        a_esocket->ev.data.ptr = a_esocket;
+        return epoll_ctl(a_worker->epoll_fd, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    if (  a_worker->poll_count == a_worker->poll_count_max ){ // realloc
+        log_it(L_WARNING, "Too many descriptors, resizing array twice");
+        a_worker->poll_count_max *= 2;
+        a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
+        a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
+    }
+    a_worker->poll[a_worker->poll_count].fd = a_esocket->socket;
+    a_esocket->poll_index = a_worker->poll_count;
+    a_worker->poll[a_worker->poll_count].events = a_esocket->poll_base_flags;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+        a_worker->poll[a_worker->poll_count].events |= POLLIN;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+        a_worker->poll[a_worker->poll_count].events |= POLLOUT;
+
+    a_worker->poll_esocket[a_worker->poll_count] = a_esocket;
+    a_worker->poll_count++;
+    return 0;
+#else
+#error "Unimplemented new esocket on worker callback for current platform"
+#endif
+
 }
 
 /**
@@ -586,6 +683,7 @@ void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t 
     int l_ret=dap_events_socket_queue_ptr_send( a_worker->queue_callback,l_msg );
     if(l_ret != 0 ){
         char l_errbuf[128];
+        *l_errbuf = 0;
         strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
         log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
     }
