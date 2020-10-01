@@ -42,6 +42,8 @@ typedef struct dap_proc_thread{
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_ctl;
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    int poll_fd;
 #else
 #error "No poll for proc thread for your platform"
 #endif

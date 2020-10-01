@@ -20,6 +20,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "dap_worker.h"
 #include "dap_proc_queue.h"
 #include "dap_proc_thread.h"
 #define LOG_TAG "dap_proc_queue"
@@ -87,15 +88,10 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
 }
 
 
-void dap_proc_queue_add_callback(dap_proc_queue_t * a_queue,dap_proc_queue_callback_t a_callback, void * a_callback_arg)
+void dap_proc_queue_add_callback(dap_worker_t * a_worker,dap_proc_queue_callback_t a_callback, void * a_callback_arg)
 {
     dap_proc_queue_msg_t * l_msg = DAP_NEW_Z(dap_proc_queue_msg_t);
     l_msg->callback = a_callback;
     l_msg->callback_arg = a_callback_arg;
-    dap_events_socket_queue_ptr_send( a_queue->esocket, l_msg );
-}
-
-void dap_proc_queue_add_callback_auto(dap_proc_queue_callback_t a_callback, void * a_callback_arg)
-{
-    dap_proc_queue_add_callback(  dap_proc_thread_get_auto()->proc_queue ,a_callback,a_callback_arg);
+    dap_events_socket_queue_ptr_send( a_worker->proc_queue->esocket , l_msg );
 }

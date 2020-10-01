@@ -42,7 +42,5 @@ typedef struct dap_proc_queue{
 dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread);
 
 void dap_proc_queue_delete(dap_proc_queue_t * a_queue);
-void dap_proc_queue_add_callback(dap_proc_queue_t * a_queue,dap_proc_queue_callback_t a_callback, void * a_callback_arg);
-
-void dap_proc_queue_add_callback_auto(dap_proc_queue_callback_t a_callback, void * a_callback_arg);
+void dap_proc_queue_add_callback(dap_worker_t * a_worker, dap_proc_queue_callback_t a_callback, void * a_callback_arg);
 

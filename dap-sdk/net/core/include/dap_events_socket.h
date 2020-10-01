@@ -32,7 +32,8 @@
 
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
-    #define DAP_EVENTS_CAPS_EPOLL
+//    #define DAP_EVENTS_CAPS_EPOLL
+    #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_QUEUE_PIPE2
     //#define DAP_EVENTS_CAPS_QUEUE_POSIX
@@ -60,6 +61,8 @@
 #elif defined (DAP_EVENTS_CAPS_EPOLL)
 #include <sys/epoll.h>
 #define EPOLL_HANDLE  int
+#elif defined (DAP_EVENTS_CAPS_POLL)
+#include <poll.h>
 #endif
 
 #define BIT( x ) ( 1 << x )
@@ -172,6 +175,9 @@ typedef struct dap_events_socket {
 #ifdef DAP_EVENTS_CAPS_EPOLL
     uint32_t ev_base_flags;
     struct epoll_event ev;
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    short poll_base_flags;
+    uint32_t poll_index; // index in poll array on worker
 #endif
 
     dap_events_socket_callbacks_t callbacks;
@@ -208,7 +214,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 
-void dap_events_socket_assign_on_worker_unsafe(dap_events_socket_t * a_es, struct dap_worker * a_worker);
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker);
 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
