@@ -313,7 +313,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
  * @param a_ledger
  */
 static void s_treshold_emissions_proc(dap_ledger_t * a_ledger)
-{
+{ 
     bool l_success;
     do {
         l_success = false;
@@ -322,13 +322,15 @@ static void s_treshold_emissions_proc(dap_ledger_t * a_ledger)
             int l_res = dap_chain_ledger_token_emission_add(a_ledger, l_emission_item->datum_token_emission,
                                                             l_emission_item->datum_token_emission_size);
             if (!l_res) {
+                pthread_rwlock_wrlock(&PVT(a_ledger)->treshold_emissions_rwlock);
                 HASH_DEL(PVT(a_ledger)->treshold_emissions, l_emission_item);
+                pthread_rwlock_unlock(&PVT(a_ledger)->treshold_emissions_rwlock);
                 DAP_DELETE(l_emission_item->datum_token_emission);
                 DAP_DELETE(l_emission_item);
                 l_success = true;
             }
         }
-    } while (l_success);
+    } while (l_success); 
 }
 
 /**
@@ -336,7 +338,7 @@ static void s_treshold_emissions_proc(dap_ledger_t * a_ledger)
  * @param a_ledger
  */
 static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
-{
+{  
     bool l_success;
     do {
         l_success = false;
@@ -344,14 +346,15 @@ static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
         HASH_ITER(hh, PVT(a_ledger)->treshold_txs, l_tx_item, l_tx_tmp) {
             int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx);
             if (!l_res) {
+                pthread_rwlock_wrlock(&PVT(a_ledger)->treshold_txs_rwlock);
                 HASH_DEL(PVT(a_ledger)->treshold_txs, l_tx_item);
+                pthread_rwlock_unlock(&PVT(a_ledger)->treshold_txs_rwlock);
                 DAP_DELETE(l_tx_item->tx);
                 DAP_DELETE(l_tx_item);
                 l_success = true;
             }
         }
     } while (l_success);
-
 }
 
 /**
@@ -1138,7 +1141,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         } else {
             log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
         }
-        ret = l_ret_check * 100;
+        ret = l_ret_check;
         goto FIN;
     }
     log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
@@ -1207,14 +1210,14 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
             int res = dap_chain_ledger_tx_remove(a_ledger, &l_tx_prev_hash_to_del);
             if(res == -2) {
                 log_it(L_ERROR, "Can't delete previous transactions because hash=0x%x not found", l_tx_prev_hash_str);
-                ret = -2;
+                ret = -100;
                 DAP_DELETE(l_tx_prev_hash_str);
                 dap_list_free_full(l_list_bound_items, free);
                 goto FIN;
             }
             else if(res != 1) {
                 log_it(L_ERROR, "Can't delete previous transactions with hash=0x%x", l_tx_prev_hash_str);
-                ret = -3;
+                ret = -101;
                 DAP_DELETE(l_tx_prev_hash_str);
                 dap_list_free_full(l_list_bound_items, free);
                 goto FIN;

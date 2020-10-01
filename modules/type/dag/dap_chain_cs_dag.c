@@ -256,40 +256,40 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_pvt);
 }
 
-static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item){
+static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item)
+{
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
+    switch (l_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TOKEN_DECL: {
+            dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
+            return dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
+            }
+        break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+            dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
+            return dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
+            }
+        break;
+        case DAP_CHAIN_DATUM_TX: {
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+            // don't save bad transactions to base
+            int l_ret = dap_chain_ledger_tx_add(a_ledger, l_tx);
+            if( l_ret != 1 ) {
+                return l_ret;
+            }
+            dap_chain_cs_dag_event_item_t * l_tx_event= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+            l_tx_event->ts_added = a_event_item->ts_added;
+            l_tx_event->event = a_event_item->event;
+            l_tx_event->event_size = a_event_item->event_size;
+            memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
 
-  dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
-  switch (l_datum->header.type_id) {
-    case DAP_CHAIN_DATUM_TOKEN_DECL: {
-      dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-      return dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
+            HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
+            }
+        break;
+        default:
+            return -1;
     }
-      break;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-      dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-      return dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
-    }
-      break;
-    case DAP_CHAIN_DATUM_TX: {
-      dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-      // don't save bad transactions to base
-      int l_ret = dap_chain_ledger_tx_add(a_ledger, l_tx);
-      if( l_ret !=0 ) {
-        return l_ret;
-      }
-      dap_chain_cs_dag_event_item_t * l_tx_event= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-      l_tx_event->ts_added = a_event_item->ts_added;
-      l_tx_event->event = a_event_item->event;
-      l_tx_event->event_size = a_event_item->event_size;
-      memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
-
-      HASH_ADD(hh,PVT(a_dag)->tx_events,hash,sizeof (l_tx_event->hash),l_tx_event);
-    }
-      break;
-    default:
-      return -1;
-  }
-  return 0;
+    return 0;
 }
 
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item )
@@ -300,7 +300,11 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
     dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
     if (res == 0 || memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0) {
         log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
-        s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+        res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+        if (res) {
+            log_it(L_DEBUG,"Dag event %s checked, but ledger declined", l_buf_hash);
+            return res;
+        }
         //All correct, no matter for result
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
         s_dag_events_lasts_process_new_last_event(a_dag, a_event_item);
@@ -374,7 +378,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
         if(!l_consensus_check){
              log_it(L_DEBUG, "... added");
-        }else if (l_consensus_check == -5){
+        }else if (l_consensus_check == DAP_CHAIN_LEDGER_TX_NO_PREVIOUS){
+            HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
             log_it(L_DEBUG, "... tresholded");
             ret = ATOM_MOVE_TO_THRESHOLD;
         }else{
