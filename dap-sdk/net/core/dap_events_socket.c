@@ -584,8 +584,10 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         char l_errbuf[128];
         log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
         // Try again
-        if(l_errno == EAGAIN)
+        if(l_errno == EAGAIN){
             add_ptr_to_buf(a_es, a_arg);
+            return 0;
+        }
         return l_errno;
     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)

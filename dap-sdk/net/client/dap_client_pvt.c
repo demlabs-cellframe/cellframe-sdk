@@ -506,6 +506,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
             a_client_pvt->stream_es->_inheritor = a_client_pvt;//->client;
             a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
+            assert(a_client_pvt->stream);
             a_client_pvt->stream->is_client_to_uplink = true;
             a_client_pvt->stream->session = dap_stream_session_pure_new(); // may be from in packet?
 
@@ -522,7 +523,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(l_remote_addr.sin_addr)) < 0) {
                 log_it(L_ERROR, "Wrong remote address '%s:%u'", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                 //close(a_client_pvt->stream_socket);
-                dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es);
+                dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
                 //a_client_pvt->stream_socket = 0;
                 a_client_pvt->stage_status = STAGE_STATUS_ERROR;
             }
@@ -530,7 +531,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 int l_err = 0;
                 if((l_err = connect(a_client_pvt->stream_socket, (struct sockaddr *) &l_remote_addr,
                         sizeof(struct sockaddr_in))) != -1) {
-                    a_client_pvt->stream_es->flags &= ~DAP_SOCK_SIGNAL_CLOSE;
+
+                    // a_client_pvt->stream_es->flags &= ~DAP_SOCK_SIGNAL_CLOSE;// ??? what it was? Why out of esocket context???
                     //s_set_sock_nonblock(a_client_pvt->stream_socket, false);
                     log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d (assign on worker #%u)", a_client_pvt->uplink_addr,
                             a_client_pvt->uplink_port, a_client_pvt->stream_socket, l_worker->id);
@@ -539,7 +541,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 else {
                     log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_client_pvt->uplink_addr,
                             a_client_pvt->uplink_port);
-                    dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es);
+                    dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
                     //close(a_client_pvt->stream_socket);
                     a_client_pvt->stream_socket = 0;
                     a_client_pvt->stage_status = STAGE_STATUS_ERROR;
@@ -551,7 +553,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             break;
         case STAGE_STREAM_CONNECTED: {
             log_it(L_INFO, "Go to stage STAGE_STREAM_CONNECTED");
-            size_t count_channels = strlen(a_client_pvt->active_channels);
+            size_t count_channels = a_client_pvt->active_channels? strlen(a_client_pvt->active_channels) : 0;
             for(size_t i = 0; i < count_channels; i++) {
                 dap_stream_ch_new(a_client_pvt->stream, (uint8_t) a_client_pvt->active_channels[i]);
                 //sid->channel[i]->ready_to_write = true;
@@ -1237,6 +1239,7 @@ void m_es_stream_delete(dap_events_socket_t *a_es, void *arg)
     log_it(L_INFO, "================= stream delete/peer reconnect");
 
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
+    a_es->_inheritor = NULL; // To prevent delete in reactor
 
     if(l_client_pvt == NULL) {
         log_it(L_ERROR, "dap_client_pvt_t is not initialized");

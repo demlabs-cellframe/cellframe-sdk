@@ -104,7 +104,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_key_type_t l_enc_type = DAP_ENC_KEY_TYPE_IAES;
         size_t l_pkey_exchange_size=MSRLN_PKA_BYTES;
         sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
-                                      &l_pkey_exchange_type,&l_enc_type,&l_pkey_exchange_size);
+                                      &l_enc_type,&l_pkey_exchange_type,&l_pkey_exchange_size);
 
 
         uint8_t alice_msg[cl_st->request_size];
