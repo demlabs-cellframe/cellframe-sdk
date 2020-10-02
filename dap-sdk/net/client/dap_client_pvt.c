@@ -283,7 +283,7 @@ int dap_client_pvt_disconnect(dap_client_pvt_t *a_client_pvt)
 //        l_client_internal->stream_es->signal_close = true;
         // start stopping connection
         if(a_client_pvt->stream_es ) {
-            dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_es->worker, a_client_pvt->stream_es);
+            dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
             int l_counter = 0;
             // wait for stop of connection (max 0.7 sec.)
             while(a_client_pvt->stream_es && l_counter < 70) {
@@ -501,8 +501,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             assert(l_worker);
             assert(l_worker->_inheritor);
             a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
-            // add to dap_worker
-            dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
 
             a_client_pvt->stream_es->_inheritor = a_client_pvt;//->client;
             a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
@@ -523,9 +521,11 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(l_remote_addr.sin_addr)) < 0) {
                 log_it(L_ERROR, "Wrong remote address '%s:%u'", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                 //close(a_client_pvt->stream_socket);
-                dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
+                //dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
                 //a_client_pvt->stream_socket = 0;
                 a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                dap_events_socket_delete_unsafe(a_client_pvt->stream_es, true);
+                a_client_pvt->stream_es = NULL;
             }
             else {
                 int l_err = 0;
@@ -537,14 +537,18 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d (assign on worker #%u)", a_client_pvt->uplink_addr,
                             a_client_pvt->uplink_port, a_client_pvt->stream_socket, l_worker->id);
                     a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                    // add to dap_worker
+                    dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
                 }
                 else {
                     log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d", a_client_pvt->uplink_addr,
                             a_client_pvt->uplink_port);
-                    dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
+                    //dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
                     //close(a_client_pvt->stream_socket);
                     a_client_pvt->stream_socket = 0;
                     a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                    dap_events_socket_delete_unsafe(a_client_pvt->stream_es, true);
+                    a_client_pvt->stream_es = NULL;
                 }
             }
             s_stage_status_after(a_client_pvt);
