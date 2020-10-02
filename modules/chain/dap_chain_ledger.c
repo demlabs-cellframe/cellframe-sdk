@@ -408,7 +408,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_ledger_token_emission_item_t *l_emission_item = DAP_NEW_Z(dap_chain_ledger_token_emission_item_t);
-        dap_chain_str_to_hash_fast(l_objs[i].key, &l_emission_item->datum_token_emission_hash);
+        dap_chain_hash_fast_from_str(l_objs[i].key, &l_emission_item->datum_token_emission_hash);
         l_emission_item->datum_token_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_objs[i].value_len);
         memcpy(l_emission_item->datum_token_emission, l_objs[i].value, l_objs[i].value_len);
         const char * c_token_ticker = l_emission_item->datum_token_emission->hdr.ticker;
@@ -436,7 +436,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
-        dap_chain_str_to_hash_fast(l_objs[i].key, &l_tx_item->tx_hash_fast);
+        dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_objs[i].value_len - sizeof(l_tx_item->cache_data));
         memcpy(l_tx_item->tx, l_objs[i].value + sizeof(l_tx_item->cache_data), l_objs[i].value_len - sizeof(l_tx_item->cache_data));
         memcpy(&l_tx_item->cache_data, l_objs[i].value, sizeof(l_tx_item->cache_data));
@@ -456,7 +456,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
-        dap_chain_str_to_hash_fast(l_objs[i].key, &l_tx_item->tx_hash_fast);
+        dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, l_objs[i].value_len);
         memcpy(l_tx_item->tx, l_objs[i].value, l_objs[i].value_len);
         HASH_ADD(hh, l_ledger_pvt->treshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);

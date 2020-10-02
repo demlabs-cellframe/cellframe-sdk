@@ -485,7 +485,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                         log_it( L_ERROR, "Can't parse \"%s\" as node addr");
                 }
                 if (l_tx_cond_hash_str)
-                    dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
+                    dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = (uint64_t) atoll ( l_price_str );
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);

@@ -51,7 +51,7 @@ extern "C" {
 #endif
 
 //size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
-int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
+int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
 
 static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out )
 {

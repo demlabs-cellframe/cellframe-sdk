@@ -233,6 +233,7 @@ void dap_client_delete(dap_client_t * a_client)
     //memset(a_client, 0, sizeof(dap_client_t));
     //pthread_mutex_unlock(l_mutex);
     pthread_mutex_unlock(&a_client->mutex);
+    pthread_mutex_destroy(&a_client->mutex);
     // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
     //DAP_DELETE(a_client);
     DAP_DEL_Z(a_client);

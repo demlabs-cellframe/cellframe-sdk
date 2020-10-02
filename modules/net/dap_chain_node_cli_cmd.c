@@ -3799,7 +3799,7 @@ int com_tx_history(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_re
 
     dap_chain_hash_fast_t l_tx_hash;
     if(l_tx_hash_str) {
-        if(dap_chain_str_to_hash_fast(l_tx_hash_str, &l_tx_hash) < 0) {
+        if(dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
             l_tx_hash_str = NULL;
             dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
             return -1;
