@@ -109,7 +109,11 @@ MEM_ALLOC_ERR:
 void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port)
 {
     if(a_addr == NULL){
-        log_it(L_ERROR,"Address is NULL");
+        log_it(L_ERROR,"Address is NULL for dap_client_set_uplink");
+        return;
+    }
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_set_uplink");
         return;
     }
     DAP_CLIENT_PVT(a_client)->uplink_addr = strdup(a_addr);
@@ -123,6 +127,11 @@ void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t 
  */
 const char* dap_client_get_uplink_addr(dap_client_t * a_client)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_uplink");
+        return NULL;
+    }
+
     return DAP_CLIENT_PVT(a_client)->uplink_addr;
 }
 
@@ -133,9 +142,14 @@ const char* dap_client_get_uplink_addr(dap_client_t * a_client)
  */
 void dap_client_set_active_channels (dap_client_t * a_client, const char * a_active_channels)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_set_active_channels");
+        return;
+    }
+
     if ( DAP_CLIENT_PVT(a_client)->active_channels )
         DAP_DELETE(DAP_CLIENT_PVT(a_client)->active_channels );
-    DAP_CLIENT_PVT(a_client)->active_channels = dap_strdup( a_active_channels);
+    DAP_CLIENT_PVT(a_client)->active_channels =  a_active_channels? dap_strdup( a_active_channels) : NULL;
 }
 
 /**
@@ -145,11 +159,21 @@ void dap_client_set_active_channels (dap_client_t * a_client, const char * a_act
  */
 uint16_t dap_client_get_uplink_port(dap_client_t * a_client)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_uplink_port");
+        return 0;
+    }
+
     return DAP_CLIENT_PVT(a_client)->uplink_port;
 }
 
 void dap_client_set_auth_cert(dap_client_t * a_client, dap_cert_t *a_cert)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_set_auth_cert");
+        return;
+    }
+
     DAP_CLIENT_PVT(a_client)->auth_cert = a_cert;
 }
 
@@ -209,6 +233,7 @@ void dap_client_delete(dap_client_t * a_client)
     //memset(a_client, 0, sizeof(dap_client_t));
     //pthread_mutex_unlock(l_mutex);
     pthread_mutex_unlock(&a_client->mutex);
+    pthread_mutex_destroy(&a_client->mutex);
     // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
     //DAP_DELETE(a_client);
     DAP_DEL_Z(a_client);
@@ -348,7 +373,11 @@ const char * dap_client_error_str(dap_client_error_t a_client_error)
  */
 const char * dap_client_get_error_str(dap_client_t * a_client)
 {
-   return dap_client_error_str( DAP_CLIENT_PVT(a_client)->last_error );
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_error_str");
+        return NULL;
+    }
+    return dap_client_error_str( DAP_CLIENT_PVT(a_client)->last_error );
 }
 /**
  * @brief dap_client_get_stage
@@ -357,6 +386,10 @@ const char * dap_client_get_error_str(dap_client_t * a_client)
  */
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_stage");
+        return -1;
+    }
     return DAP_CLIENT_PVT(a_client)->stage;
 }
 
@@ -366,6 +399,10 @@ dap_client_stage_t dap_client_get_stage(dap_client_t * a_client)
  * @return
  */
 const char * dap_client_get_stage_status_str(dap_client_t *a_client){
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_stage_status_str");
+        return NULL;
+    }
     return dap_client_stage_status_str(DAP_CLIENT_PVT(a_client)->stage_status);
 }
 
@@ -392,6 +429,10 @@ const char * dap_client_stage_status_str(dap_client_stage_status_t a_stage_statu
  */
 const char * dap_client_get_stage_str(dap_client_t *a_client)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_stage_str");
+        return NULL;
+    }
     return dap_client_stage_str(DAP_CLIENT_PVT(a_client)->stage);
 }
 
@@ -439,6 +480,11 @@ dap_enc_key_t * dap_client_get_key_stream(dap_client_t * a_client){
  */
 dap_stream_t * dap_client_get_stream(dap_client_t * a_client)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_stream");
+        return NULL;
+    }
+
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     return (l_client_internal) ? l_client_internal->stream : NULL;
 }
@@ -450,6 +496,10 @@ dap_stream_t * dap_client_get_stream(dap_client_t * a_client)
  */
 dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client)
 {
+    if(a_client == NULL){
+        log_it(L_ERROR,"Client is NULL for dap_client_get_stream_worker");
+        return NULL;
+    }
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     return (l_client_internal) ? l_client_internal->stream_worker : NULL;
 
@@ -460,7 +510,7 @@ dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch
     dap_stream_ch_t * l_ch = NULL;
     dap_client_pvt_t * l_client_internal = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
     if(l_client_internal && l_client_internal->stream && l_client_internal->stream_es)
-        for(int i = 0; i < l_client_internal->stream->channel_count; i++) {
+        for(size_t i = 0; i < l_client_internal->stream->channel_count; i++) {
             if(l_client_internal->stream->channel[i]->proc->id == a_ch_id) {
                 l_ch = l_client_internal->stream->channel[i];
                 break;
