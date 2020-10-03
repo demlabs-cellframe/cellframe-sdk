@@ -85,10 +85,10 @@ void *dap_worker_thread(void *arg)
     pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events[ DAP_MAX_EPOLL_EVENTS]= {{0}};
+    struct epoll_event l_epoll_events[ DAP_EVENTS_SOCKET_MAX]= {{0}};
     log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_POLL)
-    l_worker->poll_count_max = _SC_PAGE_SIZE;
+    l_worker->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->poll = DAP_NEW_Z_SIZE(struct pollfd,l_worker->poll_count_max*sizeof (struct pollfd));
     l_worker->poll_esocket = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_worker->poll_count_max*sizeof (dap_events_socket_t*));
 #else
@@ -109,7 +109,7 @@ void *dap_worker_thread(void *arg)
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        int l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
+        int l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
         size_t l_sockets_max = l_selected_sockets;
 #elif defined(DAP_EVENTS_CAPS_POLL)
         int l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, -1);

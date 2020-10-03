@@ -30,6 +30,8 @@
 
 #include "dap_common.h"
 
+#define DAP_EVENTS_SOCKET_MAX 8194
+
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
     #define DAP_EVENTS_CAPS_EPOLL
