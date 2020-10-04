@@ -29,12 +29,3 @@ typedef union int128{int64_t i64[2];} int128_t;
 
 
 #endif
-
-typedef union dap_uint128{
-    uint8_t data_raw[16];
-#if defined(DAP_GLOBAL_IS_INT128)
-    _dap_int128_t data_int128;
-#endif
-} dap_uint128_t;
-
-

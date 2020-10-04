@@ -161,11 +161,11 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events[DAP_MAX_EPOLL_EVENTS], l_ev;
+    struct epoll_event l_epoll_events[DAP_EVENTS_SOCKET_MAX], l_ev;
     memset(l_epoll_events, 0,sizeof (l_epoll_events));
 
     // Create epoll ctl
-    l_thread->epoll_ctl = epoll_create( DAP_MAX_EPOLL_EVENTS );
+    l_thread->epoll_ctl = epoll_create( DAP_EVENTS_SOCKET_MAX );
 
     // add proc queue
     l_ev.events = l_thread->proc_queue->esocket->ev_base_flags;
@@ -183,7 +183,7 @@ static void * s_proc_thread_function(void * a_arg)
         return NULL;
     }
 #elif defined(DAP_EVENTS_CAPS_POLL)
-    size_t l_poll_count_max = DAP_MAX_EVENTS_COUNT;
+    size_t l_poll_count_max = DAP_EVENTS_SOCKET_MAX;
     size_t l_poll_count = 0;
     bool l_poll_compress = false;
     struct pollfd * l_poll = DAP_NEW_Z_SIZE(struct pollfd,l_poll_count_max *sizeof (*l_poll));
@@ -214,7 +214,7 @@ static void * s_proc_thread_function(void * a_arg)
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
         //log_it(L_DEBUG, "Epoll_wait call");
-        int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_MAX_EPOLL_EVENTS, -1);
+        int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
         size_t l_sockets_max = l_selected_sockets;
 #elif defined (DAP_EVENTS_CAPS_POLL)
         int l_selected_sockets = poll(l_poll,l_poll_count,-1);
