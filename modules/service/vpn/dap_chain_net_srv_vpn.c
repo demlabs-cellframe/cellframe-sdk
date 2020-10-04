@@ -1317,13 +1317,16 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             // for client only
             case VPN_PACKET_OP_CODE_VPN_RECV:{
                 a_ch->stream->esocket->last_ping_request = time(NULL); // not ping, but better  ;-)
+                //ch_sf_tun_client_send(CH_VPN(a_ch), l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
+                dap_events_socket_t *l_es = dap_chain_net_vpn_client_tun_get_esock();
                 // Find tun socket for current worker
-                ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
+                ch_sf_tun_socket_t *l_tun =  l_es ? l_es->_inheritor : NULL;
+                //ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
                 s_stream_session_esocket_send(l_srv_session, l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
             } break;
 
-            // for servier only
+            // for server only
             case VPN_PACKET_OP_CODE_VPN_SEND: {
                 ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);

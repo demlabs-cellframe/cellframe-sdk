@@ -253,6 +253,32 @@ static void m_client_tun_write(dap_events_socket_t * a_es, void * arg)
 //    log_it(L_WARNING, __PRETTY_FUNCTION__);
 }
 
+void m_client_tun_new(dap_events_socket_t * a_es, void * arg)
+{
+    (void) arg;
+    ch_sf_tun_socket_t * l_tun_socket = DAP_NEW_Z(ch_sf_tun_socket_t);
+    if ( l_tun_socket ){
+        l_tun_socket->worker = a_es->worker;
+        l_tun_socket->worker_id = l_tun_socket->worker->id;
+        l_tun_socket->es = a_es;
+        //s_tun_sockets_queue_msg[a_es->worker->id] = dap_events_socket_create_type_queue_ptr_unsafe(a_es->worker, s_tun_recv_msg_callback );
+        //s_tun_sockets[a_es->worker->id] = l_tun_socket;
+
+        a_es->_inheritor = l_tun_socket;
+        //s_tun_attach_queue( a_es->fd );
+        {
+            struct ifreq ifr;
+            memset(&ifr, 0, sizeof(ifr));
+            ifr.ifr_flags = IFF_ATTACH_QUEUE;
+            ioctl(a_es->fd, TUNSETQUEUE, (void *)&ifr);
+        }
+        log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
+
+    }else{
+        log_it(L_ERROR, "Can't allocate memory for tun socket");
+    }
+}
+
 static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 {
     const static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
@@ -302,6 +328,10 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 static void m_client_tun_error(dap_events_socket_t * a_es, int a_arg)
 {
   log_it(L_WARNING, " TUN client problems: code %d", a_arg);
+}
+
+dap_events_socket_t* dap_chain_net_vpn_client_tun_get_esock(void) {
+    return s_tun_events_socket;
 }
 
 int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char *a_ipv4_gw_str)
@@ -412,6 +442,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     pthread_mutex_init(&s_clients_mutex, NULL);
 
     static dap_events_socket_callbacks_t l_s_callbacks = {
+            .new_callback = m_client_tun_new,//m_es_tun_new;
             .read_callback = m_client_tun_read,// for server
             .write_callback = m_client_tun_write,// for client
             .error_callback = m_client_tun_error,
@@ -421,6 +452,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     s_tun_events_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), s_fd_tun, &l_s_callbacks);
     s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
     dap_worker_add_events_socket_auto(s_tun_events_socket);
+    //dap_events_socket_assign_on_worker_mt(l_es, a_worker);
     s_tun_events_socket->_inheritor = NULL;
 
     //return 0;
