@@ -70,7 +70,7 @@
 #define DAP_SOCK_READY_TO_READ     BIT( 0 )
 #define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
 #define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
-#define DAP_SOCK_ACTIVE            BIT( 3 )
+#define DAP_SOCK_CONNECTING         BIT( 3 ) // When connection happens this flag is armed for outgoing connections until its establish the connection
 #define DAP_SOCK_REASSIGN_ONCE     BIT( 4 )   // This usable for FlowControl to prevent multiple reassigment
 
 // If set - queue limited to sizeof(void*) size of data transmitted
@@ -89,10 +89,12 @@ typedef void (*dap_events_socket_callback_pipe_t) (dap_events_socket_t *,const v
 typedef void (*dap_events_socket_callback_queue_ptr_t) (dap_events_socket_t *, void *); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , int, struct sockaddr* ); // Callback for accept of new connection
+typedef void (*dap_events_socket_callback_connected_t) (dap_events_socket_t * ); // Callback for connected client connection
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
 typedef struct dap_events_socket_callbacks {
-    union{
+    union{ // Specific callbacks
+        dap_events_socket_callback_connected_t connected_callback; // Connected callback for client socket
         dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
         dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
         dap_events_socket_callback_event_t event_callback; // Event callback for listening socket
@@ -165,7 +167,13 @@ typedef struct dap_events_socket {
     // Stored string representation
     char hostaddr[1024]; // Address
     char service[128];
-    struct sockaddr_in remote_addr; // For UDP datagrams
+
+    // Remote address, port and others
+    struct sockaddr_in remote_addr;
+    char remote_addr_str[INET_ADDRSTRLEN];
+    char remote_addr_str6[INET6_ADDRSTRLEN];
+    short remote_port;
+
 
     // Links to related objects
     dap_events_t *events;
@@ -228,6 +236,8 @@ size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, s
 bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t * a_es);
 void dap_events_socket_set_readable_unsafe(dap_events_socket_t * sc,bool is_ready);
 void dap_events_socket_set_writable_unsafe(dap_events_socket_t * sc,bool is_ready);
+void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket);
+
 
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size);
 size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...);

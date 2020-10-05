@@ -192,6 +192,9 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
      //   log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
+    fcntl( l_pipe[0], F_SETFL, O_NONBLOCK);
+    fcntl( l_pipe[1], F_SETFL, O_NONBLOCK);
+
 #else
 #error "No defined s_create_type_pipe() for your platform"
 #endif
@@ -407,7 +410,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
 #endif
 
 #ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
-    if((l_es->fd = eventfd(0,0) ) < 0 ){
+    if((l_es->fd = eventfd(0,EFD_NONBLOCK) ) < 0 ){
         int l_errno = errno;
         char l_errbuf[128];
         l_errbuf[0]=0;
@@ -694,7 +697,7 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
     return ret;
 }
 
-static void s_worker_poll_mod(dap_events_socket_t * a_esocket)
+void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket)
 {
 #if defined (DAP_EVENTS_CAPS_EPOLL)
     int events = a_esocket->ev_base_flags | EPOLLERR;
@@ -703,7 +706,7 @@ static void s_worker_poll_mod(dap_events_socket_t * a_esocket)
     if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
         events |= EPOLLIN;
 
-    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
         events |= EPOLLOUT;
 
     a_esocket->ev.events = events;
@@ -723,7 +726,7 @@ static void s_worker_poll_mod(dap_events_socket_t * a_esocket)
         // Check & add
         if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
             l_poll->events |= POLLIN;
-        if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+        if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
             l_poll->events |= POLLOUT;
     }else{
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
@@ -752,7 +755,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
         a_esocket->flags ^= DAP_SOCK_READY_TO_READ;
 
     if( a_esocket->worker)
-        s_worker_poll_mod( a_esocket);
+        dap_events_socket_worker_poll_update_unsafe( a_esocket);
 }
 
 /**
@@ -772,7 +775,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
         a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
 
     if( a_esocket->worker )
-        s_worker_poll_mod(a_esocket);
+        dap_events_socket_worker_poll_update_unsafe(a_esocket);
 }
 
 /**

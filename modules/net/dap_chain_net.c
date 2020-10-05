@@ -29,8 +29,24 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-
 #include <pthread.h>
+
+
+#ifdef DAP_OS_UNIX
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#endif
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
 
 #include "uthash.h"
 #include "utlist.h"

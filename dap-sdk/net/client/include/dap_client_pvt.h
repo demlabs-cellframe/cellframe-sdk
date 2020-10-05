@@ -1,25 +1,24 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2019
+ * DeM Labs Ltd.   https://demlabs.net
+ * Copyright  (c) 2017-2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DAP SDK is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DAP SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
 
@@ -62,7 +61,6 @@ typedef struct dap_client_internal
     uint32_t uplink_protocol_version;
     uint32_t remote_protocol_version;
 
-    pthread_mutex_t stage_mutex; // Protect all the stage_ fields below
     dap_client_stage_t stage_target;
     dap_client_callback_t stage_target_done_callback;
     dap_client_stage_t stage;
@@ -103,7 +101,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
                                      dap_client_callback_int_t a_error_proc);
 
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal);
-void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvts);
+void dap_client_pvt_delete_n_wait(dap_client_pvt_t * a_client_pvts);
 
 //int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal);
 //int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal);

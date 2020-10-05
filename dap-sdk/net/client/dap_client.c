@@ -218,7 +218,7 @@ void dap_client_delete(dap_client_t * a_client)
         return;
     pthread_mutex_lock(&a_client->mutex);
 
-    dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
+    dap_client_pvt_delete_n_wait(DAP_CLIENT_PVT(a_client));
     pthread_mutex_unlock(&a_client->mutex);
     pthread_mutex_destroy(&a_client->mutex);
     DAP_DELETE(a_client);
@@ -244,13 +244,11 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
 
     assert(l_client_internal);
 
-    pthread_mutex_lock( &l_client_internal->stage_mutex);
     l_client_internal->stage_target = a_stage_target;
     l_client_internal->stage_target_done_callback = a_stage_end_callback;
 
     dap_client_stage_t l_cur_stage = l_client_internal->stage;
     dap_client_stage_status_t l_cur_stage_status= l_client_internal->stage_status;
-    pthread_mutex_unlock( &l_client_internal->stage_mutex);
 
 
     if(a_stage_target != l_cur_stage ){ // Going to stages downstairs
