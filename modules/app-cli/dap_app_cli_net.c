@@ -69,8 +69,16 @@ static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_c
                 l_cmd->cmd_res_len = atoi(l_str_ptr + strlen(l_cont_len_str));
                 if (l_cmd->cmd_res_len == 0) {
                     s_status = DAP_CLI_ERROR_FORMAT;
-                } else {
+                }
+                else {
                     s_status++;
+                    // resize buffer for received data
+                    if (l_cmd->cmd_res_len > l_cmd->cmd_res_len_max) {
+                        size_t l_len_max = l_cmd->cmd_res_len_max;
+                        l_cmd->cmd_res_len_max = l_cmd->cmd_res_len + 1;
+                        l_cmd->cmd_res = DAP_REALLOC(l_cmd->cmd_res, l_cmd->cmd_res_len_max);
+                        memset(l_cmd->cmd_res + l_len_max, 0, l_cmd->cmd_res_len_max - l_len_max);
+                    }
                 }
             } else {
                 break;
