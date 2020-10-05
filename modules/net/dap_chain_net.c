@@ -23,32 +23,12 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdlib.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
-
-
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-
-#ifdef DAP_OS_UNIX
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#endif
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#endif
 
 #include <pthread.h>
 
@@ -64,6 +44,9 @@
 #include "dap_hash.h"
 #include "dap_cert.h"
 #include "dap_cert_file.h"
+
+#include "dap_timerfd.h"
+
 #include "dap_enc_http.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
@@ -107,6 +90,7 @@
 static size_t s_max_links_count = 5;// by default 5
 // number of required connections
 static size_t s_required_links_count = 3;// by default 3
+static dap_timerfd_t * s_timer_check = NULL;
 
 /**
   * @struct dap_chain_net_pvt
@@ -173,8 +157,8 @@ static const char * c_net_states[]={
 static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
 inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state);
 static int s_net_states_proc(dap_chain_net_t * l_net);
-static void * s_net_proc_thread ( void * a_net);
-static void s_net_proc_thread_start( dap_chain_net_t * a_net );
+static void s_timer_check_callback ( void * a_net);
+static void s_timer_check_start( dap_chain_net_t * a_net );
 static void s_net_proc_kill( dap_chain_net_t * a_net );
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
 
@@ -691,97 +675,48 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
  * @param a_cfg Network1 configuration
  * @return
  */
-static void *s_net_proc_thread ( void *a_net )
+static void s_timer_check_callback ( void *a_net )
 {
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_net;
     dap_chain_net_pvt_t *p_net = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
 
-    const uint64_t l_timeout_ms = 60000;// 60 sec
-
     // set callback to update data
     //dap_chain_global_db_set_callback_for_update_base(s_net_proc_thread_callback_update_db);
 
-    while( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
-
-        // check or start sync
-        s_net_states_proc( l_net );
-        if (p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) {
-            continue;
-        }
-        struct timespec l_to;
-#ifndef _WIN32
-        int l_ret = 0;
-        // prepare for signal waiting
-        clock_gettime( CLOCK_MONOTONIC, &l_to );
-        int64_t l_nsec_new = l_to.tv_nsec + l_timeout_ms * 1000000ll;
-        // if the new number of nanoseconds is more than a second
-        if(l_nsec_new > (long) 1e9) {
-            l_to.tv_sec += l_nsec_new / (long) 1e9;
-            l_to.tv_nsec = l_nsec_new % (long) 1e9;
-        }
-        else
-            l_to.tv_nsec = (long) l_nsec_new;
-        pthread_mutex_lock( &p_net->state_mutex_cond );
-        // wait if flag not set then go to SYNC_GDB
-        while ((p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) == 0 && l_ret == 0) {
-            // signal waiting
-            l_ret = pthread_cond_timedwait( &p_net->state_proc_cond, &p_net->state_mutex_cond, &l_to );
-        }
-        pthread_mutex_unlock(&p_net->state_mutex_cond);
-#else // WIN32
-
-        WaitForSingleObject( p_net->state_proc_cond, (uint32_t)l_timeout_ms );
-
-#endif
-        // checking whether new sync is needed
-        time_t l_sync_timeout = 1800; // 1800 sec = 30 min
-        clock_gettime(CLOCK_MONOTONIC, &l_to);
-        // start sync every l_sync_timeout sec
-        if(l_to.tv_sec >= p_net->last_sync + l_sync_timeout) {
-            p_net->flags |= F_DAP_CHAIN_NET_GO_SYNC;
-        }
+    if ( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
+        dap_events_socket_remove_and_delete_unsafe( s_timer_check->events_socket,false);
     }
 
-    return NULL;
+    // check or start sync
+    s_net_states_proc( l_net );
+    if (p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) {
+        s_net_states_proc( l_net );
+    }
+    struct timespec l_to;
+
+    // checking whether new sync is needed
+    time_t l_sync_timeout = 180; // 1800 sec = 30 min
+    clock_gettime(CLOCK_MONOTONIC, &l_to);
+    // start sync every l_sync_timeout sec
+    if(l_to.tv_sec >= p_net->last_sync + l_sync_timeout) {
+        p_net->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+        s_net_states_proc( l_net );
+    }
 }
 
 /**
  * @brief net_proc_start
  * @param a_cfg
  */
-static void s_net_proc_thread_start( dap_chain_net_t * a_net )
+static void s_timer_check_start( dap_chain_net_t * a_net )
 {
-    if ( pthread_create(& PVT(a_net)->proc_tid ,NULL, s_net_proc_thread, a_net) == 0 ){
-        log_it (L_NOTICE,"Network processing thread started");
+    if ( ! s_timer_check ){
+        dap_timerfd_delete(s_timer_check);
+        s_timer_check = NULL;
     }
+    s_timer_check=dap_timerfd_start(60000, s_timer_check_callback, a_net  );
 }
 
-/**
- * @brief s_net_proc_kill
- * @param a_net
- */
-static void s_net_proc_kill( dap_chain_net_t * a_net )
-{
-    if ( !PVT(a_net)->proc_tid )
-        return;
-
-    log_it( L_NOTICE,"Sent KILL signal to the net process thread %d, waiting for shutdown...", PVT(a_net)->proc_tid );
-
-    PVT(a_net)->flags |= F_DAP_CHAIN_NET_SHUTDOWN;
-
-#ifndef _WIN32
-    pthread_cond_signal( &PVT(a_net)->state_proc_cond );
-#else
-    SetEvent( PVT(a_net)->state_proc_cond );
-#endif
-
-    pthread_join( PVT(a_net)->proc_tid , NULL );
-    log_it( L_NOTICE,"Net process thread %d shutted down", PVT(a_net)->proc_tid );
-
-    PVT(a_net)->proc_tid = 0;
-
-    return;
-}
 
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 {
@@ -1788,7 +1723,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 
         // Start the proc thread
-        s_net_proc_thread_start(l_net);
+        s_timer_check_start(l_net);
         log_it(L_NOTICE, "Сhain network \"%s\" initialized",l_net_item->name);
         dap_config_close(l_cfg);
     }

@@ -24,6 +24,7 @@
 #include "dap_client.h"
 #include "dap_client_pvt.h"
 #include "dap_stream_ch_proc.h"
+#include "dap_stream_worker.h"
 
 #define LOG_TAG "dap_client"
 
@@ -215,28 +216,12 @@ void dap_client_delete(dap_client_t * a_client)
 {
     if(!a_client)
         return;
-
     pthread_mutex_lock(&a_client->mutex);
 
-    //dap_client_disconnect(a_client);
-    //dap_client_reset(a_client);
-
-    //dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(a_client);
-    // reset l_client_pvt (before removal)
-    //memset(l_client_pvt, 0, sizeof(dap_client_pvt_t));
-    //a_client->_internal = NULL;
-
     dap_client_pvt_delete(DAP_CLIENT_PVT(a_client));
-    //a_client->_internal = NULL;
-
-    //pthread_mutex_t *l_mutex = &a_client->mutex;
-    //memset(a_client, 0, sizeof(dap_client_t));
-    //pthread_mutex_unlock(l_mutex);
     pthread_mutex_unlock(&a_client->mutex);
     pthread_mutex_destroy(&a_client->mutex);
-    // a_client will be deleted in dap_events_socket_delete() -> free( a_es->_inheritor );
-    //DAP_DELETE(a_client);
-    DAP_DEL_Z(a_client);
+    DAP_DELETE(a_client);
 }
 
 /**
@@ -257,26 +242,35 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
     }
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
 
+    assert(l_client_internal);
+
+    pthread_mutex_lock( &l_client_internal->stage_mutex);
     l_client_internal->stage_target = a_stage_target;
     l_client_internal->stage_target_done_callback = a_stage_end_callback;
-    if(a_stage_target != l_client_internal->stage ){ // Going to stages downstairs
-        switch(l_client_internal->stage_status ){
+
+    dap_client_stage_t l_cur_stage = l_client_internal->stage;
+    dap_client_stage_status_t l_cur_stage_status= l_client_internal->stage_status;
+    pthread_mutex_unlock( &l_client_internal->stage_mutex);
+
+
+    if(a_stage_target != l_cur_stage ){ // Going to stages downstairs
+        switch(l_cur_stage_status ){
             case STAGE_STATUS_ABORTING:
                 log_it(L_ERROR, "Already aborting the stage %s"
-                        , dap_client_stage_str(l_client_internal->stage));
+                        , dap_client_stage_str(l_cur_stage));
             break;
             case STAGE_STATUS_IN_PROGRESS:{
                 log_it(L_WARNING, "Status progress the stage %s"
-                        , dap_client_stage_str(l_client_internal->stage));
+                        , dap_client_stage_str(l_cur_stage));
             }break;
             case STAGE_STATUS_DONE:
             case STAGE_STATUS_ERROR:
             default: {
                 log_it(L_DEBUG, "Start transitions chain to %s"
-                       ,dap_client_stage_str(l_client_internal->stage_target) );
-                int step = (a_stage_target > l_client_internal->stage)?1:-1;
+                       ,dap_client_stage_str(a_stage_target) );
+                int step = (a_stage_target > l_cur_stage)?1:-1;
                 dap_client_pvt_stage_transaction_begin(l_client_internal,
-                                                            l_client_internal->stage+step,
+                                                            l_cur_stage+step,
                                                             m_stage_fsm_operator
                                                             );
             }
@@ -284,7 +278,9 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
     }else{  // Same stage
         log_it(L_ERROR,"We're already on stage %s",dap_client_stage_str(a_stage_target));
     }
+
 }
+
 
 /**
  * @brief m_stage_fsm_operator

@@ -62,15 +62,13 @@ typedef struct dap_client_internal
     uint32_t uplink_protocol_version;
     uint32_t remote_protocol_version;
 
+    pthread_mutex_t stage_mutex; // Protect all the stage_ fields below
     dap_client_stage_t stage_target;
     dap_client_callback_t stage_target_done_callback;
-
     dap_client_stage_t stage;
     dap_client_stage_status_t stage_status;
     dap_client_error_t last_error;
-
     dap_client_callback_t stage_status_callback;
-
     dap_client_callback_t stage_status_done_callback;
     dap_client_callback_t stage_status_error_callback;
 
@@ -82,6 +80,10 @@ typedef struct dap_client_internal
     bool is_close_session;// the last request in session, in the header will be added "SessionCloseAfterRequest: true"
     dap_client_callback_data_size_t request_response_callback;
     dap_client_callback_int_t request_error_callback;
+
+    // Conds
+    pthread_cond_t disconnected_cond;
+    pthread_mutex_t disconnected_mutex;
 } dap_client_pvt_t;
 
 #define DAP_CLIENT_PVT(a) (a ? (dap_client_pvt_t*) a->_internal : NULL)

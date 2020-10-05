@@ -48,6 +48,7 @@
 #include "dap_worker.h"
 #include "dap_events.h"
 
+#include "dap_timerfd.h"
 #include "dap_events_socket.h"
 
 #define LOG_TAG "dap_events_socket"
@@ -79,7 +80,6 @@ int dap_events_socket_init( )
  */
 void dap_events_socket_deinit( )
 {
-
 }
 
 
