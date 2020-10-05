@@ -30,12 +30,20 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
+
+#include "win32/ip.h"
+#include "win32/iphdr.h"
+
+#define s6_addr32 s6_addr
+#define herror perror
 #else
 // for Unix-like systems
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+
 #endif
 
 int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out);

@@ -499,7 +499,7 @@ dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client)
 
 }
 
-dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id)
+dap_stream_ch_t * dap_client_get_stream_ch_unsafe(dap_client_t * a_client, uint8_t a_ch_id)
 {
     dap_stream_ch_t * l_ch = NULL;
     dap_client_pvt_t * l_client_internal = a_client ? DAP_CLIENT_PVT(a_client) : NULL;

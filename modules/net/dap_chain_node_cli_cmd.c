@@ -1044,7 +1044,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 
         log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
          l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
                  l_remote_node_info->hdr.address.uint64);
@@ -1058,7 +1058,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         {
             log_it(L_NOTICE, "Now get node addr");
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
-            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
             int l_res = dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
 
