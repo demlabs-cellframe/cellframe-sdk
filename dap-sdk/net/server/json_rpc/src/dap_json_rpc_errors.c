@@ -60,11 +60,12 @@ int _dap_json_rpc_error_cmp_by_code(dap_json_rpc_error_t *a_error, int a_code_er
 {
     if (a_error->code_error == a_code_error)
         return 0;
-    if (a_error->code_error < a_code_error)
+    else if (a_error->code_error < a_code_error)
         return -1;
-    if (a_error->code_error > a_code_error)
+    else
         return 1;
 }
+
 
 dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error)
 {

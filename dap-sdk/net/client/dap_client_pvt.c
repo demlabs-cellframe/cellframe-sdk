@@ -80,19 +80,18 @@
 static void s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
 // ENC stage callbacks
-void m_enc_init_response(dap_client_t *, void *, size_t);
-void m_enc_init_error(dap_client_t *, int);
+static void s_enc_init_response(dap_client_t *, void *, size_t);
+static void s_enc_init_error(dap_client_t *, int);
 
 // STREAM_CTL stage callbacks
-void m_stream_ctl_response(dap_client_t *, void *, size_t);
-void m_stream_ctl_error(dap_client_t *, int);
-void m_stage_stream_streaming(dap_client_t * a_client, void* arg);
+static void s_stream_ctl_response(dap_client_t *, void *, size_t);
+static void s_stream_ctl_error(dap_client_t *, int);
+static void s_stage_stream_streaming(dap_client_t * a_client, void* arg);
 
 // STREAM stage callbacks
-void m_stream_response(dap_client_t *, void *, size_t);
-void m_stream_error(dap_client_t *, int);
-void m_request_response(void * a_response, size_t a_response_size, void * a_obj);
-void m_request_error(int, void *);
+static void s_stream_response(dap_client_t *, void *, size_t);
+static void s_request_response(void * a_response, size_t a_response_size, void * a_obj);
+static void s_request_error(int, void *);
 
 // Stream connection callback
 static void s_stream_connected(dap_client_pvt_t * a_client_pvt);
@@ -225,31 +224,6 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
 }
 
 /**
- * @brief s_stream_connect_error
- * @param a_client_pvt
- * @param a_err
- */
-static void s_stream_connect_error (dap_client_pvt_t * a_client_pvt, int a_err)
-{
-    char l_errbuf[128];
-    l_errbuf[0]='\0';
-    if (a_err)
-        strerror_r(a_err,l_errbuf,sizeof (l_errbuf));
-    else
-        strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
-    log_it(L_ERROR, "Remote address can't connected (%s:%u) with sock_id %d: \"%s\" (code %d)", a_client_pvt->uplink_addr,
-            a_client_pvt->uplink_port, l_errbuf, a_err);
-    dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
-    //close(a_client_pvt->stream_socket);
-    a_client_pvt->stream_socket = 0;
-    a_client_pvt->stage_status = STAGE_STATUS_ERROR;
-    a_client_pvt->last_error = ERROR_STREAM_CONNECT ;
-
-    s_stage_status_after(a_client_pvt);
-
-}
-
-/**
  * @brief s_client_internal_stage_status_proc
  * @param a_client
  */
@@ -289,7 +263,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
                     log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
                     int l_res = dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
-                            l_data_str, l_data_str_enc_size, m_enc_init_response, m_enc_init_error);
+                            l_data_str, l_data_str_enc_size, s_enc_init_response, s_enc_init_error);
                     // bad request
                     if(l_res<0){
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
@@ -319,7 +293,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     dap_client_pvt_request_enc(a_client_pvt,
                     DAP_UPLINK_PATH_STREAM_CTL,
                             l_suburl, "type=tcp,maxconn=4", l_request, l_request_size,
-                            m_stream_ctl_response, m_stream_ctl_error);
+                            s_stream_ctl_response, s_stream_ctl_error);
                     DAP_DELETE(l_request);
                     DAP_DELETE(l_suburl);
                 }
@@ -337,7 +311,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     }
         #ifdef _WIN32
                     {
-                      int buffsize = 65536;
+                      int buffsize = 65536*4;
                       int optsize = sizeof( int );
                       setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, &optsize );
                       setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize );
@@ -395,11 +369,28 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                  sizeof (a_client_pvt->stream_es->remote_addr_str)-1 );
 
                         if((l_err = connect(a_client_pvt->stream_socket, (struct sockaddr *) &a_client_pvt->stream_es->remote_addr,
-                                sizeof(struct sockaddr_in))) != -1) {
-                            s_stream_connected(a_client_pvt);
+                                sizeof(struct sockaddr_in))) ==0) {
+                            log_it(L_DEBUG, "Connected momentaly with %s:%u", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                         }
                         else if (l_err != EINPROGRESS){
-                            s_stream_connect_error(a_client_pvt,l_err);
+                            char l_errbuf[128];
+                            l_errbuf[0]='\0';
+                            if (l_err)
+                                strerror_r(l_err,l_errbuf,sizeof (l_errbuf));
+                            else
+                                strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
+                            log_it(L_ERROR, "Remote address can't connect (%s:%u) with sock_id %d: \"%s\" (code %d)", a_client_pvt->uplink_addr,
+                                    a_client_pvt->uplink_port, l_errbuf, l_err);
+                            a_client_pvt->stream_es->kill_signal = true;
+                            a_client_pvt->stream_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
+                            //close(a_client_pvt->stream_socket);
+                            a_client_pvt->stream_socket = 0;
+                            a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                            a_client_pvt->last_error = ERROR_STREAM_CONNECT ;
+
+                            s_stage_status_after(a_client_pvt);
+                        }else{
+                            log_it(L_INFO,"Connecting to remote %s:%s",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                         }
                     }
 
@@ -591,7 +582,7 @@ int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_
 //    }
     void *l_ret = dap_client_http_request(a_client_internal->uplink_addr,a_client_internal->uplink_port,
                                            a_request ? "POST" : "GET", "text/text", a_path, a_request,
-                                            a_request_size, NULL, m_request_response, m_request_error, a_client_internal, NULL);
+                                            a_request_size, NULL, s_request_response, s_request_error, a_client_internal, NULL);
 //    a_client_internal->curl = dap_http_client_simple_request(l_url, a_request ? "POST" : "GET", "text/text", a_request,
 //            a_request_size, NULL, m_request_response, m_request_error, &a_client_internal->curl_sockfd, a_client_internal, NULL);
 //    DAP_DELETE(l_url);
@@ -717,7 +708,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     }
     dap_client_http_request_custom(a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
-                m_request_response, m_request_error, a_client_internal, a_custom_new, a_custom_count);
+                s_request_response, s_request_error, a_client_internal, a_custom_new, a_custom_count);
 //    dap_http_client_simple_request_custom(l_url_full, a_request ? "POST" : "GET", "text/text",
 //            l_request_enc, l_request_enc_size, NULL,
 //            m_request_response, a_client_internal->curl_sockfd ,m_request_error, a_client_internal, a_custom_new, a_custom_count);
@@ -737,11 +728,11 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 }
 
 /**
- * @brief m_request_error
+ * @brief s_request_error
  * @param a_err_code
  * @param a_obj
  */
-void m_request_error(int a_err_code, void * a_obj)
+static void s_request_error(int a_err_code, void * a_obj)
 {
     dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
     dap_client_pvt_hh_lock();
@@ -758,12 +749,12 @@ void m_request_error(int a_err_code, void * a_obj)
 }
 
 /**
- * @brief m_request_response
+ * @brief s_request_response
  * @param a_response
  * @param a_response_size
  * @param a_obj
  */
-void m_request_response(void * a_response, size_t a_response_size, void * a_obj)
+static void s_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
     if(!a_client_internal || !a_client_internal->client)
@@ -794,12 +785,12 @@ void m_request_response(void * a_response, size_t a_response_size, void * a_obj)
 }
 
 /**
- * @brief m_enc_init_response
+ * @brief s_enc_init_response
  * @param a_client
  * @param a_response
  * @param a_response_size
  */
-void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
+static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
     dap_client_pvt_t * l_client_pvt = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
     if(!l_client_pvt) {
@@ -901,11 +892,11 @@ void m_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_re
 }
 
 /**
- * @brief m_enc_init_error
+ * @brief s_enc_init_error
  * @param a_client
  * @param a_err_code
  */
-void m_enc_init_error(dap_client_t * a_client, int a_err_code)
+static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
     if(!l_client_pvt) {
@@ -926,12 +917,12 @@ void m_enc_init_error(dap_client_t * a_client, int a_err_code)
 }
 
 /**
- * @brief m_stream_ctl_response
+ * @brief s_stream_ctl_response
  * @param a_client
  * @param a_data
  * @param a_data_size
  */
-void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
+static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     if(!l_client_internal) {
@@ -1014,11 +1005,11 @@ void m_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data
 }
 
 /**
- * @brief m_stream_ctl_error
+ * @brief s_stream_ctl_error
  * @param a_client
  * @param a_error
  */
-void m_stream_ctl_error(dap_client_t * a_client, int a_error)
+static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
 {
     log_it(L_WARNING, "STREAM_CTL error %d", a_error);
 
@@ -1038,8 +1029,14 @@ void m_stream_ctl_error(dap_client_t * a_client, int a_error)
 
 }
 
-// STREAM stage callbacks
-void m_stream_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
+//
+/**
+ * @brief s_stream_response STREAM stage callbacks
+ * @param a_client
+ * @param a_data
+ * @param a_data_size
+ */
+static void s_stream_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     if(!l_client_internal) {
@@ -1062,32 +1059,12 @@ void m_stream_response(dap_client_t * a_client, void * a_data, size_t a_data_siz
     s_stage_status_after(l_client_internal);
 }
 
-void m_stream_error(dap_client_t * a_client, int a_error)
-{
-    log_it(L_WARNING, "STREAM error %d", a_error);
-
-    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_stream_error: l_client_pvt is NULL!");
-        return;
-    }
-
-    if (a_error == ETIMEDOUT) {
-        l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
-    } else {
-        l_client_pvt->last_error = ERROR_STREAM_RESPONSE_WRONG;
-    }
-    l_client_pvt->stage_status = STAGE_STATUS_ERROR;
-
-    s_stage_status_after(l_client_pvt);
-}
-
 /**
- * @brief m_stage_stream_opened
+ * @brief s_stage_stream_opened
  * @param a_client
  * @param arg
  */
-void m_stage_stream_streaming(dap_client_t * a_client, void* arg)
+static void s_stage_stream_streaming(dap_client_t * a_client, void* arg)
 {
     log_it(L_INFO, "Stream  is opened");
 }
@@ -1104,13 +1081,14 @@ static void s_stream_es_callback_connected(dap_events_socket_t * a_es)
 }
 
 /**
- * @brief m_es_stream_delete
+ * @brief s_es_stream_delete
  * @param a_es
  * @param arg
  */
 static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
 {
-    log_it(L_INFO, "================= stream delete/peer reconnect");
+    (void) arg;
+    log_it(L_INFO, "Stream delete callback");
 
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
     a_es->_inheritor = NULL; // To prevent delete in reactor
@@ -1132,24 +1110,16 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     dap_stream_delete(l_client_pvt->stream);
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
-/*  disable reconnect from here
-    if(l_client_pvt->is_reconnect) {
-        log_it(L_DEBUG, "l_client_pvt->is_reconnect = true");
-
-        dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
-    }
-    else
-        log_it(L_DEBUG, "l_client_pvt->is_reconnect = false");
-*/
 }
 
 /**
- * @brief m_es_stream_read
+ * @brief s_es_stream_read
  * @param a_es
  * @param arg
  */
 static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
 {
+    (void) arg;
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
     if(!l_client_pvt) {
@@ -1158,7 +1128,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
     }
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_SESSION:
-            dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, m_stage_stream_streaming);
+            dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, s_stage_stream_streaming);
             break;
         case STAGE_STREAM_CONNECTED: { // Collect HTTP headers before streaming
             if(a_es->buf_in_size > 1) {
@@ -1192,12 +1162,13 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
 }
 
 /**
- * @brief m_es_stream_write
+ * @brief s_es_stream_write
  * @param a_es
  * @param arg
  */
 static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
 {
+    (void) arg;
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     //dap_client_pvt_t * l_client_pvt = (l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
@@ -1229,14 +1200,37 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
     }
 }
 
-static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_arg)
+/**
+ * @brief s_stream_es_callback_error
+ * @param a_es
+ * @param a_error
+ */
+static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
-    //dap_client_t * l_client = DAP_CLIENT(a_es);
-    //dap_client_pvt_t * l_client_pvt = (l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-    dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_es_stream_error: l_client_pvt is NULL!");
-        return;
+    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    assert( l_client_pvt);
+
+    char l_errbuf[128];
+    l_errbuf[0]='\0';
+    if (a_error)
+        strerror_r(a_error,l_errbuf,sizeof (l_errbuf));
+    else
+        strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
+
+    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
+
+
+    // TODO merge flag and field
+    l_client_pvt->stream_es->kill_signal = true;
+    l_client_pvt->stream_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
+
+
+    if (a_error == ETIMEDOUT) {
+        l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
+    } else {
+        l_client_pvt->last_error = ERROR_STREAM_RESPONSE_WRONG;
     }
-    log_it(L_INFO, "m_es_stream_error: code %d", a_arg);
+    l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+
+    s_stage_status_after(l_client_pvt);
 }

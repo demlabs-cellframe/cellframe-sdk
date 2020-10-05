@@ -338,8 +338,8 @@ void *dap_worker_thread(void *arg)
             }
 
             // Socket is ready to write and not going to close
-            if(( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE)  ||
-                 (l_cur->flags & DAP_SOCK_READY_TO_WRITE)) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
+            if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
+                 (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
                 //log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
@@ -605,13 +605,13 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
         return;
     }
     if (l_msg->flags_set & DAP_SOCK_CONNECTING)
-        if (!  l_msg_es->flags & DAP_SOCK_CONNECTING ){
+        if (!  (l_msg_es->flags & DAP_SOCK_CONNECTING) ){
             l_msg_es->flags |= DAP_SOCK_CONNECTING;
             dap_events_socket_worker_poll_update_unsafe(l_msg_es);
         }
 
     if (l_msg->flags_set & DAP_SOCK_CONNECTING)
-        if (!  l_msg_es->flags & DAP_SOCK_CONNECTING ){
+        if (!  (l_msg_es->flags & DAP_SOCK_CONNECTING) ){
             l_msg_es->flags ^= DAP_SOCK_CONNECTING;
             dap_events_socket_worker_poll_update_unsafe(l_msg_es);
         }
