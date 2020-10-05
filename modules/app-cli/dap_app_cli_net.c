@@ -69,8 +69,16 @@ static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_c
                 l_cmd->cmd_res_len = atoi(l_str_ptr + strlen(l_cont_len_str));
                 if (l_cmd->cmd_res_len == 0) {
                     s_status = DAP_CLI_ERROR_FORMAT;
-                } else {
+                }
+                else {
                     s_status++;
+                    // resize buffer for received data
+                    if (l_cmd->cmd_res_len > l_cmd->cmd_res_len_max) {
+                        size_t l_len_max = l_cmd->cmd_res_len_max;
+                        l_cmd->cmd_res_len_max = l_cmd->cmd_res_len + 1;
+                        l_cmd->cmd_res = DAP_REALLOC(l_cmd->cmd_res, l_cmd->cmd_res_len_max);
+                        memset(l_cmd->cmd_res + l_len_max, 0, l_cmd->cmd_res_len_max - l_len_max);
+                    }
                 }
             } else {
                 break;
@@ -181,7 +189,8 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
         return -1;
     }
     s_status = 1;
-    a_cmd->cmd_res = DAP_NEW_Z_SIZE(char, DAP_CLI_HTTP_RESPONSE_SIZE_MAX);
+    a_cmd->cmd_res_len_max = DAP_CLI_HTTP_RESPONSE_SIZE_MAX;
+    a_cmd->cmd_res = DAP_NEW_Z_SIZE(char, a_cmd->cmd_res_len_max);
     a_cmd->cmd_res_cur = 0;
     dap_string_t *l_cmd_data = dap_string_new(a_cmd->cmd_name);
     if (a_cmd->cmd_param) {
