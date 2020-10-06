@@ -492,7 +492,6 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     DAP_DELETE(l_gdb_group);
 }
 
->>>>>>> 236a8d8483d124605e6bc6cb1561a5106efaf4f2
 /**
  * @brief dap_chain_ledger_create
  * @param a_check_flags
@@ -859,7 +858,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
      &&
      4. tx1.dap_chain_datum_tx_out.addr.data.key == tx2.dap_chain_datum_tx_sig.pkey for unconditional output
      \\
-     5a. tx1.dap_chain_datum_tx_sig.pkey == tx1.dap_chain_datum_tx_sig.pkey for conditional owner
+     5a. tx1.dap_chain_datum_tx_sig.pkey == tx2.dap_chain_datum_tx_sig.pkey for conditional owner
      \\
      5b. tx1.dap_chain_datum_tx_out.condition == verify_svc_type(tx2) for conditional output
      &&

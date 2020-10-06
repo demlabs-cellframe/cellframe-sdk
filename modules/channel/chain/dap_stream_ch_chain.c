@@ -103,7 +103,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
-    pthread_mutex_init(&l_ch_chain->mutex, NULL);
     l_ch_chain->ch = a_ch;
 }
 
@@ -120,7 +119,6 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
         dap_db_log_list_delete(DAP_STREAM_CH_CHAIN(a_ch)->request_global_db_trs); //dap_list_free_full(DAP_STREAM_CH_CHAIN(a_ch)->request_global_db_trs, (dap_callback_destroyed_t) free);
         DAP_STREAM_CH_CHAIN(a_ch)->request_global_db_trs = NULL;
     }
-    pthread_mutex_destroy(&DAP_STREAM_CH_CHAIN(a_ch)->mutex);
 }
 
 
@@ -361,9 +359,9 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
             // apply received transaction
             dap_chain_t *l_chain = dap_chain_find_by_id(l_ch_chain->request_net_id, l_ch_chain->request_chain_id);
             if(l_chain) {
-                if(l_chain->callback_datums_pool_proc_with_group){
+                if(l_chain->callback_add_datums_with_group){
                     void * restrict l_store_obj_value = l_store_obj->value;
-                    l_chain->callback_datums_pool_proc_with_group(l_chain,
+                    l_chain->callback_add_datums_with_group(l_chain,
                             (dap_chain_datum_t** restrict) l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
