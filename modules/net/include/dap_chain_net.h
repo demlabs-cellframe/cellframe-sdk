@@ -25,26 +25,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #pragma once
 
-#ifndef _WIN32
-#include <sys/socket.h>
-#include <netinet/in.h>
-#else
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-
-#include "win32/ip.h"
-#include "win32/iphdr.h"
-#define s6_addr32 s6_addr
-#define herror perror
-#endif
-
-
 #include <stdint.h>
 #include <string.h>
 #include "dap_strfuncs.h"
 #include "dap_string.h"
+#include "dap_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_chain.h"

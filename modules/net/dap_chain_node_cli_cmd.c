@@ -1044,7 +1044,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 
         log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
          l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
                  l_remote_node_info->hdr.address.uint64);
@@ -1058,7 +1058,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         {
             log_it(L_NOTICE, "Now get node addr");
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
-            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
             int l_res = dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
 
@@ -2245,8 +2245,8 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                                              l_verify_datum);
                     ret = -9;
                 }else{
-                    if (l_chain->callback_datums_pool_proc){
-                        if (l_chain->callback_datums_pool_proc(l_chain, &l_datum, 1) ==0 ){
+                    if (l_chain->callback_add_datums){
+                        if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
                             dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
                             ret = -6;
                         }else{
@@ -3799,7 +3799,7 @@ int com_tx_history(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_re
 
     dap_chain_hash_fast_t l_tx_hash;
     if(l_tx_hash_str) {
-        if(dap_chain_str_to_hash_fast(l_tx_hash_str, &l_tx_hash) < 0) {
+        if(dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
             l_tx_hash_str = NULL;
             dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
             return -1;

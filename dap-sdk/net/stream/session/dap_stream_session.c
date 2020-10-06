@@ -64,6 +64,32 @@ void dap_stream_session_deinit()
     pthread_mutex_unlock(&sessions_mutex);
 }
 
+/**
+ *
+ * note: dap_stream_session_get_list_sessions_unlock() must be run after this function
+ */
+dap_list_t* dap_stream_session_get_list_sessions(void)
+{
+    dap_list_t *l_list = NULL;
+    dap_stream_session_t *current, *tmp;
+    pthread_mutex_lock(&sessions_mutex);
+    HASH_ITER(hh, sessions, current, tmp)
+    {
+        l_list = dap_list_append(l_list, current);
+        //dap_chain_net_srv_stream_session_t * l_srv_session = current->_inheritor;
+        //if(l_srv_session) {
+            //dap_net_stats_t *l_stats = DAP_NEW(dap_net_stats_t);
+            //memcpy(l_stats, l_srv_session->stats);
+            //l_list = dap_list_append(l_list, l_stats);
+        //}
+    }
+    return l_list;
+}
+
+void dap_stream_session_get_list_sessions_unlock(void)
+{
+    pthread_mutex_unlock(&sessions_mutex);
+}
 
 static void * session_check(void * data)
 {

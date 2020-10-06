@@ -101,7 +101,7 @@ dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
     if(!s_vpn_client)
         return NULL;
-    dap_stream_ch_t *l_stream = dap_client_get_stream_ch(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN);
+    dap_stream_ch_t *l_stream = dap_client_get_stream_ch_unsafe(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN);
     return l_stream;
 }
 
@@ -468,7 +468,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     // send first packet to server
     {
         uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
-        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
             dap_stream_ch_chain_net_srv_pkt_test_t *l_request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + a_data_size_to_send);
             l_request->net_id.uint64 = a_net->pub.id.uint64;
@@ -560,7 +560,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     // send first packet to server
     {
         uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
-        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
             dap_stream_ch_chain_net_srv_pkt_request_t l_request;
             memset(&l_request, 0, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
@@ -602,7 +602,7 @@ dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void)
 {
     if(s_vpn_client) {
         uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
-        dap_stream_ch_t *l_ch = dap_client_get_stream_ch(s_vpn_client->client, l_ch_id);
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(!l_ch)
             return VPN_CLIENT_STATUS_CONN_LOST;
     }

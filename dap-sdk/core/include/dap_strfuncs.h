@@ -80,6 +80,7 @@ char* dap_strreverse(char *a_string);
 uint128_t dap_strtou128(const char *p, char **endp, int base);
 int128_t dap_strtoi128(const char *p, char **endp, int base);
 
+
 /**
  * @brief atoi128
  * @param p

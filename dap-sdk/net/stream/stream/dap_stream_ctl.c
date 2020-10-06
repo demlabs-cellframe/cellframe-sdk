@@ -129,13 +129,17 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             char * l_subtok_name = strtok_r(l_tok, "=",&l_subtok_tmp);
             char * l_subtok_value = strtok_r(NULL, "=",&l_subtok_tmp);
             if (l_subtok_value){
+                log_it(L_DEBUG, "tok = %s value =%s",l_subtok_name,l_subtok_value);
                 if ( strcmp(l_subtok_name,"channels")==0 ){
                     strncpy(l_channels_str,l_subtok_value,sizeof (l_channels_str)-1);
+                    log_it(L_DEBUG,"Param: channels=%s",l_channels_str);
                 }else if(strcmp(l_subtok_name,"enc_type")==0){
                     l_enc_type = atoi(l_subtok_value);
+                    log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
                     l_is_legacy = false;
                 }else if(strcmp(l_subtok_name,"enc_headers")==0){
                     l_enc_headers = atoi(l_subtok_value);
+                    log_it(L_DEBUG,"Param: enc_headers=%d",l_enc_headers);
                 }
             }
             l_tok = strtok_r(NULL, ",",&l_tok_tmp)   ;

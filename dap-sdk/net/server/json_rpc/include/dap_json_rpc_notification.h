@@ -1,9 +1,9 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexey V. Stratulat <alexey.stratulat@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * DeM Labs Open source community https://gitlab.demlabs.net/cellframe/cellframe-sdk
+ * Copyright  (c) 2017-2020
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -23,21 +23,27 @@
 */
 #pragma once
 
-#include "dap_chain.h"
-#include "dap_chain_block.h"
-#include "dap_chain_block_cache.h"
+#include "dap_json_rpc_request.h"
+#include "uthash.h"
 
-typedef struct dap_chain_cs_blocks
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+typedef void (notification_handler_func_t)(dap_json_rpc_params_t *a_param);
+
+typedef struct dap_json_rpc_notification_handler
 {
-    dap_chain_t * chain;
-    void * _pvt;
-    void * _iheritor;
-} dap_chain_cs_blocks_t;
+    char *method;
+    notification_handler_func_t *func;
+    UT_hash_handle  hh;
+}dap_json_rpc_notification_handler_t;
 
-typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *);
+int dap_json_rpc_notification_registration(const char *a_method, notification_handler_func_t *a_notification_func);
+void dap_json_rpc_notification_unregistration(const char *a_method);
 
-int dap_chain_cs_blocks_init();
-void dap_chain_cs_blocks_deinit();
+void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_params_t *a_params);
 
-dap_chain_block_cache_t* dap_chain_cs_blocks_allocate_next_block(dap_chain_cs_blocks_t * a_cs_blocks);
-void dap_chain_cs_blocks_new(dap_chain_t * a_chain);
+#ifdef __cplusplus
+}
+#endif

@@ -74,7 +74,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
 
 {
     struct itimerspec l_ts;
-    int l_tfd = timerfd_create(CLOCK_MONOTONIC, 0);
+    int l_tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     if(l_tfd == -1) {
         log_it(L_WARNING, "dap_timerfd_start() failed: timerfd_create() errno=%d\n", errno);
         return NULL;

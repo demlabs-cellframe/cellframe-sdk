@@ -37,7 +37,7 @@
  * @param a_hash
  * @return
  */
-int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t * a_hash)
+int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_chain_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
     size_t l_hash_str_len = strlen( a_hash_str);
@@ -55,3 +55,4 @@ int dap_chain_str_to_hash_fast( const char * a_hash_str, dap_chain_hash_fast_t *
     }else  // Wromg string len
         return -1;
 }
+

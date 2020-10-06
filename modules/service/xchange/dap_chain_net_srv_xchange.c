@@ -596,7 +596,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             // Create the order & put it to GDB
             char *l_order_hash_str = s_xchange_order_create(l_price, l_tx);
             if (l_order_hash_str) {
-                dap_chain_str_to_hash_fast(l_order_hash_str, &l_price->order_hash);
+                dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                 if(!s_xchange_tx_put(l_tx, l_net_buy)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
                     dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
@@ -653,7 +653,6 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 DAP_DELETE(l_order_hash_str);
                 DAP_DELETE(l_price->wallet_str);
-                DAP_DELETE(l_price->key_ptr);
                 DAP_DELETE(l_price);
                 if (!l_str_reply->len) {
                     dap_string_append(l_str_reply, "Price successfully removed");
@@ -715,7 +714,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     return -14;
                 }
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
-                dap_chain_global_db_gr_del(l_price->key_ptr, GROUP_LOCAL_XCHANGE);
+                dap_chain_global_db_gr_del(dap_strdup(l_price->key_ptr), GROUP_LOCAL_XCHANGE);
                 bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet); // may be changed to old price later
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {
@@ -730,7 +729,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 DAP_DELETE(l_order_hash_str);
                 l_order_hash_str = s_xchange_order_create(l_price, l_tx);
                 if (l_order_hash_str) {
-                    dap_chain_str_to_hash_fast(l_order_hash_str, &l_price->order_hash);
+                    dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                     if(!s_xchange_tx_put(l_tx, l_net_buy)) {
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
                         dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);

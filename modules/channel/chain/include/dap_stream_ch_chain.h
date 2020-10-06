@@ -51,7 +51,6 @@ typedef struct dap_chain_pkt_copy {
 } dap_chain_pkt_copy_t;
 
 typedef struct dap_stream_ch_chain {
-    pthread_mutex_t mutex;
     dap_stream_ch_t * ch;
 
     dap_db_log_list_t *request_global_db_trs; // list of global db records

@@ -568,7 +568,7 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
 
     if(!l_datum)
         return NULL;
-    size_t l_datums_number = l_chain->callback_datums_pool_proc(l_chain, &l_datum, 1);
+    size_t l_datums_number = l_chain->callback_add_datums(l_chain, &l_datum, 1);
     if(!l_datums_number)
             return NULL;
 

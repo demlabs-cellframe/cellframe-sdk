@@ -78,6 +78,7 @@ typedef struct dap_chain_cs_dag_pvt {
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
+static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
 dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
 
 // Atomic element organization callbacks
@@ -128,7 +129,7 @@ static bool s_seed_mode = false;
 int dap_chain_cs_dag_init(void)
 {
     srand((unsigned int) time(NULL));
-    dap_chain_class_add( "dag", dap_chain_cs_dag_new );
+    dap_chain_cs_type_add( "dag", dap_chain_cs_dag_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, NULL, "DAG commands",
         "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H hex|base58(default)]\n"
@@ -171,6 +172,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_rwlock_init(& PVT(l_dag)->events_rwlock,NULL);
 
     a_chain->callback_delete = dap_chain_cs_dag_delete;
+    a_chain->callback_purge = s_dap_chain_cs_dag_purge;
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
@@ -194,7 +196,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_tx_find_by_hash = s_chain_callback_atom_iter_find_by_tx_hash;
 
 
-    a_chain->callback_datums_pool_proc = s_chain_callback_datums_pool_proc;
+    a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
 
     // Datum operations callbacks
 /*
@@ -209,7 +211,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     const char * l_static_genesis_event_hash_str = dap_config_get_item_str_default(a_chain_cfg,"dag","static_genesis_event",NULL);
     if ( l_static_genesis_event_hash_str ){
         int lhr;
-        if ( (lhr= dap_chain_str_to_hash_fast(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash) )!= 0 ){
+        if ( (lhr= dap_chain_hash_fast_from_str(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash) )!= 0 ){
             log_it( L_ERROR, "Can't read hash from static_genesis_event \"%s\", ret code %d ", l_static_genesis_event_hash_str, lhr);
         }
     }
@@ -217,7 +219,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     char **l_hard_accept_list = dap_config_get_array_str(a_chain_cfg, "dag", "hard_accept_list", &l_list_len);
     for (uint16_t i = 0; i < l_list_len; i++) {
         dap_chain_cs_dag_hal_item_t *l_hal_item = DAP_NEW_Z(dap_chain_cs_dag_hal_item_t);
-        dap_chain_str_to_hash_fast(l_hard_accept_list[i], &l_hal_item->hash);
+        dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
         HASH_ADD(hh, l_dag->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
     }
 
@@ -238,6 +240,34 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     return 0;
 }
 
+static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
+{
+    dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
+    pthread_rwlock_wrlock(&l_dag_pvt->events_rwlock);
+    dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
+    HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events_treshold, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->events_treshold_conflicted, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->events_treshold_conflicted, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    HASH_ITER(hh, l_dag_pvt->tx_events, l_event_current, l_event_tmp) {
+        HASH_DEL(l_dag_pvt->tx_events, l_event_current);
+        DAP_DELETE(l_event_current);
+    }
+    pthread_rwlock_unlock(&l_dag_pvt->events_rwlock);
+}
+
 /**
  * @brief dap_chain_cs_dag_delete
  * @param a_dag
@@ -245,6 +275,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  */
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
+    s_dap_chain_cs_dag_purge(a_chain);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     pthread_rwlock_destroy(& PVT(l_dag)->events_rwlock);
 
@@ -256,24 +287,25 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_pvt);
 }
 
+
 static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item)
 {
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
     switch (l_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-            return dap_chain_ledger_token_add(a_ledger, l_token, l_datum->header.data_size);
+            return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
             }
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-            return dap_chain_ledger_token_emission_add(a_ledger, l_token_emission, l_datum->header.data_size);
+            return dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
             }
         break;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             // don't save bad transactions to base
-            int l_ret = dap_chain_ledger_tx_add(a_ledger, l_tx);
+            int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx);
             if( l_ret != 1 ) {
                 return l_ret;
             }

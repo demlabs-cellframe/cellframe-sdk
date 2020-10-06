@@ -64,7 +64,7 @@ typedef struct dap_chain_node_client {
     pthread_cond_t wait_cond;
     #else
     HANDLE wait_cond;
-#endif
+    #endif
     pthread_mutex_t wait_mutex;
 
     // For hash indexing
