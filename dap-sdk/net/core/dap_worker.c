@@ -456,7 +456,8 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
     if(dap_events_socket_check_unsafe( w, l_es_new)){
-        log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", l_es_new->socket, l_es_new);
+        //log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", l_es_new->socket, l_es_new);
+        // Socket already present in worker, it's OK
         return;
     }
 
