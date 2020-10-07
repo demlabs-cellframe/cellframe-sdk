@@ -67,6 +67,7 @@ inline static void s_gen_session_id(char a_id_buf[DAP_ENC_KS_KEY_ID_SIZE])
 void s_save_key_in_storge(dap_enc_ks_key_t *a_key)
 {
     HASH_ADD_STR(_ks,id,a_key);
+    log_it(L_DEBUG, "Added keyID %s in storage", a_key->id);
     if(s_memcache_enable) {
         dap_enc_key_serealize_t* l_serealize_key = dap_enc_key_serealize(a_key->key);
         //dap_memcache_put(a_key->id, l_serealize_key, sizeof (dap_enc_key_serealize_t), s_memcache_expiration_key);
@@ -98,7 +99,15 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
                 return ret;
             }*/
         }
-        log_it(L_WARNING, "Key not found");
+        log_it(L_WARNING, "Key %s not found", v_id);
+        // show all keyID
+        if(1) {
+            dap_enc_ks_key_t *l_iter_current, *l_item_tmp;
+            HASH_ITER(hh,_ks,l_iter_current, l_item_tmp)
+            {
+                log_it(L_DEBUG, "There is keyID %s in storage", l_iter_current->id);
+            }
+        }
     }
     return ret;
 }
@@ -114,6 +123,7 @@ dap_enc_key_t * dap_enc_ks_find_http(struct dap_http_client * a_http_client)
             return ks_key->key;
         else{
             log_it(L_WARNING, "Not found keyID %s in storage", hdr_key_id->value);
+
             return NULL;
         }
     }else{
@@ -155,6 +165,7 @@ void dap_enc_ks_delete(const char *id)
     dap_enc_ks_key_t *delItem = dap_enc_ks_find(id);
     if (delItem) {
         HASH_DEL (_ks, delItem);
+        log_it(L_DEBUG, "Deletes keyID %s in storage", id);
         pthread_mutex_destroy(&delItem->mutex);
         _enc_key_free(&delItem);
         return;
