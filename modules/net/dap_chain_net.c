@@ -698,19 +698,23 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
 static void *s_net_check_thread ( void *a_net )
 {
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_net;
-    dap_chain_net_pvt_t *p_net = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
-
+    dap_chain_net_pvt_t *l_net_pvt = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
+    assert(l_net);
+    assert(l_net_pvt);
+    log_it(L_NOTICE, "Running chain net context thread for network \"%s\"", l_net->pub.name);
     // set callback to update data
     //dap_chain_global_db_set_callback_for_update_base(s_net_proc_thread_callback_update_db);
 
     while(1){
-        if ( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
+        if ( l_net_pvt->flags & F_DAP_CHAIN_NET_SHUTDOWN ) {
+            log_it(L_NOTICE,"Shutdown chain net context thread for network \"%s\" (flags 0x%08X)",l_net->pub.name , l_net_pvt->flags);
             return NULL;
         }
 
+        log_it(L_DEBUG, "Check net states");
         // check or start sync
         s_net_states_proc( l_net );
-        if (p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) {
+        if (l_net_pvt->flags & F_DAP_CHAIN_NET_GO_SYNC) {
             s_net_states_proc( l_net );
         }
         struct timespec l_to;
@@ -719,10 +723,11 @@ static void *s_net_check_thread ( void *a_net )
         time_t l_sync_timeout = 180; // 1800 sec = 30 min
         clock_gettime(CLOCK_MONOTONIC, &l_to);
         // start sync every l_sync_timeout sec
-        if(l_to.tv_sec >= p_net->last_sync + l_sync_timeout) {
-            p_net->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+        if(l_to.tv_sec >= l_net_pvt->last_sync + l_sync_timeout) {
+            l_net_pvt->flags |= F_DAP_CHAIN_NET_GO_SYNC;
             s_net_states_proc( l_net );
         }
+        log_it(L_DEBUG, "Sleep on 10 seconds...");
         sleep(10);
     }
     return NULL;
