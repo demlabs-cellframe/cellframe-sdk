@@ -704,14 +704,14 @@ static void *s_net_check_thread ( void *a_net )
     //dap_chain_global_db_set_callback_for_update_base(s_net_proc_thread_callback_update_db);
 
     while(1){
-        if ( !(p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) ) {
+        if (p_net->flags & F_DAP_CHAIN_NET_SHUTDOWN) {
             return NULL;
         }
 
-        // check or start sync
-        s_net_states_proc( l_net );
         if (p_net->flags & F_DAP_CHAIN_NET_GO_SYNC) {
+            // check or start sync
             s_net_states_proc( l_net );
+            continue;
         }
         struct timespec l_to;
 

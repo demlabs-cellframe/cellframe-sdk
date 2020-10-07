@@ -338,7 +338,6 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
     ret->esocket = a_esocket;
     ret->buf_defrag_size=0;
     ret->is_client_to_uplink = true;
-    log_it(L_NOTICE,"New stream with events socket instance for %s",a_esocket->hostaddr);
     return ret;
 }
 

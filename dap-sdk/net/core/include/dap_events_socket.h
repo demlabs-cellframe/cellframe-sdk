@@ -31,6 +31,7 @@
 #include "dap_common.h"
 
 #define DAP_EVENTS_SOCKET_MAX 8194
+
 // Caps for different platforms
 #if defined(DAP_OS_LINUX)
 //    #define DAP_EVENTS_CAPS_EPOLL
@@ -217,6 +218,8 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
 int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg);
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value);
+
+void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor);
 
 dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );
