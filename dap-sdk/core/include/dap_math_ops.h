@@ -27,5 +27,4 @@ typedef union int128{int64_t i64[2];} int128_t;
 
 #endif
 
-
 #endif

@@ -714,8 +714,11 @@ static void *s_net_check_thread ( void *a_net )
         log_it(L_DEBUG, "Check net states");
         // check or start sync
         s_net_states_proc( l_net );
+
         if (l_net_pvt->flags & F_DAP_CHAIN_NET_GO_SYNC) {
+            // check or start sync
             s_net_states_proc( l_net );
+            continue;
         }
         struct timespec l_to;
 

@@ -26,6 +26,7 @@
 #include "dap_chain_net_srv_vpn.h"
 
 int dap_chain_net_vpn_client_tun_init(const char *a_ipv4_gw_str);
+dap_events_socket_t* dap_chain_net_vpn_client_tun_get_esock(void);
 int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char *a_ipv4_gw_str);
 int dap_chain_net_vpn_client_tun_delete(void);
 int dap_chain_net_vpn_client_tun_status(void);

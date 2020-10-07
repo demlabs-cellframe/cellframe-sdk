@@ -287,8 +287,9 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_dag->_pvt);
 }
 
-static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item){
 
+static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item)
+{
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
     switch (l_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
@@ -306,7 +307,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             // don't save bad transactions to base
             int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx);
             if( l_ret != 1 ) {
-            return l_ret;
+                return l_ret;
             }
             dap_chain_cs_dag_event_item_t * l_tx_event= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
             l_tx_event->ts_added = a_event_item->ts_added;

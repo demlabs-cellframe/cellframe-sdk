@@ -149,9 +149,10 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             log_it(L_INFO, "legacy encryption mode used (OAES)");
             l_enc_type = DAP_ENC_KEY_TYPE_OAES;
             l_new_session = true;
-        }
-        if(l_new_session){
+        }else
+            log_it(L_DEBUG,"Encryption type %s (enc headers %d)",dap_enc_get_type_name(l_enc_type), l_enc_headers);
 
+        if(l_new_session){
             ss = dap_stream_session_pure_new();
             strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
             char *key_str = calloc(1, KEX_KEY_STR_SIZE+1);
