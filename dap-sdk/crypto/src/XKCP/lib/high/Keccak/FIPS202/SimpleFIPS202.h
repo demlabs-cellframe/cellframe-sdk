@@ -15,6 +15,10 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #include "KeccakSpongeWidth1600.h"
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Implementation of the SHAKE128 extendable output function (XOF) [FIPS 202].
   * @param  output          Pointer to the output buffer.
   * @param  outputByteLen   The desired number of output bytes.
@@ -73,5 +77,9 @@ int SHA3_384(unsigned char *output, const unsigned char *input, size_t inputByte
   * @return 0 if successful, 1 otherwise.
   */
 int SHA3_512(unsigned char *output, const unsigned char *input, size_t inputByteLen);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
