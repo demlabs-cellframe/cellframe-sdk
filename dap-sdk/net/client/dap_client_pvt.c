@@ -161,7 +161,6 @@ int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
     //dap_client_pvt_t *a_client_pvt = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
     if(!a_client_pvt)
         return -1;
-
     pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
     dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
     pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
@@ -272,7 +271,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     break;
                 case STAGE_STREAM_CTL: {
                     log_it(L_INFO, "Go to stage STREAM_CTL: prepare the request");
-
                     char *l_request = dap_strdup_printf("%d", DAP_CLIENT_PROTOCOL_VERSION);
                     size_t l_request_size = dap_strlen(l_request);
                     log_it(L_DEBUG, "STREAM_CTL request size %u", strlen(l_request));
@@ -309,18 +307,18 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                         break;
                     }
-        #ifdef _WIN32
+#ifdef _WIN32
                     {
                       int buffsize = 65536*4;
                       int optsize = sizeof( int );
                       setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, &optsize );
                       setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize );
                     }
-        #else
+#else
                     int buffsize = 65536*4;
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (const void *) &buffsize, sizeof(int));
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (const void *) &buffsize, sizeof(int));
-        #endif
+#endif
 
                     // Wrap socket and setup callbacks
                     static dap_events_socket_callbacks_t l_s_callbacks = {
@@ -393,8 +391,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             log_it(L_INFO,"Connecting to remote %s:%s",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                         }
                     }
-
-
                 }
                     break;
                 case STAGE_STREAM_CONNECTED: {
@@ -1091,6 +1087,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     log_it(L_INFO, "Stream delete callback");
 
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
+
     a_es->_inheritor = NULL; // To prevent delete in reactor
 
     if(l_client_pvt == NULL) {

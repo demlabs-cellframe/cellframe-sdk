@@ -732,7 +732,6 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
                a_esocket->worker->poll_count);
     }
-
 #else
 #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
 #endif
@@ -791,40 +790,51 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
     if ( a_es->worker)
         dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
-    if (a_es->events){ // It could be socket NOT from events
-        pthread_rwlock_wrlock( &a_es->events->sockets_rwlock );
-        if(!dap_events_socket_find_unsafe(a_es->socket, a_es->events)){
-            log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_es);
-            pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
-            return ;
-        }
-
-        if(a_es->events->sockets)
-            HASH_DEL( a_es->events->sockets, a_es );
-        pthread_rwlock_unlock( &a_es->events->sockets_rwlock );
-    }
     //log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
 
     if( a_es->callbacks.delete_callback )
         a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
 
-    if ( a_es->_inheritor && !preserve_inheritor )
-        DAP_DELETE( a_es->_inheritor );
+    dap_events_socket_delete_unsafe(a_es, preserve_inheritor);
+}
 
-    if ( a_es->socket && a_es->socket != -1) {
-#ifdef _WIN32
-        closesocket( a_es->socket );
-#else
-        close( a_es->socket );
-#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
-        if( a_es->type == DESCRIPTOR_TYPE_QUEUE){
-            close( a_es->fd2);
+/**
+ * @brief dap_events_socket_delete_unsafe
+ * @param a_esocket
+ * @param a_preserve_inheritor
+ */
+void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor)
+{
+    if (a_esocket->events){ // It could be socket NOT from events
+        pthread_rwlock_wrlock( &a_esocket->events->sockets_rwlock );
+        if(!dap_events_socket_find_unsafe(a_esocket->socket, a_esocket->events)){
+            log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_esocket);
+            pthread_rwlock_unlock( &a_esocket->events->sockets_rwlock );
+            return ;
         }
-#endif
 
-#endif
+        if(a_esocket->events->sockets)
+            HASH_DEL( a_esocket->events->sockets, a_esocket );
+        pthread_rwlock_unlock( &a_esocket->events->sockets_rwlock );
     }
-    DAP_DELETE( a_es );
+
+    if ( a_esocket->_inheritor && !a_preserve_inheritor )
+        DAP_DELETE( a_esocket->_inheritor );
+
+    if ( a_esocket->socket && a_esocket->socket != -1) {
+    #ifdef _WIN32
+        closesocket( a_esocket->socket );
+    #else
+        close( a_esocket->socket );
+    #ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
+        if( a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
+            close( a_esocket->fd2);
+        }
+    #endif
+
+    #endif
+    }
+    DAP_DELETE( a_esocket );
 }
 
 /**

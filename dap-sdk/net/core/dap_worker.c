@@ -395,10 +395,8 @@ void *dap_worker_thread(void *arg)
                             log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
-
                         }
                     }else{
-
                         //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
                         if (l_bytes_sent) {
                             if ( l_bytes_sent <= (ssize_t) l_cur->buf_out_size ){
@@ -479,8 +477,9 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
-    if(dap_events_socket_check_unsafe( w, a_es)){
-        log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", a_es->socket, a_es);
+    if(dap_events_socket_check_unsafe( w, l_es_new)){
+        //log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", l_es_new->socket, l_es_new);
+        // Socket already present in worker, it's OK
         return;
     }
 

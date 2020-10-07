@@ -45,8 +45,12 @@ typedef struct dap_chain_atom_item{
     UT_hash_handle hh;
 } dap_chain_atom_item_t;
 
+typedef struct dap_chain_pkt_copy {
+    uint64_t pkt_data_size;
+    byte_t *pkt_data;
+} dap_chain_pkt_copy_t;
+
 typedef struct dap_stream_ch_chain {
-    pthread_mutex_t mutex;
     dap_stream_ch_t * ch;
 
     dap_db_log_list_t *request_global_db_trs; // list of global db records
@@ -54,8 +58,7 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_state_t state;
 
     dap_chain_atom_iter_t * request_atom_iter;
-    byte_t *pkt_data;
-    uint64_t pkt_data_size;
+    dap_list_t *pkt_copy_list;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
     dap_stream_ch_chain_sync_request_t request;
