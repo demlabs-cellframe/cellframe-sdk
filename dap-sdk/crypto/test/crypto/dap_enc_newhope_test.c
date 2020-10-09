@@ -19,7 +19,7 @@ void dap_enc_newhope_tests_run(const int times)
     dap_print_module_name("dap_enc_newhope");
     init_test_case();
     char tmp_buf[256];
-    sprintf_s(tmp_buf, 256, "Key Exchange %d times", times);
+    snprintf(tmp_buf, sizeof(tmp_buf), "Key Exchange %d times", times);
 
     benchmark_mgs_time(tmp_buf, benchmark_test_time(test_newhope_kem, times));
 
