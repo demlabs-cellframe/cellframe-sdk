@@ -157,7 +157,8 @@ int dilithium_crypto_sign_keypair(dilithium_public_key_t *public_key, dilithium_
 
     if(seed && seed_size > 0) {
         assert(SEEDBYTES==32);
-        SHA3_256((unsigned char *) seedbuf, (const unsigned char *) seed, seed_size);
+        //SHA3_256((unsigned char *) seedbuf, (const unsigned char *) seed, seed_size);
+        sha3_256((unsigned char *) seedbuf, (const unsigned char *) seed, seed_size);
     }
     else {
         randombytes(seedbuf, SEEDBYTES);
