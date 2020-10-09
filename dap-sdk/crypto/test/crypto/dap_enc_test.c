@@ -56,7 +56,7 @@ void test_encypt_decrypt(int count_steps, const dap_enc_key_type_t key_type, con
     }
     int time_end = get_cur_time_msec();
     char pass_msg_buf[256];
-    sprintf_s(pass_msg_buf, 256, "Encode and decode      %d times T = %f (%f per once)", count_steps, (time_end - time_beg)/1000.0,(time_end - time_beg)/1000.0/count_steps);
+    snprintf(pass_msg_buf, sizeof(pass_msg_buf), "Encode and decode      %d times T = %f (%f per once)", count_steps, (time_end - time_beg)/1000.0,(time_end - time_beg)/1000.0/count_steps);
     dap_pass_msg(pass_msg_buf);
 
 }
@@ -107,7 +107,7 @@ void test_encypt_decrypt_fast(int count_steps, const dap_enc_key_type_t key_type
     dap_enc_key_delete(key);
     int time_end = get_cur_time_msec();
     char pass_msg_buf[256];
-    sprintf_s(pass_msg_buf, 256, "Encode and decode fast %d times T = %f (%f per once)", count_steps, (time_end - time_beg)/1000.0,(time_end - time_beg)/1000.0/count_steps);
+    snprintf(pass_msg_buf, sizeof(pass_msg_buf), "Encode and decode fast %d times T = %f (%f per once)", count_steps, (time_end - time_beg)/1000.0,(time_end - time_beg)/1000.0/count_steps);
     dap_pass_msg(pass_msg_buf);
 }
 

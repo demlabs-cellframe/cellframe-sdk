@@ -155,7 +155,7 @@ void dap_enc_ringct20_tests_run(const int times)
     dap_print_module_name("dap_enc_ringct20");
     init_test_case();
     char print_buf[512];
-    sprintf_s(print_buf, 512, "Signing and verifying message %d time", times);
+    snprintf(print_buf, sizeof(print_buf), "Signing and verifying message %d time", times);
 
     benchmark_mgs_time(print_buf, benchmark_test_time(test_signing_verifying2, times));
 
