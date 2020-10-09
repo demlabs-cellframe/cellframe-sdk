@@ -34,6 +34,7 @@ typedef struct dap_app_cli_cmd_state {
     int ret_code;
     // for reply
     char *cmd_res;
+    size_t cmd_res_len_max;
     size_t cmd_res_len;
     size_t cmd_res_cur;
 } dap_app_cli_cmd_state_t;
