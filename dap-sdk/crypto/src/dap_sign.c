@@ -209,6 +209,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
     if(l_sign_unserialized_size > 0) {
         size_t l_pub_key_size = 0;
         uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        log_it(L_INFO, "4554: pub key size: %d", l_pub_key_size);
         if(!l_pub_key)
             return NULL;
         uint8_t* l_sign_unserialized = DAP_NEW_Z_SIZE(uint8_t, l_sign_unserialized_size);
@@ -231,6 +232,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
                 memcpy(l_ret->pkey_n_sign + l_pub_key_size, l_sign_ser, l_sign_ser_size);
                 l_ret->header.sign_pkey_size =(uint32_t) l_pub_key_size;
                 l_ret->header.sign_size = (uint32_t) l_sign_ser_size;
+                log_it(L_INFO, "4554: sign size: %d", l_sign_ser_size);
                 DAP_DELETE(l_sign_ser);
                 dap_enc_key_signature_delete(a_key->type, l_sign_unserialized);
                 DAP_DELETE(l_pub_key);

@@ -392,6 +392,7 @@ uint8_t* dap_enc_key_serealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_si
         data = DAP_NEW_Z_SIZE(uint8_t, *a_sign_len);
         memcpy(data, a_sign, *a_sign_len);
     }
+    log_it(L_INFO, "4554: sign size on serialize: %d", *a_sign_len);
     return data;
 }
 
@@ -486,6 +487,7 @@ uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
         if(a_buflen_out)
             *a_buflen_out = a_key->pub_key_data_size;
     }
+    log_it(L_INFO, "4554: key size on serialize: %d", *a_buflen_out);
     return data;
 }
 /**
