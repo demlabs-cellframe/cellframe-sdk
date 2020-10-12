@@ -103,6 +103,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_arg);
+static void s_stream_es_worker_assign(dap_events_socket_t * a_es, dap_worker_t * a_worker);
 
 /**
  * @brief dap_client_internal_init
@@ -164,6 +165,7 @@ int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
     pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
     dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
     pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
+    pthread_mutex_unlock(&a_client_pvt->disconnected_mutex);
 
     return 0;
 }
@@ -228,6 +230,9 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
  */
 static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 {
+    dap_worker_t * l_worker= a_client_pvt->worker;
+    assert(l_worker);
+    assert(l_worker->_inheritor);
     //bool l_is_unref = false;
     dap_client_stage_status_t l_stage_status = a_client_pvt->stage_status;
     dap_client_stage_t l_stage = a_client_pvt->stage;
@@ -316,8 +321,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     }
 #else
                     int buffsize = 65536*4;
-                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (const void *) &buffsize, sizeof(int));
-                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (const void *) &buffsize, sizeof(int));
+                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, ( void *) &buffsize, sizeof(int));
+                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, ( void *) &buffsize, sizeof(int));
 #endif
 
                     // Wrap socket and setup callbacks
@@ -332,13 +337,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             a_client_pvt->stream_socket, &l_s_callbacks);
                     a_client_pvt->stream_es->flags &= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should ar WRITE flag
 
-                    dap_worker_t * l_worker = dap_events_worker_get_auto();
-                    assert(l_worker);
-                    assert(l_worker->_inheritor);
-                    a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
-                    // add to dap_worker
-                    dap_events_socket_assign_on_worker_mt(a_client_pvt->stream_es, l_worker);
-
                     a_client_pvt->stream_es->_inheritor = a_client_pvt;
                     a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
                     assert(a_client_pvt->stream);
@@ -347,6 +345,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     // new added, whether it is necessary?
                     a_client_pvt->stream->session->key = a_client_pvt->stream_key;
+                    a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
                     a_client_pvt->stream->stream_worker = a_client_pvt->stream_worker;
 
 
@@ -357,7 +356,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(a_client_pvt->stream_es->remote_addr.sin_addr)) < 0) {
                         log_it(L_ERROR, "Wrong remote address '%s:%u'", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                         //close(a_client_pvt->stream_socket);
-                        dap_events_socket_remove_and_delete_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es);
                         //a_client_pvt->stream_socket = 0;
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                     }
@@ -369,8 +367,10 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         if((l_err = connect(a_client_pvt->stream_socket, (struct sockaddr *) &a_client_pvt->stream_es->remote_addr,
                                 sizeof(struct sockaddr_in))) ==0) {
                             log_it(L_DEBUG, "Connected momentaly with %s:%u", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
+                            // add to dap_worker
+                            dap_worker_add_events_socket_unsafe( a_client_pvt->stream_es, l_worker);
                         }
-                        else if (l_err != EINPROGRESS){
+                        else if (l_err != EINPROGRESS && l_err != -1){
                             char l_errbuf[128];
                             l_errbuf[0]='\0';
                             if (l_err)
@@ -379,9 +379,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                 strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
                             log_it(L_ERROR, "Remote address can't connect (%s:%u) with sock_id %d: \"%s\" (code %d)", a_client_pvt->uplink_addr,
                                     a_client_pvt->uplink_port, l_errbuf, l_err);
-                            a_client_pvt->stream_es->kill_signal = true;
-                            a_client_pvt->stream_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
-                            //close(a_client_pvt->stream_socket);
+                            close(a_client_pvt->stream_socket);
                             a_client_pvt->stream_socket = 0;
                             a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                             a_client_pvt->last_error = ERROR_STREAM_CONNECT ;
@@ -389,6 +387,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             s_stage_status_after(a_client_pvt);
                         }else{
                             log_it(L_INFO,"Connecting to remote %s:%s",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
+                            // add to dap_worker
+                            dap_worker_add_events_socket_unsafe(a_client_pvt->stream_es, l_worker);
                         }
                     }
                 }
@@ -414,7 +414,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     const char *l_add_str = "";
 
-                    dap_events_socket_write_f_mt(a_client_pvt->stream_worker->worker, a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
+                    dap_events_socket_write_f_unsafe( a_client_pvt->stream_es, "GET /%s HTTP/1.1\r\n"
                                                                         "Host: %s:%d%s\r\n"
                                                                         "\r\n",
                                                l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
@@ -451,52 +451,50 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         case STAGE_STATUS_ERROR: {
             // limit the number of attempts
             int MAX_ATTEMPTS = 3;
-            a_client_pvt->connect_attempt++;
-            bool l_is_last_attempt = a_client_pvt->connect_attempt > MAX_ATTEMPTS ? true : false;
+            a_client_pvt->stage_errors++;
+            bool l_is_last_attempt = a_client_pvt->stage_errors > MAX_ATTEMPTS ? true : false;
 
             log_it(L_ERROR, "Error state, doing callback if present");
-            if(a_client_pvt->stage_status_error_callback) {
-                //dap_client_pvt_ref(a_client_pvt);
-                if(a_client_pvt == a_client_pvt->client->_internal)
-                    a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
-                else {
-                    log_it(L_ERROR, "client_pvt->client=%x corrupted", a_client_pvt->client->_internal);
-                }
-                //dap_client_pvt_unref(a_client_pvt);
-                // Expecting that its one-shot callback
-                //a_client_internal->stage_status_error_callback = NULL;
-            }
-            if(a_client_pvt->stage_target == STAGE_STREAM_ABORT) {
-                a_client_pvt->stage = STAGE_STREAM_ABORT;
-                a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
-                // unref pvt
-                //l_is_unref = true;
-            } else if (a_client_pvt->last_error != ERROR_NETWORK_CONNECTION_TIMEOUT) {
-                if(!l_is_last_attempt) {
-                    // small delay before next request
-                    log_it(L_INFO, "Connection attempt %d", a_client_pvt->connect_attempt);
-    #ifdef _WIN32
-                    Sleep(300);// 0.3 sec
-    #else
-                    usleep(300000);// 0.3 sec
-    #endif
-                    a_client_pvt->stage = STAGE_ENC_INIT;
-                    // Trying the step again
-                    a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+            if(a_client_pvt->stage_status_error_callback)
+                a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 
-                    //dap_client_pvt_ref(a_client_pvt);
-                    s_stage_status_after(a_client_pvt);
-                }
-                else{
-                    log_it(L_INFO, "Too many connection attempts. Tries are over.");
-                    a_client_pvt->stage_status = STAGE_STATUS_DONE;
+            switch (a_client_pvt->stage) {
+                case STAGE_UNDEFINED:
+                    log_it(L_ERROR,"!!Stage undefined!!! in dap_client_pvt::s_stage_status_after()");
+                break;
+                case STAGE_BEGIN:
+                case STAGE_ENC_INIT:
+                case STAGE_STREAM_CTL:
+                case STAGE_STREAM_SESSION:
+                case STAGE_STREAM_CONNECTED:
+                case STAGE_STREAM_STREAMING:
+                case STAGE_STREAM_ABORT:
+                    if(a_client_pvt->stage_target == STAGE_STREAM_ABORT) {
+                        a_client_pvt->stage = STAGE_STREAM_ABORT;
+                        a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
+                        // unref pvt
+                        //l_is_unref = true;
+                    } else if (a_client_pvt->last_error != ERROR_NETWORK_CONNECTION_TIMEOUT) {
+                        if(!l_is_last_attempt) {
+                            a_client_pvt->stage = STAGE_ENC_INIT;
+                            // Trying the step again
+                            a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+                            log_it(L_INFO, "Connection attempt %d in 0.3 seconds", a_client_pvt->stage_errors);
 
-                    // unref pvt
-                    //l_is_unref = true;
-                }
+                            // small delay before next request
+                            dap_timerfd_start_on_worker( l_worker, 300,
+                                                             (dap_timerfd_callback_t) s_stage_status_after,a_client_pvt );
+                        }
+                        else{
+                            log_it(L_INFO, "Too many connection attempts. Tries are over.");
+                            a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                        }
+                    }
+                break;
             }
+
         }
-            break;
+        break;
         case STAGE_STATUS_DONE: {
             log_it(L_INFO, "Stage status %s is done", dap_client_stage_str(a_client_pvt->stage));
             // go to next stage
@@ -563,25 +561,10 @@ int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_
     a_client_internal->request_error_callback = a_response_error;
     a_client_internal->is_encrypted = false;
 
-//    size_t l_url_size_max = 0;
-//    char *l_url = NULL;
-//    if(a_path) {
-//        l_url_size_max = dap_strlen(a_client_internal->uplink_addr) + strlen(a_path) + 15;
-//        l_url = DAP_NEW_Z_SIZE(char, l_url_size_max);
-//
-//        snprintf(l_url, l_url_size_max, "http://%s:%u/%s", a_client_internal->uplink_addr,
-//                a_client_internal->uplink_port, a_path);
-//    } else {
-//        l_url_size_max = strlen(a_client_internal->uplink_addr) + 15;
-//        l_url = DAP_NEW_Z_SIZE(char, l_url_size_max);
-//        snprintf(l_url, l_url_size_max, "http://%s:%u", a_client_internal->uplink_addr, a_client_internal->uplink_port);
-//    }
-    void *l_ret = dap_client_http_request(a_client_internal->uplink_addr,a_client_internal->uplink_port,
+    void *l_ret = dap_client_http_request(a_client_internal->worker,  a_client_internal->uplink_addr,a_client_internal->uplink_port,
                                            a_request ? "POST" : "GET", "text/text", a_path, a_request,
                                             a_request_size, NULL, s_request_response, s_request_error, a_client_internal, NULL);
-//    a_client_internal->curl = dap_http_client_simple_request(l_url, a_request ? "POST" : "GET", "text/text", a_request,
-//            a_request_size, NULL, m_request_response, m_request_error, &a_client_internal->curl_sockfd, a_client_internal, NULL);
-//    DAP_DELETE(l_url);
+
     if(l_ret)
     	return 0;
     return -1;
@@ -702,7 +685,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         a_custom_new[1] = "SessionCloseAfterRequest: true";
         a_custom_count++;
     }
-    dap_client_http_request_custom(a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
+    dap_client_http_request_custom(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
                 s_request_response, s_request_error, a_client_internal, a_custom_new, a_custom_count);
 //    dap_http_client_simple_request_custom(l_url_full, a_request ? "POST" : "GET", "text/text",
@@ -850,39 +833,30 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
                     l_client_pvt->session_key_id, strlen(l_client_pvt->session_key_id), 0);
 
             DAP_DELETE(l_bob_message);
-            pthread_mutex_lock(&l_client_pvt->disconnected_mutex);
             if(l_client_pvt->stage == STAGE_ENC_INIT) { // We are in proper stage
                 l_client_pvt->stage_status = STAGE_STATUS_DONE;
-                pthread_mutex_unlock(&l_client_pvt->disconnected_mutex);
                 s_stage_status_after(l_client_pvt);
             } else {
                 log_it(L_WARNING, "ENC: initialized encryption but current stage is %s (%s)",
                         dap_client_get_stage_str(a_client), dap_client_get_stage_status_str(a_client));
-                pthread_mutex_unlock(&l_client_pvt->disconnected_mutex);
             }
         } else {
             log_it(L_ERROR, "ENC: Wrong response (size %u data '%s')", a_response_size, (char* ) a_response);
-            pthread_mutex_lock(&l_client_pvt->disconnected_mutex);
             l_client_pvt->last_error = ERROR_ENC_NO_KEY;
             l_client_pvt->stage_status = STAGE_STATUS_ERROR;
-            pthread_mutex_unlock(&l_client_pvt->disconnected_mutex);
             s_stage_status_after(l_client_pvt);
         }
         DAP_DELETE(l_session_id_b64);
         DAP_DELETE(l_bob_message_b64);
     } else if(a_response_size > 1) {
         log_it(L_ERROR, "ENC: Wrong response (size %u data '%s')", a_response_size, (char* ) a_response);
-        pthread_mutex_lock(&l_client_pvt->disconnected_mutex);
         l_client_pvt->last_error = ERROR_ENC_NO_KEY;
         l_client_pvt->stage_status = STAGE_STATUS_ERROR;
-        pthread_mutex_unlock(&l_client_pvt->disconnected_mutex);
         s_stage_status_after(l_client_pvt);
     } else {
         log_it(L_ERROR, "ENC: Wrong response (size %u)", a_response_size);
-        pthread_mutex_lock(&l_client_pvt->disconnected_mutex);
         l_client_pvt->last_error = ERROR_ENC_NO_KEY;
         l_client_pvt->stage_status = STAGE_STATUS_ERROR;
-        pthread_mutex_unlock(&l_client_pvt->disconnected_mutex);
         s_stage_status_after(l_client_pvt);
     }
 }
@@ -901,14 +875,12 @@ static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
     }
     //dap_client_internal_t * l_client_internal = dap_CLIENT_INTERNAL(a_client);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
-    pthread_mutex_lock(&l_client_pvt->disconnected_mutex);
     if (a_err_code == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
     } else {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_REFUSE;
     }
     l_client_pvt->stage_status = STAGE_STATUS_ERROR;
-    pthread_mutex_unlock(&l_client_pvt->disconnected_mutex);
     s_stage_status_after(l_client_pvt);
 }
 

@@ -39,11 +39,11 @@
 #define LOG_TAG "dap_worker"
 
 
-static time_t s_connection_timeout = 20000;
+static time_t s_connection_timeout = 60;
 
 
 static void s_socket_all_check_activity( void * a_arg);
-static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg);
+static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
@@ -96,7 +96,7 @@ void *dap_worker_thread(void *arg)
 #endif
 
 
-    l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_new_es_callback);
+    l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_add_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
     l_worker->queue_es_io = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_io_callback);
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_reassign_callback );
@@ -104,7 +104,7 @@ void *dap_worker_thread(void *arg)
     l_worker->event_exit = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback );
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
 
-
+    pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
     pthread_cond_broadcast(&l_worker->started_cond);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
@@ -312,6 +312,9 @@ void *dap_worker_thread(void *arg)
                 }
             }
 
+            //if (l_flag_write)
+             //   log_it(L_DEBUG,"Alarmed write flag for remote %s", l_cur->remote_addr_str[0]?l_cur->remote_addr_str:"(null)");
+
             // If its outgoing connection
             if ( l_flag_write &&  ! l_cur->server &&  l_cur->flags& DAP_SOCK_CONNECTING &&
                  (l_cur->type == DESCRIPTOR_TYPE_SOCKET || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
@@ -334,6 +337,7 @@ void *dap_worker_thread(void *arg)
                     l_cur->flags ^= DAP_SOCK_CONNECTING;
                     if (l_cur->callbacks.connected_callback)
                         l_cur->callbacks.connected_callback(l_cur);
+                    dap_events_socket_worker_poll_update_unsafe(l_cur);
                 }
             }
 
@@ -472,13 +476,13 @@ void *dap_worker_thread(void *arg)
  * @param a_es
  * @param a_arg
  */
-static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
+static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
     if(dap_events_socket_check_unsafe( w, l_es_new)){
-        //log_it(L_ERROR, "Already assigned %d (%p), you're doing smth wrong", l_es_new->socket, l_es_new);
+        log_it(L_WARNING, "Already assigned %d (%p), you're doing smth wrong", l_es_new->socket, l_es_new);
         // Socket already present in worker, it's OK
         return;
     }
@@ -495,6 +499,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     l_es_new->worker = w;
+    l_es_new->last_time_active = time(NULL);
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
         if (l_es_new->callbacks.new_callback)
@@ -512,7 +517,7 @@ static void s_queue_new_es_callback( dap_events_socket_t * a_es, void * a_arg)
             l_es_new->me = l_es_new;
             HASH_ADD(hh_worker, w->esockets, me, sizeof(void *), l_es_new );
             w->event_sockets_count++;
-            //log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
+            log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, w);
 
@@ -644,8 +649,9 @@ static void s_socket_all_check_activity( void * a_arg)
 
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
         if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  ){
-            if ( !l_es->kill_signal && l_curtime >=  (time_t)l_es->last_time_active + s_connection_timeout && !l_es->no_close ) {
-                log_it( L_INFO, "Socket %u timeout, closing...", l_es->socket );
+            if ( !l_es->kill_signal &&
+                 (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {
+                log_it( L_INFO, "Socket %u timeout (diff %u ), closing...", l_es->socket, l_curtime -  (time_t)l_es->last_time_active - s_connection_timeout );
                 if (l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es, ETIMEDOUT);
                 }
@@ -700,8 +706,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     a_worker->poll[a_worker->poll_count].events = a_esocket->poll_base_flags;
     if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
         a_worker->poll[a_worker->poll_count].events |= POLLIN;
-    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags & DAP_SOCK_CONNECTING )
+    if( (a_esocket->flags & DAP_SOCK_READY_TO_WRITE) || (a_esocket->flags & DAP_SOCK_CONNECTING) )
         a_worker->poll[a_worker->poll_count].events |= POLLOUT;
+
 
     a_worker->poll_esocket[a_worker->poll_count] = a_esocket;
     a_worker->poll_count++;

@@ -152,6 +152,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         //dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
     }
+
     //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
 }
 
@@ -458,11 +459,6 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     //dap_client_pvt_ref(DAP_CLIENT_PVT(l_node_client->client));
     // Handshake & connect
     dap_client_go_stage(l_node_client->client, a_stage_target, s_stage_connected_callback);
-    dap_client_pvt_t *l_client_internal = DAP_CLIENT_PVT(l_node_client->client);
-    if(!l_client_internal || l_client_internal->stage_status == STAGE_STATUS_ERROR){
-    	dap_chain_node_client_close(l_node_client);
-    	return NULL;
-    }
     return l_node_client;
 }
 
@@ -526,33 +522,25 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms)
 {
     int ret = -1;
-    if(!a_client)
+    if(!a_client){
+        log_it(L_ERROR, "Can't wait for status for (null) object");
         return -3;
+    }
 
     pthread_mutex_lock(&a_client->wait_mutex);
     // have waited
     if(a_client->state == a_waited_state) {
+        log_it(L_INFO, "We're already in state %s",dap_chain_node_client_state_to_str(a_client->state));
         pthread_mutex_unlock(&a_client->wait_mutex);
         return 0;
-    }
-    if(a_client->state == NODE_CLIENT_STATE_DISCONNECTED) {
-        pthread_mutex_unlock(&a_client->wait_mutex);
-        return -2;
     }
 
 #ifndef _WIN32
     // prepare for signal waiting
-    struct timespec to;
-    clock_gettime( CLOCK_MONOTONIC, &to);
-    int64_t nsec_new = to.tv_nsec + a_timeout_ms * 1000000ll;
-    // if the new number of nanoseconds is more than a second
-
-    if(nsec_new > (long) 1e9) {
-        to.tv_sec += nsec_new / (long) 1e9;
-        to.tv_nsec = nsec_new % (long) 1e9;
-    }
-    else
-        to.tv_nsec = (long) nsec_new;
+    struct timespec l_cond_timeout;
+    uint32_t l_timeout_s = dap_config_get_item_uint32_default(g_config,"chain_net","status_wait_timeout",10);
+    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
+    l_cond_timeout.tv_sec += l_timeout_s;
 #else
     pthread_mutex_unlock( &a_client->wait_mutex );
 #endif
@@ -561,20 +549,26 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     do {
 
 #ifndef _WIN32
-        int wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &to);
-        if(wait == 0 && (
+        int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
+        if(l_ret_wait == 0 && (
                 a_client->state == a_waited_state ||
                         (a_client->state == NODE_CLIENT_STATE_ERROR || a_client->state == NODE_CLIENT_STATE_DISCONNECTED))
                 ) {
             ret = a_client->state == a_waited_state ? 0 : -2;
             break;
         }
-        else if(wait == ETIMEDOUT) { // 110 260
+        else if(l_ret_wait == ETIMEDOUT) { // 110 260
+            log_it(L_NOTICE,"Wait for status is stopped by timeout");
             ret = -1;
             break;
+        }else if (l_ret_wait != 0 ){
+            char l_errbuf[128];
+            l_errbuf[0] = '\0';
+            strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
+            log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
         }
 #else
-        int wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_ms );
+        int wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_s*1000 );
         pthread_mutex_lock( &a_client->wait_mutex );
 
         if ( wait == WAIT_OBJECT_0 && (

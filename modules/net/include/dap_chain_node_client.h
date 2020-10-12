@@ -115,4 +115,22 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
 
 int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client);
 
+static inline const char * dap_chain_node_client_state_to_str( dap_chain_node_client_state_t a_state)
+{
+    switch (a_state) {
+        case NODE_CLIENT_STATE_ERROR: return "ERROR";
+        case NODE_CLIENT_STATE_DISCONNECTED: return "DISCONNECTED";
+        case NODE_CLIENT_STATE_GET_NODE_ADDR: return "GET_NODE_ADDR";
+        case NODE_CLIENT_STATE_NODE_ADDR_LEASED: return "NODE_ADDR_LEASED";
+        case NODE_CLIENT_STATE_PING: return "PING";
+        case NODE_CLIENT_STATE_PONG: return "PONG";
+        case NODE_CLIENT_STATE_CONNECT: return "CONNECT";
+        case NODE_CLIENT_STATE_CONNECTED: return "CONNECTED";
+        case NODE_CLIENT_STATE_SYNC_GDB: return "SYNC_GDB";
+        case NODE_CLIENT_STATE_SYNC_CHAINS: return "SYNC_CHAINS";
+        case NODE_CLIENT_STATE_SYNCED: return "SYNCED";
+        case NODE_CLIENT_STATE_CHECKED: return "CHECKED";
+        default: return "(Undefined node client state)";
+    }
 
+}

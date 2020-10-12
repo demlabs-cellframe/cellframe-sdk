@@ -30,7 +30,7 @@
 
 // FSM realization: thats callback executes after the every stage is done
 // and have to select the next one stage
-void m_stage_fsm_operator(dap_client_t *, void *);
+void m_stage_fsm_operator_unsafe(dap_client_t *, void *);
 
 /**
  * @brief dap_client_init
@@ -84,7 +84,7 @@ dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_s
     DAP_CLIENT_PVT(l_client)->events = a_events;
     DAP_CLIENT_PVT(l_client)->stage_status_callback = a_stage_status_callback;
     DAP_CLIENT_PVT(l_client)->stage_status_error_callback = a_stage_status_error_callback;
-
+    DAP_CLIENT_PVT(l_client)->worker = dap_events_worker_get_auto();
 
     dap_client_pvt_new(DAP_CLIENT_PVT(l_client) );
 
@@ -180,13 +180,16 @@ void dap_client_set_auth_cert(dap_client_t * a_client, dap_cert_t *a_cert)
 
 
 /**
- * @brief dap_client_reset
- * @param a_client
+ * @brief s_client_reset_unsafe
+ * @param a_worker
+ * @param a_arg
  */
-void dap_client_reset(dap_client_t * a_client)
+static void s_client_reset_unsafe(dap_worker_t * a_worker, void * a_arg)
 {
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
-
+    (void) a_arg;
+    assert(a_arg);
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT( ((dap_client_t*)a_arg));
+    assert(l_client_internal);
     if(l_client_internal->session_key){
         dap_enc_key_delete(l_client_internal->session_key);
         l_client_internal->session_key = NULL;
@@ -205,6 +208,18 @@ void dap_client_reset(dap_client_t * a_client)
     l_client_internal->stage = STAGE_BEGIN;
     l_client_internal->stage_status = STAGE_STATUS_DONE ;
     l_client_internal->stage_target = STAGE_BEGIN ;
+
+}
+
+/**
+ * @brief dap_client_reset
+ * @param a_client
+ */
+void dap_client_reset(dap_client_t * a_client)
+{
+    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    assert(l_client_internal);
+    dap_worker_exec_callback_on(l_client_internal->worker, s_client_reset_unsafe, a_client);
 }
 
 
@@ -224,31 +239,26 @@ void dap_client_delete(dap_client_t * a_client)
     DAP_DELETE(a_client);
 }
 
-/**
- * @brief dap_client_go_stage
- * @param a_client
- * @param a_stage_end
- */
-void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_target, dap_client_callback_t a_stage_end_callback)
+struct go_stage_arg{
+    dap_client_pvt_t *client_pvt;
+    dap_client_stage_t stage_target;
+    dap_client_callback_t stage_end_callback;
+};
+
+static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_arg)
 {
-    // ----- check parameters -----
-    if(NULL == a_client) {
-        log_it(L_ERROR, "dap_client_go_stage, a_client == NULL");
-        return;
-    }
-    if(NULL == a_stage_end_callback) {
-        log_it(L_ERROR, "dap_client_go_stage, a_stage_end_callback == NULL");
-        return;
-    }
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
+    (void) a_worker;
+    assert(a_arg);
+    dap_client_stage_t a_stage_target = ((struct go_stage_arg*) a_arg)->stage_target;
+    dap_client_callback_t a_stage_end_callback= ((struct go_stage_arg*) a_arg)->stage_end_callback;
+    dap_client_pvt_t * l_client_pvt = ((struct go_stage_arg*) a_arg)->client_pvt;
+    DAP_DELETE(a_arg);
 
-    assert(l_client_internal);
+    l_client_pvt->stage_target = a_stage_target;
+    l_client_pvt->stage_target_done_callback = a_stage_end_callback;
 
-    l_client_internal->stage_target = a_stage_target;
-    l_client_internal->stage_target_done_callback = a_stage_end_callback;
-
-    dap_client_stage_t l_cur_stage = l_client_internal->stage;
-    dap_client_stage_status_t l_cur_stage_status= l_client_internal->stage_status;
+    dap_client_stage_t l_cur_stage = l_client_pvt->stage;
+    dap_client_stage_status_t l_cur_stage_status= l_client_pvt->stage_status;
 
 
     if(a_stage_target != l_cur_stage ){ // Going to stages downstairs
@@ -267,25 +277,50 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
                 log_it(L_DEBUG, "Start transitions chain to %s"
                        ,dap_client_stage_str(a_stage_target) );
                 int step = (a_stage_target > l_cur_stage)?1:-1;
-                dap_client_pvt_stage_transaction_begin(l_client_internal,
+                dap_client_pvt_stage_transaction_begin(l_client_pvt,
                                                             l_cur_stage+step,
-                                                            m_stage_fsm_operator
+                                                            m_stage_fsm_operator_unsafe
                                                             );
             }
         }
     }else{  // Same stage
         log_it(L_ERROR,"We're already on stage %s",dap_client_stage_str(a_stage_target));
     }
+}
+/**
+ * @brief dap_client_go_stage
+ * @param a_client
+ * @param a_stage_end
+ */
+void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_target, dap_client_callback_t a_stage_end_callback)
+{
+    // ----- check parameters -----
+    if(NULL == a_client) {
+        log_it(L_ERROR, "dap_client_go_stage, a_client == NULL");
+        return;
+    }
+    if(NULL == a_stage_end_callback) {
+        log_it(L_ERROR, "dap_client_go_stage, a_stage_end_callback == NULL");
+        return;
+    }
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
 
+    assert(l_client_pvt);
+
+    struct go_stage_arg *l_stage_arg = DAP_NEW(struct go_stage_arg);
+    l_stage_arg->stage_end_callback = a_stage_end_callback;
+    l_stage_arg->stage_target = a_stage_target;
+    l_stage_arg->client_pvt = l_client_pvt;
+    dap_worker_exec_callback_on(l_client_pvt->worker, s_go_stage_on_client_worker_unsafe, l_stage_arg);
 }
 
 
 /**
- * @brief m_stage_fsm_operator
+ * @brief m_stage_fsm_operator_unsafe
  * @param a_client
  * @param a_arg
  */
-void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
+void m_stage_fsm_operator_unsafe(dap_client_t * a_client, void * a_arg)
 {
     UNUSED(a_arg);
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
@@ -308,7 +343,7 @@ void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
            ,dap_client_stage_str(l_client_internal->stage), dap_client_stage_str(l_stage_next)
            ,dap_client_stage_str(l_client_internal->stage_target));
     dap_client_pvt_stage_transaction_begin(l_client_internal,
-                                                l_stage_next, m_stage_fsm_operator
+                                                l_stage_next, m_stage_fsm_operator_unsafe
                                                 );
 
 }
@@ -325,14 +360,14 @@ void m_stage_fsm_operator(dap_client_t * a_client, void * a_arg)
  * @param a_response_proc
  * @param a_response_error
  */
-void dap_client_request_enc(dap_client_t * a_client, const char * a_path, const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
+void dap_client_request_enc_unsafe(dap_client_t * a_client, const char * a_path, const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error )
 {
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
     dap_client_pvt_request_enc(l_client_internal, a_path, a_suburl, a_query,a_request,a_request_size, a_response_proc,a_response_error);
 }
 
-void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
+void dap_client_request_unsafe(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error )
 {
     dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);

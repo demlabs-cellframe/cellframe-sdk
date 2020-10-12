@@ -206,6 +206,8 @@ dap_events_t * dap_events_new( )
     pthread_rwlock_init( &ret->sockets_rwlock, NULL );
     if ( s_events_default == NULL)
         s_events_default = ret;
+    pthread_key_create( &ret->pth_key_worker, NULL);
+
     return ret;
 }
 

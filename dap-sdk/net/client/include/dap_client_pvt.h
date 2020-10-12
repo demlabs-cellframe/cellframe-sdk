@@ -42,6 +42,7 @@ typedef struct dap_client_internal
     int stream_socket;
     dap_stream_t* stream;
     dap_stream_worker_t* stream_worker;
+    dap_worker_t * worker;
     dap_events_t * events;
 
     dap_enc_key_t * session_key_open; // Open assymetric keys exchange
@@ -63,6 +64,8 @@ typedef struct dap_client_internal
 
     dap_client_stage_t stage_target;
     dap_client_callback_t stage_target_done_callback;
+    dap_client_callback_t stage_target_error_callback;
+
     dap_client_stage_t stage;
     dap_client_stage_status_t stage_status;
     dap_client_error_t last_error;
@@ -70,7 +73,7 @@ typedef struct dap_client_internal
     dap_client_callback_t stage_status_done_callback;
     dap_client_callback_t stage_status_error_callback;
 
-    int connect_attempt;
+    int stage_errors;
 
     bool is_encrypted;
     bool encrypted_headers;

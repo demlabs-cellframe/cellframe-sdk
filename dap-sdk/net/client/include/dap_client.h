@@ -113,10 +113,10 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end
 
 void dap_client_reset(dap_client_t * a_client);
 
-void dap_client_request_enc(dap_client_t * a_client, const char * a_path,const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
+void dap_client_request_enc_unsafe(dap_client_t * a_client, const char * a_path,const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
-void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
+void dap_client_request_unsafe(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
 //int dap_client_disconnect(dap_client_t * a_client);

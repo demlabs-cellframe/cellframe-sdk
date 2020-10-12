@@ -80,6 +80,6 @@ void dap_json_rpc_request_send(dap_json_rpc_request_t *a_request, dap_json_rpc_r
     a_request->id = l_id_response;
     char *l_str = dap_json_rpc_request_to_json(a_request);
     log_it(L_NOTICE, "Sending request in address: %s", a_uplink_addr);
-    dap_client_http_request(a_uplink_addr, a_uplink_port, "POST", "application/json", s_url_service, l_str, strlen(l_str),
+    dap_client_http_request(NULL,a_uplink_addr, a_uplink_port, "POST", "application/json", s_url_service, l_str, strlen(l_str),
                             NULL, dap_json_rpc_response_accepted, func_error, NULL, NULL);
 }
