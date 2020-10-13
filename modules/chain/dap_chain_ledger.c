@@ -344,8 +344,8 @@ static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
         l_success = false;
         dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
         HASH_ITER(hh, PVT(a_ledger)->treshold_txs, l_tx_item, l_tx_tmp) {
-            int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx);
-            if (!l_res) {
+            int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx, true);
+            if (l_res == 1) {
                 pthread_rwlock_wrlock(&PVT(a_ledger)->treshold_txs_rwlock);
                 HASH_DEL(PVT(a_ledger)->treshold_txs, l_tx_item);
                 pthread_rwlock_unlock(&PVT(a_ledger)->treshold_txs_rwlock);
@@ -1090,7 +1090,7 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
  *
  * return 1 OK, -1 error
  */
-int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_from_threshold)
 {
     if(!a_tx){
         log_it(L_ERROR, "NULL tx detected");
@@ -1355,7 +1355,8 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         HASH_ADD(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash_fast: name of key field
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
 
-        s_treshold_txs_proc(a_ledger);
+        if (!a_from_threshold)
+            s_treshold_txs_proc(a_ledger);
         ret = 1;
     }
 FIN:
