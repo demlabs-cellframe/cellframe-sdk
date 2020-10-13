@@ -365,7 +365,7 @@ static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
         l_success = false;
         dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
         HASH_ITER(hh, PVT(a_ledger)->treshold_txs, l_tx_item, l_tx_tmp) {
-            int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx);
+            int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx, true);
             if (l_res == 1) {
                 pthread_rwlock_wrlock(&PVT(a_ledger)->treshold_txs_rwlock);
                 HASH_DEL(PVT(a_ledger)->treshold_txs, l_tx_item);
@@ -1260,7 +1260,7 @@ int dap_chain_ledger_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wal
  *
  * return 1 OK, -1 error
  */
-int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_from_threshold)
 {
     if(!a_tx){
         log_it(L_ERROR, "NULL tx detected");
@@ -1550,8 +1550,8 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
             DAP_DELETE(l_tx_cache);
         }
         DAP_DELETE(l_gdb_group);
-
-        s_treshold_txs_proc(a_ledger);
+        if (!a_from_threshold)
+            s_treshold_txs_proc(a_ledger);
         ret = 1;
     }
 FIN:
@@ -1562,7 +1562,7 @@ FIN:
 int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
     if (PVT(a_ledger)->last_tx.found && PVT(a_ledger)->last_thres_tx.found) {
-        return dap_chain_ledger_tx_add(a_ledger, a_tx);
+        return dap_chain_ledger_tx_add(a_ledger, a_tx, false);
     } else {
         dap_chain_hash_fast_t l_tx_hash = {};
         dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
