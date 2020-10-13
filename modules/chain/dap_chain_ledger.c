@@ -345,7 +345,7 @@ static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
         dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
         HASH_ITER(hh, PVT(a_ledger)->treshold_txs, l_tx_item, l_tx_tmp) {
             int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx);
-            if (!l_res) {
+            if (l_res != 1) {
                 pthread_rwlock_wrlock(&PVT(a_ledger)->treshold_txs_rwlock);
                 HASH_DEL(PVT(a_ledger)->treshold_txs, l_tx_item);
                 pthread_rwlock_unlock(&PVT(a_ledger)->treshold_txs_rwlock);
