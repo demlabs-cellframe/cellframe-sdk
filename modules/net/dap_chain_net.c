@@ -397,7 +397,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                             // Add other root nodes as synchronization links
                             for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
                                 dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
-                                if (l_link_addr->uint64 == l_own_addr) {
+                                if (!l_link_addr || l_link_addr->uint64 == l_own_addr) {
                                     continue;   // Do not link with self
                                 }
                                 dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, l_link_addr);
