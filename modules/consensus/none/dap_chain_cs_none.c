@@ -334,7 +334,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
 
             // don't save bad transactions to base
-            if(dap_chain_ledger_tx_add(a_chain->ledger, l_tx) != 1)
+            if(dap_chain_ledger_tx_add(a_chain->ledger, l_tx, false) != 1)
                 return ATOM_REJECT;
             //}else
             //    return -2;
