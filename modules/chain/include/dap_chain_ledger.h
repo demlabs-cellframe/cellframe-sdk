@@ -82,7 +82,7 @@ static inline dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain
  *
  * return 1 OK, -1 error
  */
-int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_from_threshold);
 
 
 int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
