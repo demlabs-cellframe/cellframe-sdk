@@ -868,6 +868,7 @@ int dap_chain_net_init()
     dap_chain_net_load_all();
 
     dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
+    log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }
 
@@ -903,6 +904,12 @@ void dap_chain_net_load_all()
             s_net_load(l_dir_entry->d_name, l_acl_idx++);
         }
         closedir(l_net_dir);
+    }else{
+        int l_errno = errno;
+        char l_errbuf[128];
+        l_errbuf[0] = 0;
+        strerror_r(l_errno,l_errbuf,sizeof (l_errbuf));
+        log_it(L_WARNING,"Can't open entries on path %s: \"%s\" (code %d)", l_net_dir_str, l_errbuf, l_errno);
     }
     DAP_DELETE (l_net_dir_str);
 }

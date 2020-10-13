@@ -333,7 +333,7 @@ void *dap_worker_thread(void *arg)
                 }else if(l_error == EINPROGRESS) {
                     log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
                 }else{
-                    log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
+                   // log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
                     l_cur->flags ^= DAP_SOCK_CONNECTING;
                     if (l_cur->callbacks.connected_callback)
                         l_cur->callbacks.connected_callback(l_cur);

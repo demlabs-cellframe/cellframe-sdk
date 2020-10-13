@@ -127,6 +127,9 @@ void dap_client_pvt_deinit()
  */
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal)
 {
+    a_client_internal->session_key_type = DAP_ENC_KEY_TYPE_BF_OFB;
+    a_client_internal->session_key_open_type = DAP_ENC_KEY_TYPE_MSRLN;
+
     a_client_internal->stage = STAGE_BEGIN; // start point of state machine
     a_client_internal->stage_status = STAGE_STATUS_DONE;
     a_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
@@ -218,7 +221,7 @@ void dap_client_pvt_delete_n_wait(dap_client_pvt_t * a_client_pvt)
  */
 static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
 {
-    log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d (assign on worker #%u)", a_client_pvt->uplink_addr,
+    log_it(L_INFO, "Remote address connected for streaming on (%s:%u) with sock_id %d (assign on worker #%u)", a_client_pvt->uplink_addr,
             a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     s_stage_status_after(a_client_pvt);
@@ -242,7 +245,9 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             switch (l_stage) {
                 case STAGE_ENC_INIT: {
                     log_it(L_INFO, "Go to stage ENC: prepare the request");
-                    a_client_pvt->session_key_open = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_MSRLN, NULL, 0, NULL, 0, 0);
+
+
+                    a_client_pvt->session_key_open = dap_enc_key_new_generate(a_client_pvt->session_key_open_type, NULL, 0, NULL, 0, 0);
                     if (!a_client_pvt->session_key_open) {
                         log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
@@ -266,7 +271,13 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
                     size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
                     log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
-                    int l_res = dap_client_pvt_request(a_client_pvt, DAP_UPLINK_PATH_ENC_INIT "/gd4y5yh78w42aaagh",
+
+                    char * l_enc_init_url = dap_strdup_printf(DAP_UPLINK_PATH_ENC_INIT
+                                                              "/gd4y5yh78w42aaagh" "?enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
+                                                              a_client_pvt->session_key_type, a_client_pvt->session_key_open_type,
+                                                              l_key_size );
+
+                    int l_res = dap_client_pvt_request(a_client_pvt, l_enc_init_url,
                             l_data_str, l_data_str_enc_size, s_enc_init_response, s_enc_init_error);
                     // bad request
                     if(l_res<0){
@@ -289,14 +300,15 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         l_suburl = dap_strdup_printf("stream_ctl,channels=%s",
                                                      a_client_pvt->active_channels);
                     }else{
-                        l_suburl = dap_strdup_printf("stream_ctl,channels=%s,enc_type=%d,enc_headers=%d",
-                                                     a_client_pvt->active_channels,dap_stream_get_preferred_encryption_type(),0);
+                        l_suburl = dap_strdup_printf("channels=%s,enc_type=%d,enc_headers=%d",
+                                                     a_client_pvt->active_channels,a_client_pvt->session_key_type,0);
                     }
-                    //
+                    log_it(L_DEBUG, "Prepared enc request for streaming");
                     dap_client_pvt_request_enc(a_client_pvt,
                     DAP_UPLINK_PATH_STREAM_CTL,
                             l_suburl, "type=tcp,maxconn=4", l_request, l_request_size,
                             s_stream_ctl_response, s_stream_ctl_error);
+                    log_it(L_DEBUG, "Sent enc request for streaming");
                     DAP_DELETE(l_request);
                     DAP_DELETE(l_suburl);
                 }
@@ -305,12 +317,22 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     log_it(L_INFO, "Go to stage STREAM_SESSION: process the state ops");
 
                     a_client_pvt->stream_socket = socket( PF_INET, SOCK_STREAM, 0);
-                    fcntl( a_client_pvt->stream_socket, F_SETFL, O_NONBLOCK);
 
                     if (a_client_pvt->stream_socket == -1) {
                         log_it(L_ERROR, "Error %d with socket create", errno);
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                         break;
+                    }
+                    // Get socket flags
+                    int l_socket_flags = fcntl(a_client_pvt->stream_socket, F_GETFL);
+                    if (l_socket_flags == -1){
+                        log_it(L_ERROR, "Error %d can't get socket flags", errno);
+                        break;;
+                    }
+                    // Make it non-block
+                    if (fcntl( a_client_pvt->stream_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
+                        log_it(L_ERROR, "Error %d can't get socket flags", errno);
+                        break;;
                     }
 #ifdef _WIN32
                     {
@@ -335,7 +357,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     };//
                     a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
                             a_client_pvt->stream_socket, &l_s_callbacks);
-                    a_client_pvt->stream_es->flags &= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should ar WRITE flag
+                    a_client_pvt->stream_es->flags |= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should ar WRITE flag
 
                     a_client_pvt->stream_es->_inheritor = a_client_pvt;
                     a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
@@ -347,7 +369,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     a_client_pvt->stream->session->key = a_client_pvt->stream_key;
                     a_client_pvt->stream_worker = DAP_STREAM_WORKER(l_worker);
                     a_client_pvt->stream->stream_worker = a_client_pvt->stream_worker;
-
 
                     // connect
                     memset(&a_client_pvt->stream_es->remote_addr, 0, sizeof(a_client_pvt->stream_es->remote_addr));
@@ -368,7 +389,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                 sizeof(struct sockaddr_in))) ==0) {
                             log_it(L_DEBUG, "Connected momentaly with %s:%u", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                             // add to dap_worker
-                            dap_worker_add_events_socket_unsafe( a_client_pvt->stream_es, l_worker);
+                            dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
                         }
                         else if (l_err != EINPROGRESS && l_err != -1){
                             char l_errbuf[128];
@@ -386,13 +407,13 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                             s_stage_status_after(a_client_pvt);
                         }else{
-                            log_it(L_INFO,"Connecting to remote %s:%s",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
+                            log_it(L_INFO,"Connecting stream to remote %s:%u",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                             // add to dap_worker
-                            dap_worker_add_events_socket_unsafe(a_client_pvt->stream_es, l_worker);
+                            dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
                         }
                     }
                 }
-                    break;
+                break;
                 case STAGE_STREAM_CONNECTED: {
                     log_it(L_INFO, "Go to stage STAGE_STREAM_CONNECTED");
                     size_t count_channels = a_client_pvt->active_channels? strlen(a_client_pvt->active_channels) : 0;
@@ -443,11 +464,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 }
             }
         }
-            break;
-    //    case STAGE_STATUS_ABORTING: {
-    //        log_it(L_ERROR, "Aborting state");
-    //    }
-            break;
+        break;
+
         case STAGE_STATUS_ERROR: {
             // limit the number of attempts
             int MAX_ATTEMPTS = 3;
@@ -514,8 +532,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // Expecting that its one-shot callback
                     a_client_pvt->stage_target_done_callback = NULL;
                 }
-            } else if (a_client_pvt->stage != STAGE_STREAM_CTL) {   // need wait for dap_client_pvt_request_enc response
-                log_it(L_ERROR, "!! dap_CLIENT_STAGE_STATUS_DONE but not l_is_last_stage (cur stage=%d, target=%d)!!",a_client_pvt->stage, a_client_pvt->stage_target);
             }
             //l_is_unref = true;
         }
@@ -672,27 +688,22 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         }
     }
 
-    size_t l_key_hdr_str_size_max = a_client_internal->session_key_id ? strlen(a_client_internal->session_key_id) + 10 : 12;
-    char *l_key_hdr_str = DAP_NEW_Z_SIZE(char, l_key_hdr_str_size_max);
-    snprintf(l_key_hdr_str, l_key_hdr_str_size_max, "KeyID: %s",
-             a_client_internal->session_key_id ? a_client_internal->session_key_id : "NULL");
-
-    char *a_custom_new[2];
-    size_t a_custom_count = 1;
-    a_custom_new[0] = l_key_hdr_str;
+    size_t l_custom_count = 1;
+    char **l_custom_new = DAP_NEW_Z_SIZE(char*,2*sizeof (char*));
+    l_custom_new[0] = dap_strdup_printf("KeyID: %s", a_client_internal->session_key_id ?
+                                                     a_client_internal->session_key_id : "NULL");
     // close session
     if(a_client_internal->is_close_session) {
-        a_custom_new[1] = "SessionCloseAfterRequest: true";
-        a_custom_count++;
+        l_custom_new[1] = dap_strdup("SessionCloseAfterRequest: true");
+        l_custom_count++;
     }
     dap_client_http_request_custom(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
-                s_request_response, s_request_error, a_client_internal, a_custom_new, a_custom_count);
+                s_request_response, s_request_error, a_client_internal, l_custom_new, l_custom_count);
 //    dap_http_client_simple_request_custom(l_url_full, a_request ? "POST" : "GET", "text/text",
 //            l_request_enc, l_request_enc_size, NULL,
 //            m_request_response, a_client_internal->curl_sockfd ,m_request_error, a_client_internal, a_custom_new, a_custom_count);
 
-    DAP_DELETE(l_key_hdr_str);
     if(l_sub_url_enc)
         DAP_DELETE(l_sub_url_enc);
 
@@ -827,7 +838,7 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
                     l_client_pvt->session_key_open, l_client_pvt->session_key_open->priv_key_data,
                     l_bob_message_size, (unsigned char*) l_bob_message);
 
-            l_client_pvt->session_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_IAES,
+            l_client_pvt->session_key = dap_enc_key_new_generate(l_client_pvt->session_key_type,
                     l_client_pvt->session_key_open->priv_key_data, // shared key
                     l_client_pvt->session_key_open->priv_key_data_size,
                     l_client_pvt->session_key_id, strlen(l_client_pvt->session_key_id), 0);
@@ -916,7 +927,7 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
         char l_stream_id[26] = { 0 };
         char *l_stream_key = DAP_NEW_Z_SIZE(char, 4096 * 3);
         uint32_t l_remote_protocol_version;
-        dap_enc_key_type_t l_enc_type = DAP_ENC_KEY_TYPE_OAES;
+        dap_enc_key_type_t l_enc_type = l_client_internal->session_key_type;
         int l_enc_headers = 0;
 
         l_arg_count = sscanf(l_response_str, "%25s %4096s %u %d %d"
@@ -1044,6 +1055,7 @@ static void s_stage_stream_streaming(dap_client_t * a_client, void* arg)
  */
 static void s_stream_es_callback_connected(dap_events_socket_t * a_es)
 {
+
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
     s_stream_connected(l_client_pvt);
 }

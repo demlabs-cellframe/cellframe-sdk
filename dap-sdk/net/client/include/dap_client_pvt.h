@@ -45,6 +45,9 @@ typedef struct dap_client_internal
     dap_worker_t * worker;
     dap_events_t * events;
 
+    dap_enc_key_type_t session_key_type;
+    dap_enc_key_type_t session_key_open_type;
+
     dap_enc_key_t * session_key_open; // Open assymetric keys exchange
     dap_enc_key_t * session_key; // Symmetric private key for session encryption
     dap_enc_key_t * stream_key; // Stream private key for stream encryption

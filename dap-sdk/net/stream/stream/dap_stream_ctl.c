@@ -129,17 +129,17 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             char * l_subtok_name = strtok_r(l_tok, "=",&l_subtok_tmp);
             char * l_subtok_value = strtok_r(NULL, "=",&l_subtok_tmp);
             if (l_subtok_value){
-                log_it(L_DEBUG, "tok = %s value =%s",l_subtok_name,l_subtok_value);
+                //log_it(L_DEBUG, "tok = %s value =%s",l_subtok_name,l_subtok_value);
                 if ( strcmp(l_subtok_name,"channels")==0 ){
                     strncpy(l_channels_str,l_subtok_value,sizeof (l_channels_str)-1);
-                    log_it(L_DEBUG,"Param: channels=%s",l_channels_str);
+                    //log_it(L_DEBUG,"Param: channels=%s",l_channels_str);
                 }else if(strcmp(l_subtok_name,"enc_type")==0){
                     l_enc_type = atoi(l_subtok_value);
-                    log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
+                    //log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
                     l_is_legacy = false;
                 }else if(strcmp(l_subtok_name,"enc_headers")==0){
                     l_enc_headers = atoi(l_subtok_value);
-                    log_it(L_DEBUG,"Param: enc_headers=%d",l_enc_headers);
+                    //log_it(L_DEBUG,"Param: enc_headers=%d",l_enc_headers);
                 }
             }
             l_tok = strtok_r(NULL, ",",&l_tok_tmp)   ;
@@ -183,26 +183,6 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             *return_code = Http_Status_BadRequest;
             return;
         }
-
-        unsigned int conn_t = 0;
-        char *ct_str = strstr(l_dg->in_query, "connection_type");
-        if (ct_str)
-        {
-            sscanf(ct_str, "connection_type=%u", &conn_t);
-            if (conn_t < 0 || conn_t >= STREAM_SESSION_END_TYPE)
-            {
-                log_it(L_WARNING,"Error connection type : %i",conn_t);
-                conn_t = STEAM_SESSION_HTTP;
-            }
-
-            if (ss)
-            {
-                ss->conn_type = conn_t;
-            }
-
-        }
-
-        log_it(L_INFO,"setup connection_type: %s", connection_type_str[conn_t]);
 
         enc_http_reply_encode(a_http_simple,l_dg);
         enc_http_delegate_delete(l_dg);

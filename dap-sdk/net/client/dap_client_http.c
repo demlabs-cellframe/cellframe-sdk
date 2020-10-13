@@ -76,7 +76,7 @@ typedef struct dap_http_client_internal {
 #define PVT(a) (a ? (dap_client_http_pvt_t *) (a)->_inheritor : NULL)
 
 static void s_http_connected(dap_events_socket_t * a_esocket); // Connected callback
-static void s_http_delete(dap_events_socket_t * a_es, void * arg);
+static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
 
@@ -147,12 +147,6 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
     // process data
     if(l_client_http_internal->content_length) {
         l_client_http_internal->is_header_read = false;
-        /* debug
-         if(l_client_internal->content_length != (l_client_internal->response_size - l_client_internal->header_length)) {
-         log_it(L_DEBUG, "s_http_read error!!! content_length(%d)!=response_size-header_size(%d)=%d",
-         l_client_internal->content_length, l_client_internal->header_length,
-         l_client_internal->response_size - l_client_internal->header_length);
-         }*/
 
         // received not enough data
         if(l_client_http_internal->content_length
@@ -169,15 +163,11 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
         l_client_http_internal->response_size -= l_client_http_internal->content_length;
         l_client_http_internal->header_length = 0;
         l_client_http_internal->content_length = 0;
-        // if the data remains, then read once more
-        if(l_client_http_internal->response_size > 0) {
-            s_http_read(a_es, arg);
-        }
-        else {
-            // close connection
-            a_es->kill_signal=true;
-            //dap_events_socket_remove_and_delete(a_es, true); //dap_events_socket_delete(a_es, true);
-        }
+
+        s_client_http_delete(l_client_http_internal);
+        a_es->_inheritor = NULL;
+        a_es->kill_signal=true;
+        a_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
 
@@ -207,6 +197,8 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
     if(l_client_http_internal->error_callback)
         l_client_http_internal->error_callback(a_errno, l_client_http_internal->obj);
 
+    s_client_http_delete(l_client_http_internal);
+    a_es->_inheritor = NULL;
     // close connection.
     // TODO merge this things into the one (I expect better it would be flag )
     a_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
@@ -214,25 +206,30 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
 }
 
 /**
- * @brief s_http_delete
- * @param a_es
- * @param arg
+ * @brief s_client_http_delete
+ * @param a_http_pvt
  */
-static void s_http_delete(dap_events_socket_t *a_es, void *arg)
+static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
 {
-    UNUSED(arg);
     // call from dap_events_socket_delete(ev_socket, true);
-    log_it(L_DEBUG, "HTTP client disconnected");
-    dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
-    if(!l_client_http_internal) {
+    log_it(L_DEBUG, "HTTP client delete");
+    if(!a_http_pvt) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
         return;
     }
 
-    if (l_client_http_internal->response){
-        DAP_DELETE(l_client_http_internal->response);
-        l_client_http_internal->response = NULL;
+    if (a_http_pvt->response){
+        DAP_DELETE(a_http_pvt->response);
+        a_http_pvt->response = NULL;
     }
+
+    if(a_http_pvt->request_custom_headers != NULL) {
+        for( size_t i = 0; i < a_http_pvt->request_custom_headers_count; i++) {
+            DAP_DELETE( a_http_pvt->request_custom_headers[i]);
+        }
+        //DAP_DELETE( l_client_http_pvt->request_custom_headers);
+    }
+
 }
 
 
@@ -263,8 +260,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     static dap_events_socket_callbacks_t l_s_callbacks = {
         .connected_callback = s_http_connected,
         .read_callback = s_http_read,
-        .error_callback = s_http_error,
-        .delete_callback = s_http_delete
+        .error_callback = s_http_error
     };
 
     // create socket
@@ -296,25 +292,26 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
     // create private struct
-    dap_client_http_pvt_t *l_client_http_internal = DAP_NEW_Z(dap_client_http_pvt_t);
-    l_ev_socket->_inheritor = l_client_http_internal;
-    l_client_http_internal->error_callback = a_error_callback;
-    l_client_http_internal->response_callback = a_response_callback;
+    dap_client_http_pvt_t *l_http_pvt = DAP_NEW_Z(dap_client_http_pvt_t);
+    l_ev_socket->_inheritor = l_http_pvt;
+    l_http_pvt->error_callback = a_error_callback;
+    l_http_pvt->response_callback = a_response_callback;
     //l_client_http_internal->socket = l_socket;
-    l_client_http_internal->obj = a_obj;
-    l_client_http_internal->method = a_method;
-    l_client_http_internal->path = a_path;
-    l_client_http_internal->request_content_type = a_request_content_type;
-    l_client_http_internal->request = a_request;
-    l_client_http_internal->request_size = a_request_size;
-    l_client_http_internal->uplink_addr = a_uplink_addr;
-    l_client_http_internal->uplink_port = a_uplink_port;
-    l_client_http_internal->cookie = a_cookie;
-    l_client_http_internal->request_custom_headers = a_custom;
-    l_client_http_internal->request_custom_headers_count = a_custom_count;
+    l_http_pvt->obj = a_obj;
+    l_http_pvt->method = a_method;
+    l_http_pvt->path = a_path;
+    l_http_pvt->request_content_type = a_request_content_type;
+    l_http_pvt->request = a_request;
+    l_http_pvt->request_size = a_request_size;
+    l_http_pvt->uplink_addr = a_uplink_addr;
+    l_http_pvt->uplink_port = a_uplink_port;
+    l_http_pvt->cookie = a_cookie;
+    l_http_pvt->request_custom_headers = a_custom;
+    l_http_pvt->request_custom_headers_count = a_custom_count;
 
-    l_client_http_internal->response_size_max = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
-    l_client_http_internal->response = (uint8_t*) DAP_NEW_Z_SIZE(uint8_t, DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX);
+    l_http_pvt->response_size_max = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
+    l_http_pvt->response = (uint8_t*) DAP_NEW_Z_SIZE(uint8_t, DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX);
+    l_http_pvt->worker = a_worker;
 
 
     // get struct in_addr from ip_str
@@ -323,6 +320,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     if(!l_ev_socket->remote_addr.sin_addr.s_addr) {
         if(dap_net_resolve_host(a_uplink_addr, AF_INET, (struct sockaddr*) &l_ev_socket->remote_addr.sin_addr) < 0) {
             log_it(L_ERROR, "Wrong remote address '%s:%u'", a_uplink_addr, a_uplink_port);
+            s_client_http_delete( l_http_pvt);
+            l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
             return NULL;
         }
@@ -334,19 +333,21 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
     if (l_err == 0){
         log_it(L_DEBUG, "Connected momentaly with %s:%u!", a_uplink_addr, a_uplink_port);
-        l_client_http_internal->worker = a_worker?a_worker: dap_events_worker_get_auto();
-        dap_worker_add_events_socket(l_ev_socket,l_client_http_internal->worker);
-        return l_client_http_internal;
+        l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
+        dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
+        return l_http_pvt;
     }else if( errno == EINPROGRESS && l_err == -1){
         log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
-        l_client_http_internal->worker = a_worker?a_worker: dap_events_worker_get_auto();
-        dap_worker_add_events_socket(l_ev_socket,l_client_http_internal->worker);
-        return l_client_http_internal;
+        l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
+        dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
+        return l_http_pvt;
     }else{
         char l_errbuf[128];
         l_errbuf[0] = '\0';
         strerror_r(l_err, l_errbuf, sizeof (l_errbuf));
         log_it(L_ERROR, "Connecting error: \"%s\" (code %d)", l_errbuf, l_err);
+        s_client_http_delete( l_http_pvt);
+        l_ev_socket->_inheritor = NULL;
         dap_events_socket_delete_unsafe( l_ev_socket, true);
         return NULL;
     }
@@ -382,9 +383,10 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
         // Add custom headers
         if(l_http_pvt->request_custom_headers) {
             for( size_t i = 0; i < l_http_pvt->request_custom_headers_count; i++) {
-                l_request_headers = dap_string_append(l_request_headers, (char*) l_http_pvt->request_custom_headers[i]);
+                l_request_headers = dap_string_append(l_request_headers, l_http_pvt->request_custom_headers[i]);
                 l_request_headers = dap_string_append(l_request_headers, "\r\n");
             }
+
         }
 
         // Setup cookie header
@@ -413,14 +415,14 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     }
 
     // send header
-    dap_events_socket_write_f_mt(l_worker, a_esocket, "%s /%s%s HTTP/1.1\r\n"
+    dap_events_socket_write_f_unsafe( a_esocket, "%s /%s%s HTTP/1.1\r\n"
             "Host: %s\r\n"
             "%s"
             "\r\n",
             l_http_pvt->method, l_http_pvt->path, l_get_str ? l_get_str : "", l_http_pvt->uplink_addr, l_request_headers->str);
     // send data for POST request
     if(!l_get_str)
-        dap_events_socket_write_mt(l_worker, a_esocket, l_http_pvt->request, l_http_pvt->request_size);
+        dap_events_socket_write_unsafe( a_esocket, l_http_pvt->request, l_http_pvt->request_size);
     DAP_DELETE(l_get_str);
     dap_string_free(l_request_headers, true);
 
