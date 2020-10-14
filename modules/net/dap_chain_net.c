@@ -539,7 +539,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 // find dap_chain_id_t
                 dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
                 dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {};
-                l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+                dap_chain_node_client_reset(l_node_client);
                 size_t l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id,
                                                                 l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 if (l_res == 0) {
@@ -561,7 +561,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 default:
                     log_it(L_INFO, "Node sync error %d",l_res);
                 }
-                l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+                dap_chain_node_client_reset(l_node_client);
                 l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, l_net->pub.id,
                                                          l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
@@ -603,7 +603,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                 dap_chain_t * l_chain = NULL;
                 int l_res = 0;
                 DL_FOREACH (l_net->pub.chains, l_chain) {
-                    l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+                    dap_chain_node_client_reset(l_node_client);
                     dap_stream_ch_chain_sync_request_t l_request ;
                     memset(&l_request, 0, sizeof (l_request));
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id,
@@ -623,7 +623,7 @@ static int s_net_states_proc(dap_chain_net_t * l_net)
                     default:
                         log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
                     }
-                    l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+                    dap_chain_node_client_reset(l_node_client);
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, l_net->pub.id,
                                                      l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
@@ -711,7 +711,7 @@ static void *s_net_check_thread ( void *a_net )
             return NULL;
         }
 
-        log_it(L_DEBUG, "Check net states");
+        //log_it(L_DEBUG, "Check net states");
         // check or start sync
         s_net_states_proc( l_net );
 
@@ -730,7 +730,7 @@ static void *s_net_check_thread ( void *a_net )
             l_net_pvt->flags |= F_DAP_CHAIN_NET_GO_SYNC;
             s_net_states_proc( l_net );
         }
-        log_it(L_DEBUG, "Sleep on 10 seconds...");
+        //log_it(L_DEBUG, "Sleep on 10 seconds...");
         sleep(10);
     }
     return NULL;

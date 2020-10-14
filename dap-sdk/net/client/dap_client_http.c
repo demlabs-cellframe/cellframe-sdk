@@ -166,8 +166,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
 
         s_client_http_delete(l_client_http_internal);
         a_es->_inheritor = NULL;
-        a_es->kill_signal=true;
-        a_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
+        a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
 
@@ -200,9 +199,7 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
     s_client_http_delete(l_client_http_internal);
     a_es->_inheritor = NULL;
     // close connection.
-    // TODO merge this things into the one (I expect better it would be flag )
-    a_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
-    a_es->kill_signal = true;
+    a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 }
 
 /**
