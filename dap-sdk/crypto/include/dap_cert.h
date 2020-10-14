@@ -85,6 +85,7 @@ dap_cert_t * dap_cert_find_by_name(const char * a_cert_name);
 dap_list_t *dap_cert_get_all_mem();
 
 dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data, size_t a_data_size, size_t a_output_size_wished );
+char *dap_cert_sign_serialized(dap_cert_t * a_cert, const void * a_data, size_t a_data_size, size_t a_output_size_wished, size_t *a_out_size);
 
 int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign);
 
