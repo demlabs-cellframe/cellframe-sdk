@@ -171,6 +171,8 @@ dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
 {
     dap_enc_key_t * l_key = a_cert->enc_key;
     dap_sign_t *l_ret = dap_sign_create(l_key, a_data, a_data_size, a_output_size_wished);
+    l_ret->header.padding[0] = 0xFF;
+    l_ret->header.padding[1] = 0xFF;
     return l_ret;
 }
 
@@ -179,13 +181,12 @@ char *dap_cert_sign_serialized(dap_cert_t * a_cert, const void * a_data
 {
     dap_sign_t *l_sign = dap_cert_sign(a_cert, a_data, a_data_size, a_output_size_wished);
     size_t l_size = dap_sign_get_size(l_sign);
-    char *buf = DAP_NEW_Z_SIZE(char, l_size);
-    memcpy(buf, l_sign, l_size);
-    if (buf && a_out_size) {
+    if (a_out_size) {
         *a_out_size = l_size;
     }
-    DAP_DELETE(l_sign);
-    return buf;
+    l_sign->header.padding[0] = 0xFF;
+    l_sign->header.padding[1] = 0xFF;
+    return (char*)l_sign;
 }
 
 /**
