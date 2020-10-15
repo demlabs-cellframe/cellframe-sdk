@@ -73,15 +73,10 @@ static void s_udp_esocket_new(dap_events_socket_t* a_esocket,void * a_arg);
 static dap_stream_t * s_stream_new(dap_http_client_t * a_http_client); // Create new stream
 static void s_http_client_delete(dap_http_client_t * a_esocket, void * a_arg);
 
-//struct ev_loop *keepalive_loop;
-pthread_t keepalive_thread;
-
 static dap_stream_t  *s_stream_keepalive_list = NULL;
 static pthread_mutex_t s_mutex_keepalive_list;
-
 static void s_keepalive_cb( void );
 
-static bool s_keep_alive_loop_quit_signal = false;
 static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
@@ -123,9 +118,7 @@ int dap_stream_init(dap_config_t * a_config)
 
     s_dap_stream_load_preferred_encryption_type(a_config);
     s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
-    s_keep_alive_loop_quit_signal = false;
     pthread_mutex_init( &s_mutex_keepalive_list, NULL );
-    //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
 
     log_it(L_NOTICE,"Init streaming module");
 
@@ -137,11 +130,7 @@ int dap_stream_init(dap_config_t * a_config)
  */
 void dap_stream_deinit()
 {
-    s_keep_alive_loop_quit_signal = true;
-    pthread_join( keepalive_thread, NULL );
-
     pthread_mutex_destroy( &s_mutex_keepalive_list );
-
     dap_stream_ch_deinit( );
 }
 
@@ -340,26 +329,6 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
     ret->is_client_to_uplink = true;
     return ret;
 }
-
-
-/**
- Function for keepalive loop
-static void keepalive_cb (EV_P_ ev_timer *w, int revents)
-{
-    struct dap_stream *sid = w->data;
-    if(sid->keepalive_passed < STREAM_KEEPALIVE_PASSES)
-    {
-        dap_stream_send_keepalive(sid);
-        sid->keepalive_passed+=1;
-    }
-    else{
-        log_it(L_INFO, "Client disconnected");
-        ev_timer_stop (keepalive_loop, &sid->keepalive_watcher);
-        void * arg;
-        stream_dap_delete(sid->conn,arg);
-    }
-}
-**/
 
 
 /**

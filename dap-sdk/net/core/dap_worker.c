@@ -102,7 +102,8 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_reassign_callback );
     l_worker->queue_callback= dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_callback_callback);
     l_worker->event_exit = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback );
-    l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
+    l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker, s_connection_timeout / 2, s_socket_all_check_activity,
+                                                                  l_worker, true);
 
     pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
     pthread_cond_broadcast(&l_worker->started_cond);
@@ -425,8 +426,8 @@ void *dap_worker_thread(void *arg)
                 if (l_cur->buf_out_size == 0) {
                     log_it(L_INFO, "Process signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
                     dap_events_socket_remove_and_delete_unsafe( l_cur, false);
-                } else if (l_cur->buf_out_size ){
-                    log_it(L_INFO, "Process signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->hostaddr, l_cur->socket, l_tn,
+                } else if (l_cur->buf_out_size ) {
+                    log_it(L_INFO, "Got signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->hostaddr, l_cur->socket, l_tn,
                            l_cur->buf_out_size);
                 }
             }

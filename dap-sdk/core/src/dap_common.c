@@ -879,7 +879,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
         return NULL;
     }
-#ifdef WIN32
+#if (defined _WIN32)
     if (s_timers_count == 0) {
         InitializeCriticalSection(&s_timers_lock);
     }
@@ -888,7 +888,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
         return NULL;
     }
     EnterCriticalSection(&s_timers_lock);
-#elif defined DAP_OS_DARWIN
+#elif (defined DAP_OS_DARWIN)
     if (s_timers_count == 0) {
         pthread_mutex_init(&s_timers_lock, NULL);
     }
@@ -922,9 +922,9 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     s_timers[s_timers_count].callback = a_callback;
     s_timers[s_timers_count].param = a_param;
     s_timers_count++;
-#ifdef _WIN32
+#ifdef WIN32
     LeaveCriticalSection(&s_timers_lock);
-#elif DAP_OS_UNIX
+#else
     pthread_mutex_unlock(&s_timers_lock);
 #endif
     return (void *)l_timer;
@@ -940,9 +940,9 @@ int dap_interval_timer_delete(void *a_timer)
     if (!s_timers_count) {
         return -1;
     }
-#ifdef _WIN32
+#if (defined _WIN32)
     EnterCriticalSection(&s_timers_lock);
-#elif DAP_OS_UNIX
+#elif (defined DAP_OS_UNIX)
     pthread_mutex_lock(&s_timers_lock);
 #endif
     int l_timer_idx = s_timer_find(a_timer);
@@ -959,18 +959,18 @@ int dap_interval_timer_delete(void *a_timer)
         DeleteCriticalSection(&s_timers_lock);
     }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#elif DAP_OS_UNIX
+#else
     pthread_mutex_unlock(&s_timers_lock);
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
-    #ifdef DAP_OS_DARWIN
+#ifdef DAP_OS_UNIX
+    return timer_delete((timer_t)a_timer);
+#else
     dispatch_source_cancel(a_timer);
     return 0;
-    #else
-        return timer_delete((timer_t)a_timer);
-    #endif
-#endif
+#endif  // DAP_OS_UNIX
+#endif  // _WIN32
 }
 
 /**

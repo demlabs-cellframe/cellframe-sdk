@@ -518,8 +518,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             log_it(L_INFO, "Connection attempt %d in 0.3 seconds", a_client_pvt->stage_errors);
 
                             // small delay before next request
-                            dap_timerfd_start_on_worker( l_worker, 300,
-                                                             (dap_timerfd_callback_t) s_stage_status_after,a_client_pvt );
+                            dap_timerfd_start_on_worker( l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
+                                                         a_client_pvt, false );
                         }
                         else{
                             log_it(L_INFO, "Too many connection attempts. Tries are over.");
