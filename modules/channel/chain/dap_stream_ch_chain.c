@@ -226,61 +226,72 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_chain_pkt_copy_t *l_pkt_copy = (dap_chain_pkt_copy_t *)l_pkt_copy_list->data;
         dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_copy->pkt_data;
         uint64_t l_atom_copy_size = l_pkt_copy->pkt_data_size;
-        dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
-        dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
-        size_t l_atom_size =0;
-        if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) == NULL ) {
-            dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
-            if (l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
-                // append to file
-                dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_ch_chain->request_cell_id);
-                int l_res;
-                if (l_cell) {
-                    // add one atom only
-                    l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
-                    // rewrite all file
-                    //l_res = dap_chain_cell_file_update(l_cell);
-                    if(l_res < 0) {
-                        log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
-                                l_cell ? l_cell->file_storage_path : "[null]");
-                    }
-                    // add all atoms from treshold
-                    if (l_chain->callback_atom_add_from_treshold){
-                        dap_chain_atom_ptr_t l_atom_treshold;
-                        do{
-                            size_t l_atom_treshold_size;
-                            // add into ledger
-                            log_it(L_DEBUG, "Try to add atom from treshold");
-                            l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
-                            // add into file
-                            if(l_atom_treshold) {
-                                l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
-                                log_it(L_DEBUG, "Added atom from treshold");
-                                if(l_res < 0) {
-                                    log_it(L_ERROR, "Can't save event 0x%x from treshold to the file '%s'",
-                                            l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
+        if ( l_atom_copy_size && l_pkt_copy && l_atom_copy ){
+            dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
+            dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+            size_t l_atom_size =0;
+            if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) == NULL ) {
+                dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
+                if (l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
+                    // append to file
+                    dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_ch_chain->request_cell_id);
+                    int l_res;
+                    if (l_cell) {
+                        // add one atom only
+                        l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
+                        // rewrite all file
+                        //l_res = dap_chain_cell_file_update(l_cell);
+                        if(l_res < 0) {
+                            log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
+                                    l_cell ? l_cell->file_storage_path : "[null]");
+                        }
+                        // add all atoms from treshold
+                        if (l_chain->callback_atom_add_from_treshold){
+                            dap_chain_atom_ptr_t l_atom_treshold;
+                            do{
+                                size_t l_atom_treshold_size;
+                                // add into ledger
+                                log_it(L_DEBUG, "Try to add atom from treshold");
+                                l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
+                                // add into file
+                                if(l_atom_treshold) {
+                                    l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                                    log_it(L_DEBUG, "Added atom from treshold");
+                                    if(l_res < 0) {
+                                        log_it(L_ERROR, "Can't save event 0x%x from treshold to the file '%s'",
+                                                l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
+                                    }
                                 }
                             }
+                            while(l_atom_treshold);
                         }
-                        while(l_atom_treshold);
+
+                        // delete cell and close file
+                        dap_chain_cell_delete(l_cell);
                     }
+                    else{
+                        log_it(L_ERROR, "Can't get cell for cell_id 0x%x for save event to file", l_ch_chain->request_cell_id);
 
-                    // delete cell and close file
-                    dap_chain_cell_delete(l_cell);
+                    }
                 }
-                else{
-                    log_it(L_ERROR, "Can't get cell for cell_id 0x%x for save event to file", l_ch_chain->request_cell_id);
-
-                }
-            }
-            if(l_atom_add_res == ATOM_PASS)
+                if(l_atom_add_res == ATOM_PASS)
+                    DAP_DELETE(l_atom_copy);
+            } else {
                 DAP_DELETE(l_atom_copy);
-        } else {
-            DAP_DELETE(l_atom_copy);
+            }
+            l_chain->callback_atom_iter_delete(l_atom_iter);
+        }else{
+            if (!l_pkt_copy)
+                log_it(L_WARNING, "packet copy is NULL");
+            if (!l_pkt_copy_list)
+                log_it(L_WARNING, "packet copy list is NULL");
+            if (l_atom_copy_size)
+                log_it(L_WARNING, "Atom copy size is zero");
         }
-        l_chain->callback_atom_iter_delete(l_atom_iter);
-        DAP_DELETE(l_pkt_copy);
-        DAP_DELETE(l_pkt_copy_list);
+        if (l_pkt_copy)
+            DAP_DELETE(l_pkt_copy);
+        if (l_pkt_copy_list)
+            DAP_DELETE(l_pkt_copy_list);
     }else
         log_it(L_WARNING, "In proc thread got CHAINS stream ch packet with zero data");
     dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
