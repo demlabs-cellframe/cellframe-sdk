@@ -39,8 +39,8 @@
 
 #define LOG_TAG "dap_worker"
 
-
-static time_t s_connection_timeout = 60;    // seconds
+// temporary too big timout for no closing sockets opened to not keep alive peers
+static time_t s_connection_timeout = 20000; // 60;    // seconds
 
 
 static void s_socket_all_check_activity( void * a_arg);
