@@ -961,7 +961,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         bound_item->item_out = l_item_out;
         if(!l_tx_prev) { // First transaction
             log_it(L_DEBUG,"No previous transaction was found for hash %s",l_tx_prev_hash_str);
-            l_err_num = DAP_CHAIN_LEDGER_TX_NO_PREVIOUS;
+            l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
             break;
         }
         //log_it(L_INFO,"Previous transaction was found for hash %s",l_tx_prev_hash_str);
@@ -1290,7 +1290,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     l_item_tmp = NULL;
     if( (l_ret_check = dap_chain_ledger_tx_cache_check(
              a_ledger, a_tx, &l_list_bound_items, &l_list_tx_out)) < 0) {
-        if (l_ret_check == DAP_CHAIN_LEDGER_TX_NO_PREVIOUS) {
+        if (l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS) {
             HASH_FIND(hh, l_ledger_priv->treshold_txs, l_tx_hash, sizeof(*l_tx_hash), l_item_tmp);
             if (!l_item_tmp) {
                 if (HASH_COUNT(l_ledger_priv->treshold_txs) >= s_treshold_txs_max) {

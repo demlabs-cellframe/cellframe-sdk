@@ -23,6 +23,7 @@
 #include <stddef.h>
 #include "string.h"
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_hash.h"
 
 #include "dap_chain_block.h"
@@ -30,12 +31,16 @@
 
 #define LOG_TAG "dap_chain_block"
 
+bool s_seed_mode = false;
+
 /**
  * @brief dap_chain_block_init
  * @return
  */
 int dap_chain_block_init()
 {
+    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+
     return 0;
 }
 

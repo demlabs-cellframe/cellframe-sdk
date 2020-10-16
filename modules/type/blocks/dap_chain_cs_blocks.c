@@ -34,18 +34,37 @@
 #include "dap_chain_node_cli_cmd.h"
 #define LOG_TAG "dap_chain_cs_blocks"
 
+typedef struct dap_chain_tx_block_index
+{
+    time_t ts_added;
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_hash_fast_t block_hash;
+    UT_hash_handle hh;
+} dap_chain_tx_block_index_t;
+
 typedef struct dap_chain_cs_blocks_pvt
 {
     pthread_rwlock_t rwlock;
-    dap_chain_cs_blocks_t * blocks;
+    // Parent link
+    dap_chain_cs_blocks_t * cs_blocks;
 
+    // All the blocks are here. In feature should be limited with 1000 when the rest would be loaded from file when needs them
+    dap_chain_block_cache_t * blocks;
+    dap_chain_block_cache_t * blocks_tx_treshold;
+
+    dap_chain_tx_block_index_t * tx_block_index; // To find block hash by tx hash
+
+    // General lins
     dap_chain_block_cache_t * block_cache_first; // Mapped area start
     dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
-
+    dap_chain_hash_fast_t genesis_block_hash;
 
     uint64_t blocks_count;
     uint64_t difficulty;
 
+    bool is_celled;
+
+    // For new block creating
     dap_chain_block_t * block_new;
     size_t block_new_size;
 } dap_chain_cs_blocks_pvt_t;
@@ -178,6 +197,14 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     a_chain->_pvt = l_cs_blocks_pvt;
     pthread_rwlock_init(&l_cs_blocks_pvt->rwlock,NULL);
 
+    const char * l_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","genesis_block",NULL);
+    if ( l_genesis_blocks_hash_str ){
+        int lhr;
+        if ( (lhr= dap_chain_hash_fast_from_str(l_genesis_blocks_hash_str,&l_cs_blocks_pvt->genesis_block_hash) )!= 0 ){
+            log_it( L_ERROR, "Can't read hash from genesis_block \"%s\", ret code %d ", l_genesis_blocks_hash_str, lhr);
+        }
+    }
+    l_cs_blocks_pvt->is_celled = dap_config_get_item_bool_default(a_chain_config,"blocks","is_celled",false);
 //    dap_chain_node_role_t l_net_role= dap_chain_net_get_role( dap_chain_net_by_id(a_chain->net_id) );
 
     // Datum operations callbacks
@@ -323,17 +350,21 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
     switch ( l_subcmd ){
         // Flush memory for the new block
         case SUBCMD_NEW_FLUSH:{
+            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             if ( PVT(l_blocks)->block_new )
                 DAP_DELETE( PVT(l_blocks)->block_new );
             PVT(l_blocks)->block_new = dap_chain_block_new( PVT(l_blocks)->block_cache_last? &PVT(l_blocks)->block_cache_last->block_hash: NULL );
             PVT(l_blocks)->block_new_size = sizeof (PVT(l_blocks)->block_new->hdr);
+            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         } break;
 
         // Add datum to the forming new block
         case SUBCMD_NEW_DATUM_LIST:{
-
+            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
+            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         }break;
         case SUBCMD_NEW_DATUM_DEL:{
+            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             if ( PVT(l_blocks)->block_new ){
                 dap_chain_hash_fast_t l_datum_hash;
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
@@ -343,6 +374,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
                           "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
                 ret = -12;
             }
+            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         }break;
         case SUBCMD_NEW_DATUM_ADD:{
             size_t l_datums_count=1;
@@ -482,12 +514,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
         }break;
         case SUBCMD_LIST:{
 
+                pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
                 dap_string_append_printf(l_str_tmp,"%s.%s: Have %u blocks :\n",
                                          l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;
 
-                pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
                     char  l_buf[50];
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
@@ -519,14 +551,110 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
 static void s_callback_delete(dap_chain_t * a_chain)
 {
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS ( a_chain );
+    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
     if(l_blocks->_inheritor)
         DAP_DELETE(l_blocks->_inheritor);
     if(l_blocks->_pvt)
         DAP_DELETE(l_blocks->_pvt);
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
+    log_it(L_INFO,"callback_delete() called");
 }
 
+/**
+ * @brief s_add_atom_to_ledger
+ * @param a_blocks
+ * @param a_ledger
+ * @param a_block_cache
+ * @return
+ */
+static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache)
+{
+    if (! a_block_cache->datum_count){
+        log_it(L_WARNING,"Block %s has no datums at all, can't add anything to ledger", a_block_cache->block_hash_str);
+        return 1; // No errors just empty block
+    }
+    int l_ret=-1;
+
+    for(size_t i=0; i<a_block_cache->datum_count; i++){
+        dap_chain_datum_t *l_datum = a_block_cache->datum[i];
+        switch (l_datum->header.type_id) {
+            case DAP_CHAIN_DATUM_TOKEN_DECL: {
+                dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
+                l_ret=dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
+            } break;
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+                dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
+                l_ret=dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
+            } break;
+            case DAP_CHAIN_DATUM_TX: {
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+                // Check tx correcntess
+                size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                if (l_tx_size + sizeof (a_block_cache->block->hdr) > a_block_cache->block_size){
+                    log_it(L_WARNING, "Corrupted transaction in block, size %zd is greater than block's size %zd", l_tx_size, a_block_cache->block_size);
+                    l_ret = -1;
+                    break;
+                }
+                // don't save bad transactions to base
+                int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx);
+                if( l_ret != 1 )
+                    break;
+
+                // Save tx hash -> block_hash link in hash table
+                dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
+                l_tx_block->ts_added = time(NULL);
+                memcpy(&l_tx_block->block_hash, &a_block_cache->block_hash, sizeof ( l_tx_block->block_hash));
+                dap_hash_fast(l_tx, l_tx_size, &l_tx_block->tx_hash);
+                pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+                HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
+                pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+            } break;
+            default:
+                l_ret=-1;
+        }
+        if (l_ret != 0 ){
+            log_it(L_WARNING, "Can't load datum #%d (%s) from block %s to ledger: code %d", i, dap_chain_datum_type_id_to_str(l_datum->header.type_id),
+                                      a_block_cache->block_hash_str, l_ret);
+            break;
+        }
+
+    }
+    return l_ret;
+}
+
+/**
+ * @brief s_add_atom_to_blocks
+ * @param a_blocks
+ * @param a_ledger
+ * @param a_block_cache
+ * @return
+ */
+static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache )
+{
+    pthread_rwlock_rdlock( &PVT(a_blocks)->rwlock );
+    int res = a_blocks->callback_block_verify(a_blocks,a_block_cache->block, a_block_cache->block_size);
+    if (res == 0 || memcmp( &a_block_cache->block_hash, &PVT(a_blocks)->genesis_block_hash, sizeof(a_block_cache->block_hash) ) == 0) {
+        log_it(L_DEBUG,"Dag event %s checked, add it to ledger", a_block_cache->block_hash_str );
+        pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+        res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
+        if (res) {
+            pthread_rwlock_rdlock( &PVT(a_blocks)->rwlock );
+            log_it(L_INFO,"Dag event %s checked, but ledger declined", a_block_cache->block_hash_str );
+            pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+            return res;
+        }
+        //All correct, no matter for result
+        pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+        HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
+    } else {
+        log_it(L_WARNING,"Dag event %s check failed: code %d", a_block_cache->block_hash_str,  res );
+    }
+    pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+    return res;
+}
 /**
  * @brief s_callback_atom_add
  * @details Accept new atom in blockchain
@@ -537,7 +665,50 @@ static void s_callback_delete(dap_chain_t * a_chain)
  */
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom , size_t a_atom_size)
 {
+    dap_chain_atom_verify_res_t ret = ATOM_ACCEPT;
+    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
+    dap_chain_hash_fast_t l_block_hash;
+    size_t l_block_size = a_atom_size;
+    dap_hash_fast(a_atom,a_atom_size, & l_block_hash);
+    dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_get_by_hash(l_block_hash);
+    if (l_block_cache ){
+        ret = ATOM_PASS;
+        log_it(L_DEBUG, "... already present in blocks %s",l_block_cache->block_hash_str);
+    } else{
+        l_block_cache = dap_chain_block_cache_new( l_block, l_block_size);
+        log_it(L_DEBUG, "... new block %s",l_block_cache->block_hash_str);
+        ret = ATOM_ACCEPT;
+    }
 
+    // verify hashes and consensus
+    if(ret == ATOM_ACCEPT){
+        ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
+        log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
+    }
+
+    if( ret == ATOM_ACCEPT){
+        int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
+        if(!l_consensus_check){
+             log_it(L_DEBUG, "... added");
+        }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
+            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
+            HASH_ADD(hh, PVT(l_blocks)->blocks_tx_treshold, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
+            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
+            log_it(L_DEBUG, "... tresholded");
+            ret = ATOM_MOVE_TO_THRESHOLD;
+        }else{
+             log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
+             ret = ATOM_REJECT;
+        }
+    }
+    // will added in callback s_chain_callback_atom_add_from_treshold()
+    //while(dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger));
+
+    if(ret == ATOM_PASS){
+        DAP_DELETE(l_block_cache);
+    }
+    return ret;
 }
 
 /**

@@ -65,11 +65,12 @@
 
 extern const char * c_datum_type_str[];
 
-#define DAP_CHAIN_DATUM_ID_SIZE 4
+#define DAP_CHAIN_DATUM_ID_SIZE 2
 
 // Datum subchain type id
 typedef union dap_chain_datum_typeid{
     uint8_t data[DAP_CHAIN_DATUM_ID_SIZE];
+    uint16_t uint16;
 } DAP_ALIGN_PACKED dap_chain_datum_typeid_t;
 
 
@@ -81,7 +82,7 @@ typedef struct dap_chain_datum{
     struct{
         /// Datum version
         uint8_t version_id;
-        /// Section type id
+        /// Datum type id
         uint16_t type_id;
         /// Data section size
         uint32_t data_size;
@@ -107,7 +108,34 @@ typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_first_t)(dap_chai
 typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *  );
 typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *  );
 
+/**
+ * @brief dap_chain_datum_typeid_to_str
+ * @param a_type_id
+ * @return
+ */
+static inline const char * dap_chain_datum_type_id_to_str(uint16_t a_type_id){
+    switch ( a_type_id ){
+        case DAP_CHAIN_DATUM_TX:
+        case DAP_CHAIN_DATUM_TX_REQUEST:
+        case DAP_CHAIN_DATUM_WASM_CODE:
+        case DAP_CHAIN_DATUM_WASM_DATA:
+        case DAP_CHAIN_DATUM_EVM_CODE:
+        case DAP_CHAIN_DATUM_EVM_DATA:
+        case DAP_CHAIN_DATUM_CA:
+        case DAP_CHAIN_DATUM_TOKEN_DECL:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+        case DAP_CHAIN_DATUM_CUSTOM:
+            return c_datum_type_str[a_type_id];
+        default:
+            return "(wrong datum type id)";
+    }
+}
 
+/**
+ * @brief dap_chain_datum_size
+ * @param a_datum
+ * @return
+ */
 static inline size_t dap_chain_datum_size(dap_chain_datum_t * a_datum)
 {
     if(!a_datum)
