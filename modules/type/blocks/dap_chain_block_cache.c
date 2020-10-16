@@ -68,6 +68,19 @@ dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block,
 }
 
 /**
+ * @brief dap_chain_block_cache_dup
+ * @param a_block
+ * @return
+ */
+dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block)
+{
+    dap_chain_block_cache_t * l_ret = DAP_NEW_Z(dap_chain_block_cache_t);
+    memcpy(l_ret,a_block, sizeof (*a_block));
+    memset(&l_ret->hh,0, sizeof (l_ret->hh)); // Drop hash handle to prevent its usage
+    return l_ret;
+}
+
+/**
  * @brief dap_chain_block_cache_get_by_hash
  * @param a_block_hash
  * @return

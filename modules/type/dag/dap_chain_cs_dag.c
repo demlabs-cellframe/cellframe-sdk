@@ -410,7 +410,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
         if(!l_consensus_check){
              log_it(L_DEBUG, "... added");
-        }else if (l_consensus_check == DAP_CHAIN_LEDGER_TX_NO_PREVIOUS){
+        }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
             log_it(L_DEBUG, "... tresholded");
             ret = ATOM_MOVE_TO_THRESHOLD;

@@ -54,7 +54,7 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
 // Error code for no previous transaction (candidate to threshold)
-#define DAP_CHAIN_LEDGER_TX_NO_PREVIOUS          -5
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS          -5
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
