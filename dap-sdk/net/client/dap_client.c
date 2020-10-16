@@ -254,14 +254,25 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
     dap_client_pvt_t * l_client_pvt = ((struct go_stage_arg*) a_arg)->client_pvt;
     DAP_DELETE(a_arg);
 
-    l_client_pvt->stage_target = a_stage_target;
-    l_client_pvt->stage_target_done_callback = a_stage_end_callback;
-
     dap_client_stage_t l_cur_stage = l_client_pvt->stage;
     dap_client_stage_status_t l_cur_stage_status= l_client_pvt->stage_status;
 
-
-    if(a_stage_target != l_cur_stage ){ // Going to stages downstairs
+    if (a_stage_target == l_cur_stage) {
+        log_it(L_DEBUG, "Already have target state %s", dap_client_stage_str(a_stage_target));
+        if (a_stage_end_callback) {
+            a_stage_end_callback(l_client_pvt->client, NULL);
+        }
+        return;
+    }
+    log_it(L_DEBUG, "Start transitions chain to %s", dap_client_stage_str(a_stage_target));
+    l_client_pvt->stage_target = a_stage_target;
+    l_client_pvt->stage_target_done_callback = a_stage_end_callback;
+    if (a_stage_target < l_cur_stage) {
+        dap_client_pvt_stage_transaction_begin(l_client_pvt, STAGE_BEGIN, NULL);
+    }
+    l_cur_stage = l_client_pvt->stage;
+    l_cur_stage_status= l_client_pvt->stage_status;
+    if (a_stage_target != l_cur_stage ){ // Going to stages downstairs
         switch(l_cur_stage_status ){
             case STAGE_STATUS_ABORTING:
                 log_it(L_ERROR, "Already aborting the stage %s"
@@ -274,17 +285,11 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
             case STAGE_STATUS_DONE:
             case STAGE_STATUS_ERROR:
             default: {
-                log_it(L_DEBUG, "Start transitions chain to %s"
-                       ,dap_client_stage_str(a_stage_target) );
-                int step = (a_stage_target > l_cur_stage)?1:-1;
                 dap_client_pvt_stage_transaction_begin(l_client_pvt,
-                                                            l_cur_stage+step,
-                                                            m_stage_fsm_operator_unsafe
-                                                            );
+                                                       l_cur_stage + 1,
+                                                       m_stage_fsm_operator_unsafe);
             }
         }
-    }else{  // Same stage
-        log_it(L_ERROR,"We're already on stage %s",dap_client_stage_str(a_stage_target));
     }
 }
 /**

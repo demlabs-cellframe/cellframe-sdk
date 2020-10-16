@@ -46,7 +46,6 @@ typedef struct dap_stream_pkt dap_stream_pkt_t;
 typedef struct dap_events_socket dap_events_socket_t;
 #define STREAM_BUF_SIZE_MAX 500000
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
-#define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
 typedef void (*dap_stream_callback)( dap_stream_t *,void*);
 
@@ -61,9 +60,6 @@ typedef struct dap_stream {
 
     bool is_live;
     bool is_client_to_uplink ;
-
-//    ev_timer keepalive_watcher;         // Watcher for keepalive loop
-    uint8_t keepalive_passed;           // Number of sended keepalive messages
 
     struct dap_stream_pkt * in_pkt;
     struct dap_stream_pkt *pkt_buf_in;

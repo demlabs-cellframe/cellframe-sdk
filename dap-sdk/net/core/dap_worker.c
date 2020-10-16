@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <sys/resource.h>
 
 #include "dap_common.h"
 #include "dap_math_ops.h"
@@ -38,8 +39,8 @@
 
 #define LOG_TAG "dap_worker"
 
-
-static time_t s_connection_timeout = 60;
+// temporary too big timout for no closing sockets opened to not keep alive peers
+static time_t s_connection_timeout = 20000; // 60;    // seconds
 
 
 static void s_socket_all_check_activity( void * a_arg);
@@ -60,6 +61,14 @@ int dap_worker_init( size_t a_conn_timeout )
 {
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
+    struct rlimit l_fdlimit;
+    if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
+        return -1;
+    rlim_t l_oldlimit = l_fdlimit.rlim_cur;
+    l_fdlimit.rlim_cur = l_fdlimit.rlim_max;
+    if (setrlimit(RLIMIT_NOFILE, &l_fdlimit))
+        return -2;
+    log_it(L_INFO, "Set maximum opened descriptors from %d to %d", l_oldlimit, l_fdlimit.rlim_cur);
     return 0;
 }
 
@@ -102,7 +111,8 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_es_reassign_callback );
     l_worker->queue_callback= dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_callback_callback);
     l_worker->event_exit = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback );
-    l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker,s_connection_timeout / 2,s_socket_all_check_activity,l_worker);
+    l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker, s_connection_timeout * 1000 / 2,
+                                                                  s_socket_all_check_activity, l_worker, true );
 
     pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
     pthread_cond_broadcast(&l_worker->started_cond);
@@ -156,23 +166,22 @@ void *dap_worker_thread(void *arg)
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
-            l_cur->last_time_active = l_cur_time;
-//            log_it(L_DEBUG, "Worker=%d fd=%d", l_worker->id, l_cur->socket);
+            //            log_it(L_DEBUG, "Worker=%d fd=%d", l_worker->id, l_cur->socket);
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
-            if( l_flag_hup) { // && events[n].events & EPOLLERR) {
+            if( l_flag_hup) {
                 switch (l_cur->type ){
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                     case DESCRIPTOR_TYPE_SOCKET:
                         getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
-                        //if(!(events[n].events & EPOLLIN))
-                        //cur->no_close = false;
                         if (l_sock_err) {
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                             l_cur->buf_out_size = 0;
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_flag_error = l_flag_read = l_flag_write = false;
+                            l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
                             log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                         }
                     break;
@@ -195,14 +204,14 @@ void *dap_worker_thread(void *arg)
                 l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
-            if (l_flag_hup) {
+            /*if (l_flag_hup) {
                 log_it(L_INFO, "Client socket disconnected");
                 dap_events_socket_set_readable_unsafe(l_cur, false);
                 dap_events_socket_set_writable_unsafe(l_cur, false);
                 l_cur->buf_out_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
-            }
+            }*/
 
             if(l_flag_read) {
 
@@ -283,6 +292,9 @@ void *dap_worker_thread(void *arg)
 
                 if (l_must_read_smth){ // Socket/Descriptor read
                     if(l_bytes_read > 0) {
+                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET  || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP) {
+                            l_cur->last_time_active = l_cur_time;
+                        }
                         l_cur->buf_in_size += l_bytes_read;
                         //log_it(L_DEBUG, "Received %d bytes", l_bytes_read);
                         if(l_cur->callbacks.read_callback){
@@ -419,24 +431,17 @@ void *dap_worker_thread(void *arg)
             if (l_cur->buf_out_size) {
                 dap_events_socket_set_writable_unsafe(l_cur,true);
             }
-            if((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close  && l_cur->buf_out_size == 0) {
-                // protect against double deletion
-                l_cur->kill_signal = true;
-                //dap_events_socket_remove_and_delete(cur, true);
-                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
-            } else if (l_cur->buf_out_size ){
-                log_it(L_INFO, "Got signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->hostaddr, l_cur->socket, l_tn,
-                       l_cur->buf_out_size);
-            }
 
-            if(l_cur->kill_signal && l_cur->buf_out_size == 0) {
-                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ]", l_cur->socket, l_tn);
-                dap_events_socket_remove_and_delete_unsafe( l_cur, false);
-            }else if (l_cur->buf_out_size ){
-                log_it(L_INFO, "Kill %u socket (processed).... [ thread %u ] but buffer is not empty(%zd)", l_cur->socket, l_tn,
-                       l_cur->buf_out_size);
+            if ((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close)
+            {
+                if (l_cur->buf_out_size == 0) {
+                    log_it(L_INFO, "Process signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
+                    dap_events_socket_remove_and_delete_unsafe( l_cur, false);
+                } else if (l_cur->buf_out_size ) {
+                    log_it(L_INFO, "Got signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->hostaddr, l_cur->socket, l_tn,
+                           l_cur->buf_out_size);
+                }
             }
-
 
             if( l_worker->signal_exit){
                 log_it(L_NOTICE,"Worker :%u finished", l_worker->id);
@@ -482,7 +487,6 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_worker_t * w = a_es->worker;
     //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
     if(dap_events_socket_check_unsafe( w, l_es_new)){
-        log_it(L_WARNING, "Already assigned %d (%p), you're doing smth wrong", l_es_new->socket, l_es_new);
         // Socket already present in worker, it's OK
         return;
     }
@@ -537,7 +541,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 {
     dap_events_socket_t * l_esocket = (dap_events_socket_t*) a_arg;
     if (dap_events_socket_check_unsafe(a_es->worker,l_esocket)){
-        ((dap_events_socket_t*)a_arg)->kill_signal = true; // Send signal to socket to kill
+        ((dap_events_socket_t*)a_arg)->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
     }else
         log_it(L_INFO, "While we were sending the delete() message, esocket %p has been disconnected", l_esocket);
 }
@@ -648,8 +652,8 @@ static void s_socket_all_check_activity( void * a_arg)
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
 
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
-        if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  ){
-            if ( !l_es->kill_signal &&
+        if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  || l_es->type == DESCRIPTOR_TYPE_SOCKET_UDP ){
+            if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
                  (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {
                 log_it( L_INFO, "Socket %u timeout (diff %u ), closing...", l_es->socket, l_curtime -  (time_t)l_es->last_time_active - s_connection_timeout );
                 if (l_es->callbacks.error_callback) {
