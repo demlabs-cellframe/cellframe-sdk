@@ -73,15 +73,10 @@ static void s_udp_esocket_new(dap_events_socket_t* a_esocket,void * a_arg);
 static dap_stream_t * s_stream_new(dap_http_client_t * a_http_client); // Create new stream
 static void s_http_client_delete(dap_http_client_t * a_esocket, void * a_arg);
 
-//struct ev_loop *keepalive_loop;
-pthread_t keepalive_thread;
-
 static dap_stream_t  *s_stream_keepalive_list = NULL;
 static pthread_mutex_t s_mutex_keepalive_list;
-
 static void s_keepalive_cb( void );
 
-static bool s_keep_alive_loop_quit_signal = false;
 static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
@@ -123,10 +118,8 @@ int dap_stream_init(dap_config_t * a_config)
 
     s_dap_stream_load_preferred_encryption_type(a_config);
     s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
-    s_keep_alive_loop_quit_signal = false;
     pthread_mutex_init( &s_mutex_keepalive_list, NULL );
-    //pthread_create( &keepalive_thread, NULL, stream_loop, NULL );
-
+    dap_timerfd_start(STREAM_KEEPALIVE_TIMEOUT * 1000, (dap_timerfd_callback_t)s_keepalive_cb, NULL, true);
     log_it(L_NOTICE,"Init streaming module");
 
     return 0;
@@ -137,11 +130,7 @@ int dap_stream_init(dap_config_t * a_config)
  */
 void dap_stream_deinit()
 {
-    s_keep_alive_loop_quit_signal = true;
-    pthread_join( keepalive_thread, NULL );
-
     pthread_mutex_destroy( &s_mutex_keepalive_list );
-
     dap_stream_ch_deinit( );
 }
 
@@ -292,11 +281,11 @@ void dap_stream_delete(dap_stream_t *a_stream)
         log_it(L_ERROR,"stream delete NULL instance");
         return;
     }
-    pthread_mutex_lock(&s_mutex_keepalive_list);
-    if(s_stream_keepalive_list){
+    if (a_stream->prev) {
+        pthread_mutex_lock(&s_mutex_keepalive_list);
         DL_DELETE(s_stream_keepalive_list, a_stream);
+        pthread_mutex_unlock(&s_mutex_keepalive_list);
     }
-    pthread_mutex_unlock(&s_mutex_keepalive_list);
 
     while (a_stream->channel_count) {
         dap_stream_ch_delete(a_stream->channel[a_stream->channel_count - 1]);
@@ -338,28 +327,11 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
     ret->esocket = a_esocket;
     ret->buf_defrag_size=0;
     ret->is_client_to_uplink = true;
+    pthread_mutex_lock(&s_mutex_keepalive_list);
+    DL_APPEND(s_stream_keepalive_list, ret);
+    pthread_mutex_unlock(&s_mutex_keepalive_list);
     return ret;
 }
-
-
-/**
- Function for keepalive loop
-static void keepalive_cb (EV_P_ ev_timer *w, int revents)
-{
-    struct dap_stream *sid = w->data;
-    if(sid->keepalive_passed < STREAM_KEEPALIVE_PASSES)
-    {
-        dap_stream_send_keepalive(sid);
-        sid->keepalive_passed+=1;
-    }
-    else{
-        log_it(L_INFO, "Client disconnected");
-        ev_timer_stop (keepalive_loop, &sid->keepalive_watcher);
-        void * arg;
-        stream_dap_delete(sid->conn,arg);
-    }
-}
-**/
 
 
 /**
@@ -724,10 +696,9 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
     size_t l_pkt_size = a_stream->pkt_buf_in_data_size;
     a_stream->pkt_buf_in=NULL;
     a_stream->pkt_buf_in_data_size=0;
-    a_stream->keepalive_passed = 0;
 
-    if(l_pkt->hdr.type == STREAM_PKT_TYPE_DATA_PACKET)
-    {
+    switch (l_pkt->hdr.type) {
+    case STREAM_PKT_TYPE_DATA_PACKET: {
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
         if(dap_stream_pkt_read_unsafe(a_stream,l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache))==0){
@@ -750,27 +721,35 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
 
         if(l_ch){
             l_ch->stat.bytes_read+=l_ch_pkt->hdr.size;
-            if(l_ch->proc)
-                if(l_ch->proc->packet_in_callback){
-                    if ( s_dump_packet_headers ){
-                        log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
-                            l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id , l_ch_pkt->hdr.enc_type);
-                    }
-                    l_ch->proc->packet_in_callback(l_ch,l_ch_pkt);
+            if(l_ch->proc && l_ch->proc->packet_in_callback){
+                if ( s_dump_packet_headers ){
+                    log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
+                        l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id , l_ch_pkt->hdr.enc_type);
                 }
-
-        } else if(l_ch_pkt->hdr.id == TECHICAL_CHANNEL_ID && l_ch_pkt->hdr.type == STREAM_CH_PKT_TYPE_KEEPALIVE){
-            dap_stream_send_keepalive(a_stream);
+                l_ch->proc->packet_in_callback(l_ch,l_ch_pkt);
+            }
         } else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
         }
-    } else if(l_pkt->hdr.type == STREAM_PKT_TYPE_SERVICE_PACKET) {
+    } break;
+    case STREAM_PKT_TYPE_SERVICE_PACKET: {
         stream_srv_pkt_t * srv_pkt = DAP_NEW(stream_srv_pkt_t);
         memcpy(srv_pkt, l_pkt->data,sizeof(stream_srv_pkt_t));
         uint32_t session_id = srv_pkt->session_id;
         check_session(session_id,a_stream->esocket);
         DAP_DELETE(srv_pkt);
-    } else {
+    } break;
+    case STREAM_PKT_TYPE_KEEPALIVE: {
+        //log_it(L_DEBUG, "Keep alive check recieved");
+        stream_pkt_hdr_t l_ret_pkt = {};
+        l_ret_pkt.type = STREAM_PKT_TYPE_ALIVE;
+        memcpy(l_ret_pkt.sig, c_dap_stream_sig, sizeof(l_ret_pkt.sig));
+        dap_events_socket_write_unsafe(a_stream->esocket, &l_ret_pkt, sizeof(l_ret_pkt));
+    } break;
+    case STREAM_PKT_TYPE_ALIVE:
+        //log_it(L_DEBUG, "Keep alive response recieved");
+        break;
+    default:
         log_it(L_WARNING, "Unknown header type");
     }
 
@@ -810,20 +789,13 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 static void s_keepalive_cb( void )
 {
   dap_stream_t  *l_stream, *tmp;
-  return;
   pthread_mutex_lock( &s_mutex_keepalive_list );
+  stream_pkt_hdr_t l_pkt = {};
+  l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
+  memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
   DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
-    if ( l_stream->keepalive_passed < STREAM_KEEPALIVE_PASSES ) {
-      dap_stream_send_keepalive( l_stream );
-      l_stream->keepalive_passed += 1;
-    }
-    else {
-      log_it( L_INFO, "Client disconnected" );
-      DL_DELETE( s_stream_keepalive_list, l_stream );
-      s_esocket_callback_delete( l_stream->esocket, NULL );
-    }
+      dap_events_socket_write_mt(l_stream->stream_worker->worker, l_stream->esocket, &l_pkt, sizeof(l_pkt));
   }
-
   pthread_mutex_unlock( &s_mutex_keepalive_list );
 }
 

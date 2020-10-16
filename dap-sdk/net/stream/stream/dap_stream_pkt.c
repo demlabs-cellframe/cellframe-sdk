@@ -186,16 +186,3 @@ size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, dap
     return a_data_size;
 }
 
-
-/**
- * @brief dap_stream_send_keepalive
- * @param a_stream
- */
-void dap_stream_send_keepalive(dap_stream_t * a_stream)
-{
-    dap_stream_ch_pkt_hdr_t l_pkt={0};
-    l_pkt.id = TECHICAL_CHANNEL_ID;
-    l_pkt.type=STREAM_CH_PKT_TYPE_KEEPALIVE;
-
-    dap_stream_pkt_write_unsafe( a_stream, &l_pkt, sizeof(l_pkt) );
-}

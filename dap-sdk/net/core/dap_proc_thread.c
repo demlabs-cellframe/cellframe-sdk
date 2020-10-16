@@ -287,7 +287,7 @@ static void * s_proc_thread_function(void * a_arg)
                     default:{ log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop"); }
                 }
             }
-            if(l_cur->kill_signal){
+            if(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE){
 #ifdef DAP_EVENTS_CAPS_EPOLL
                 if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev ) == -1 )
                     log_it( L_ERROR,"Can't remove event socket's handler from the epoll ctl" );

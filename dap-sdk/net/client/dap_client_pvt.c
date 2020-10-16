@@ -150,9 +150,8 @@ static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
     (void) a_arg;
     // To be sure thats cond waiter is waiting and unlocked mutex
     pthread_mutex_lock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
-    pthread_mutex_unlock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
-
     pthread_cond_broadcast(&DAP_CLIENT_PVT(a_client)->disconnected_cond);
+    pthread_mutex_unlock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
 }
 
 /**
@@ -167,7 +166,9 @@ int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
         return -1;
     pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
     dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
-    pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
+    while (a_client_pvt->stage != STAGE_BEGIN) {
+        pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
+    }
     pthread_mutex_unlock(&a_client_pvt->disconnected_mutex);
 
     return 0;
@@ -242,6 +243,21 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
     switch (l_stage_status) {
         case STAGE_STATUS_IN_PROGRESS: {
+            if (a_client_pvt->stage_target == STAGE_BEGIN) {
+                switch(l_stage) {
+                case STAGE_STREAM_CONNECTED:
+                case STAGE_STREAM_STREAMING:
+                    dap_stream_delete(a_client_pvt->stream);
+                    a_client_pvt->stream = NULL;
+                    a_client_pvt->stream_es = NULL;
+                    break;
+                default:
+                    break;
+                }
+                a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                s_stage_status_after(a_client_pvt);
+                return;
+            }
             switch (l_stage) {
                 case STAGE_ENC_INIT: {
                     log_it(L_INFO, "Go to stage ENC: prepare the request");
@@ -471,7 +487,9 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             int MAX_ATTEMPTS = 3;
             a_client_pvt->stage_errors++;
             bool l_is_last_attempt = a_client_pvt->stage_errors > MAX_ATTEMPTS ? true : false;
-
+            if (a_client_pvt->last_error == ERROR_NETWORK_CONNECTION_TIMEOUT) {
+                l_is_last_attempt = true;
+            }
             log_it(L_ERROR, "Error state, doing callback if present");
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
@@ -500,8 +518,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             log_it(L_INFO, "Connection attempt %d in 0.3 seconds", a_client_pvt->stage_errors);
 
                             // small delay before next request
-                            dap_timerfd_start_on_worker( l_worker, 300,
-                                                             (dap_timerfd_callback_t) s_stage_status_after,a_client_pvt );
+                            dap_timerfd_start_on_worker( l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
+                                                         a_client_pvt, false );
                         }
                         else{
                             log_it(L_INFO, "Too many connection attempts. Tries are over.");
@@ -515,13 +533,6 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         break;
         case STAGE_STATUS_DONE: {
             log_it(L_INFO, "Stage status %s is done", dap_client_stage_str(a_client_pvt->stage));
-            // go to next stage
-            if(a_client_pvt->stage_status_done_callback) {
-                a_client_pvt->stage_status_done_callback(a_client_pvt->client, NULL);
-                // Expecting that its one-shot callback
-                //a_client_internal->stage_status_done_callback = NULL;
-            } else
-                log_it(L_WARNING, "Stage done callback is not present");
             bool l_is_last_stage = (a_client_pvt->stage == a_client_pvt->stage_target);
             if(l_is_last_stage) {
                 //l_is_unref = true;
@@ -532,8 +543,10 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // Expecting that its one-shot callback
                     a_client_pvt->stage_target_done_callback = NULL;
                 }
+            } else if (a_client_pvt->stage_status_done_callback) {
+                // go to next stage
+                a_client_pvt->stage_status_done_callback(a_client_pvt->client, NULL);
             }
-            //l_is_unref = true;
         }
             break;
         default:
@@ -1200,11 +1213,7 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 
     log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
 
-
-    // TODO merge flag and field
-    l_client_pvt->stream_es->kill_signal = true;
-    l_client_pvt->stream_es->flags &= DAP_SOCK_SIGNAL_CLOSE;
-
+    l_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

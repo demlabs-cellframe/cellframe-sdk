@@ -57,9 +57,9 @@ int dap_timerfd_init()
  * @param a_callback
  * @return new allocated dap_timerfd_t structure or NULL if error
  */
-dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
+dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg, bool a_repeated)
 {
-     return dap_timerfd_start_on_worker(dap_events_worker_get_auto(), a_timeout_ms, a_callback, a_callback_arg );
+     return dap_timerfd_start_on_worker(dap_events_worker_get_auto(), a_timeout_ms, a_callback, a_callback_arg, a_repeated);
 }
 
 /**
@@ -70,7 +70,7 @@ dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a
  * @param a_callback_arg
  * @return
  */
-dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
+dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg, bool a_repeated)
 
 {
     struct itimerspec l_ts;
@@ -79,7 +79,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
         log_it(L_WARNING, "dap_timerfd_start() failed: timerfd_create() errno=%d\n", errno);
         return NULL;
     }
-    // first expiration in 0 seconds after times start
+    // repeat never
     l_ts.it_interval.tv_sec = 0;
     l_ts.it_interval.tv_nsec = 0;
     // timeout for timer
@@ -110,6 +110,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     l_timerfd->events_socket = l_events_socket;
     l_timerfd->callback = a_callback;
     l_timerfd->callback_arg = a_callback_arg;
+    l_timerfd->repeated = a_repeated;
     dap_worker_add_events_socket(l_events_socket, a_worker);
 
     return l_timerfd;
@@ -123,21 +124,25 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 {
     uint64_t l_ptiu64;
     dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
-    //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
-    struct itimerspec l_ts;
-    // first expiration in 0 seconds after times start
-    l_ts.it_interval.tv_sec = 0;
-    l_ts.it_interval.tv_nsec = 0;
-    // timeout for timer
-    l_ts.it_value.tv_sec = l_timerfd->timeout_ms / 1000;
-    l_ts.it_value.tv_nsec = (l_timerfd->timeout_ms % 1000) * 1000000;
-    if(timerfd_settime(l_timerfd->tfd, 0, &l_ts, NULL) < 0) {
-        log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
-    }
     // run user's callback
     if(l_timerfd->callback)
         l_timerfd->callback(l_timerfd->callback_arg);
-    dap_events_socket_set_readable_unsafe(a_event_sock, true);
+    if (l_timerfd->repeated) {
+        //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
+        struct itimerspec l_ts;
+        // repeat never
+        l_ts.it_interval.tv_sec = 0;
+        l_ts.it_interval.tv_nsec = 0;
+        // timeout for timer
+        l_ts.it_value.tv_sec = l_timerfd->timeout_ms / 1000;
+        l_ts.it_value.tv_nsec = (l_timerfd->timeout_ms % 1000) * 1000000;
+        if(timerfd_settime(l_timerfd->tfd, 0, &l_ts, NULL) < 0) {
+            log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
+        }
+        dap_events_socket_set_readable_unsafe(a_event_sock, true);
+    } else {
+        dap_events_socket_remove_and_delete_unsafe(l_timerfd->events_socket, false);
+    }
 }
 
 /**

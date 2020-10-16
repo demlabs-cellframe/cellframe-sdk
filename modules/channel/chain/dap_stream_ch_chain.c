@@ -724,6 +724,7 @@ bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS, NULL,
                                                            0, l_ch_chain->callback_notify_arg);
             } else { // Process one chain from l_ch_chain->request_atom_iter
+                log_it(L_INFO, "Send one CHAIN packet len=%d", l_ch_chain->request_atom_iter->cur_size);
                 dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_net_id,
                                                      l_ch_chain->request_chain_id, l_ch_chain->request_cell_id,
                                                      l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size);
