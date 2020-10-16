@@ -97,7 +97,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
                                                                        dap_chain_hash_fast_t * a_atom_hash);
 
-static dap_chain_datum_t* s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size);
+static dap_chain_datum_t** s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size, size_t *a_datums_count);
 //    Get event(s) from dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt event from dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next event from dag
@@ -187,7 +187,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_chain_callback_atom_iter_get_first; // Get the fisrt element from chain
     a_chain->callback_atom_iter_get_next = s_chain_callback_atom_iter_get_next; // Get the next element from chain from the current one
-    a_chain->callback_atom_get_datum = s_chain_callback_atom_get_datum;
+    a_chain->callback_atom_get_datums = s_chain_callback_atom_get_datum;
 
     a_chain->callback_atom_iter_get_links = s_chain_callback_atom_iter_get_links; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_lasts = s_chain_callback_atom_iter_get_lasts;
@@ -928,13 +928,23 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_
 /**
  * @brief s_chain_callback_atom_get_datum Get the datum from event
  * @param a_atom_iter
+ * @param a_datums_count
  * @return
  */
-static dap_chain_datum_t* s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size)
+static dap_chain_datum_t** s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size, size_t *a_datums_count)
 {
-    if(a_event)
-        return dap_chain_cs_dag_event_get_datum((dap_chain_cs_dag_event_t*) a_event, a_atom_size);
-    return NULL;
+    assert(a_datums_count);
+    if(a_event){
+        dap_chain_datum_t * l_datum = dap_chain_cs_dag_event_get_datum((dap_chain_cs_dag_event_t*) a_event, a_atom_size);
+        if (l_datum){
+            dap_chain_datum_t ** l_datums = DAP_NEW_SIZE(dap_chain_datum_t*, sizeof(dap_chain_datum_t*));
+            *a_datums_count = 1;
+            l_datums[0] = l_datum;
+            return l_datums;
+        }else
+            return NULL;
+    }else
+        return NULL;
 }
 
 /**

@@ -81,16 +81,6 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
 }
 
 /**
- * @brief dap_chain_block_cache_get_by_hash
- * @param a_block_hash
- * @return
- */
-dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_hash_fast_t a_block_hash)
-{
-    return NULL;
-}
-
-/**
  * @brief dap_chain_block_cache_update
  * @param a_block_cache
  */
@@ -99,6 +89,9 @@ void dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache)
     assert(a_block_cache);
     assert(a_block_cache->block);
     dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
+    if (a_block_cache->datum)
+        DAP_DELETE(a_block_cache->datum);
+    a_block_cache->datum = dap_chain_block_get_datums( a_block_cache->block, a_block_cache->block_size, &a_block_cache->datum_count );
 }
 
 /**

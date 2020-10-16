@@ -93,3 +93,20 @@ size_t dap_chain_block_meta_add(dap_chain_block_t * a_block, size_t a_block_size
 // Add datum in block
 size_t dap_chain_block_datum_add(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
 size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
+
+// Create and return datums list
+dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );
+
+// Create and return meta parameters  list
+dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_meta_count );
+
+void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_meta_count,
+                                    dap_chain_hash_fast_t * a_block_prev_hash,
+                                    dap_chain_hash_fast_t * a_block_anchor_hash,
+                                    dap_chain_hash_fast_t ** a_block_links,
+                                    size_t *a_block_links_count,
+                                    bool * a_is_genesis,
+                                    uint64_t *a_nonce,
+                                    uint64_t *a_nonce2
+                                  );
+

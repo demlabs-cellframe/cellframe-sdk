@@ -36,7 +36,7 @@ typedef struct dap_chain_block_cache{
     time_t ts_created;
 
     // Block's datums
-    uint32_t datum_count;
+    size_t datum_count;
     dap_chain_datum_t ** datum;
 
     // Block's metadatas

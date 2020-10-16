@@ -69,7 +69,14 @@ typedef struct dap_chain_cs_blocks_pvt
     size_t block_new_size;
 } dap_chain_cs_blocks_pvt_t;
 
+typedef struct dap_chain_cs_blocks_iter
+{
+    dap_chain_cs_blocks_t * blocks;
+} dap_chain_cs_blocks_iter_t;
+
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *) a->_pvt )
+
+#define ITER_PVT(a) ((dap_chain_cs_blocks_iter_t *) a->_inheritor )
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
@@ -93,9 +100,9 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *  ,
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash);
+                                                                       dap_chain_hash_fast_t * a_tx_hash);
 
-static dap_chain_datum_t* s_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size);
+static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt block
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next block
@@ -181,7 +188,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_callback_atom_iter_get_first; // Get the fisrt element from chain
     a_chain->callback_atom_iter_get_next = s_callback_atom_iter_get_next; // Get the next element from chain from the current one
-    a_chain->callback_atom_get_datum = s_callback_atom_get_datum;
+    a_chain->callback_atom_get_datums = s_callback_atom_get_datums;
 
     a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_lasts = s_callback_atom_iter_get_lasts;
@@ -226,6 +233,20 @@ void dap_chain_cs_blocks_delete(dap_chain_t * a_chain)
    pthread_rwlock_destroy(&PVT(a_chain)->rwlock );
 }
 
+/**
+ * @brief dap_chain_block_cs_cache_get_by_hash
+ * @param a_blocks
+ * @param a_block_hash
+ * @return
+ */
+dap_chain_block_cache_t * dap_chain_block_cs_cache_get_by_hash(dap_chain_cs_blocks_t * a_blocks,  dap_chain_hash_fast_t *a_block_hash)
+{
+    dap_chain_block_cache_t * l_ret = NULL;
+    pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
+    pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+    return l_ret;
+}
 
 /**
  * @brief s_cli_parse_cmd_hash
@@ -321,9 +342,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
 
 
     int arg_index = 1;
-
-    const char * l_net_name = NULL;
-    const char * l_chain_name = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_cs_blocks_t * l_blocks = NULL;
@@ -429,7 +447,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
             dap_enc_base58_hex_to_hash( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
             l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
             if ( l_block){
-                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get(l_block, l_block_size);
+                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
                 if ( l_block_cache ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     char buf[50];
@@ -649,6 +667,10 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         //All correct, no matter for result
         pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
+        if (! (PVT(a_blocks)->block_cache_first ) )
+                PVT(a_blocks)->block_cache_first = a_block_cache;
+        PVT(a_blocks)->block_cache_last = a_block_cache;
+
     } else {
         log_it(L_WARNING,"Dag event %s check failed: code %d", a_block_cache->block_hash_str,  res );
     }
@@ -671,11 +693,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_chain_hash_fast_t l_block_hash;
     size_t l_block_size = a_atom_size;
     dap_hash_fast(a_atom,a_atom_size, & l_block_hash);
-    dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_get_by_hash(l_block_hash);
+    dap_chain_block_cache_t * l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
     if (l_block_cache ){
-        ret = ATOM_PASS;
         log_it(L_DEBUG, "... already present in blocks %s",l_block_cache->block_hash_str);
-    } else{
+        return ATOM_PASS;
+    } else {
         l_block_cache = dap_chain_block_cache_new( l_block, l_block_size);
         log_it(L_DEBUG, "... new block %s",l_block_cache->block_hash_str);
         ret = ATOM_ACCEPT;
@@ -702,9 +724,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
              ret = ATOM_REJECT;
         }
     }
-    // will added in callback s_chain_callback_atom_add_from_treshold()
-    //while(dap_chain_cs_dag_proc_treshold(l_dag, a_chain->ledger));
-
     if(ret == ATOM_PASS){
         DAP_DELETE(l_block_cache);
     }
@@ -720,7 +739,58 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
  */
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom , size_t a_atom_size)
 {
+    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    assert(l_blocks);
+    dap_chain_cs_blocks_pvt_t * l_blocks_pvt = PVT(l_blocks);
+    assert(l_blocks_pvt);
+    dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
+    dap_chain_atom_verify_res_t res = ATOM_ACCEPT;
 
+    if(sizeof (l_block->hdr) >= a_atom_size){
+        log_it(L_WARNING,"Size of block is %zd that is equal or less then block's header size %zd",a_atom_size,sizeof (l_block->hdr));
+        return  ATOM_REJECT;
+    }
+    size_t l_meta_count = 0;
+    dap_chain_block_meta_t ** l_meta=  dap_chain_block_get_meta(l_block, a_atom_size, & l_meta_count);
+    // Parse metadata
+    bool l_is_genesis=false;
+    dap_chain_hash_fast_t l_block_prev_hash = {0};
+    dap_chain_hash_fast_t l_block_anchor_hash = {0};
+    uint64_t l_nonce = 0;
+    uint64_t l_nonce2 = 0;
+    dap_chain_block_meta_extract(l_meta, l_meta_count,
+                                        &l_block_prev_hash,
+                                        &l_block_anchor_hash,
+                                        NULL,
+                                        NULL,
+                                        &l_is_genesis,
+                                        &l_nonce,
+                                        &l_nonce2 ) ;
+    // genesis or seed mode
+    if ( l_is_genesis){
+        if( s_seed_mode && ! l_blocks_pvt->blocks ){
+            log_it(L_NOTICE,"Accepting new genesis block");
+            return ATOM_ACCEPT;
+        }else if(s_seed_mode){
+            log_it(L_WARNING,"Cant accept genesis blockt: already present data in blockchain");
+            return  ATOM_REJECT;
+        }
+    }else{
+        dap_chain_block_cache_t * l_block_prev_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks,&l_block_prev_hash);
+        if ( ! l_block_prev_cache ){
+            res = ATOM_REJECT;
+            log_it(L_WARNING, "Can't find PREV hash (but because still no bysantium consensus we just drop such block off)");
+            // TODO make treshold and bysantium consensus
+        }
+    }
+
+    // 2nd level consensus
+    if(res == ATOM_ACCEPT)
+        if(l_blocks->callback_block_verify)
+            if (l_blocks->callback_block_verify(l_blocks, l_block, a_atom_size))
+                res = ATOM_REJECT;
+
+    return res;
 }
 
 /**
@@ -729,7 +799,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
  */
 static size_t s_callback_atom_get_static_hdr_size(void)
 {
-
+    return sizeof (dap_chain_block_hdr_t);
 }
 
 /**
@@ -739,7 +809,10 @@ static size_t s_callback_atom_get_static_hdr_size(void)
  */
 static dap_chain_atom_iter_t* s_callback_atom_iter_create(dap_chain_t * a_chain )
 {
-
+    dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    l_atom_iter->chain = a_chain;
+    l_atom_iter->_inheritor = DAP_NEW_Z(dap_chain_cs_blocks_iter_t);
+    return l_atom_iter;
 }
 
 /**
@@ -773,7 +846,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
  * @param a_atom_hash
  * @return
  */
-static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash)
+static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash)
 {
 
 }
@@ -784,9 +857,11 @@ static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * 
  * @param a_atom_size
  * @return
  */
-static dap_chain_datum_t* s_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size)
+static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count)
 {
-
+    assert(a_datums_count);
+    dap_chain_datum_t ** l_ret = dap_chain_block_get_datums(a_atom, a_atom_size,a_datums_count);
+    return l_ret;
 }
 
 /**
@@ -797,7 +872,23 @@ static dap_chain_datum_t* s_callback_atom_get_datum(dap_chain_atom_ptr_t a_event
  */
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size )
 {
+    if(! a_atom_iter){
+        log_it(L_ERROR, "NULL iterator on input for atom_iter_get_first function");
+        return NULL;
+    }
+    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
+    assert(l_blocks_pvt);
+    a_atom_iter->cur_item = l_blocks_pvt->block_cache_last ;
+    a_atom_iter->cur = l_blocks_pvt->block_cache_last ?  l_blocks_pvt->block_cache_last->block : NULL  ;
+    a_atom_iter->cur_size = l_blocks_pvt->block_cache_first ? l_blocks_pvt->block_cache_first->block_size : 0;
 
+//    a_atom_iter->cur =  a_atom_iter->cur ?
+//                (dap_chain_cs_dag_event_t*) PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events->event : NULL;
+//    a_atom_iter->cur_item = PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events;
+    if (a_atom_size)
+        *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
 }
 
 /**
@@ -841,7 +932,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
  */
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
 {
-
+    DAP_DELETE(a_atom_iter);
 }
 
 /**
