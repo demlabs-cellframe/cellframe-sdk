@@ -82,7 +82,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         //log_it( L_DEBUG, "Sent signal to proc thread that we have callbacks on board");
     }
     if (l_msg->signal_kill){ // Say to kill this object and delete its inherior dap_proc_queue_t
-        a_es->kill_signal = true;
+        a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
     DAP_DELETE(l_msg);
 }

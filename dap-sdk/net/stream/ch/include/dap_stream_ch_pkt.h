@@ -22,7 +22,7 @@
 #pragma once
 
 #define STREAM_CH_PKT_TYPE_REQUEST      0x0
-#define STREAM_CH_PKT_TYPE_KEEPALIVE    0x11
+//#define STREAM_CH_PKT_TYPE_KEEPALIVE    0x11
 
 #include <stdint.h>
 #include <stddef.h>

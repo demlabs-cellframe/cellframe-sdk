@@ -146,7 +146,6 @@ typedef struct dap_events_socket {
     // Flags. TODO  - rework in bool fields
     uint32_t  flags;
     bool no_close;
-    atomic_bool kill_signal;
     atomic_bool is_initalized;
     bool was_reassigned; // Was reassigment at least once
 
