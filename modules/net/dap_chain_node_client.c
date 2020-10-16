@@ -474,6 +474,13 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_
     return dap_chain_client_connect(a_node_info, l_stage_target, l_active_channels);
 }
 
+void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
+{
+    if (a_client->state > NODE_CLIENT_STATE_CONNECTED) {
+        a_client->state = NODE_CLIENT_STATE_CONNECTED;
+    }
+}
+
 /**
  * Close connection to server, delete chain_node_client_t *client
  */
@@ -533,6 +540,12 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         log_it(L_INFO, "We're already in state %s",dap_chain_node_client_state_to_str(a_client->state));
         pthread_mutex_unlock(&a_client->wait_mutex);
         return 0;
+    }
+
+    if (a_client->state < NODE_CLIENT_STATE_CONNECTED && a_waited_state > NODE_CLIENT_STATE_CONNECTED) {
+        log_it(L_WARNING, "Waited state can't be achieved");
+        pthread_mutex_unlock(&a_client->wait_mutex);
+        return -2;
     }
 
 #ifndef _WIN32

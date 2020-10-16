@@ -90,7 +90,10 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
  * return a connection handle, or NULL, if an error
  */
 dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *node_info);
-
+/**
+ * Reset client state to connected state if it is connected
+ */
+void dap_chain_node_client_reset(dap_chain_node_client_t *a_client);
 /**
  * Close connection to server, delete chain_node_client_t *client
  */
