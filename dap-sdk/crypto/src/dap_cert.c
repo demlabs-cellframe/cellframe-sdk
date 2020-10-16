@@ -172,6 +172,10 @@ dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
     dap_enc_key_t * l_key = a_cert->enc_key;
     dap_sign_t *l_ret = dap_sign_create(l_key, a_data, a_data_size, a_output_size_wished);
     log_it(L_INFO, "4554: %d %d", l_ret->header.sign_size, l_ret->header.sign_pkey_size);
+    log_it(L_INFO, "4554_1 sizes: %d %d", sizeof(dap_sign_hdr_t), sizeof(dap_sign_hdr1_t));
+    log_it(L_INFO, "4554_2 offsets 1: %d %d", offsetof(dap_sign_hdr_t, sign_size), offsetof(dap_sign_hdr_t, sign_pkey_size));
+    log_it(L_INFO, "4554_2 offsets 2: %d %d", offsetof(dap_sign_hdr1_t, sign_size), offsetof(dap_sign_hdr1_t, sign_pkey_size));
+    log_it(L_INFO, (char*)l_ret);
     return l_ret;
 }
 

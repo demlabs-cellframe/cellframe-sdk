@@ -49,12 +49,16 @@ typedef union dap_sign_type {
 
 typedef struct dap_sign_hdr {
         dap_sign_type_t type; /// Signature type
-#ifndef __cplusplus
-        uint16_t padding; /// Padding for better aligmnent
-#endif
+        uint8_t padding[2]; /// Padding for better aligmnent
         uint32_t sign_size; /// Signature size
         uint32_t sign_pkey_size; /// Signature serialized public key size
 } DAP_ALIGN_PACKED dap_sign_hdr_t;
+
+typedef struct dap_sign_hdr1 {
+    dap_sign_type_t type; /// Signature type
+    uint32_t sign_size; /// Signature size
+    uint32_t sign_pkey_size; /// Signature serialized public key size
+} dap_sign_hdr1_t;
 
 /**
   * @struct dap_sign
