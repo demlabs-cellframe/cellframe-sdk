@@ -43,13 +43,12 @@ typedef enum {
 } dap_sign_type_enum_t;
 
 typedef union dap_sign_type {
-    dap_sign_type_enum_t type: 16;
-    uint16_t raw;
-} dap_sign_type_t;
+    dap_sign_type_enum_t type: 32;
+    uint32_t raw;
+} DAP_ALIGN_PACKED dap_sign_type_t;
 
 typedef struct dap_sign_hdr {
         dap_sign_type_t type; /// Signature type
-        uint8_t padding[2]; /// Padding for better aligmnent
         uint32_t sign_size; /// Signature size
         uint32_t sign_pkey_size; /// Signature serialized public key size
 } DAP_ALIGN_PACKED dap_sign_hdr_t;
