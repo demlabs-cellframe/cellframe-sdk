@@ -248,6 +248,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 case STAGE_STREAM_CONNECTED:
                 case STAGE_STREAM_STREAMING:
                     dap_stream_delete(a_client_pvt->stream);
+                    dap_events_socket_remove_and_delete_mt(a_client_pvt->worker, a_client_pvt->stream_es);
                     a_client_pvt->stream = NULL;
                     a_client_pvt->stream_es = NULL;
                     break;
