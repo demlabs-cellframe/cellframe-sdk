@@ -55,8 +55,10 @@ typedef enum dap_client_stage_status {
 
 typedef enum dap_client_error {
     ERROR_NO_ERROR = 0,
+    ERROR_OUT_OF_MEMORY,
     ERROR_ENC_NO_KEY,
     ERROR_ENC_WRONG_KEY,
+    ERROR_ENC_SESSION_CLOSED,
     ERROR_STREAM_CTL_ERROR,
     ERROR_STREAM_CTL_ERROR_AUTH,
     ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT,

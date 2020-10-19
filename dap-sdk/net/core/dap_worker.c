@@ -317,7 +317,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->buf_out_size = 0;
                         }
                     }
-                    else if (! l_flag_rdhup || !l_flag_error) {
+                    else if (  (! l_flag_rdhup || !l_flag_error ) && (!(l_cur->flags& DAP_SOCK_CONNECTING )) ) {
                         log_it(L_WARNING, "EPOLLIN triggered but nothing to read");
                         dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
