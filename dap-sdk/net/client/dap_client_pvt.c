@@ -267,6 +267,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     if (!a_client_pvt->session_key_open) {
                         log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                        a_client_pvt->last_error = ERROR_OUT_OF_MEMORY;
                         break;
                     }
                     size_t l_key_size = a_client_pvt->session_key_open->pub_key_data_size;
@@ -490,7 +491,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             if (a_client_pvt->last_error == ERROR_NETWORK_CONNECTION_TIMEOUT) {
                 l_is_last_attempt = true;
             }
-            log_it(L_ERROR, "Error state, doing callback if present");
+            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_get_error_str(a_client_pvt->client));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 
@@ -800,6 +801,15 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
         log_it(L_ERROR, "m_enc_init_response: l_client_pvt is NULL!");
         return;
     }
+    if (!l_client_pvt->session_key_open){
+        log_it(L_ERROR, "m_enc_init_response: session is NULL!");
+        l_client_pvt->last_error = ERROR_ENC_SESSION_CLOSED ;
+        l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+        s_stage_status_after(l_client_pvt);
+        return;
+
+    }
+
     if(a_response_size > 10) { // &&  a_response_size < 50){
 
         char *l_session_id_b64 = NULL;
