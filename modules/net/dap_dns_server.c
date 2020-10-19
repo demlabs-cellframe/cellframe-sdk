@@ -370,7 +370,7 @@ void dap_dns_server_stop() {
     DAP_DELETE(s_dns_server);
 }
 
-int dap_dns_client_get_addr(uint32_t a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result)
+int dap_dns_client_get_addr(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result)
 {
     const size_t l_buf_size = 1024;
     uint8_t l_buf[l_buf_size];
