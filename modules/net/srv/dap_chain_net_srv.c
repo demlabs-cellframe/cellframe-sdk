@@ -100,6 +100,7 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
         "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -price <Price>\\\n"
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>] \\\n"
         "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
+        "        [-cert <cert name to sign order>]\\\n"
         "\tOrder create\n" );
 
     s_load_all();
@@ -452,7 +453,8 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
             }
         }else if( dap_strcmp( l_order_str, "create" ) == 0 ){
-
+            const char *l_order_cert_name = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_order_cert_name);
             if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
@@ -490,9 +492,22 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
+                // get cert to order sign
+                dap_cert_t *l_cert = NULL;
+                dap_enc_key_t *l_key = NULL;
+                if(l_order_cert_name) {
+                    dap_cert_t *l_cert = dap_cert_find_by_name(l_order_cert_name);
+                    if(l_cert)
+                        l_key = l_cert->enc_key;
+                    else
+                        log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
+                }
+                // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
-                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, NULL);
+                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, l_key);
+                if(l_cert)
+                    dap_cert_delete(l_cert);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{
