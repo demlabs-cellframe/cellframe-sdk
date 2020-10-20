@@ -169,8 +169,7 @@ size_t dap_cert_sign_output_size(dap_cert_t * a_cert, size_t a_size_wished)
 dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
                                        , size_t a_data_size, size_t a_output_size_wished )
 {
-    dap_enc_key_t * l_key = a_cert->enc_key;
-    dap_sign_t *l_ret = dap_sign_create(l_key, a_data, a_data_size, a_output_size_wished);
+    dap_sign_t *l_ret = dap_sign_create(a_cert->enc_key, a_data, a_data_size, a_output_size_wished);
     return l_ret;
 }
 
