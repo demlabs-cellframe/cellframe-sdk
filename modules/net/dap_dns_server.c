@@ -343,11 +343,12 @@ cleanup:
     return;
 }
 
-void dap_dns_server_start(dap_events_t *a_ev) {
+void dap_dns_server_start(dap_events_t *a_ev, uint16_t a_port)
+{
     s_dns_server = DAP_NEW_Z(dap_dns_server_t);
     dap_events_socket_callbacks_t l_cb = {};
     l_cb.read_callback = dap_dns_client_read;
-    s_dns_server->instance = dap_server_new(a_ev, NULL, DNS_LISTEN_PORT, DAP_SERVER_UDP, &l_cb);
+    s_dns_server->instance = dap_server_new(a_ev, NULL, a_port, DAP_SERVER_UDP, &l_cb);
     if (!s_dns_server->instance) {
         log_it(L_ERROR, "Can't start DNS server");
         return;
@@ -369,7 +370,7 @@ void dap_dns_server_stop() {
     DAP_DELETE(s_dns_server);
 }
 
-int dap_dns_client_get_addr(uint32_t a_addr, char *a_name, dap_chain_node_info_t *a_result)
+int dap_dns_client_get_addr(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result)
 {
     const size_t l_buf_size = 1024;
     uint8_t l_buf[l_buf_size];
@@ -412,8 +413,8 @@ int dap_dns_client_get_addr(uint32_t a_addr, char *a_name, dap_chain_node_info_t
     }
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;
-    l_addr.sin_port = htons(DNS_LISTEN_PORT);
-    l_addr.sin_addr.s_addr = a_addr;
+    l_addr.sin_port = htons(a_port);
+    l_addr.sin_addr = a_addr;
     int l_portion = 0, l_len = l_dns_request.ptr;
     for (int l_sent = 0; l_sent < l_len; l_sent += l_portion) {
         l_portion = sendto(l_sock, (const char *)(l_buf + l_sent), l_len - l_sent, 0, (struct sockaddr *)&l_addr, sizeof(l_addr));
