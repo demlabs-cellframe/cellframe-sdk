@@ -119,8 +119,8 @@ typedef struct _dap_dns_server_t {
     dap_dns_zone_hash_t *hash_table;
 } dap_dns_server_t;
 
-void dap_dns_server_start(dap_events_t *a_ev);
+void dap_dns_server_start(dap_events_t *a_ev, uint16_t a_port);
 void dap_dns_server_stop();
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback);
 int dap_dns_zone_unregister(char *zone);
-int dap_dns_client_get_addr(uint32_t a_addr, char *a_name, dap_chain_node_info_t *a_result);
+int dap_dns_client_get_addr(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result);
