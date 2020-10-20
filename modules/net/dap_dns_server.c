@@ -414,7 +414,7 @@ int dap_dns_client_get_addr(struct in_addr a_addr, uint16_t a_port, char *a_name
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;
     l_addr.sin_port = htons(a_port);
-    l_addr.sin_addr.s_addr = a_addr;
+    l_addr.sin_addr = a_addr;
     int l_portion = 0, l_len = l_dns_request.ptr;
     for (int l_sent = 0; l_sent < l_len; l_sent += l_portion) {
         l_portion = sendto(l_sock, (const char *)(l_buf + l_sent), l_len - l_sent, 0, (struct sockaddr *)&l_addr, sizeof(l_addr));
