@@ -150,6 +150,7 @@ static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
     (void) a_arg;
     // To be sure thats cond waiter is waiting and unlocked mutex
     pthread_mutex_lock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
+    DAP_CLIENT_PVT(a_client)->stage_status = STAGE_STATUS_ABORTING;
     pthread_cond_broadcast(&DAP_CLIENT_PVT(a_client)->disconnected_cond);
     pthread_mutex_unlock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
 }
@@ -161,16 +162,15 @@ static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
  */
 int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
 {
-    //dap_client_pvt_t *a_client_pvt = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
     if(!a_client_pvt)
         return -1;
     pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
     dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
-    while (a_client_pvt->stage != STAGE_BEGIN) {
+    while (a_client_pvt->stage_status != STAGE_STATUS_ABORTING) {
         pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
     }
     pthread_mutex_unlock(&a_client_pvt->disconnected_mutex);
-
+    a_client_pvt->stage_status = STAGE_STATUS_DONE;
     return 0;
 }
 
@@ -214,6 +214,7 @@ void dap_client_pvt_delete_n_wait(dap_client_pvt_t * a_client_pvt)
 
     pthread_mutex_destroy( &a_client_pvt->disconnected_mutex);
     pthread_cond_destroy( &a_client_pvt->disconnected_cond);
+    DAP_DELETE(a_client_pvt);
 }
 
 /**
@@ -248,7 +249,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 case STAGE_STREAM_CONNECTED:
                 case STAGE_STREAM_STREAMING:
                     dap_stream_delete(a_client_pvt->stream);
-                    dap_events_socket_remove_and_delete_mt(a_client_pvt->worker, a_client_pvt->stream_es);
+                    dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
                     a_client_pvt->stream = NULL;
                     a_client_pvt->stream_es = NULL;
                     break;
