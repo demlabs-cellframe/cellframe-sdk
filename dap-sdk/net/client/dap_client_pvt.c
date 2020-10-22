@@ -150,8 +150,9 @@ static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
     (void) a_arg;
     // To be sure thats cond waiter is waiting and unlocked mutex
     pthread_mutex_lock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
-    pthread_cond_broadcast(&DAP_CLIENT_PVT(a_client)->disconnected_cond);
     pthread_mutex_unlock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
+
+    pthread_cond_broadcast(&DAP_CLIENT_PVT(a_client)->disconnected_cond);
 }
 
 /**
@@ -164,13 +165,16 @@ int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
     //dap_client_pvt_t *a_client_pvt = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
     if(!a_client_pvt)
         return -1;
+    time_t l_ts_begin=time(NULL);
+    log_it(L_DEBUG,"Disconnect_n_wait called");
+
     pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
     dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
-    while (a_client_pvt->stage != STAGE_BEGIN) {
-        pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
-    }
+    pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
     pthread_mutex_unlock(&a_client_pvt->disconnected_mutex);
-
+    time_t l_ts_end=time(NULL);
+    log_it(L_INFO,"Disconnected: achieved STAGE_BEGIN at time %d",
+           l_ts_end-l_ts_begin);
     return 0;
 }
 
@@ -570,6 +574,8 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 void dap_client_pvt_stage_transaction_begin(dap_client_pvt_t * a_client_internal, dap_client_stage_t a_stage_next,
         dap_client_callback_t a_done_callback)
 {
+    assert(a_client_internal);
+    log_it(L_DEBUG, "Begin transaction for client %p to the next stage %s", a_client_internal->client, dap_client_stage_str(a_stage_next));
     a_client_internal->stage_status_done_callback = a_done_callback;
     a_client_internal->stage = a_stage_next;
     a_client_internal->stage_status = STAGE_STATUS_IN_PROGRESS;
@@ -985,7 +991,7 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
                         dap_enc_key_new_generate(l_enc_type, l_stream_key, strlen(l_stream_key), NULL, 0,
                                 32);
 
-                l_client_internal->encrypted_headers = l_enc_headers;
+                l_client_internal->is_encrypted_headers = l_enc_headers;
 
                 if(l_client_internal->stage == STAGE_STREAM_CTL) { // We are on the right stage
                     l_client_internal->stage_status = STAGE_STATUS_DONE;

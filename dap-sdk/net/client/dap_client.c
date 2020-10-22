@@ -249,30 +249,43 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
 {
     (void) a_worker;
     assert(a_arg);
-    dap_client_stage_t a_stage_target = ((struct go_stage_arg*) a_arg)->stage_target;
-    dap_client_callback_t a_stage_end_callback= ((struct go_stage_arg*) a_arg)->stage_end_callback;
+    dap_client_stage_t l_stage_target = ((struct go_stage_arg*) a_arg)->stage_target;
+    dap_client_callback_t l_stage_end_callback= ((struct go_stage_arg*) a_arg)->stage_end_callback;
     dap_client_pvt_t * l_client_pvt = ((struct go_stage_arg*) a_arg)->client_pvt;
     DAP_DELETE(a_arg);
 
     dap_client_stage_t l_cur_stage = l_client_pvt->stage;
     dap_client_stage_status_t l_cur_stage_status= l_client_pvt->stage_status;
-
-    if (a_stage_target == l_cur_stage) {
-        log_it(L_DEBUG, "Already have target state %s", dap_client_stage_str(a_stage_target));
-        if (a_stage_end_callback) {
-            a_stage_end_callback(l_client_pvt->client, NULL);
+    if (l_stage_target == l_cur_stage){
+        switch ( l_cur_stage_status) {
+            case STAGE_STATUS_DONE:
+                log_it(L_DEBUG, "Already have target state %s", dap_client_stage_str(l_stage_target));
+                if (l_stage_end_callback) {
+                    l_stage_end_callback(l_client_pvt->client, NULL);
+                }
+            break;
+            case STAGE_STATUS_ERROR:
+                log_it(L_DEBUG, "Already moving target state %s, but status is error (%s)", dap_client_stage_str(l_stage_target),
+                       dap_client_get_error_str( l_client_pvt->client) );
+            break;
+            case STAGE_STATUS_IN_PROGRESS:
+                log_it(L_DEBUG, "Already moving target state %s", dap_client_stage_str(l_stage_target));
+            break;
+            default:
+                log_it(L_WARNING, "Unprocessed stage status %s for go to stage %s scheme ",  dap_client_stage_str(l_stage_target),
+                       dap_client_stage_status_str( l_cur_stage_status));
         }
         return;
     }
-    log_it(L_DEBUG, "Start transitions chain to %s", dap_client_stage_str(a_stage_target));
-    l_client_pvt->stage_target = a_stage_target;
-    l_client_pvt->stage_target_done_callback = a_stage_end_callback;
-    if (a_stage_target < l_cur_stage) {
+    log_it(L_DEBUG, "Start transitions chain for client %p from %s to %s", l_client_pvt->client, dap_client_stage_str(l_cur_stage ) , dap_client_stage_str(l_stage_target));
+    l_client_pvt->stage_target = l_stage_target;
+    l_client_pvt->stage_target_done_callback = l_stage_end_callback;
+    if (l_stage_target < l_cur_stage) {
         dap_client_pvt_stage_transaction_begin(l_client_pvt, STAGE_BEGIN, NULL);
     }
     l_cur_stage = l_client_pvt->stage;
     l_cur_stage_status= l_client_pvt->stage_status;
-    if (a_stage_target != l_cur_stage ){ // Going to stages downstairs
+    if (l_stage_target != l_cur_stage ){ // Going to stages downstairs
         switch(l_cur_stage_status ){
             case STAGE_STATUS_ABORTING:
                 log_it(L_ERROR, "Already aborting the stage %s"

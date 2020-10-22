@@ -79,8 +79,7 @@ typedef struct dap_client_internal
     int stage_errors;
 
     bool is_encrypted;
-    bool encrypted_headers;
-    bool is_reconnect;
+    bool is_encrypted_headers;
     bool is_close_session;// the last request in session, in the header will be added "SessionCloseAfterRequest: true"
     dap_client_callback_data_size_t request_response_callback;
     dap_client_callback_int_t request_error_callback;
