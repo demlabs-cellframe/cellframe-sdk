@@ -5,7 +5,7 @@
 #include <dap_common.h>
 #include <dap_strfuncs.h>
 #include <dap_string.h>
-//#include "dap_chain_node.h"
+#include "dap_chain.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
 
@@ -103,22 +103,20 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 /**
  * Set last id for remote node
  */
-bool dap_db_log_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
+bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
 {
-    dap_global_db_obj_t l_objs;
-    l_objs.key = dap_strdup_printf("%ju", a_node_addr);
-    l_objs.value = (uint8_t*) &a_id;
-    l_objs.value_len = sizeof(uint64_t);
-    bool l_ret = dap_chain_global_db_gr_save(&l_objs, 1, GROUP_LOCAL_NODE_LAST_ID);
-    DAP_DELETE(l_objs.key);
-    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %llu",a_id);
-    return l_ret;
+    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %llu", a_node_addr, a_id);
+    uint64_t *l_id = DAP_NEW(uint64_t);
+    *l_id = a_id;
+    return dap_chain_global_db_gr_set(dap_strdup_printf("%ju", a_node_addr),
+                                      l_id, sizeof(uint64_t),
+                                      GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**
  * Get last id for remote node
  */
-uint64_t dap_db_log_get_last_id_remote(uint64_t a_node_addr)
+uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr)
 {
     char *l_node_addr_str = dap_strdup_printf("%ju", a_node_addr);
     size_t l_timestamp_len = 0;
@@ -130,4 +128,29 @@ uint64_t dap_db_log_get_last_id_remote(uint64_t a_node_addr)
     DAP_DELETE(l_node_addr_str);
     DAP_DELETE(l_timestamp);
     return l_ret_timestamp;
+}
+
+/**
+ * Set last hash for chain for remote node
+ */
+bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
+{
+    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %llu", a_id);
+    dap_chain_hash_fast_t *l_hash = DAP_NEW(dap_chain_hash_fast_t);
+    memcpy(l_hash, a_hash, sizeof(*a_hash));
+    return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
+                                      l_hash, sizeof(*l_hash), GROUP_LOCAL_NODE_LAST_ID);
+}
+
+/**
+ * Get last hash for chain for remote node
+ */
+dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain)
+{
+    char *l_node_chain_str = dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
+    size_t l_hash_len = 0;
+    uint8_t *l_hash = dap_chain_global_db_gr_get((const char*)l_node_chain_str, &l_hash_len,
+                                                 GROUP_LOCAL_NODE_LAST_ID);
+    DAP_DELETE(l_node_chain_str);
+    return (dap_chain_hash_fast_t *)l_hash;
 }

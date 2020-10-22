@@ -46,6 +46,7 @@ typedef struct dap_chain_atom_item{
 } dap_chain_atom_item_t;
 
 typedef struct dap_chain_pkt_copy {
+    dap_stream_ch_chain_pkt_hdr_t pkt_hdr;
     uint64_t pkt_data_size;
     byte_t *pkt_data;
 } dap_chain_pkt_copy_t;
@@ -57,15 +58,12 @@ typedef struct dap_stream_ch_chain {
     dap_list_t *db_iter;
     dap_stream_ch_chain_state_t state;
 
-    dap_chain_atom_iter_t * request_atom_iter;
+    dap_chain_atom_iter_t *request_atom_iter;
     dap_list_t *pkt_copy_list;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
     dap_stream_ch_chain_sync_request_t request;
-    dap_chain_net_id_t request_net_id;
-    dap_chain_id_t request_chain_id;
-    dap_chain_cell_id_t request_cell_id;
-    time_t request_last_ts;
+    dap_stream_ch_chain_pkt_hdr_t request_hdr;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
