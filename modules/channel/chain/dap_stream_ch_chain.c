@@ -261,6 +261,8 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         if(l_res < 0) {
                             log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
                                     l_cell ? l_cell->file_storage_path : "[null]");
+                        } else {
+                            dap_db_set_last_hash_remote(l_ch_chain->request.node_addr.uint64, l_chain, &l_atom_hash);
                         }
                         // add all atoms from treshold
                         if (l_chain->callback_atom_add_from_treshold){
@@ -294,6 +296,7 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 if(l_atom_add_res == ATOM_PASS)
                     DAP_DELETE(l_atom_copy);
             } else {
+                dap_db_set_last_hash_remote(l_ch_chain->request.node_addr.uint64, l_chain, &l_atom_hash);
                 DAP_DELETE(l_atom_copy);
             }
             l_chain->callback_atom_iter_delete(l_atom_iter);
@@ -373,7 +376,7 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
             if(!l_apply) {
                 // If request was from defined node_addr we update its state
                 if(l_ch_chain->request.node_addr.uint64) {
-                    dap_db_log_set_last_id_remote(l_ch_chain->request.node_addr.uint64, l_obj->id);
+                    dap_db_set_last_id_remote(l_ch_chain->request.node_addr.uint64, l_obj->id);
                 }
                 continue;
             }
@@ -403,7 +406,7 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
             } else {
                 // If request was from defined node_addr we update its state
                 if(l_ch_chain->request.node_addr.uint64) {
-                    dap_db_log_set_last_id_remote(l_ch_chain->request.node_addr.uint64, l_obj->id);
+                    dap_db_set_last_id_remote(l_ch_chain->request.node_addr.uint64, l_obj->id);
                 }
                 //log_it(L_DEBUG, "Added new GLOBAL_DB history pack");
             }
@@ -609,9 +612,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_chain_sync_request_t l_sync_chains = {};
         memcpy(&l_sync_chains, l_chain_pkt->data, l_chain_pkt_data_size);
         dap_chain_t *l_chain = l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
-        dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_sync_gdb.node_addr.uint64, l_chain);
+        dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_sync_chains.node_addr.uint64, l_chain);
         if (l_hash) {
-            memcpy(&l_request.hash_from, l_hash, sizeof(l_hash));
+            memcpy(&l_sync_chains.hash_from, l_hash, sizeof(*l_hash));
             DAP_DELETE(l_hash);
         }
         dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_chain_pkt->hdr.net_id,

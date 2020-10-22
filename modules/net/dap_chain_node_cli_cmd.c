@@ -1164,7 +1164,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             dap_stream_ch_chain_sync_request_t l_sync_request = {};
             dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
             if (l_hash) {
-                memcpy(&l_request.hash_from, l_hash, sizeof(l_hash));
+                memcpy(&l_sync_request.hash_from, l_hash, sizeof(*l_hash));
                 DAP_DELETE(l_hash);
             }
             if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
