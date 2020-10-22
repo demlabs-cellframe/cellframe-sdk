@@ -527,10 +527,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 dap_stream_worker_t *l_worker = dap_client_get_stream_worker(l_node_client->client);
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                 // Get last timestamp in log
-                l_sync_gdb.id_start = (uint64_t) dap_db_log_get_last_id_remote(l_node_client->remote_node_addr.uint64);
-                // no limit
-                l_sync_gdb.id_end = (uint64_t)0;
-
+                l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
                 l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
                 log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end);
                 // find dap_chain_id_t
@@ -601,8 +598,12 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 int l_res = 0;
                 DL_FOREACH (a_net->pub.chains, l_chain) {
                     dap_chain_node_client_reset(l_node_client);
-                    dap_stream_ch_chain_sync_request_t l_request ;
-                    memset(&l_request, 0, sizeof (l_request));
+                    dap_stream_ch_chain_sync_request_t l_request = {};
+                    dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
+                    if (l_hash) {
+                        memcpy(&l_request.hash_from, l_hash, sizeof(l_hash));
+                        DAP_DELETE(l_hash);
+                    }  
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, a_net->pub.id,
                                                      l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
@@ -621,6 +622,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                     dap_chain_node_client_reset(l_node_client);
+                    l_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, a_net->pub.id,
                                                      l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
@@ -914,7 +916,7 @@ void dap_chain_net_load_all()
 void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
     char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
-    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr(a_net) ? dap_chain_net_get_cur_addr(a_net)->uint64 : dap_db_get_cur_node_addr(a_net->pub.name);
+    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
     if(!l_cur_node_addr.uint64)
         l_node_address_text_block = dap_strdup_printf(", cur node address not defined");
     else
