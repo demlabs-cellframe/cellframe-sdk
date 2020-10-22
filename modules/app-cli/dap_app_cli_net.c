@@ -189,6 +189,7 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
         return -1;
     }
     s_status = 1;
+    a_cmd->cmd_res_len_max = DAP_CLI_HTTP_RESPONSE_SIZE_MAX;
     a_cmd->cmd_res = DAP_NEW_Z_SIZE(char, DAP_CLI_HTTP_RESPONSE_SIZE_MAX);
     a_cmd->cmd_res_cur = 0;
     dap_string_t *l_cmd_data = dap_string_new(a_cmd->cmd_name);
