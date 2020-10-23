@@ -273,7 +273,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             // don't save bad transactions to base
-            int l_ret = dap_chain_ledger_tx_add(a_ledger, l_tx);
+            int l_ret = dap_chain_ledger_tx_add(a_ledger, l_tx, false);
             if( l_ret != 1 ) {
                 return l_ret;
             }
