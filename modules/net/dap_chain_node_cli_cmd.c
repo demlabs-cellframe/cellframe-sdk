@@ -1046,10 +1046,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
          dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
-         l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
-                 l_remote_node_info->hdr.address.uint64);
-         // fill end id = 0 - no time limit
-         //l_sync_request.ts_end = 0;
+         l_sync_request.id_start = dap_db_get_last_id_remote(l_remote_node_info->hdr.address.uint64);
          // fill current node address
          l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
 
@@ -1162,9 +1159,14 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         DL_FOREACH(l_net->pub.chains, l_chain)
         {
             // reset state NODE_CLIENT_STATE_SYNCED
-            l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+            dap_chain_node_client_reset(l_node_client);
             // send request
-            dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
+            dap_stream_ch_chain_sync_request_t l_sync_request = {};
+            dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
+            if (l_hash) {
+                memcpy(&l_sync_request.hash_from, l_hash, sizeof(*l_hash));
+                DAP_DELETE(l_hash);
+            }
             if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id, l_chain->id, l_remote_node_info->hdr.cell_id, &l_sync_request,
                     sizeof(l_sync_request))) {
