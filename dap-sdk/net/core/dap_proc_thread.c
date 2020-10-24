@@ -139,7 +139,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_valu
             l_item_old = l_item;
             l_item=l_item->next;
         }
-        l_is_anybody_for_repeat &= (!l_is_finished);
+        l_is_anybody_for_repeat = !l_is_finished;
     }
     if(l_is_anybody_for_repeat) // Arm event if we have smth to proc again
         dap_events_socket_event_signal(a_esocket,1);
