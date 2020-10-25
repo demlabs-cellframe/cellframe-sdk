@@ -95,7 +95,6 @@ static void s_request_error(int, void *);
 
 // Stream connection callback
 static void s_stream_connected(dap_client_pvt_t * a_client_pvt);
-static void s_stream_connect_error(dap_client_pvt_t * a_client_pvt, int a_err);
 
 // stream callbacks
 static void s_stream_es_callback_connected(dap_events_socket_t * a_es);
@@ -103,7 +102,6 @@ static void s_stream_es_callback_delete(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_arg);
-static void s_stream_es_worker_assign(dap_events_socket_t * a_es, dap_worker_t * a_worker);
 
 /**
  * @brief dap_client_internal_init
@@ -152,6 +150,7 @@ static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
     pthread_mutex_lock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
     pthread_mutex_unlock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
 
+    DAP_CLIENT_PVT(a_client)->stage_status = STAGE_STATUS_ABORTING;
     pthread_cond_broadcast(&DAP_CLIENT_PVT(a_client)->disconnected_cond);
 }
 
@@ -162,7 +161,6 @@ static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
  */
 int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
 {
-    //dap_client_pvt_t *a_client_pvt = (a_client) ? DAP_CLIENT_PVT(a_client) : NULL;
     if(!a_client_pvt)
         return -1;
     time_t l_ts_begin=time(NULL);
@@ -170,9 +168,14 @@ int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
 
     pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
     dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
+
     pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
     pthread_mutex_unlock(&a_client_pvt->disconnected_mutex);
+
+
     time_t l_ts_end=time(NULL);
+    // Dont read or write client stage here. If you're here - it must be STAGE_BEGIN. Ever it would be problems - we must reset all
+    // the states to the STAGE_BEGIN
     log_it(L_INFO,"Disconnected: achieved STAGE_BEGIN at time %d",
            l_ts_end-l_ts_begin);
     return 0;
@@ -218,6 +221,7 @@ void dap_client_pvt_delete_n_wait(dap_client_pvt_t * a_client_pvt)
 
     pthread_mutex_destroy( &a_client_pvt->disconnected_mutex);
     pthread_cond_destroy( &a_client_pvt->disconnected_cond);
+    DAP_DELETE(a_client_pvt);
 }
 
 /**
@@ -252,7 +256,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 case STAGE_STREAM_CONNECTED:
                 case STAGE_STREAM_STREAMING:
                     dap_stream_delete(a_client_pvt->stream);
-                    dap_events_socket_remove_and_delete_mt(a_client_pvt->worker, a_client_pvt->stream_es);
+                    dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
                     a_client_pvt->stream = NULL;
                     a_client_pvt->stream_es = NULL;
                     break;

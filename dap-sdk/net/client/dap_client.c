@@ -234,6 +234,7 @@ void dap_client_delete(dap_client_t * a_client)
     pthread_mutex_lock(&a_client->mutex);
 
     dap_client_pvt_delete_n_wait(DAP_CLIENT_PVT(a_client));
+    a_client->_internal = NULL;
     pthread_mutex_unlock(&a_client->mutex);
     pthread_mutex_destroy(&a_client->mutex);
     DAP_DELETE(a_client);
