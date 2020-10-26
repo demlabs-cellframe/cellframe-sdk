@@ -99,19 +99,16 @@ void dap_client_deinit();
 dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_stage_status_callback
                               , dap_client_callback_t a_stage_status_error_callback );
 
-void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port);
-const char* dap_client_get_uplink_addr(dap_client_t * a_client);
-uint16_t dap_client_get_uplink_port(dap_client_t * a_client);
-
-
-void dap_client_delete(dap_client_t * a_client);
+void dap_client_set_uplink_unsafe(dap_client_t * a_client,const char* a_addr, uint16_t a_port);
+const char* dap_client_get_uplink_addr_unsafe(dap_client_t * a_client);
+uint16_t dap_client_get_uplink_port_unsafe(dap_client_t * a_client);
 
 
 dap_enc_key_t * dap_client_get_key_stream(dap_client_t * a_client);
 
 void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end, dap_client_callback_t a_stage_end_callback);
-
-void dap_client_reset(dap_client_t * a_client);
+void dap_client_delete_mt(dap_client_t * a_client);
+void dap_client_delete_unsafe(dap_client_t * a_client);
 
 void dap_client_request_enc_unsafe(dap_client_t * a_client, const char * a_path,const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
@@ -134,8 +131,8 @@ dap_stream_t * dap_client_get_stream(dap_client_t * a_client);
 dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client);
 dap_stream_ch_t * dap_client_get_stream_ch_unsafe(dap_client_t * a_client, uint8_t a_ch_id);
 const char * dap_client_get_stream_id(dap_client_t * a_client);
-void dap_client_set_active_channels (dap_client_t * a_client, const char * a_active_channels);
-void dap_client_set_auth_cert(dap_client_t * a_client, dap_cert_t *a_cert);
+void dap_client_set_active_channels_unsafe (dap_client_t * a_client, const char * a_active_channels);
+void dap_client_set_auth_cert_unsafe(dap_client_t * a_client, dap_cert_t *a_cert);
 
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);

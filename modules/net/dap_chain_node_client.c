@@ -429,7 +429,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
             s_stage_status_error_callback);
     l_node_client->client->_inheritor = l_node_client;
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
-    dap_client_set_active_channels(l_node_client->client, a_active_channels);
+    dap_client_set_active_channels_unsafe(l_node_client->client, a_active_channels);
 
     //dap_client_set_auth_cert(l_node_client->client, dap_cert_find_by_name("auth")); // TODO provide the certificate choice
 
@@ -450,7 +450,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
         dap_chain_node_client_close(l_node_client);
         return NULL;
     }
-    dap_client_set_uplink(l_node_client->client, strdup(host), a_node_info->hdr.ext_port);
+    dap_client_set_uplink_unsafe(l_node_client->client, strdup(host), a_node_info->hdr.ext_port);
 //    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
 //    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
 
@@ -488,7 +488,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
     if (a_client && a_client->client) { // block tryes to close twice
         // clean client
-        dap_client_delete(a_client->client);
+        dap_client_delete_mt(a_client->client);
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);
 #else

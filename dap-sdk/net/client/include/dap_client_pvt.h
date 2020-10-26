@@ -75,18 +75,18 @@ typedef struct dap_client_internal
     dap_client_callback_t stage_status_callback;
     dap_client_callback_t stage_status_done_callback;
     dap_client_callback_t stage_status_error_callback;
+    dap_client_callback_t delete_callback;
 
     int stage_errors;
 
+    atomic_uint refs_count;
+    atomic_bool is_to_delete;
     bool is_encrypted;
     bool is_encrypted_headers;
     bool is_close_session;// the last request in session, in the header will be added "SessionCloseAfterRequest: true"
     dap_client_callback_data_size_t request_response_callback;
     dap_client_callback_int_t request_error_callback;
 
-    // Conds
-    pthread_cond_t disconnected_cond;
-    pthread_mutex_t disconnected_mutex;
 } dap_client_pvt_t;
 
 #define DAP_CLIENT_PVT(a) (a ? (dap_client_pvt_t*) a->_internal : NULL)
@@ -106,7 +106,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
                                      dap_client_callback_int_t a_error_proc);
 
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal);
-void dap_client_pvt_delete_n_wait(dap_client_pvt_t * a_client_pvt);
+void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt);
 
 //int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal);
 //int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal);

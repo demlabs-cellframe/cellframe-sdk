@@ -132,95 +132,43 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_internal)
     a_client_internal->stage_status = STAGE_STATUS_DONE;
     a_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
     a_client_internal->events = dap_events_get_default();
-    pthread_mutex_init( &a_client_internal->disconnected_mutex, NULL);
-    pthread_cond_init( &a_client_internal->disconnected_cond, NULL);
     // add to list
     dap_client_pvt_hh_add(a_client_internal);
 }
 
-/**
- * @brief s_client_pvt_disconnected
- * @param a_client
- * @param a_arg
- */
-static void s_client_pvt_disconnected(dap_client_t * a_client, void * a_arg )
-{
-    (void) a_arg;
-    // To be sure thats cond waiter is waiting and unlocked mutex
-    pthread_mutex_lock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
-    pthread_mutex_unlock(&DAP_CLIENT_PVT(a_client)->disconnected_mutex);
 
-    DAP_CLIENT_PVT(a_client)->stage_status = STAGE_STATUS_ABORTING;
-    pthread_cond_broadcast(&DAP_CLIENT_PVT(a_client)->disconnected_cond);
-}
-
-/**
- * @brief dap_client_disconnect
- * @param a_client
- * @return
- */
-int dap_client_pvt_disconnect_all_n_wait(dap_client_pvt_t *a_client_pvt)
-{
-    if(!a_client_pvt)
-        return -1;
-    time_t l_ts_begin=time(NULL);
-    log_it(L_DEBUG,"Disconnect_n_wait called");
-
-    pthread_mutex_lock(&a_client_pvt->disconnected_mutex);
-    dap_client_go_stage(a_client_pvt->client, STAGE_BEGIN, s_client_pvt_disconnected );
-
-    pthread_cond_wait(&a_client_pvt->disconnected_cond, &a_client_pvt->disconnected_mutex);
-    pthread_mutex_unlock(&a_client_pvt->disconnected_mutex);
-
-
-    time_t l_ts_end=time(NULL);
-    // Dont read or write client stage here. If you're here - it must be STAGE_BEGIN. Ever it would be problems - we must reset all
-    // the states to the STAGE_BEGIN
-    log_it(L_INFO,"Disconnected: achieved STAGE_BEGIN at time %d",
-           l_ts_end-l_ts_begin);
-    return 0;
-}
 
 /**
  * @brief dap_client_pvt_delete
  * @param a_client_pvt
  */
-void dap_client_pvt_delete_n_wait(dap_client_pvt_t * a_client_pvt)
+void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
-    if(!a_client_pvt)
-        return;
+    assert(a_client_pvt);
+    if(a_client_pvt->delete_callback)
+        a_client_pvt->delete_callback(a_client_pvt->client, NULL);
     // delete from list
     if(dap_client_pvt_hh_del(a_client_pvt)<0){
         log_it(L_DEBUG, "dap_client_pvt 0x%x already deleted", a_client_pvt);
         return;
     }
-
-    dap_client_pvt_disconnect_all_n_wait(a_client_pvt);
-
     log_it(L_INFO, "dap_client_pvt_delete 0x%x", a_client_pvt);
 
     if(a_client_pvt->session_key_id)
         DAP_DELETE(a_client_pvt->session_key_id);
-    a_client_pvt->session_key_id = NULL;
 
     if(a_client_pvt->active_channels)
         DAP_DELETE(a_client_pvt->active_channels);
-    a_client_pvt->active_channels = NULL;
 
     if(a_client_pvt->session_key)
         dap_enc_key_delete(a_client_pvt->session_key);
-    a_client_pvt->session_key = NULL;
 
     if(a_client_pvt->session_key_open)
         dap_enc_key_delete(a_client_pvt->session_key_open);
-    a_client_pvt->session_key_open = NULL;
 
     if(a_client_pvt->stream_key)
         dap_enc_key_delete(a_client_pvt->stream_key);
-    a_client_pvt->stream_key = NULL;
 
-    pthread_mutex_destroy( &a_client_pvt->disconnected_mutex);
-    pthread_cond_destroy( &a_client_pvt->disconnected_cond);
     DAP_DELETE(a_client_pvt);
 }
 
@@ -601,6 +549,7 @@ int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_
     a_client_internal->request_response_callback = a_response_proc;
     a_client_internal->request_error_callback = a_response_error;
     a_client_internal->is_encrypted = false;
+    a_client_internal->refs_count++;;
 
     void *l_ret = dap_client_http_request(a_client_internal->worker,  a_client_internal->uplink_addr,a_client_internal->uplink_port,
                                            a_request ? "POST" : "GET", "text/text", a_path, a_request,
@@ -722,6 +671,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         l_custom_new[1] = dap_strdup("SessionCloseAfterRequest: true");
         l_custom_count++;
     }
+    a_client_internal->refs_count++;
     dap_client_http_request_custom(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
                 s_request_response, s_request_error, a_client_internal, l_custom_new, l_custom_count);
@@ -772,8 +722,23 @@ static void s_request_error(int a_err_code, void * a_obj)
 static void s_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
-    if(!a_client_internal || !a_client_internal->client)
+    if(!a_client_internal || !a_client_internal->client){
+        if( !a_client_internal )
+            log_it(L_ERROR,"Client internal is NULL for s_request_response");
+        else
+            log_it(L_ERROR,"Client is NULL for s_request_response");
+
         return;
+    }
+    a_client_internal->refs_count--;
+
+    if (a_client_internal->is_to_delete){
+        if(a_client_internal->refs_count==0) // Was requested to delete until we was working with request
+            dap_client_delete_unsafe(a_client_internal->client); // Init delete
+        return;
+    }
+
+
     //int l_ref = dap_client_pvt_get_ref(a_client_internal);
     if(a_client_internal->is_encrypted) {
         size_t l_response_dec_size_max = a_response_size ? a_response_size * 2 + 16 : 0;
@@ -785,12 +750,18 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
                     l_response_dec, l_response_dec_size_max,
                     DAP_ENC_DATA_TYPE_RAW);
 
-        a_client_internal->request_response_callback(a_client_internal->client, l_response_dec, l_response_dec_size);
+        if ( a_client_internal->request_response_callback )
+            a_client_internal->request_response_callback(a_client_internal->client, l_response_dec, l_response_dec_size);
+        else
+            log_it(L_ERROR, "NULL request_response_callback for encrypted client %p", a_client_internal->client );
 
         if(l_response_dec)
             DAP_DELETE(l_response_dec);
     } else {
-        a_client_internal->request_response_callback(a_client_internal->client, a_response, a_response_size);
+        if ( a_client_internal->request_response_callback )
+            a_client_internal->request_response_callback(a_client_internal->client, a_response, a_response_size);
+        else
+            log_it(L_ERROR, "NULL request_response_callback for unencrypted  client %p", a_client_internal->client );
     }
 
     //int l_ref2 = dap_client_pvt_get_ref(a_client_internal);
