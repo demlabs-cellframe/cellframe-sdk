@@ -44,6 +44,8 @@
 #define DAP_CHAIN_TICKER_SIZE_MAX   10
 
 #define DATOSHI_LD 1000000000.0L
+#define DATOSHI_DEGREE 9
+#define DATOSHI_POW 38
 
 // Chain ID of the whole system
 typedef union dap_chain_id {

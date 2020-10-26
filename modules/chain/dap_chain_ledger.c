@@ -1756,10 +1756,10 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
  * Calculate balance of addr
  *
  */
-uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
-        const char *a_token_ticker)
+uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+                                        const char *a_token_ticker)
 {
-    uint64_t l_ret = 0;
+    uint128_t l_ret = 0;
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
     char *l_addr = dap_chain_addr_to_str(a_addr);
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
@@ -1768,33 +1768,16 @@ uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_a
     if (l_balance_item) {
         log_it (L_INFO,"Found address in cache with balance %llu", l_balance_item->balance);
         l_ret = l_balance_item->balance;
-    } /*else {
-        //char * l_addr_str = dap_chain_addr_to_str( a_addr);
-        log_it (L_WARNING,"Can't find balance for address %s token \"%s\" in cache", l_addr,
-                a_token_ticker?a_token_ticker: "???");
-        //DAP_DELETE(l_addr_str);
-        log_it (L_DEBUG,"Total size of hashtable %u", HASH_COUNT( PVT(a_ledger)->balance_accounts ) );
-        HASH_ITER(hh,PVT(a_ledger)->balance_accounts,l_balance_item, l_balance_item_tmp ){
-            //char * l_addr_str = dap_chain_addr_to_str( &l_balance_item->key.addr);
-            log_it (L_DEBUG,"\t\tAddr: %s token: %s", l_addr, l_balance_item->key.ticker  );
-            //DAP_DELETE(l_addr_str);
-            if ( memcmp(&l_balance_item->key.addr, a_addr,sizeof(*a_addr) ) == 0 )
-                if ( strcmp (l_balance_item->key.ticker, a_token_ticker) ==0 ) {
-                    l_ret = l_balance_item->balance;
-                    break;
-                }
-        }
-
-    }*/
+    }
     DAP_DELETE(l_addr);
     DAP_DELETE(l_wallet_balance_key);
     return l_ret;
 }
 
-uint64_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
-            const char *a_token_ticker)
+uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+                                             const char *a_token_ticker)
 {
-    uint64_t balance = 0;
+    uint128_t balance = 0;
     if(!a_addr || !dap_chain_addr_check_sum(a_addr))
         return 0;
     /* proto

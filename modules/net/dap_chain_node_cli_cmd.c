@@ -1683,7 +1683,7 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
                 dap_string_append_printf(l_string_ret, "balance:\u00a00");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
-                    uint64_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                    uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     long  double l_balance_coins = (long double) l_balance / DATOSHI_LD ;
                     //dap_string_append_printf(l_string_ret, "          %.3Lf (%llu) %s\n", l_balance_coins,
                     dap_string_append_printf(l_string_ret, "\t\u00a0%.3Lf (%llu) %s", l_balance_coins,

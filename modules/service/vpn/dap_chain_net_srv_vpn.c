@@ -695,8 +695,7 @@ int s_vpn_service_create(dap_config_t * g_config){
                 }
                 continue;
             case 1:
-                l_price->value_coins = atof(l_price_token);
-                if (!(l_price->value_datoshi = (uint64_t)dap_chain_coins_to_balance((long double)l_price->value_coins))) {
+                if (!(l_price->value_datoshi = (uint64_t)dap_chain_coins_to_balance((long double)atof(l_price_token)))) {
                     log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
                     l_iter = 0;
                     DAP_DELETE(l_price);

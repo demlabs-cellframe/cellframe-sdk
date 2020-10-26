@@ -416,7 +416,7 @@ uint64_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_ne
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr =dap_chain_wallet_get_addr(a_wallet, a_net_id);
-    uint64_t l_balance = 0;
+    uint128_t l_balance = 0;
     if (l_net)
     {
         dap_ledger_t *l_ledger = l_net->pub.ledger;

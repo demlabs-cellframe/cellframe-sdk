@@ -279,3 +279,120 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
         return 1;
     return -1;
 }
+
+char *dap_chain_balance_print(uint128_t a_balance)
+{
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
+    int l_pos = 0;
+    uint128_t l_value = a_balance;
+#ifdef DAP_GLOBAL_IS_INT128
+    do {
+        l_buf[l_pos++] = l_value % 10;
+        l_value /= 10;
+    } while (l_value);
+#else
+    uint64_t t;
+    uint8_t q;
+    do {
+        q = 0;
+        for (int i = 3; i >= 0; i--) {
+            t = q << 32 | l_value.u32[i];
+            q = l_value.u32[i] % 10;
+            l_value.u32[i] /= 10;
+        }
+        l_buf[l_pos++] = q;
+    } while (l_value.u32[0]);
+#endif
+    int l_strlen = strlen(l_buf) - 1;
+    for (int i = 0; i < (l_strlen + 1) / 2; i++) {
+        char c = l_buf[i];
+        l_buf[i] = l_buf[l_strlen - i];
+        l_buf[l_strlen - i] = c;
+    }
+}
+
+char *dap_chain_balance_to_coins(uint128_t a_balance)
+{
+    char *l_buf = dap_chain_balance_print(a_balance);
+    int l_strlen = strlen(l_buf);
+    if (l_strlen > DATOSHI_DEGREE) {
+        for (l_pos = l_strlen; l_pos > l_strlen - DATOSHI_DEGREE; l_pos--) {
+            l_buf[l_pos] = l_buf[l_pos - 1];
+        }
+        l_buf[l_pos] = '.';
+    } else {
+        int l_sub = DATOSHI_DEGREE - l_strlen + 2;
+        for (l_pos = DATOSHI_DEGREE; l_pos >= 0; l_pos--) {
+            l_buf[l_pos] = (l_pos >= l_sub) ? l_buf[l_pos - l_sub] : '0';
+        }
+        l_buf[1] = '.';
+    }
+    return l_buf;
+}
+
+const union { uint64_t u64[2]; } c_pow10[DATOSHI_POW + 1] = {
+    {0,                         1ULL},                          // 0
+    {0,                         10ULL},                         // 1
+    {0,                         100ULL},                        // 2
+    {0,                         1000ULL},                       // 3
+    {0,                         10000ULL},                      // 4
+    {0,                         100000ULL},                     // 5
+    {0,                         1000000ULL},                    // 6
+    {0,                         10000000ULL},                   // 7
+    {0,                         100000000ULL},                  // 8
+    {0,                         1000000000ULL},                 // 9
+    {0,                         10000000000ULL},                // 10
+    {0,                         100000000000ULL},               // 11
+    {0,                         1000000000000ULL},              // 12
+    {0,                         10000000000000ULL},             // 13
+    {0,                         100000000000000ULL},            // 14
+    {0,                         1000000000000000ULL},           // 15
+    {0,                         10000000000000000ULL},          // 16
+    {0,                         100000000000000000ULL},         // 17
+    {0,                         1000000000000000000ULL},        // 18
+    {0,                         10000000000000000000ULL},       // 19
+    {5ULL,                      7766279631452241920ULL},        // 20
+    {54ULL,                     3875820019684212736ULL},        // 21
+    {542ULL,                    1864712049423024128ULL},        // 22
+    {5421ULL,                   200376420520689664ULL},         // 23
+    {54210ULL,                  2003764205206896640ULL},        // 24
+    {542101ULL,                 1590897978359414784ULL},        // 25
+    {5421010ULL,                15908979783594147840ULL},       // 26
+    {54210108ULL,               11515845246265065472ULL},       // 27
+    {542101086ULL,              4477988020393345024ULL},        // 28
+    {5421010862ULL,             7886392056514347008ULL},        // 29
+    {54210108624ULL,            5076944270305263616ULL},        // 30
+    {542101086242ULL,           13875954555633532928ULL},       // 31
+    {5421010862427ULL,          9632337040368467968ULL},        // 32
+    {54210108624275ULL,         4089650035136921600ULL},        // 33
+    {542101086242752ULL,        4003012203950112768ULL},        // 34
+    {5421010862427522ULL,       3136633892082024448ULL},        // 35
+    {54210108624275221ULL,      12919594847110692864ULL},       // 36
+    {542101086242752217ULL,     68739955140067328ULL},          // 37
+    {5421010862427522170ULL,    687399551400673280ULL}          // 38
+};
+
+uint128_t dap_chain_balance_scan(char *a_balance)
+{
+    int l_strlen = strlen(a_balance);
+#ifdef DAP_GLOBAL_IS_INT128
+    uint128_t l_ret = 0;
+    if (l_strlen > DATOSHI_POW)
+        return 0;
+    for (int i = 0; i < l_strlen ; i++) {
+        uint128_t c_pow10 = c_pow10[i].u64[0] + ((uint128_t)c_pow10[i].u64[1] << 64);
+        l_ret += a_balance[l_strlen - i - 1] * c_pow10;
+    }
+    return l_ret;
+#else
+    uint128_t l_ret={0};
+    l_ret.u64[0]=a_balance *DATOSHI_LD;
+    return l_ret;
+#endif
+}
+
+uint128_t dap_chain_coins_to_balance(char *a_balance)
+{
+
+}
+
