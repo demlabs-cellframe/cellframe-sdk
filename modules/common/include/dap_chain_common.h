@@ -233,7 +233,7 @@ DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 #endif;
 }
 uint128_t dap_chain_balance_substract(uint128_t a, uint128_t b);
-uint128_t dap_chain_balance_sum(uint128_t a, uint128_t b);
+uint128_t dap_chain_balance_add(uint128_t a, uint128_t b);
 char *dap_chain_balance_print(uint128_t a_balance);
 char *dap_chain_balance_to_coins(uint128_t a_balance);
 uint128_t dap_chain_balance_scan(char *a_balance);
