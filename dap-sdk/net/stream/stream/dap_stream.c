@@ -790,7 +790,7 @@ static void s_keepalive_cb( void )
 {
   dap_stream_t  *l_stream, *tmp;
   pthread_mutex_lock( &s_mutex_keepalive_list );
-  stream_pkt_hdr_t l_pkt = {};
+  stream_pkt_hdr_t l_pkt = {0};
   l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
   memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
   DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
