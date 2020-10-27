@@ -103,7 +103,7 @@ size_t dap_enc_bf_cbc_calc_decode_max_size(const size_t size_in)
 size_t dap_enc_bf_cbc_decrypt_fast(struct dap_enc_key *a_key, const void * a_in,
         size_t a_in_size, void * a_out, size_t buf_out_size) {
     if(a_in_size - BLOWFISH_BLOCK_SIZE > buf_out_size || a_in_size %BLOWFISH_BLOCK_SIZE || a_in_size <= BLOWFISH_BLOCK_SIZE) {
-        log_it(L_ERROR, "blowfish_cbc fast_decryption too small buf_out_size or not 8*k");
+        log_it(L_ERROR, "blowfish_cbc: incorrect buf size %d", a_in_size);
         return 0;
     }
     uint8_t iv[BLOWFISH_BLOCK_SIZE];
