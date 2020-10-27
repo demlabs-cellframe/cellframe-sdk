@@ -1674,8 +1674,6 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
 
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
-            //dap_chain_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
-            // seriously?...
             dap_chain_ledger_addr_get_token_ticker_all_fast(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
             if(l_addr_tokens_size > 0)
                 dap_string_append_printf(l_string_ret, "balance:\n");
@@ -1684,12 +1682,14 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
                     uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
-                    long  double l_balance_coins = (long double) l_balance / DATOSHI_LD ;
-                    //dap_string_append_printf(l_string_ret, "          %.3Lf (%llu) %s\n", l_balance_coins,
-                    dap_string_append_printf(l_string_ret, "\t\u00a0%.3Lf (%llu) %s", l_balance_coins,
-                            l_balance, l_addr_tokens[i]);
+                    char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
+                    char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    dap_string_append_printf(l_string_ret, "\t\u00a0%s (%s) %s", l_balance_coins,
+                            l_balance_datoshi, l_addr_tokens[i]);
                     if(i < l_addr_tokens_size - 1)
                         dap_string_append_printf(l_string_ret, "\n");
+                    DAP_DELETE(l_balance_coins);
+                    DAP_DELETE(l_balance_datoshi);
 
                 }
                 DAP_DELETE(l_addr_tokens[i]);
@@ -2448,7 +2448,7 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                         return -10;
                     }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
-                    uint128_t l_param_value = dap_atou128(l_arg_param);
+                    uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
@@ -2746,7 +2746,7 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                          l_str_flags++;
                      }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
-                    uint128_t l_param_value = dap_atou128(l_arg_param);
+                    uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
@@ -2838,9 +2838,11 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                     continue;
                 }
                 switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %0.9llf",
-                               dap_chain_balance_to_coins( dap_chain_datum_token_tsd_get_scalar(l_tsd,uint128_t) ) );
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {
+                        char *l_balance = dap_chain_balance_print(dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t));
+                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);
+                        DAP_DELETE(l_balance);
+                    }
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",

@@ -199,7 +199,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     // Search unused out:
     uint64_t l_value_need =a_tx_num*( a_value + a_value_fee );
     uint64_t l_value_transfer = 0; // how many coins to transfer
-    log_it(L_DEBUG,"Create %lu transactions, summary %Lf.7", a_tx_num,dap_chain_balance_to_coins(l_value_need) ) ;
+    log_it(L_DEBUG,"Create %lu transactions, summary %Lf.7", a_tx_num,dap_chain_datoshi_to_coins(l_value_need) ) ;
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {

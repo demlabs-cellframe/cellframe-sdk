@@ -361,7 +361,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
             }
 
             if ( l_srv_uid_str)
-                l_srv_uid.uint64 = (uint128_t) atoll( l_srv_uid_str);
+                l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
 
             if ( l_price_min_str )
                 l_price_min = (uint64_t) atoll ( l_price_min_str );

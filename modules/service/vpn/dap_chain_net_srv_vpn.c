@@ -695,7 +695,8 @@ int s_vpn_service_create(dap_config_t * g_config){
                 }
                 continue;
             case 1:
-                if (!(l_price->value_datoshi = (uint64_t)dap_chain_coins_to_balance((long double)atof(l_price_token)))) {
+                l_price->value_datoshi = dap_chain_coins_to_datoshi(strtold(l_price_token, NULL, 10));
+                if (!l_price->value_datoshi) {
                     log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
                     l_iter = 0;
                     DAP_DELETE(l_price);
@@ -1034,9 +1035,9 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             }
         }
     }else if ( a_srv_session->limits_bytes ){
-        if ( a_srv_session->limits_bytes >(uint128_t) a_bytes ){
+        if ( a_srv_session->limits_bytes >(uintmax_t) a_bytes ){
             // Update limits
-            a_srv_session->limits_bytes -= (uint128_t) a_bytes;
+            a_srv_session->limits_bytes -= (uintmax_t) a_bytes;
         }else{ // traffic out
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
             DAP_DELETE(a_usage->receipt);
@@ -1047,15 +1048,15 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 a_srv_session->limits_units_type.uint32 = a_usage->receipt->receipt_info.units_type.uint32;
                 switch( a_usage->receipt->receipt_info.units_type.enm){
                     case SERV_UNIT_B:{
-                        a_srv_session->limits_bytes +=  (uint128_t) a_usage->receipt->receipt_info.units;
+                        a_srv_session->limits_bytes +=  (uintmax_t) a_usage->receipt->receipt_info.units;
                         log_it(L_INFO,"%llu bytes more for VPN usage", a_usage->receipt->receipt_info.units);
                     } break;
                     case SERV_UNIT_KB:{
-                        a_srv_session->limits_bytes += 1000ull * ( (uint128_t) a_usage->receipt->receipt_info.units);
+                        a_srv_session->limits_bytes += 1000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
                         log_it(L_INFO,"%llu bytes more for VPN usage", a_usage->receipt->receipt_info.units);
                     } break;
                     case SERV_UNIT_MB:{
-                        a_srv_session->limits_bytes += 1000000ull * ( (uint128_t) a_usage->receipt->receipt_info.units);
+                        a_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) a_usage->receipt->receipt_info.units);
                         log_it(L_INFO,"%llu bytes more for VPN usage", a_usage->receipt->receipt_info.units);
                     } break;
                     default: {
