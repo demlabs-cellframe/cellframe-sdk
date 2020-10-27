@@ -140,6 +140,7 @@ char* g_sys_dir_path = NULL;
 
 static char s_last_error[LAST_ERROR_MAX]    = {'\0'},
     s_log_file_path[MAX_PATH]               = {'\0'},
+    s_log_dir_path[MAX_PATH]                = {'\0'},
     s_log_tag_fmt_str[10]                   = {'\0'};
 
 static enum dap_log_level s_dap_log_level = L_DEBUG;
@@ -222,7 +223,7 @@ void dap_set_log_tag_width(size_t a_width) {
  * @param[in] a_log_file
  * @return
  */
-int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
+int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 
     // init randomer
     srand( (unsigned int)time(NULL) );
@@ -230,15 +231,16 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
     for (int i = 0; i < 16; ++i)
             s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
-    if ( a_log_filename ) {
-        s_log_file = fopen( a_log_filename , "a" );
+    if ( a_log_file_path ) {
+        s_log_file = fopen( a_log_file_path , "a" );
         if( s_log_file == NULL)
-            s_log_file = fopen( a_log_filename , "w" );
+            s_log_file = fopen( a_log_file_path , "w" );
         if ( s_log_file == NULL ) {
-            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
-            //return -1;   //switch off show log in cosole if file not open
+            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_file_path );
+            return -1;   //switch off show log in cosole if file not open
         }
-        dap_stpcpy(s_log_file_path, a_log_filename);
+        dap_stpcpy(s_log_dir_path,  a_log_dirpath);
+        dap_stpcpy(s_log_file_path, a_log_file_path);
     }
     pthread_create( &s_log_thread, NULL, s_log_thread_proc, NULL );
     return 0;
@@ -301,6 +303,10 @@ static void *s_log_thread_proc(void *arg) {
                 if(!dap_file_test(s_log_file_path)) {
                     fclose(s_log_file);
                     s_log_file = fopen(s_log_file_path, "a");
+                    if( s_log_file == NULL) {
+                        dap_mkdir_with_parents(s_log_dir_path);
+                        s_log_file = fopen( s_log_file_path , "w" );
+                    }
                 }
             }
             DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
