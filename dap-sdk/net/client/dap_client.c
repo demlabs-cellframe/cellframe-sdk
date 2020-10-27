@@ -186,7 +186,6 @@ void dap_client_set_auth_cert_unsafe(dap_client_t * a_client, dap_cert_t *a_cert
 void dap_client_delete_unsafe(dap_client_t * a_client)
 {
     if ( DAP_CLIENT_PVT(a_client)->refs_count ==0 ){
-        DAP_CLIENT_PVT(a_client)->delete_callback(a_client, NULL);
         dap_client_pvt_delete( DAP_CLIENT_PVT(a_client) );
         pthread_mutex_destroy(&a_client->mutex);
         DAP_DELETE(a_client);
@@ -318,7 +317,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
 
     assert(l_client_pvt);
 
-    struct go_stage_arg *l_stage_arg = DAP_NEW(struct go_stage_arg);
+    struct go_stage_arg *l_stage_arg = DAP_NEW_Z(struct go_stage_arg);
     l_stage_arg->stage_end_callback = a_stage_end_callback;
     l_stage_arg->stage_target = a_stage_target;
     l_stage_arg->client_pvt = l_client_pvt;
