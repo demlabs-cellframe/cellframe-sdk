@@ -36,5 +36,5 @@ int get_order_state(dap_chain_node_addr_t a_node_addr);
 int dap_chain_net_srv_vpn_cdb_server_list_init(void);
 void dap_chain_net_srv_vpn_cdb_server_list_deinit(void);
 void dap_chain_net_srv_vpn_cdb_server_list_add_proc(struct dap_http * sh, const char * url);
-
-
+int dap_chain_net_srv_vpn_cdb_server_list_static_create(dap_chain_net_t *a_net);
+int  dap_chain_net_srv_vpn_cdb_server_list_static_delete(dap_chain_net_t *a_net);
