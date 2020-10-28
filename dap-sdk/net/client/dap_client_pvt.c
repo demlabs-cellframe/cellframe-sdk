@@ -779,8 +779,8 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
 static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
     dap_client_pvt_t * l_client_pvt = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_enc_init_response: l_client_pvt is NULL!");
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
     if (!l_client_pvt->session_key_open){
@@ -885,10 +885,11 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
 static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_enc_init_error: l_client_pvt is NULL!");
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
+
     //dap_client_internal_t * l_client_internal = dap_CLIENT_INTERNAL(a_client);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
     if (a_err_code == ETIMEDOUT) {
@@ -908,48 +909,49 @@ static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
  */
 static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
-    if(!l_client_internal) {
-        log_it(L_ERROR, "m_stream_ctl_response: l_client_internal is NULL!");
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
+
     log_it(L_DEBUG, "STREAM_CTL response %u bytes length recieved", a_data_size);
     char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
     memcpy(l_response_str, a_data, a_data_size);
 
     if(a_data_size < 4) {
         log_it(L_ERROR, "STREAM_CTL Wrong reply: '%s'", l_response_str);
-        l_client_internal->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
-        l_client_internal->stage_status = STAGE_STATUS_ERROR;
-        s_stage_status_after(l_client_internal);
+        l_client_pvt->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
+        l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+        s_stage_status_after(l_client_pvt);
     } else if(strcmp(l_response_str, "ERROR") == 0) {
         log_it(L_WARNING, "STREAM_CTL Got ERROR from the remote site,expecting thats ERROR_AUTH");
-        l_client_internal->last_error = ERROR_STREAM_CTL_ERROR_AUTH;
-        l_client_internal->stage_status = STAGE_STATUS_ERROR;
-        s_stage_status_after(l_client_internal);
+        l_client_pvt->last_error = ERROR_STREAM_CTL_ERROR_AUTH;
+        l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+        s_stage_status_after(l_client_pvt);
     } else {
         int l_arg_count;
         char l_stream_id[26] = { 0 };
         char *l_stream_key = DAP_NEW_Z_SIZE(char, 4096 * 3);
         uint32_t l_remote_protocol_version;
-        dap_enc_key_type_t l_enc_type = l_client_internal->session_key_type;
+        dap_enc_key_type_t l_enc_type = l_client_pvt->session_key_type;
         int l_enc_headers = 0;
 
         l_arg_count = sscanf(l_response_str, "%25s %4096s %u %d %d"
                 , l_stream_id, l_stream_key, &l_remote_protocol_version, &l_enc_type, &l_enc_headers);
         if(l_arg_count < 2) {
             log_it(L_WARNING, "STREAM_CTL Need at least 2 arguments in reply (got %d)", l_arg_count);
-            l_client_internal->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
-            l_client_internal->stage_status = STAGE_STATUS_ERROR;
-            s_stage_status_after(l_client_internal);
+            l_client_pvt->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
+            l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+            s_stage_status_after(l_client_pvt);
         } else {
 
             if(l_arg_count > 2) {
-                l_client_internal->uplink_protocol_version = l_remote_protocol_version;
+                l_client_pvt->uplink_protocol_version = l_remote_protocol_version;
                 log_it(L_DEBUG, "Uplink protocol version %u", l_remote_protocol_version);
             } else
                 log_it(L_WARNING, "No uplink protocol version, use legacy version %d"
-                        , l_client_internal->uplink_protocol_version = 22);
+                        , l_client_pvt->uplink_protocol_version = 22);
 
             if(strlen(l_stream_id) < 13) {
                 //log_it(L_DEBUG, "Stream server id %s, stream key length(base64 encoded) %u"
@@ -958,19 +960,19 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
                         , l_stream_id, l_stream_key);
 
                 // Delete old key if present
-                if(l_client_internal->stream_key)
-                    dap_enc_key_delete(l_client_internal->stream_key);
+                if(l_client_pvt->stream_key)
+                    dap_enc_key_delete(l_client_pvt->stream_key);
 
-                strncpy(l_client_internal->stream_id, l_stream_id, sizeof(l_client_internal->stream_id) - 1);
-                l_client_internal->stream_key =
+                strncpy(l_client_pvt->stream_id, l_stream_id, sizeof(l_client_pvt->stream_id) - 1);
+                l_client_pvt->stream_key =
                         dap_enc_key_new_generate(l_enc_type, l_stream_key, strlen(l_stream_key), NULL, 0,
                                 32);
 
-                l_client_internal->is_encrypted_headers = l_enc_headers;
+                l_client_pvt->is_encrypted_headers = l_enc_headers;
 
-                if(l_client_internal->stage == STAGE_STREAM_CTL) { // We are on the right stage
-                    l_client_internal->stage_status = STAGE_STATUS_DONE;
-                    s_stage_status_after(l_client_internal);
+                if(l_client_pvt->stage == STAGE_STREAM_CTL) { // We are on the right stage
+                    l_client_pvt->stage_status = STAGE_STATUS_DONE;
+                    s_stage_status_after(l_client_pvt);
                 } else {
                     log_it(L_WARNING, "Expected to be stage STREAM_CTL but current stage is %s (%s)",
                             dap_client_get_stage_str(a_client), dap_client_get_stage_status_str(a_client));
@@ -978,9 +980,9 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
                 }
             } else {
                 log_it(L_WARNING, "Wrong stream id response");
-                l_client_internal->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
-                l_client_internal->stage_status = STAGE_STATUS_ERROR;
-                s_stage_status_after(l_client_internal);
+                l_client_pvt->last_error = ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT;
+                l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+                s_stage_status_after(l_client_pvt);
             }
 
         }
@@ -998,10 +1000,11 @@ static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
     log_it(L_WARNING, "STREAM_CTL error %d", a_error);
 
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_stream_ctl_error: l_client_pvt is NULL!");
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
+
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
     } else {
@@ -1022,25 +1025,25 @@ static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
  */
 static void s_stream_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
-    if(!l_client_internal) {
-        log_it(L_ERROR, "m_stream_ctl_response: l_client_internal is NULL!");
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
     log_it(L_DEBUG, "STREAM response %u bytes length recieved", a_data_size);
 //    char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
 //    memcpy(l_response_str, a_data, a_data_size);
 
-    if(l_client_internal->stage == STAGE_STREAM_CONNECTED) { // We are on the right stage
-        l_client_internal->stage_status = STAGE_STATUS_DONE;
-        s_stage_status_after(l_client_internal);
+    if(l_client_pvt->stage == STAGE_STREAM_CONNECTED) { // We are on the right stage
+        l_client_pvt->stage_status = STAGE_STATUS_DONE;
+        s_stage_status_after(l_client_pvt);
     }
     else {
         log_it(L_WARNING, "Expected to be stage STREAM_CONNECTED but current stage is %s (%s)",
                 dap_client_get_stage_str(a_client), dap_client_get_stage_status_str(a_client));
-        l_client_internal->stage_status = STAGE_STATUS_ERROR;
+        l_client_pvt->stage_status = STAGE_STATUS_ERROR;
     }
-    s_stage_status_after(l_client_internal);
+    s_stage_status_after(l_client_pvt);
 }
 
 /**
@@ -1060,8 +1063,11 @@ static void s_stage_stream_streaming(dap_client_t * a_client, void* arg)
  */
 static void s_stream_es_callback_connected(dap_events_socket_t * a_es)
 {
-
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
+        return;
+    }
     s_stream_connected(l_client_pvt);
 }
 
@@ -1076,6 +1082,10 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     log_it(L_INFO, "Stream delete callback");
 
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
+        return;
+    }
 
     a_es->_inheritor = NULL; // To prevent delete in reactor
 
@@ -1108,8 +1118,8 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_es_stream_read: l_client_pvt is NULL!");
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
     switch (l_client_pvt->stage) {
@@ -1158,8 +1168,8 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     //dap_client_pvt_t * l_client_pvt = (l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
-    if(!l_client_pvt) {
-        log_it(L_ERROR, "m_es_stream_write: l_client_pvt is NULL!");
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
         return;
     }
     switch (l_client_pvt->stage) {
@@ -1194,7 +1204,10 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
-    assert( l_client_pvt);
+    if (!dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
+        return;
+    }
 
     char l_errbuf[128];
     l_errbuf[0]='\0';

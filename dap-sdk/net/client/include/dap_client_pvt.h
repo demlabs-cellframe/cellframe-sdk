@@ -117,3 +117,5 @@ int dap_client_pvt_hh_unlock(void);
 void* dap_client_pvt_hh_get(dap_client_pvt_t* a_client_pvt);
 int dap_client_pvt_hh_add(dap_client_pvt_t* a_client_pvt);
 int dap_client_pvt_hh_del(dap_client_pvt_t *a_client_pvt);
+bool dap_client_pvt_check(dap_client_pvt_t* a_client_pvt);
+
