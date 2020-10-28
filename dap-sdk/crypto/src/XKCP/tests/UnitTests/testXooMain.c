@@ -1,7 +1,10 @@
 /*
+The eXtended Keccak Code Package (XKCP)
+https://github.com/XKCP/XKCP
+
 Implementation by Ronny Van Keer, hereby denoted as "the implementer".
 
-For more information, feedback or questions, please refer to our website:
+For more information, feedback or questions, please refer to the Keccak Team website:
 https://keccak.team/
 
 To the extent possible under law, the implementer has waived all copyright
@@ -27,7 +30,6 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #include "testXoofffModes.h"
 #include "testXoodyak.h"
 #include "testXooPerformance.h"
-
 #define MEASURE_PERF
 
 #if defined(EMBEDDED)
@@ -75,32 +77,6 @@ struct
 
 int main( void )
 {
-    
-    testXooSnP();
-    #if !defined(EMBEDDED)
-    printf( "\nSnP OK\n" );
-    #endif
-
-    testXooPlSnP();
-    #if !defined(EMBEDDED)
-    printf( "\nPlSnP OK\n" );
-    #endif
-
-    testXoofff();
-    #if !defined(EMBEDDED)
-    printf( "\nXoofff OK\n" );
-    #endif
-
-    testXoofffModes();
-    #if !defined(EMBEDDED)
-    printf( "\nXoofffModes OK\n" );
-    #endif
-
-    testXoodyak();
-    #if !defined(EMBEDDED)
-    printf( "\nXoodyak OK\n" );
-    #endif
-
     #if !defined(EMBEDDED)
     testXooPerformance();
     #endif

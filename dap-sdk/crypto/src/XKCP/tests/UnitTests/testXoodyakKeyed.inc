@@ -1,7 +1,10 @@
 /*
+The eXtended Keccak Code Package (XKCP)
+https://github.com/XKCP/XKCP
+
 Implementation by Ronny Van Keer, hereby denoted as "the implementer".
 
-For more information, feedback or questions, please refer to our website:
+For more information, feedback or questions, please refer to the Keccak Team website:
 https://keccak.team/
 
 To the extent possible under law, the implementer has waived all copyright
@@ -41,13 +44,13 @@ static void testXoodyakKeyed0ne(	Xoodyak_Instance * global, FILE * f,
     uint8_t PPbuffer[Xoodyak_DataSize+3];
     uint8_t Cbuffer[Xoodyak_DataSize+3];
 
-    #ifdef OUTPUT
+    #if defined(UT_OUTPUT) || defined(UT_VERBOSE)
     fprintf( f, "*** Xoodyak( keyVariant %u, ratchet %u, SqueezeKey %u, nbrMessagesInSession %u ), with:\n", keyVariant, ratchet, squeezeKLen, nbrMessagesInSession );
-    displayByteString(f, "> K", K, Klen);
-    displayByteString(f, "> ID", ID, IDlen);
-    displayByteString(f, "> N", N, Nlen);
-    displayByteString(f, "> A (metadata)", AD, (unsigned int)ADlen);
-    displayByteString(f, "> I (plaintext)", P, (unsigned int)Plen);
+    UT_displayByteString(f, "> K", K, Klen);
+    UT_displayByteString(f, "> ID", ID, IDlen);
+    UT_displayByteString(f, "> N", N, Nlen);
+    UT_displayByteString(f, "> A (metadata)", AD, (unsigned int)ADlen);
+    UT_displayByteString(f, "> I (plaintext)", P, (unsigned int)Plen);
     #endif
 
 	switch (keyVariant)
@@ -87,11 +90,11 @@ static void testXoodyakKeyed0ne(	Xoodyak_Instance * global, FILE * f,
 			Xoodyak_Ratchet(&encrypt);
 		}
 
-	    #ifdef OUTPUT
-	    displayByteString(f, "< O (ciphertext)", Cbuffer + align, (unsigned int)Plen);
-	    displayByteString(f, "< T (tag)", tag + align, Xoodyak_TagLength);
+	    #if defined(UT_OUTPUT) || defined(UT_VERBOSE)
+	    UT_displayByteString(f, "< O (ciphertext)", Cbuffer + align, (unsigned int)Plen);
+	    UT_displayByteString(f, "< T (tag)", tag + align, Xoodyak_TagLength);
 		if (squeezeKLen != 0) {
-		    displayByteString(f, "< K (new key)", newKey, squeezeKLen);
+		    UT_displayByteString(f, "< K (new key)", newKey, squeezeKLen);
 		}
 	    fprintf(f, "\n");
 	    #endif
@@ -109,9 +112,9 @@ static void testXoodyakKeyed0ne(	Xoodyak_Instance * global, FILE * f,
 			Xoodyak_Ratchet(&decrypt);
 		}
 
-	    assert(!memcmp( newKey, newKeyPrime, squeezeKLen ), "The new keys do not match.");
-	    assert(!memcmp( P, PPbuffer + align, Plen ), "The plaintexts do not match.");
-	    assert(!memcmp( tag + align, tagPrime + align, Xoodyak_TagLength ), "The tags do not match.");
+	    UT_assert(!memcmp( newKey, newKeyPrime, squeezeKLen ), "The new keys do not match.");
+	    UT_assert(!memcmp( P, PPbuffer + align, Plen ), "The plaintexts do not match.");
+	    UT_assert(!memcmp( tag + align, tagPrime + align, Xoodyak_TagLength ), "The tags do not match.");
 
 		if (squeezeKLen != 0) {
 		    Xoodyak_Absorb( global, newKey, squeezeKLen);
@@ -143,13 +146,14 @@ static int testXoodyakKeyed( const char *file, const uint8_t *expected )
     uint8_t Pbuffer[Xoodyak_DataSize+3];
     uint8_t Abuffer[Xoodyak_DataSize+3];
     uint8_t *ID;
-    uint8_t c;
+    unsigned int c;
     FILE *f = NULL;
 
-    #ifdef OUTPUT
+    #if defined(UT_OUTPUT)
     f = fopen(file, "w");
-    assert(f != NULL, "Could not open file");
-    PRINTS("Xoodyak keyed ");
+    UT_assert(f != NULL, "Could not open file");
+    #elif defined(UT_VERBOSE)
+    f = stdout;
     #endif
 
 	for (align = 0; align < 4; ++align) {
@@ -163,9 +167,9 @@ static int testXoodyakKeyed( const char *file, const uint8_t *expected )
 	    for( Klen=16; Klen<=Xoodyak_MaxKeySize; Klen++)
 	    for( Nlen=0; Nlen<=Xoodyak_MaxNonceSize; Nlen += (Klen == 16) ? 1 : Xoodyak_MaxNonceSize)
 	    {
-	        generateSimpleRawMaterial(K, Klen, (uint8_t)(Klen+Nlen+0x12), 3),
-	        generateSimpleRawMaterial(N, Nlen, (uint8_t)(Klen+Nlen+0x45), 6),
-	        generateSimpleRawMaterial(&c, 1, (uint8_t)(Klen+Nlen+0x78), 11),
+	        generateSimpleRawMaterial(K, Klen, (uint8_t)(Klen+Nlen+0x12), 3);
+	        generateSimpleRawMaterial(N, Nlen, (uint8_t)(Klen+Nlen+0x45), 6);
+	        c = 0x1234 + keyVariant + 3*ratchet + 5*newKlen + 9*Nlen;
 
 			IDlen = ((Klen <= 16) || (keyVariant == 2)) ? 0 : (c % (Klen - (16 - 1)));
 			ID = K + Klen - IDlen;
@@ -186,10 +190,10 @@ static int testXoodyakKeyed( const char *file, const uint8_t *expected )
 	        {
 	            Alen = Alengths[Aleni];
 
-	            generateSimpleRawMaterial(K, Klen, (uint8_t)(0x23+Mlen+Alen), 4),
-	            generateSimpleRawMaterial(N, Nlen, (uint8_t)(0x56+Mlen+Alen), 7),
-	            generateSimpleRawMaterial(Abuffer + align, Alen, (uint8_t)(0xAB+Mlen+Alen), 3),
-	            generateSimpleRawMaterial(Pbuffer + align, Mlen, (uint8_t)(0xCD+Mlen+Alen), 4),
+	            generateSimpleRawMaterial(K, Klen, (uint8_t)(0x23+Mlen+Alen), 4);
+	            generateSimpleRawMaterial(N, Nlen, (uint8_t)(0x56+Mlen+Alen), 7);
+	            generateSimpleRawMaterial(Abuffer + align, Alen, (uint8_t)(0xAB+Mlen+Alen), 3);
+	            generateSimpleRawMaterial(Pbuffer + align, Mlen, (uint8_t)(0xCD+Mlen+Alen), 4);
 		        testXoodyakKeyed0ne(&global, f, K, Klen, NULL, 0, N, Nlen, Pbuffer + align, Mlen, Abuffer + align, Alen, nbrMessagesInSession, keyVariant, ratchet, newKlen, align);
 	        }
 	    }
@@ -208,26 +212,25 @@ static int testXoodyakKeyed( const char *file, const uint8_t *expected )
 	        {
 	            Mlen = Mlengths[Mleni];
 
-	            generateSimpleRawMaterial(K, Klen, (uint8_t)(0x34+Mlen+Alen), 5),
-	            generateSimpleRawMaterial(N, Nlen, (uint8_t)(0x45+Mlen+Alen), 6),
-	            generateSimpleRawMaterial(Abuffer + align, Alen, (uint8_t)(0x01+Mlen+Alen), 5),
-	            generateSimpleRawMaterial(Pbuffer + align, Mlen, (uint8_t)(0x23+Mlen+Alen), 6),
+	            generateSimpleRawMaterial(K, Klen, (uint8_t)(0x34+Mlen+Alen), 5);
+	            generateSimpleRawMaterial(N, Nlen, (uint8_t)(0x45+Mlen+Alen), 6);
+	            generateSimpleRawMaterial(Abuffer + align, Alen, (uint8_t)(0x01+Mlen+Alen), 5);
+	            generateSimpleRawMaterial(Pbuffer + align, Mlen, (uint8_t)(0x23+Mlen+Alen), 6);
 		        testXoodyakKeyed0ne(&global, f, K, Klen, NULL, 0, N, Nlen, Pbuffer + align, Mlen, Abuffer + align, Alen, nbrMessagesInSession, keyVariant, ratchet, newKlen, align);
 	        }
 	    }
 
 	    {
 			Xoodyak_Squeeze(&global, checksum, sizeof(checksum));
-	        #ifdef OUTPUT
-	        displayByteString(f, "+++ Global checksum", checksum, sizeof(checksum));
-	        fclose(f);
-	        #endif
-	        assert(!memcmp(expected, checksum, sizeof(checksum)), "The global checksum is incorrect.");
+            #if defined(UT_OUTPUT) || defined(UT_VERBOSE)
+            UT_displayByteString(f, "+++ Global checksum", checksum, sizeof(checksum));
+            #if defined(UT_OUTPUT)
+            fclose(f);
+            #endif
+            #endif
+	        UT_assert(!memcmp(expected, checksum, sizeof(checksum)), "The global checksum is incorrect.");
 	    }
 
-	    #ifdef OUTPUT
-	    PRINTS("v\n");
-	    #endif
 	}
 
     return 0;
