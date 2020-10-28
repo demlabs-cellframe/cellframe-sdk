@@ -1476,6 +1476,25 @@ int com_ping(int argc, char** argv, void *arg_func, char **str_reply)
 }
 
 /**
+ * @brief com_version
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return
+ */
+int com_version(int argc, char ** argv, void *arg_func, char **str_reply)
+{
+    (void) argc;
+    (void) argv;
+    (void) arg_func;
+    dap_chain_node_cli_set_reply_text(str_reply,
+            "%s version %s\n", dap_get_appname(), DAP_VERSION );
+    return 0;
+}
+
+
+/**
  * Help command
  */
 int com_help(int argc, char ** argv, void *arg_func, char **str_reply)
