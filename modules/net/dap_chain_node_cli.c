@@ -353,8 +353,8 @@ static void* thread_one_client_func(void *args)
         }
     }
     // close connection
-    //int cs = closesocket(newsockfd);
-    //log_it(L_INFO, "close connection=%d sockfd=%d", cs, newsockfd);
+    int cs = closesocket(newsockfd);
+    log_it(L_INFO, "close connection=%d sockfd=%d", cs, newsockfd);
     return NULL;
 }
 
