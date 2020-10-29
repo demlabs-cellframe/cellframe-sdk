@@ -40,6 +40,7 @@
 #else
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/stat.h>
 #endif
 
 #include "dap_common.h"
@@ -52,12 +53,20 @@
 
 static int s_status;
 
-//callback function to receive http data
-static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_cmd)
+//staic function to receive http data
+static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_cli_cmd_state_t *l_cmd)
 {
     ssize_t l_recv_len = recv(*socket, &l_cmd->cmd_res[l_cmd->cmd_res_cur], DAP_CLI_HTTP_RESPONSE_SIZE_MAX, 0);
+    if (l_recv_len == 0) {
+        s_status = DAP_CLI_ERROR_INCOMPLETE;
+        return;
+    }
     if (l_recv_len == -1) {
-        s_status = DAP_CLI_ERROR_SOCKET;
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            s_status = DAP_CLI_ERROR_TIMEOUT;
+        } else {
+            s_status = DAP_CLI_ERROR_SOCKET;
+        }
         return;
     }
     l_cmd->cmd_res_cur +=(size_t) l_recv_len;
@@ -69,16 +78,10 @@ static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_c
                 l_cmd->cmd_res_len = atoi(l_str_ptr + strlen(l_cont_len_str));
                 if (l_cmd->cmd_res_len == 0) {
                     s_status = DAP_CLI_ERROR_FORMAT;
+                    break;
                 }
                 else {
                     s_status++;
-                    // resize buffer for received data
-                    if (l_cmd->cmd_res_len > l_cmd->cmd_res_len_max) {
-                        size_t l_len_max = l_cmd->cmd_res_len_max;
-                        l_cmd->cmd_res_len_max = l_cmd->cmd_res_len + 1;
-                        l_cmd->cmd_res = DAP_REALLOC(l_cmd->cmd_res, l_cmd->cmd_res_len_max);
-                        memset(l_cmd->cmd_res + l_len_max, 0, l_cmd->cmd_res_len_max - l_len_max);
-                    }
                 }
             } else {
                 break;
@@ -102,6 +105,8 @@ static void dap_app_cli_http_read(uint64_t *socket, dap_app_cli_cmd_state_t *l_c
             if (l_cmd->cmd_res_cur == l_cmd->cmd_res_len) {
                 l_cmd->cmd_res[l_cmd->cmd_res_cur] = 0;
                 s_status = 0;
+            } else {
+                s_status = DAP_CLI_ERROR_FORMAT;
             }
         } break;
     }
@@ -125,6 +130,8 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     SOCKET l_socket = socket(AF_INET, SOCK_STREAM, 0);
     setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
     setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
+    DWORD l_to = DAP_CLI_HTTP_TIMEOUT;
+    setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&l_to, sizeof(l_to));
 #else
     if (!a_socket_path) {
         return NULL;
@@ -134,8 +141,10 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     if (l_socket < 0) {
         return NULL;
     }
+    struct timeval l_to = {DAP_CLI_HTTP_TIMEOUT, 0};
     setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
     setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
+    setsockopt(l_socket, SOL_SOCKET, SO_RCVTIMEO, (void *)&l_to, sizeof(l_to));
 #endif
     // connect
     int l_addr_len;
@@ -160,7 +169,7 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
         closesocket(l_socket);
         return NULL;
     }
-    uint64_t *l_ret = DAP_NEW(uint64_t);
+    dap_app_cli_connect_param_t *l_ret = DAP_NEW(dap_app_cli_connect_param_t);
     *l_ret = l_socket;
     return l_ret;
 }
@@ -188,7 +197,6 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
         assert(0);
         return -1;
     }
-    s_status = 1;
     a_cmd->cmd_res = DAP_NEW_Z_SIZE(char, DAP_CLI_HTTP_RESPONSE_SIZE_MAX);
     a_cmd->cmd_res_cur = 0;
     dap_string_t *l_cmd_data = dap_string_new(a_cmd->cmd_name);
@@ -218,10 +226,11 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
 
     //wait for command execution
     time_t l_start_time = time(NULL);
+    s_status = 1;
     while(s_status > 0) {
         dap_app_cli_http_read(a_socket, a_cmd);
         if (time(NULL) - l_start_time > DAP_CLI_HTTP_TIMEOUT)
-            return DAP_CLI_ERROR_TIMEOUT;
+            s_status = DAP_CLI_ERROR_TIMEOUT;
     }
     // process result
     if (a_cmd->cmd_res && !s_status) {

@@ -32,6 +32,7 @@
 #define DAP_CLI_ERROR_FORMAT    -1
 #define DAP_CLI_ERROR_TIMEOUT   -2
 #define DAP_CLI_ERROR_SOCKET    -3
+#define DAP_CLI_ERROR_INCOMPLETE -4
 
 // connection description
 typedef uint64_t dap_app_cli_connect_param_t;
