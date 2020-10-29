@@ -78,6 +78,7 @@ static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_c
                 l_cmd->cmd_res_len = atoi(l_str_ptr + strlen(l_cont_len_str));
                 if (l_cmd->cmd_res_len == 0) {
                     s_status = DAP_CLI_ERROR_FORMAT;
+                    break;
                 }
                 else {
                     s_status++;
@@ -104,6 +105,8 @@ static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_c
             if (l_cmd->cmd_res_cur == l_cmd->cmd_res_len) {
                 l_cmd->cmd_res[l_cmd->cmd_res_cur] = 0;
                 s_status = 0;
+            } else {
+                s_status = DAP_CLI_ERROR_FORMAT;
             }
         } break;
     }
@@ -194,7 +197,6 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
         assert(0);
         return -1;
     }
-    s_status = 1;
     a_cmd->cmd_res = DAP_NEW_Z_SIZE(char, DAP_CLI_HTTP_RESPONSE_SIZE_MAX);
     a_cmd->cmd_res_cur = 0;
     dap_string_t *l_cmd_data = dap_string_new(a_cmd->cmd_name);
@@ -224,6 +226,7 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
 
     //wait for command execution
     time_t l_start_time = time(NULL);
+    s_status = 1;
     while(s_status > 0) {
         dap_app_cli_http_read(a_socket, a_cmd);
         if (time(NULL) - l_start_time > DAP_CLI_HTTP_TIMEOUT)
