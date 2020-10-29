@@ -69,7 +69,6 @@ static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_c
         }
         return;
     }
-    printf("%ld bytes recieved\n", l_recv_len);
     l_cmd->cmd_res_cur +=(size_t) l_recv_len;
     switch (s_status) {
         case 1: {   // Find content length
@@ -82,13 +81,6 @@ static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_c
                 }
                 else {
                     s_status++;
-                    // resize buffer for received data
-                    if (l_cmd->cmd_res_len > l_cmd->cmd_res_len_max) {
-                        size_t l_len_max = l_cmd->cmd_res_len_max;
-                        l_cmd->cmd_res_len_max = l_cmd->cmd_res_len + 1;
-                        l_cmd->cmd_res = DAP_REALLOC(l_cmd->cmd_res, l_cmd->cmd_res_len_max);
-                        memset(l_cmd->cmd_res + l_len_max, 0, l_cmd->cmd_res_len_max - l_len_max);
-                    }
                 }
             } else {
                 break;
