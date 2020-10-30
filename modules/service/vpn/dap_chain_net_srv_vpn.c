@@ -1279,6 +1279,8 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_INFO, "Usage inactivation: switch off packet input channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        if (l_usage->client)
+            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         return;
     }
 

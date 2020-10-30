@@ -47,7 +47,7 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_callback_data_t callback_requested;
 
     // Receipt first sign successfull
-    dap_chain_net_srv_callback_data_t callback_receipt_first_success;
+    dap_chain_net_srv_callback_data_t callback_response_success;
 
     // Response error
     dap_chain_net_srv_callback_data_t callback_response_error;

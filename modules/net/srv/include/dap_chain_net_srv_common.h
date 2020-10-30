@@ -33,6 +33,8 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 #include "dap_chain_wallet.h"
+#include "dap_timerfd.h"
+#include "dap_chain_net_srv_stream_session.h"
 
 
 
@@ -89,6 +91,13 @@ typedef struct dap_chain_net_srv_price
     struct dap_chain_net_srv_price * prev;
 } dap_chain_net_srv_price_t;
 
+typedef struct dap_chain_net_srv_grace {
+    dap_stream_worker_t *stream_worker;
+    dap_stream_ch_t *ch;
+    dap_chain_net_srv_usage_t *usage;
+    dap_timerfd_t *timer;
+    dap_stream_ch_chain_net_srv_pkt_request_t *request;
+} dap_chain_net_srv_grace_t;
 
 // Ch pkt types
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST                       0x01

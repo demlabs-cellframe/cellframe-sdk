@@ -551,7 +551,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         l_srv->callback_requested = a_callback_request;
-        l_srv->callback_receipt_first_success = a_callback_response_success;
+        l_srv->callback_response_success = a_callback_response_success;
         l_srv->callback_response_error = a_callback_response_error;
         l_srv->callback_receipt_next_success = a_callback_receipt_next_success;
         l_sdata = DAP_NEW_Z(service_list_t);
