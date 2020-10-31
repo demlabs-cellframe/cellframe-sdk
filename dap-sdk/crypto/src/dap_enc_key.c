@@ -643,7 +643,7 @@ dap_enc_key_t* dap_enc_key_dup(dap_enc_key_t * a_key)
         return NULL;
     }
     dap_enc_key_t *l_ret = dap_enc_key_new(a_key->type);
-    if (l_ret->priv_key_data_size) {
+    if (a_key->priv_key_data_size) {
         l_ret->priv_key_data = DAP_NEW_Z_SIZE(byte_t, a_key->priv_key_data_size);
         l_ret->priv_key_data_size = a_key->priv_key_data_size;
         memcpy(l_ret->priv_key_data, a_key->priv_key_data, a_key->priv_key_data_size);
