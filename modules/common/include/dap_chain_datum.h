@@ -56,9 +56,9 @@
 #define DAP_CHAIN_DATUM_CA                  0x0c00
 
 /// Token
-/// Simple token decl
 #define DAP_CHAIN_DATUM_TOKEN_DECL           0xf000
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
+#define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
 
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff
 
@@ -124,6 +124,7 @@ static inline const char * dap_chain_datum_type_id_to_str(uint16_t a_type_id){
         case DAP_CHAIN_DATUM_CA:
         case DAP_CHAIN_DATUM_TOKEN_DECL:
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+        case DAP_CHAIN_DATUM_TOKEN_DISMISSAL:
         case DAP_CHAIN_DATUM_CUSTOM:
             return c_datum_type_str[a_type_id];
         default:

@@ -58,6 +58,14 @@ typedef struct dap_chain_datum_token{
             dap_chain_addr_t premine_address;
             uint32_t flags;
         } DAP_ALIGN_PACKED header_public;
+        // Private token declarations, with flags, manipulations and updates
+        struct {
+            uint128_t padding0;
+            uint128_t padding1;
+            byte_t padding2[sizeof (dap_chain_addr_t)];
+            uint32_t padding3;
+        } DAP_ALIGN_PACKED header_wrapped;
+
     };
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
@@ -71,6 +79,10 @@ typedef struct dap_chain_datum_token{
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE 0x0003
 // Open token with now ownership
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC          0x0004
+
+// Wrapped token declaration for interchain communications
+#define DAP_CHAIN_DATUM_TOKEN_WRAPPED              0x0010
+#define DAP_CHAIN_DATUM_TOKEN_WRAPPED_UPDATE       0x0011
 
 
 // Macros for token flags
@@ -193,6 +205,9 @@ typedef struct dap_chain_datum_token_tsd{
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE       0x0024
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR        0x0025
 
+// External chain address
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_EXT_CHAIN_ADDR                 0x0100
+
 
 // Token emission
 typedef struct dap_chain_datum_token_emission{
@@ -229,10 +244,30 @@ typedef struct dap_chain_datum_token_emission{
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO              0x02
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_WRAPPED           0x05
 extern const char *c_dap_chain_datum_token_emission_type_str[];
 
-/// TDS op funcs
-///
+
+// Token dismissal
+typedef struct dap_chain_datum_token_dismissal{
+    struct  {
+        uint8_t version;
+        uint8_t type; // Dismissan Type
+        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+        dap_chain_hash_fast_t tx_out; // Tx hash with outgoing coin
+        uint16_t tx_out_idx; // Tx out index
+        uint128_t tx_out_value; // Tx value
+    } DAP_ALIGN_PACKED hdr;
+    byte_t tsd[]; // TSD sections
+} DAP_ALIGN_PACKED dap_chain_datum_token_dismissal_t;
+
+// Different dismissal type
+#define DAP_CHAIN_DATUM_TOKEN_DISMISSAL_TYPE_GENERAL          0x01
+
+
+
+// TSD op funcs
+//
 
 dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, const void * a_data, size_t a_data_size);
 dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);

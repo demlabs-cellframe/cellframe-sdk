@@ -123,6 +123,12 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
 endif()
 
+# Enable interchain exchange with BTC-like networks
+if (CELLFRAME_MODULES MATCHES "inter-btc")
+    message("[+] Module 'inter-btc'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_inter_btc )
+endif()
+
 # Enable service for dynamic modules
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")
