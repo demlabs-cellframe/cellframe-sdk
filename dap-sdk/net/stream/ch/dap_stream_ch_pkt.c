@@ -87,7 +87,7 @@ size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_
     l_msg->ch = a_ch;
     l_msg->ch_pkt_type = a_type;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
-    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_msg->flags_set = DAP_ESOCK_READY_TO_WRITE;
     l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
     if (l_data_size <0 ){
         log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
@@ -120,7 +120,7 @@ size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch
     l_msg->ch = a_ch;
     l_msg->ch_pkt_type = a_type;
     l_msg->data = DAP_NEW_SIZE(void,a_data_size);
-    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_msg->flags_set = DAP_ESOCK_READY_TO_WRITE;
     l_msg->data_size = a_data_size;
     memcpy( l_msg->data, a_data, a_data_size);
     int l_ret= dap_events_socket_queue_ptr_send(a_worker->queue_ch_io , l_msg );

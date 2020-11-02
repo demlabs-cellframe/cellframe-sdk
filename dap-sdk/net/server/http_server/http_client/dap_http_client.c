@@ -517,7 +517,7 @@ void dap_http_client_write( dap_events_socket_t * cl, void *arg )
                     log_it( L_DEBUG, "Nothing to output" );
                     l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                     dap_events_socket_set_writable_unsafe( cl, false );
-                    cl->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    cl->flags |= DAP_ESOCK_SIGNAL_CLOSE;
                 }
                 dap_events_socket_set_readable_unsafe( cl, true );
             } else {

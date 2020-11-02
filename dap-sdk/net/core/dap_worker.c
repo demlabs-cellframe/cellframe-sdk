@@ -100,10 +100,10 @@ void *dap_worker_thread(void *arg)
     l_worker->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->poll = DAP_NEW_Z_SIZE(struct pollfd,l_worker->poll_count_max*sizeof (struct pollfd));
     l_worker->poll_esocket = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_worker->poll_count_max*sizeof (dap_events_socket_t*));
+    log_it(L_INFO, "Worker #%d started with poll() and assigned to dedicated CPU unit", l_worker->id );
 #else
 #error "Unimplemented socket array for this platform"
 #endif
-
 
     l_worker->queue_es_new = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_add_es_callback);
     l_worker->queue_es_delete = dap_events_socket_create_type_queue_ptr_unsafe( l_worker, s_queue_delete_es_callback);
@@ -179,7 +179,7 @@ void *dap_worker_thread(void *arg)
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                             l_cur->buf_out_size = 0;
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_cur->flags |= DAP_ESOCK_SIGNAL_CLOSE;
                             l_flag_error = l_flag_read = l_flag_write = false;
                             l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
                             log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
@@ -200,7 +200,7 @@ void *dap_worker_thread(void *arg)
                 dap_events_socket_set_readable_unsafe(l_cur, false);
                 dap_events_socket_set_writable_unsafe(l_cur, false);
                 l_cur->buf_out_size = 0;
-                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                l_cur->flags |= DAP_ESOCK_SIGNAL_CLOSE;
                 l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
@@ -313,11 +313,11 @@ void *dap_worker_thread(void *arg)
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK){ // Socket is blocked
                             log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
                             dap_events_socket_set_readable_unsafe(l_cur, false);
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_cur->flags |= DAP_ESOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
                     }
-                    else if (  (! l_flag_rdhup || !l_flag_error ) && (!(l_cur->flags& DAP_SOCK_CONNECTING )) ) {
+                    else if (  (! l_flag_rdhup || !l_flag_error ) && (!(l_cur->flags& DAP_ESOCK_CONNECTING )) ) {
                         log_it(L_WARNING, "EPOLLIN triggered but nothing to read");
                         dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
@@ -328,7 +328,7 @@ void *dap_worker_thread(void *arg)
              //   log_it(L_DEBUG,"Alarmed write flag for remote %s", l_cur->remote_addr_str[0]?l_cur->remote_addr_str:"(null)");
 
             // If its outgoing connection
-            if ( l_flag_write &&  ! l_cur->server &&  l_cur->flags& DAP_SOCK_CONNECTING &&
+            if ( l_flag_write &&  ! l_cur->server &&  l_cur->flags& DAP_ESOCK_CONNECTING &&
                  (l_cur->type == DESCRIPTOR_TYPE_SOCKET || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
                 int l_error = 0;
                 socklen_t l_error_len = sizeof(l_error);
@@ -346,7 +346,7 @@ void *dap_worker_thread(void *arg)
                     log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
                 }else{
                    // log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
-                    l_cur->flags ^= DAP_SOCK_CONNECTING;
+                    l_cur->flags ^= DAP_ESOCK_CONNECTING;
                     if (l_cur->callbacks.connected_callback)
                         l_cur->callbacks.connected_callback(l_cur);
                     dap_events_socket_worker_poll_update_unsafe(l_cur);
@@ -354,14 +354,14 @@ void *dap_worker_thread(void *arg)
             }
 
             // Socket is ready to write and not going to close
-            if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
-                 (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
+            if(   ( l_flag_write&&(l_cur->flags & DAP_ESOCK_READY_TO_WRITE) ) ||
+                 (    (l_cur->flags & DAP_ESOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_ESOCK_SIGNAL_CLOSE) ) ) {
                 //log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
 
                 if ( l_cur->worker ){ // esocket wasn't unassigned in callback, we need some other ops with it
-                    if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
+                    if(l_cur->flags & DAP_ESOCK_READY_TO_WRITE) {
 
                         static const uint32_t buf_out_zero_count_max = 2;
                         //l_cur->buf_out[l_cur->buf_out_size] = 0;
@@ -409,7 +409,7 @@ void *dap_worker_thread(void *arg)
                     if(l_bytes_sent < 0) {
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
                             log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_cur->flags |= DAP_ESOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
                     }else{
@@ -432,7 +432,7 @@ void *dap_worker_thread(void *arg)
                 dap_events_socket_set_writable_unsafe(l_cur,true);
             }
 
-            if ((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close)
+            if ((l_cur->flags & DAP_ESOCK_SIGNAL_CLOSE) && !l_cur->no_close)
             {
                 if (l_cur->buf_out_size == 0) {
                     log_it(L_INFO, "Process signal to close %s, sock %u [thread %u]", l_cur->hostaddr, l_cur->socket, l_tn);
@@ -541,7 +541,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 {
     dap_events_socket_t * l_esocket = (dap_events_socket_t*) a_arg;
     if (dap_events_socket_check_unsafe(a_es->worker,l_esocket)){
-        ((dap_events_socket_t*)a_arg)->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
+        ((dap_events_socket_t*)a_arg)->flags |= DAP_ESOCK_SIGNAL_CLOSE; // Send signal to socket to kill
     }else
         log_it(L_INFO, "While we were sending the delete() message, esocket %p has been disconnected", l_esocket);
 }
@@ -556,7 +556,7 @@ static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_a
     dap_worker_msg_reassign_t * l_msg = (dap_worker_msg_reassign_t*) a_arg;
     dap_events_socket_t * l_es_reassign = l_msg->esocket;
     if (dap_events_socket_check_unsafe(a_es->worker,l_es_reassign)){
-        if( l_es_reassign->was_reassigned && l_es_reassign->flags & DAP_SOCK_REASSIGN_ONCE) {
+        if( l_es_reassign->was_reassigned && l_es_reassign->flags & DAP_ESOCK_REASSIGN_ONCE) {
             log_it(L_INFO, "Reassgment request with DAP_SOCK_REASSIGN_ONCE allowed only once, declined reassigment from %u to %u",
                    l_es_reassign->worker->id, l_msg->worker_new->id);
 
@@ -612,25 +612,25 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
         DAP_DELETE(l_msg);
         return;
     }
-    if (l_msg->flags_set & DAP_SOCK_CONNECTING)
-        if (!  (l_msg_es->flags & DAP_SOCK_CONNECTING) ){
-            l_msg_es->flags |= DAP_SOCK_CONNECTING;
+    if (l_msg->flags_set & DAP_ESOCK_CONNECTING)
+        if (!  (l_msg_es->flags & DAP_ESOCK_CONNECTING) ){
+            l_msg_es->flags |= DAP_ESOCK_CONNECTING;
             dap_events_socket_worker_poll_update_unsafe(l_msg_es);
         }
 
-    if (l_msg->flags_set & DAP_SOCK_CONNECTING)
-        if (!  (l_msg_es->flags & DAP_SOCK_CONNECTING) ){
-            l_msg_es->flags ^= DAP_SOCK_CONNECTING;
+    if (l_msg->flags_set & DAP_ESOCK_CONNECTING)
+        if (!  (l_msg_es->flags & DAP_ESOCK_CONNECTING) ){
+            l_msg_es->flags ^= DAP_ESOCK_CONNECTING;
             dap_events_socket_worker_poll_update_unsafe(l_msg_es);
         }
 
-    if (l_msg->flags_set & DAP_SOCK_READY_TO_READ)
+    if (l_msg->flags_set & DAP_ESOCK_READY_TO_READ)
         dap_events_socket_set_readable_unsafe(l_msg_es, true);
-    if (l_msg->flags_unset & DAP_SOCK_READY_TO_READ)
+    if (l_msg->flags_unset & DAP_ESOCK_READY_TO_READ)
         dap_events_socket_set_readable_unsafe(l_msg_es, false);
-    if (l_msg->flags_set & DAP_SOCK_READY_TO_WRITE)
+    if (l_msg->flags_set & DAP_ESOCK_READY_TO_WRITE)
         dap_events_socket_set_writable_unsafe(l_msg_es, true);
-    if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
+    if (l_msg->flags_unset & DAP_ESOCK_READY_TO_WRITE)
         dap_events_socket_set_writable_unsafe(l_msg_es, false);
     if (l_msg->data_size && l_msg->data)
         dap_events_socket_write_unsafe(l_msg_es, l_msg->data,l_msg->data_size);
@@ -653,7 +653,7 @@ static void s_socket_all_check_activity( void * a_arg)
 
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
         if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  || l_es->type == DESCRIPTOR_TYPE_SOCKET_UDP ){
-            if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
+            if ( !(l_es->flags & DAP_ESOCK_SIGNAL_CLOSE) &&
                  (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {
                 log_it( L_INFO, "Socket %u timeout (diff %u ), closing...", l_es->socket, l_curtime -  (time_t)l_es->last_time_active - s_connection_timeout );
                 if (l_es->callbacks.error_callback) {
@@ -708,9 +708,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     a_worker->poll[a_worker->poll_count].fd = a_esocket->socket;
     a_esocket->poll_index = a_worker->poll_count;
     a_worker->poll[a_worker->poll_count].events = a_esocket->poll_base_flags;
-    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+    if( a_esocket->flags & DAP_ESOCK_READY_TO_READ )
         a_worker->poll[a_worker->poll_count].events |= POLLIN;
-    if( (a_esocket->flags & DAP_SOCK_READY_TO_WRITE) || (a_esocket->flags & DAP_SOCK_CONNECTING) )
+    if( (a_esocket->flags & DAP_ESOCK_READY_TO_WRITE) || (a_esocket->flags & DAP_ESOCK_CONNECTING) )
         a_worker->poll[a_worker->poll_count].events |= POLLOUT;
 
 

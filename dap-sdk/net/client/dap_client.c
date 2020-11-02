@@ -314,13 +314,15 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
         return;
     }
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-
     assert(l_client_pvt);
+
+    log_it(L_DEBUG,"Client %p go to stage %s", a_client, dap_client_stage_str(a_stage_target) );
 
     struct go_stage_arg *l_stage_arg = DAP_NEW_Z(struct go_stage_arg);
     l_stage_arg->stage_end_callback = a_stage_end_callback;
     l_stage_arg->stage_target = a_stage_target;
     l_stage_arg->client_pvt = l_client_pvt;
+
     dap_worker_exec_callback_on(l_client_pvt->worker, s_go_stage_on_client_worker_unsafe, l_stage_arg);
 }
 

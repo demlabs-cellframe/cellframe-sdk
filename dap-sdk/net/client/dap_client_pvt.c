@@ -331,8 +331,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     };//
                     a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
                             a_client_pvt->stream_socket, &l_s_callbacks);
-                    a_client_pvt->stream_es->flags |= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should ar WRITE flag
-
+                    a_client_pvt->stream_es->flags = DAP_ESOCK_CONNECTING ; // To catch non-blocking error when connecting we should ar WRITE flag
                     a_client_pvt->stream_es->_inheritor = a_client_pvt;
                     a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
                     assert(a_client_pvt->stream);
@@ -1218,7 +1217,7 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 
     log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
 
-    l_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    l_client_pvt->stream_es->flags |= DAP_ESOCK_SIGNAL_CLOSE;
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

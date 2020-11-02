@@ -68,11 +68,11 @@
 #endif
 
 #define BIT( x ) ( 1 << x )
-#define DAP_SOCK_READY_TO_READ     BIT( 0 )
-#define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
-#define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
-#define DAP_SOCK_CONNECTING         BIT( 3 ) // When connection happens this flag is armed for outgoing connections until its establish the connection
-#define DAP_SOCK_REASSIGN_ONCE     BIT( 4 )   // This usable for FlowControl to prevent multiple reassigment
+#define DAP_ESOCK_READY_TO_READ     BIT( 0 )
+#define DAP_ESOCK_READY_TO_WRITE    BIT( 1 )
+#define DAP_ESOCK_SIGNAL_CLOSE      BIT( 2 )
+#define DAP_ESOCK_CONNECTING        BIT( 3 ) // When connection happens this flag is armed for outgoing connections until its establish the connection
+#define DAP_ESOCK_REASSIGN_ONCE     BIT( 4 )   // This usable for FlowControl to prevent multiple reassigment
 
 // If set - queue limited to sizeof(void*) size of data transmitted
 #define DAP_SOCK_QUEUE_PTR         BIT( 8 )
@@ -139,9 +139,6 @@ typedef struct dap_events_socket {
     int fd2;
 #endif
     dap_events_desc_type_t type;
-    // Related sockets (be careful - possible problems, delete them before )
-    dap_events_socket_t ** workers_es; // If not NULL - on every worker must be present
-    size_t workers_es_size;           //  events socket with same socket
 
     // Flags. TODO  - rework in bool fields
     uint32_t  flags;
@@ -162,7 +159,6 @@ typedef struct dap_events_socket {
 
     uint8_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
     size_t buf_out_size; // size of data that is in the output buffer
-    dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
     char hostaddr[1024]; // Address
@@ -195,11 +191,13 @@ typedef struct dap_events_socket {
     time_t last_time_active;
     time_t last_ping_request;
 
-    void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
     struct dap_events_socket * me; // pointer on itself
 
     UT_hash_handle hh;
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
+
+    void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
+    byte_t _pvt[]; // Private section
 } dap_events_socket_t; // Node of bidirectional list of clients
 
 int dap_events_socket_init(); //  Init clients module

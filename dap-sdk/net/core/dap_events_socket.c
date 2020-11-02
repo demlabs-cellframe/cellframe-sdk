@@ -53,6 +53,20 @@
 
 #define LOG_TAG "dap_events_socket"
 
+typedef struct dap_events_socket_pvt
+{
+    dap_events_socket_t * pipe_out; // Pipe socket with data for output
+    // Related sockets (be careful - possible problems, delete them before )
+    dap_events_socket_t ** workers_es; // If not NULL - on every worker must be present
+    size_t workers_es_size;           //  events socket with same socket
+
+} dap_events_socket_pvt_t;
+
+static dap_events_socket_t *s_new();
+static void s_delete(dap_events_socket_t *);
+
+#define PVT(a) ((dap_events_socket_pvt_t*)(a)->_pvt)
+
 /**
  * @brief dap_events_socket_init Init clients module
  * @return Zero if ok others if no
@@ -82,6 +96,36 @@ void dap_events_socket_deinit( )
 {
 }
 
+/**
+ * @brief s_new
+ * @return
+ */
+static dap_events_socket_t *s_new()
+{
+    dap_events_socket_t *l_ret = DAP_NEW_Z_SIZE( dap_events_socket_t , sizeof (dap_events_socket_t)+ sizeof (dap_events_socket_pvt_t));
+    PVT(l_ret)->workers_es_size = dap_events_worker_get_count();
+    PVT(l_ret)->workers_es = DAP_NEW_Z_SIZE(dap_events_socket_t*,PVT(l_ret)->workers_es_size*sizeof (dap_events_socket_t*) );
+    l_ret->flags = DAP_ESOCK_READY_TO_READ;
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+    l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
+#else
+#error "Not defined dap_events_socket_t::s_new() for your platform"
+#endif
+    return l_ret;
+}
+
+/**
+ * @brief s_delete
+ * @param a_esocket
+ */
+static void s_delete(dap_events_socket_t * a_esocket)
+{
+    if ( PVT(a_esocket)->workers_es && PVT(a_esocket)->workers_es_size )
+        DAP_DELETE( PVT(a_esocket)->workers_es);
+    DAP_DELETE(a_esocket);
+}
 
 /**
  * @brief dap_events_socket_wrap
@@ -97,18 +141,11 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     assert(a_events);
     assert(a_callbacks);
 
-    dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
+    dap_events_socket_t *ret = s_new();
 
     ret->socket = a_sock;
     ret->events = a_events;
     memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
-    ret->flags = DAP_SOCK_READY_TO_READ;
-
-    #if defined(DAP_EVENTS_CAPS_EPOLL)
-    ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-    #elif defined(DAP_EVENTS_CAPS_POLL)
-    ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
-    #endif
 
     if ( a_sock!= 0 && a_sock != -1){
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
@@ -137,7 +174,7 @@ void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct da
 
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
-    log_it(L_DEBUG, "reassign between workers");
+    log_it(L_DEBUG, "Reassign between workers");
     dap_events_socket_remove_from_worker_unsafe( a_es, a_es->worker );
     a_es->was_reassigned = true;
     if (a_es->callbacks.worker_unassign_callback)
@@ -164,18 +201,11 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
 dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
     UNUSED(a_flags);
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t * l_es = s_new();
     l_es->type = DESCRIPTOR_TYPE_PIPE;
     l_es->worker = a_w;
     l_es->events = a_w->events;
     l_es->callbacks.read_callback = a_callback; // Arm event callback
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
-#else
-#error "Not defined s_create_type_pipe for your platform"
-#endif
 
 #if defined(DAP_EVENTS_CAPS_PIPE_POSIX)
     int l_pipe[2];
@@ -237,24 +267,16 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a
  */
 dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t * l_es = s_new();
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->flags =  DAP_SOCK_QUEUE_PTR;
+    l_es->flags |= DAP_SOCK_QUEUE_PTR;
     if (a_w){
         l_es->events = a_w->events;
         l_es->worker = a_w;
+
     }
+
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
-#else
-#error "Not defined s_create_type_queue_ptr for your platform"
-#endif
-
-
 #ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     int l_pipe[2];
     int l_errno;
@@ -283,7 +305,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
     uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
     if (l_sys_max_pipe_size && fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size) == l_sys_max_pipe_size) {
-        log_it(L_DEBUG, "Successfully resized pipe buffer to %lld", l_sys_max_pipe_size);
+        //log_it(L_DEBUG, "Successfully resized pipe buffer to %lld", l_sys_max_pipe_size);
     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     char l_mq_name[64];
@@ -394,20 +416,13 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
  */
 dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t * l_es = s_new();
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     if (a_w){
         l_es->events = a_w->events;
         l_es->worker = a_w;
     }
     l_es->callbacks.event_callback = a_callback; // Arm event callback
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
-#else
-#error "Not defined s_create_type_event for your platform"
-#endif
 
 #ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
     if((l_es->fd = eventfd(0,EFD_NONBLOCK) ) < 0 ){
@@ -425,8 +440,8 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
         }
         DAP_DELETE(l_es);
         return NULL;
-    }else
-        log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
+    }//else
+     //   log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
 #endif
     return l_es;
 }
@@ -660,7 +675,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   assert( a_server );
 
   //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
-  dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t );
+  dap_events_socket_t * ret = s_new();
 
   ret->socket = a_sock;
   ret->events = a_events;
@@ -668,7 +683,6 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
 
   memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
 
-  ret->flags = DAP_SOCK_READY_TO_READ;
   ret->last_time_active = ret->last_ping_request = time( NULL );
 
   pthread_rwlock_wrlock( &a_events->sockets_rwlock );
@@ -724,9 +738,9 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
         struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
         l_poll->events = a_esocket->poll_base_flags | POLLERR ;
         // Check & add
-        if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+        if( a_esocket->flags & DAP_ESOCK_READY_TO_READ )
             l_poll->events |= POLLIN;
-        if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
+        if( a_esocket->flags & DAP_ESOCK_READY_TO_WRITE || a_esocket->flags &DAP_ESOCK_CONNECTING )
             l_poll->events |= POLLOUT;
     }else{
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
@@ -745,13 +759,13 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
  */
 void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool is_ready )
 {
-    if( is_ready == (bool)(a_esocket->flags & DAP_SOCK_READY_TO_READ))
+    if( is_ready == (bool)(a_esocket->flags & DAP_ESOCK_READY_TO_READ))
         return;
 
     if ( is_ready )
-        a_esocket->flags |= DAP_SOCK_READY_TO_READ;
+        a_esocket->flags |= DAP_ESOCK_READY_TO_READ;
     else
-        a_esocket->flags ^= DAP_SOCK_READY_TO_READ;
+        a_esocket->flags ^= DAP_ESOCK_READY_TO_READ;
 
     if( a_esocket->worker)
         dap_events_socket_worker_poll_update_unsafe( a_esocket);
@@ -764,14 +778,14 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
  */
 void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool a_is_ready )
 {
-    if ( a_is_ready == (bool)(a_esocket->flags & DAP_SOCK_READY_TO_WRITE)) {
+    if ( a_is_ready == (bool)(a_esocket->flags & DAP_ESOCK_READY_TO_WRITE)) {
         return;
     }
 
     if ( a_is_ready )
-        a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
+        a_esocket->flags |= DAP_ESOCK_READY_TO_WRITE;
     else
-        a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
+        a_esocket->flags ^= DAP_ESOCK_READY_TO_WRITE;
 
     if( a_esocket->worker )
         dap_events_socket_worker_poll_update_unsafe(a_esocket);
@@ -834,7 +848,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 
     #endif
     }
-    DAP_DELETE( a_esocket );
+    s_delete(a_esocket);
 }
 
 /**
@@ -914,9 +928,9 @@ void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t *
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
     if (a_is_ready)
-        l_msg->flags_set = DAP_SOCK_READY_TO_READ;
+        l_msg->flags_set = DAP_ESOCK_READY_TO_READ;
     else
-        l_msg->flags_unset = DAP_SOCK_READY_TO_READ;
+        l_msg->flags_unset = DAP_ESOCK_READY_TO_READ;
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
@@ -935,9 +949,9 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t *
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
     if (a_is_ready)
-        l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+        l_msg->flags_set = DAP_ESOCK_READY_TO_WRITE;
     else
-        l_msg->flags_unset = DAP_SOCK_READY_TO_WRITE;
+        l_msg->flags_unset = DAP_ESOCK_READY_TO_WRITE;
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
@@ -959,7 +973,7 @@ size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, 
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->data_size = l_data_size;
-    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_msg->flags_set = DAP_ESOCK_READY_TO_WRITE;
     memcpy( l_msg->data, data, l_data_size);
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
@@ -992,7 +1006,7 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
-    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    l_msg->flags_set = DAP_ESOCK_READY_TO_WRITE;
     l_data_size = dap_vsprintf(l_msg->data,format,ap_copy);
     va_end(ap_copy);
     if (l_data_size <0 ){

@@ -166,7 +166,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
 
         s_client_http_delete(l_client_http_internal);
         a_es->_inheritor = NULL;
-        a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_es->flags |= DAP_ESOCK_SIGNAL_CLOSE;
     }
 }
 
@@ -183,7 +183,7 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
         strerror_r(a_errno, l_errbuf, sizeof (l_errbuf));
     else
         strncpy(l_errbuf,"Unknown Error", sizeof (l_errbuf)-1);
-    if (a_es->flags & DAP_SOCK_CONNECTING)
+    if (a_es->flags & DAP_ESOCK_CONNECTING)
         log_it(L_WARNING, "Socket connecting error: %s (code %d)" , l_errbuf, a_errno);
     else
         log_it(L_WARNING, "Socket error: %s (code %d)" , l_errbuf, a_errno);
@@ -199,7 +199,7 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
     s_client_http_delete(l_client_http_internal);
     a_es->_inheritor = NULL;
     // close connection.
-    a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    a_es->flags |= DAP_ESOCK_SIGNAL_CLOSE;
 }
 
 /**
@@ -253,7 +253,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         void *a_obj, char **a_custom, size_t a_custom_count)
 {
 
-    //log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
+    log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
     static dap_events_socket_callbacks_t l_s_callbacks = {
         .connected_callback = s_http_connected,
         .read_callback = s_http_read,
@@ -326,7 +326,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     // connect
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
-    l_ev_socket->flags |= DAP_SOCK_CONNECTING;
+    l_ev_socket->flags |= DAP_ESOCK_CONNECTING;
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
     if (l_err == 0){
         log_it(L_DEBUG, "Connected momentaly with %s:%u!", a_uplink_addr, a_uplink_port);
@@ -421,6 +421,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     if(!l_get_str)
         dap_events_socket_write_unsafe( a_esocket, l_http_pvt->request, l_http_pvt->request_size);
     DAP_DELETE(l_get_str);
+
     dap_string_free(l_request_headers, true);
 
 }

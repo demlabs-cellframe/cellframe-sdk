@@ -273,7 +273,7 @@ static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_s
     dap_events_socket_t * ret = NULL;
     if (a_sock > 0)  {
         // set it nonblock
-        //fcntl(a_sock, F_SETFL, O_NONBLOCK);
+        fcntl(a_sock, F_SETFL, O_NONBLOCK);
 
         ret = dap_events_socket_wrap_no_add(a_events, a_sock, a_callbacks);
         ret->type = DESCRIPTOR_TYPE_SOCKET;

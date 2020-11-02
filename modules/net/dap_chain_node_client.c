@@ -424,7 +424,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
 #endif
 
     pthread_mutex_init(&l_node_client->wait_mutex, NULL);
-    l_node_client->events = NULL; //dap_events_new();
+    l_node_client->events = dap_events_get_default();
     l_node_client->client = dap_client_new(l_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
     l_node_client->client->_inheritor = l_node_client;

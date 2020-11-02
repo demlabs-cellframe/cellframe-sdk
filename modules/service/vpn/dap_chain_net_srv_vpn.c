@@ -906,7 +906,7 @@ static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    a_ch->stream->esocket->flags |= DAP_SOCK_REASSIGN_ONCE; // We will try to reassign on another worker
+    a_ch->stream->esocket->flags |= DAP_ESOCK_REASSIGN_ONCE; // We will try to reassign on another worker
                                                             // to use FlowControl if its present in system
                                                             // If not - we prevent jumping between workers with this trick
     a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);

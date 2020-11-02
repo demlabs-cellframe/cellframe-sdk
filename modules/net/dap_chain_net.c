@@ -539,7 +539,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 if (l_res == 0) {
                     log_it(L_WARNING, "Can't send GDB sync request");
                     continue;
-                }
+                }else
+                    log_it(L_DEBUG, "Sent DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB (size %zd)", l_res);
 
                 // wait for finishing of request
                 int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms

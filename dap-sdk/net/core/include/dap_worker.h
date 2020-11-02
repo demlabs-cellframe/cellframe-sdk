@@ -51,7 +51,6 @@ typedef struct dap_worker
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
-    int poll_fd;
     struct pollfd * poll;
     dap_events_socket_t ** poll_esocket;
     size_t poll_count;

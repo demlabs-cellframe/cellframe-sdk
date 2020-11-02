@@ -368,7 +368,7 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
     //  Sleep(300);
 
     if ( !l_http_simple->reply ) {
-        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_http_client->esocket->flags |= DAP_ESOCK_SIGNAL_CLOSE;
         log_it( L_WARNING, "No reply to write, close connection" );
         return;
     }
@@ -380,7 +380,7 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
     if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
         log_it(L_INFO, "All the reply (%u) is sent out", a_http_client->out_content_length );
         //cl_ht->client->signal_close=cl_ht->keep_alive;
-        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_http_client->esocket->flags |= DAP_ESOCK_SIGNAL_CLOSE;
         //dap_client_ready_to_write(cl_ht->client,false);
         DAP_DELETE(l_http_simple->reply );
     }
