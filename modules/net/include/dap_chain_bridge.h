@@ -20,3 +20,14 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
+#include "dap_config.h"
+#include "dap_chain_net.h"
+
+int dap_chain_bridge_init();
+void dap_chain_bridge_deinit();
+
+typedef int (*dap_chain_bridge_callback_init_t)(const char *,dap_chain_net_t * , dap_config_t *);
+
+int dap_chain_bridge_register(const char * a_bridge_name, dap_chain_bridge_callback_init_t a_callback_init);
+int dap_chain_bridge_add(const char * a_bridge_name, dap_chain_net_t * a_net,dap_config_t * a_net_config );

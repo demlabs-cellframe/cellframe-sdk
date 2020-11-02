@@ -22,6 +22,7 @@
     You should have received a copy of the GNU General Public License
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_inter.h"
+#pragma once
 
-#define LOG_TAG "dap_chain_inter"
+int dap_chain_bridge_btc_init();
+void dap_chain_bridge_btc_deinit();

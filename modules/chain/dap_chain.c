@@ -36,6 +36,7 @@
 #include "dap_cert.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_vf.h"
+#include "dap_chain_bridge.h"
 #include <uthash.h>
 #include <pthread.h>
 
@@ -80,6 +81,8 @@ int dap_chain_init(void)
     dap_chain_cs_init();
 
     dap_chain_vf_init();
+
+    dap_chain_bridge_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
@@ -96,6 +99,14 @@ void dap_chain_deinit(void)
           dap_chain_delete(s_chain_items->chain);
         }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
+
+
+    dap_chain_cs_deinit();
+
+    dap_chain_vf_deinit();
+
+    dap_chain_bridge_deinit();
+
 }
 
 /**

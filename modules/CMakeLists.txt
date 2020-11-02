@@ -87,9 +87,9 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
 endif()
 
-# Interchaine communications with BTC-like networks
-if (CELLFRAME_MODULES MATCHES "inter-btc")
-    add_subdirectory(inter/btc)
+# Bridge communications with BTC-like networks
+if (CELLFRAME_MODULES MATCHES "bridge-btc")
+    add_subdirectory(bridge/btc)
 endif()
 
 # Support for dynamic modules

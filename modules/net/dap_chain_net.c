@@ -71,6 +71,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_bridge.h"
 #include "dap_chain_cs_none.h"
 
 #include "dap_chain_global_db.h"
@@ -1753,6 +1754,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
         PVT(l_net)->load_mode = false;
         PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+
+        bool l_bridge_btc_enabled = dap_config_get_item_bool_default(l_cfg , "bridge-btc" , "enabled",false );
+        if ( l_bridge_btc_enabled){
+            dap_chain_bridge_add ( "bridge-btc",l_net,  l_cfg);
+        }
 
         // Start the proc thread
         s_net_check_thread_start(l_net);

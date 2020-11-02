@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.7-0")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.7-1")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -123,10 +123,10 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
 endif()
 
-# Enable interchain exchange with BTC-like networks
-if (CELLFRAME_MODULES MATCHES "inter-btc")
-    message("[+] Module 'inter-btc'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_inter_btc )
+# Enable bridge with BTC-like networks
+if (CELLFRAME_MODULES MATCHES "bridge-btc")
+    message("[+] Module 'bridge-btc'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_bridge_btc )
 endif()
 
 # Enable service for dynamic modules
