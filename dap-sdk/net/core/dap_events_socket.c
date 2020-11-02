@@ -713,6 +713,7 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
 
 void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket)
 {
+
 #if defined (DAP_EVENTS_CAPS_EPOLL)
     int events = a_esocket->ev_base_flags | EPOLLERR;
 
@@ -749,7 +750,6 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
 #else
 #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
 #endif
-
 }
 
 /**

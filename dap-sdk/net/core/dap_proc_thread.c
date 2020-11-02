@@ -168,7 +168,7 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->epoll_ctl = epoll_create( DAP_EVENTS_SOCKET_MAX );
 
     // add proc queue
-    l_ev.events = l_thread->proc_queue->esocket->ev_base_flags;
+    l_ev.events = l_thread->proc_queue->esocket->ev_base_flags | EPOLLIN;
     l_ev.data.ptr = l_thread->proc_queue->esocket;
     if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_queue->esocket->socket , &l_ev) != 0 ){
         log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
@@ -176,7 +176,7 @@ static void * s_proc_thread_function(void * a_arg)
     }
 
     // Add proc event
-    l_ev.events = l_thread->proc_event->ev_base_flags ;
+    l_ev.events = l_thread->proc_event->ev_base_flags | EPOLLIN ;
     l_ev.data.ptr = l_thread->proc_event;
     if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_event->fd , &l_ev) != 0 ){
         log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
@@ -191,13 +191,14 @@ static void * s_proc_thread_function(void * a_arg)
 
     // Add proc queue
     l_poll[0].fd = l_thread->proc_queue->esocket->fd;
-    l_poll[0].events = l_thread->proc_queue->esocket->poll_base_flags;
+
+    l_poll[0].events = l_thread->proc_queue->esocket->poll_base_flags | POLLIN ;
     l_esockets[0] = l_thread->proc_queue->esocket;
     l_poll_count++;
 
     // Add proc event
     l_poll[1].fd = l_thread->proc_event->fd;
-    l_poll[1].events = l_thread->proc_event->poll_base_flags;
+    l_poll[1].events = l_thread->proc_event->poll_base_flags | POLLIN ;
     l_esockets[1] = l_thread->proc_event;
     l_poll_count++;
 

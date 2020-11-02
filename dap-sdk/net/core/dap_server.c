@@ -210,7 +210,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
  */
 static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg)
 {
-    log_it(L_DEBUG, "Created server socket %p on worker %u", a_es, a_es->worker->id);
+    //log_it(L_DEBUG, "Created server socket %p on worker %u", a_es, a_es->worker->id);
     dap_server_t *l_server = (dap_server_t*) a_es->_inheritor;
     pthread_mutex_lock( &l_server->started_mutex);
     pthread_mutex_unlock( &l_server->started_mutex);
