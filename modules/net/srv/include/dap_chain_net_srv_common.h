@@ -95,7 +95,6 @@ typedef struct dap_chain_net_srv_grace {
     dap_stream_worker_t *stream_worker;
     dap_stream_ch_t *ch;
     dap_chain_net_srv_usage_t *usage;
-    dap_timerfd_t *timer;
     dap_stream_ch_chain_net_srv_pkt_request_t *request;
 } dap_chain_net_srv_grace_t;
 
@@ -126,6 +125,7 @@ typedef struct dap_chain_net_srv_grace {
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND          0x00000500
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN            0x00000501
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH    0x00000502
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH   0x00000503
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND            0x00000600
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNKNOWN                    0xffffffff

@@ -670,14 +670,13 @@ int s_vpn_service_create(dap_config_t * g_config){
     l_srv->_inhertor = l_srv_vpn;
     l_srv_vpn->parent = l_srv;
 
-    uint16_t l_pricelist_count = 0;
-
     // Read if we need to dump all pkt operations
-    s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
+    s_debug_more= dap_config_get_item_int_default(g_config,"srv_vpn", "debug_more",false);
 
-
+    l_srv->grace_period = dap_config_get_item_uint32_default(g_config, "srv_vpn", "grace_period", 60);
     //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
     //! it also must NOT be freed within this module !
+    uint16_t l_pricelist_count = 0;
     char **l_pricelist = dap_config_get_array_str(g_config, "srv_vpn", "pricelist", &l_pricelist_count); // must not be freed!
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
         dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
