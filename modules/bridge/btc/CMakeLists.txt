@@ -9,3 +9,5 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_BRIDGE_BTC_SRCS} ${DAP_CHAIN_BRID
 target_include_directories(dap_chain_crypto INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net )
+
+#INSTALL(DIRECTORY ${ share/ DESTINATION ${CMAKE_INSTALL_PREFIX}/share/bridge-btc/ FILES_MATCHING PATTERN "*"  PATTERN "*")
