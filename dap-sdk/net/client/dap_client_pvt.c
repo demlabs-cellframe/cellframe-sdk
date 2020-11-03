@@ -687,8 +687,6 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 //    if(l_url_full)
 //        DAP_DELETE(l_url_full);
 
-    if(l_request_enc)
-        DAP_DELETE(l_request_enc);
 }
 
 /**
