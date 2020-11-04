@@ -985,6 +985,7 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
         }
         DAP_DELETE(l_stream_key);
     }
+    DAP_DELETE(l_response_str);
 }
 
 /**
