@@ -75,7 +75,7 @@ static void s_http_client_delete(dap_http_client_t * a_esocket, void * a_arg);
 
 static dap_stream_t  *s_stream_keepalive_list = NULL;
 static pthread_mutex_t s_mutex_keepalive_list;
-static void s_keepalive_cb( void );
+static bool s_keepalive_cb( void );
 
 static bool s_dump_packet_headers = false;
 

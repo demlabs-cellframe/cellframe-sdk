@@ -33,13 +33,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 #include "dap_chain_wallet.h"
-#include "dap_timerfd.h"
-#include "dap_chain_net_srv_stream_session.h"
-
-
-
-//Units of service
-
+//#include "dap_chain_net_srv_stream_session.h"
 
 
 //Service direction
@@ -48,8 +42,6 @@ typedef enum dap_chain_net_srv_order_direction{
     SERV_DIR_SELL = 2,
     SERV_DIR_UNDEFINED = 0
 } dap_chain_net_srv_order_direction_t;
-
-
 
 
 typedef struct dap_chain_net_srv_abstract
@@ -90,13 +82,6 @@ typedef struct dap_chain_net_srv_price
     struct dap_chain_net_srv_price * next;
     struct dap_chain_net_srv_price * prev;
 } dap_chain_net_srv_price_t;
-
-typedef struct dap_chain_net_srv_grace {
-    dap_stream_worker_t *stream_worker;
-    dap_stream_ch_t *ch;
-    dap_chain_net_srv_usage_t *usage;
-    dap_stream_ch_chain_net_srv_pkt_request_t *request;
-} dap_chain_net_srv_grace_t;
 
 // Ch pkt types
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST                       0x01
@@ -195,6 +180,15 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_test{
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_test_t;
 
+typedef struct dap_chain_net_srv_usage dap_chain_net_srv_usage_t;
+
+typedef struct dap_chain_net_srv_grace {
+    dap_stream_worker_t *stream_worker;
+    dap_stream_ch_t *ch;
+    dap_chain_net_srv_usage_t *usage;
+    dap_stream_ch_chain_net_srv_pkt_request_t *request;
+    size_t request_size;
+} dap_chain_net_srv_grace_t;
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {

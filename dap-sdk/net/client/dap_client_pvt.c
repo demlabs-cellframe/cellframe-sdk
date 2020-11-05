@@ -213,7 +213,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 }
                 a_client_pvt->stage_status = STAGE_STATUS_DONE;
                 s_stage_status_after(a_client_pvt);
-                return;
+                return false;
             }
             switch (l_stage) {
                 case STAGE_ENC_INIT: {
