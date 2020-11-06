@@ -92,6 +92,46 @@ void dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache)
     if (a_block_cache->datum)
         DAP_DELETE(a_block_cache->datum);
     a_block_cache->datum = dap_chain_block_get_datums( a_block_cache->block, a_block_cache->block_size, &a_block_cache->datum_count );
+    a_block_cache->meta = dap_chain_block_get_meta (a_block_cache->block, a_block_cache->block_size, &a_block_cache->meta_count);
+
+    dap_chain_block_meta_extract( a_block_cache->meta,a_block_cache->meta_count,
+                                        &a_block_cache->prev_hash,
+                                        &a_block_cache->anchor_hash,
+                                        &a_block_cache->links_hash,
+                                        &a_block_cache->links_hash_count,
+                                        &a_block_cache->is_genesis,
+                                        &a_block_cache->nonce,
+                                        &a_block_cache->nonce2
+                                      );
+
+    for (size_t i = 0; i< a_block_cache->datum_count; i++){
+        dap_chain_datum_t * l_datum = a_block_cache->datum[i];
+        if ( l_datum && l_datum->header.data_size && l_datum->header.type_id == DAP_CHAIN_DATUM_TX){
+            dap_chain_hash_fast_t l_tx_hash;
+            dap_chain_block_cache_tx_index_t * l_tx_index = NULL;
+            dap_hash_fast(l_datum->data,l_datum->header.data_size, &l_tx_hash);
+            HASH_FIND(hh, a_block_cache->tx_index, &l_tx_hash, sizeof (l_tx_hash), l_tx_index);
+            if ( ! l_tx_index ){
+                l_tx_index = DAP_NEW_Z(dap_chain_block_cache_tx_index_t);
+                memcpy(&l_tx_index->tx_hash,&l_tx_hash, sizeof (l_tx_hash) );
+                l_tx_index->tx =(dap_chain_datum_tx_t*) l_datum->data;
+                HASH_ADD(hh, a_block_cache->tx_index, tx_hash, sizeof (l_tx_hash), l_tx_index);
+            }
+        }
+    }
+}
+
+/**
+ * @brief dap_chain_block_cache_get_tx_by_hash
+ * @param a_block_cache
+ * @param a_tx_hash
+ * @return
+ */
+dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cache_t * a_block_cache, dap_chain_hash_fast_t * a_tx_hash)
+{
+    dap_chain_block_cache_tx_index_t * l_tx_index = NULL;
+    HASH_FIND(hh, a_block_cache->tx_index, a_tx_hash,sizeof (*a_tx_hash), l_tx_index);
+    return l_tx_index? l_tx_index->tx : NULL;
 }
 
 /**
@@ -103,3 +143,4 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
     DAP_DELETE(a_block_cache);
     log_it(L_DEBUG,"Block cache deleted");
 }
+
