@@ -134,21 +134,21 @@ bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_
  * @param a_continent_num [out]
  * @param a_region [out]
  */
-bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region)
+bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order_static, uint8_t *a_continent_num, char **a_region)
 {
-    if(!a_order || !a_order->ext_size || a_order->ext[0]!=0x52)
+    if(!a_order_static || !a_order_static->ext_size || a_order_static->ext[0]!=0x52)
         return false;
     if(a_continent_num) {
-       if((uint8_t)a_order->ext[1]!=0xff)
-           memcpy(a_continent_num, a_order->ext + 1, sizeof(uint8_t));
+       if((uint8_t)a_order_static->ext[1]!=0xff)
+           memcpy(a_continent_num, a_order_static->ext + 1, sizeof(uint8_t));
         else
            a_continent_num = 0;
     }
     if(a_region) {
-        size_t l_size = a_order->ext_size - sizeof(uint8_t) - 1;
+        size_t l_size = a_order_static->ext_size - sizeof(uint8_t) - 1;
         if(l_size > 0) {
             *a_region = DAP_NEW_SIZE(char, l_size);
-            memcpy(*a_region, a_order->ext + 1 + sizeof(uint8_t), l_size);
+            memcpy(*a_region, a_order_static->ext + 1 + sizeof(uint8_t), l_size);
         }
         else
             *a_region = NULL;
@@ -203,9 +203,12 @@ const char* dap_chain_net_srv_order_continent_to_str(int8_t a_num)
 int8_t dap_chain_net_srv_order_continent_to_num(const char *a_continent_str)
 {
     int8_t l_count = dap_chain_net_srv_order_continents_count();
+    // convert to to upper case
     char *l_continent_str = dap_strup(a_continent_str, -1);
     for(int8_t i = 1; i < l_count; i++) {
+        // convert to to upper case
         char *l_server_continents = dap_strup(s_server_continents[i], -1);
+        // compare strings in upper case
         if(!dap_strcmp(l_continent_str, l_server_continents)) {
             DAP_DELETE(l_server_continents);
             DAP_DELETE(l_continent_str);
@@ -214,7 +217,8 @@ int8_t dap_chain_net_srv_order_continent_to_num(const char *a_continent_str)
         DAP_DELETE(l_server_continents);
     }
     DAP_DELETE(l_continent_str);
-    return -1;
+    // none
+    return 0;
 }
 
 char * dap_chain_net_srv_order_create(
