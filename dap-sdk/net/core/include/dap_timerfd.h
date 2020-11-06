@@ -27,8 +27,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#if defined DAP_OS_UNIX
 #include <sys/time.h>
 #include <sys/timerfd.h>
+#elif defined DAP_OS_WINDOWS
+#define _MSEC -10000
+#endif
 #include <inttypes.h>
 
 #include "dap_common.h"
@@ -43,6 +47,10 @@ typedef struct dap_timerfd {
     dap_timerfd_callback_t callback;
     void *callback_arg;
     bool repeated;
+#ifdef DAP_OS_WINDOWS
+    HANDLE th;
+    int tfd2;
+#endif
 } dap_timerfd_t;
 
 int dap_timerfd_init();

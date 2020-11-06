@@ -32,7 +32,6 @@
 #include <sys/epoll.h>
 #include <sys/select.h>
 #include <unistd.h>
-#include <fcntl.h>
 #else
 #include <winsock2.h>
 #include <windows.h>
@@ -41,6 +40,7 @@
 #include <io.h>
 #include "wepoll.h"
 #endif
+#include <fcntl.h>
 #include <pthread.h>
 
 #include "dap_common.h"
