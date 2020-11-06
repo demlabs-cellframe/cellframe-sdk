@@ -848,6 +848,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "traceroute host\n");
     dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, NULL, "Traces path to a network host along this path",
             "tracepath host\n");
+    dap_chain_node_cli_cmd_item_create ("version", com_version, NULL, "Return software version",
+                                        "version\n"
+                                        "\tReturn version number\n"
+                                        );
+
     dap_chain_node_cli_cmd_item_create ("help", com_help, NULL, "Description of command parameters",
                                         "help [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"

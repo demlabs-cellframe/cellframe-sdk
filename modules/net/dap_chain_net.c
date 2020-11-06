@@ -71,6 +71,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_bridge.h"
 #include "dap_chain_cs_none.h"
 
 #include "dap_chain_global_db.h"
@@ -539,7 +540,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 if (l_res == 0) {
                     log_it(L_WARNING, "Can't send GDB sync request");
                     continue;
-                }
+                }else
+                    log_it(L_DEBUG, "Sent DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB (size %zd)", l_res);
 
                 // wait for finishing of request
                 int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
@@ -607,7 +609,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, a_net->pub.id,
                                                      l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
-                    int timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
+                    int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
                     // TODO add progress info to console                      
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
@@ -1752,6 +1754,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
         PVT(l_net)->load_mode = false;
         PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+
+        bool l_bridge_btc_enabled = dap_config_get_item_bool_default(l_cfg , "bridge-btc" , "enabled",false );
+        if ( l_bridge_btc_enabled){
+            dap_chain_bridge_add ( "bridge-btc",l_net,  l_cfg);
+        }
 
         // Start the proc thread
         s_net_check_thread_start(l_net);

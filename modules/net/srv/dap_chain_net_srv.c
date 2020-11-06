@@ -37,12 +37,6 @@
 #include <io.h>
 #endif
 
-#ifdef DAP_OS_LINUX
-#include <dlfcn.h>
-#endif
-#include <json-c/json.h>
-#include <json-c/json_object.h>
-
 #include <pthread.h>
 #include <dirent.h>
 
@@ -229,7 +223,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
 
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
-        int l_order_arg_pos = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
 
         // Order direction
         const char *l_direction_str = NULL;
@@ -603,8 +597,8 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 ret = -13;
             }
         } else {
-            dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
-            ret = -3;
+            dap_string_append_printf( l_string_ret, "Unknown subcommand \n");
+            ret=-3;
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);
         dap_string_free(l_string_ret, true);

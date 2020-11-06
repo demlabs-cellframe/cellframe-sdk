@@ -1,0 +1,4 @@
+[submodule "dap-sdk"]
+	path = dap-sdk
+	url = https://gitlab.demlabs.net/dap/dap-sdk
+	branch = develop

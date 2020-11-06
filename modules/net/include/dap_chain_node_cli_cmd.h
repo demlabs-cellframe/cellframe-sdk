@@ -77,6 +77,7 @@ int com_ping(int argc,  char** argv, void *arg_func, char **str_reply);
  */
 int com_help(int argc,  char ** argv, void *arg_func, char **str_reply);
 
+int com_version(int argc, char ** argv, void *arg_func, char **str_reply);
 
 /**
  * Token declaration

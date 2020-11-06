@@ -23,9 +23,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #pragma once
-#include <json-c/json.h>
-#include <json-c/json_object.h>
-
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
@@ -50,25 +47,6 @@ typedef struct dap_chain_net_srv_order
     uint32_t ext_size;
     uint8_t ext[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
-
-typedef struct dap_chain_net_srv_order_static
-{
-    uint8_t continent;
-    const char *region;
-    const char *net_str;
-    const char *order_name;
-    uint64_t node_addr_uint64;
-    const char *ipv4_str;
-    const char *ipv6_str;
-    uint16_t port;
-    const char *ext_str;
-    size_t ext_size;
-    const char *price_ticker;
-    int price_unit;
-    uint64_t price;
-    json_object *obj;
-} dap_chain_net_srv_order_static_t;
-
 
 // Init/deinit should be call only if private
 int dap_chain_net_srv_order_init(void);
@@ -142,20 +120,6 @@ DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t *
 {
    if ( a_net ) {
        const char c_srv_order_group_str[]="service.orders";
-       return dap_strdup_printf("%s.%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
-   }
-   return NULL;
-}
-
-/**
-* @brief dap_chain_net_srv_order_get_gdb_group_mempool
-* @param l_chain
-* @return
-*/
-DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_nodelist_group(dap_chain_net_t * a_net)
-{
-   if ( a_net ) {
-       const char c_srv_order_group_str[]="service.orders.static_nodelist";
        return dap_strdup_printf("%s.%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
    }
    return NULL;

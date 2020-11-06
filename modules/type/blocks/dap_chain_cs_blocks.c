@@ -72,6 +72,7 @@ typedef struct dap_chain_cs_blocks_pvt
 typedef struct dap_chain_cs_blocks_iter
 {
     dap_chain_cs_blocks_t * blocks;
+    dap_chain_block_cache_t * cache;
 } dap_chain_cs_blocks_iter_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *) a->_pvt )
@@ -812,6 +813,8 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create(dap_chain_t * a_chain 
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_atom_iter->chain = a_chain;
     l_atom_iter->_inheritor = DAP_NEW_Z(dap_chain_cs_blocks_iter_t);
+    ITER_PVT(l_atom_iter)->blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+
     return l_atom_iter;
 }
 
@@ -824,7 +827,19 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create(dap_chain_t * a_chain 
  */
 static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
-
+    if (a_atom && a_atom_size){
+        dap_chain_hash_fast_t l_atom_hash;
+        dap_hash_fast(a_atom, a_atom_size, &l_atom_hash);
+        dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain);
+        if (l_atom_iter){
+            l_atom_iter->cur_item =ITER_PVT(l_atom_iter)->cache = dap_chain_block_cache_get_by_hash(l_atom_hash);
+            l_atom_iter->cur = a_atom;
+            l_atom_iter->cur_size = a_atom_size;
+            return l_atom_iter;
+        }else
+            return NULL;
+    }else
+        return NULL;
 }
 
 /**
@@ -837,7 +852,18 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_c
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_chain_hash_fast_t * a_atom_hash,
                                                               size_t * a_atom_size)
 {
-
+    assert(a_atom_iter);
+    dap_chain_atom_ptr_t * l_ret = NULL;
+    pthread_rwlock_rdlock(& PVT(ITER_PVT(a_atom_iter)->blocks)->rwlock );
+    dap_chain_block_cache_t * l_block_cache = NULL;
+    HASH_FIND(hh, PVT(ITER_PVT(a_atom_iter)->blocks)->blocks, a_atom_hash,sizeof (*a_atom_hash), l_block_cache);
+    a_atom_iter->cur_item = l_block_cache;
+    if (l_block_cache){
+        l_ret = a_atom_iter->cur = l_block_cache->block;
+        *a_atom_size = a_atom_iter->cur_size = l_block_cache->block_size;
+    }
+    pthread_rwlock_unlock(& PVT(ITER_PVT(a_atom_iter)->blocks)->rwlock );
+    return l_ret;
 }
 
 /**
@@ -848,7 +874,17 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
  */
 static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash)
 {
-
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_tx_block_index_t * l_tx_block_index = NULL;
+    HASH_FIND(hh, PVT(l_cs_blocks)->tx_block_index,a_tx_hash, sizeof (*a_tx_hash), l_tx_block_index);
+    if (l_tx_block_index){
+        dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_get_by_hash( l_tx_block_index->block_hash );
+        if ( l_block_cache){
+            return dap_chain_block_cache_get_tx_by_hash(l_block_cache, a_tx_hash);
+        }else
+            return NULL;
+    }else
+        return NULL;
 }
 
 /**

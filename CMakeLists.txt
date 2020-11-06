@@ -2,35 +2,18 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.7-2")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.7-3")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
-set(DAPSDK_MODULES "")
 
-if (CELLFRAME_MODULES MATCHES "core")
+if (BUILD_TESTS)
+    SET(DAPSDK_MODULES "")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
-endif()
-
-
-if (CELLFRAME_MODULES MATCHES "network")
-    set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
-endif()
-
-if (BUILD_CRYPTO_TESTS)
-    if ( NOT(DAPSDK_MODULES MATCHES "core"))
-	SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
-    endif()
-    if ( NOT(DAPSDK_MODULES MATCHES "crypto"))
-	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
-    endif()
-    set(BUILD_TESTS ON)
-endif()
-
-if(BUILD_TESTS)
+    SET(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
     include(cmake/OS_Detection.cmake)
+    add_subdirectory(dap-sdk)
 endif()
 
-add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
 add_subdirectory(modules/)
@@ -121,6 +104,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
+endif()
+
+# Enable bridge with BTC-like networks
+if (CELLFRAME_MODULES MATCHES "bridge-btc")
+    message("[+] Module 'bridge-btc'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_bridge_btc )
 endif()
 
 # Enable service for dynamic modules
