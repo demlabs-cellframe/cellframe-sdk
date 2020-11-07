@@ -37,6 +37,10 @@
 #include <io.h>
 #endif
 
+#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+#include <dlfcn.h>
+#endif
+
 #include <pthread.h>
 #include <dirent.h>
 
@@ -102,12 +106,11 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
         "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
         "        [-cert <cert name to sign order>]\\\n"
         "\tOrder create\n"
-        "net_srv -net <chain net name> order static [save | delete]\\\n"
-        "\tStatic nodelist create/delete\n"
-        "net_srv -net <chain net name> order recheck\\\n"
-        "\tCheck the availability of orders\n"
-
-    );
+                   "net_srv -net <chain net name> order static [save | delete]\\\n"
+                   "\tStatic nodelist create/delete\n"
+                   "net_srv -net <chain net name> order recheck\\\n"
+                   "\tCheck the availability of orders\n"
+               );
 
     s_load_all();
     return 0;
@@ -223,7 +226,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
 
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        int l_order_arg_pos =dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
 
         // Order direction
         const char *l_direction_str = NULL;
