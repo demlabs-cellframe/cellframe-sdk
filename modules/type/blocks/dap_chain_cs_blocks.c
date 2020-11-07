@@ -935,7 +935,17 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
  */
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size )
 {
-
+    assert(a_atom_iter);
+    assert(a_atom_size);
+    assert(a_atom_iter->cur_item);
+    dap_chain_block_cache_t * l_cur_cache =(dap_chain_block_cache_t *) a_atom_iter->cur_item;
+    a_atom_iter->cur_item = l_cur_cache = l_cur_cache->next;
+    if (l_cur_cache){
+        a_atom_iter->cur = l_cur_cache->block;
+        *a_atom_size=a_atom_iter->cur_size = l_cur_cache->block_size;
+        return l_cur_cache->block;
+    }else
+        return NULL;
 }
 
 /**
@@ -947,7 +957,26 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t
  */
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size, size_t ** a_links_size_ptr )
 {
-
+    assert(a_atom_iter);
+    assert(a_links_size);
+    assert(a_links_size_ptr);
+    if (a_atom_iter->cur_item){
+        dap_chain_block_cache_t * l_block_cache =(dap_chain_block_cache_t *) a_atom_iter->cur_item;
+        if (l_block_cache->links_hash_count){
+            *a_links_size_ptr = DAP_NEW_Z_SIZE( size_t, l_block_cache->links_hash_count*sizeof (size_t));
+            *a_links_size = l_block_cache->links_hash_count;
+            dap_chain_atom_ptr_t * l_ret = DAP_NEW_S_SIZE(dap_chain_atom_ptr_t, l_block_cache->links_hash_count *sizeof (dap_chain_atom_ptr_t) );
+            for (size_t i = 0; i< l_block_cache->links_hash_count; i ++){
+                dap_chain_block_cache_t * l_link =  dap_chain_block_cache_get_by_hash(l_block_cache->links_hash[i]);
+                assert(l_link);
+                (*a_links_size_ptr)[i] = l_link->block_size;
+                l_ret[i] = l_link->block;
+            }
+            return l_ret;
+        }else
+            return NULL;
+    }else
+        return NULL;
 }
 
 /**
@@ -959,7 +988,21 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
  */
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size, size_t ** a_lasts_size_ptr )
 {
+    assert(a_atom_iter);
+    assert(a_links_size);
+    assert(a_links_size);
 
+    dap_chain_block_cache_t * l_block_cache_last = PVT(ITER_PVT(a_atom_iter)->blocks)->block_cache_last;
+    if ( l_block_cache_last  ){
+        *a_links_size = 1;
+        *a_lasts_size_ptr = DAP_NEW_Z_SIZE(size_t,sizeof (size_t)*1  );
+        dap_chain_atom_ptr_t * l_ret = DAP_NEW_S_SIZE(dap_chain_atom_ptr_t, sizeof (dap_chain_atom_ptr_t)*1);
+        (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
+        l_ret[0] = l_block_cache_last->block;
+        return l_ret;
+    }else{
+        return NULL;
+    }
 }
 
 /**
@@ -968,6 +1011,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
  */
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
 {
+    DAP_DELETE( ITER_PVT(a_atom_iter));
     DAP_DELETE(a_atom_iter);
 }
 
@@ -980,5 +1024,11 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
  */
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_size)
 {
-
+    // IMPORTANT - all datums on input should be checket before for curruption because datum size is taken from datum's header
+    for (size_t i = 0; i < a_datums_size; i++) {
+        PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new_size = dap_chain_block_datum_add(PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new,
+                                                                                         PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new_size,
+                                                                                         a_datums[i],dap_chain_datum_size(a_datums[i]) );
+    }
+    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new_size;
 }

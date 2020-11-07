@@ -69,7 +69,9 @@ typedef struct dap_chain_block_cache{
     // Pointer to block itself
     dap_chain_block_t * block;
 
-
+    // Links to prev and next block
+    struct dap_chain_block_cache * prev;
+    struct dap_chain_block_cache * next;
 
     // Inhertied nested data
     void * _inheritor;
