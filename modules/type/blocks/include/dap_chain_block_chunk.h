@@ -54,9 +54,14 @@ typedef struct dap_chain_block_chunks{
 } dap_chain_block_chunks_t;
 
 dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t * a_blocks);
-void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks);
 
-dap_chain_block_cache_t * dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks, dap_chain_block_t *a_block ,size_t a_block_size);
+dap_chain_block_chunk_t * dap_chain_block_chunk_create(dap_chain_block_chunks_t * a_chunks);
+void dap_chain_block_chunk_delete( dap_chain_block_chunk_t * a_chunk);
+
+void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks);
+void dap_chain_block_chunks_sort(dap_chain_block_chunks_t * a_chunks);
+
+void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks, dap_chain_block_cache_t  * a_block_cache);
 
 /**
  * @brief dap_chain_block_chunks_get_longest_count

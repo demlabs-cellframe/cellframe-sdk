@@ -87,6 +87,9 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, cha
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
 static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
 
+// Setup BFT consensus and select the longest chunk
+static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
+
 // Callbacks
 static void s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
@@ -687,6 +690,68 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
     pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
     return res;
 }
+
+
+/**
+ * @brief s_bft_consensus_setup
+ * @param a_blocks
+ */
+static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks)
+{
+    bool l_was_chunks_changed = false;
+    // Compare all chunks with chain's tail
+    for(dap_chain_block_chunk_t * l_chunk = PVT(a_blocks)->chunks->chunks_last ; l_chunk; l_chunk=l_chunk->prev ){
+        size_t l_chunk_length = HASH_COUNT(l_chunk->block_cache_hash);
+        dap_chain_block_cache_t * l_block_cache_chunk_top_prev = dap_chain_block_cs_cache_get_by_hash(a_blocks,&l_chunk->block_cache_top->prev_hash);
+        dap_chain_block_cache_t * l_block_cache= l_block_cache_chunk_top_prev;
+        if ( l_block_cache ){ // we found prev block in main chain
+            size_t l_tail_length = 0;
+            // Now lets calc tail length
+            for( ;l_block_cache; l_block_cache=l_block_cache->prev){
+                l_tail_length++;
+                if(l_tail_length>l_chunk_length)
+                    break;
+            }
+            if(l_tail_length<l_chunk_length ){ // This generals consensus is bigger than the current one
+                // Cutoff current chank from the list
+                if( l_chunk->next)
+                    l_chunk->next->prev = l_chunk->prev;
+                if( l_chunk->prev)
+                    l_chunk->prev->next = l_chunk->next;
+
+                // Pass through all the tail and move it to chunks
+                for(l_block_cache= l_block_cache_chunk_top_prev ;l_block_cache; l_block_cache=l_block_cache->prev){
+                    pthread_rwlock_wrlock(& PVT(a_blocks)->rwlock);
+                    if(l_block_cache->prev)
+                        l_block_cache->prev->next = l_block_cache->next;
+                    if(l_block_cache->next)
+                        l_block_cache->next->prev = l_block_cache->prev;
+                    HASH_DEL(PVT(a_blocks)->blocks,l_block_cache);
+                    pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+                    dap_chain_block_chunks_add(PVT(a_blocks)->chunks,l_block_cache);
+                }
+                // Pass through all the chunk and add it to main chain
+                for(l_block_cache= l_chunk->block_cache_top ;l_block_cache; l_block_cache=l_block_cache->prev){
+                    int l_check_res = s_add_atom_to_blocks(a_blocks, a_blocks->chain->ledger, l_block_cache);
+                    if ( l_check_res != 0 ){
+                        log_it(L_WARNING,"Can't move block %s from chunk to main chain - data inside wasn't verified: code %d",
+                                            l_block_cache->block_hash_str, l_check_res);
+                        dap_chain_block_chunks_add(PVT(a_blocks)->chunks,l_block_cache);
+                    }
+                }
+                dap_chain_block_chunk_delete(l_chunk );
+                l_was_chunks_changed = true;
+            }
+        }
+
+    }
+    if(l_was_chunks_changed){
+        dap_chain_block_chunks_sort( PVT(a_blocks)->chunks);
+        log_it(L_INFO,"Recursive BFT stage additional check...");
+        s_bft_consensus_setup(a_blocks);
+    }
+}
+
 /**
  * @brief s_callback_atom_add
  * @details Accept new atom in blockchain
@@ -727,16 +792,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             HASH_ADD(hh, PVT(l_blocks)->blocks_tx_treshold, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-            log_it(L_DEBUG, "... tresholded");
-            ret = ATOM_MOVE_TO_THRESHOLD;
+            log_it(L_DEBUG, "... tresholded for tx ledger");
         }else{
              log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
              ret = ATOM_REJECT;
         }
-    }
-    if(ret == ATOM_PASS){
+    }else if(ret == ATOM_MOVE_TO_THRESHOLD){
+        dap_chain_block_chunks_add( PVT(l_blocks)->chunks,l_block_cache);
+        dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
+    }else if (ret == ATOM_REJECT ){
         DAP_DELETE(l_block_cache);
     }
+
+    s_bft_consensus_setup(l_blocks);
     return ret;
 }
 
@@ -776,29 +844,29 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                                         &l_is_genesis,
                                         &l_nonce,
                                         &l_nonce2 ) ;
-    // genesis or seed mode
-    if ( l_is_genesis){
-        if( s_seed_mode && ! l_blocks_pvt->blocks ){
-            log_it(L_NOTICE,"Accepting new genesis block");
-            return ATOM_ACCEPT;
-        }else if(s_seed_mode){
-            log_it(L_WARNING,"Cant accept genesis blockt: already present data in blockchain");
-            return  ATOM_REJECT;
-        }
-    }else{
-        dap_chain_block_cache_t * l_block_prev_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks,&l_block_prev_hash);
-        if ( ! l_block_prev_cache ){
+
+    // 2nd level consensus
+    if(l_blocks->callback_block_verify)
+        if (l_blocks->callback_block_verify(l_blocks, l_block, a_atom_size))
             res = ATOM_REJECT;
-            log_it(L_WARNING, "Can't find PREV hash (but because still no bysantium consensus we just drop such block off)");
-            // TODO make treshold and bysantium consensus
+
+    if(res == ATOM_ACCEPT){
+        // genesis or seed mode
+        if ( l_is_genesis){
+            if( s_seed_mode && ! l_blocks_pvt->blocks ){
+                log_it(L_NOTICE,"Accepting new genesis block");
+                return ATOM_ACCEPT;
+            }else if(s_seed_mode){
+                log_it(L_WARNING,"Cant accept genesis blockt: already present data in blockchain");
+                return  ATOM_REJECT;
+            }
+        }else{
+            if( PVT(l_blocks)->block_cache_last )
+                if (! dap_hash_fast_compare(& PVT(l_blocks)->block_cache_last->block_hash, &l_block_prev_hash) )
+                    res = ATOM_MOVE_TO_THRESHOLD ;
         }
     }
 
-    // 2nd level consensus
-    if(res == ATOM_ACCEPT)
-        if(l_blocks->callback_block_verify)
-            if (l_blocks->callback_block_verify(l_blocks, l_block, a_atom_size))
-                res = ATOM_REJECT;
 
     return res;
 }
