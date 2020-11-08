@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Ltd   https://demlabs.net
- * Copyright  (c) 2017-2020
+ * Copyright  (c) 2017
  * All rights reserved.
 
  This file is part of DAP SDK the open source project
