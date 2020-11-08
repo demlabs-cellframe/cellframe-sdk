@@ -57,6 +57,11 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     add_subdirectory(consensus/dag-pos)
 endif()
 
+# Blocks PoA
+if (CELLFRAME_MODULES MATCHES "cs-blocks-poa")
+    add_subdirectory(consensus/block-poa)
+endif()
+
 # Service App
 if (CELLFRAME_MODULES MATCHES "srv-app")
     add_subdirectory(service/app)

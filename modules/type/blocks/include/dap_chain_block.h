@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Ltd   https://demlabs.net
- * Copyright  (c) 2017-2020
+ * Copyright  (c) 2017
  * All rights reserved.
 
  This file is part of DAP SDK the open source project
@@ -24,6 +24,7 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_hash.h"
+#include "dap_cert.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_hashtree_roots.h"
@@ -93,6 +94,10 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
 // Add datum in block
 size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
 size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
+
+// Add sign in block
+size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_cert_t * a_cert );
+dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block_ptr, size_t a_block_size, uint16_t a_sign_num );
 
 // Create and return datums list
 dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );

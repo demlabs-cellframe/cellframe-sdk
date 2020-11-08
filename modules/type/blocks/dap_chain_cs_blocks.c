@@ -64,9 +64,6 @@ typedef struct dap_chain_cs_blocks_pvt
 
     bool is_celled;
 
-    // For new block creating
-    dap_chain_block_t * block_new;
-    size_t block_new_size;
 } dap_chain_cs_blocks_pvt_t;
 
 typedef struct dap_chain_cs_blocks_iter
@@ -370,10 +367,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
         // Flush memory for the new block
         case SUBCMD_NEW_FLUSH:{
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            if ( PVT(l_blocks)->block_new )
-                DAP_DELETE( PVT(l_blocks)->block_new );
-            PVT(l_blocks)->block_new = dap_chain_block_new( PVT(l_blocks)->block_cache_last? &PVT(l_blocks)->block_cache_last->block_hash: NULL );
-            PVT(l_blocks)->block_new_size = sizeof (PVT(l_blocks)->block_new->hdr);
+            if ( l_blocks->block_new )
+                DAP_DELETE( l_blocks->block_new );
+            l_blocks->block_new = dap_chain_block_new( PVT(l_blocks)->block_cache_last? &PVT(l_blocks)->block_cache_last->block_hash: NULL );
+            l_blocks->block_new_size = sizeof (l_blocks->block_new->hdr);
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         } break;
 
@@ -384,10 +381,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
         }break;
         case SUBCMD_NEW_DATUM_DEL:{
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            if ( PVT(l_blocks)->block_new ){
+            if ( l_blocks->block_new ){
                 dap_chain_hash_fast_t l_datum_hash;
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
-                PVT(l_blocks)->block_new_size=dap_chain_block_datum_del_by_hash( PVT(l_blocks)->block_new, PVT(l_blocks)->block_new_size, &l_datum_hash );
+                l_blocks->block_new_size=dap_chain_block_datum_del_by_hash( &l_blocks->block_new, l_blocks->block_new_size, &l_datum_hash );
             }else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                           "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
@@ -1028,9 +1025,9 @@ static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** 
 {
     // IMPORTANT - all datums on input should be checket before for curruption because datum size is taken from datum's header
     for (size_t i = 0; i < a_datums_size; i++) {
-        PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new_size = dap_chain_block_datum_add(PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new,
-                                                                                         PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new_size,
+        DAP_CHAIN_CS_BLOCKS(a_chain)->block_new_size = dap_chain_block_datum_add( &DAP_CHAIN_CS_BLOCKS(a_chain)->block_new,
+                                                                                         DAP_CHAIN_CS_BLOCKS(a_chain)->block_new_size,
                                                                                          a_datums[i],dap_chain_datum_size(a_datums[i]) );
     }
-    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->block_new_size;
+    return DAP_CHAIN_CS_BLOCKS(a_chain)->block_new_size;
 }

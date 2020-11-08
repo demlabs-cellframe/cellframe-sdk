@@ -268,6 +268,90 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
     return l_offset;
 }
 
+static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_block_size)
+{
+    assert(a_block);
+    assert(a_block_size);
+
+    size_t l_offset = s_block_get_datum_offset(a_block,a_block_size);
+    dap_chain_datum_t * l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
+    // Pass all datums to the end
+    for(size_t n=0; n<a_block->hdr.datum_count && l_offset<a_block_size ; n++){
+        size_t l_datum_size = dap_chain_datum_size(l_datum);
+
+        // Check if size 0
+        if(! l_datum_size){
+            log_it(L_ERROR,"Datum size is 0, smth is corrupted in block");
+            return a_block_size;
+        }
+        // Check if size of of block size
+        if (l_datum_size+l_offset >a_block_size){
+            log_it(L_ERROR,"Datum size is too big %zf thats with offset %zd is bigger than block size %zd", l_datum_size, l_offset, a_block_size);
+            return a_block_size;
+        }
+        l_offset += l_datum_size;
+        // Updae current datum pointer, if it was deleted - we also need to update it after realloc
+        l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
+    }
+    if (l_offset> a_block_size){
+        log_it(L_ERROR,"Offset %zd is bigger than block size %zd", l_offset, a_block_size);
+        return a_block_size;
+    }
+
+    return l_offset;
+}
+
+/**
+ * @brief dap_chain_block_sign_add
+ * @param a_block_ptr
+ * @param a_block_size
+ * @param a_cert
+ * @return
+ */
+size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_cert_t * a_cert )
+{
+    assert(a_block_ptr);
+    dap_chain_block_t * l_block = *a_block_ptr;
+    size_t l_offset = s_block_get_sign_offset(l_block,a_block_size);
+    dap_sign_t * l_block_sign = dap_cert_sign(a_cert,l_block,l_offset+sizeof (l_block->hdr),0);
+    size_t l_block_sign_size = dap_sign_get_size(l_block_sign);
+    *a_block_ptr = l_block = DAP_REALLOC(l_block, l_block_sign_size + a_block_size);
+    memcpy(  ((byte_t *)l_block) +a_block_size,l_block_sign, l_block_sign_size  );
+    DAP_DELETE(l_block_sign);
+    return a_block_size+l_block_sign_size;
+}
+
+/**
+ * @brief dap_chain_block_sign_get
+ * @param a_block
+ * @param a_block_size
+ * @param a_sign_num
+ * @return
+ */
+dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block, size_t a_block_size, uint16_t a_sign_num )
+{
+    assert(a_block);
+    size_t l_offset = s_block_get_sign_offset(a_block,a_block_size);
+    uint16_t l_sign_cur=0;
+    dap_sign_t * l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
+    while( l_sign_cur <a_sign_num){
+
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        if (!l_sign){
+            log_it(L_ERROR, "Empty sign #%u",  l_sign_cur );
+            return NULL;
+        }
+        if (l_sign_size >  a_block_size- l_offset - sizeof (a_block->hdr) ){
+            log_it(L_ERROR, "Corrupted sign #%u size %zd",  l_sign_cur, l_sign_size );
+            return NULL;
+        }
+        l_offset += l_sign_size;
+        l_sign_cur++;
+        l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
+    }
+    return  l_sign_cur == a_sign_num? l_sign : NULL;
+}
+
 /**
  * @brief dap_chain_block_get_datums
  * @param a_block

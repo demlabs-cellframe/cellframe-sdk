@@ -43,6 +43,9 @@ typedef dap_chain_block_t * (*dap_chain_cs_blocks_callback_block_create_t)(dap_c
 typedef struct dap_chain_cs_blocks
 {
     dap_chain_t * chain;
+    // For new block creating
+    dap_chain_block_t * block_new;
+    size_t block_new_size;
 
     dap_chain_cs_blocks_callback_t callback_delete;
     dap_chain_cs_blocks_callback_block_create_t callback_block_create;
