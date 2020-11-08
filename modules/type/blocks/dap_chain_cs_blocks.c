@@ -278,13 +278,13 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, cha
  */
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
-    if(a_meta->hdr.size == sizeof (dap_chain_hash_fast_t) ){
+    if(a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t) ){
         char * l_hash_str = dap_chain_hash_fast_to_str_new( (dap_chain_hash_fast_t *) a_meta->data);
         dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\"\n", a_meta_title,l_hash_str);
         DAP_DELETE(l_hash_str);
     }else{
-        char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.size*2+3);
-        dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.size);
+        char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
+        dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.data_size);
         dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex );
     }
 }
@@ -297,8 +297,8 @@ static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_met
  */
 static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
-    char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.size*2+3);
-    dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.size);
+    char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
+    dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.data_size);
     dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex );
 }
 
@@ -484,8 +484,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
                                 s_cli_meta_hex_print(l_str_tmp,"NONCE2", l_meta);
                             }break;
                             default:{
-                                char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.size*2+3);
-                                dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.size);
+                                char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);
+                                dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.data_size);
                                 dap_string_append_printf(l_str_tmp,"\t\t\0x%0X: 0x%s\n", l_data_hex );
                             }
                         }
@@ -670,6 +670,8 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
         if (! (PVT(a_blocks)->block_cache_first ) )
                 PVT(a_blocks)->block_cache_first = a_block_cache;
+        PVT(a_blocks)->block_cache_last->next = a_block_cache;
+        a_block_cache->prev = PVT(a_blocks)->block_cache_last;
         PVT(a_blocks)->block_cache_last = a_block_cache;
 
     } else {
