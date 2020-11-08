@@ -56,9 +56,17 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
  */
 void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
 {
-    dap_chain_block_cache_t * l_block_cache = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, a_chunks->cache, l_block_cache, l_tmp){
+    dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_first;
 
+    while(l_chunk){
+        dap_chain_block_cache_hash_t* l_block_cache_hash = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, l_chunk->block_cache_hash , l_block_cache_hash, l_tmp){
+            HASH_DEL(l_chunk->block_cache_hash, l_block_cache_hash);
+            DAP_DELETE(l_block_cache_hash);
+        }
+    }
+    dap_chain_block_cache_t* l_block_cache = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_chunks->cache , l_block_cache, l_tmp){
         HASH_DEL(a_chunks->cache, l_block_cache);
         dap_chain_block_cache_delete(l_block_cache);
     }
@@ -76,16 +84,54 @@ void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
  */
 dap_chain_block_cache_t * dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks, dap_chain_block_t *a_block ,size_t a_block_size)
 {
+    dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
+    // Parse block and produce cache object
     dap_chain_block_cache_t  * l_block_cache = dap_chain_block_cache_new(a_block,a_block_size);
-    dap_chain_block_cache_t  * l_block_cache_check = NULL;
-    HASH_FIND(hh, a_chunks->cache, &l_block_cache->block_hash, sizeof (l_block_cache->block_hash), l_block_cache_check);
 
-    if (l_block_cache_check){
-        log_it(L_WARNING, "Already present block %s in cache",l_block_cache_check->block_hash_str);
+    // Check if already present
+    HASH_FIND(hh, a_chunks->cache, &l_block_cache->block_hash, sizeof (l_chunk_cache_hash->block_hash), l_chunk_cache_hash);
+    if (l_chunk_cache_hash){
+        log_it(L_WARNING, "Already present block %s in cache",l_block_cache->block_hash_str);
         dap_chain_block_cache_delete(l_block_cache);
-        return l_block_cache_check;
+        return l_chunk_cache_hash->block_cache ;
     }
+    // Save to GDB
     dap_chain_global_db_gr_set(dap_strdup(l_block_cache->block_hash_str),a_block,a_block_size, a_chunks->gdb_group);
-    HASH_ADD(hh,a_chunks->cache,block_hash,sizeof (l_block_cache->block_hash), l_block_cache);
+
+    // Init cache-hash object
+    l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
+    l_chunk_cache_hash->block_cache=l_block_cache;
+    l_chunk_cache_hash->ts_created = time(NULL);
+    memcpy(&l_chunk_cache_hash->block_hash, &l_block_cache->block_hash,sizeof (l_block_cache->block_hash));
+
+
+    // And here we select chunk for the new block cache
+    for (dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_first; l_chunk; l_chunk = l_chunk->prev ){
+        if(dap_hash_fast_compare(&l_chunk->block_cache_first->block_hash, &l_block_cache->prev_hash ) ){
+            l_chunk_cache_hash->chunk = l_chunk;
+            break;
+        }
+    }
+
+    if ( ! l_chunk_cache_hash->chunk) { // Don't found anything suitable - if so we create our own chunk
+        dap_chain_block_chunk_t * l_chunk = DAP_NEW_Z(dap_chain_block_chunk_t);
+        l_chunk->block_cache_first = l_block_cache;
+        // Add in tail
+        l_chunk->prev = a_chunks->chunks_last;
+        if (a_chunks->chunks_last){
+            l_chunk->next = a_chunks->chunks_last->next;
+            if (! l_chunk->next)
+                a_chunks->chunks_first = l_chunk;
+            else
+                l_chunk->next->prev = l_chunk;
+        }else
+            a_chunks->chunks_first = l_chunk;
+        a_chunks->chunks_last = l_chunk;
+    }
+    // Add to selected chunk its hash object
+    HASH_ADD(hh,l_chunk_cache_hash->chunk->block_cache_hash , block_hash, sizeof (l_chunk_cache_hash->block_hash), l_chunk_cache_hash);
+    // Add object itself to all-chunks cache
+    HASH_ADD(hh,a_chunks->cache ,block_hash ,sizeof (l_block_cache->block_hash), l_block_cache);
+
     return l_block_cache;
 }

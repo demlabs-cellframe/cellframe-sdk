@@ -24,11 +24,31 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
 
+typedef struct dap_chain_block_chunk dap_chain_block_chunk_t;
+typedef struct dap_chain_block_cache_hash{
+    dap_chain_block_chunk_t * chunk;
+    dap_chain_block_cache_t *block_cache;
+    time_t ts_created;
+    dap_chain_hash_fast_t block_hash;
+    UT_hash_handle hh;
+} dap_chain_block_cache_hash_t;
+
+
+typedef struct dap_chain_block_chunk{
+    dap_chain_block_cache_hash_t *block_cache_hash;
+    dap_chain_block_cache_t *block_cache_first;
+    struct dap_chain_block_chunk * prev;
+    struct dap_chain_block_chunk * next;
+} dap_chain_block_chunk_t;
+
+
 typedef struct dap_chain_block_chunks{
     dap_chain_cs_blocks_t * blocks;
-    dap_chain_block_cache_t * cache;
-    dap_chain_block_cache_t * chunk_longest;
-    size_t chunk_longest_length;
+
+    dap_chain_block_cache_t *cache;
+
+    dap_chain_block_chunk_t * chunks_first;
+    dap_chain_block_chunk_t * chunks_last;
     char * gdb_group;
 } dap_chain_block_chunks_t;
 
