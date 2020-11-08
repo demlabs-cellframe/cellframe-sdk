@@ -35,8 +35,9 @@ typedef struct dap_chain_block_cache_hash{
 
 
 typedef struct dap_chain_block_chunk{
+    dap_chain_hash_fast_t chunk_id;
     dap_chain_block_cache_hash_t *block_cache_hash;
-    dap_chain_block_cache_t *block_cache_first;
+    dap_chain_block_cache_t *block_cache_top;
     struct dap_chain_block_chunk * prev;
     struct dap_chain_block_chunk * next;
 } dap_chain_block_chunk_t;
@@ -47,8 +48,8 @@ typedef struct dap_chain_block_chunks{
 
     dap_chain_block_cache_t *cache;
 
-    dap_chain_block_chunk_t * chunks_first;
     dap_chain_block_chunk_t * chunks_last;
+    dap_chain_block_chunk_t * chunks_first;
     char * gdb_group;
 } dap_chain_block_chunks_t;
 
@@ -56,3 +57,24 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
 void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks);
 
 dap_chain_block_cache_t * dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks, dap_chain_block_t *a_block ,size_t a_block_size);
+
+/**
+ * @brief dap_chain_block_chunks_get_longest_count
+ * @param a_chunks
+ */
+static inline size_t dap_chain_block_chunks_get_longest_count(dap_chain_block_chunks_t * a_chunks)
+{
+    assert(a_chunks);
+    return a_chunks->chunks_last? HASH_COUNT(a_chunks->chunks_last->block_cache_hash):0;
+}
+
+/**
+ * @brief dap_chain_block_chunks_get_longest_top
+ * @param a_chunks
+ * @return
+ */
+static inline dap_chain_block_cache_t* dap_chain_block_chunks_get_longest_top(dap_chain_block_chunks_t * a_chunks)
+{
+    assert(a_chunks);
+    return a_chunks->chunks_last?a_chunks->chunks_last->block_cache_top:NULL;
+}
