@@ -179,6 +179,7 @@ void dap_chain_block_chunk_delete( dap_chain_block_chunk_t * a_chunk)
     dap_chain_block_cache_hash_t  * l_cache_hash = NULL, *l_tmp = NULL;
     HASH_ITER(hh, a_chunk->block_cache_hash, l_cache_hash, l_tmp){
         HASH_DEL(a_chunk->block_cache_hash, l_cache_hash);
+        DAP_DELETE(l_cache_hash);
     }
     DAP_DELETE(a_chunk);
 }
