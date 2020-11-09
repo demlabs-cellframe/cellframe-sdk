@@ -378,6 +378,18 @@ uint16_t dap_config_get_item_uint16(dap_config_t * a_config, const char * a_sect
     return (uint16_t) atoi(dap_config_get_item_str(a_config,a_section_path,a_item_name));
 }
 
+/**
+ * @brief dap_config_get_item_int16
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @return
+ */
+int16_t dap_config_get_item_int16(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    return (int16_t) atoi(dap_config_get_item_str(a_config,a_section_path,a_item_name));
+}
+
 
 /**
  * @brief dap_config_get_item_int32_default Getting a configuration item as a int32
@@ -394,6 +406,40 @@ int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * 
 }
 
 /**
+ * @brief dap_config_get_item_uint32_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_default
+ * @return
+ */
+uint32_t dap_config_get_item_uint32_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint32_t a_default)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    uint32_t l_ret = 0;
+    if (l_str_ret && sscanf(l_str_ret, "%u", &l_ret) == 1)
+        return l_ret;
+    else
+        return a_default;
+}
+
+/**
+ * @brief dap_config_get_item_uint32
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @return
+ */
+uint32_t dap_config_get_item_uint32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    uint32_t l_ret = 0;
+    if (l_str_ret)
+        sscanf(l_str_ret, "%u", &l_ret);
+    return l_ret;
+}
+
+/**
  * @brief dap_config_get_item_uint16_default
  * @param a_config
  * @param a_section_path
@@ -405,6 +451,20 @@ uint16_t dap_config_get_item_uint16_default(dap_config_t * a_config, const char 
 {
     const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
     return l_str_ret? (uint16_t) atoi(l_str_ret):a_default;
+}
+
+/**
+ * @brief dap_config_get_item_int16_default
+ * @param a_config
+ * @param a_section_path
+ * @param a_item_name
+ * @param a_default
+ * @return
+ */
+int16_t dap_config_get_item_int16_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int16_t a_default)
+{
+    const char * l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    return l_str_ret? (int16_t) atoi(l_str_ret):a_default;
 }
 
 /**

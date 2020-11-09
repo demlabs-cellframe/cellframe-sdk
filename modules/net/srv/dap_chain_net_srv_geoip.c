@@ -76,7 +76,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
     char * l_custom = l_out_len > 0 ? dap_strdup_printf("Authorization: Basic %s", l_out) : NULL;
     size_t l_custom_count = 1;
     // todo just need to finish up https request
-    dap_client_http_request_custom("geoip.maxmind.com", 443, "GET", "application/json", l_path, NULL,
+    dap_client_http_request_custom(NULL,"geoip.maxmind.com", 443, "GET", "application/json", l_path, NULL,
             0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, &l_custom, l_custom_count);
     return NULL;
 }

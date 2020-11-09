@@ -44,7 +44,7 @@
 
 #include "dap_http.h"
 #include "dap_http_client.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_simple.h"
 
 #include "dap_stream_session.h"
@@ -69,17 +69,15 @@ static struct {
     dap_enc_key_type_t type;
 } s_socket_forward_key;
 
-
 /**
  * @brief stream_ctl_init Initialize stream control module
  * @return Zero if ok others if not
  */
-int dap_stream_ctl_init(dap_enc_key_type_t socket_forward_key_type,
-                        size_t socket_forward_key_size)
+int dap_stream_ctl_init()
 {
-    s_socket_forward_key.type = socket_forward_key_type;
-    s_socket_forward_key.size = socket_forward_key_size;
-    log_it(L_NOTICE,"Initialized stream control module");
+    s_socket_forward_key.size = 32; // Why do we set it, not autodeceting?
+    s_socket_forward_key.type = dap_stream_get_preferred_encryption_type();
+
     return 0;
 }
 
@@ -121,32 +119,47 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
     if(l_dg){
         size_t l_channels_str_size = sizeof(ss->active_channels);
         char l_channels_str[sizeof(ss->active_channels)];
-        if(l_dg->url_path && strlen(l_dg->url_path) < 30 &&
-                sscanf(l_dg->url_path, "stream_ctl,channels=%s", l_channels_str) == 1) {
+        dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
+        int l_enc_headers = 0;
+        bool l_is_legacy=true;
+        char * l_tok_tmp = NULL;
+        char * l_tok = strtok_r(l_dg->url_path, ",",&l_tok_tmp)   ;
+        do {
+            char * l_subtok_tmp = NULL;
+            char * l_subtok_name = strtok_r(l_tok, "=",&l_subtok_tmp);
+            char * l_subtok_value = strtok_r(NULL, "=",&l_subtok_tmp);
+            if (l_subtok_value){
+                //log_it(L_DEBUG, "tok = %s value =%s",l_subtok_name,l_subtok_value);
+                if ( strcmp(l_subtok_name,"channels")==0 ){
+                    strncpy(l_channels_str,l_subtok_value,sizeof (l_channels_str)-1);
+                    //log_it(L_DEBUG,"Param: channels=%s",l_channels_str);
+                }else if(strcmp(l_subtok_name,"enc_type")==0){
+                    l_enc_type = atoi(l_subtok_value);
+                    //log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
+                    l_is_legacy = false;
+                }else if(strcmp(l_subtok_name,"enc_headers")==0){
+                    l_enc_headers = atoi(l_subtok_value);
+                    //log_it(L_DEBUG,"Param: enc_headers=%d",l_enc_headers);
+                }
+            }
+            l_tok = strtok_r(NULL, ",",&l_tok_tmp)   ;
+        } while(l_tok);
+        l_new_session = true;
+        if(l_is_legacy){
+            log_it(L_INFO, "legacy encryption mode used (OAES)");
+            l_enc_type = DAP_ENC_KEY_TYPE_OAES;
             l_new_session = true;
-        }
-        else if(strcmp(l_dg->url_path, "socket_forward" ) == 0) {
-            l_channels_str[0]  = '\0';
-            l_new_session = true;
-        }
-        /* }else if (strcmp(dg->url_path,"stream_ctl")==0) {
-            l_new_session = true;
-        }*/
-        else{
-            log_it(L_ERROR,"ctl command unknown: %s",l_dg->url_path);
-            enc_http_delegate_delete(l_dg);
-            *return_code = Http_Status_MethodNotAllowed;
-            return;
-        }
-        if(l_new_session){
+        }else
+            log_it(L_DEBUG,"Encryption type %s (enc headers %d)",dap_enc_get_type_name(l_enc_type), l_enc_headers);
 
+        if(l_new_session){
             ss = dap_stream_session_pure_new();
             strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
             char *key_str = calloc(1, KEX_KEY_STR_SIZE+1);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate( s_socket_forward_key.type, key_str, KEX_KEY_STR_SIZE,
+            ss->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
-            dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http->in_headers, "KeyID");
+            dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http_client->in_headers, "KeyID");
             if (l_hdr_key_id) {
                 dap_enc_ks_key_t *l_ks_key = dap_enc_ks_find(l_hdr_key_id->value);
                 if (!l_ks_key) {
@@ -156,7 +169,10 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                 }
                 ss->acl = l_ks_key->acl_list;
             }
-            enc_http_reply_f(l_dg,"%u %s",ss->id,key_str);
+            if (l_is_legacy)
+                enc_http_reply_f(l_dg,"%u %s",ss->id, key_str);
+            else
+                enc_http_reply_f(l_dg,"%u %s %u %d %d",ss->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
             *return_code = Http_Status_OK;
 
             log_it(L_INFO," New stream session %u initialized",ss->id);
@@ -167,26 +183,6 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             *return_code = Http_Status_BadRequest;
             return;
         }
-
-        unsigned int conn_t = 0;
-        char *ct_str = strstr(l_dg->in_query, "connection_type");
-        if (ct_str)
-        {
-            sscanf(ct_str, "connection_type=%u", &conn_t);
-            if (conn_t < 0 || conn_t >= STREAM_SESSION_END_TYPE)
-            {
-                log_it(L_WARNING,"Error connection type : %i",conn_t);
-                conn_t = STEAM_SESSION_HTTP;
-            }
-
-            if (ss)
-            {
-                ss->conn_type = conn_t;
-            }
-
-        }
-
-        log_it(L_INFO,"setup connection_type: %s", connection_type_str[conn_t]);
 
         enc_http_reply_encode(a_http_simple,l_dg);
         enc_http_delegate_delete(l_dg);

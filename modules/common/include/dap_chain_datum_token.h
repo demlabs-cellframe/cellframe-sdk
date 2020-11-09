@@ -135,7 +135,7 @@ static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 // TSD section - Type-Size-Data
 typedef struct dap_chain_datum_token_tsd{
     uint16_t type; /// Section type
-    size_t size;   /// Data size trailing the section
+    uint32_t size;   /// Data size trailing the section
     byte_t data[]; /// Section's data
 } DAP_ALIGN_PACKED dap_chain_datum_token_tsd_t;
 

@@ -66,9 +66,9 @@ typedef struct dap_chain_cs_dag_poa_pvt
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
-static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
-                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
+                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size);
 // CLI commands
 static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **str_reply);
 
@@ -109,6 +109,7 @@ void dap_chain_cs_dag_poa_deinit(void)
  */
 static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_reply)
 {
+    (void) arg_func;
     int ret = -666;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
@@ -165,9 +166,9 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
                                                   l_event_hash_str);
                 ret = -30;
             }else {
-                dap_chain_cs_dag_event_t *l_event_new = dap_chain_cs_dag_event_copy_with_sign_add(l_event,l_poa_pvt->events_sign_cert->enc_key );
+                dap_chain_cs_dag_event_t *l_event_new = dap_chain_cs_dag_event_copy_with_sign_add(l_event, l_event_size,l_poa_pvt->events_sign_cert->enc_key );
                 dap_chain_hash_fast_t l_event_new_hash;
-                dap_chain_cs_dag_event_calc_hash(l_event_new,&l_event_new_hash);
+                dap_chain_cs_dag_event_calc_hash(l_event_new, l_event_size,&l_event_new_hash);
                 //size_t l_event_new_size = dap_chain_cs_dag_event_calc_size(l_event_new);
                 char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
                 char * l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
@@ -319,7 +320,7 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
  * @return
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
-                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
+                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POA(a_dag), NULL);
     dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
@@ -330,7 +331,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
     }
     if ( s_seed_mode || (a_hashes && a_hashes_count) ){
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, l_net->pub.cell_id, a_datum,
-                                                         PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count);
+                                                         PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count,a_event_size);
         return l_event;
     }else
         return NULL;
@@ -344,16 +345,29 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
  * @param a_dag_event
  * @return
  */
-static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
+    size_t l_offset_from_beginning = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
+    if( l_offset_from_beginning >= a_dag_event_size){
+        log_it(L_WARNING,"Incorrect size with event %p: caled size excl signs %zd is bigger or equal then event size %zd",
+               a_dag_event, l_offset_from_beginning, a_dag_event_size);
+        return -7; // Incorrest size
+    }
     if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
         size_t l_verified = 0;
         for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ) {
-            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0);
+            if (l_offset_from_beginning == a_dag_event_size)
+                break;
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,a_dag_event_size , 0);
             if ( l_sign == NULL){
                 log_it(L_WARNING, "Event is NOT signed with anything");
                 return -4;
+            }
+            l_offset_from_beginning += dap_sign_get_size( l_sign);
+            if (l_offset_from_beginning > a_dag_event_size){
+                log_it(L_WARNING,"Incorrect size with event %p", a_dag_event);
+                return -7;
             }
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
                 if (dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j], l_sign) == 0)
@@ -367,10 +381,11 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 }
                 dap_chain_addr_t l_addr = {};
                 dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
-                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event, a_dag_event_size);
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                     if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
+                        log_it(L_WARNING,"Not passed stake validator event %p", a_dag_event);
                         return -6;
                     }
                 }
@@ -378,7 +393,18 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 
         }
         return l_verified >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
-    }else
-       return -2; // Wrong signatures number
+    }else if (a_dag_event->header.hash_count == 0){
+        dap_chain_hash_fast_t l_event_hash;
+        dap_chain_cs_dag_event_calc_hash(a_dag_event,a_dag_event_size, &l_event_hash);
+        if ( memcmp( &l_event_hash, &a_dag->static_genesis_event_hash, sizeof(l_event_hash) ) == 0 ){
+            return 0;
+        }else{
+            log_it(L_WARNING,"Wrong genesis event %p: hash is not equels to what in config", a_dag_event);
+            return -20; // Wrong signatures number
+        }
+    }else{
+        log_it(L_WARNING,"Wrong signatures number with event %p", a_dag_event);
+        return -2; // Wrong signatures number
+    }
 }
 

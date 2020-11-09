@@ -160,7 +160,27 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
     DAP_FREE( base_ptr );
 }
 
-#define DAP_PROTOCOL_VERSION  22
+/*
+ * 23: added support for encryption key type parameter and option to encrypt headers
+*/
+#define DAP_PROTOCOL_VERSION          23
+#define DAP_PROTOCOL_VERSION_DEFAULT  22 // used if version is not explicitly specified
+
+#define DAP_CLIENT_PROTOCOL_VERSION   23
+
+#if __SIZEOF_LONG__==8
+#define DAP_UINT64_FORMAT_X  "lX"
+#define     DAP_UINT64_FORMAT_x  "lx"
+#define DAP_UINT64_FORMAT_u  "lu"
+#define DAP_UINT64_FORMAT_U  "lU"
+#elif __SIZEOF_LONG__==4
+#define DAP_UINT64_FORMAT_X  "llX"
+#define DAP_UINT64_FORMAT_x  "llx"
+#define DAP_UINT64_FORMAT_u  "llu"
+#define DAP_UINT64_FORMAT_U  "llU"
+#else
+#error "DAP_UINT64_FORMAT_* are undefined for your platform"
+#endif
 
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
@@ -361,7 +381,7 @@ DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
 extern char *g_sys_dir_path;
 
 //int dap_common_init( const char * a_log_file );
-int dap_common_init( const char *console_title, const char *a_log_file );
+int dap_common_init( const char *console_title, const char *a_log_file, const char *a_log_dirpath );
 int wdap_common_init( const char *console_title, const wchar_t *a_wlog_file);
 
 void dap_common_deinit(void);
@@ -392,8 +412,7 @@ int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct time
 
 int get_select_breaker(void);
 int send_select_break(void);
-char * exec_with_ret(const char * a_cmd);
-char * exec_with_ret_multistring(const char * a_cmd);
+int exec_with_ret(char**, const char*);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
 void dap_dump_hex(const void* data, size_t size);
@@ -412,6 +431,12 @@ uint32_t dap_lendian_get32(const uint8_t *a_buf);
 void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val);
 uint64_t dap_lendian_get64(const uint8_t *a_buf);
 void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
+
+// crossplatform usleep
+#define DAP_USEC_PER_SEC 1000000
+void dap_usleep(time_t a_microseconds);
+
+
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);

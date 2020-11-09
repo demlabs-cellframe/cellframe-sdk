@@ -26,10 +26,13 @@
 #pragma once
 #ifdef DAP_OS_UNIX
 #include <netinet/in.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
 #endif
 
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
+#include "dap_events.h"
 
 
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT    0x01
@@ -87,36 +90,35 @@ typedef struct ch_vpn_pkt {
             } raw; // Raw access to OP bytes
         };
     } DAP_ALIGN_PACKED header;
-    uint8_t data[]; // Binary data nested by packet
+    byte_t data[]; // Binary data nested by packet
 }DAP_ALIGN_PACKED ch_vpn_pkt_t;
 
-/**
- * @struct ch_vpn_socket_proxy
- * @brief Internal data storage for single socket proxy functions. Usualy helpfull for\
-  *        port forwarding or for protecting single application's connection
- *
- **/
-typedef struct ch_vpn_socket_proxy {
-    int id;
-    int sock;
-    struct in_addr client_addr; // Used in raw L3 connections
-    pthread_mutex_t mutex;
-    dap_stream_ch_t * ch;
+typedef struct ch_sf_tun_socket ch_sf_tun_socket_t;
+typedef struct dap_chain_net_srv_ch_vpn dap_chain_net_srv_ch_vpn_t;
 
-    bool signal_to_delete;
-    ch_vpn_pkt_t * pkt_out[100];
-    size_t pkt_out_size;
 
-    uint64_t bytes_sent;
-    uint64_t bytes_recieved;
-
-    time_t time_created;
-    time_t time_lastused;
-
+// Copy is present on each tun socket
+typedef struct usage_client {
+    dap_chain_net_srv_ch_vpn_t * ch_vpn;
+    dap_chain_datum_tx_receipt_t * receipt;
+    size_t receipt_size;
+    uint32_t usage_id;
+    dap_chain_net_srv_t * srv;
+    ch_sf_tun_socket_t * tun_socket;
     UT_hash_handle hh;
-    UT_hash_handle hh2;
-    UT_hash_handle hh_sock;
-} ch_vpn_socket_proxy_t;
+} usage_client_t;
+
+typedef struct dap_chain_net_srv_ch_vpn_info dap_chain_net_srv_ch_vpn_info_t;
+
+typedef struct ch_sf_tun_socket {
+    uint8_t worker_id;
+    dap_worker_t * worker;
+    dap_events_socket_t * es;
+    dap_chain_net_srv_ch_vpn_info_t * clients; // Remote clients identified by destination address
+    //UT_hash_handle hh;
+}ch_sf_tun_socket_t;
+
+#define CH_SF_TUN_SOCKET(a) ((ch_sf_tun_socket_t*) a->_inheritor )
 
 
 /**
@@ -130,16 +132,27 @@ typedef struct dap_chain_net_srv_ch_vpn
     uint32_t usage_id;
     dap_chain_net_srv_t* net_srv;
     //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
-    pthread_mutex_t mutex;
-    ch_vpn_socket_proxy_t * socks;
-    int raw_l3_sock;
     bool is_allowed;
+    ch_sf_tun_socket_t * tun_socket;
 
     struct in_addr addr_ipv4;
     dap_stream_ch_t * ch;
     UT_hash_handle hh;
 } dap_chain_net_srv_ch_vpn_t;
 
+typedef struct dap_chain_net_srv_ch_vpn_info
+{
+    struct in_addr addr_ipv4;
+    bool is_on_this_worker;
+    bool is_reassigned_once;//Copy of esocket was_reassigned field. Used
+                            // to prevent jumping on systems without FlowControl
+    uint32_t usage_id;
+    dap_chain_net_srv_ch_vpn_t * ch_vpn;
+    dap_events_socket_t * queue_msg; // Message queue
+    dap_worker_t * worker;
+    dap_events_socket_t * esocket;
+    UT_hash_handle hh;
+}dap_chain_net_srv_ch_vpn_info_t;
 
 typedef struct dap_chain_net_srv_vpn_item_ipv4{
     struct in_addr addr;
@@ -154,8 +167,6 @@ typedef struct dap_chain_net_srv_vpn
 } dap_chain_net_srv_vpn_t;
 
 #define CH_VPN(a) ((dap_chain_net_srv_ch_vpn_t *) ((a)->internal) )
-
-bool is_dap_tun_in_worker(void);
 
 int dap_chain_net_srv_client_vpn_init(dap_config_t * g_config);
 

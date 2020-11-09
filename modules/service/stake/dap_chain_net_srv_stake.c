@@ -24,6 +24,7 @@
 
 #include <math.h>
 #include "dap_string.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
@@ -826,7 +827,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
                 return -13;
             }
             dap_chain_hash_fast_t l_tx_hash = {};
-            dap_chain_str_to_hash_fast(l_tx_hash_str, &l_tx_hash);
+            dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash);
             dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
             HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
                 if (!memcmp(&l_stake->tx_hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t))) {

@@ -68,6 +68,22 @@ void* dap_client_pvt_hh_get(dap_client_pvt_t* a_client_pvt)
 }
 
 /**
+ * @brief dap_client_pvt_check
+ * @param a_client_pvt
+ * @return
+ */
+bool dap_client_pvt_check(dap_client_pvt_t* a_client_pvt)
+{
+    bool l_ret = false;
+    pthread_mutex_lock(&s_client_pvt_list_mutex);
+    dap_client_pvt_hh_t *l_cur_item = NULL;
+    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt, l_cur_item);
+    l_ret = (l_cur_item != NULL);
+    pthread_mutex_unlock(&s_client_pvt_list_mutex);
+    return l_ret;
+}
+
+/**
  * Add new active connection to the list
  *
  * return 0 OK, -1 error, -2 connection present

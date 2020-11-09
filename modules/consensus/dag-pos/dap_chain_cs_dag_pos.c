@@ -49,9 +49,9 @@ typedef struct dap_chain_cs_dag_pos_pvt
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
-static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event);
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
-                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count);
+                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t *a_dag_event_size);
 
 /**
  * @brief dap_chain_cs_dag_pos_init
@@ -186,7 +186,8 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
  * @return
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
-                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
+                                                          dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count,
+                                                          size_t *a_dag_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POS(a_dag) && a_datum, NULL);
     dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
@@ -198,7 +199,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
     }
     if(a_datum || (a_hashes && a_hashes_count)) {
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, l_net->pub.cell_id, a_datum,
-        PVT(l_pos)->events_sign_wallet->enc_key, a_hashes, a_hashes_count);
+        PVT(l_pos)->events_sign_wallet->enc_key, a_hashes, a_hashes_count, a_dag_event_size);
         return l_event;
     } else
         return NULL;
@@ -210,23 +211,29 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
  * @param a_dag_event
  * @return
  */
-static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event)
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {
 
     dap_chain_cs_dag_pos_t * l_pos =DAP_CHAIN_CS_DAG_POS( a_dag ) ;
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
 
-    if(a_dag->chain->ledger == NULL)
+    if(a_dag->chain->ledger == NULL){
+        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_dag->chain->name);
         return -3;
+    }
 
+    if (sizeof (a_dag_event->header)>= a_dag_event_size){
+        log_it(L_WARNING,"Incorrect size with event %p on chain %s", a_dag_event, a_dag->chain->name);
+        return  -7;
+    }
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
         uint16_t l_verified_num = 0;
         dap_chain_addr_t l_addr = { 0 };
 
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
-            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, 0);
+            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, a_dag_event_size,l_sig_pos);
             if ( l_sign == NULL){
-                log_it(L_WARNING, "Event is NOT signed with anything");
+                log_it(L_WARNING, "Event is NOT signed with anything: sig pos %zd, event size %zd", a_dag_event_size);
                 return -4;
             }
 
@@ -238,10 +245,11 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
 
             if (l_sig_pos == 0) {
-                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event);
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event,a_dag_event_size);
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                     if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
+                        log_it(L_WARNING,"Not passed stake validator with event %p on chain %s", a_dag_event, a_dag->chain->name);
                         return -6;
                     }
                 }
@@ -287,6 +295,8 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             log_it(L_WARNING, "Wrong event: only %su/%su signs are valid", l_verified_num, l_pos_pvt->confirmations_minimum );
             return -2;
         }
-    }else
-       return -2; // Wrong signatures number
+    }else{
+        log_it(L_WARNING,"Wrong signature number with event %p on chain %s", a_dag_event, a_dag->chain->name);
+        return -2; // Wrong signatures number
+    }
 }

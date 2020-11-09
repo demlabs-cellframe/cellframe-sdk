@@ -633,6 +633,35 @@ dap_enc_key_serealize_t* dap_enc_key_serealize(dap_enc_key_t * key)
 }
 
 /**
+ * @brief dap_enc_key_dup
+ * @param a_key
+ * @return
+ */
+dap_enc_key_t* dap_enc_key_dup(dap_enc_key_t * a_key)
+{
+    if (!a_key || a_key->type == DAP_ENC_KEY_TYPE_INVALID) {
+        return NULL;
+    }
+    dap_enc_key_t *l_ret = dap_enc_key_new(a_key->type);
+    if (a_key->priv_key_data_size) {
+        l_ret->priv_key_data = DAP_NEW_Z_SIZE(byte_t, a_key->priv_key_data_size);
+        l_ret->priv_key_data_size = a_key->priv_key_data_size;
+        memcpy(l_ret->priv_key_data, a_key->priv_key_data, a_key->priv_key_data_size);
+    }
+    if (a_key->pub_key_data_size) {
+        l_ret->pub_key_data = DAP_NEW_Z_SIZE(byte_t, a_key->pub_key_data_size);
+        l_ret->pub_key_data_size =  a_key->pub_key_data_size;
+        memcpy(l_ret->pub_key_data, a_key->pub_key_data, a_key->pub_key_data_size);
+    }
+    if(a_key->_inheritor_size) {
+        l_ret->_inheritor = DAP_NEW_Z_SIZE(byte_t, a_key->_inheritor_size);
+        l_ret->_inheritor_size = a_key->_inheritor_size;
+        memcpy(l_ret->_inheritor, a_key->_inheritor, a_key->_inheritor_size);
+    }
+    return l_ret;
+}
+
+/**
  * @brief dap_enc_key_deserealize
  * @param buf
  * @param buf_size
@@ -652,13 +681,13 @@ dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size)
     result->_inheritor_size = in_key->inheritor_size;
     DAP_DEL_Z(result->priv_key_data)
     DAP_DEL_Z(result->pub_key_data)
-    result->priv_key_data = DAP_NEW_Z_SIZE(uint8_t, result->priv_key_data_size);
+    result->priv_key_data = DAP_NEW_Z_SIZE(byte_t, result->priv_key_data_size);
     memcpy(result->priv_key_data, in_key->priv_key_data, result->priv_key_data_size);
-    result->pub_key_data = DAP_NEW_Z_SIZE(uint8_t, result->pub_key_data_size);
+    result->pub_key_data = DAP_NEW_Z_SIZE(byte_t, result->pub_key_data_size);
     memcpy(result->pub_key_data, in_key->pub_key_data, result->pub_key_data_size);
     if(in_key->inheritor_size) {
         DAP_DEL_Z(result->_inheritor)
-        result->_inheritor = DAP_NEW_Z(dap_enc_key_t);
+        result->_inheritor = DAP_NEW_Z_SIZE(byte_t, in_key->inheritor_size );
         memcpy(result->_inheritor, in_key->inheritor, in_key->inheritor_size);
     } else {
         result->_inheritor = NULL;
@@ -815,7 +844,18 @@ const char *dap_enc_get_type_name(dap_enc_key_type_t a_key_type)
     if(s_callbacks[a_key_type].name) {
         return s_callbacks[a_key_type].name;
     }
-    log_it(L_ERROR, "name not realize for current key type");
+    log_it(L_WARNING, "name was not set for key type %d", a_key_type);
     return 0;
 
 }
+
+dap_enc_key_type_t dap_enc_key_type_find_by_name(const char * a_name){
+    for(dap_enc_key_type_t i = 0; i <= DAP_ENC_KEY_TYPE_LAST; i++){
+        const char * l_current_key_name = dap_enc_get_type_name(i);
+        if(l_current_key_name && !strcmp(a_name, l_current_key_name))
+            return i;
+    }
+    log_it(L_WARNING, "no key type with name %s", a_name);
+    return DAP_ENC_KEY_TYPE_INVALID;
+}
+

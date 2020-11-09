@@ -169,8 +169,8 @@ size_t dap_cert_sign_output_size(dap_cert_t * a_cert, size_t a_size_wished)
 dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
                                        , size_t a_data_size, size_t a_output_size_wished )
 {
-    dap_enc_key_t * l_key = a_cert->enc_key;
-    dap_sign_t *l_ret = dap_sign_create(l_key, a_data, a_data_size, a_output_size_wished);
+    dap_sign_t *l_ret = dap_sign_create(a_cert->enc_key, a_data, a_data_size, a_output_size_wished);
+    log_it(L_INFO, "Sign sizes: %d %d", l_ret->header.sign_size, l_ret->header.sign_pkey_size);
     return l_ret;
 }
 
@@ -207,11 +207,11 @@ dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_k
     if ( l_enc_key ){
         dap_cert_t * l_cert = dap_cert_new(a_cert_name);
         l_cert->enc_key = l_enc_key;
-        log_it(L_DEBUG,"Certificate generated");
+        //log_it(L_DEBUG,"Certificate generated");
         //dap_cert_item_t * l_cert_item = DAP_NEW_Z(dap_cert_item_t);
         //snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_cert_name);
         //HASH_ADD_STR(s_certs,name,l_cert_item);
-        log_it(L_DEBUG,"Certificate name %s recorded", a_cert_name);
+        //log_it(L_DEBUG,"Certificate name %s recorded", a_cert_name);
         return l_cert;
     } else {
         log_it(L_ERROR,"Can't generate key in memory!");

@@ -80,6 +80,7 @@ char* dap_strreverse(char *a_string);
 uint128_t dap_strtou128(const char *p, char **endp, int base);
 int128_t dap_strtoi128(const char *p, char **endp, int base);
 
+
 /**
  * @brief atoi128
  * @param p
@@ -111,7 +112,4 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base);
 #endif
 char *_strndup(const char *str, unsigned long len);
 #endif
-
-#define DAP_USEC_PER_SEC 1000000
-void dap_usleep(time_t a_microseconds);
 

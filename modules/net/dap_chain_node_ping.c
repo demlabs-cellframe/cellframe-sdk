@@ -24,7 +24,8 @@
 //#include <sys/socket.h>
 #include <time.h>
 #include <errno.h>
-#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#define _GNU_SOURCE
+#define __USE_GNU   /* See feature_test_macros(7) */
 #include <pthread.h>
 
 #include "dap_common.h"
@@ -58,6 +59,9 @@
 #include <wepoll.h>
 #else
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #endif
 #include <pthread.h>
 

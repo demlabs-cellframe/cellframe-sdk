@@ -34,7 +34,7 @@
 #include <pthread.h>
 
 #include "dap_common.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_http_client.h"
 #include "dap_http_header.h"
 

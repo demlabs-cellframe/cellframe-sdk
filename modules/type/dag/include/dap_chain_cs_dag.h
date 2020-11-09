@@ -22,20 +22,25 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "uthash.h"
 #include "dap_chain.h"
 #include "dap_chain_cs_dag_event.h"
 
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
-typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *);
+typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *,size_t);
 
 
 
 typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(dap_chain_cs_dag_t *,
                                                                                dap_chain_datum_t *,
                                                                                dap_chain_hash_fast_t *,
-                                                                               size_t);
+                                                                               size_t, size_t*);
+typedef struct dap_chain_cs_dag_hal_item {
+    dap_chain_hash_fast_t hash;
+    UT_hash_handle hh;
+} dap_chain_cs_dag_hal_item_t;
 
 typedef struct dap_chain_cs_dag
 {
@@ -45,6 +50,7 @@ typedef struct dap_chain_cs_dag
     bool is_add_directy;
     bool is_static_genesis_event;
     dap_chain_hash_fast_t static_genesis_event_hash;
+    dap_chain_cs_dag_hal_item_t *hal;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
@@ -65,7 +71,7 @@ void dap_chain_cs_dag_deinit(void);
 int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);
 
-bool dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
+//dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
 void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag,

@@ -172,7 +172,7 @@ int shell_reader_loop(dap_app_cli_connect_param_t *cparam)
 int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_argc, char **a_argv)
 {
     dap_set_appname(a_app_name);
-    if (dap_common_init(dap_get_appname(), NULL) != 0) {
+    if (dap_common_init(dap_get_appname(), NULL,NULL) != 0) {
         printf("Fatal Error: Can't init common functions module");
         return -2;
     }

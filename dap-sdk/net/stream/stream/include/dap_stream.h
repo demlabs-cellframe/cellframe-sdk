@@ -26,12 +26,12 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <pthread.h>
+
+#include "dap_config.h"
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
 
 #include "dap_events_socket.h"
-#include "dap_udp_server.h"
-#include "dap_udp_client.h"
 
 #define CHUNK_SIZE_MAX (3 * 1024)
 
@@ -46,28 +46,20 @@ typedef struct dap_stream_pkt dap_stream_pkt_t;
 typedef struct dap_events_socket dap_events_socket_t;
 #define STREAM_BUF_SIZE_MAX 500000
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
-#define STREAM_KEEPALIVE_PASSES 3    // How many messagges without answers need for disconnect client and close session
 
 typedef void (*dap_stream_callback)( dap_stream_t *,void*);
 
 typedef struct dap_stream {
     int id;
-    pthread_rwlock_t rwlock;
     dap_stream_session_t * session;
-    struct dap_client_remote * conn; // Connection
-
+    dap_events_socket_t * esocket; // Connection
+    dap_stream_worker_t * stream_worker;
     struct dap_http_client * conn_http; // HTTP-specific
-
-    struct dap_udp_client * conn_udp; // UDP-client
-    dap_events_socket_t * events_socket;
 
     char * service_key;
 
     bool is_live;
     bool is_client_to_uplink ;
-
-//    ev_timer keepalive_watcher;         // Watcher for keepalive loop
-    uint8_t keepalive_passed;           // Number of sended keepalive messages
 
     struct dap_stream_pkt * in_pkt;
     struct dap_stream_pkt *pkt_buf_in;
@@ -93,9 +85,9 @@ typedef struct dap_stream {
 
 } dap_stream_t;
 
-#define DAP_STREAM(a) ((dap_stream_t *) (a)->_internal )
+#define DAP_STREAM(a) ((dap_stream_t *) (a)->_inheritor )
 
-int dap_stream_init(bool a_dump_packet_headers);
+int dap_stream_init(dap_config_t * g_config);
 
 bool dap_stream_get_dump_packet_headers();
 
@@ -103,9 +95,9 @@ void dap_stream_deinit();
 
 void dap_stream_add_proc_http(dap_http_t * sh, const char * url);
 
-void dap_stream_add_proc_udp(dap_udp_server_t * sh);
+void dap_stream_add_proc_udp(dap_server_t *a_udp_server);
 
-dap_stream_t* dap_stream_new_es(dap_events_socket_t * a_es);
+dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_es);
 size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
 size_t dap_stream_data_proc_write(dap_stream_t * a_stream);
 void dap_stream_delete(dap_stream_t * a_stream);
@@ -113,5 +105,7 @@ void dap_stream_proc_pkt_in(dap_stream_t * sid);
 
 void dap_stream_es_rw_states_update(struct dap_stream *a_stream);
 void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready);
+
+dap_enc_key_type_t dap_stream_get_preferred_encryption_type();
 
 

@@ -31,6 +31,7 @@
 #include "uthash.h"
 #include "dap_enc_key.h"
 #include "dap_hash.h"
+#include "dap_list.h"
 
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYPE_VPN} stream_session_type_t;
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;
@@ -69,10 +70,16 @@ typedef struct dap_stream_session dap_stream_session_t;
 
 void dap_stream_session_init();
 void dap_stream_session_deinit();
+dap_list_t* dap_stream_session_get_list_sessions(void);
+void dap_stream_session_get_list_sessions_unlock(void);
 
 dap_stream_session_t * dap_stream_session_pure_new();
 dap_stream_session_t * dap_stream_session_new(unsigned int media_id, bool open_preview);
-dap_stream_session_t * dap_stream_session_id(unsigned int id);
+dap_stream_session_t * dap_stream_session_id_mt(unsigned int id);
+dap_stream_session_t *dap_stream_session_id_unsafe( unsigned int id );
+void dap_stream_session_lock();
+void dap_stream_session_unlock();
+
 int dap_stream_session_open(dap_stream_session_t * a_session); /*Lock for opening for single client , return 0 if ok*/
-int dap_stream_session_close(unsigned int id);
+int dap_stream_session_close_mt(unsigned int id);
 

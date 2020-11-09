@@ -33,6 +33,7 @@
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
 
+#define DAP_CHAIN_PKT_MAX_SIZE 25000    // WARNING: be sure to not exceed this limit
 
 typedef struct dap_stream_ch_chain dap_stream_ch_chain_t;
 typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
@@ -41,26 +42,29 @@ typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, ui
 typedef struct dap_chain_atom_item{
     dap_chain_hash_fast_t atom_hash;
     dap_chain_atom_ptr_t atom;
+    size_t atom_size;
     UT_hash_handle hh;
 } dap_chain_atom_item_t;
 
+typedef struct dap_chain_pkt_copy {
+    dap_stream_ch_chain_pkt_hdr_t pkt_hdr;
+    uint64_t pkt_data_size;
+    byte_t *pkt_data;
+} dap_chain_pkt_copy_t;
+
 typedef struct dap_stream_ch_chain {
-    pthread_mutex_t mutex;
     dap_stream_ch_t * ch;
 
-    dap_db_log_list_t *request_global_db_trs; // list of transactions
+    dap_db_log_list_t *request_global_db_trs; // list of global db records
+    dap_list_t *db_iter;
     dap_stream_ch_chain_state_t state;
 
-    dap_chain_atom_iter_t * request_atom_iter;
-    dap_chain_atom_item_t * request_atoms_lasts;
-    dap_chain_atom_item_t * request_atoms_processed;
+    dap_chain_atom_iter_t *request_atom_iter;
+    dap_list_t *pkt_copy_list;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
     dap_stream_ch_chain_sync_request_t request;
-    dap_chain_net_id_t request_net_id;
-    dap_chain_id_t request_chain_id;
-    dap_chain_cell_id_t request_cell_id;
-    time_t request_last_ts;
+    dap_stream_ch_chain_pkt_hdr_t request_hdr;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;

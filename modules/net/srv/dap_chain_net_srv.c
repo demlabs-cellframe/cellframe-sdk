@@ -37,6 +37,12 @@
 #include <io.h>
 #endif
 
+#ifdef DAP_OS_LINUX
+#include <dlfcn.h>
+#endif
+#include <json-c/json.h>
+#include <json-c/json_object.h>
+
 #include <pthread.h>
 #include <dirent.h>
 
@@ -100,7 +106,14 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
         "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -price <Price>\\\n"
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>] \\\n"
         "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
-        "\tOrder create\n" );
+        "        [-cert <cert name to sign order>]\\\n"
+        "\tOrder create\n"
+            "net_srv -net <chain net name> order static [save | delete]\\\n"
+            "\tStatic nodelist create/delete\n"
+            "net_srv -net <chain net name> order recheck\\\n"
+            "\tCheck the availability of orders\n"
+
+        );
 
     s_load_all();
     return 0;
@@ -166,6 +179,28 @@ void dap_chain_net_srv_deinit(void)
 }
 
 
+static void* get_cdb_func(const char *func_name)
+{
+    void *l_ref_func = NULL;
+    //  find func from dynamic library
+#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+    const char * s_default_path_modules = "var/modules";
+    const char * l_cdb_so_name = "libcellframe-node-cdb.so";
+    char *l_lib_path = dap_strdup_printf("%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
+    void* l_cdb_handle = NULL;
+    l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
+    DAP_DELETE(l_lib_path);
+    if(!l_cdb_handle) {
+        log_it(L_ERROR, "Can't load %s module: %s", l_cdb_so_name, dlerror());
+    }
+    else {
+        l_ref_func = dlsym(l_cdb_handle, func_name);
+        dlclose(l_cdb_handle);
+    }
+#endif
+    return l_ref_func;
+}
+
 /**
  * @brief s_cli_net_srv
  * @param argc
@@ -194,7 +229,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
 
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        int l_order_arg_pos = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
 
         // Order direction
         const char *l_direction_str = NULL;
@@ -452,7 +487,8 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
             }
         }else if( dap_strcmp( l_order_str, "create" ) == 0 ){
-
+            const char *l_order_cert_name = NULL;
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_order_cert_name);
             if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
@@ -485,14 +521,27 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                         log_it( L_ERROR, "Can't parse \"%s\" as node addr");
                 }
                 if (l_tx_cond_hash_str)
-                    dap_chain_str_to_hash_fast (l_tx_cond_hash_str, &l_tx_cond_hash);
+                    dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = (uint64_t) atoll ( l_price_str );
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
+                // get cert to order sign
+                dap_cert_t *l_cert = NULL;
+                dap_enc_key_t *l_key = NULL;
+                if(l_order_cert_name) {
+                    dap_cert_t *l_cert = dap_cert_find_by_name(l_order_cert_name);
+                    if(l_cert)
+                        l_key = l_cert->enc_key;
+                    else
+                        log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
+                }
+                // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
-                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, NULL);
+                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, l_key);
+                if(l_cert)
+                    dap_cert_delete(l_cert);
                 if (l_order_new_hash_str)
                     dap_string_append_printf( l_string_ret, "Created order %s\n", l_order_new_hash_str);
                 else{
@@ -503,9 +552,59 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append_printf( l_string_ret, "Missed some required params\n");
                 ret=-5;
             }
+        }else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
+            //int dap_chain_net_srv_vpn_cdb_server_list_check_orders(dap_chain_net_t *a_net);
+            int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net) = NULL;
+            *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_check_orders) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
+            int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(l_net) : -5;
+            //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net);
+            ret = -10;
+
+        }else if( dap_strcmp( l_order_str, "static" ) == 0 ){
+            // find the subcommand directly after the 'order' command
+            int l_subcmd_save = dap_chain_node_cli_find_option_val(argv, l_order_arg_pos + 1, l_order_arg_pos + 2, "save", NULL);
+            int l_subcmd_del = dap_chain_node_cli_find_option_val(argv, l_order_arg_pos + 1, l_order_arg_pos + 2, "delete", NULL) |
+                               dap_chain_node_cli_find_option_val(argv, l_order_arg_pos + 1, l_order_arg_pos + 2, "del", NULL);
+
+            int (*dap_chain_net_srv_vpn_cdb_server_list_static_create)(dap_chain_net_t *a_net) = NULL;
+            int (*dap_chain_net_srv_vpn_cdb_server_list_static_delete)(dap_chain_net_t *a_net) = NULL;
+            //  find func from dinamic library
+            if(l_subcmd_save || l_subcmd_del) {
+                *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_static_create) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_create");
+                *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_static_delete) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_delete");
+            }
+            if(l_subcmd_save) {
+                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_create ? (*dap_chain_net_srv_vpn_cdb_server_list_static_create)(l_net) : -5;
+                //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_create(l_net);
+                if(l_init_res >= 0){
+                    dap_string_append_printf(l_string_ret, "Static node list saved, %d orders in list\n", l_init_res);
+                    ret = 0;
+                }
+                else{
+                    dap_string_append_printf(l_string_ret, "Static node list not saved, error code %d\n", l_init_res);
+                    ret = -11;
+                }
+
+            } else if(l_subcmd_del) {
+                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_delete ? (*dap_chain_net_srv_vpn_cdb_server_list_static_delete)(l_net) : -5;
+                //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_delete(l_net);
+                if(!l_init_res){
+                    dap_string_append_printf(l_string_ret, "Static node list deleted\n");
+                    ret = 0;
+                }
+                else if(l_init_res > 0){
+                    dap_string_append_printf(l_string_ret, "Static node list already deleted\n");
+                    ret = -12;
+                }
+                else
+                    dap_string_append_printf(l_string_ret, "Static node list not deleted, error code %d\n", l_init_res);
+            } else {
+                dap_string_append(l_string_ret, "not found subcommand 'save' or 'delete'\n");
+                ret = -13;
+            }
         } else {
-            dap_string_append_printf( l_string_ret, "Unknown subcommand \n");
-            ret=-3;
+            dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
+            ret = -3;
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);
         dap_string_free(l_string_ret, true);

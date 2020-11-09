@@ -45,8 +45,9 @@
  */
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum
                                                 ,dap_enc_key_t * a_key ,
-                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count)
+                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t * a_event_size)
 {
+    assert(a_event_size);
     size_t l_hashes_size = sizeof(*a_hashes)*a_hashes_count;
     size_t l_datum_size =  dap_chain_datum_size(a_datum);
     dap_chain_cs_dag_event_t * l_event_new = NULL;
@@ -58,11 +59,15 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
     l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
     l_event_new->header.hash_count = a_hashes_count;
+    *a_event_size = sizeof (l_event_new->header);
 
-    if ( l_hashes_size )
+    if ( l_hashes_size ){
         memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
+        *a_event_size += l_hashes_size;
+    }
 
     memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
+    *a_event_size += l_datum_size;
 
     if ( a_key ){
         dap_sign_t * l_sign = dap_sign_create(a_key,l_event_new,
@@ -73,7 +78,9 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
             l_event_new = (dap_chain_cs_dag_event_t* )DAP_REALLOC(l_event_new,l_event_size+l_sign_size );
             memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_size += l_sign_size;
+            *a_event_size = l_event_size;
             l_event_new->header.signs_count++;
+            log_it(L_INFO,"Created event size %zd, signed with sign size %zd", l_event_size, l_sign_size);
             DAP_DELETE(l_sign);
         }else {
             log_it(L_ERROR,"Can't sign dag event!");
@@ -91,13 +98,12 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
  * @param a_event_src
  * @return
  */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src)
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src,size_t a_event_size)
 {
     if(!a_event_src)
         return NULL;
-    size_t l_event_size = dap_chain_cs_dag_event_calc_size(a_event_src);
-    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size);
-    memcpy(l_event_new, a_event_src, l_event_size);
+    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, a_event_size);
+    memcpy(l_event_new, a_event_src, a_event_size);
     return l_event_new;
 }
 
@@ -107,16 +113,15 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t 
  * @param l_key
  * @return
  */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event,
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
                                                                       dap_enc_key_t * l_key)
 {
-    size_t l_event_size = dap_chain_cs_dag_event_calc_size( a_event );
-    size_t l_event_signing_size = dap_chain_cs_dag_event_calc_size_excl_signs( a_event );
+    size_t l_event_signing_size = dap_chain_cs_dag_event_calc_size_excl_signs( a_event ,a_event_size);
     dap_sign_t * l_sign = dap_sign_create(l_key,a_event,l_event_signing_size,0);
     size_t l_sign_size = dap_sign_get_size(l_sign);
-    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
-    memcpy(l_event_new, a_event,l_event_size);
-    memcpy(l_event_new+l_event_size,l_sign,l_sign_size);
+    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, a_event_size+l_sign_size);
+    memcpy(l_event_new, a_event,a_event_size);
+    memcpy(l_event_new+a_event_size,l_sign,l_sign_size);
     l_event_new->header.signs_count++;
     return l_event_new;
 }
@@ -127,16 +132,23 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_
  * @param a_sign_number
  * @return
  */
-dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, uint16_t a_sign_number)
+dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number)
 {
+    size_t l_offset_passed = sizeof (a_event->header);
     if (a_event->header.signs_count > a_sign_number ){
-        size_t l_offset_to_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_event);
+        size_t l_offset_to_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_event,a_event_size);
+        l_offset_passed += l_offset_to_sign;
+        if ( l_offset_passed >= a_event_size)
+            return NULL;
         uint8_t * l_signs = ((uint8_t*) a_event)+l_offset_to_sign;
         uint16_t l_signs_offset = 0;
         uint16_t l_signs_passed;
         for ( l_signs_passed=0;  l_signs_passed < a_sign_number; l_signs_passed++){
             dap_sign_t * l_sign = (dap_sign_t *) (l_signs+l_signs_offset);
             l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+            l_offset_passed += l_offset_to_sign;
+            if ( l_offset_passed >= a_event_size)
+                return NULL;
         }
         return (dap_sign_t*) l_signs + l_signs_offset;
     }else

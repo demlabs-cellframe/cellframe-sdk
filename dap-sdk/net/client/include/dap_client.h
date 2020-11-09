@@ -34,6 +34,7 @@
  * @brief The dap_client_stage enum. Top level of client's state machine
  **/
 typedef enum dap_client_stage {
+    STAGE_UNDEFINED=-1,
     STAGE_BEGIN=0,
     STAGE_ENC_INIT=1,
     STAGE_STREAM_CTL=2,
@@ -54,19 +55,20 @@ typedef enum dap_client_stage_status {
 
 typedef enum dap_client_error {
     ERROR_NO_ERROR = 0,
+    ERROR_OUT_OF_MEMORY,
     ERROR_ENC_NO_KEY,
     ERROR_ENC_WRONG_KEY,
+    ERROR_ENC_SESSION_CLOSED,
     ERROR_STREAM_CTL_ERROR,
     ERROR_STREAM_CTL_ERROR_AUTH,
     ERROR_STREAM_CTL_ERROR_RESPONSE_FORMAT,
+    ERROR_STREAM_CONNECT,
     ERROR_STREAM_RESPONSE_WRONG,
     ERROR_STREAM_RESPONSE_TIMEOUT,
     ERROR_STREAM_FREEZED,
     ERROR_NETWORK_CONNECTION_REFUSE,
     ERROR_NETWORK_CONNECTION_TIMEOUT
 } dap_client_error_t;
-
-#define DAP_CLIENT_PROTOCOL_VERSION 22
 
 /**
  * @brief The dap_client struct
@@ -81,13 +83,11 @@ typedef void (*dap_client_callback_t) (dap_client_t *, void*);
 typedef void (*dap_client_callback_int_t) (dap_client_t *, int);
 typedef void (*dap_client_callback_data_size_t) (dap_client_t *, void *, size_t);
 
-#define DAP_UPLINK_PATH_ENC_INIT         "enc_init" //"1901248124123459"
-#define DAP_UPLINK_PATH_DB               "01094787531354"
-#define DAP_UPLINK_PATH_STREAM_CTL       "stream_ctl" //"091348758013553"
-#define DAP_UPLINK_PATH_STREAM           "stream" //"874751843144"
+#define DAP_UPLINK_PATH_ENC_INIT         "enc_init"
+#define DAP_UPLINK_PATH_STREAM_CTL       "stream_ctl"
+#define DAP_UPLINK_PATH_STREAM           "stream"
 #define DAP_UPLINK_PATH_LICENSE          "license"
 //#define DAP_UPLINK_PATH_NODE_LIST        "nodelist"
-#define DAP_UPLINK_PATH_SERVER_LIST      "slist"
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,24 +99,21 @@ void dap_client_deinit();
 dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_stage_status_callback
                               , dap_client_callback_t a_stage_status_error_callback );
 
-void dap_client_set_uplink(dap_client_t * a_client,const char* a_addr, uint16_t a_port);
-const char* dap_client_get_uplink_addr(dap_client_t * a_client);
-uint16_t dap_client_get_uplink_port(dap_client_t * a_client);
-
-
-void dap_client_delete(dap_client_t * a_client);
+void dap_client_set_uplink_unsafe(dap_client_t * a_client,const char* a_addr, uint16_t a_port);
+const char* dap_client_get_uplink_addr_unsafe(dap_client_t * a_client);
+uint16_t dap_client_get_uplink_port_unsafe(dap_client_t * a_client);
 
 
 dap_enc_key_t * dap_client_get_key_stream(dap_client_t * a_client);
 
 void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_end, dap_client_callback_t a_stage_end_callback);
+void dap_client_delete_mt(dap_client_t * a_client);
+void dap_client_delete_unsafe(dap_client_t * a_client);
 
-void dap_client_reset(dap_client_t * a_client);
-
-void dap_client_request_enc(dap_client_t * a_client, const char * a_path,const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
+void dap_client_request_enc_unsafe(dap_client_t * a_client, const char * a_path,const char * a_suburl,const char* a_query, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
-void dap_client_request(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
+void dap_client_request_unsafe(dap_client_t * a_client, const char * a_full_path, void * a_request, size_t a_request_size,
                                 dap_client_callback_data_size_t a_response_proc, dap_client_callback_int_t a_response_error);
 
 //int dap_client_disconnect(dap_client_t * a_client);
@@ -131,15 +128,14 @@ const char * dap_client_get_error_str(dap_client_t * a_client);
 
 const char * dap_client_get_auth_cookie(dap_client_t * a_client);
 dap_stream_t * dap_client_get_stream(dap_client_t * a_client);
-dap_stream_ch_t * dap_client_get_stream_ch(dap_client_t * a_client, uint8_t a_ch_id);
+dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client);
+dap_stream_ch_t * dap_client_get_stream_ch_unsafe(dap_client_t * a_client, uint8_t a_ch_id);
 const char * dap_client_get_stream_id(dap_client_t * a_client);
-void dap_client_set_active_channels (dap_client_t * a_client, const char * a_active_channels);
-void dap_client_set_auth_cert(dap_client_t * a_client, dap_cert_t *a_cert);
+void dap_client_set_active_channels_unsafe (dap_client_t * a_client, const char * a_active_channels);
+void dap_client_set_auth_cert_unsafe(dap_client_t * a_client, dap_cert_t *a_cert);
 
 dap_client_stage_t dap_client_get_stage(dap_client_t * a_client);
 dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);
-
-#define DAP_CLIENT(a) (a ? (dap_client_t *) (a)->_inheritor : NULL)
 
 #ifdef __cplusplus
 }

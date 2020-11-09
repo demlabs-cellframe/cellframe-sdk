@@ -24,7 +24,7 @@
 #include <dap_chain_ledger.h>
 #include <sys/types.h>
 #include <dirent.h>
-
+#include <stdc-predef.h>
 #include <unistd.h>
 
 #include "dap_common.h"
@@ -193,6 +193,21 @@ void dap_chain_delete(dap_chain_t * a_chain)
 }
 
 /**
+ * @brief dap_chain_get_atom_by_hash
+ * @param a_chain
+ * @param a_atom_hash
+ * @param a_atom_size
+ * @return
+ */
+dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size)
+{
+    dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain);
+    dap_chain_atom_ptr_t *l_ret = a_chain->callback_atom_find_by_hash(l_iter, a_atom_hash, a_atom_size);
+    a_chain->callback_atom_iter_delete(l_iter);
+    return l_ret;
+}
+
+/**
  * @brief dap_chain_find_by_id
  * @param a_chain_net_id
  * @param a_chain_id
@@ -282,9 +297,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
             // Recognize chains id
             if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( sscanf(l_chain_id_str,"0x%016llX",& l_chain_id_u ) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%016llx",&l_chain_id_u) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%llu",&l_chain_id_u ) !=1 ){
+                if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
+                    if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
+                        if ( sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_u,&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -296,7 +311,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
 
             if (l_chain_id_str ) {
-                log_it (L_NOTICE, "Chain id 0x%016lX  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;
+                log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;
             }else {
                 log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec",l_chain_id_str);
                 dap_config_close(l_cfg);

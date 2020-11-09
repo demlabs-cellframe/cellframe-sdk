@@ -140,6 +140,7 @@ char* g_sys_dir_path = NULL;
 
 static char s_last_error[LAST_ERROR_MAX]    = {'\0'},
     s_log_file_path[MAX_PATH]               = {'\0'},
+    s_log_dir_path[MAX_PATH]                = {'\0'},
     s_log_tag_fmt_str[10]                   = {'\0'};
 
 static enum dap_log_level s_dap_log_level = L_DEBUG;
@@ -222,7 +223,7 @@ void dap_set_log_tag_width(size_t a_width) {
  * @param[in] a_log_file
  * @return
  */
-int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
+int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 
     // init randomer
     srand( (unsigned int)time(NULL) );
@@ -230,15 +231,16 @@ int dap_common_init( const char *a_console_title, const char *a_log_filename ) {
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
     for (int i = 0; i < 16; ++i)
             s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
-    if ( a_log_filename ) {
-        s_log_file = fopen( a_log_filename , "a" );
+    if ( a_log_file_path ) {
+        s_log_file = fopen( a_log_file_path , "a" );
         if( s_log_file == NULL)
-            s_log_file = fopen( a_log_filename , "w" );
+            s_log_file = fopen( a_log_file_path , "w" );
         if ( s_log_file == NULL ) {
-            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
-            //return -1;   //switch off show log in cosole if file not open
+            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_file_path );
+            return -1;   //switch off show log in cosole if file not open
         }
-        dap_stpcpy(s_log_file_path, a_log_filename);
+        dap_stpcpy(s_log_dir_path,  a_log_dirpath);
+        dap_stpcpy(s_log_file_path, a_log_file_path);
     }
     pthread_create( &s_log_thread, NULL, s_log_thread_proc, NULL );
     return 0;
@@ -301,6 +303,10 @@ static void *s_log_thread_proc(void *arg) {
                 if(!dap_file_test(s_log_file_path)) {
                     fclose(s_log_file);
                     s_log_file = fopen(s_log_file_path, "a");
+                    if( s_log_file == NULL) {
+                        dap_mkdir_with_parents(s_log_dir_path);
+                        s_log_file = fopen( s_log_file_path , "w" );
+                    }
                 }
             }
             DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
@@ -517,6 +523,27 @@ int send_select_break( )
     return -1;
 
   return 0;
+}
+
+
+int exec_with_ret(char** repl, const char * a_cmd) {
+    FILE * fp;
+    size_t buf_len = 0;
+    char buf[4096] = {0};
+    fp = popen(a_cmd, "r");
+    if (!fp) {
+        log_it(L_ERROR,"Cmd execution error: '%s'", strerror(errno));
+        return(255);
+    }
+    memset(buf, 0, sizeof(buf));
+    fgets(buf, sizeof(buf) - 1, fp);
+    buf_len = strlen(buf);
+    if(repl) {
+        if(buf[buf_len - 1] == '\n')
+            buf[buf_len - 1] ='\0';
+        *repl = strdup(buf);
+    }
+    return pclose(fp);
 }
 
 #ifdef ANDROID1
@@ -858,7 +885,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
         return NULL;
     }
-#ifdef WIN32
+#if (defined _WIN32)
     if (s_timers_count == 0) {
         InitializeCriticalSection(&s_timers_lock);
     }
@@ -867,7 +894,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
         return NULL;
     }
     EnterCriticalSection(&s_timers_lock);
-#elif defined DAP_OS_DARWIN
+#elif (defined DAP_OS_DARWIN)
     if (s_timers_count == 0) {
         pthread_mutex_init(&s_timers_lock, NULL);
     }
@@ -901,9 +928,9 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     s_timers[s_timers_count].callback = a_callback;
     s_timers[s_timers_count].param = a_param;
     s_timers_count++;
-#ifdef _WIN32
+#ifdef WIN32
     LeaveCriticalSection(&s_timers_lock);
-#elif DAP_OS_UNIX
+#else
     pthread_mutex_unlock(&s_timers_lock);
 #endif
     return (void *)l_timer;
@@ -919,9 +946,9 @@ int dap_interval_timer_delete(void *a_timer)
     if (!s_timers_count) {
         return -1;
     }
-#ifdef _WIN32
+#if (defined _WIN32)
     EnterCriticalSection(&s_timers_lock);
-#elif DAP_OS_UNIX
+#elif (defined DAP_OS_UNIX)
     pthread_mutex_lock(&s_timers_lock);
 #endif
     int l_timer_idx = s_timer_find(a_timer);
@@ -938,18 +965,18 @@ int dap_interval_timer_delete(void *a_timer)
         DeleteCriticalSection(&s_timers_lock);
     }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#elif DAP_OS_UNIX
+#else
     pthread_mutex_unlock(&s_timers_lock);
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
-    #ifdef DAP_OS_DARWIN
+#ifdef DAP_OS_UNIX
+    return timer_delete((timer_t)a_timer);
+#else
     dispatch_source_cancel(a_timer);
     return 0;
-    #else
-        return timer_delete((timer_t)a_timer);
-    #endif
-#endif
+#endif  // DAP_OS_UNIX
+#endif  // _WIN32
 }
 
 /**
@@ -1020,3 +1047,23 @@ void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
     dap_lendian_put32(a_buf, a_val);
     dap_lendian_put32(a_buf + 4, a_val >> 32);
 }
+
+/**
+ * dap_usleep:
+ * @a_microseconds: number of microseconds to pause
+ *
+ * Pauses the current thread for the given number of microseconds.
+ */
+void dap_usleep(time_t a_microseconds)
+{
+#ifdef DAP_OS_WINDOWS
+    Sleep (a_microseconds / 1000);
+#else
+    struct timespec l_request, l_remaining;
+    l_request.tv_sec = a_microseconds / DAP_USEC_PER_SEC;
+    l_request.tv_nsec = 1000 * (a_microseconds % DAP_USEC_PER_SEC);
+    while(nanosleep(&l_request, &l_remaining) == -1 && errno == EINTR)
+        l_request = l_remaining;
+#endif
+}
+

@@ -17,7 +17,8 @@ include (src/newhope/newhope.pri)
 
 DEFINES += KeccakP1600timesN_excluded
 
-HEADERS += $$PWD/include/dap_enc.h \
+HEADERS += $$PWD/src/XKCP/lib/common/config.h \
+    $$PWD/include/dap_enc.h \
     $$PWD/include/dap_enc_base64.h \
     $$PWD/include/dap_enc_iaes.h \
     $$PWD/include/dap_enc_oaes.h \
@@ -78,4 +79,4 @@ SOURCES += $$PWD/src/dap_enc.c \
     $$PWD/src/XKCP/lib/high/Keccak/SP800-185/SP800-185.inc
 
 
-INCLUDEPATH += $$PWD/include $$PWD/../ $$PWD/src $$PWD/src/XKCP/lib/high/Keccak/FIPS202 $$PWD/src/XKCP/lib/high/Keccak/SP800-185 $$PWD/src/XKCP/lib/high/common
+INCLUDEPATH += $$PWD/include $$PWD/../ $$PWD/src $$PWD/src/XKCP/lib/high/Keccak/FIPS202 $$PWD/src/XKCP/lib/high/Keccak/SP800-185 $$PWD/src/XKCP/lib/high/common $$PWD/src/XKCP/lib/common

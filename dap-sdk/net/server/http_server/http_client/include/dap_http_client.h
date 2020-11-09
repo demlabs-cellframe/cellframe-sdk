@@ -17,15 +17,11 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-
-#ifndef _DAP_HTTP_CLIENT_H_
-#define _DAP_HTTP_CLIENT_H_
-
+#pragma once
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 
 struct dap_http_client;
 struct dap_http;
@@ -39,6 +35,7 @@ typedef enum dap_http_client_state{
 } dap_http_client_state_t;
 
 typedef void (*dap_http_client_callback_t) (struct dap_http_client *,void * arg); // Callback for specific client operations
+typedef void (*dap_http_client_callback_error_t) (struct dap_http_client *,int); // Callback for specific client operations
 
 typedef struct dap_http_client
 {
@@ -66,7 +63,7 @@ typedef struct dap_http_client
     time_t out_last_modified;
     bool out_connection_close;
 
-    dap_client_remote_t *client;
+    dap_events_socket_t *esocket;
     struct dap_http * http;
 
     uint16_t reply_status_code;
@@ -87,16 +84,15 @@ extern "C" {
 
 int dap_http_client_init( );
 void dap_http_client_deinit( );
+void dap_http_client_new( dap_events_socket_t * cl,void *arg ); // Creates HTTP client's internal structure
+void dap_http_client_delete( dap_events_socket_t * cl,void *arg ); // Free memory for HTTP client's internal structure
 
-void dap_http_client_new( dap_client_remote_t * cl,void *arg ); // Creates HTTP client's internal structure
-void dap_http_client_delete( dap_client_remote_t * cl,void *arg ); // Free memory for HTTP client's internal structure
-
-void dap_http_client_read( dap_client_remote_t * cl,void *arg ); // Process read event
-void dap_http_client_write( dap_client_remote_t * cl,void *arg ); // Process write event
-void dap_http_client_error( dap_client_remote_t * cl,void *arg ); // Process error event
+void dap_http_client_read( dap_events_socket_t * cl,void *arg ); // Process read event
+void dap_http_client_write( dap_events_socket_t * cl,void *arg ); // Process write event
+void dap_http_client_error( dap_events_socket_t * cl,int arg ); // Process error event
+void dap_http_client_out_header_generate( dap_http_client_t *cl_ht );
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif

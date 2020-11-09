@@ -24,9 +24,7 @@
 
 #include <errno.h>
 #include "dap_dns_server.h"
-#include "dap_udp_server.h"
-#include "dap_udp_client.h"
-#include "dap_client_remote.h"
+#include "dap_events_socket.h"
 #include "dap_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
@@ -38,6 +36,9 @@
 
 #ifndef _WIN32
 #include <unistd.h> // for close
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #define closesocket close
 #define INVALID_SOCKET -1
 #endif
@@ -191,16 +192,16 @@ dap_dns_zone_callback_t dap_dns_zone_find(char *hostname) {
  * @param arg Unused
  * @return none
  */
-void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
-    UNUSED(arg);
-    if (client->buf_in_size < DNS_HEADER_SIZE) {        // Bad request
+void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
+    UNUSED(a_arg);
+    if (a_es->buf_in_size < DNS_HEADER_SIZE) {        // Bad request
         return;
     }
     dap_dns_buf_t *dns_message = DAP_NEW(dap_dns_buf_t);
     dap_dns_buf_t *dns_reply = DAP_NEW(dap_dns_buf_t);
-    dns_message->data = DAP_NEW_SIZE(char, client->buf_in_size + 1);
-    dns_message->data[client->buf_in_size] = 0;
-    dap_client_remote_read(client, dns_message->data, client->buf_in_size);
+    dns_message->data = DAP_NEW_SIZE(char, a_es->buf_in_size + 1);
+    dns_message->data[a_es->buf_in_size] = 0;
+    dap_events_socket_pop_from_buf_in(a_es, dns_message->data, a_es->buf_in_size);
     dns_message->ptr = 0;
 
     // Parse incoming DNS message
@@ -332,8 +333,7 @@ void dap_dns_client_read(dap_client_remote_t *client, void * arg) {
     dns_reply->data[2] = msg_flags.val >> 8;
     dns_reply->data[3] = msg_flags.val;
     // Send DNS reply
-    dap_udp_client_write(client, dns_reply->data, dns_reply->ptr);
-    dap_udp_client_ready_to_write(client, true);
+    dap_events_socket_write_unsafe(a_es, dns_reply->data, dns_reply->ptr);
     dap_string_free(dns_hostname, true);
 cleanup:
     DAP_DELETE(dns_reply->data);
@@ -343,20 +343,17 @@ cleanup:
     return;
 }
 
-void dap_dns_server_start() {
-    s_dns_server = DAP_NEW(dap_dns_server_t);
-    s_dns_server->hash_table = NULL;
-    s_dns_server->instance = dap_udp_server_listen(DNS_LISTEN_PORT);
+void dap_dns_server_start(dap_events_t *a_ev, uint16_t a_port)
+{
+    s_dns_server = DAP_NEW_Z(dap_dns_server_t);
+    dap_events_socket_callbacks_t l_cb = {};
+    l_cb.read_callback = dap_dns_client_read;
+    s_dns_server->instance = dap_server_new(a_ev, NULL, a_port, DAP_SERVER_UDP, &l_cb);
     if (!s_dns_server->instance) {
         log_it(L_ERROR, "Can't start DNS server");
         return;
     }
-    s_dns_server->instance->client_read_callback = dap_dns_client_read;
-    s_dns_server->instance->client_write_callback = NULL;
-    s_dns_server->instance->client_new_callback = NULL;
-    s_dns_server->instance->client_delete_callback = NULL;
     dap_dns_zone_register(&s_root_alias[0], dap_dns_resolve_hostname);  // root resolver
-    pthread_create(&s_dns_server->udp_thread, NULL, (void *)dap_udp_server_loop, s_dns_server->instance);
 }
 
 void dap_dns_server_stop() {
@@ -369,12 +366,11 @@ void dap_dns_server_stop() {
         DAP_DELETE(current_zone->zone);
         DAP_DELETE(current_zone);
     }
-    // TODO add code to stop udp_thread
-    dap_udp_server_delete(s_dns_server->instance);
+    dap_server_delete(s_dns_server->instance);
     DAP_DELETE(s_dns_server);
 }
 
-int dap_dns_client_get_addr(uint32_t a_addr, char *a_name, dap_chain_node_info_t *a_result)
+int dap_dns_client_get_addr(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result)
 {
     const size_t l_buf_size = 1024;
     uint8_t l_buf[l_buf_size];
@@ -417,8 +413,8 @@ int dap_dns_client_get_addr(uint32_t a_addr, char *a_name, dap_chain_node_info_t
     }
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;
-    l_addr.sin_port = htons(DNS_LISTEN_PORT);
-    l_addr.sin_addr.s_addr = a_addr;
+    l_addr.sin_port = htons(a_port);
+    l_addr.sin_addr = a_addr;
     int l_portion = 0, l_len = l_dns_request.ptr;
     for (int l_sent = 0; l_sent < l_len; l_sent += l_portion) {
         l_portion = sendto(l_sock, (const char *)(l_buf + l_sent), l_len - l_sent, 0, (struct sockaddr *)&l_addr, sizeof(l_addr));

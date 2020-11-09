@@ -1044,12 +1044,9 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
 
         log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, dap_stream_ch_chain_get_id());
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
-         l_sync_request.id_start = (uint64_t) dap_db_log_get_last_id_remote(
-                 l_remote_node_info->hdr.address.uint64);
-         // fill end id = 0 - no time limit
-         //l_sync_request.ts_end = 0;
+         l_sync_request.id_start = dap_db_get_last_id_remote(l_remote_node_info->hdr.address.uint64);
          // fill current node address
          l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
 
@@ -1058,7 +1055,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         {
             log_it(L_NOTICE, "Now get node addr");
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
-            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch(l_node_client->client, l_ch_id);
+            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
             int l_res = dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
 
@@ -1098,7 +1095,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 DAP_DELETE(l_remote_node_info);
                 return -1;*/
             }
-            /*                if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
+            /*                if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
              l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
              sizeof(l_sync_request))) {
              dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
@@ -1130,7 +1127,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         //l_s_ch_chain->request_cell_id.uint64 = l_chain_cell_id_null.uint64;
         //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
 
-        if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+        if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1139,7 +1136,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
-        dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+        dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
         // wait for finishing of request
         int timeout_ms = 420000; // 7 min = 420 sec = 420 000 ms
         // TODO add progress info to console
@@ -1162,10 +1159,15 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         DL_FOREACH(l_net->pub.chains, l_chain)
         {
             // reset state NODE_CLIENT_STATE_SYNCED
-            l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+            dap_chain_node_client_reset(l_node_client);
             // send request
-            dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
-            if(0 == dap_stream_ch_chain_pkt_write(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+            dap_stream_ch_chain_sync_request_t l_sync_request = {};
+            dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
+            if (l_hash) {
+                memcpy(&l_sync_request.hash_from, l_hash, sizeof(*l_hash));
+                DAP_DELETE(l_hash);
+            }
+            if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id, l_chain->id, l_remote_node_info->hdr.cell_id, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1176,7 +1178,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 return -3;
             }
             log_it(L_NOTICE, "Requested syncronization for chain \"%s\"", l_chain->name);
-            dap_stream_ch_set_ready_to_write(l_ch_chain, true);
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
 
             // wait for finishing of request
             timeout_ms = 120000; // 2 min = 120 sec = 120 000 ms
@@ -1472,6 +1474,29 @@ int com_ping(int argc, char** argv, void *arg_func, char **str_reply)
 #endif
     return 0;
 }
+
+/**
+ * @brief com_version
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return
+ */
+int com_version(int argc, char ** argv, void *arg_func, char **str_reply)
+{
+    (void) argc;
+    (void) argv;
+    (void) arg_func;
+#ifndef DAP_VERSION
+#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
+#define DAP_VERSION 0.9-15
+#endif
+    dap_chain_node_cli_set_reply_text(str_reply,
+            "%s version %s\n", dap_get_appname(), DAP_VERSION );
+    return 0;
+}
+
 
 /**
  * Help command
@@ -2001,7 +2026,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
     }
 }
 
-void s_com_mempool_list_print_for_chain(const dap_chain_net_t * a_net, const dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
+void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
     if(!l_gdb_group_mempool){
         dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
@@ -2245,8 +2270,8 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                                              l_verify_datum);
                     ret = -9;
                 }else{
-                    if (l_chain->callback_datums_pool_proc){
-                        if (l_chain->callback_datums_pool_proc(l_chain, &l_datum, 1) ==0 ){
+                    if (l_chain->callback_add_datums){
+                        if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
                             dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
                             ret = -6;
                         }else{
@@ -3799,7 +3824,7 @@ int com_tx_history(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_re
 
     dap_chain_hash_fast_t l_tx_hash;
     if(l_tx_hash_str) {
-        if(dap_chain_str_to_hash_fast(l_tx_hash_str, &l_tx_hash) < 0) {
+        if(dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
             l_tx_hash_str = NULL;
             dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
             return -1;
@@ -3905,7 +3930,9 @@ int com_stats(int argc, char ** argv, void *arg_func, char **str_reply)
 
 int com_exit(int argc, char ** argv, void *arg_func, char **str_reply)
 {
+    //dap_events_stop_all();
     exit(0);
+    return 0;
 }
 
 
