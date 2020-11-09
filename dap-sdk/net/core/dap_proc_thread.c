@@ -264,7 +264,7 @@ static void * s_proc_thread_function(void * a_arg)
 #ifdef DAP_EVENTS_CAPS_EPOLL
         //log_it(L_DEBUG, "Epoll_wait call");
         int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
-        size_t l_sockets_max = l_selected_sockets;
+        size_t l_sockets_max = (size_t)l_selected_sockets;
 #elif defined (DAP_EVENTS_CAPS_POLL)
         int l_selected_sockets = poll(l_thread->poll,l_thread->poll_count,-1);
         size_t l_sockets_max = l_thread->poll_count;
@@ -275,10 +275,14 @@ static void * s_proc_thread_function(void * a_arg)
         if(l_selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
+#if defined DAP_OS_UNIX
             int l_errno = errno;
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_ERROR, "Proc thread #%d got errno:\"%s\" (%d)", l_thread->cpu_id , l_errbuf, l_errno);
+#elif DAP_OS_WINDOWS
+            log_it(L_ERROR, "Error occured on thread #%d, errno: %d", l_thread->cpu_id , errno);
+#endif
             break;
         }
         for(size_t n = 0; n < l_sockets_max; n++) {
@@ -317,23 +321,29 @@ static void * s_proc_thread_function(void * a_arg)
             time_t l_cur_time = time( NULL);
             l_cur->last_time_active = l_cur_time;
             if (l_flag_error){
+#if defined DAP_OS_UNIX
                 int l_errno = errno;
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
                 log_it(L_ERROR,"Some error on proc thread #%u with %d socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
+#elif defined DAP_OS_WINDOWS
+                log_it(L_ERROR,"Some error occured on thread #%u with socket %d, errno: %d",l_thread->cpu_id, l_cur->socket, errno);
+#endif
                 if(l_cur->callbacks.error_callback)
-                    l_cur->callbacks.error_callback(l_cur,errno);
+                    l_cur->callbacks.error_callback(l_cur, errno);
             }
             if (l_flag_read ){
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_QUEUE:
-                            dap_events_socket_queue_proc_input_unsafe(l_cur);
-                    break;
+                        dap_events_socket_queue_proc_input_unsafe(l_cur);
+                        break;
                     case DESCRIPTOR_TYPE_EVENT:
-                            dap_events_socket_event_proc_input_unsafe (l_cur);
-                    break;
+                        dap_events_socket_event_proc_input_unsafe (l_cur);
+                        break;
 
-                    default:{ log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop"); }
+                    default:
+                        log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop");
+                        break;
                 }
             }
             if (l_flag_write ){
