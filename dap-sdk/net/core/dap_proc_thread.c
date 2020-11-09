@@ -52,6 +52,7 @@ int dap_proc_thread_init(uint32_t a_threads_count){
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
 
     for (size_t i = 0; i < s_threads_count; i++ ){
+
         s_threads[i].cpu_id = i;
         pthread_cond_init( &s_threads[i].started_cond, NULL );
         pthread_mutex_init( &s_threads[i].started_mutex, NULL );
@@ -65,6 +66,8 @@ int dap_proc_thread_init(uint32_t a_threads_count){
         pthread_cond_wait( &s_threads[i].started_cond, &s_threads[i].started_mutex );
         pthread_mutex_unlock( &s_threads[i].started_mutex );
     }
+
+
     return 0;
 }
 
@@ -156,14 +159,25 @@ static void * s_proc_thread_function(void * a_arg)
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
     l_thread->proc_queue = dap_proc_queue_create(l_thread);
 
+    // Init proc_queue for related worker
+    dap_worker_t * l_worker_related = dap_events_worker_get(l_thread->cpu_id);
+    l_worker_related->proc_queue = l_thread->proc_queue;
+    l_worker_related->proc_queue_input = dap_events_socket_queue_ptr_create_input(l_worker_related->proc_queue->esocket);
+
 
     l_thread->proc_event = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_proc_event_callback);
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
-    l_thread->queue_assign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*dap_events_worker_get_count()  );
-    l_thread->queue_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*dap_events_worker_get_count()  );
-    for (size_t n=0; n<dap_events_worker_get_count(); n++){
-        l_thread->queue_assign_input[n] = dap_events_socket_queue_ptr_create_input(dap_events_worker_get(n)->queue_es_new );
-        l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(dap_events_worker_get(n)->queue_es_io );
+    size_t l_workers_count= dap_events_worker_get_count();
+
+    l_thread->queue_assign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
+    l_thread->queue_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
+
+    assert(l_thread->queue_assign_input);
+    assert(l_thread->queue_io_input);
+    for (size_t n=0; n<l_workers_count; n++){
+        dap_worker_t * l_worker =dap_events_worker_get(n);
+        l_thread->queue_assign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new );
+        l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io );
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events = l_thread->epoll_events, l_ev;

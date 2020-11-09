@@ -776,42 +776,46 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
 
 void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket)
 {
-#if defined (DAP_EVENTS_CAPS_EPOLL)
-    int events = a_esocket->ev_base_flags | EPOLLERR;
+    #if defined (DAP_EVENTS_CAPS_EPOLL)
+        int events = a_esocket->ev_base_flags | EPOLLERR;
 
-    // Check & add
-    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
-        events |= EPOLLIN;
-
-    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
-        events |= EPOLLOUT;
-
-    a_esocket->ev.events = events;
-
-    if ( epoll_ctl(a_esocket->worker->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ){
-        int l_errno = errno;
-        char l_errbuf[128];
-        l_errbuf[0]=0;
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it(L_ERROR,"Can't update client socket state in the epoll_fd %d: \"%s\" (%d)",
-               a_esocket->worker->epoll_fd, l_errbuf, l_errno);
-    }
-#elif defined (DAP_EVENTS_CAPS_POLL)
-    if (a_esocket->poll_index < a_esocket->worker->poll_count ){
-        struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
-        l_poll->events = a_esocket->poll_base_flags | POLLERR ;
         // Check & add
         if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            l_poll->events |= POLLIN;
+            events |= EPOLLIN;
+
         if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
-            l_poll->events |= POLLOUT;
-    }else{
-        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
-               a_esocket->worker->poll_count);
-    }
-#else
-#error "Not defined dap_events_socket_set_writable_unsafe for your platform"
-#endif
+            events |= EPOLLOUT;
+
+        a_esocket->ev.events = events;
+
+        if( a_esocket->worker){
+            if ( epoll_ctl(a_esocket->worker->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ){
+                int l_errno = errno;
+                char l_errbuf[128];
+                l_errbuf[0]=0;
+                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                log_it(L_ERROR,"Can't update client socket state in the epoll_fd %d: \"%s\" (%d)",
+                       a_esocket->worker->epoll_fd, l_errbuf, l_errno);
+            }
+        }
+    #elif defined (DAP_EVENTS_CAPS_POLL)
+        if( a_esocket->worker){
+            if (a_esocket->poll_index < a_esocket->worker->poll_count ){
+                struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
+                l_poll->events = a_esocket->poll_base_flags | POLLERR ;
+                // Check & add
+                if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+                    l_poll->events |= POLLIN;
+                if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
+                    l_poll->events |= POLLOUT;
+            }else{
+                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
+                       a_esocket->worker->poll_count);
+            }
+        }
+    #else
+    #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
+    #endif
 
 }
 
