@@ -49,7 +49,7 @@ typedef struct dap_timerfd {
     bool repeated;
 #ifdef DAP_OS_WINDOWS
     HANDLE th;
-    int tfd2;
+    int pipe_in;
 #endif
 } dap_timerfd_t;
 
