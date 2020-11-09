@@ -490,8 +490,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_link_info);
                 if (l_node_client) {
                     // wait connected
-                    int timeout_ms = 5000; //5 sec = 5000 ms
-                    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+                    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, 10000 );
                     if (res == 0 ) {
                         log_it(L_DEBUG, "Established connection with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
                         l_pvt_net->links = dap_list_append(l_pvt_net->links, l_node_client);
