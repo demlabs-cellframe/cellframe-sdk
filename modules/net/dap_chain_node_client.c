@@ -551,7 +551,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 #ifndef _WIN32
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    uint32_t l_timeout_s = dap_config_get_item_uint32_default(g_config,"chain_net","status_wait_timeout",10);
+    uint32_t l_timeout_s = a_timeout_ms/1000;// dap_config_get_item_uint32_default(g_config,"chain_net","status_wait_timeout",10);
     clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
     l_cond_timeout.tv_sec += l_timeout_s;
 #else
