@@ -33,6 +33,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#ifdef DAP_OS_WINDOWS
+#include <fcntl.h>
+#define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
+#endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
 #endif

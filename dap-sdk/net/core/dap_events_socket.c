@@ -32,7 +32,6 @@
 #include <sys/epoll.h>
 #include <sys/select.h>
 #include <unistd.h>
-#include <fcntl.h>
 #else
 #include <winsock2.h>
 #include <windows.h>
@@ -41,6 +40,7 @@
 #include <io.h>
 #include "wepoll.h"
 #endif
+#include <fcntl.h>
 #include <pthread.h>
 
 #include "dap_common.h"
@@ -184,16 +184,23 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     l_errbuf[0]=0;
     if( pipe(l_pipe) < 0 ){
         l_errno = errno;
+#if defined DAP_OS_UNIX
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
+#elif defined DAP_OS_WINDOWS
+        log_it( L_ERROR, "Can't create pipe, errno: %d", l_errno);
+#endif
         DAP_DELETE(l_es);
         return NULL;
     }//else
      //   log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
+#if defined DAP_OS_UNIX
     fcntl( l_pipe[0], F_SETFL, O_NONBLOCK);
     fcntl( l_pipe[1], F_SETFL, O_NONBLOCK);
+    // this sort of fd doesn't suit ioctlsocket()...
+#endif
 
 #else
 #error "No defined s_create_type_pipe() for your platform"
@@ -425,8 +432,20 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
         }
         DAP_DELETE(l_es);
         return NULL;
-    }else
+    }else {
+        l_es->fd2 = l_es->fd;
         log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
+    }
+#elif defined DAP_OS_WINDOWS
+    int l_pipe[2];
+    if (pipe(l_pipe) < 0) {
+        log_it(L_ERROR, "Can't create pipe for event type, error: %d", errno);
+        DAP_DELETE(l_es);
+        return NULL;
+    }
+    l_es->fd2   = l_pipe[0];
+    l_es->fd    = l_pipe[1];
+    log_it(L_DEBUG, "Created pipe for event type, %d -> %d", l_es->fd2, l_es->fd);
 #endif
     return l_es;
 }
@@ -480,11 +499,24 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
             log_it(L_WARNING, "Can't read packet from event fd: \"%s\"(%d)", l_errbuf, l_errno);
         }else
             return; // do nothing
+#elif defined DAP_OS_WINDOWS
+        uint64_t l_value;
+        int l_ret;
+        switch (l_ret = read(a_esocket->fd, &l_value, 8)) {
+        case -1:
+            log_it(L_CRITICAL, "Can't read from event socket pipe, error: %d", errno);
+            break;
+        case 0:
+            return;
+        default:
+            a_esocket->callbacks.event_callback(a_esocket, l_value);
+            break;
+        }
 #else
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
     }else
-        log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
+        log_it(L_ERROR, "Event socket %d accepted data but callback is NULL ", a_esocket->socket);
 }
 
 
@@ -627,6 +659,13 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
         return l_errno;
     else
         return 1;
+#elif defined DAP_OS_WINDOWS
+    byte_t l_bytes[sizeof(void*)] = { 0 };
+    if(write(a_es->fd2, l_bytes, sizeof(l_bytes)) == -1) {
+        return errno;
+    } else {
+        return 0;
+    }
 #else
 #error "Not implemented dap_events_socket_event_signal() for this platform"
 #endif
