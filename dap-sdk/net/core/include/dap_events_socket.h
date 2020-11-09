@@ -160,7 +160,7 @@ typedef struct dap_events_socket {
 
     // Output section
 
-    uint8_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+    byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
     size_t buf_out_size; // size of data that is in the output buffer
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
@@ -196,6 +196,7 @@ typedef struct dap_events_socket {
     time_t last_ping_request;
 
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
+    void *_pvt; //Private section, different for different types
     struct dap_events_socket * me; // pointer on itself
 
     UT_hash_handle hh;
@@ -215,7 +216,12 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket);
 
 dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags);
+
+dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket_t* a_es);
+int dap_events_socket_queue_ptr_send_to_input( dap_events_socket_t * a_es, void* a_arg);
 int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg);
+
+
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value);
 
 void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor);
@@ -226,6 +232,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker);
+void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, dap_events_socket_t * a_es);
 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
@@ -247,8 +254,13 @@ size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * fo
 // MT variants less
 void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready);
 void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready);
-size_t dap_events_socket_write_mt(dap_worker_t * a_w, dap_events_socket_t *sc, const void * data, size_t data_size);
-size_t dap_events_socket_write_f_mt(dap_worker_t * a_w, dap_events_socket_t *sc, const char * format,...);
+
+size_t dap_events_socket_write_mt(dap_worker_t * a_w, dap_events_socket_t *a_es, const void * a_data, size_t a_data_size);
+size_t dap_events_socket_write_f_mt(dap_worker_t * a_w, dap_events_socket_t *a_es, const char * a_format,...);
+
+size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es, const void * a_data, size_t a_data_size);
+size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es, const char * a_format,...);
+
 void dap_events_socket_remove_and_delete_mt( dap_worker_t * a_w, dap_events_socket_t* a_es);
 void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor );
 

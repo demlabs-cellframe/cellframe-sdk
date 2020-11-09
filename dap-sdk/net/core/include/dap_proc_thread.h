@@ -33,6 +33,9 @@ typedef struct dap_proc_thread{
     pthread_t thread_id;
     dap_proc_queue_t * proc_queue;
     dap_events_socket_t * proc_event; // Should be armed if we have to deal with it
+
+    dap_events_socket_t ** queue_assign_input; // Inputs for assign queues
+    dap_events_socket_t ** queue_io_input; // Inputs for assign queues
     atomic_uint proc_queue_size;
 
     pthread_cond_t started_cond;
@@ -42,8 +45,13 @@ typedef struct dap_proc_thread{
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_ctl;
+    struct epoll_event epoll_events[DAP_EVENTS_SOCKET_MAX];
 #elif defined (DAP_EVENTS_CAPS_POLL)
     int poll_fd;
+    struct pollfd * poll;
+    dap_events_socket_t ** esockets;
+    size_t poll_count;
+    size_t poll_count_max;
 #else
 #error "No poll for proc thread for your platform"
 #endif
@@ -52,3 +60,4 @@ typedef struct dap_proc_thread{
 int dap_proc_thread_init(uint32_t a_threads_count);
 dap_proc_thread_t * dap_proc_thread_get(uint32_t a_thread_number);
 dap_proc_thread_t * dap_proc_thread_get_auto();
+bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_worker_t * a_worker, dap_events_socket_t *a_esocket  );
