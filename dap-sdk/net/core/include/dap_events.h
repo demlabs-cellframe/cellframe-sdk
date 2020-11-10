@@ -27,6 +27,51 @@
 #include "dap_events_socket.h"
 #include "dap_server.h"
 #include "dap_worker.h"
+
+#include <string.h>
+#include <time.h>
+#include <stdio.h>
+//#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef DAP_OS_UNIX
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
+//#include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
+#include <sched.h>
+
+#ifdef DAP_OS_LINUX
+#include <sys/timerfd.h>
+#endif
+
+#ifdef DAP_OS_WINDOWS
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+//#include <pthread.h>
+#endif
+
+#include <utlist.h>
+
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+//#include "dap_server.h"
+//#include "dap_events_socket.h"
+#include "dap_proc_thread.h"
+
 struct dap_events;
 #define DAP_MAX_EVENTS_COUNT    8192
 
@@ -43,6 +88,10 @@ typedef struct dap_events {
     void *_inheritor;  // Pointer to the internal data, HTTP for example
     dap_thread_t proc_thread;
 } dap_events_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout ); // Init server module
 void dap_events_deinit( ); // Deinit server module
@@ -63,3 +112,7 @@ dap_worker_t *dap_events_worker_get_auto( );
 dap_worker_t * dap_events_worker_get(uint8_t a_index);
 uint32_t dap_get_cpu_count();
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id);
+
+#ifdef __cplusplus
+}
+#endif

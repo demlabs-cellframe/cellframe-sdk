@@ -24,10 +24,45 @@
 #pragma once
 #include "dap_client.h"
 #include "dap_events.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+//#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include <pthread.h>
+
+#include "dap_common.h"
+#include "dap_config.h"
+//#include "dap_events.h"
+#include "dap_events_socket.h"
+//#include "dap_client.h"
+
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_client_pool_init(dap_events_t * a_events);
 void dap_client_pool_deinit();
 
 dap_client_t * dap_client_pool_new (const char * a_client_id);
 
-
+#ifdef __cplusplus
+}
+#endif

@@ -19,19 +19,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-#include <unistd.h>
-#include <errno.h>
-
-#include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_string.h"
-#include "dap_net.h"
-#include "dap_events_socket.h"
-#include "dap_stream_ch_proc.h"
-#include "dap_server.h"
-#include "dap_client.h"
-#include "dap_client_pvt.h"
 #include "dap_client_http.h"
 
 #define LOG_TAG "dap_client_http"

@@ -20,9 +20,41 @@
 
 #ifndef _ENC_HTTP_H_
 #define _ENC_HTTP_H_
+
 #include <stddef.h>
 #include <stdbool.h>
 #include "dap_hash.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+
+#include "dap_common.h"
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#endif
+
+#include <pthread.h>
+#include "dap_sign.h"
+
+#include "include/dap_http.h"
+#include "dap_http_client.h"
+#include "include/dap_http_simple.h"
+
+#include "dap_enc.h"
+#include "dap_enc_ks.h"
+#include "dap_enc_key.h"
+#include "dap_enc_iaes.h"
+#include "dap_enc_base64.h"
+#include "dap_enc_msrln.h"
+#include "include/http_status_code.h"
+#include <json-c/json.h>
+
 
 struct dap_http;
 struct dap_http_client;
@@ -66,6 +98,10 @@ typedef struct enc_http_delegate{
 typedef void (*dap_enc_http_callback_t) (enc_http_delegate_t *,void *); // Callback for specific client operations
 typedef uint8_t *(* dap_enc_acl_callback_t) (dap_chain_hash_fast_t *);   // Callback for access list for private chain networks
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int enc_http_init(void);
 void enc_http_deinit(void);
 
@@ -81,5 +117,9 @@ void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delega
 void enc_http_delegate_delete(enc_http_delegate_t * dg);
 
 void enc_http_add_proc(struct dap_http * sh, const char * url);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

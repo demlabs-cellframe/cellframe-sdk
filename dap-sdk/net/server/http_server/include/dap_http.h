@@ -27,6 +27,35 @@ See more details here <http://www.gnu.org/licenses/>.
 #include "dap_http_header.h"
 #include "dap_http_client.h"
 #include "uthash.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <dirent.h>
+
+#ifndef _WIN32
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <netdb.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#endif
+
+#include <pthread.h>
+
+#include "dap_common.h"
+
 
 struct dap_http;
 struct dap_http_url_processor;
@@ -62,6 +91,10 @@ typedef struct dap_http {
 
 #define DAP_HTTP(a) ((dap_http_t *) (a)->_inheritor)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_http_init( ); // Init module
 void dap_http_deinit( ); // Deinit module
 
@@ -77,3 +110,6 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                              ,dap_http_client_callback_t data_write_callback
                              ,dap_http_client_callback_error_t error_callback ); // Add custom procesor for the HTTP server
 
+#ifdef __cplusplus
+}
+#endif

@@ -23,6 +23,31 @@
 #include <stdbool.h>
 #include "dap_events_socket.h"
 
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+#ifndef _WIN32
+#include <libgen.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include <pthread.h>
+
+#include "dap_common.h"
+#include "dap_events_socket.h"
+
+#include "dap_http.h"
+#include "http_status_code.h"
+
+#include "dap_http_header.h"
+
+
 struct dap_http_client;
 struct dap_http;
 struct dap_http_url_proc;

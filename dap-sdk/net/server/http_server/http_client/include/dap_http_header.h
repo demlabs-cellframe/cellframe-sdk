@@ -18,9 +18,27 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef _DAP_HTTP_HEADER_H_
 #define _DAP_HTTP_HEADER_H_
+
+
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include <pthread.h>
+
+#include "dap_common.h"
+#include "dap_events_socket.h"
+#include "dap_http_client.h"
 
 //Structure for holding HTTP header in the bidirectional list
 typedef struct dap_http_header{
@@ -29,6 +47,10 @@ typedef struct dap_http_header{
     struct dap_http_header *next;
     struct dap_http_header *prev;
 } dap_http_header_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct dap_http_client;
 
@@ -48,5 +70,10 @@ extern void dap_http_header_remove(dap_http_header_t ** top,dap_http_header_t * 
 
 // For debug output
 extern void print_dap_http_headers(dap_http_header_t * top);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

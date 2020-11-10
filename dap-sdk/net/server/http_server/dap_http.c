@@ -18,42 +18,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <dirent.h>
-
-#ifndef _WIN32
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <netdb.h>
-#else
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <time.h>
-#endif
-
-#include <pthread.h>
-
-#include "dap_common.h"
-#include "dap_server.h"
-#include "dap_events_socket.h"
 #include "dap_http.h"
-#include "dap_http_header.h"
-#include "dap_http_client.h"
-
 #define LOG_TAG "dap_http"
-
 
 /**
  * @brief dap_http_init // Init HTTP module

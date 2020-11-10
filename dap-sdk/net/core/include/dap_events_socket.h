@@ -28,7 +28,35 @@
 #include <pthread.h>
 #include "uthash.h"
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <assert.h>
+#include <errno.h>
+#ifndef _WIN32
+#include <sys/epoll.h>
+#include <sys/select.h>
+#include <unistd.h>
+#include <fcntl.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include "wepoll.h"
+#endif
+//#include <pthread.h>
+
 #include "dap_common.h"
+#include "dap_list.h"
+#include "dap_worker.h"
+//#include "dap_events.h"
+
+#include "dap_timerfd.h"
+
+//#include "dap_common.h"
 
 #define DAP_EVENTS_SOCKET_MAX 8194
 
@@ -202,6 +230,10 @@ typedef struct dap_events_socket {
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
 
@@ -255,4 +287,6 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 
-
+#ifdef __cplusplus
+}
+#endif

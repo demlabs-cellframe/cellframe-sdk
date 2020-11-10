@@ -27,9 +27,6 @@
 #include "dap_json_rpc_response.h"
 #include "uthash.h"
 
-#ifdef __cplusplus
-extern "C"{
-#endif
 
 typedef void (dap_json_rpc_response_handler_func_t)(dap_json_rpc_response_t *a_response);
 
@@ -39,6 +36,10 @@ typedef struct dap_json_rpc_response_handler
     uint64_t id;
     UT_hash_handle hh;
 }dap_json_rpc_response_handler_t;
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_response_handler_func_t *func);
 uint64_t dap_json_rpc_response_registration(dap_json_rpc_response_handler_func_t *func);

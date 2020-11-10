@@ -22,7 +22,6 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #pragma once
 #include "dap_http_simple.h"
 #include "include/http_status_code.h"
@@ -30,13 +29,13 @@
 #include "dap_json_rpc_request.h"
 #include "dap_json_rpc_request_handler.h"
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 typedef enum dap_json_rpc_version{
     RPC_VERSION_1
 }dap_json_rpc_version_t;
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 int dap_json_rpc_init();
 void dap_json_rpc_deinit();

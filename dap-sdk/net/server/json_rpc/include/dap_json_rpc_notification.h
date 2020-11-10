@@ -26,10 +26,6 @@
 #include "dap_json_rpc_request.h"
 #include "uthash.h"
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 typedef void (notification_handler_func_t)(dap_json_rpc_params_t *a_param);
 
 typedef struct dap_json_rpc_notification_handler
@@ -38,6 +34,10 @@ typedef struct dap_json_rpc_notification_handler
     notification_handler_func_t *func;
     UT_hash_handle  hh;
 }dap_json_rpc_notification_handler_t;
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 int dap_json_rpc_notification_registration(const char *a_method, notification_handler_func_t *a_notification_func);
 void dap_json_rpc_notification_unregistration(const char *a_method);

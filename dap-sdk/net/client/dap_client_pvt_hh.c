@@ -20,22 +20,17 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <pthread.h>
-#include <uthash.h>
+#include "dap_client_pvt_hh.h"
 
-#include "dap_common.h"
-#include "dap_client_pvt.h"
+//typedef struct dap_client_pvt_hh {
+//    dap_client_pvt_t *client_pvt;
+//    UT_hash_handle hh;
+//} dap_client_pvt_hh_t;
 
-typedef struct dap_client_pvt_hh {
-    dap_client_pvt_t *client_pvt;
-    UT_hash_handle hh;
-} dap_client_pvt_hh_t;
-
-// List of active connections
-static dap_client_pvt_hh_t *s_client_pvt_list = NULL;
-// for separate access to s_conn_list
-static pthread_mutex_t s_client_pvt_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+//// List of active connections
+//static dap_client_pvt_hh_t *s_client_pvt_list = NULL;
+//// for separate access to s_conn_list
+//static pthread_mutex_t s_client_pvt_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * dap_client_pvt_hh_lock

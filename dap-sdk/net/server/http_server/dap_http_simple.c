@@ -20,46 +20,8 @@ GNU General Public License for more details.
 
 See more details here <http://www.gnu.org/licenses/>.
 */
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdint.h>
-#include <time.h>
 
-#ifndef _WIN32
-#include <sys/queue.h>
-#else
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#endif
-
-#include <pthread.h>
-
-#include "utlist.h"
-#include "json-c/json.h"
-#include "json-c/json_object.h"
-
-#include "dap_common.h"
-#include "dap_config.h"
-#include "dap_worker.h"
-#include "dap_events.h"
-#include "dap_proc_thread.h"
-#include "dap_http.h"
-#include "dap_http_client.h"
 #include "dap_http_simple.h"
-#include "dap_enc_key.h"
-#include "dap_http_user_agent.h"
-
-
-#include "../enc_server/include/dap_enc_ks.h"
-#include "../enc_server/include/dap_enc_http.h"
-
-#include "http_status_code.h"
-
 #define LOG_TAG "dap_http_simple"
 
 static void s_http_client_headers_read( dap_http_client_t *cl_ht, void *arg );

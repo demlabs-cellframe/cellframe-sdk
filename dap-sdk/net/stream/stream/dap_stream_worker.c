@@ -20,12 +20,8 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_common.h"
-#include "dap_events.h"
-#include "dap_events_socket.h"
-#include "dap_stream_worker.h"
-#include "dap_stream_ch_pkt.h"
 
+#include "dap_stream_worker.h"
 #define LOG_TAG "dap_stream_worker"
 
 static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg);

@@ -29,9 +29,6 @@
 #include "utlist.h"
 #include "json-c/json.h"
 
-#ifdef __cplusplus
-extern "C"{
-#endif
 
 typedef struct dap_json_rpc_error
 {
@@ -45,6 +42,10 @@ typedef struct dap_json_rpc_error_JSON
     json_object *obj_code;
     json_object *obj_msg;
 }dap_json_rpc_error_JSON_t;
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 int dap_json_rpc_error_init(void);
 void dap_json_rpc_error_deinit(void);

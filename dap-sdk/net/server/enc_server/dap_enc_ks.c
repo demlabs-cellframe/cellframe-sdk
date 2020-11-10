@@ -18,27 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <time.h>
-#endif
-
-#include <pthread.h>
-
-#include "uthash.h"
-#include "dap_common.h"
-
-#include "../http_server/http_client/include/dap_http_client.h"
-#include "../http_server/http_client/include/dap_http_header.h"
-
-#include "dap_enc.h"
-#include "include/dap_enc_ks.h"
-#include "dap_enc_key.h"
-
+#include "dap_enc_ks.h"
 #define LOG_TAG "dap_enc_ks"
 
 static dap_enc_ks_key_t * _ks = NULL;

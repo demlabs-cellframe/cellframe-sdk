@@ -27,6 +27,20 @@
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
 
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <sys/resource.h>
+#include <time.h>
+#include <errno.h>
+#include <unistd.h>
+
+#include "dap_common.h"
+#include "dap_math_ops.h"
+#include "dap_events.h"
+
+
 #include "dap_proc_queue.h"
 typedef struct dap_worker
 {
@@ -85,6 +99,10 @@ typedef struct dap_worker_msg_callback{
     void * arg;
 } dap_worker_msg_callback_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
 
@@ -95,3 +113,7 @@ void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t 
 
 // Thread function
 void *dap_worker_thread(void *arg);
+
+#ifdef __cplusplus
+}
+#endif

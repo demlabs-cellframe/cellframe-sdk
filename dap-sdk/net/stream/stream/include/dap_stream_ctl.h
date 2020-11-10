@@ -20,12 +20,53 @@
 
 #pragma once
 
-#include "dap_enc.h"
 #include "dap_config.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <pthread.h>
+#endif
+
+#include "dap_common.h"
+
+#include "dap_stream.h"
+
+#include "dap_enc.h"
+#include "dap_enc_ks.h"
+#include "dap_enc_http.h"
+#include "dap_enc_key.h"
+
+#include "dap_http.h"
+#include "dap_http_client.h"
+#include "dap_events_socket.h"
+#include "dap_http_simple.h"
+
+#include "dap_stream_session.h"
+#include "http_status_code.h"
+
+
 typedef struct dap_http dap_http_t;
 #define KEX_KEY_STR_SIZE 128
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int dap_stream_ctl_init();
 void dap_stream_ctl_deinit();
 void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url);
+
+#ifdef __cplusplus
+}
+#endif

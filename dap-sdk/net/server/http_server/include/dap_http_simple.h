@@ -26,6 +26,43 @@ See more details here <http://www.gnu.org/licenses/>.
 #include <stddef.h>
 #include <stdint.h>
 #include "dap_http.h"
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <string.h>
+#include <time.h>
+
+#ifndef _WIN32
+#include <sys/queue.h>
+#else
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include <pthread.h>
+
+#include "utlist.h"
+#include "json-c/json.h"
+#include "json-c/json_object.h"
+
+#include "dap_common.h"
+#include "dap_config.h"
+#include "dap_worker.h"
+#include "dap_events.h"
+#include "dap_proc_thread.h"
+#include "dap_http_client.h"
+#include "dap_enc_key.h"
+#include "dap_http_user_agent.h"
+
+
+#include "../enc_server/include/dap_enc_ks.h"
+#include "../enc_server/include/dap_enc_http.h"
+
+#include "http_status_code.h"
+
 
 //#define DAP_HTTP_SIMPLE_REQUEST_MAX 100000
 // number of simultaneous http requests
@@ -64,6 +101,10 @@ typedef struct dap_http_simple {
 
 #define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->_inheritor )
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void dap_http_simple_proc_add( dap_http_t *sh, const char *url_path, size_t reply_size_max, dap_http_simple_callback_t cb ); // Add simple processor
 int  dap_http_simple_module_init( void );
 void dap_http_simple_module_deinit(void);
@@ -84,3 +125,6 @@ void dap_http_simple_set_pass_unknown_user_agents( bool pass );
 size_t dap_http_simple_reply( dap_http_simple_t *shs, void *data, size_t data_size );
 size_t dap_http_simple_reply_f( dap_http_simple_t *shs, const char *data, ... );
 
+#ifdef __cplusplus
+}
+#endif

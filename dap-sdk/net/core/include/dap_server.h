@@ -46,11 +46,35 @@
 
 #include <pthread.h>
 #include "uthash.h"
-#include "utlist.h"
-
 #include "dap_list.h"
 #include "dap_cpu_monitor.h"
 #include "dap_events_socket.h"
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <errno.h>
+#include <signal.h>
+#include <utlist.h>
+#if ! defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+#if ! defined (__USE_GNU)
+#define __USE_GNU
+#endif
+#include <sched.h>
+#include "dap_config.h"
+#include "dap_worker.h"
+#include "dap_events.h"
+
 
 typedef enum dap_server_type {DAP_SERVER_TCP, DAP_SERVER_UDP} dap_server_type_t;
 
@@ -83,8 +107,16 @@ typedef struct dap_server {
   pthread_mutex_t started_mutex; // Mutex for shared operation between mirrored sockets
 } dap_server_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_server_init( ); // Init server module
 void  dap_server_deinit( void ); // Deinit server module
 
 dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16_t a_port, dap_server_type_t a_type, dap_events_socket_callbacks_t *a_callbacks);
 void dap_server_delete(dap_server_t *a_server);
+
+#ifdef __cplusplus
+}
+#endif

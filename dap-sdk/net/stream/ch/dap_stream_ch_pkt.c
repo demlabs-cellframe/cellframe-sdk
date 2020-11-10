@@ -18,37 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#endif
-
-#include <pthread.h>
-
-#include "dap_common.h"
-#include "dap_enc.h"
-#include "dap_enc_key.h"
-
-#include "dap_events_socket.h"
-#include "dap_stream.h"
-#include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_stream_ch_proc.h"
-#include "dap_stream_pkt.h"
-#include "dap_stream_worker.h"
-
 #define LOG_TAG "dap_stream_ch_pkt"
 
 /**

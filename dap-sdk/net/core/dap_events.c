@@ -23,56 +23,13 @@
 */
 #define __USE_GNU
 
-#include <string.h>
-#include <time.h>
-#include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#ifdef DAP_OS_UNIX
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#endif
-
-//#include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <sched.h>
-
-#ifdef DAP_OS_LINUX
-#include <sys/timerfd.h>
-#endif
-
 #if defined(DAP_OS_ANDROID)
 #define NO_POSIX_SHED
 #define NO_TIMER
 #else
 #endif
 
-#ifdef DAP_OS_WINDOWS
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#endif
-
-#include <utlist.h>
-
-#include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_server.h"
 #include "dap_events.h"
-#include "dap_events_socket.h"
-#include "dap_proc_thread.h"
 
 #define LOG_TAG "dap_events"
 

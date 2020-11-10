@@ -18,23 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-#ifdef _WIN32
-#include <time.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#endif
-
-#include "dap_common.h"
 #include "dap_stream_session.h"
-
 #define LOG_TAG "dap_stream_session"
 
 dap_stream_session_t * sessions=NULL;

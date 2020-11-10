@@ -20,23 +20,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <time.h>
-#include <errno.h>
-#include <unistd.h>
+
 #if ! defined (_GNU_SOURCE)
 #define _GNU_SOURCE         /* See feature_test_macros(7) */
 #endif
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <sys/resource.h>
 
-#include "dap_common.h"
-#include "dap_math_ops.h"
 #include "dap_worker.h"
-#include "dap_events.h"
-
 #define LOG_TAG "dap_worker"
 
 // temporary too big timout for no closing sockets opened to not keep alive peers

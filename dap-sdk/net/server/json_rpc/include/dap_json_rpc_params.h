@@ -27,10 +27,6 @@
 #include "dap_strfuncs.h"
 #include "json-c/json.h"
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 typedef enum dap_json_rpc_type_param{
     TYPE_PARAM_NULL,
     TYPE_PARAM_STRING,
@@ -50,6 +46,10 @@ typedef struct dap_json_rpc_params
     uint32_t lenght;
     dap_json_rpc_param_t **params;
 }dap_json_rpc_params_t;
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 dap_json_rpc_params_t* dap_json_rpc_params_create(void);
 

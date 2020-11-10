@@ -23,6 +23,38 @@
 #include <stddef.h>
 #include "dap_enc_key.h"
 #include "dap_events_socket.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <pthread.h>
+#endif
+
+#include "dap_common.h"
+//#include "config.h"
+
+#include "dap_worker.h"
+#include "dap_http_client.h"
+
+#include "dap_stream.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_proc.h"
+
+#include "dap_enc.h"
+#include "dap_enc_iaes.h"
+
+
+
+
 #define STREAM_PKT_SIZE_MAX 100000
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_session dap_stream_session_t;
@@ -51,6 +83,10 @@ typedef struct stream_srv_pkt{
     uint32_t coockie;
 } __attribute__((packed)) stream_srv_pkt_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const uint8_t c_dap_stream_sig[8];
 
 dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size);
@@ -61,5 +97,9 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * data, s
 size_t dap_stream_pkt_write_mt (dap_worker_t * a_w, dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * data, size_t a_data_size);
 
 void dap_stream_send_keepalive( dap_stream_t * a_stream);
+
+#ifdef __cplusplus
+}
+#endif
 
 

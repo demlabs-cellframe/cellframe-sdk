@@ -21,41 +21,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#include <sys/epoll.h>
-
-#include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <time.h>
-
-#include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/timerfd.h>
-#include <utlist.h>
-#if ! defined(_GNU_SOURCE)
-#define _GNU_SOURCE
-#endif
-#if ! defined (__USE_GNU)
-#define __USE_GNU
-#endif
-#include <sched.h>
-#include "dap_common.h"
-#include "dap_config.h"
 #include "dap_server.h"
-#include "dap_worker.h"
-#include "dap_events.h"
-
 #define LOG_TAG "dap_server"
 
 static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,

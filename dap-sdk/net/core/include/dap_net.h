@@ -23,6 +23,7 @@
 #pragma once
 
 #include "dap_common.h"
+#include <string.h>
 #ifdef WIN32
 // for Windows
 #include <winsock2.h>
@@ -46,4 +47,12 @@
 
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out);
+
+#ifdef __cplusplus
+}
+#endif

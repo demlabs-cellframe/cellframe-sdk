@@ -30,16 +30,16 @@
 #include "dap_string.h"
 #include "dap_client_http.h"
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 typedef struct dap_json_rpc_request
 {
     char* method;
     dap_json_rpc_params_t *params;
     uint64_t id;
 }dap_json_rpc_request_t;
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 int dap_json_rpc_request_init(const char *a_url_service);
 

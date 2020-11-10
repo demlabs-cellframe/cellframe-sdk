@@ -21,19 +21,6 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <assert.h>
-#include "dap_server.h"
-
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-#include <sys/epoll.h>
-#elif defined (DAP_EVENTS_CAPS_POLL)
-#include <poll.h>
-#else
-#error "Unimplemented poll for this platform"
-#endif
-
-#include "dap_events.h"
-#include "dap_events_socket.h"
 #include "dap_proc_thread.h"
 
 #define LOG_TAG "dap_proc_thread"

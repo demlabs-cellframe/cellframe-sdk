@@ -24,14 +24,39 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <pthread.h>
-#include <stdbool.h>
-#include <pthread.h>
 
 #include "dap_config.h"
 #include "dap_stream_session.h"
-#include "dap_stream_ch.h"
 
 #include "dap_events_socket.h"
+
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <mqueue.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <pthread.h>
+#endif
+
+#include "dap_common.h"
+
+#include "dap_stream_pkt.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_stream_ch_pkt.h"
+
+#include "dap_http.h"
+#include "dap_http_client.h"
+#include "dap_http_header.h"
+#include "dap_stream_worker.h"
+
 
 #define CHUNK_SIZE_MAX (3 * 1024)
 
@@ -87,6 +112,10 @@ typedef struct dap_stream {
 
 #define DAP_STREAM(a) ((dap_stream_t *) (a)->_inheritor )
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_stream_init(dap_config_t * g_config);
 
 bool dap_stream_get_dump_packet_headers();
@@ -108,4 +137,7 @@ void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready);
 
 dap_enc_key_type_t dap_stream_get_preferred_encryption_type();
 
+#ifdef __cplusplus
+}
+#endif
 

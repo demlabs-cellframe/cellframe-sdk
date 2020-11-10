@@ -25,7 +25,15 @@
 #ifndef _DAP_HTTP_USER_AGENT_H_
 #define _DAP_HTTP_USER_AGENT_H_
 
+#include "dap_common.h"
+#include <string.h>
+#include <stdio.h>
+
 typedef struct dap_http_user_agent* dap_http_user_agent_ptr_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief dap_http_user_agent_new
@@ -75,4 +83,9 @@ unsigned int dap_http_user_agent_get_major_version(dap_http_user_agent_ptr_t);
 unsigned int dap_http_user_agent_get_minor_version(dap_http_user_agent_ptr_t);
 const char* dap_http_user_agent_get_name(dap_http_user_agent_ptr_t);
 const char* dap_http_user_agent_get_comment(dap_http_user_agent_ptr_t);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

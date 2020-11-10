@@ -1,4 +1,3 @@
-#include <string.h>
 #include "dap_net.h"
 
 #define LOG_TAG "dap_net"

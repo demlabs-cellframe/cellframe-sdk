@@ -21,55 +21,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <errno.h>
-#include <assert.h>
-#include <fcntl.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#else
-#include <sys/types.h>          /* See NOTES */
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#endif
-
-#include <pthread.h>
-
-#include <json-c/json.h>
-
-#include "dap_enc_key.h"
-#include "dap_enc_base64.h"
-#include "dap_enc.h"
-#include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_cert.h"
-
-//#include "dap_http_client_simple.h"
-#include "dap_client_http.h"
-#include "dap_client.h"
 #include "dap_client_pvt.h"
-#include "dap_server.h"
-#include "dap_stream.h"
-#include "dap_stream_worker.h"
-#include "dap_stream_ch.h"
-#include "dap_stream_ch_proc.h"
-#include "dap_stream_ch_pkt.h"
-#include "dap_stream_pkt.h"
-#include "dap_http_client.h"
 
 #define LOG_TAG "dap_client_pvt"
 

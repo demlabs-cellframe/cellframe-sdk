@@ -28,6 +28,21 @@
 #include "dap_common.h"
 #include "dap_proc_queue.h"
 
+#include <assert.h>
+#include "dap_server.h"
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+#include <sys/epoll.h>
+#elif defined (DAP_EVENTS_CAPS_POLL)
+#include <sys/poll.h>
+#else
+#error "Unimplemented poll for this platform"
+#endif
+
+#include "dap_events.h"
+#include "dap_events_socket.h"
+
+
 typedef struct dap_proc_thread{
     uint32_t cpu_id;
     pthread_t thread_id;
@@ -49,6 +64,14 @@ typedef struct dap_proc_thread{
 #endif
 } dap_proc_thread_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_proc_thread_init(uint32_t a_threads_count);
 dap_proc_thread_t * dap_proc_thread_get(uint32_t a_thread_number);
 dap_proc_thread_t * dap_proc_thread_get_auto();
+
+#ifdef __cplusplus
+}
+#endif

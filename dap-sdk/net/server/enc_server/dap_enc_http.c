@@ -18,42 +18,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-
-#include "dap_common.h"
-
-#ifdef _WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <time.h>
-#endif
-
-#include <pthread.h>
-
-
-#include "dap_common.h"
-#include "dap_sign.h"
-
-#include "include/dap_http.h"
-#include "dap_http_client.h"
-#include "include/dap_http_simple.h"
-
-#include "dap_enc.h"
-#include "include/dap_enc_ks.h"
-#include "dap_enc_key.h"
-#include "dap_enc_iaes.h"
-#include "include/dap_enc_http.h"
-#include "dap_enc_base64.h"
-#include "dap_enc_msrln.h"
-#include "include/http_status_code.h"
-#include <json-c/json.h>
-
-
+#include "dap_enc_http.h"
 #define LOG_TAG "dap_enc_http"
 
 static dap_enc_acl_callback_t s_acl_callback = NULL;

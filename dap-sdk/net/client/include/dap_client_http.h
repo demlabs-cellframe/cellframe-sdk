@@ -24,12 +24,25 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "dap_worker.h"
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <unistd.h>
+#include <errno.h>
+
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
+#include "dap_net.h"
+#include "dap_events_socket.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_server.h"
+#include "dap_client.h"
+#include "dap_client_pvt.h"
 
 typedef void (*dap_client_http_callback_error_t)(int, void *); // Callback for specific http client operations
 typedef void (*dap_client_http_callback_data_t)(void *, size_t, void *); // Callback for specific http client operations
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
         const char *a_request_content_type, const char * a_path, void *a_request, size_t a_request_size, char *a_cookie,

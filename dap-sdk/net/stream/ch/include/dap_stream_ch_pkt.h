@@ -17,9 +17,35 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-
 #pragma once
+
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <time.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include <pthread.h>
+
+#include "dap_common.h"
+#include "dap_enc.h"
+#include "dap_enc_key.h"
+
+#include "dap_events_socket.h"
+#include "dap_stream.h"
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_stream_pkt.h"
+#include "dap_stream_worker.h"
 
 #define STREAM_CH_PKT_TYPE_REQUEST      0x0
 //#define STREAM_CH_PKT_TYPE_KEEPALIVE    0x11
@@ -48,6 +74,10 @@ typedef struct dap_stream_ch_pkt{
     uint8_t data[];
 } __attribute__((packed)) dap_stream_ch_pkt_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_stream_ch_pkt_init();
 void dap_stream_ch_pkt_deinit();
 
@@ -58,3 +88,7 @@ bool dap_stream_ch_check_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t *
 
 size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const char * a_str,...);
 size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
+
+#ifdef __cplusplus
+}
+#endif

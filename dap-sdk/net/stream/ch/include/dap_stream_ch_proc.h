@@ -22,8 +22,23 @@
 #define _STREAM_CH_TYPE_H_
 
 #include <stdint.h>
-#include "dap_stream_ch.h"
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <time.h>
+#include <stddef.h>
+#include <pthread.h>
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include "dap_stream_ch.h"
+#include "dap_common.h"
 
 typedef struct dap_stream_ch_proc{
     uint8_t id; // Channel type id
@@ -37,6 +52,10 @@ typedef struct dap_stream_ch_proc{
     void * internal;
 } stream_ch_proc_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int stream_ch_proc_init();
 void stream_ch_proc_deinit();
 
@@ -46,5 +65,9 @@ void dap_stream_ch_proc_add(uint8_t id,
                           dap_stream_ch_callback_t packet_out_callback
                           );
 stream_ch_proc_t* stream_ch_proc_find(uint8_t id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

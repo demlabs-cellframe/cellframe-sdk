@@ -24,6 +24,28 @@
 #include <pthread.h>
 #include <stdint.h>
 #include "uthash.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <stddef.h>
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
+#include "dap_common.h"
+#include "dap_events_socket.h"
+#include "dap_http_client.h"
+#include "dap_stream.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_stream_ch_pkt.h"
+#include "dap_stream_worker.h"
+
+
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_worker dap_stream_worker_t;
 typedef struct dap_stream_pkt dap_stream_pkt_t;
@@ -54,6 +76,10 @@ typedef struct dap_stream_ch{
     UT_hash_handle hh_worker;
 } dap_stream_ch_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_stream_ch_init();
 void dap_stream_ch_deinit();
 
@@ -62,5 +88,8 @@ void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * ch,bool is_ready);
 void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready);
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

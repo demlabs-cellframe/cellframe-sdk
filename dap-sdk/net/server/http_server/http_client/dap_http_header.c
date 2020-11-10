@@ -18,28 +18,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <stdlib.h>
-#ifdef _WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#endif
-
-#include <pthread.h>
-
-#include "dap_common.h"
-#include "dap_events_socket.h"
-#include "dap_http_client.h"
 #include "dap_http_header.h"
-
 #define LOG_TAG "http_header"
-
 
 /**
  * @brief dap_http_header_init Init module

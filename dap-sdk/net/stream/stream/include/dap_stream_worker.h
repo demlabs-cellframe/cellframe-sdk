@@ -23,6 +23,10 @@
 #pragma once
 #include "dap_worker.h"
 #include "dap_stream_ch.h"
+#include "dap_common.h"
+#include "dap_events.h"
+#include "dap_events_socket.h"
+#include "dap_stream_ch_pkt.h"
 
 typedef struct dap_stream_worker {
     dap_worker_t * worker;
@@ -41,4 +45,12 @@ typedef struct dap_stream_worker_msg_io {
     size_t data_size;
 } dap_stream_worker_msg_io_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_stream_worker_init();
+
+#ifdef __cplusplus
+}
+#endif

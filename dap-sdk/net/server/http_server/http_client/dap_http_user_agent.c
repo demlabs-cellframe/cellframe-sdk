@@ -1,8 +1,5 @@
-#include "dap_http_user_agent.h"
-#include "dap_common.h"
-#include <string.h>
-#include <stdio.h>
 
+#include "dap_http_user_agent.h"
 #define LOG_TAG "dap_http_user_agent"
 
 struct dap_http_user_agent {

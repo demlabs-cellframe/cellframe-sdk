@@ -22,6 +22,8 @@
 */
 #pragma once
 #include "dap_events_socket.h"
+#include "dap_worker.h"
+#include "dap_proc_thread.h"
 
 typedef struct dap_proc_thread dap_proc_thread_t;
 
@@ -39,8 +41,15 @@ typedef struct dap_proc_queue{
     dap_proc_queue_item_t * items;
 } dap_proc_queue_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread);
 
 void dap_proc_queue_delete(dap_proc_queue_t * a_queue);
 void dap_proc_queue_add_callback(dap_worker_t * a_worker, dap_proc_queue_callback_t a_callback, void * a_callback_arg);
 
+#ifdef __cplusplus
+}
+#endif

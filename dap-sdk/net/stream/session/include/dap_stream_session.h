@@ -32,6 +32,21 @@
 #include "dap_enc_key.h"
 #include "dap_hash.h"
 #include "dap_list.h"
+#ifdef _WIN32
+#include <time.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <pthread.h>
+#endif
+
+#include "dap_common.h"
+
 
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA=0,STREAM_SESSION_TYPE_VPN} stream_session_type_t;
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;
@@ -68,6 +83,10 @@ struct dap_stream_session {
 };
 typedef struct dap_stream_session dap_stream_session_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void dap_stream_session_init();
 void dap_stream_session_deinit();
 dap_list_t* dap_stream_session_get_list_sessions(void);
@@ -83,3 +102,6 @@ void dap_stream_session_unlock();
 int dap_stream_session_open(dap_stream_session_t * a_session); /*Lock for opening for single client , return 0 if ok*/
 int dap_stream_session_close_mt(unsigned int id);
 
+#ifdef __cplusplus
+}
+#endif

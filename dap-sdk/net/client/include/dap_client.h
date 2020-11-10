@@ -29,6 +29,31 @@
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_cert.h"
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_http_client.h"
+#include "dap_client_pvt.h"
+#include "dap_stream_ch_proc.h"
+#include "dap_stream_worker.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+//#include <stdlib.h>
+#include <stddef.h>
+//#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <pthread.h>
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#endif
+
 
 /**
  * @brief The dap_client_stage enum. Top level of client's state machine
