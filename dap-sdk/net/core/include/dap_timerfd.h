@@ -34,25 +34,18 @@
 #define _MSEC -10000
 #endif
 #include <inttypes.h>
-
-//#include <stdint.h>
-//#include <stdbool.h>
-//#include <errno.h>
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <unistd.h>
-//#include <sys/time.h>
-//#include <sys/timerfd.h>
-//#include <inttypes.h>
-
 #include "dap_common.h"
 #include "dap_events.h"
 #include "dap_worker.h"
 //#include "dap_events_socket.h"
-#include "dap_timerfd.h"
+//#include "dap_timerfd.h"
 
 //#include "dap_common.h"
 #include "dap_events_socket.h"
+
+#ifdef DAP_OS_WINDOWS
+#include <winsock2.h>
+#endif
 
 typedef void (*dap_timerfd_callback_t)(void* ); // Callback for timer
 

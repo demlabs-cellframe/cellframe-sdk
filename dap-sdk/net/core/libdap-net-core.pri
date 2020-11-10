@@ -7,6 +7,7 @@ HEADERS += $$PWD/include/dap_events.h \
     $$PWD/include/dap_proc_queue.h \
     $$PWD/include/dap_proc_thread.h \
     $$PWD/include/dap_server.h \
+    $$PWD/include/dap_timerfd.h \
     $$PWD/include/dap_worker.h 
 
 SOURCES += $$PWD/dap_events.c \

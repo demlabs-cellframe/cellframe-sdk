@@ -21,24 +21,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <inttypes.h>
-
-#ifdef DAP_OS_WINDOWS
-#include <winsock2.h>
-#endif
-
-#include "dap_common.h"
-#include "dap_events.h"
-#include "dap_worker.h"
-#include "dap_events_socket.h"
 #include "dap_timerfd.h"
-
 #define LOG_TAG "dap_timerfd"
 static void s_es_callback_timer(struct dap_events_socket *a_event_sock);
 
