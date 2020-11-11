@@ -151,8 +151,16 @@ void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct da
 
 void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, dap_events_socket_t * a_es)
 {
+    if (!a_es)
+        log_it(L_ERROR, "Can't send NULL esocket in interthreads pipe input");
+    if (!a_es_input)
+        log_it(L_ERROR, "Interthreads pipe input is NULL");
+    if (! a_es || ! a_es_input)
+        return;
+
     a_es->last_ping_request = time(NULL);
-   // log_it(L_DEBUG, "Assigned %p on worker %u", a_es, a_worker->id);
+    //log_it(L_DEBUG, "Interthread assign esocket %p(fd %d) on input esocket %p (fd %d)", a_es, a_es->fd,
+    //       a_es_input, a_es_input->fd);
     dap_worker_add_events_socket_inter(a_es_input,a_es);
 
 }
@@ -355,9 +363,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     memset(l_file_buf, 0, l_file_buf_size);
     fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
     uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
-    if (l_sys_max_pipe_size && fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size) == l_sys_max_pipe_size) {
-        log_it(L_DEBUG, "Successfully resized pipe buffer to %lld", l_sys_max_pipe_size);
-    }
+    fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size);
+
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     char l_mq_name[64];
     struct mq_attr l_mq_attr ={0};
@@ -427,7 +434,9 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
         if (a_esocket->flags & DAP_SOCK_QUEUE_PTR){
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-            if(read( a_esocket->fd, &l_queue_ptr,sizeof (void *)) == sizeof (void *))
+            ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
+            int l_read_errno = errno;
+            if( l_read_ret == (ssize_t) sizeof (void *))
                 a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
             else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_WARNING, "Can't read packet from pipe");
@@ -677,7 +686,9 @@ static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
  */
 int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, void * a_arg)
 {
-   return dap_events_socket_write_unsafe(a_es_input,&a_arg,sizeof (a_arg) )==sizeof (a_arg) ;
+    volatile void * l_arg = a_arg;
+    int ret= dap_events_socket_write_unsafe(a_es_input,&l_arg,sizeof (l_arg) )==sizeof (l_arg)?0:1 ;
+    return ret;
 }
 
 /**

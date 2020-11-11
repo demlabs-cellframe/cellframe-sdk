@@ -117,7 +117,7 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
  * @param a_esocket
  * @param a_value
  */
-static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_value)
+static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
 {
     (void) a_value;
     //log_it(L_DEBUG, "Proc event callback");
@@ -148,6 +148,35 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, void * a_valu
         dap_events_socket_event_signal(a_esocket,1);
 }
 
+/**
+ * @brief s_update_poll_flags
+ * @param a_thread
+ * @param a_esocket
+ * @return
+ */
+static int s_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket)
+{
+#ifdef DAP_EVENTS_CAPS_EPOLL
+    l_ev.events = a_esocket->ev_base_events;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
+        l_ev.events |= EPOLLIN;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
+        l_ev.events |= EPOLLOUT;
+    l_ev.data.ptr = a_esocket ;
+    if( epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_MOD, a_esocket->fd , &l_ev) != 0 ){
+        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+        return -1;
+    }
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    a_thread->poll[a_esocket->poll_index].events= a_esocket->poll_base_flags;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
+        a_thread->poll[a_esocket->poll_index].revents |= POLLIN;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
+        a_thread->poll[a_esocket->poll_index].revents |= POLLOUT;
+#endif
+    return 0;
+}
+
 static void * s_proc_thread_function(void * a_arg)
 {
 
@@ -161,14 +190,16 @@ static void * s_proc_thread_function(void * a_arg)
 
     // Init proc_queue for related worker
     dap_worker_t * l_worker_related = dap_events_worker_get(l_thread->cpu_id);
+    assert(l_worker_related);
     l_worker_related->proc_queue = l_thread->proc_queue;
     l_worker_related->proc_queue_input = dap_events_socket_queue_ptr_create_input(l_worker_related->proc_queue->esocket);
 
+    dap_events_socket_assign_on_worker_mt(l_worker_related->proc_queue_input,l_worker_related);
 
-    l_thread->proc_event = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_proc_event_callback);
+    l_thread->proc_event = dap_events_socket_create_type_event_unsafe(NULL, s_proc_event_callback);
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
     size_t l_workers_count= dap_events_worker_get_count();
-
+    assert(l_workers_count);
     l_thread->queue_assign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
     l_thread->queue_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
 
@@ -180,7 +211,7 @@ static void * s_proc_thread_function(void * a_arg)
         l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io );
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events = l_thread->epoll_events, l_ev;
+    struct epoll_event *l_epoll_events = l_thread->epoll_events, l_ev;
     memset(l_thread->epoll_events, 0,sizeof (l_thread->epoll_events));
 
     // Create epoll ctl
@@ -237,17 +268,21 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->poll_count++;
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
-        l_thread->queue_assign_input[n]->poll_index = l_thread->poll_count;
-        l_thread->poll[l_thread->poll_count].fd = l_thread->queue_assign_input[n]->fd;
-        l_thread->poll[l_thread->poll_count].events = l_thread->queue_assign_input[n]->poll_base_flags;
-        l_thread->esockets[l_thread->poll_count] = l_thread->queue_assign_input[n];
-        l_thread->poll_count++;
+        dap_events_socket_t * l_queue_assign_input =  l_thread->queue_assign_input[n];
+        dap_events_socket_t * l_queue_io_input =  l_thread->queue_io_input[n];
+        if (l_queue_assign_input&&l_queue_io_input){
+            l_queue_assign_input->poll_index = l_thread->poll_count;
+            l_thread->poll[l_thread->poll_count].fd = l_queue_assign_input->fd;
+            l_thread->poll[l_thread->poll_count].events = l_queue_assign_input->poll_base_flags;
+            l_thread->esockets[l_thread->poll_count] = l_queue_assign_input;
+            l_thread->poll_count++;
 
-        l_thread->queue_io_input[n]->poll_index = l_thread->poll_count;
-        l_thread->poll[l_thread->poll_count].fd = l_thread->queue_io_input[n]->fd;
-        l_thread->poll[l_thread->poll_count].events = l_thread->queue_io_input[n]->poll_base_flags;
-        l_thread->esockets[l_thread->poll_count] = l_thread->queue_io_input[n];
-        l_thread->poll_count++;
+            l_queue_io_input->poll_index = l_thread->poll_count;
+            l_thread->poll[l_thread->poll_count].fd = l_queue_io_input->fd;
+            l_thread->poll[l_thread->poll_count].events = l_queue_io_input->poll_base_flags;
+            l_thread->esockets[l_thread->poll_count] = l_queue_io_input;
+            l_thread->poll_count++;
+        }
     }
 
 #else
@@ -271,7 +306,7 @@ static void * s_proc_thread_function(void * a_arg)
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
-        //log_it(L_DEBUG,"Proc thread waked up");
+
         if(l_selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
@@ -318,6 +353,8 @@ static void * s_proc_thread_function(void * a_arg)
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
+            //log_it(L_DEBUG,"Waked up esocket %p (socket %d) {read:%s,write:%s,error:%s} ", l_cur, l_cur->fd,
+            //           l_flag_read?"true":"false", l_flag_write?"true":"false", l_flag_error?"true":"false" );
             time_t l_cur_time = time( NULL);
             l_cur->last_time_active = l_cur_time;
             if (l_flag_error){
@@ -348,40 +385,39 @@ static void * s_proc_thread_function(void * a_arg)
             }
             if (l_flag_write ){
                 ssize_t l_bytes_sent = -1;
-                switch (l_cur->type) {
-                    case DESCRIPTOR_TYPE_QUEUE:
-                        if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
-#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                            l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-#elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
-                            l_bytes_sent = mq_send(a_es->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
-#else
-#error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
-#endif
-                            int l_errno = errno;
-                            break;
-                        }break;
-                    default:
-                        log_it(L_ERROR, "Dont process write flags for this socket %d in proc thread", l_cur->fd);
+                if (l_cur->buf_out_size){
+                    switch (l_cur->type) {
+                        case DESCRIPTOR_TYPE_QUEUE:
+                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
+                                #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+                                    l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
+                                #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
+                                    l_bytes_sent = mq_send(a_es->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
+                                #else
+                                    #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
+                                #endif
+                                int l_errno = errno;
 
+                                break;
+                            }break;
+                        default:
+                            log_it(L_ERROR, "Dont process write flags for this socket %d in proc thread", l_cur->fd);
+
+                    }
+                }else{
+                    log_it(L_DEBUG,"(!) Write event receieved but nothing in buffer, switching off this flag");
+                    l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
+                    s_update_poll_flags(l_thread, l_cur);
                 }
                 if(l_bytes_sent>0){
                     l_cur->buf_out_size -= l_bytes_sent;
+                    //log_it(L_DEBUG,"Sent %zd bytes out, left %zd in buf out", l_bytes_sent, l_cur->buf_out);
                     if (l_cur->buf_out_size ){ // Shrink output buffer
+
                         memmove(l_cur->buf_out, l_cur->buf_out+l_bytes_sent, l_cur->buf_out_size );
                     }else{
-                        #ifdef DAP_EVENTS_CAPS_EPOLL
-                        l_ev.events = l_epoll_events[n].events ^ EPOLLOUT  ;
-                        l_ev.data.ptr = l_cur;
-                        if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_MOD, l_cur->fd , &l_ev) != 0 ){
-                            log_it(L_CRITICAL, "Can't update queue_ptr on epoll ctl on proc thread");
-                            return NULL;
-                        }
-                        #elif defined ( DAP_EVENTS_CAPS_POLL)
-                        l_thread->poll[n].events ^= POLLOUT;
-                        #else
-                        #error "Not implemented poll/epoll here"
-                        #endif
+                        l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
+                        s_update_poll_flags(l_thread, l_cur);
                     }
                 }
             }
@@ -417,10 +453,12 @@ static void * s_proc_thread_function(void * a_arg)
            l_poll_compress = false;
            for (size_t i = 0; i < l_thread->poll_count ; i++)  {
                if ( l_thread->poll[i].fd == -1){
-                   for(size_t j = i; j < l_thread->poll_count-1; j++){
-                       l_thread->poll[j].fd = l_thread->poll[j+1].fd;
-                       l_thread->esockets[j] = l_thread->esockets[j+1];
-                       l_thread->esockets[j]->poll_index = j;
+                   if ( l_thread->poll_count){
+                       for(size_t j = i; j < l_thread->poll_count-1; j++){
+                           l_thread->poll[j].fd = l_thread->poll[j+1].fd;
+                           l_thread->esockets[j] = l_thread->esockets[j+1];
+                           l_thread->esockets[j]->poll_index = j;
+                       }
                    }
                    i--;
                    l_thread->poll_count--;
@@ -449,22 +487,11 @@ static void * s_proc_thread_function(void * a_arg)
  */
 bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_worker_t * a_worker, dap_events_socket_t *a_esocket  )
 {
-    dap_events_socket_assign_on_worker_inter(a_thread->queue_assign_input[a_worker->id], a_esocket);
-
-#ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_ev;
-    l_ev.events = a_esocket->ev_base_flags | EPOLLOUT  ;
-    l_ev.data.ptr = a_esocket;
-    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_MOD, e_socket->fd , &l_ev) != 0 ){
-        log_it(L_ERROR, "Can't update queue_ptr on epoll ctl on proc thread");
-        return false;
-    }
-#elif defined ( DAP_EVENTS_CAPS_POLL)
-    a_thread->poll[a_esocket->poll_index].events |= POLLOUT;
-#else
-#error "Not implemented poll/epoll here"
-#endif
-
+    dap_events_socket_t * l_es_assign_input = a_thread->queue_assign_input[a_worker->id];
+    //log_it(L_DEBUG,"Remove esocket %p from proc thread and send it to worker #%u",a_esocket, a_worker->id);
+    dap_events_socket_assign_on_worker_inter(l_es_assign_input, a_esocket);
+    l_es_assign_input->flags |= DAP_SOCK_READY_TO_WRITE;
+    s_update_poll_flags(a_thread, l_es_assign_input);
     return true;
 }
 

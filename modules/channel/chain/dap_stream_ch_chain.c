@@ -619,7 +619,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS: {
         dap_stream_ch_chain_sync_request_t l_sync_chains = {};
         memcpy(&l_sync_chains, l_chain_pkt->data, l_chain_pkt_data_size);
-        dap_chain_t *l_chain = l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_sync_chains.node_addr.uint64, l_chain);
         if (l_hash) {
             memcpy(&l_sync_chains.hash_from, l_hash, sizeof(*l_hash));

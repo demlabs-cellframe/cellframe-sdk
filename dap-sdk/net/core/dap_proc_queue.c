@@ -20,6 +20,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <assert.h>
 #include "dap_worker.h"
 #include "dap_proc_queue.h"
 #include "dap_proc_thread.h"
@@ -66,10 +67,9 @@ void dap_proc_queue_delete(dap_proc_queue_t * a_queue)
  */
 static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
 {
-    //log_it(L_DEBUG, "New callback in list accepted");
     dap_proc_queue_t * l_queue = (dap_proc_queue_t*) a_es->_inheritor;
     dap_proc_queue_msg_t * l_msg = (dap_proc_queue_msg_t*) a_msg;
-
+    assert(l_msg);
     // We have callback to add in list
     if (l_msg->callback){
         dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t);
@@ -78,8 +78,8 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         l_item->next=l_queue->items;
         l_queue->items = l_item;
         // Add on top so after call this callback will be executed first
-        dap_events_socket_queue_ptr_send(l_queue->proc_thread->proc_event,NULL);
-        //log_it( L_DEBUG, "Sent signal to proc thread that we have callbacks on board");
+        dap_events_socket_event_signal(l_queue->proc_thread->proc_event,1);
+        //log_it( L_DEBUG, "Sent signal to proc thread that we have callback %p/%p on board", l_msg->callback,l_msg->callback_arg);
     }
     if (l_msg->signal_kill){ // Say to kill this object and delete its inherior dap_proc_queue_t
         a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
