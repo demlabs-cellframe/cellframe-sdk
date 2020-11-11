@@ -21,7 +21,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_EVENTS_
+#define _DAP_EVENTS_
+
 #pragma once
+
 #include <pthread.h>
 #include "uthash.h"
 #include "dap_events_socket.h"
@@ -31,7 +36,6 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
-//#include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -44,7 +48,6 @@
 #include <sys/stat.h>
 #endif
 
-//#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -68,8 +71,6 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-//#include "dap_server.h"
-//#include "dap_events_socket.h"
 #include "dap_proc_thread.h"
 
 struct dap_events;
@@ -115,4 +116,6 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

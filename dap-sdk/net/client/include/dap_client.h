@@ -21,6 +21,9 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#ifndef _DAP_CLIENT_
+#define _DAP_CLIENT_
+
 #pragma once
 
 #include <stdint.h>
@@ -164,4 +167,6 @@ dap_client_stage_status_t dap_client_get_stage_status(dap_client_t * a_client);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

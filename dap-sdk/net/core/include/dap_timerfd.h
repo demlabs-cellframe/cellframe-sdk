@@ -20,7 +20,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_TIMER_FD_
+#define _DAP_TIMER_FD_
+
 #pragma once
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -37,10 +42,7 @@
 #include "dap_common.h"
 #include "dap_events.h"
 #include "dap_worker.h"
-//#include "dap_events_socket.h"
-//#include "dap_timerfd.h"
 
-//#include "dap_common.h"
 #include "dap_events_socket.h"
 
 #ifdef DAP_OS_WINDOWS
@@ -62,8 +64,17 @@ typedef struct dap_timerfd {
 #endif
 } dap_timerfd_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_timerfd_init();
 dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *callback_arg, bool a_repeated);
 dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg, bool a_repeated);
 void dap_timerfd_delete(dap_timerfd_t *l_timerfd);
 
+#ifdef __cplusplus
+}
+#endif
+
+#endif

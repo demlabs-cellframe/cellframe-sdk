@@ -22,7 +22,11 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_JSON_RPC_H_PARAMS_
+#define _DAP_JSON_RPC_H_PARAMS_
+
 #pragma once
+
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "json-c/json.h"
@@ -70,4 +74,6 @@ char *dap_json_rpc_params_get_string_json(dap_json_rpc_params_t * a_params);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

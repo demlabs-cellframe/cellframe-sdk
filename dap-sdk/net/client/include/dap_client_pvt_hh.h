@@ -20,19 +20,17 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _DAP_CLIENT_PVT_HH_
+#define _DAP_CLIENT_PVT_HH_
+
+#pragma once
+
 #include <stdio.h>
 #include <pthread.h>
 #include <uthash.h>
 
 #include "dap_common.h"
 #include "dap_client_pvt.h"
-
-//#include <stdio.h>
-//#include <pthread.h>
-//#include <uthash.h>
-
-//#include "dap_common.h"
-//#include "dap_client_pvt.h"
 
 typedef struct dap_client_pvt_hh {
     dap_client_pvt_t *client_pvt;
@@ -57,4 +55,6 @@ int dap_client_pvt_hh_del(dap_client_pvt_t *a_client_pvt);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

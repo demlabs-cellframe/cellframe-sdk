@@ -21,13 +21,17 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_CLIENT_POOL_
+#define _DAP_CLIENT_POOL_
+
 #pragma once
+
 #include "dap_client.h"
 #include "dap_events.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-//#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -48,11 +52,7 @@
 
 #include "dap_common.h"
 #include "dap_config.h"
-//#include "dap_events.h"
 #include "dap_events_socket.h"
-//#include "dap_client.h"
-
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,4 +65,6 @@ dap_client_t * dap_client_pool_new (const char * a_client_id);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

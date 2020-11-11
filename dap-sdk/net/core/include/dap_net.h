@@ -20,6 +20,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_NET_
+#define _DAP_NET_
+
 #pragma once
 
 #include "dap_common.h"
@@ -55,4 +59,6 @@ int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_a
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

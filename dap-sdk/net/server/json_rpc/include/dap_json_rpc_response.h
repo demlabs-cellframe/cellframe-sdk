@@ -22,6 +22,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_JSON_RPC_H_RESPONSE_
+#define _DAP_JSON_RPC_H_RESPONSE_
+
 #pragma once
 
 #include "dap_http_simple.h"
@@ -70,4 +73,6 @@ dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

@@ -19,6 +19,9 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _DAP_CLIENT_HTTP_
+#define _DAP_CLIENT_HTTP_
+
 #pragma once
 
 #include <stdint.h>
@@ -56,4 +59,6 @@ void* dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr,
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

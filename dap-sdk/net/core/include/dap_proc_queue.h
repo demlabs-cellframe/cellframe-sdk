@@ -20,7 +20,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_APROC_QUEUE_
+#define _DAP_APROC_QUEUE_
+
 #pragma once
+
 #include "dap_events_socket.h"
 #include "dap_worker.h"
 #include "dap_proc_thread.h"
@@ -52,4 +57,6 @@ void dap_proc_queue_add_callback(dap_worker_t * a_worker, dap_proc_queue_callbac
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

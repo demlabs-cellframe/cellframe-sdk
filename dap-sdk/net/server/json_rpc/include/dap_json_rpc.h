@@ -22,6 +22,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_JSON_RPC_H_
+#define _DAP_JSON_RPC_H_
+
 #pragma once
 #include "dap_http_simple.h"
 #include "include/http_status_code.h"
@@ -43,4 +46,6 @@ void dap_json_rpc_add_proc_http(struct dap_http *sh, const char *URL);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

@@ -18,6 +18,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_STREAM_PKT_H_
+#define _DAP_STREAM_PKT_H_
+
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
@@ -102,4 +105,5 @@ void dap_stream_send_keepalive( dap_stream_t * a_stream);
 }
 #endif
 
+#endif
 

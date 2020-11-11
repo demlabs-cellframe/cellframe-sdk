@@ -20,6 +20,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_STREAM_WORKER_H_
+#define _DAP_STREAM_WORKER_H_
+
 #pragma once
 #include "dap_worker.h"
 #include "dap_stream_ch.h"
@@ -53,4 +57,6 @@ int dap_stream_worker_init();
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

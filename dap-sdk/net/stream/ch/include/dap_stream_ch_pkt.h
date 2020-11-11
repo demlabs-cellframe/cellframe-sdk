@@ -17,6 +17,10 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _STREAM_CH_PKT_H
+#define _STREAM_CH_PKT_H
+
 #pragma once
 
 #include <stdlib.h>
@@ -91,4 +95,6 @@ size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

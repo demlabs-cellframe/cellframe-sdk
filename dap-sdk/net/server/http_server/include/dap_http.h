@@ -20,6 +20,10 @@ GNU General Public License for more details.
 
 See more details here <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_HTTP_H_
+#define _DAP_HTTP_H_
+
 #pragma once
 
 #include "dap_server.h"
@@ -112,4 +116,6 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

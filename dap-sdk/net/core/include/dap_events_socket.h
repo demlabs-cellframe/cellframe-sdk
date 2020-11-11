@@ -20,7 +20,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_EVENTS_SOCKET_
+#define _DAP_EVENTS_SOCKET_
+
 #pragma once
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -47,16 +52,12 @@
 #include <io.h>
 #include "wepoll.h"
 #endif
-//#include <pthread.h>
 
 #include "dap_common.h"
 #include "dap_list.h"
 #include "dap_worker.h"
-//#include "dap_events.h"
-
 #include "dap_timerfd.h"
 
-//#include "dap_common.h"
 
 #define DAP_EVENTS_SOCKET_MAX 8194
 
@@ -289,4 +290,6 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

@@ -18,6 +18,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_STREAM_CTL_H_
+#define _DAP_STREAM_CTL_H_
+
 #pragma once
 
 #include "dap_config.h"
@@ -69,4 +72,6 @@ void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

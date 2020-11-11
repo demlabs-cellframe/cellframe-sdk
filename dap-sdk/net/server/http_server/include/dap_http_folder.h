@@ -20,6 +20,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_HTTP_FOLDER_H_
+#define _DAP_HTTP_FOLDER_H_
+
 #pragma once
 
 #include <stdio.h>
@@ -61,4 +65,6 @@ int dap_http_folder_add(struct dap_http *sh, const char * url_path, const char *
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

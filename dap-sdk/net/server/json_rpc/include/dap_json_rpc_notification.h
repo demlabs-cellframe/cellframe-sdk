@@ -21,6 +21,10 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_JSON_RPC_H_NOTIFICATION_
+#define _DAP_JSON_RPC_H_NOTIFICATION_
+
 #pragma once
 
 #include "dap_json_rpc_request.h"
@@ -46,4 +50,6 @@ void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_p
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

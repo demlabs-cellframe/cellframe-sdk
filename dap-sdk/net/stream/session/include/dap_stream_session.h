@@ -17,6 +17,10 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_STREAM_SESSION_H_
+#define _DAP_STREAM_SESSION_H_
+
 #pragma once
 
 #include <pthread.h>
@@ -104,4 +108,6 @@ int dap_stream_session_close_mt(unsigned int id);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

@@ -22,6 +22,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_JSON_RPC_H_ERRORS
+#define _DAP_JSON_RPC_H_ERRORS
+
 #pragma once
 
 #include "dap_common.h"
@@ -68,4 +71,6 @@ void dap_json_rpc_add_standart_erros(void);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

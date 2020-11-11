@@ -20,6 +20,8 @@
 
 #ifndef _STREAM_CH_H
 #define _STREAM_CH_H
+
+#pragma once
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdint.h>

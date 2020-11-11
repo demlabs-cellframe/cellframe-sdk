@@ -21,6 +21,9 @@ GNU General Public License for more details.
 See more details here <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_HTTP_SIMPLE_H_
+#define _DAP_HTTP_SIMPLE_H_
+
 #pragma once
 
 #include <stddef.h>
@@ -127,4 +130,6 @@ size_t dap_http_simple_reply_f( dap_http_simple_t *shs, const char *data, ... );
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

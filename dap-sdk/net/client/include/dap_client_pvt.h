@@ -20,22 +20,20 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_CLIENT_PVT_
+#define _DAP_CLIENT_PVT_
+
 #pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
-//#include "dap_client.h"
-//#include "dap_stream.h"
 #include "dap_events_socket.h"
-//#include "dap_cert.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-//#include <stdlib.h>
 #include <stddef.h>
-//#include <stdint.h>
 #include <string.h>
-//#include <stdbool.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
@@ -65,7 +63,6 @@
 #include "dap_strfuncs.h"
 #include "dap_cert.h"
 
-//#include "dap_http_client_simple.h"
 #include "dap_client_http.h"
 #include "dap_client.h"
 #include "dap_server.h"
@@ -174,4 +171,6 @@ bool dap_client_pvt_check(dap_client_pvt_t* a_client_pvt);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

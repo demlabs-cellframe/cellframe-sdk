@@ -21,6 +21,9 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_PROC_THREAD_
+#define _DAP_PROC_THREAD_
+
 #pragma once
 
 #include <pthread.h>
@@ -74,4 +77,6 @@ dap_proc_thread_t * dap_proc_thread_get_auto();
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

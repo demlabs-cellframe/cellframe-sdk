@@ -20,7 +20,12 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_WORKER_
+#define _DAP_WORKER_
+
 #pragma once
+
 #include <stdint.h>
 #include <stdatomic.h>
 #include <pthread.h>
@@ -40,8 +45,8 @@
 #include "dap_math_ops.h"
 #include "dap_events.h"
 
-
 #include "dap_proc_queue.h"
+
 typedef struct dap_worker
 {
     uint32_t id;
@@ -116,4 +121,6 @@ void *dap_worker_thread(void *arg);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

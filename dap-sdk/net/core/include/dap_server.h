@@ -21,6 +21,8 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_SERVER_
+#define _DAP_SERVER_
 
 #pragma once
 
@@ -119,4 +121,6 @@ void dap_server_delete(dap_server_t *a_server);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

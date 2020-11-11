@@ -22,6 +22,9 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef _DAP_JSON_RPC_H_REQUEST_
+#define _DAP_JSON_RPC_H_REQUEST_
+
 #pragma once
 #include "dap_common.h"
 #include "dap_json_rpc_params.h"
@@ -54,4 +57,6 @@ void dap_json_rpc_request_send(dap_json_rpc_request_t *a_request, dap_json_rpc_r
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

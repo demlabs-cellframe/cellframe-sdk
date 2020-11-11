@@ -17,7 +17,12 @@
     You should have received a copy of the GNU Lesser General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#ifndef _DAP_HTTP_CLIENT_H_
+#define _DAP_HTTP_CLIENT_H_
+
 #pragma once
+
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
@@ -121,3 +126,4 @@ void dap_http_client_out_header_generate( dap_http_client_t *cl_ht );
 }
 #endif
 
+#endif
