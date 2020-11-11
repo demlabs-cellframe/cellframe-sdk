@@ -670,14 +670,13 @@ int s_vpn_service_create(dap_config_t * g_config){
     l_srv->_inhertor = l_srv_vpn;
     l_srv_vpn->parent = l_srv;
 
-    uint16_t l_pricelist_count = 0;
-
     // Read if we need to dump all pkt operations
     s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
 
-
+    l_srv->grace_period = dap_config_get_item_uint32_default(g_config, "srv_vpn", "grace_period", 60);
     //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
     //! it also must NOT be freed within this module !
+    uint16_t l_pricelist_count = 0;
     char **l_pricelist = dap_config_get_array_str(g_config, "srv_vpn", "pricelist", &l_pricelist_count); // must not be freed!
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
         dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
@@ -1269,14 +1268,16 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if ( ! l_usage){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
+        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
 
     if ( ! l_usage->is_active ){
-        log_it(L_INFO, "Usage inactivation: switch off packet input channel");
+        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
+        if (l_usage->client)
+            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
@@ -1413,26 +1414,26 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
     if ( ! l_usage){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
+        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
 
     if ( ! l_usage->is_active ){
-        log_it(L_INFO, "Usage inactivation: switch off packet output channel");
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
     if ( (! l_usage->is_free) && (! l_usage->receipt) ){
         log_it(L_WARNING, "No active receipt, switching off");
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
     // Check for empty buffer out here to prevent warnings in worker

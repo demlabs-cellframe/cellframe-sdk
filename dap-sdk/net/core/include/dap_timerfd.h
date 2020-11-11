@@ -38,7 +38,7 @@
 #include "dap_common.h"
 #include "dap_events_socket.h"
 
-typedef void (*dap_timerfd_callback_t)(void* ); // Callback for timer
+typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer. If return true, it will be called after next timeout
 
 typedef struct dap_timerfd {
     uint64_t timeout_ms;
@@ -46,7 +46,6 @@ typedef struct dap_timerfd {
     dap_events_socket_t *events_socket;
     dap_timerfd_callback_t callback;
     void *callback_arg;
-    bool repeated;
 #ifdef DAP_OS_WINDOWS
     HANDLE th;
     int pipe_in;
@@ -54,7 +53,7 @@ typedef struct dap_timerfd {
 } dap_timerfd_t;
 
 int dap_timerfd_init();
-dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *callback_arg, bool a_repeated);
-dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg, bool a_repeated);
+dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *callback_arg);
+dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg);
 void dap_timerfd_delete(dap_timerfd_t *l_timerfd);
 

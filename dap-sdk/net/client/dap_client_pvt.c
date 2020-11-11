@@ -77,7 +77,7 @@
 #define DAP_ENC_KS_KEY_ID_SIZE 33
 #endif
 
-static void s_stage_status_after(dap_client_pvt_t * a_client_internal);
+static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
 // ENC stage callbacks
 static void s_enc_init_response(dap_client_t *, void *, size_t);
@@ -188,7 +188,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
  * @brief s_client_internal_stage_status_proc
  * @param a_client
  */
-static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
+static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 {
     dap_worker_t * l_worker= a_client_pvt->worker;
     assert(l_worker);
@@ -213,7 +213,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 }
                 a_client_pvt->stage_status = STAGE_STATUS_DONE;
                 s_stage_status_after(a_client_pvt);
-                return;
+                return false;
             }
             switch (l_stage) {
                 case STAGE_ENC_INIT: {
@@ -474,10 +474,9 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             // Trying the step again
                             a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
                             log_it(L_INFO, "Connection attempt %d in 0.3 seconds", a_client_pvt->stage_errors);
-
                             // small delay before next request
-                            dap_timerfd_start_on_worker( l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
-                                                         a_client_pvt, false );
+                            dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
+                                                        a_client_pvt);
                         }
                         else{
                             log_it(L_INFO, "Too many connection attempts. Tries are over.");
@@ -514,7 +513,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
     if(a_client_pvt->stage_status_callback)
         a_client_pvt->stage_status_callback(a_client_pvt->client, NULL);
-
+    return false;
 }
 
 /**

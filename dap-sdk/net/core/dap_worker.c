@@ -43,7 +43,7 @@
 static time_t s_connection_timeout = 20000; // 60;    // seconds
 
 
-static void s_socket_all_check_activity( void * a_arg);
+static bool s_socket_all_check_activity( void * a_arg);
 static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
@@ -114,7 +114,7 @@ void *dap_worker_thread(void *arg)
 
     l_worker->event_exit = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback );
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker, s_connection_timeout * 1000 / 2,
-                                                                  s_socket_all_check_activity, l_worker, true );
+                                                                  s_socket_all_check_activity, l_worker);
 
     pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
     pthread_cond_broadcast(&l_worker->started_cond);
@@ -663,7 +663,7 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
  * @brief s_socket_all_check_activity
  * @param a_arg
  */
-static void s_socket_all_check_activity( void * a_arg)
+static bool s_socket_all_check_activity( void * a_arg)
 {
     dap_worker_t *l_worker = (dap_worker_t*) a_arg;
     assert(l_worker);
@@ -685,6 +685,7 @@ static void s_socket_all_check_activity( void * a_arg)
             }
         }
     }
+    return true;
 }
 
 /**

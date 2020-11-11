@@ -75,13 +75,12 @@ static void s_http_client_delete(dap_http_client_t * a_esocket, void * a_arg);
 
 static dap_stream_t  *s_stream_keepalive_list = NULL;
 static pthread_mutex_t s_mutex_keepalive_list;
-static void s_keepalive_cb( void );
+static bool s_keepalive_cb( void );
 
 static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
-static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000  };
 static bool s_detect_loose_packet(dap_stream_t * a_stream);
 
 dap_enc_key_type_t s_stream_get_preferred_encryption_type = DAP_ENC_KEY_TYPE_IAES;
@@ -119,7 +118,7 @@ int dap_stream_init(dap_config_t * a_config)
     s_dap_stream_load_preferred_encryption_type(a_config);
     s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
     pthread_mutex_init( &s_mutex_keepalive_list, NULL );
-    dap_timerfd_start(STREAM_KEEPALIVE_TIMEOUT * 1000, (dap_timerfd_callback_t)s_keepalive_cb, NULL, true);
+    dap_timerfd_start(STREAM_KEEPALIVE_TIMEOUT * 1000, (dap_timerfd_callback_t)s_keepalive_cb, NULL);
     log_it(L_NOTICE,"Init streaming module");
 
     return 0;
@@ -786,7 +785,7 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 }
 
 
-static void s_keepalive_cb( void )
+static bool s_keepalive_cb( void )
 {
   dap_stream_t  *l_stream, *tmp;
   pthread_mutex_lock( &s_mutex_keepalive_list );
@@ -797,5 +796,6 @@ static void s_keepalive_cb( void )
       dap_events_socket_write_mt(l_stream->stream_worker->worker, l_stream->esocket, &l_pkt, sizeof(l_pkt));
   }
   pthread_mutex_unlock( &s_mutex_keepalive_list );
+  return true;
 }
 
