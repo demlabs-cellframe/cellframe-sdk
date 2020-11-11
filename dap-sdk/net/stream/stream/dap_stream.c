@@ -81,7 +81,6 @@ static bool s_dump_packet_headers = false;
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
-static struct timespec keepalive_loop_sleep = { 0, STREAM_KEEPALIVE_TIMEOUT * 1000 * 1000  };
 static bool s_detect_loose_packet(dap_stream_t * a_stream);
 
 dap_enc_key_type_t s_stream_get_preferred_encryption_type = DAP_ENC_KEY_TYPE_IAES;
