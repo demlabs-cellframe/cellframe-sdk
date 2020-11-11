@@ -627,7 +627,9 @@ static int wait_send_socket(int a_sockfd, long timeout_ms)
         int l_res = select(a_sockfd + 1, NULL, &l_outfd, &l_errfd, &l_tv);
 #endif
         if(l_res == 0){
-            log_it(L_DEBUG, "socket %d timed out", a_sockfd);
+            l_res = -2;
+            //log_it(L_DEBUG, "socket %d timed out", a_sockfd)
+            break;
         }
         if(l_res == -1) {
             if(errno == EINTR)
@@ -639,7 +641,7 @@ static int wait_send_socket(int a_sockfd, long timeout_ms)
     };
 
     if(FD_ISSET(a_sockfd, &l_outfd))
-        return 1;
+        return 0;
 
     return -1;
 }
@@ -656,15 +658,19 @@ void *dap_events_socket_buf_thread(void *arg)
         pthread_exit(0);
     }
     int l_res = 0;
-    //int l_count = 0;
-    //while(l_res < 1 && l_count < 3) {
+    int l_count = 0;
+    while(l_res < 1 && l_count < 3) {
     // wait max 5 min
-    l_res = wait_send_socket(l_item->es->fd2, 300000);
+        l_res = wait_send_socket(l_item->es->fd2, 300000);
+        if (l_res == 0){
+            dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
+            break;
+        }
     //    l_count++;
-    //}
-    // if timeout or
-    if(l_res >= 0)
-        dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
+    }
+    if(l_res != 0)
+        log_it(L_WARNING, "Lost data bulk in events socket buf thread");
+
     DAP_DELETE(l_item);
     pthread_exit(0);
 }
@@ -704,13 +710,13 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     if (ret == sizeof(a_arg) )
         return  0;
     else{
-        char l_errbuf[128];
-        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
         // Try again
-        if(l_errno == EAGAIN){
+        if(l_errno == EAGAIN || l_errno == EWOULDBLOCK){
             add_ptr_to_buf(a_es, a_arg);
             return 0;
         }
+        char l_errbuf[128];
+        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
         return l_errno;
     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
