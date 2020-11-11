@@ -418,9 +418,10 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
             "\r\n",
             l_http_pvt->method, l_http_pvt->path, l_get_str ? l_get_str : "", l_http_pvt->uplink_addr, l_request_headers->str);
     // send data for POST request
-    if(!l_get_str)
+    if(l_get_str)
+        DAP_DELETE(l_get_str);
+    else if ( l_http_pvt->request_size)
         dap_events_socket_write_unsafe( a_esocket, l_http_pvt->request, l_http_pvt->request_size);
-    DAP_DELETE(l_get_str);
     dap_string_free(l_request_headers, true);
 
 }

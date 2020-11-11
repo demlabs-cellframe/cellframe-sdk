@@ -27,14 +27,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#if defined DAP_OS_UNIX
 #include <sys/time.h>
 #include <sys/timerfd.h>
+#elif defined DAP_OS_WINDOWS
+#define _MSEC -10000
+#endif
 #include <inttypes.h>
 
 #include "dap_common.h"
 #include "dap_events_socket.h"
 
-typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer
+typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer. If return true, it will be called after next timeout
 
 typedef struct dap_timerfd {
     uint64_t timeout_ms;
@@ -42,6 +46,10 @@ typedef struct dap_timerfd {
     dap_events_socket_t *events_socket;
     dap_timerfd_callback_t callback;
     void *callback_arg;
+#ifdef DAP_OS_WINDOWS
+    HANDLE th;
+    int pipe_in;
+#endif
 } dap_timerfd_t;
 
 int dap_timerfd_init();

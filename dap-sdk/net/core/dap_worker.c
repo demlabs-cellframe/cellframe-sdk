@@ -521,7 +521,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
             l_es_new->me = l_es_new;
             HASH_ADD(hh_worker, w->esockets, me, sizeof(void *), l_es_new );
             w->event_sockets_count++;
-            log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
+            //log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, w);
 
