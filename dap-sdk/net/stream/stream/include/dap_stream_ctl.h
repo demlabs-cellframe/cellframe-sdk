@@ -52,7 +52,7 @@
 
 #include "dap_http.h"
 #include "dap_http_client.h"
-#include "dap_events_socket.h"
+//#include "dap_events_socket.h"
 #include "dap_http_simple.h"
 
 #include "dap_stream_session.h"

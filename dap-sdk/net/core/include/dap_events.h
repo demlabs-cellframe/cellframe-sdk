@@ -28,10 +28,10 @@
 #pragma once
 
 #include <pthread.h>
-#include "uthash.h"
+//#include "uthash.h"
 #include "dap_events_socket.h"
-#include "dap_server.h"
-#include "dap_worker.h"
+//#include "dap_server.h"
+//#include "dap_worker.h"
 
 #include <string.h>
 #include <time.h>
@@ -67,11 +67,11 @@
 //#include <pthread.h>
 #endif
 
-#include <utlist.h>
+//#include <utlist.h>
 
-#include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_proc_thread.h"
+//#include "dap_common.h"
+//#include "dap_strfuncs.h"
+//#include "dap_proc_thread.h"
 
 struct dap_events;
 #define DAP_MAX_EVENTS_COUNT    8192

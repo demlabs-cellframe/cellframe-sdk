@@ -28,11 +28,11 @@
 
 #include <pthread.h>
 #include <stdatomic.h>
-#include "dap_common.h"
+//#include "dap_common.h"
 #include "dap_proc_queue.h"
 
 #include <assert.h>
-#include "dap_server.h"
+//#include "dap_server.h"
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 #include <sys/epoll.h>
@@ -42,8 +42,8 @@
 #error "Unimplemented poll for this platform"
 #endif
 
-#include "dap_events.h"
-#include "dap_events_socket.h"
+//#include "dap_events.h"
+//#include "dap_events_socket.h"
 
 
 typedef struct dap_proc_thread{

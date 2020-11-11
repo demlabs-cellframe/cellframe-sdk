@@ -44,7 +44,7 @@
 #include "dap_enc.h"
 #include "dap_enc_key.h"
 
-#include "dap_events_socket.h"
+//#include "dap_events_socket.h"
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"

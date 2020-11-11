@@ -37,7 +37,7 @@
 #include <pthread.h>
 
 #include "dap_common.h"
-#include "dap_events_socket.h"
+//#include "dap_events_socket.h"
 #include "dap_http_client.h"
 
 //Structure for holding HTTP header in the bidirectional list

@@ -29,7 +29,7 @@
 #include "dap_stream_ch.h"
 #include "dap_common.h"
 #include "dap_events.h"
-#include "dap_events_socket.h"
+//#include "dap_events_socket.h"
 #include "dap_stream_ch_pkt.h"
 
 typedef struct dap_stream_worker {

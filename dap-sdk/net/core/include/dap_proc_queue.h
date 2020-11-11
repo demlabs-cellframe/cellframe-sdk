@@ -27,8 +27,8 @@
 #pragma once
 
 #include "dap_events_socket.h"
-#include "dap_worker.h"
-#include "dap_proc_thread.h"
+//#include "dap_worker.h"
+//#include "dap_proc_thread.h"
 
 typedef struct dap_proc_thread dap_proc_thread_t;
 

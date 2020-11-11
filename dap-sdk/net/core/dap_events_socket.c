@@ -21,34 +21,6 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <assert.h>
-#include <errno.h>
-#ifndef _WIN32
-#include <sys/epoll.h>
-#include <sys/select.h>
-#include <unistd.h>
-#else
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include "wepoll.h"
-#endif
-#include <fcntl.h>
-#include <pthread.h>
-
-#include "dap_common.h"
-#include "dap_list.h"
-#include "dap_worker.h"
-#include "dap_events.h"
-
-#include "dap_timerfd.h"
 #include "dap_events_socket.h"
 
 #define LOG_TAG "dap_events_socket"

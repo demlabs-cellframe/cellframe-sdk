@@ -24,21 +24,21 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
+//#include <stdint.h>
+//#include <stddef.h>
 #include "dap_worker.h"
-#include <unistd.h>
-#include <errno.h>
+//#include <unistd.h>
+//#include <errno.h>
 
-#include "dap_common.h"
-#include "dap_strfuncs.h"
+//#include "dap_common.h"
+//#include "dap_strfuncs.h"
 #include "dap_string.h"
-#include "dap_net.h"
-#include "dap_events_socket.h"
-#include "dap_stream_ch_proc.h"
-#include "dap_server.h"
-#include "dap_client.h"
-#include "dap_client_pvt.h"
+//#include "dap_net.h"
+//#include "dap_events_socket.h"
+//#include "dap_stream_ch_proc.h"
+//#include "dap_server.h"
+//#include "dap_client.h"
+//#include "dap_client_pvt.h"
 
 typedef void (*dap_client_http_callback_error_t)(int, void *); // Callback for specific http client operations
 typedef void (*dap_client_http_callback_data_t)(void *, size_t, void *); // Callback for specific http client operations

@@ -29,16 +29,16 @@
 
 #include "dap_client.h"
 #include "dap_events.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <errno.h>
+//#include <stdlib.h>
+//#include <stdio.h>
+//#include <time.h>
+//#include <stddef.h>
+//#include <stdint.h>
+//#include <string.h>
+//#include <stdbool.h>
+//#include <unistd.h>
+//#include <dirent.h>
+//#include <errno.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -48,11 +48,11 @@
 #include <io.h>
 #endif
 
-#include <pthread.h>
+//#include <pthread.h>
 
-#include "dap_common.h"
-#include "dap_config.h"
-#include "dap_events_socket.h"
+//#include "dap_common.h"
+//#include "dap_config.h"
+//#include "dap_events_socket.h"
 
 #ifdef __cplusplus
 extern "C" {

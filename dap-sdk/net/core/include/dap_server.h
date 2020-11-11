@@ -26,7 +26,6 @@
 
 #pragma once
 
-#include "dap_common.h"
 #if defined( DAP_OS_LINUX)
 
 #include <netinet/in.h>
@@ -47,10 +46,6 @@
 #endif
 
 #include <pthread.h>
-#include "uthash.h"
-#include "dap_list.h"
-#include "dap_cpu_monitor.h"
-#include "dap_events_socket.h"
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -73,9 +68,14 @@
 #define __USE_GNU
 #endif
 #include <sched.h>
-#include "dap_config.h"
-#include "dap_worker.h"
-#include "dap_events.h"
+#include "dap_common.h"
+//#include "dap_config.h"
+//#include "dap_worker.h"
+//#include "dap_events.h"
+//#include "uthash.h"
+#include "dap_list.h"
+#include "dap_cpu_monitor.h"
+#include "dap_events_socket.h"
 
 
 typedef enum dap_server_type {DAP_SERVER_TCP, DAP_SERVER_UDP} dap_server_type_t;

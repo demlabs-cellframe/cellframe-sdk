@@ -25,11 +25,11 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <pthread.h>
-#include <uthash.h>
+//#include <stdio.h>
+//#include <pthread.h>
+//#include <uthash.h>
 
-#include "dap_common.h"
+//#include "dap_common.h"
 #include "dap_client_pvt.h"
 
 typedef struct dap_client_pvt_hh {

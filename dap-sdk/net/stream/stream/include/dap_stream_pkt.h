@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "dap_enc_key.h"
-#include "dap_events_socket.h"
+//#include "dap_events_socket.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
