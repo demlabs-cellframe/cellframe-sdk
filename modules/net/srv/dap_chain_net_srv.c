@@ -554,10 +554,10 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_srv->callback_response_success = a_callback_response_success;
         l_srv->callback_response_error = a_callback_response_error;
         l_srv->callback_receipt_next_success = a_callback_receipt_next_success;
+        pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
-        l_sdata->srv = l_srv;//DAP_NEW(dap_chain_net_srv_t);
-        //memcpy(l_sdata->srv, l_srv, sizeof(dap_chain_net_srv_t));
+        l_sdata->srv = l_srv;
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
@@ -617,8 +617,10 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {
-        DAP_DELETE(l_sdata);
         HASH_DEL(s_srv_list, l_sdata);
+        pthread_mutex_destroy(&a_srv->banlist_mutex);
+        DAP_DELETE(a_srv);
+        DAP_DELETE(l_sdata);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
@@ -679,8 +681,10 @@ void dap_chain_net_srv_del_all(void)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
-        DAP_DELETE(l_sdata);
         HASH_DEL(s_srv_list, l_sdata);
+        pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
+        DAP_DELETE(l_sdata->srv);
+        DAP_DELETE(l_sdata);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }

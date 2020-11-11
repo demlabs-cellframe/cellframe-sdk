@@ -1268,18 +1268,18 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if ( ! l_usage){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
+        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
 
     if ( ! l_usage->is_active ){
-        log_it(L_INFO, "Usage inactivation: switch off packet input channel");
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
 
@@ -1414,26 +1414,26 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
     if ( ! l_usage){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothin on this channel");
+        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
 
     if ( ! l_usage->is_active ){
-        log_it(L_INFO, "Usage inactivation: switch off packet output channel");
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
     if ( (! l_usage->is_free) && (! l_usage->receipt) ){
         log_it(L_WARNING, "No active receipt, switching off");
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
     // Check for empty buffer out here to prevent warnings in worker

@@ -74,18 +74,11 @@ typedef struct dap_net_stats{
         intmax_t packets_recv_lost;
 } dap_net_stats_t;
 
-typedef struct dap_chain_net_srv_banlist_item {
-    dap_chain_hash_fast_t client_pkey_hash;
-    pthread_mutex_t *ht_mutex;
-    struct dap_chain_net_srv_banlist_item **ht_head;
-    UT_hash_handle hh;
-} dap_chain_net_srv_banlist_item_t;
-
 typedef struct dap_chain_net_srv_stream_session {
+    time_t ts_activated;
     dap_stream_session_t * parent;
     dap_chain_net_srv_usage_t * usages;
     dap_chain_net_srv_usage_t * usage_active;
-    dap_chain_net_srv_banlist_item_t *ban_list;
     uintmax_t limits_bytes; // Bytes left
     time_t limits_ts; // Timestamp until its activte
     dap_chain_net_srv_price_unit_uid_t limits_units_type;
@@ -93,7 +86,6 @@ typedef struct dap_chain_net_srv_stream_session {
     // Some common stats
     volatile dap_net_stats_t stats;
 
-    time_t ts_activated;
     dap_sign_t* user_sign; // User's signature for auth if reconnect
 
 } dap_chain_net_srv_stream_session_t;

@@ -36,12 +36,23 @@ typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t
 typedef int (*dap_chain_net_srv_callback_sign_request_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_t *, dap_chain_datum_tx_receipt_t **, size_t );
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
+typedef struct dap_chain_net_srv_banlist_item {
+    dap_chain_hash_fast_t client_pkey_hash;
+    pthread_mutex_t *ht_mutex;
+    struct dap_chain_net_srv_banlist_item **ht_head;
+    UT_hash_handle hh;
+} dap_chain_net_srv_banlist_item_t;
+
 typedef struct dap_chain_net_srv
 {
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
     dap_chain_net_srv_abstract_t srv_common;
     dap_chain_net_srv_price_t *pricelist;
+
     uint32_t grace_period;
+    pthread_mutex_t banlist_mutex;
+    dap_chain_net_srv_banlist_item_t *ban_list;
+
     dap_chain_callback_trafic_t callback_trafic;
 
     // Request for usage

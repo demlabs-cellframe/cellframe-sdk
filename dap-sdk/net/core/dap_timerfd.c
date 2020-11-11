@@ -139,7 +139,6 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
     } else {
         close(l_timerfd->tfd);
         dap_events_socket_remove_and_delete_unsafe(l_timerfd->events_socket, false);
-        DAP_DELETE(l_timerfd);
     }
 }
 
