@@ -144,10 +144,11 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     l_events_socket->_inheritor = l_timerfd;
 
     // fill out dap_timerfd_t structure
-    l_timerfd->tfd = l_tfd;
-    l_timerfd->events_socket = l_events_socket;
-    l_timerfd->callback = a_callback;
-    l_timerfd->callback_arg = a_callback_arg;
+    l_timerfd->timeout_ms       = a_timeout_ms;
+    l_timerfd->tfd              = l_tfd;
+    l_timerfd->events_socket    = l_events_socket;
+    l_timerfd->callback         = a_callback;
+    l_timerfd->callback_arg     = a_callback_arg;
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
     l_timerfd->pipe_in          = l_pipe[1];
