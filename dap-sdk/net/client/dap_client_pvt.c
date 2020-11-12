@@ -704,12 +704,13 @@ static void s_request_error(int a_err_code, void * a_obj)
         dap_client_pvt_hh_unlock();
         return;
     }
+    dap_client_pvt_hh_unlock();
+
     if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client)
     {
         if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client && a_client_internal->client->_internal)
             a_client_internal->request_error_callback(a_client_internal->client, a_err_code);
     }
-    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -884,10 +885,6 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
 static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
 
     //dap_client_internal_t * l_client_internal = dap_CLIENT_INTERNAL(a_client);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
@@ -999,10 +996,6 @@ static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
     log_it(L_WARNING, "STREAM_CTL error %d", a_error);
 
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

@@ -181,13 +181,22 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
     l_errbuf[0] = '\0';
     if (a_errno == ETIMEDOUT){
         strncpy(l_errbuf,"Connection timeout", sizeof (l_errbuf)-1);
+    }else if (a_errno == ECONNREFUSED){
+        strncpy(l_errbuf,"Connection refused", sizeof (l_errbuf)-1);
+    }else if (a_errno == EHOSTDOWN){
+        strncpy(l_errbuf,"Host is down", sizeof (l_errbuf)-1);
+    }else if (a_errno == EHOSTUNREACH){
+        strncpy(l_errbuf,"No route to host", sizeof (l_errbuf)-1);
+    }else if (a_errno == EREMOTEIO){
+        strncpy(l_errbuf,"Remote I/O error", sizeof (l_errbuf)-1);
     }else if(a_errno)
         strerror_r(a_errno, l_errbuf, sizeof (l_errbuf));
     else
         strncpy(l_errbuf,"Unknown Error", sizeof (l_errbuf)-1);
-    if (a_es->flags & DAP_SOCK_CONNECTING)
+
+    if (a_es->flags & DAP_SOCK_CONNECTING){
         log_it(L_WARNING, "Socket connecting error: %s (code %d)" , l_errbuf, a_errno);
-    else
+    }else
         log_it(L_WARNING, "Socket error: %s (code %d)" , l_errbuf, a_errno);
 
     dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
@@ -226,6 +235,7 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
         for( size_t i = 0; i < a_http_pvt->request_custom_headers_count; i++) {
             DAP_DELETE( a_http_pvt->request_custom_headers[i]);
         }
+        a_http_pvt->request_custom_headers = NULL;
         //DAP_DELETE( l_client_http_pvt->request_custom_headers);
     }
 
