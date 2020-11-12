@@ -509,7 +509,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
         return NULL;
     }else {
         l_es->fd2 = l_es->fd;
-        log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
+        //log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
     }
 #elif defined DAP_OS_WINDOWS
     int l_pipe[2];

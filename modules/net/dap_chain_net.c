@@ -610,15 +610,15 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                     // TODO add progress info to console                      
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
-                    case -1:
-                        log_it(L_WARNING, "Timeout with sync of chain '%s' ", l_chain->name);
-                        break;
-                    case 0:
-                        l_need_flush = true;
-                        log_it(L_INFO, "Sync of chain '%s' completed ", l_chain->name);
-                        break;
-                    default:
-                        log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
+                        case -1:
+                            //log_it(L_WARNING, "Timeout with sync of chain '%s' ", l_chain->name);
+                            break;
+                        case 0:
+                            l_need_flush = true;
+                            log_it(L_INFO, "Sync of chain '%s' completed ", l_chain->name);
+                            break;
+                        default:
+                            log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                     dap_chain_node_client_reset(l_node_client);
                     l_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
@@ -627,7 +627,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
                     case -1:
-                        log_it(L_WARNING, "Timeout with reverse sync of chain '%s' ", l_chain->name);
+                        //log_it(L_WARNING, "Timeout with reverse sync of chain '%s' ", l_chain->name);
                         break;
                     case 0:
                         l_need_flush = true;
@@ -954,7 +954,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
     const char * l_hash_out_type = NULL;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
-        l_hash_out_type = "base58";
+        l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;

@@ -142,23 +142,29 @@ void *dap_worker_thread(void *arg)
         time_t l_cur_time = time( NULL);
         for(size_t n = 0; n < l_sockets_max; n++) {
 
-            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error;
+            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
+            uint32_t l_cur_events = l_epoll_events[n];
             l_flag_hup = l_epoll_events[n].events & EPOLLHUP;
-            l_flag_rdhup = l_epoll_events[n].events & EPOLLHUP;
+            l_flag_rdhup = l_epoll_events[n].events & EPOLLRDHUP;
             l_flag_write = l_epoll_events[n].events & EPOLLOUT;
             l_flag_read = l_epoll_events[n].events & EPOLLIN;
             l_flag_error = l_epoll_events[n].events & EPOLLERR;
+            l_flag_pri = l_epoll_events[n].events & EPOLLPRI;
+            l_flag_nval = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
             short l_cur_events =l_worker->poll[n].revents;
             if (!l_cur_events) // No events for this socket
                 continue;
             l_flag_hup =  l_cur_events& POLLHUP;
-            l_flag_rdhup = l_cur_events & POLLHUP;
-            l_flag_write = l_cur_events & POLLOUT;
-            l_flag_read = l_cur_events & POLLIN;
+            l_flag_rdhup = l_cur_events & POLLRDHUP;
+            l_flag_write = (l_cur_events & POLLOUT) || (l_cur_events &POLLRDNORM)|| (l_cur_events &POLLRDBAND ) ;
+            l_flag_read = l_cur_events & POLLIN || (l_cur_events &POLLWRNORM)|| (l_cur_events &POLLWRBAND );
             l_flag_error = l_cur_events & POLLERR;
+            l_flag_nval = l_cur_events & POLLNVAL;
+            l_flag_pri = l_cur_events & POLLPRI;
+            l_flag_msg = l_cur_events & POLLMSG;
             l_cur = l_worker->poll_esocket[n];
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #else
@@ -168,8 +174,9 @@ void *dap_worker_thread(void *arg)
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
-            //log_it(L_DEBUG, "Worker #%u esocket %p fd=%d (read=%s, write=%s, error=%s)", l_worker->id, l_cur, l_cur->socket,
-            //                    l_flag_read?"true":"false", l_flag_write?"true":"false", l_flag_error?"true":"false" );
+            //log_it(L_DEBUG, "Worker #%u esocket %p fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_worker->id, l_cur, l_cur->socket,
+            //        l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
+            //        l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
@@ -190,6 +197,18 @@ void *dap_worker_thread(void *arg)
                     break;
                     default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
                 }
+            }
+
+            if (l_flag_rdhup ){ // Lets think thats disconnected state
+                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                //l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
+            }
+
+            if(l_flag_nval ){
+                log_it(L_WARNING, "NVAL flag armed for socket %p (%d)", l_cur, l_cur->socket);
+                l_cur->buf_out_size = 0;
+                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
             if(l_flag_error) {
@@ -321,7 +340,7 @@ void *dap_worker_thread(void *arg)
                         }
                     }
                     else if (  (! l_flag_rdhup || !l_flag_error ) && (!(l_cur->flags& DAP_SOCK_CONNECTING )) ) {
-                        log_it(L_WARNING, "EPOLLIN triggered but nothing to read");
+                        log_it(L_DEBUG, "EPOLLIN triggered but nothing to read");
                         dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
                 }

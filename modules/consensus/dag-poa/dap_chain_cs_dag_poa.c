@@ -118,7 +118,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
     const char * l_hash_out_type = NULL;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
-        l_hash_out_type = "base58";
+        l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
