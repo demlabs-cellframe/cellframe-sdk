@@ -225,28 +225,26 @@ inline static bool _is_supported_user_agents_list_setted()
   return cnt;
 }
 
-inline static void _set_only_write_http_client_state(dap_http_client_t* http_client)
+inline static void _set_only_write_http_client_state(dap_http_simple_t * a_simple)
 {
 //  log_it(L_DEBUG,"_set_only_write_http_client_state");
-
-  http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-  dap_events_socket_set_writable_unsafe(http_client->esocket,true);
-  dap_events_socket_set_readable_unsafe(http_client->esocket, false);
+  a_simple->http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+  dap_events_socket_set_writable_mt(a_simple->worker, a_simple->http_client->esocket,true);
 }
 
-static void _copy_reply_and_mime_to_response( dap_http_simple_t *cl_sh )
+static void _copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
 {
 //  log_it(L_DEBUG,"_copy_reply_and_mime_to_response");
 //  Sleep(300);
 
-  if( !cl_sh->reply_size ) {
+  if( !a_simple->reply_size ) {
 
     log_it( L_WARNING, " cl_sh->reply_size equal 0" );
     return;
   }
 
-  cl_sh->http_client->out_content_length = cl_sh->reply_size;
-  strcpy( cl_sh->http_client->out_content_type, cl_sh->reply_mime );
+  a_simple->http_client->out_content_length = a_simple->reply_size;
+  strcpy( a_simple->http_client->out_content_type, a_simple->reply_mime );
   return;
 }
 
@@ -291,8 +289,7 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         if(header == NULL && is_unknown_user_agents_pass == false) {
             const char error_msg[] = "Not found User-Agent HTTP header";
             _write_response_bad_request(l_http_simple, error_msg);
-            _set_only_write_http_client_state( l_http_simple->http_client);
-            dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket );
+            _set_only_write_http_client_state( l_http_simple);
             return true;
         }
 
@@ -300,8 +297,7 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
             log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
             const char* error_msg = "User-Agent version not supported. Update your software";
             _write_response_bad_request(l_http_simple, error_msg);
-            _set_only_write_http_client_state( l_http_simple->http_client);
-            dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket );
+            _set_only_write_http_client_state( l_http_simple);
             return true;
         }
     }
@@ -317,8 +313,7 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         l_http_simple->http_client->reply_status_code = Http_Status_InternalServerError;
     }
 
-    _set_only_write_http_client_state( l_http_simple->http_client);
-    dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket );
+    _set_only_write_http_client_state( l_http_simple);
 
     return true;
 }
@@ -353,7 +348,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
             log_it(L_ERROR, "Not defined content-length %u in request", a_http_client->in_content_length);
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
-        dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
+        dap_events_socket_set_writable_unsafe(a_http_client->esocket,false);
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple);
 
     }

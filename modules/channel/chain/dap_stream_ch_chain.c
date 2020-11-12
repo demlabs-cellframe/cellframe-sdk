@@ -139,7 +139,12 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
     }
 }
 
-
+/**
+ * @brief s_sync_chains_callback
+ * @param a_thread
+ * @param a_arg
+ * @return
+ */
 bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
@@ -160,6 +165,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_chain_node_addr_t l_node_addr = {};
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_hdr.net_id);
         l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN,
                 l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
                 l_ch_chain->request_hdr.cell_id, &l_node_addr, sizeof(dap_chain_node_addr_t));

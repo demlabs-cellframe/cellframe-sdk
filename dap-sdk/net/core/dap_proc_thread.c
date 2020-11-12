@@ -495,4 +495,56 @@ bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_wo
     return true;
 }
 
+/**
+ * @brief dap_proc_thread_esocket_write_inter
+ * @param a_thread
+ * @param a_worker
+ * @param a_esocket
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+                                        const void * a_data, size_t a_data_size)
+{
+    dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
+    dap_events_socket_write_inter(l_es_io_input,a_esocket, a_data, a_data_size);
+    l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
+    s_update_poll_flags(a_thread, l_es_io_input);
+    return 0;
+}
+
+
+/**
+ * @brief dap_proc_thread_esocket_write_f_inter
+ * @param a_thread
+ * @param a_worker
+ * @param a_esocket
+ * @param a_format
+ * @return
+ */
+int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+                                        const char * a_format,...)
+{
+    va_list ap, ap_copy;
+    va_start(ap,a_format);
+    va_copy(ap_copy, ap);
+    int l_data_size = dap_vsnprintf(NULL,0,a_format,ap);
+    va_end(ap);
+    if (l_data_size <0 ){
+        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
+        va_end(ap_copy);
+        return 0;
+    }
+
+    dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
+    va_end(ap_copy);
+
+    dap_events_socket_write_inter(l_es_io_input,a_esocket, l_data, l_data_size);
+    l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
+    s_update_poll_flags(a_thread, l_es_io_input);
+    return 0;
+}
 
