@@ -570,7 +570,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
-            log_it(L_NOTICE,"Wait for status is stopped by timeout");
+            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
             ret = -1;
             break;
         }else if (l_ret_wait != 0 ){

@@ -179,7 +179,9 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
 {
     char l_errbuf[128];
     l_errbuf[0] = '\0';
-    if(a_errno)
+    if (a_errno == ETIMEDOUT){
+        strncpy(l_errbuf,"Connection timeout", sizeof (l_errbuf)-1);
+    }else if(a_errno)
         strerror_r(a_errno, l_errbuf, sizeof (l_errbuf));
     else
         strncpy(l_errbuf,"Unknown Error", sizeof (l_errbuf)-1);

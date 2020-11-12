@@ -59,9 +59,9 @@ int dap_timerfd_init()
  * @param a_callback
  * @return new allocated dap_timerfd_t structure or NULL if error
  */
-dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg, bool a_repeated)
+dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
-     return dap_timerfd_start_on_worker(dap_events_worker_get_auto(), a_timeout_ms, a_callback, a_callback_arg, a_repeated);
+     return dap_timerfd_start_on_worker(dap_events_worker_get_auto(), a_timeout_ms, a_callback, a_callback_arg);
 }
 
 #ifdef DAP_OS_WINDOWS
@@ -84,7 +84,7 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
  * @param a_callback_arg
  * @return
  */
-dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg, bool a_repeated)
+dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 
 {
     dap_timerfd_t *l_timerfd = DAP_NEW(dap_timerfd_t);
@@ -149,7 +149,6 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     l_timerfd->events_socket    = l_events_socket;
     l_timerfd->callback         = a_callback;
     l_timerfd->callback_arg     = a_callback_arg;
-    l_timerfd->repeated         = a_repeated;
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
     l_timerfd->pipe_in          = l_pipe[1];
@@ -168,9 +167,9 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
 static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 {
     dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
-    if(l_timerfd->callback)
-        l_timerfd->callback(l_timerfd->callback_arg);
-    if (l_timerfd->repeated) {
+    // run user's callback
+    if(l_timerfd->callback && l_timerfd->callback(l_timerfd->callback_arg)) {
+        //printf("\nread() returned %d, %d\n", l_ptiu64, l_read_ret);
 #if defined DAP_OS_UNIX
         struct itimerspec l_ts;
         // repeat never
@@ -192,6 +191,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #endif
         dap_events_socket_set_readable_unsafe(a_event_sock, true);
     } else {
+        close(l_timerfd->tfd);
 #if defined DAP_OS_WINDOWS
         CloseHandle(l_timerfd->th);
 #endif

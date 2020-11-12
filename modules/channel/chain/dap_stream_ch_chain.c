@@ -177,7 +177,7 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                                     NULL, 0, l_ch_chain->callback_notify_arg);
     }
     dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-    dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
+    dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
     return true;
 }
 
@@ -222,7 +222,7 @@ bool s_sync_gdb_callback(dap_proc_thread_t *a_thread, void *a_arg)
     // go to send data from list [in s_stream_ch_packet_out()]
     // no data to send -> send one empty message DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB
     dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-    dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
+    dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
     return true;
 }
 
@@ -322,7 +322,7 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
             DAP_DELETE(l_pkt_copy_list);
     }else
         log_it(L_WARNING, "In proc thread got CHAINS stream ch packet with zero data");
-    dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
+    dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
     return true;
 }
 
@@ -426,7 +426,7 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
     }
-    dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
+    dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
     return true;
 }
 
@@ -513,7 +513,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
                 }
                 dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-                dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_sync_chains_callback, a_ch);
+                dap_proc_queue_add_callback_inter(  a_ch->stream_worker->worker->proc_queue_input, s_sync_chains_callback, a_ch);
             }
         }
     }
@@ -535,7 +535,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             memcpy(&l_ch_chain->request, l_request, l_chain_pkt_data_size);
             memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
             dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-            dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_sync_gdb_callback, a_ch);
+            dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_gdb_callback, a_ch);
         }
         else {
             log_it(L_ERROR, "Get DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB session_id=%u bad request",
@@ -567,7 +567,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_pkt_copy->pkt_data_size = l_chain_pkt_data_size;
                 l_ch_chain->pkt_copy_list = dap_list_append(l_ch_chain->pkt_copy_list, l_pkt_copy);
                 dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-                dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_chain_pkt_callback, a_ch);
+                dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_chain_pkt_callback, a_ch);
             } else {
                 log_it(L_WARNING, "Empty chain packet");
                 dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
@@ -596,7 +596,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             l_pkt_copy->pkt_data_size = l_chain_pkt_data_size;
             l_ch_chain->pkt_copy_list = dap_list_append(l_ch_chain->pkt_copy_list, l_pkt_copy);
             dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-            dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_gdb_pkt_callback, a_ch);
+            dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_pkt_callback, a_ch);
         } else {
             log_it(L_WARNING, "Packet with GLOBAL_DB atom has zero body size");
             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
@@ -619,7 +619,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS: {
         dap_stream_ch_chain_sync_request_t l_sync_chains = {};
         memcpy(&l_sync_chains, l_chain_pkt->data, l_chain_pkt_data_size);
-        dap_chain_t *l_chain = l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_sync_chains.node_addr.uint64, l_chain);
         if (l_hash) {
             memcpy(&l_sync_chains.hash_from, l_hash, sizeof(*l_hash));
@@ -759,7 +759,7 @@ static bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (l_ch->stream->esocket->buf_out_size) {
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         }
-        dap_events_socket_assign_on_worker_mt(l_ch->stream->esocket, l_ch->stream_worker->worker);
+        dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
         return true;
     }
     return false;
@@ -780,6 +780,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     if (l_ch_chain && l_ch_chain->state != CHAIN_STATE_IDLE) {
         dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-        dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_out_pkt_callback, a_ch);
+        dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_out_pkt_callback, a_ch);
     }
 }

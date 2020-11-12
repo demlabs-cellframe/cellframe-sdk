@@ -25,7 +25,8 @@
 //#define _XOPEN_SOURCE 700
 
 #pragma once
-
+#define __STDC_WANT_LIB_EXT1__ 1
+#include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -42,7 +43,6 @@
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
-
 typedef uint8_t byte_t;
 
 // Stuffs an integer into a pointer type

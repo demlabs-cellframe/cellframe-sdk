@@ -33,16 +33,20 @@ typedef struct dap_worker
     uint32_t id;
     dap_events_t* events;
     dap_proc_queue_t* proc_queue;
+    dap_events_socket_t *proc_queue_input;
+
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // Signal to exit
     bool signal_exit;
     // worker control queues
-    dap_events_socket_t * queue_es_new; // Events socket for new socket
-    dap_events_socket_t * queue_es_delete; // Events socke
-    dap_events_socket_t * queue_es_reassign; // Reassign between workers
-    dap_events_socket_t * queue_es_io; // Events socket for new socket
+    dap_events_socket_t * queue_es_new; // Queue socket for new socket
+
+    dap_events_socket_t * queue_es_delete; // Queue socke
+    dap_events_socket_t * queue_es_reassign; // Queue for reassign between workers
+    dap_events_socket_t * queue_es_io; // Queue socket for io ops
+    dap_events_socket_t ** queue_es_io_input; // Queue socket for io ops between workers
     dap_events_socket_t * event_exit; // Events socket for exit
 
     dap_events_socket_t * queue_callback; // Queue for pure callback on worker
@@ -90,6 +94,7 @@ void dap_worker_deinit();
 
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker);
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
+void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_events_socket_t * a_events_socket);
 dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg);
 
