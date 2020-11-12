@@ -33,6 +33,7 @@
 #include <sys/resource.h>
 
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_math_ops.h"
 #include "dap_worker.h"
 #include "dap_events.h"
@@ -41,7 +42,7 @@
 
 // temporary too big timout for no closing sockets opened to not keep alive peers
 static time_t s_connection_timeout = 20000; // 60;    // seconds
-
+static bool s_debug_reactor=true;
 
 static bool s_socket_all_check_activity( void * a_arg);
 static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg);
@@ -61,6 +62,9 @@ int dap_worker_init( size_t a_conn_timeout )
 {
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
+
+    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
+
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -1;
@@ -174,9 +178,10 @@ void *dap_worker_thread(void *arg)
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
-            //log_it(L_DEBUG, "Worker #%u esocket %p fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_worker->id, l_cur, l_cur->socket,
-            //        l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
-            //        l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
+            if(s_debug_reactor)
+                log_it(L_DEBUG, "Worker #%u esocket %p fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_worker->id, l_cur, l_cur->socket,
+                    l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
+                    l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
@@ -200,7 +205,16 @@ void *dap_worker_thread(void *arg)
             }
 
             if (l_flag_rdhup ){ // Lets think thats disconnected state
-                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                switch (l_cur->type ){
+                    case DESCRIPTOR_TYPE_SOCKET:
+                    case DESCRIPTOR_TYPE_SOCKET_UDP:
+                        l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    break;
+                    default:{
+                        if(s_debug_reactor)
+                            log_it(L_INFO,"RDHUP event on esocket %p (%d) type %d", l_cur, l_cur->socket, l_cur->type );
+                    }
+                }
                 //l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
@@ -318,7 +332,8 @@ void *dap_worker_thread(void *arg)
                             l_cur->last_time_active = l_cur_time;
                         }
                         l_cur->buf_in_size += l_bytes_read;
-                        //log_it(L_DEBUG, "Received %d bytes", l_bytes_read);
+                        if(s_debug_reactor)
+                            log_it(L_DEBUG, "Received %d bytes", l_bytes_read);
                         if(l_cur->callbacks.read_callback){
                             l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
                             if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,
@@ -367,7 +382,8 @@ void *dap_worker_thread(void *arg)
                 }else if(l_error == EINPROGRESS) {
                     log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
                 }else{
-                   // log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
+                    if(s_debug_reactor)
+                        log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)");
                     l_cur->flags ^= DAP_SOCK_CONNECTING;
                     if (l_cur->callbacks.connected_callback)
                         l_cur->callbacks.connected_callback(l_cur);
@@ -378,7 +394,9 @@ void *dap_worker_thread(void *arg)
             // Socket is ready to write and not going to close
             if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
                  (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-                //log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
+                if(s_debug_reactor)
+                    log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
+
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
 
