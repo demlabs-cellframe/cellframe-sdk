@@ -24,8 +24,10 @@
 #include <assert.h>
 #include "dap_server.h"
 
-#if defined(DAP_EVENTS_CAPS_EPOLL)
+#if defined(DAP_EVENTS_CAPS_EPOLL) && !defined(DAP_OS_WINDOWS)
 #include <sys/epoll.h>
+#elif defined DAP_OS_WINDOWS
+#include "wepoll.h"
 #elif defined (DAP_EVENTS_CAPS_POLL)
 #include <poll.h>
 #else
@@ -153,7 +155,11 @@ static void * s_proc_thread_function(void * a_arg)
     dap_cpu_assign_thread_on(l_thread->cpu_id);
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
+#ifdef DAP_OS_UNIX
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
+#elif defined DAP_OS_WINDOWS
+    pthread_setschedparam(pthread_self(), SCHED_OTHER ,&l_shed_params);
+#endif
     l_thread->proc_queue = dap_proc_queue_create(l_thread);
 
 
@@ -272,14 +278,10 @@ static void * s_proc_thread_function(void * a_arg)
             time_t l_cur_time = time( NULL);
             l_cur->last_time_active = l_cur_time;
             if (l_flag_error){
-#if defined DAP_OS_UNIX
                 int l_errno = errno;
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
                 log_it(L_ERROR,"Some error on proc thread #%u with %d socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
-#elif defined DAP_OS_WINDOWS
-                log_it(L_ERROR,"Some error occured on thread #%u with socket %d, errno: %d",l_thread->cpu_id, l_cur->socket, errno);
-#endif
                 if(l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur, errno);
             }

@@ -21,15 +21,22 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef DAP_OS_WINDOWS
+#include "wepoll.h"
+#include <ws2tcpip.h>
+#elif defined DAP_OS_UNIX
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
+#include <netdb.h>
+#include <sys/timerfd.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <sys/epoll.h>
 
-#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
@@ -41,7 +48,6 @@
 #include <stddef.h>
 #include <errno.h>
 #include <signal.h>
-#include <sys/timerfd.h>
 #include <utlist.h>
 #if ! defined(_GNU_SOURCE)
 #define _GNU_SOURCE
@@ -148,6 +154,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 //create socket
     l_server->listener_addr.sin_family = AF_INET;
     l_server->listener_addr.sin_port = htons(l_server->port);
+
     inet_pton(AF_INET, l_server->address, &(l_server->listener_addr.sin_addr));
 
     if(bind (l_server->socket_listener, (struct sockaddr *) &(l_server->listener_addr), sizeof(l_server->listener_addr)) < 0){
@@ -159,8 +166,12 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         log_it(L_INFO,"Binded %s:%u",l_server->address,l_server->port);
         listen(l_server->socket_listener, SOMAXCONN);
     }
-
+#if defined DAP_OS_UNIX
     fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
+#elif defined DAP_OS_WINDOWS
+     u_long l_mode = 0;
+     ioctlsocket((SOCKET)l_server->socket_listener, (long)FIONBIO, &l_mode);
+#endif
     pthread_mutex_init(&l_server->started_mutex,NULL);
     pthread_cond_init(&l_server->started_cond,NULL);
 
@@ -188,7 +199,11 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
             l_es->type = l_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             // Prepare for multi thread listening
+#ifndef DAP_OS_WINDOWS
             l_es->ev_base_flags  = EPOLLET| EPOLLIN | EPOLLEXCLUSIVE;
+#else
+            l_es->ev_base_flags  = EPOLLIN;
+#endif
 #endif
             l_es->_inheritor = l_server;
             pthread_mutex_lock(&l_server->started_mutex);

@@ -298,6 +298,7 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         break;
                     }
                     // Get socket flags
+#ifdef DAP_OS_UNIX
                     int l_socket_flags = fcntl(a_client_pvt->stream_socket, F_GETFL);
                     if (l_socket_flags == -1){
                         log_it(L_ERROR, "Error %d can't get socket flags", errno);
@@ -306,8 +307,12 @@ static void s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // Make it non-block
                     if (fcntl( a_client_pvt->stream_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
                         log_it(L_ERROR, "Error %d can't get socket flags", errno);
-                        break;;
+                        break;
                     }
+#elif defined DAP_OS_WINDOWS
+                    u_long l_socket_flags = 0;
+                    ioctlsocket((SOCKET)a_client_pvt->stream_socket, (long)FIONBIO, &l_socket_flags);
+#endif
 #ifdef _WIN32
                     {
                       int buffsize = 65536*4;

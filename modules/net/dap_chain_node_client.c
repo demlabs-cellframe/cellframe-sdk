@@ -580,7 +580,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
         }
 #else
-        int wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_s*1000 );
+        DWORD wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_ms);
         pthread_mutex_lock( &a_client->wait_mutex );
 
         if ( wait == WAIT_OBJECT_0 && (

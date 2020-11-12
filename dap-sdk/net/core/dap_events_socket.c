@@ -38,6 +38,7 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
+#include <mq.h>
 #include "wepoll.h"
 #endif
 #include <fcntl.h>
@@ -184,12 +185,8 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     l_errbuf[0]=0;
     if( pipe(l_pipe) < 0 ){
         l_errno = errno;
-#if defined DAP_OS_UNIX
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
-#elif defined DAP_OS_WINDOWS
-        log_it( L_ERROR, "Can't create pipe, errno: %d", l_errno);
-#endif
         DAP_DELETE(l_es);
         return NULL;
     }//else
@@ -311,6 +308,73 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         l_es = NULL;
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d",l_mq_name, l_errbuf, l_errno);
     }
+#elif defined DAP_EVENTS_CAPS_MSMQ
+    int l_pipe[2];
+    if (pipe(l_pipe) < 0) {
+        log_it(L_ERROR, "Can't create pipe for queue type, error: %d", errno);
+        DAP_DELETE(l_es);
+        return NULL;
+    }
+    l_es->fd2   = l_pipe[0];
+    l_es->fd    = l_pipe[1];
+    log_it(L_DEBUG, "Created pipe for queue type, %d -> %d", l_es->fd2, l_es->fd);
+
+    MQQUEUEPROPS   l_qps;
+    MQPROPVARIANT  l_qp_var[1];
+    QUEUEPROPID    l_qp_id[1];
+    HRESULT        l_q_status[1];
+
+    WCHAR l_pathname[MAX_PATH];
+    size_t l_sz_in_words = sizeof(l_pathname)/sizeof(l_pathname[0]);
+    int pos = _snwprintf_s(l_pathname, l_sz_in_words, l_sz_in_words - 1, L".\\PRIVATE$\\DapEventSocketQueue%d", l_es->socket);
+    if (pos < 0) {
+        log_it(L_ERROR, "Message queue path error");
+        DAP_DELETE(l_es);
+        return NULL;
+    }
+    u_long l_p_id         = 0;
+    l_qp_id[l_p_id]       = PROPID_Q_PATHNAME;
+    l_qp_var[l_p_id].vt   = VT_LPWSTR;
+    l_qp_var[l_p_id].pwszVal = l_pathname;
+    l_p_id++;
+
+    l_qps.cProp     = l_p_id;
+    l_qps.aPropID   = l_qp_id;
+    l_qps.aPropVar  = l_qp_var;
+    l_qps.aStatus   = l_q_status;
+
+    WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN + 1] = { 0 };
+    WCHAR l_format_name[sizeof(l_direct_name) - 10];
+    DWORD l_buflen = sizeof(l_format_name);
+    HRESULT hr = MQCreateQueue(NULL, &l_qps, l_format_name, &l_buflen);
+    if ((hr != MQ_OK) && (hr != MQ_ERROR_QUEUE_EXISTS) && (hr != MQ_INFORMATION_PROPERTY)) {
+        log_it(L_ERROR, "Can't create message queue for queue type, error: 0x%x", hr);
+        DAP_DELETE(l_es);
+        return NULL;
+    }
+    // wcsncpy(l_direct_name, L"DIRECT=OS:", 10);
+    // wcscat_s(l_direct_name, l_buflen, l_format_name);
+
+    hr = MQOpenQueue(/*l_direct_name*/ l_format_name, MQ_SEND_ACCESS, MQ_DENY_NONE, l_es->mqh);
+    if (hr == MQ_ERROR_QUEUE_NOT_FOUND) {
+        log_it(L_INFO, "Queue still not created, wait a bit...");
+        Sleep(300);
+        hr = MQOpenQueue(/*l_direct_name*/ l_format_name, MQ_SEND_ACCESS, MQ_DENY_NONE, l_es->mqh);
+        if (hr != MQ_OK) {
+            log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
+            DAP_DELETE(l_es);
+            MQDeleteQueue(l_format_name);
+            return NULL;
+        }
+    }
+    hr = MQOpenQueue(/*l_direct_name*/ l_format_name, MQ_RECEIVE_ACCESS, MQ_DENY_NONE, l_es->mqh_rec);
+    if (hr != MQ_OK) {
+        log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
+        DAP_DELETE(l_es);
+        MQCloseQueue(l_es->mqh);
+        MQDeleteQueue(l_format_name);
+    }
+
 #else
 #error "Not implemented s_create_type_queue_ptr() on your platform"
 #endif
@@ -378,6 +442,35 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 log_it(L_ERROR, "Error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
                 return -1;
             }
+            a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
+#elif defined DAP_EVENTS_CAPS_MSMQ
+            DWORD l_mp_id = 0;
+            MQMSGPROPS    l_mps;
+            MQPROPVARIANT l_mpvar[2];
+            MSGPROPID     l_p_id[2];
+
+            UCHAR l_body[1024];
+            l_p_id[l_mp_id]				= PROPID_M_BODY;
+            l_mpvar[l_mp_id].vt			= VT_UI1 | VT_VECTOR;
+            l_mpvar[l_mp_id].caub.cElems = sizeof(l_body);
+            l_mpvar[l_mp_id].caub.pElems = l_body;
+            l_mp_id++;
+
+            l_p_id[l_mp_id]				= PROPID_M_BODY_SIZE;
+            l_mpvar[l_mp_id].vt			= VT_UI4;
+            l_mp_id++;
+
+            l_mps.cProp    = l_mp_id;
+            l_mps.aPropID  = l_p_id;
+            l_mps.aPropVar = l_mpvar;
+            l_mps.aStatus  = NULL;
+
+            HRESULT hr = MQReceiveMessage(a_esocket->mqh_rec, 1000, MQ_ACTION_RECEIVE, &l_mps, NULL, NULL, NULL, MQ_NO_TRANSACTION);
+            if (hr != MQ_OK) {
+                log_it(L_ERROR, "An error 0x%x occured receiving a message from queue", hr);
+                return -1;
+            }
+            memcpy(&l_queue_ptr, l_body, sizeof(void*));
             a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
 #else
 #error "No Queue fetch mechanism implemented on your platform"
@@ -635,6 +728,34 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         return  0;
     else
         return l_errno;
+#elif defined DAP_EVENTS_CAPS_MSMQ
+
+    char pbuf[sizeof(void*)];
+    memcpy(pbuf, &a_arg, sizeof(void*));
+
+    DWORD l_mp_id = 0;
+    MQMSGPROPS    l_mps;
+    MQPROPVARIANT l_mpvar[1];
+    MSGPROPID     l_p_id[1];
+    HRESULT       l_mstatus[1];
+
+    l_p_id[l_mp_id] = PROPID_M_BODY;
+    l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
+    l_mpvar[l_mp_id].caub.pElems = (unsigned char*)(pbuf);
+    l_mpvar[l_mp_id].caub.cElems = sizeof(void*);
+    l_mp_id++;
+
+    l_mps.cProp = l_mp_id;
+    l_mps.aPropID = l_p_id;
+    l_mps.aPropVar = l_mpvar;
+    l_mps.aStatus = l_mstatus;
+
+    HRESULT hr = MQSendMessage(a_es->mqh, &l_mps, MQ_NO_TRANSACTION);
+
+    if (hr != MQ_OK) {
+        log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
+        return hr;
+    }
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
@@ -750,7 +871,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
 
     a_esocket->ev.events = events;
 
-    if ( epoll_ctl(a_esocket->worker->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ){
+    if ( epoll_ctl(a_esocket->worker->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ) {
         int l_errno = errno;
         char l_errbuf[128];
         l_errbuf[0]=0;

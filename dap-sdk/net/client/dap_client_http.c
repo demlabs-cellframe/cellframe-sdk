@@ -267,6 +267,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         return NULL;
     }
     // Get socket flags
+#ifdef DAP_OS_UNIX
     int l_socket_flags = fcntl(l_socket, F_GETFL);
     if (l_socket_flags == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
@@ -277,6 +278,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
         return NULL;
     }
+#elif defined DAP_OS_WINDOWS
+    u_long l_socket_flags = 0;
+    ioctlsocket((SOCKET)l_socket, (long)FIONBIO, &l_socket_flags);
+#endif
     // set socket param
     int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
 #ifdef _WIN32

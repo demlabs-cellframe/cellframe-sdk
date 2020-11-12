@@ -16,6 +16,7 @@ endif()
 if(WIN32)
   include_directories(../../../3rdparty/uthash/src/)
   include_directories(../../../3rdparty/wepoll/)
+  include_directories(../../../modules/net/win32)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})

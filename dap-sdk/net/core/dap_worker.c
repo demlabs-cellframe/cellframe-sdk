@@ -28,10 +28,13 @@
 #endif
 #include <fcntl.h>
 #include <sys/types.h>
+#ifdef DAP_OS_UNIX
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/resource.h>
-
+#elif defined DAP_OS_WINDOWS
+#include <ws2tcpip.h>
+#endif
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_worker.h"
@@ -61,6 +64,7 @@ int dap_worker_init( size_t a_conn_timeout )
 {
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
+#ifdef DAP_OS_UNIX
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -1;
@@ -69,6 +73,7 @@ int dap_worker_init( size_t a_conn_timeout )
     if (setrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -2;
     log_it(L_INFO, "Set maximum opened descriptors from %d to %d", l_oldlimit, l_fdlimit.rlim_cur);
+#endif
     return 0;
 }
 
@@ -254,7 +259,12 @@ void *dap_worker_thread(void *arg)
                             struct sockaddr l_remote_addr;
                             socklen_t l_remote_addr_size= sizeof (l_remote_addr);
                             int l_remote_socket= accept(l_cur->socket ,&l_remote_addr,&l_remote_addr_size);
+#ifdef DAP_OS_UNIX
                             fcntl( l_remote_socket, F_SETFL, O_NONBLOCK);
+#elif defined DAP_OS_WINDOWS
+                            u_long l_mode = 0;
+                            ioctlsocket((SOCKET)l_remote_socket, (long)FIONBIO, &l_mode);
+#endif
 
                             int l_errno = errno;
                             if ( l_remote_socket == -1 ){
@@ -334,11 +344,10 @@ void *dap_worker_thread(void *arg)
                 socklen_t l_error_len = sizeof(l_error);
                 char l_error_buf[128];
                 l_error_buf[0]='\0';
-                getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, &l_error, &l_error_len);
+                getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_error, &l_error_len);
                 if (l_error){
                     strerror_r(l_error, l_error_buf, sizeof (l_error_buf));
-                    log_it(L_ERROR,"Connecting error with %s: \"%s\" (code %d)", l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)"
-                                                                                 ,
+                    log_it(L_ERROR,"Connecting error with %s: \"%s\" (code %d)", l_cur->remote_addr_str[0]? l_cur->remote_addr_str: "(NULL)",
                            l_error_buf, l_error);
                     if ( l_cur->callbacks.error_callback )
                         l_cur->callbacks.error_callback(l_cur, l_error);
@@ -497,7 +506,9 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         case DESCRIPTOR_TYPE_SOCKET:
         case DESCRIPTOR_TYPE_SOCKET_LISTENING:{
             int l_cpu = w->id;
+#ifdef DAP_OS_UNIX
             setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
+#endif
         }break;
         default: {}
     }
@@ -648,7 +659,11 @@ static void s_socket_all_check_activity( void * a_arg)
     dap_events_socket_t *l_es, *tmp;
     char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
+#ifdef DAP_OS_UNIX
     ctime_r(&l_curtime, l_curtimebuf);
+#elif defined DAP_OS_WINDOWS
+    ctime_s(l_curtimebuf, sizeof(l_curtimebuf), &l_curtime);
+#endif
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
 
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {

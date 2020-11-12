@@ -55,6 +55,9 @@
     #define DAP_EVENTS_CAPS_QUEUE_WEVENT
     #define DAP_EVENTS_CAPS_EVENT_WEVENT
     #define DAP_EVENTS_CAPS_PIPE_POSIX
+    #define DAP_EVENTS_CAPS_MSMQ
+    #define INET_ADDRSTRLEN     16
+    #define INET6_ADDRSTRLEN    46
 #endif
 
 #if defined(DAP_EVENTS_CAPS_WEPOLL)
@@ -133,6 +136,8 @@ typedef struct dap_events_socket {
         int fd;
 #if defined(DAP_EVENTS_CAPS_QUEUE_POSIX)
         mqd_t mqd;
+#elif defined DAP_EVENTS_CAPS_MSMQ
+        HANDLE mqh, mqh_rec;
 #endif
     };
 #ifdef DAP_EVENTS_CAPS_PIPE_POSIX
