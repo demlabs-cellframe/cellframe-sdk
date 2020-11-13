@@ -191,6 +191,7 @@ void *dap_worker_thread(void *arg)
                     case DESCRIPTOR_TYPE_SOCKET:
                         getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
                         if (l_sock_err) {
+                            dap_events_socket_set_readable_unsafe(l_cur, false);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                             l_cur->buf_out_size = 0;
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
