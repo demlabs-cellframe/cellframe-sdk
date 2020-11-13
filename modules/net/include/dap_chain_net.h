@@ -58,6 +58,9 @@ typedef struct dap_chain_net{
         char * gdb_nodes_aliases;
         char * gdb_nodes;
 
+        // checks
+        bool token_emission_signs_verify;
+
         dap_chain_t * chains; // double-linked list of chains
         dap_chain_t * default_chain;
         dap_ledger_t  *ledger;
