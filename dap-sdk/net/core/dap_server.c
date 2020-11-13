@@ -178,6 +178,8 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         l_callbacks.error_callback = a_callbacks->error_callback;
     }
 
+// if we have poll exclusive
+#if defined(DAP_EVENTS_CAPS_EPOLL)
     for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
         assert(l_w);
@@ -200,6 +202,24 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
             return NULL;
         }
     }
+#else
+    // or not
+    dap_worker_t *l_w = dap_events_worker_get_auto();
+    assert(l_w);
+    dap_events_socket_t * l_es = dap_events_socket_wrap2( l_server, a_events, l_server->socket_listener, &l_callbacks);
+    if (l_es) {
+        l_server->es_listeners = dap_list_append(l_server->es_listeners, l_es);
+        l_es->type = l_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
+        l_es->_inheritor = l_server;
+        pthread_mutex_lock(&l_server->started_mutex);
+        dap_worker_add_events_socket( l_es, l_w );
+        pthread_cond_wait(&l_server->started_cond, &l_server->started_mutex);
+        pthread_mutex_unlock(&l_server->started_mutex);
+    } else{
+        log_it(L_WARNING, "Can't wrap event socket for %s:%u server", a_addr, a_port);
+        return NULL;
+    }
+#endif
     return  l_server;
 }
 

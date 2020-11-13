@@ -185,37 +185,24 @@ void *dap_worker_thread(void *arg)
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
-            if( l_flag_hup) {
+            if( l_flag_hup || l_flag_rdhup) {
                 switch (l_cur->type ){
-                    case DESCRIPTOR_TYPE_SOCKET_LISTENING:
+                case DESCRIPTOR_TYPE_SOCKET_UDP:
                     case DESCRIPTOR_TYPE_SOCKET:
                         getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
                         if (l_sock_err) {
-                            dap_events_socket_set_readable_unsafe(l_cur, false);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                             l_cur->buf_out_size = 0;
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                            l_flag_error = l_flag_read = l_flag_write = false;
+                            l_flag_error = l_flag_write = false;
                             l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
                             log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                         }
                     break;
-                    default: log_it(L_WARNING, "Unimplemented EPOLLHUP for socket type %d", l_cur->type);
-                }
-            }
-
-            if (l_flag_rdhup ){ // Lets think thats disconnected state
-                switch (l_cur->type ){
-                    case DESCRIPTOR_TYPE_SOCKET:
-                    case DESCRIPTOR_TYPE_SOCKET_UDP:
-                        l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                    break;
-                    default:{
+                    default:
                         if(s_debug_reactor)
                             log_it(L_INFO,"RDHUP event on esocket %p (%d) type %d", l_cur, l_cur->socket, l_cur->type );
-                    }
                 }
-                //l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
             if(l_flag_nval ){
