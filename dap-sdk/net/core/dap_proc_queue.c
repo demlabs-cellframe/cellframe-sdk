@@ -75,8 +75,16 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t);
         l_item->callback = l_msg->callback;
         l_item->callback_arg = l_msg->callback_arg;
-        l_item->next=l_queue->items;
-        l_queue->items = l_item;
+        l_item->next=l_queue->items_last ;
+        if ( l_queue->items_last)
+            l_queue->items_last->prev = l_item;
+
+        l_queue->items_last = l_item->next;
+
+        if( !l_queue->items_fisrt)
+            l_queue->items_fisrt = l_item;
+
+
         // Add on top so after call this callback will be executed first
         dap_events_socket_event_signal(l_queue->proc_thread->proc_event,1);
         //log_it( L_DEBUG, "Sent signal to proc thread that we have callback %p/%p on board", l_msg->callback,l_msg->callback_arg);

@@ -32,6 +32,7 @@
 #error "Unimplemented poll for this platform"
 #endif
 
+#include "dap_config.h"
 #include "dap_events.h"
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
@@ -39,6 +40,7 @@
 #define LOG_TAG "dap_proc_thread"
 
 static size_t s_threads_count = 0;
+static bool s_debug_reactor = false;
 static dap_proc_thread_t * s_threads = NULL;
 static void * s_proc_thread_function(void * a_arg);
 
@@ -50,7 +52,7 @@ static void * s_proc_thread_function(void * a_arg);
 int dap_proc_thread_init(uint32_t a_threads_count){
     s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
-
+    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
     for (size_t i = 0; i < s_threads_count; i++ ){
 
         s_threads[i].cpu_id = i;
@@ -122,25 +124,31 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
     (void) a_value;
     //log_it(L_DEBUG, "Proc event callback");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
-    dap_proc_queue_item_t * l_item = l_thread->proc_queue->items;
+    dap_proc_queue_item_t * l_item = l_thread->proc_queue->items_fisrt;
     dap_proc_queue_item_t * l_item_old = NULL;
     bool l_is_anybody_for_repeat=false;
     while(l_item){
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
             if(l_item_old){
-                l_item_old->next = l_item->next;
+                if ( ! l_item->prev )
+                    l_thread->proc_queue->items_last = l_item_old;
+                if ( ! l_item->next )
+                    l_thread->proc_queue->items_fisrt = l_item->prev;
+
+                l_item_old->prev = l_item->prev;
+
                 DAP_DELETE(l_item);
-                l_item = l_item_old->next;
+                l_item = l_item_old->prev;
             }else{
-                l_thread->proc_queue->items = l_item->next;
+                l_thread->proc_queue->items_fisrt = l_item->prev;
                 DAP_DELETE(l_item);
-                l_item = l_thread->proc_queue->items;
+                l_item = l_thread->proc_queue->items_fisrt;
             }
 
         }else{
             l_item_old = l_item;
-            l_item=l_item->next;
+            l_item=l_item->prev;
         }
         l_is_anybody_for_repeat = !l_is_finished;
     }
@@ -322,7 +330,8 @@ static void * s_proc_thread_function(void * a_arg)
         }
         for(size_t n = 0; n < l_sockets_max; n++) {
             dap_events_socket_t * l_cur;
-            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error;
+            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error,
+                    l_flag_nval,l_flag_pri,l_flag_msg;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
             uint32_t l_cur_events = l_epoll_events[n].events;
@@ -331,6 +340,9 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_write = l_cur_events & EPOLLOUT;
             l_flag_read = l_cur_events & EPOLLIN;
             l_flag_error = l_cur_events & EPOLLERR;
+            l_flag_nval = false;
+            l_flag_pri = false;
+            l_flag_msg = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
             if(n>=l_thread->poll_count){
                 log_it(L_WARNING,"selected_sockets(%d) is bigger then poll count (%u)", l_selected_sockets, l_thread->poll_count);
@@ -340,11 +352,14 @@ static void * s_proc_thread_function(void * a_arg)
             if (!l_cur_events)
                 continue;
             l_cur = l_thread->esockets[n];
-            l_flag_hup = l_cur_events & POLLHUP;
-            l_flag_rdhup = l_cur_events & POLLHUP;
-            l_flag_write = l_cur_events & POLLOUT;
-            l_flag_read = l_cur_events & POLLIN;
+            l_flag_hup =  l_cur_events& POLLHUP;
+            l_flag_rdhup = l_cur_events & POLLRDHUP;
+            l_flag_write = (l_cur_events & POLLOUT) || (l_cur_events &POLLRDNORM)|| (l_cur_events &POLLRDBAND ) ;
+            l_flag_read = l_cur_events & POLLIN || (l_cur_events &POLLWRNORM)|| (l_cur_events &POLLWRBAND );
             l_flag_error = l_cur_events & POLLERR;
+            l_flag_nval = l_cur_events & POLLNVAL;
+            l_flag_pri = l_cur_events & POLLPRI;
+            l_flag_msg = l_cur_events & POLLMSG;
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
@@ -353,6 +368,11 @@ static void * s_proc_thread_function(void * a_arg)
                 log_it(L_ERROR, "dap_events_socket NULL");
                 continue;
             }
+            if(s_debug_reactor)
+                log_it(L_DEBUG, "Poc thread #%u esocket %p fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
+                    l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
+                    l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
+
             //log_it(L_DEBUG,"Waked up esocket %p (socket %d) {read:%s,write:%s,error:%s} ", l_cur, l_cur->fd,
             //           l_flag_read?"true":"false", l_flag_write?"true":"false", l_flag_error?"true":"false" );
             time_t l_cur_time = time( NULL);

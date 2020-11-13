@@ -31,12 +31,14 @@ typedef struct dap_proc_queue_item{
     dap_proc_queue_callback_t callback;
     void *callback_arg;
     struct dap_proc_queue_item * next;
+    struct dap_proc_queue_item * prev;
 } dap_proc_queue_item_t;
 
 typedef struct dap_proc_queue{
     dap_proc_thread_t * proc_thread;
     dap_events_socket_t *esocket;
-    dap_proc_queue_item_t * items;
+    dap_proc_queue_item_t * items_last;
+    dap_proc_queue_item_t * items_fisrt;
 } dap_proc_queue_t;
 
 dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread);

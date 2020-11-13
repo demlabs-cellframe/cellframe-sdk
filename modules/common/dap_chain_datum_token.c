@@ -187,7 +187,7 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
     assert(a_datum_token);
     assert(a_signs_total);
     assert(a_signs_valid);
-    assert( a_datum_token_size < sizeof (a_datum_token));
+    assert( a_datum_token_size >= sizeof (a_datum_token));
     dap_sign_t ** l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof (dap_sign_t*)*a_datum_token->header_private.signs_total );
     *a_signs_total=0;
     *a_signs_valid = a_datum_token->header_private.signs_valid;
