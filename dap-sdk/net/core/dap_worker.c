@@ -185,7 +185,22 @@ void *dap_worker_thread(void *arg)
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
-            if( l_flag_hup || l_flag_rdhup) {
+            if (l_flag_rdhup){
+                switch (l_cur->type ){
+                    case DESCRIPTOR_TYPE_SOCKET_UDP:
+                    case DESCRIPTOR_TYPE_SOCKET:
+                            dap_events_socket_set_readable_unsafe(l_cur, false);
+                            dap_events_socket_set_writable_unsafe(l_cur, false);
+                            l_cur->buf_out_size = 0;
+                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_flag_error = l_flag_write = false;
+                    break;
+                    default:{}
+                }
+                if(s_debug_reactor)
+                    log_it(L_INFO,"RDHUP event on esocket %p (%d) type %d", l_cur, l_cur->socket, l_cur->type );
+            }
+            if( l_flag_hup ) {
                 switch (l_cur->type ){
                 case DESCRIPTOR_TYPE_SOCKET_UDP:
                     case DESCRIPTOR_TYPE_SOCKET:
