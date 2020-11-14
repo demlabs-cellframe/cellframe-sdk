@@ -41,6 +41,9 @@
 #include <dlfcn.h>
 #endif
 
+#include <json-c/json.h>
+#include <json-c/json_object.h>
+
 #include <pthread.h>
 #include <dirent.h>
 
@@ -106,11 +109,11 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
         "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
         "        [-cert <cert name to sign order>]\\\n"
         "\tOrder create\n"
-                   "net_srv -net <chain net name> order static [save | delete]\\\n"
-                   "\tStatic nodelist create/delete\n"
-                   "net_srv -net <chain net name> order recheck\\\n"
-                   "\tCheck the availability of orders\n"
-               );
+        "net_srv -net <chain net name> order static [save | delete]\\\n"
+        "\tStatic nodelist create/delete\n"
+        "net_srv -net <chain net name> order recheck\\\n"
+        "\tCheck the availability of orders\n"
+    );
 
     s_load_all();
     return 0;
@@ -226,7 +229,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
 
         dap_string_t *l_string_ret = dap_string_new("");
         const char *l_order_str = NULL;
-        int l_order_arg_pos =dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
+        int l_order_arg_pos = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "order", &l_order_str);
 
         // Order direction
         const char *l_direction_str = NULL;
@@ -600,8 +603,8 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 ret = -13;
             }
         } else {
-            dap_string_append_printf( l_string_ret, "Unknown subcommand \n");
-            ret=-3;
+            dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
+            ret = -3;
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);
         dap_string_free(l_string_ret, true);
@@ -632,13 +635,13 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         l_srv->callback_requested = a_callback_request;
-        l_srv->callback_receipt_first_success = a_callback_response_success;
+        l_srv->callback_response_success = a_callback_response_success;
         l_srv->callback_response_error = a_callback_response_error;
         l_srv->callback_receipt_next_success = a_callback_receipt_next_success;
+        pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
-        l_sdata->srv = l_srv;//DAP_NEW(dap_chain_net_srv_t);
-        //memcpy(l_sdata->srv, l_srv, sizeof(dap_chain_net_srv_t));
+        l_sdata->srv = l_srv;
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
@@ -698,8 +701,10 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {
-        DAP_DELETE(l_sdata);
         HASH_DEL(s_srv_list, l_sdata);
+        pthread_mutex_destroy(&a_srv->banlist_mutex);
+        DAP_DELETE(a_srv);
+        DAP_DELETE(l_sdata);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
@@ -760,8 +765,10 @@ void dap_chain_net_srv_del_all(void)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
-        DAP_DELETE(l_sdata);
         HASH_DEL(s_srv_list, l_sdata);
+        pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
+        DAP_DELETE(l_sdata->srv);
+        DAP_DELETE(l_sdata);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
