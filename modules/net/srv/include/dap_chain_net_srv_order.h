@@ -124,3 +124,17 @@ DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t *
    }
    return NULL;
 }
+
+/**
+* @brief dap_chain_net_srv_order_get_gdb_group_mempool
+* @param l_chain
+* @return
+*/
+DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_nodelist_group(dap_chain_net_t * a_net)
+{
+   if ( a_net ) {
+       const char c_srv_order_group_str[]="service.orders.static_nodelist";
+       return dap_strdup_printf("%s.%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
+   }
+   return NULL;
+}
