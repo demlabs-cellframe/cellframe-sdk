@@ -64,10 +64,10 @@ int dap_worker_init( size_t a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
 
     s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
-
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -1;
+
     rlim_t l_oldlimit = l_fdlimit.rlim_cur;
     l_fdlimit.rlim_cur = l_fdlimit.rlim_max;
     if (setrlimit(RLIMIT_NOFILE, &l_fdlimit))
@@ -443,14 +443,19 @@ void *dap_worker_thread(void *arg)
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
 
                                 l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-#elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
-                                l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
+                                l_errno = errno;
+#elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+                                l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
+                                if(l_bytes_sent == 0)
+                                    l_bytes_sent = sizeof (void*);
+                                l_errno = errno;
+                                if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
+                                    l_errno = EAGAIN;                        // non-blocking sockets
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
-                                l_errno = errno;
-                                break;
                             }
+                        break;
                         case DESCRIPTOR_TYPE_PIPE:
                         case DESCRIPTOR_TYPE_FILE:
                             l_bytes_sent = write(l_cur->socket, (char *) (l_cur->buf_out), l_cur->buf_out_size );
@@ -463,7 +468,7 @@ void *dap_worker_thread(void *arg)
 
                     if(l_bytes_sent < 0) {
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
-                            log_it(L_ERROR, "Some error occured in send(): %s", strerror(errno));
+                            log_it(L_ERROR, "Some error occured in send(): %s (code %d)", strerror(l_errno), l_errno);
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }

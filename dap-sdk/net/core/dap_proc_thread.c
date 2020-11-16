@@ -404,19 +404,24 @@ static void * s_proc_thread_function(void * a_arg)
                 }
             }
             if (l_flag_write ){
-                ssize_t l_bytes_sent = -1;
+                int l_errno;
                 if (l_cur->buf_out_size){
+                    ssize_t l_bytes_sent = -1;
                     switch (l_cur->type) {
                         case DESCRIPTOR_TYPE_QUEUE:
                             if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
                                 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
                                     l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-                                #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
-                                    l_bytes_sent = mq_send(a_es->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
+                                #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+                                    l_bytes_sent = mq_send(l_cur->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
+                                    if (l_bytes_sent==0)
+                                        l_bytes_sent = sizeof (void *);
+                                    if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
+                                        l_errno = EAGAIN;                        // non-blocking sockets
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
                                 #endif
-                                int l_errno = errno;
+                                //int l_errno = errno;
 
                                 break;
                             }break;
@@ -424,22 +429,27 @@ static void * s_proc_thread_function(void * a_arg)
                             log_it(L_ERROR, "Dont process write flags for this socket %d in proc thread", l_cur->fd);
 
                     }
+                    l_errno = errno;
+
+                    if(l_bytes_sent>0){
+                        l_cur->buf_out_size -= l_bytes_sent;
+                        //log_it(L_DEBUG,"Sent %zd bytes out, left %zd in buf out", l_bytes_sent, l_cur->buf_out);
+                        if (l_cur->buf_out_size ){ // Shrink output buffer
+
+                            memmove(l_cur->buf_out, l_cur->buf_out+l_bytes_sent, l_cur->buf_out_size );
+                        }else{
+                            l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
+                            s_update_poll_flags(l_thread, l_cur);
+                        }
+                    }
+
                 }else{
                     log_it(L_DEBUG,"(!) Write event receieved but nothing in buffer, switching off this flag");
                     l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
                     s_update_poll_flags(l_thread, l_cur);
                 }
-                if(l_bytes_sent>0){
-                    l_cur->buf_out_size -= l_bytes_sent;
-                    //log_it(L_DEBUG,"Sent %zd bytes out, left %zd in buf out", l_bytes_sent, l_cur->buf_out);
-                    if (l_cur->buf_out_size ){ // Shrink output buffer
 
-                        memmove(l_cur->buf_out, l_cur->buf_out+l_bytes_sent, l_cur->buf_out_size );
-                    }else{
-                        l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
-                        s_update_poll_flags(l_thread, l_cur);
-                    }
-                }
+
             }
             if(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE){
 #ifdef DAP_EVENTS_CAPS_EPOLL

@@ -626,21 +626,21 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                                                      l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
-                    case -1:
-                        //log_it(L_WARNING, "Timeout with reverse sync of chain '%s' ", l_chain->name);
-                        break;
-                    case 0:
-                        l_need_flush = true;
-                        log_it(L_INFO, "Reverse sync of chain '%s' completed ", l_chain->name);
-                        // set time of last sync
-                        {
-                            struct timespec l_to;
-                            clock_gettime(CLOCK_MONOTONIC, &l_to);
-                            l_pvt_net->last_sync = l_to.tv_sec;
-                        }
-                        break;
-                    default:
-                        log_it(L_ERROR, "Reverse sync of chain '%s' error %d", l_chain->name,l_res);
+                        case -1:
+                            //log_it(L_WARNING, "Timeout with reverse sync of chain '%s' ", l_chain->name);
+                            break;
+                        case 0:
+                            l_need_flush = true;
+                            log_it(L_INFO, "Reverse sync of chain '%s' completed ", l_chain->name);
+                            // set time of last sync
+                            {
+                                struct timespec l_to;
+                                clock_gettime(CLOCK_MONOTONIC, &l_to);
+                                l_pvt_net->last_sync = l_to.tv_sec;
+                            }
+                            break;
+                        default:
+                            log_it(L_ERROR, "Reverse sync of chain '%s' error %d", l_chain->name,l_res);
                     }
                 }
                 l_tmp = dap_list_next(l_tmp);
@@ -649,7 +649,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 // flush global_db
                 dap_chain_global_db_flush();
             }
-            if (!l_pvt_net->links) {
+            if (!l_pvt_net->links ) {
+                log_it( L_INFO,"Return back to state LINKS_PREPARE ");
                 l_pvt_net->state = NET_STATE_LINKS_PREPARE;
             } else {
                 log_it(L_INFO, "Synchronization done");

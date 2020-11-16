@@ -37,8 +37,8 @@
 //    #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
-    #define DAP_EVENTS_CAPS_QUEUE_PIPE2
-    //#define DAP_EVENTS_CAPS_QUEUE_POSIX
+    //#define DAP_EVENTS_CAPS_QUEUE_PIPE2
+    #define DAP_EVENTS_CAPS_QUEUE_MQUEUE
     #define DAP_EVENTS_CAPS_EVENT_EVENTFD
     #include <netinet/in.h>
     #include <sys/eventfd.h>
@@ -131,10 +131,14 @@ typedef struct dap_events_socket {
     union{
         int socket;
         int fd;
-#if defined(DAP_EVENTS_CAPS_QUEUE_POSIX)
+#if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         mqd_t mqd;
 #endif
     };
+#if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+    uint32_t mqd_id;
+#endif
+
 #ifdef DAP_EVENTS_CAPS_PIPE_POSIX
     int fd2;
 #endif

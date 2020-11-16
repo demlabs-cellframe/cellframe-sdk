@@ -3095,7 +3095,6 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
     const char * l_chain_base_tx_str = NULL;
     dap_chain_t * l_chain_base_tx = NULL;
 
-    const char * l_net_str = NULL;
     dap_chain_net_t * l_net = NULL;
 
     const char * l_hash_out_type = NULL;
@@ -3107,7 +3106,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,&l_net,NULL);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net);
     if( ! l_net) { // Can't find such network
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "token_create requires parameter '-net' to be valid chain network name");
@@ -3158,7 +3157,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
             l_emission = dap_chain_ledger_token_emission_find(l_net->pub.ledger,l_ticker,&l_emission_hash);
             if (! l_emission){
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can' find emission with hash \"%s\" for token %s on network %s",
-                                                  l_emission_hash_str, l_ticker, l_net_str);
+                                                  l_emission_hash_str, l_ticker, l_net->pub.name);
                 return -32;
             }
         }else{
@@ -3178,7 +3177,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
             if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                         "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s",
-                        l_net_str);
+                        l_net->pub.name);
                 return -45;
             }
         }
@@ -3198,8 +3197,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
     if(l_chain_base_tx_str) {
         if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s",
-                    l_net_str);
+                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s", l_net->pub.name);
             DAP_DELETE(l_addr);
             return -47;
         }
