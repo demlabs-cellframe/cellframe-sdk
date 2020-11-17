@@ -24,7 +24,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <stdatomic.h>
 #include <pthread.h>
 #include "uthash.h"
 

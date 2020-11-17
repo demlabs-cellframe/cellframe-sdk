@@ -24,6 +24,9 @@
 #pragma once
 #include <pthread.h>
 #include "uthash.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "dap_events_socket.h"
 #include "dap_server.h"
 #include "dap_worker.h"
@@ -63,3 +66,7 @@ dap_worker_t *dap_events_worker_get_auto( );
 dap_worker_t * dap_events_worker_get(uint8_t a_index);
 uint32_t dap_get_cpu_count();
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id);
+
+#ifdef __cplusplus
+}
+#endif

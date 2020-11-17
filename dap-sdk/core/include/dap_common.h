@@ -33,6 +33,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#ifndef __cplusplus
+#include <stdatomic.h>
+#else
+#include <atomic>
+//#define _Atomic(x) std::atomic<x>
+#define atomic_bool std::atomic_bool
+#define atomic_uint std::atomic_uint
+#endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
 #endif

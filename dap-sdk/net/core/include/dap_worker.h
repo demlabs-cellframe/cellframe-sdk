@@ -22,7 +22,6 @@
 */
 #pragma once
 #include <stdint.h>
-#include <stdatomic.h>
 #include <pthread.h>
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
