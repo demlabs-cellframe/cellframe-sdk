@@ -3300,8 +3300,8 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
 
-    // Base tx don't need signature items
-    /*if (l_certs){
+    // Base tx don't need signature items but let it be
+    if (l_certs){
         // Sign all that we have with certs
         for(size_t i = 0; i < l_certs_size; i++) {
             if(dap_chain_datum_tx_add_sign_item(&l_tx, l_certs[i]->enc_key) < 0) {
@@ -3311,7 +3311,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                 return -3;
             }
         }
-    }*/
+    }
 
     if (l_certs)
         DAP_DEL_Z(l_certs);

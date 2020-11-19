@@ -1611,17 +1611,17 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     log_it(L_ERROR,"Can't get hash string for node address!");
                 } else {
                     PVT(l_net)->node_info = dap_chain_node_info_read (l_net, l_node_addr);
-                    if ( PVT(l_net)->node_info ) {
-                        log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",
-                               NODE_ADDR_FP_ARGS(l_node_addr),
-                               PVT(l_net)->node_info->hdr.links_number,
-                               PVT(l_net)->node_info->hdr.cell_id.uint64);
-                        // save cell_id
-                        l_net->pub.cell_id.uint64 = PVT(l_net)->node_info->hdr.cell_id.uint64;
-                    }else {
-                        log_it(L_WARNING, "Not present node_info in database for our own address " NODE_ADDR_FP_STR,
-                               NODE_ADDR_FP_ARGS(l_node_addr) );
+                    if ( !PVT(l_net)->node_info ) { // If not present - create it
+                        PVT(l_net)->node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                        memcpy(&PVT(l_net)->node_info->hdr.address, &l_node_addr,sizeof (*l_node_addr));
+                        dap_chain_node_info_save(l_net,PVT(l_net)->node_info);
                     }
+                    log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",
+                           NODE_ADDR_FP_ARGS(l_node_addr),
+                           PVT(l_net)->node_info->hdr.links_number,
+                           PVT(l_net)->node_info->hdr.cell_id.uint64);
+                    // save cell_id
+                    l_net->pub.cell_id.uint64 = PVT(l_net)->node_info->hdr.cell_id.uint64;
                 }
             }
             else{
