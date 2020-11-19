@@ -227,8 +227,6 @@ bool s_sync_gdb_callback(dap_proc_thread_t *a_thread, void *a_arg)
             l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                     NULL, 0, l_ch_chain->callback_notify_arg);
     }
-    if (s_debug_chain_sync)
-        log_it(L_INFO, "Prepared %u items for sync", l_db_log->items_number - l_ch_chain->request.id_start);
     // go to send data from list [in s_stream_ch_packet_out()]
     // no data to send -> send one empty message DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB
     dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
