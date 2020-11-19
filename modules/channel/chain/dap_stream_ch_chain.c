@@ -466,7 +466,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size - sizeof(l_chain_pkt->hdr);
     uint8_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_chain_pkt->hdr.net_id);
     if (l_acl_idx == (uint8_t)-1) {
-        log_it(L_ERROR, "Invalid net id in packet");
+        log_it(L_ERROR, "Invalid net id 0x%08x in packet", l_chain_pkt->hdr.net_id);
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR) {
             if(l_ch_chain->callback_notify_packet_in) {
                 l_ch_chain->callback_notify_packet_in(l_ch_chain, l_ch_pkt->hdr.type, l_chain_pkt,
@@ -491,26 +491,25 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
     switch (l_ch_pkt->hdr.type) {
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
-        log_it(L_INFO, "In:  SYNCED_ALL net 0x%08x chain 0x%08x cell 0x%08x", l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+        log_it(L_INFO, "In:  SYNCED_ALL net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt->hdr.net_id.uint64 ,
+               l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB: {
-            log_it(L_INFO, "In:  SYNCED_GLOBAL_DB: net 0x%08x chain 0x%08x cell 0x%08x Between %u and %u", l_ch_chain->request_hdr.net_id ,
-                   l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id
-                   ,   l_ch_chain->request.id_start, l_ch_chain->request.id_end);
+            log_it(L_INFO, "In:  SYNCED_GLOBAL_DB: net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt->hdr.net_id.uint64 ,
+                   l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB_GROUP: {
         if (s_debug_chain_sync)
-            log_it(L_INFO, "In:  SYNCED_GLOBAL_DB_GROUP pkt net 0x%08x chain 0x%08x cell 0x%08x", l_ch_chain->request_hdr.net_id ,
-                   l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+            log_it(L_INFO, "In:  SYNCED_GLOBAL_DB_GROUP pkt net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt->hdr.net_id.uint64 ,
+                   l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB_GROUP: {
         if (s_debug_chain_sync)
-            log_it(L_INFO, "In:  SYNCED_GLOBAL_DB_GROUP pkt net 0x%08x chain 0x%08x cell 0x%08x", l_ch_chain->request_hdr.net_id ,
-                   l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+            log_it(L_INFO, "In:  SYNCED_GLOBAL_DB_GROUP pkt net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt->hdr.net_id.uint64 ,
+                   l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
     }
         break;
 
@@ -518,22 +517,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (dap_log_level_get()<= L_INFO){
             char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_from);
             char *l_hash_to_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_to);
-            log_it(L_INFO, "In:  SYNCED_CHAINS: between %s and %s",l_hash_from_str, l_hash_to_str);
-            DAP_DELETE(l_hash_from_str);
-            DAP_DELETE(l_hash_to_str);
+            log_it(L_INFO, "In:  SYNCED_CHAINS: between %s and %s",l_hash_from_str?l_hash_from_str:"(null)",
+                   l_hash_to_str? l_hash_to_str: "(null)");
+            if(l_hash_from_str)
+                DAP_DELETE(l_hash_from_str);
+            if(l_hash_to_str)
+                DAP_DELETE(l_hash_to_str);
         }
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS: {
         char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_from);
         char *l_hash_to_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_to);
-        log_it(L_INFO, "In:  SYNC_CHAINS pkt: net 0x%08x chain 0x%08x cell 0x%08x between %s and %s", l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id, l_hash_from_str, l_hash_to_str);
+        log_it(L_INFO, "In:  SYNC_CHAINS pkt: net 0x%08x chain 0x%08x cell 0x%08x between %s and %s", l_ch_chain->request_hdr.net_id.uint64 ,
+               l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
+               l_hash_from_str? l_hash_from_str: "(null)", l_hash_to_str?l_hash_to_str:"(null)");
         dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         if(l_chain) {
             if(l_ch_chain->state != CHAIN_STATE_IDLE) {
-                log_it(L_INFO, "Can't process SYNC_CHAINS request between %s and %s because not in idle state", l_hash_from_str,
-                       l_hash_to_str);
+                log_it(L_INFO, "Can't process SYNC_CHAINS request between %s and %s because not in idle state",
+                       l_hash_from_str? l_hash_from_str:"(null)",
+                       l_hash_to_str?l_hash_to_str:"(null)");
                 dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                         l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                         "ERROR_STATE_NOT_IN_IDLE");
@@ -556,8 +560,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB: {
-        log_it(L_INFO, "In:  SYNC_GLOBAL_DB pkt: net 0x%08x chain 0x%08x cell 0x%08x, range between %u and %u", l_ch_chain->request_hdr.net_id ,
-                l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id, l_ch_chain->request.id_start, l_ch_chain->request.id_end );
+        log_it(L_INFO, "In:  SYNC_GLOBAL_DB pkt: net 0x%08x chain 0x%08x cell 0x%08x, range between %u and %u",
+               l_ch_chain->request_hdr.net_id.uint64 , l_ch_chain->request_hdr.chain_id.uint64,
+               l_ch_chain->request_hdr.cell_id.uint64, l_ch_chain->request.id_start, l_ch_chain->request.id_end );
         if(l_ch_chain->state != CHAIN_STATE_IDLE) {
             log_it(L_INFO, "Can't process SYNC_GLOBAL_DB request because not in idle state");
             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
@@ -587,16 +592,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         break;
         // first packet of data with source node address
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN: {
-        log_it(L_INFO, "In: FIRST_CHAIN data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+        log_it(L_INFO, "In: FIRST_CHAIN data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,
+               l_ch_chain->request_hdr.net_id.uint64 ,
+               l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64);
         if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t))
             memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, l_chain_pkt_data_size);
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN: {
         if (s_debug_chain_sync)
-            log_it(L_INFO, "In: CHAIN pkt data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+            log_it(L_INFO, "In: CHAIN pkt data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,
+                   l_ch_chain->request_hdr.net_id.uint64 ,
+               l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64);
         dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         if(l_chain) {
             // Expect atom element in
@@ -621,15 +628,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         break;
         // first packet of data with source node address
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB: {
-        log_it(L_INFO, "In: FIRST_GLOBAL_DB data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+        log_it(L_INFO, "In: FIRST_GLOBAL_DB data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,
+               l_chain_pkt->hdr.net_id.uint64 , l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
         if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t))
             memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, l_chain_pkt_data_size);
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB: {
-        log_it(L_INFO, "In: GLOBAL_DB data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id);
+        if(s_debug_chain_sync)
+            log_it(L_INFO, "In: GLOBAL_DB data_size=%d net 0x%08x chain 0x%08x cell 0x%08x", l_chain_pkt_data_size,l_chain_pkt->hdr.net_id.uint64 ,
+               l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
         // get transaction and save it to global_db
         if(l_chain_pkt_data_size > 0) {
             dap_chain_pkt_copy_t *l_pkt_copy = DAP_NEW_Z(dap_chain_pkt_copy_t);
@@ -655,8 +663,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_sync_gdb.id_start = dap_db_get_last_id_remote(l_sync_gdb.node_addr.uint64);
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-        log_it(L_INFO, "In:  SYNC_GLOBAL_DB_RVRS pkt: net 0x%08x chain 0x%08x cell 0x%08x, request gdb sync from %u", l_ch_chain->request_hdr.net_id ,
-                l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id, l_sync_gdb.id_start );
+        log_it(L_INFO, "In:  SYNC_GLOBAL_DB_RVRS pkt: net 0x%08x chain 0x%08x cell 0x%08x, request gdb sync from %u", l_chain_pkt->hdr.net_id.uint64 ,
+                l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id, l_sync_gdb.id_start );
         dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_chain_pkt->hdr.net_id,
                                       l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
     }
@@ -671,8 +679,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             DAP_DELETE(l_hash);
         }
         char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_sync_chains.hash_from);
-        log_it(L_INFO, "In:  SYNC_CHAINS_RVRS pkt: net 0x%08x chain 0x%08x cell 0x%08x request chains sync from %s", l_ch_chain->request_hdr.net_id ,
-               l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id, l_hash_from_str);
+        log_it(L_INFO, "In:  SYNC_CHAINS_RVRS pkt: net 0x%08x chain 0x%08x cell 0x%08x request chains sync from %s",
+               l_chain_pkt->hdr.net_id.uint64 , l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+               l_hash_from_str ? l_hash_from_str :"(null)");
 
         dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_chain_pkt->hdr.net_id,
                                       l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_chains, sizeof(l_sync_chains));
@@ -791,7 +800,7 @@ static bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,DAP_CHAIN_HASH_FAST_SIZE);
 
                     log_it(L_INFO, "Out CHAIN pkt: net=0x%08x chain=0x%08x cell=0x%08x atom_size=%d atom_hash=%s",
-                           l_ch_chain->request_hdr.net_id,l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id
+                           l_ch_chain->request_hdr.net_id.uint64,l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64
                            , l_ch_chain->request_atom_iter->cur_size,l_atom_hash_str);
                 }
                 dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id,
