@@ -794,12 +794,12 @@ static bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 if(s_debug_chain_sync){
                     dap_chain_hash_fast_t l_atom_hash={0};
                     dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_atom_hash);
-                    char l_atom_hash_str[DAP_CHAIN_HASH_FAST_SIZE+1];
-                    dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,DAP_CHAIN_HASH_FAST_SIZE);
+                    char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_atom_hash);
 
                     log_it(L_INFO, "Out CHAIN pkt: net=0x%08x chain=0x%08x cell=0x%08x atom_size=%d atom_hash=%s",
                            l_ch_chain->request_hdr.net_id.uint64,l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64
                            , l_ch_chain->request_atom_iter->cur_size,l_atom_hash_str);
+                    DAP_DELETE(l_atom_hash_str);
                 }
                 dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id,
                                                      l_ch_chain->request_hdr.chain_id, l_ch_chain->request_hdr.cell_id,
