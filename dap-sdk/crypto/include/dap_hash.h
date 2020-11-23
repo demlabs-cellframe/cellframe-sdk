@@ -45,15 +45,16 @@ typedef enum dap_hash_type {
 typedef union dap_chain_hash_fast{
     uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
 } dap_chain_hash_fast_t;
+typedef dap_chain_hash_fast_t dap_hash_fast_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
-int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_chain_hash_fast_t * a_hash);
+int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t * a_hash);
 
-static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_chain_hash_fast_t *a_hash_out )
+static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_hash_fast_t *a_hash_out )
 {
     if ( (a_data_in == NULL) || (a_data_in_size == 0) || (a_hash_out == NULL) )
         return false;
@@ -74,18 +75,18 @@ static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, 
  * @param a_hash2
  * @return
  */
-static inline bool dap_hash_fast_compare(dap_chain_hash_fast_t *a_hash1, dap_chain_hash_fast_t *a_hash2)
+static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast_t *a_hash2)
 {
     if(!a_hash1 || !a_hash2)
         return false;
-    if(!memcmp(a_hash1, a_hash2, sizeof(dap_chain_hash_fast_t)))
+    if(!memcmp(a_hash1, a_hash2, sizeof(dap_hash_fast_t)))
         return true;
     return false;
 }
 
-static inline bool dap_hash_fast_is_blank( dap_chain_hash_fast_t *a_hash )
+static inline bool dap_hash_fast_is_blank( dap_hash_fast_t *a_hash )
 {
-    static dap_chain_hash_fast_t l_blank_hash = { 0};
+    static dap_hash_fast_t l_blank_hash = { 0};
 //    uint8_t *l_hast_bytes = (uint8_t*) a_hash;
 //    for(size_t i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
 //        if(l_hast_bytes[i])
@@ -95,7 +96,7 @@ static inline bool dap_hash_fast_is_blank( dap_chain_hash_fast_t *a_hash )
 }
 
 
-DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
+DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
 {
     assert(a_str_max >= (DAP_CHAIN_HASH_FAST_SIZE * 2 + 2));
     a_str[0] = '0';
@@ -105,7 +106,7 @@ DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash,
     return DAP_CHAIN_HASH_FAST_SIZE * 2 + 2;
 }
 
-static inline char *dap_chain_hash_fast_to_str_new(dap_chain_hash_fast_t * a_hash)
+static inline char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */+4/*just to be sure*/ ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);

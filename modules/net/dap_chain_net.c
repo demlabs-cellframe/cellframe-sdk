@@ -554,6 +554,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 default:
                     log_it(L_INFO, "Node sync error %d",l_res);
                 }
+                /*
                 dap_chain_node_client_reset(l_node_client);
                 l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, a_net->pub.id,
                                                          l_chain_id, a_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
@@ -568,6 +569,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 default:
                     log_it(L_INFO, "Node reverse sync error %d",l_res);
                 }
+                */
                 l_tmp = dap_list_next(l_tmp);
             }
             if (!l_pvt_net->links) {
@@ -597,12 +599,17 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 int l_res = 0;
                 DL_FOREACH (a_net->pub.chains, l_chain) {
                     dap_chain_node_client_reset(l_node_client);
-                    dap_stream_ch_chain_sync_request_t l_request = {};
-                    dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
-                    if (l_hash) {
-                        memcpy(&l_request.hash_from, l_hash, sizeof(*l_hash));
-                        DAP_DELETE(l_hash);
-                    }  
+                    dap_stream_ch_chain_sync_request_t l_request = {0};
+                    dap_chain_get_atom_last_hash(l_chain,&l_request.hash_from);
+                    if ( !dap_hash_fast_is_blank(&l_request.hash_from) ){
+                        if(dap_log_level_get() <= L_DEBUG){
+                            char l_hash_str[128]={[0]='\0'};
+                            dap_chain_hash_fast_to_str(&l_request.hash_from,l_hash_str,sizeof (l_hash_str)-1);
+                            log_it(L_DEBUG,"Send sync chain request from %s to infinity",l_hash_str);
+                        }
+                    }else
+                        log_it(L_DEBUG,"Send sync chain request for all the chains for addr "NODE_ADDR_FP_STR,
+                               NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, a_net->pub.id,
                                                      l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
@@ -620,7 +627,10 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         default:
                             log_it(L_ERROR, "Sync of chain '%s' error %d", l_chain->name,l_res);
                     }
+
+                    /*
                     dap_chain_node_client_reset(l_node_client);
+
                     l_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, a_net->pub.id,
                                                      l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
@@ -642,6 +652,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         default:
                             log_it(L_ERROR, "Reverse sync of chain '%s' error %d", l_chain->name,l_res);
                     }
+                    */
+
                 }
                 l_tmp = dap_list_next(l_tmp);
             }

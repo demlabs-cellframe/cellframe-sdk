@@ -525,64 +525,74 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS: {
-        char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_from);
-        char *l_hash_to_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_to);
-        log_it(L_INFO, "In:  SYNC_CHAINS pkt: net 0x%016x chain 0x%016x cell 0x%016x between %s and %s", l_ch_chain->request_hdr.net_id.uint64 ,
-               l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
-               l_hash_from_str? l_hash_from_str: "(null)", l_hash_to_str?l_hash_to_str:"(null)");
-        dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
-        if(l_chain) {
-            if(l_ch_chain->state != CHAIN_STATE_IDLE) {
-                log_it(L_INFO, "Can't process SYNC_CHAINS request between %s and %s because not in idle state",
-                       l_hash_from_str? l_hash_from_str:"(null)",
-                       l_hash_to_str?l_hash_to_str:"(null)");
-                dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
-                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                        "ERROR_STATE_NOT_IN_IDLE");
-                dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-            } else {
-                // fill ids
-                if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
-                    memcpy(&l_ch_chain->request, l_chain_pkt->data, l_chain_pkt_data_size);
-                    memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
+        // fill ids
+        if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
+            memcpy(&l_ch_chain->request, l_chain_pkt->data, l_chain_pkt_data_size);
+            memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
+            char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_from);
+            char *l_hash_to_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_to);
+            log_it(L_INFO, "In:  SYNC_CHAINS pkt: net 0x%016x chain 0x%016x cell 0x%016x between %s and %s", l_ch_chain->request_hdr.net_id.uint64 ,
+                   l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
+                   l_hash_from_str? l_hash_from_str: "(null)", l_hash_to_str?l_hash_to_str:"(null)");
+            dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+            if(l_chain) {
+                if(l_ch_chain->state != CHAIN_STATE_IDLE) {
+                    log_it(L_INFO, "Can't process SYNC_CHAINS request between %s and %s because not in idle state",
+                           l_hash_from_str? l_hash_from_str:"(null)",
+                           l_hash_to_str?l_hash_to_str:"(null)");
+                    dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                            l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                            "ERROR_STATE_NOT_IN_IDLE");
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+                } else {
+                    dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
+                    dap_proc_queue_add_callback_inter(  a_ch->stream_worker->worker->proc_queue_input, s_sync_chains_callback, a_ch);
                 }
-                dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-                dap_proc_queue_add_callback_inter(  a_ch->stream_worker->worker->proc_queue_input, s_sync_chains_callback, a_ch);
             }
+            DAP_DELETE(l_hash_from_str);
+            DAP_DELETE(l_hash_to_str);
+        }else{
+            log_it(L_WARNING, "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS: Wrong chain packet size %zd when expected %zd", l_chain_pkt_data_size, sizeof(l_ch_chain->request));
+            dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                    "ERROR_CHAIN_PKT_DATA_SIZE" );
         }
-        DAP_DELETE(l_hash_from_str);
-        DAP_DELETE(l_hash_to_str);
-
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB: {
-        log_it(L_INFO, "In:  SYNC_GLOBAL_DB pkt: net 0x%016x chain 0x%016x cell 0x%016x, range between %u and %u",
-               l_ch_chain->request_hdr.net_id.uint64 , l_ch_chain->request_hdr.chain_id.uint64,
-               l_ch_chain->request_hdr.cell_id.uint64, l_ch_chain->request.id_start, l_ch_chain->request.id_end );
-        if(l_ch_chain->state != CHAIN_STATE_IDLE) {
-            log_it(L_INFO, "Can't process SYNC_GLOBAL_DB request because not in idle state");
-            dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
-                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                    "ERROR_STATE_NOT_IN_IDLE");
-            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-            break;
-        }
-        // receive the latest global_db revision of the remote node -> go to send mode
         if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
             dap_stream_ch_chain_sync_request_t * l_request =
                     (dap_stream_ch_chain_sync_request_t *) l_chain_pkt->data;
             memcpy(&l_ch_chain->request, l_request, l_chain_pkt_data_size);
             memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
+
             dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_gdb_callback, a_ch);
-        }
-        else {
-            log_it(L_ERROR, "Get DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB session_id=%u bad request",
-                    a_ch->stream->session->id);
+            log_it(L_INFO, "In:  SYNC_GLOBAL_DB pkt: net 0x%016x chain 0x%016x cell 0x%016x, range between %u and %u",
+                   l_ch_chain->request_hdr.net_id.uint64 , l_ch_chain->request_hdr.chain_id.uint64,
+                   l_ch_chain->request_hdr.cell_id.uint64, l_ch_chain->request.id_start, l_ch_chain->request.id_end );
+            if(l_ch_chain->state != CHAIN_STATE_IDLE) {
+                log_it(L_INFO, "Can't process SYNC_GLOBAL_DB request because not in idle state");
+                dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                        "ERROR_STATE_NOT_IN_IDLE");
+                dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+                break;
+            }
+            // receive the latest global_db revision of the remote node -> go to send mode
+            else {
+                log_it(L_ERROR, "Get DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB session_id=%u bad request",
+                        a_ch->stream->session->id);
+                dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                        "ERROR_SYNC_GLOBAL_DB_REQUEST_BAD");
+                dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+            }
+        }else{
+            log_it(L_WARNING, "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB: Wrong chain packet size %zd when expected %zd", l_chain_pkt_data_size, sizeof(l_ch_chain->request));
             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                     l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                    "ERROR_SYNC_GLOBAL_DB_REQUEST_BAD");
-            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+                    "ERROR_CHAIN_PKT_DATA_SIZE" );
         }
     }
         break;
