@@ -200,6 +200,7 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
         log_it(L_WARNING, "Socket error: %s (code %d)" , l_errbuf, a_errno);
 
     dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
+
     if(!l_client_http_internal) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
         return;
@@ -221,6 +222,7 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
 {
     // call from dap_events_socket_delete(ev_socket, true);
     log_it(L_DEBUG, "HTTP client delete");
+
     if(!a_http_pvt) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
         return;
@@ -339,6 +341,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
     l_ev_socket->flags |= DAP_SOCK_CONNECTING;
+    l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE ;
+
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
     if (l_err == 0){
         log_it(L_DEBUG, "Connected momentaly with %s:%u!", a_uplink_addr, a_uplink_port);
