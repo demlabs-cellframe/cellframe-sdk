@@ -1365,7 +1365,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                                     bound_item->out.tx_prev_out_ext->header.value;
                 //log_it(L_DEBUG,"SPEND %lu from addr: %s", l_value, l_wallet_balance_key);
                 uint128_t l_sub = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_chain_balance_substract(balance, l_sub);
+                wallet_balance->balance = dap_chain_balance_substract(wallet_balance->balance, l_sub);
                 // Update the cache
                 dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
             } else {
@@ -1464,7 +1464,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             if (wallet_balance) {
                 //log_it(L_DEBUG, "Balance item is present in cache");
                 uint128_t l_add = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_chain_balance_add(balance, l_add);
+                wallet_balance->balance = dap_chain_balance_add(wallet_balance->balance, l_add);
                 DAP_DELETE (l_wallet_balance_key);
                 // Update the cache
                 dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
@@ -1472,7 +1472,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
                 wallet_balance->key = l_wallet_balance_key;
                 uint128_t l_add = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_chain_balance_add(balance, l_add);
+                wallet_balance->balance = dap_chain_balance_add(wallet_balance->balance, l_add);
                 //log_it(L_DEBUG,"!!! Create new balance item: %s %s", l_addr_str, l_token_ticker);
                 HASH_ADD_KEYPTR(hh, PVT(a_ledger)->balance_accounts, wallet_balance->key,
                                 strlen(l_wallet_balance_key), wallet_balance);
@@ -1688,8 +1688,9 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
 
 /**
  * Return number transactions from the cache
+ * According to UT_hash_handle size of return value is sizeof(unsigned int)
  */
-_dap_int128_t dap_chain_ledger_count(dap_ledger_t *a_ledger)
+unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger)
 {
     return HASH_COUNT(PVT(a_ledger)->ledger_items);
 }
@@ -1750,7 +1751,11 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
 uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                                         const char *a_token_ticker)
 {
+#ifdef DAP_GLOBAL_IS_INT128
     uint128_t l_ret = 0;
+#else
+    uint128_t l_ret = {};
+#endif
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
     char *l_addr = dap_chain_addr_to_str(a_addr);
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
@@ -1768,9 +1773,13 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
 uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                                              const char *a_token_ticker)
 {
+#ifdef DAP_GLOBAL_IS_INT128
     uint128_t balance = 0;
+#else
+    uint128_t balance = {};
+#endif
     if(!a_addr || !dap_chain_addr_check_sum(a_addr))
-        return 0;
+        return balance;
     /* proto
      *
     dap_ledger_wallet_balance_t *wallet_balance = NULL;

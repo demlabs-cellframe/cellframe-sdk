@@ -4,9 +4,9 @@
 #include "dap_common.h"
 //#include "common/int-util.h"
 
-#if defined(__GNUC__) ||defined (__clang__)
+#if defined(__GNUC__) || defined (__clang__)
 
-#if __SIZEOF_INT128__ == 16
+#if __SIZEOF_INT128__ != 16
 
 #define DAP_GLOBAL_IS_INT128
 typedef __int128 _dap_int128_t;
@@ -19,9 +19,8 @@ typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
 #endif
 
-#endif
 
-#if __SIZEOF_INT128__ != 16
+#else // __SIZEOF_INT128__ == 16
 typedef union uint128 {
     uint64_t u64[2];
     uint32_t u32[4];
@@ -32,6 +31,8 @@ typedef union int128 {
     int32_t i32[4];
 } int128_t;
 
-#endif
+typedef int128_t _dap_int128_t;
 
-#endif
+#endif // __SIZEOF_INT128__ == 16
+
+#endif //defined(__GNUC__) || defined (__clang__)

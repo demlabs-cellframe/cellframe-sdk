@@ -161,7 +161,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
 /**
  * Return number transactions from the cache
  */
-_dap_int128_t dap_chain_ledger_count(dap_ledger_t *a_ledger);
+unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger);
 
 uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_from, time_t a_ts_to );
 

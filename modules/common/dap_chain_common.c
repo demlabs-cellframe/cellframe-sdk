@@ -281,6 +281,21 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return -1;
 }
 
+uint64_t dap_chain_uint128_to(uint128_t a_from)
+{
+#ifdef DAP_GLOBAL_IS_INT128
+    if (a_from > UINT64_MAX) {
+        log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
+    }
+    return (uint64_t)a_from;
+#else
+    if (a_from.u64[0]) {
+        log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
+    }
+    return a_from.u64[1];
+#endif
+}
+
 uint128_t dap_chain_balance_substract(uint128_t a, uint128_t b)
 {
 #ifdef DAP_GLOBAL_IS_INT128
@@ -291,14 +306,14 @@ uint128_t dap_chain_balance_substract(uint128_t a, uint128_t b)
     return a - b;
 #else
     uint128_t l_ret = {};
-    if (a.u64[1] < b.u64[1] || (a.u64[1] == b.u64[1] && a.u64[0] < b.u64[0])) {
+    if (a.u64[0] < b.u64[0] || (a.u64[0] == b.u64[0] && a.u64[1] < b.u64[1])) {
         log_it(L_WARNING, "Substract result overflow");
         return l_ret;
     }
     l_ret.u64[0] = a.u64[0] - b.u64[0];
     l_ret.u64[1] = a.u64[1] - b.u64[1];
-    if (a.u64[0] < b.u64[0])
-        l_ret.u64[1]--;
+    if (a.u64[1] < b.u64[1])
+        l_ret.u64[0]--;
     return l_ret;
 #endif
 }
@@ -314,11 +329,12 @@ uint128_t dap_chain_balance_add(uint128_t a, uint128_t b)
     uint128_t l_ret = {};
     l_ret.u64[0] = a.u64[0] + b.u64[0];
     l_ret.u64[1] = a.u64[1] + b.u64[1];
-    if (l_ret.u64[0] < a.u64[0] || l_ret.u64[0] < b.u64[0])
-        l_ret.u64[1]++;
-    if (l_ret.u64[1] < a.u64[1] || l_ret.u64[1] < b.u64[1]) {
+    if (l_ret.u64[1] < a.u64[1] || l_ret.u64[1] < b.u64[1])
+        l_ret.u64[0]++;
+    if (l_ret.u64[0] < a.u64[0] || l_ret.u64[0] < b.u64[0]) {
         log_it(L_WARNING, "Sum result overflow");
-        return {0, 0};
+        uint128_t l_nul = {};
+        return l_nul;
     }
 #endif
     return l_ret;
@@ -335,17 +351,21 @@ char *dap_chain_balance_print(uint128_t a_balance)
         l_value /= 10;
     } while (l_value);
 #else
-    uint64_t t;
-    uint8_t q;
+    uint64_t t, q;
     do {
         q = 0;
-        for (int i = 3; i >= 0; i--) {
+        // Byte order is 1, 0, 3, 2 for little endian
+        for (int i = 1; i <= 3; ) {
             t = q << 32 | l_value.u32[i];
-            q = l_value.u32[i] % 10;
-            l_value.u32[i] /= 10;
+            q = t % 10;
+            l_value.u32[i] = t / 10;
+            if (i == 2) i = 4; // end of cycle
+            if (i == 3) i = 2;
+            if (i == 0) i = 3;
+            if (i == 1) i = 0;
         }
-        l_buf[l_pos++] = q;
-    } while (l_value.u32[0]);
+        l_buf[l_pos++] = q + '0';
+    } while (l_value.u32[2]);
 #endif
     int l_strlen = strlen(l_buf) - 1;
     for (int i = 0; i < (l_strlen + 1) / 2; i++) {
@@ -353,12 +373,14 @@ char *dap_chain_balance_print(uint128_t a_balance)
         l_buf[i] = l_buf[l_strlen - i];
         l_buf[l_strlen - i] = c;
     }
+    return l_buf;
 }
 
 char *dap_chain_balance_to_coins(uint128_t a_balance)
 {
     char *l_buf = dap_chain_balance_print(a_balance);
     int l_strlen = strlen(l_buf);
+    int l_pos;
     if (l_strlen > DATOSHI_DEGREE) {
         for (l_pos = l_strlen; l_pos > l_strlen - DATOSHI_DEGREE; l_pos--) {
             l_buf[l_pos] = l_buf[l_pos - 1];
@@ -375,45 +397,45 @@ char *dap_chain_balance_to_coins(uint128_t a_balance)
 }
 
 const union { uint64_t u64[2]; uint32_t u32[4]; } c_pow10[DATOSHI_POW + 1] = {
-    {0,                         1ULL},                          // 0
-    {0,                         10ULL},                         // 1
-    {0,                         100ULL},                        // 2
-    {0,                         1000ULL},                       // 3
-    {0,                         10000ULL},                      // 4
-    {0,                         100000ULL},                     // 5
-    {0,                         1000000ULL},                    // 6
-    {0,                         10000000ULL},                   // 7
-    {0,                         100000000ULL},                  // 8
-    {0,                         1000000000ULL},                 // 9
-    {0,                         10000000000ULL},                // 10
-    {0,                         100000000000ULL},               // 11
-    {0,                         1000000000000ULL},              // 12
-    {0,                         10000000000000ULL},             // 13
-    {0,                         100000000000000ULL},            // 14
-    {0,                         1000000000000000ULL},           // 15
-    {0,                         10000000000000000ULL},          // 16
-    {0,                         100000000000000000ULL},         // 17
-    {0,                         1000000000000000000ULL},        // 18
-    {0,                         10000000000000000000ULL},       // 19
-    {5ULL,                      7766279631452241920ULL},        // 20
-    {54ULL,                     3875820019684212736ULL},        // 21
-    {542ULL,                    1864712049423024128ULL},        // 22
-    {5421ULL,                   200376420520689664ULL},         // 23
-    {54210ULL,                  2003764205206896640ULL},        // 24
-    {542101ULL,                 1590897978359414784ULL},        // 25
-    {5421010ULL,                15908979783594147840ULL},       // 26
-    {54210108ULL,               11515845246265065472ULL},       // 27
-    {542101086ULL,              4477988020393345024ULL},        // 28
-    {5421010862ULL,             7886392056514347008ULL},        // 29
-    {54210108624ULL,            5076944270305263616ULL},        // 30
-    {542101086242ULL,           13875954555633532928ULL},       // 31
-    {5421010862427ULL,          9632337040368467968ULL},        // 32
-    {54210108624275ULL,         4089650035136921600ULL},        // 33
-    {542101086242752ULL,        4003012203950112768ULL},        // 34
-    {5421010862427522ULL,       3136633892082024448ULL},        // 35
-    {54210108624275221ULL,      12919594847110692864ULL},       // 36
-    {542101086242752217ULL,     68739955140067328ULL},          // 37
-    {5421010862427522170ULL,    687399551400673280ULL}          // 38
+    { .u64 = {0,                         1ULL} },                          // 0
+    { .u64 = {0,                         10ULL} },                         // 1
+    { .u64 = {0,                         100ULL} },                        // 2
+    { .u64 = {0,                         1000ULL} },                       // 3
+    { .u64 = {0,                         10000ULL} },                      // 4
+    { .u64 = {0,                         100000ULL} },                     // 5
+    { .u64 = {0,                         1000000ULL} },                    // 6
+    { .u64 = {0,                         10000000ULL} },                   // 7
+    { .u64 = {0,                         100000000ULL} },                  // 8
+    { .u64 = {0,                         1000000000ULL} },                 // 9
+    { .u64 = {0,                         10000000000ULL} },                // 10
+    { .u64 = {0,                         100000000000ULL} },               // 11
+    { .u64 = {0,                         1000000000000ULL} },              // 12
+    { .u64 = {0,                         10000000000000ULL} },             // 13
+    { .u64 = {0,                         100000000000000ULL} },            // 14
+    { .u64 = {0,                         1000000000000000ULL} },           // 15
+    { .u64 = {0,                         10000000000000000ULL} },          // 16
+    { .u64 = {0,                         100000000000000000ULL} },         // 17
+    { .u64 = {0,                         1000000000000000000ULL} },        // 18
+    { .u64 = {0,                         10000000000000000000ULL} },       // 19
+    { .u64 = {5ULL,                      7766279631452241920ULL} },        // 20
+    { .u64 = {54ULL,                     3875820019684212736ULL} },        // 21
+    { .u64 = {542ULL,                    1864712049423024128ULL} },        // 22
+    { .u64 = {5421ULL,                   200376420520689664ULL} },         // 23
+    { .u64 = {54210ULL,                  2003764205206896640ULL} },        // 24
+    { .u64 = {542101ULL,                 1590897978359414784ULL} },        // 25
+    { .u64 = {5421010ULL,                15908979783594147840ULL} },       // 26
+    { .u64 = {54210108ULL,               11515845246265065472ULL} },       // 27
+    { .u64 = {542101086ULL,              4477988020393345024ULL} },        // 28
+    { .u64 = {5421010862ULL,             7886392056514347008ULL} },        // 29
+    { .u64 = {54210108624ULL,            5076944270305263616ULL} },        // 30
+    { .u64 = {542101086242ULL,           13875954555633532928ULL} },       // 31
+    { .u64 = {5421010862427ULL,          9632337040368467968ULL} },        // 32
+    { .u64 = {54210108624275ULL,         4089650035136921600ULL} },        // 33
+    { .u64 = {542101086242752ULL,        4003012203950112768ULL} },        // 34
+    { .u64 = {5421010862427522ULL,       3136633892082024448ULL} },        // 35
+    { .u64 = {54210108624275221ULL,      12919594847110692864ULL} },       // 36
+    { .u64 = {542101086242752217ULL,     68739955140067328ULL} },          // 37
+    { .u64 = {5421010862427522170ULL,    687399551400673280ULL} }          // 38
 };
 
 uint128_t dap_chain_balance_scan(char *a_balance)
@@ -436,60 +458,60 @@ uint128_t dap_chain_balance_scan(char *a_balance)
         if (!l_digit)
             continue;
 #ifdef DAP_GLOBAL_IS_INT128
-        uint128_t l_tmp = (uint128_t)c_pow10[i].u64[1] * l_digit;
+        uint128_t l_tmp = (uint128_t)c_pow10[i].u64[0] * l_digit;
         if (l_tmp >> 64) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
-        l_tmp = (l_tmp << 64) + c_pow10[i].u64[0] * l_digit;
+        l_tmp = (l_tmp << 64) + c_pow10[i].u64[1] * l_digit;
         l_ret = dap_chain_balance_add(l_ret, l_tmp);
         if (l_ret == l_nul)
             return l_nul;
 #else
         uint128_t l_tmp;
-        l_tmp.u64[0] = c_pow10[i].u32[0] * l_digit;
-        l_tmp.u64[1] = 0;
-        l_ret = dap_chain_balance_add(l_ret, l_tmp);
-        if (l_ret == l_nul)
-            return l_nul;
-        uint64_t l_mul = c_pow10[i].u32[1] * l_digit;
-        l_tmp.u64[0] = l_mul << 32;
-        l_tmp.u64[1] = l_mul >> 32;
-        l_ret = dap_chain_balance_add(l_ret, l_tmp);
-        if (l_ret == l_nul)
-            return l_nul;
         l_tmp.u64[0] = 0;
         l_tmp.u64[1] = c_pow10[i].u32[2] * l_digit;
         l_ret = dap_chain_balance_add(l_ret, l_tmp);
-        if (l_ret == l_nul)
+        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
             return l_nul;
-        l_mul = c_pow10[i].u32[3] * l_digit;
+        uint64_t l_mul = c_pow10[i].u32[3] * l_digit;
+        l_tmp.u64[1] = l_mul << 32;
+        l_tmp.u64[0] = l_mul >> 32;
+        l_ret = dap_chain_balance_add(l_ret, l_tmp);
+        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+            return l_nul;
+        l_tmp.u64[1] = 0;
+        l_tmp.u64[0] = c_pow10[i].u32[0] * l_digit;
+        l_ret = dap_chain_balance_add(l_ret, l_tmp);
+        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+            return l_nul;
+        l_mul = c_pow10[i].u32[1] * l_digit;
         if (l_mul >> 32) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
-        l_tmp.u64[1] = l_mul << 32;
+        l_tmp.u64[0] = l_mul << 32;
         l_ret = dap_chain_balance_add(l_ret, l_tmp);
-        if (l_ret == l_nul)
+        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
             return l_nul;
 #endif
     }
     return l_ret;
 }
 
-uint128_t dap_chain_coins_to_balance(char *a_balance)
+uint128_t dap_chain_coins_to_balance(char *a_coins)
 {
 #ifdef DAP_GLOBAL_IS_INT128
     uint128_t l_ret = 0, l_nul = 0;
 #else
     uint128_t l_ret = {}, l_nul = {};
 #endif
-    if (strlen(a_balance > DATOSHI_POW + 2)) {
+    if (strlen(a_coins) > DATOSHI_POW + 2) {
         log_it(L_WARNING, "Incorrect balance format - too long");
         return l_nul;
     }
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
-    strcpy(l_buf, a_balance);
+    strcpy(l_buf, a_coins);
     char *l_point = strchr(l_buf, '.');
     int l_tail = 0;
     int l_pos = strlen(l_buf);
@@ -507,12 +529,13 @@ uint128_t dap_chain_coins_to_balance(char *a_balance)
         }
         l_pos--;
     }
-    if (l_pos + DATOSHI_DEGREE - l_tail) {
+    if (l_pos + DATOSHI_DEGREE - l_tail > DATOSHI_POW) {
         log_it(L_WARNING, "Incorrect balance format - too long with point");
         DAP_DELETE(l_buf);
         return l_nul;
     }
-    for (int i = 0; i < DATOSHI_DEGREE - l_tail; i++) {
+    int i;
+    for (i = 0; i < DATOSHI_DEGREE - l_tail; i++) {
         l_buf[l_pos + i] = '0';
     }
     l_buf[l_pos + i] = '\0';
