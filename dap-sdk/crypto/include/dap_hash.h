@@ -106,7 +106,11 @@ DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_hash_fast_t *a_hash, char 
     return DAP_CHAIN_HASH_FAST_SIZE * 2 + 2;
 }
 
-static inline char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
+DAP_STATIC_INLINE int dap_hash_fast_to_str(dap_hash_fast_t *a_hash, char *a_str, size_t a_str_max){
+    return dap_chain_hash_fast_to_str(a_hash,a_str,a_str_max);
+}
+
+DAP_STATIC_INLINE char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */+4/*just to be sure*/ ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
@@ -114,6 +118,10 @@ static inline char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
     return ret;
 }
 
+DAP_STATIC_INLINE char *dap_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
+{
+    return dap_chain_hash_fast_to_str_new(a_hash);
+}
 #ifdef __cplusplus
 }
 #endif

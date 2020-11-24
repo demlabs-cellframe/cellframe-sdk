@@ -325,11 +325,11 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             if (l_pkt_copy)
                 DAP_DELETE(l_pkt_copy);
+
+            DAP_DELETE(l_pkt_copy_list);
         }else{
          //   log_it(L_WARNING, "Next pkt copy list is NULL");
         }
-        if (l_pkt_copy_list)
-            DAP_DELETE(l_pkt_copy_list);
     }else
         log_it(L_WARNING, "In proc thread got CHAINS stream ch packet with zero data");
     dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
@@ -693,22 +693,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS: {
-        dap_stream_ch_chain_sync_request_t l_sync_chains = {};
-        memcpy(&l_sync_chains, l_chain_pkt->data, l_chain_pkt_data_size);
-        dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
-        dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_sync_chains.node_addr.uint64, l_chain);
-        if (l_hash) {
-            memcpy(&l_sync_chains.hash_from, l_hash, sizeof(*l_hash));
-            DAP_DELETE(l_hash);
+        if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
+            dap_stream_ch_chain_sync_request_t l_request={0};
+            dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+            if( l_chain){
+                dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from);
+                if( dap_log_level_get()<= L_INFO){
+                    char l_hash_from_str[70]={[0]='\0'};
+                    dap_chain_hash_fast_to_str(&l_request.hash_from,l_hash_from_str,sizeof (l_hash_from_str)-1);
+                    log_it(L_INFO, "In:  SYNC_CHAINS_RVRS pkt: net 0x%016x chain 0x%016x cell 0x%016x request chains sync from %s",
+                           l_chain_pkt->hdr.net_id.uint64 , l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                           l_hash_from_str[0] ? l_hash_from_str :"(null)");
+                }
+                dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_chain_pkt->hdr.net_id,
+                                              l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_request, sizeof(l_request));
+            }
+        }else{
+            log_it(L_WARNING, "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS: Wrong chain packet size %zd when expected %zd", l_chain_pkt_data_size, sizeof(l_ch_chain->request));
+            dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                    "ERROR_CHAIN_PKT_DATA_SIZE" );
         }
-        char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_sync_chains.hash_from);
-        log_it(L_INFO, "In:  SYNC_CHAINS_RVRS pkt: net 0x%016x chain 0x%016x cell 0x%016x request chains sync from %s",
-               l_chain_pkt->hdr.net_id.uint64 , l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-               l_hash_from_str ? l_hash_from_str :"(null)");
-
-        dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_chain_pkt->hdr.net_id,
-                                      l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id, &l_sync_chains, sizeof(l_sync_chains));
-        DAP_DELETE(l_hash_from_str);
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR:
