@@ -99,8 +99,9 @@
 
 #define LOG_TAG "chain_net"
 
-#define F_DAP_CHAIN_NET_SHUTDOWN  ( 1 << 9 )
-#define F_DAP_CHAIN_NET_GO_SYNC   ( 1 << 10 )
+#define F_DAP_CHAIN_NET_SYNC_FROM_ZERO   ( 1 << 8 )
+#define F_DAP_CHAIN_NET_SHUTDOWN         ( 1 << 9 )
+#define F_DAP_CHAIN_NET_GO_SYNC          ( 1 << 10 )
 
 // maximum number of connections
 static size_t s_max_links_count = 5;// by default 5
@@ -1124,6 +1125,12 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
             }
 
         } else if( l_sync_str) {
+
+            const char * l_sync_mode_str = "updates";
+            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-mode", &l_sync_mode_str);
+            if ( !dap_strcmp(l_sync_mode_str,"all") )
+                dap_chain_net_get_flag_sync_from_zero(l_net);
+
             if ( strcmp(l_sync_str,"all") == 0 ) {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "SYNC_ALL state requested to state machine. Current state: %s\n",
@@ -2014,6 +2021,29 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
     }
     dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
     return l_node_list;
+}
+
+/**
+ * @brief dap_chain_net_set_flag_sync_from_zero
+ * @param a_net
+ * @param a_flag_sync_from_zero
+ */
+void dap_chain_net_set_flag_sync_from_zero( dap_chain_net_t * a_net, bool a_flag_sync_from_zero)
+{
+    if( a_flag_sync_from_zero)
+        PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
+    else
+        PVT(a_net)->flags ^= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
+}
+
+/**
+ * @brief dap_chain_net_get_flag_sync_from_zero
+ * @param a_net
+ * @return
+ */
+bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
+{
+    return PVT(a_net)->flags &F_DAP_CHAIN_NET_SYNC_FROM_ZERO ;
 }
 
 /**
