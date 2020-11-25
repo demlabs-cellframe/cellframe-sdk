@@ -3148,7 +3148,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
 
     if (l_emission_hash_str){// Load emission
         l_emission_hash_str_base58 = dap_enc_base58_encode_hash_to_str(&l_emission_hash);
-        if (dap_chain_hash_fast_from_str( l_emission_hash_str,&l_emission_hash_str) == 0 ){
+        if (dap_chain_hash_fast_from_str( l_emission_hash_str,&l_emission_hash) == 0 ){
             l_emission = dap_chain_ledger_token_emission_find(l_net->pub.ledger,l_ticker,&l_emission_hash);
             if (! l_emission){
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can' find emission with hash \"%s\" for token %s on network %s",
