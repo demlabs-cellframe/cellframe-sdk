@@ -180,3 +180,34 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
     }
 }
+
+dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
+{
+    assert(a_datum_token_size);
+    assert(a_datum_token);
+    assert(a_signs_total);
+    assert(a_signs_valid);
+    assert( a_datum_token_size >= sizeof (a_datum_token));
+    dap_sign_t ** l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof (dap_sign_t*)*a_datum_token->header_private.signs_total );
+    *a_signs_total=0;
+    *a_signs_valid = a_datum_token->header_private.signs_valid;
+    size_t l_offset = 0;
+    uint16_t n = 0;
+    while( l_offset < (a_datum_token_size-sizeof (a_datum_token) ) && n < a_datum_token->header_private.signs_total ) {
+        dap_sign_t *l_sign = (dap_sign_t *) ( a_datum_token->data_n_tsd + l_offset);
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        if(!l_sign_size ){
+            log_it(L_WARNING,"Corrupted signature: size is zero");
+            break;
+        }
+        if(l_sign_size> (UINT32_MAX-l_offset ) ){
+            log_it(L_WARNING,"Corrupted signature: size %zd is too big", l_sign_size);
+            break;
+        }
+        l_ret[n] = l_sign;
+        n++;
+        (*a_signs_total)++;
+        l_offset += l_sign_size;
+    }
+    return l_ret;
+}

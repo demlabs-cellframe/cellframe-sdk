@@ -179,16 +179,28 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
 {
     char l_errbuf[128];
     l_errbuf[0] = '\0';
-    if(a_errno)
+    if (a_errno == ETIMEDOUT){
+        strncpy(l_errbuf,"Connection timeout", sizeof (l_errbuf)-1);
+    }else if (a_errno == ECONNREFUSED){
+        strncpy(l_errbuf,"Connection refused", sizeof (l_errbuf)-1);
+    }else if (a_errno == EHOSTDOWN){
+        strncpy(l_errbuf,"Host is down", sizeof (l_errbuf)-1);
+    }else if (a_errno == EHOSTUNREACH){
+        strncpy(l_errbuf,"No route to host", sizeof (l_errbuf)-1);
+    }else if (a_errno == EREMOTEIO){
+        strncpy(l_errbuf,"Remote I/O error", sizeof (l_errbuf)-1);
+    }else if(a_errno)
         strerror_r(a_errno, l_errbuf, sizeof (l_errbuf));
     else
         strncpy(l_errbuf,"Unknown Error", sizeof (l_errbuf)-1);
-    if (a_es->flags & DAP_SOCK_CONNECTING)
+
+    if (a_es->flags & DAP_SOCK_CONNECTING){
         log_it(L_WARNING, "Socket connecting error: %s (code %d)" , l_errbuf, a_errno);
-    else
+    }else
         log_it(L_WARNING, "Socket error: %s (code %d)" , l_errbuf, a_errno);
 
     dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
+
     if(!l_client_http_internal) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
         return;
@@ -210,6 +222,7 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
 {
     // call from dap_events_socket_delete(ev_socket, true);
     log_it(L_DEBUG, "HTTP client delete");
+
     if(!a_http_pvt) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
         return;
@@ -224,6 +237,7 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
         for( size_t i = 0; i < a_http_pvt->request_custom_headers_count; i++) {
             DAP_DELETE( a_http_pvt->request_custom_headers[i]);
         }
+        a_http_pvt->request_custom_headers = NULL;
         //DAP_DELETE( l_client_http_pvt->request_custom_headers);
     }
 
@@ -327,6 +341,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
     l_ev_socket->flags |= DAP_SOCK_CONNECTING;
+    l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE ;
+
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
     if (l_err == 0){
         log_it(L_DEBUG, "Connected momentaly with %s:%u!", a_uplink_addr, a_uplink_port);
@@ -418,9 +434,10 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
             "\r\n",
             l_http_pvt->method, l_http_pvt->path, l_get_str ? l_get_str : "", l_http_pvt->uplink_addr, l_request_headers->str);
     // send data for POST request
-    if(!l_get_str)
+    if(l_get_str)
+        DAP_DELETE(l_get_str);
+    else if ( l_http_pvt->request_size)
         dap_events_socket_write_unsafe( a_esocket, l_http_pvt->request, l_http_pvt->request_size);
-    DAP_DELETE(l_get_str);
     dap_string_free(l_request_headers, true);
 
 }

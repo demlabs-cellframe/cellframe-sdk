@@ -25,7 +25,8 @@
 //#define _XOPEN_SOURCE 700
 
 #pragma once
-
+#define __STDC_WANT_LIB_EXT1__ 1
+#include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -33,11 +34,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#ifdef DAP_OS_WINDOWS
+#include <fcntl.h>
+#define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
+#endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
-
 typedef uint8_t byte_t;
 
 // Stuffs an integer into a pointer type
@@ -381,7 +385,7 @@ DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
 extern char *g_sys_dir_path;
 
 //int dap_common_init( const char * a_log_file );
-int dap_common_init( const char *console_title, const char *a_log_file );
+int dap_common_init( const char *console_title, const char *a_log_file, const char *a_log_dirpath );
 int wdap_common_init( const char *console_title, const wchar_t *a_wlog_file);
 
 void dap_common_deinit(void);

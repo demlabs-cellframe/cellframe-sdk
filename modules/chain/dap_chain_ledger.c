@@ -48,6 +48,7 @@
 #include "dap_hash.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
+#include "dap_cert.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
@@ -75,10 +76,25 @@ typedef struct dap_chain_ledger_token_emission_item {
 
 typedef struct dap_chain_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint16_t type;
     dap_chain_datum_token_t * datum_token;
+
     uint64_t total_supply;
+    uint64_t current_supply;
     pthread_rwlock_t token_emissions_rwlock;
     dap_chain_ledger_token_emission_item_t * token_emissions;
+
+    // for auth operations
+    dap_sign_t ** auth_signs;
+    dap_chain_hash_fast_t * auth_signs_pkey_hash;
+    size_t auth_signs_total;
+    size_t auth_signs_valid;
+    uint16_t           flags;
+    dap_chain_addr_t * tx_allow;
+    size_t             tx_allow_size;
+
+    dap_chain_addr_t * tx_block;
+    size_t             tx_block_size;
     UT_hash_handle hh;
 } dap_chain_ledger_token_item_t;
 
@@ -138,6 +154,7 @@ typedef struct dap_ledger_cache_str_item {
 
 // dap_ledget_t private section
 typedef struct dap_ledger_private {
+    dap_chain_net_t * net;
     // List of ledger - unspent transactions cache
     dap_chain_ledger_tx_item_t *treshold_txs;
     dap_chain_ledger_token_emission_item_t * treshold_emissions;
@@ -297,10 +314,18 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
             DAP_DELETE(l_token_cache);
         }
         DAP_DELETE(l_gdb_group);
-
+        l_token_item->type = a_token->type;
         switch(a_token->type){
             case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: {
                 l_token_item->total_supply = a_token->header_private.total_supply;
+                l_token_item->auth_signs= dap_chain_datum_token_signs_parse(a_token,a_token_size,
+                                                                                   &l_token_item->auth_signs_total,
+                                                                                    &l_token_item->auth_signs_valid );
+                if(l_token_item->auth_signs_total)
+                    l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,sizeof (dap_chain_hash_fast_t)* l_token_item->auth_signs_total);
+                for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
+                    dap_sign_get_pkey_hash(l_token_item->auth_signs[k],&l_token_item->auth_signs_pkey_hash[k]);
+                }
                 log_it( L_NOTICE, "Private token %s added (total_supply = %.1llf total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
                         a_token->ticker, dap_chain_datoshi_to_coins(a_token->header_private.total_supply),
                         a_token->header_private.signs_valid, a_token->header_private.signs_total);
@@ -308,6 +333,10 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
             break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
                 log_it( L_NOTICE, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL )", a_token->ticker);
+                l_token_item->total_supply = a_token->header_private.total_supply;
+                l_token_item->auth_signs= dap_chain_datum_token_signs_parse(a_token,a_token_size,
+                                                                                   &l_token_item->auth_signs_total,
+                                                                                    &l_token_item->auth_signs_valid );
             break;
             default:
                 log_it(L_WARNING,"Unknown token declaration type 0x%04X", a_token->type );
@@ -507,6 +536,7 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->check_ds = a_check_flags & DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
     l_ledger_priv->check_cells_ds = a_check_flags & DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
     l_ledger_priv->check_token_emission = a_check_flags & DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
+    l_ledger_priv->net = dap_chain_net_by_name(a_net_name);
     // load ledger cache from GDB
     dap_chain_ledger_load_cache(l_ledger);
     return l_ledger;
@@ -545,6 +575,51 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
         log_it(L_WARNING,"Treshold for emissions is overfulled (%lu max)",
                s_treshold_emissions_max);
         ret = -2;
+    }else{ // Chech emission correctness
+        switch (a_token_emission->hdr.type){
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
+                dap_chain_ledger_token_item_t *l_token_item=NULL;
+                HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_emission->hdr.ticker, l_token_item);
+                if (l_token_item){
+                    assert(l_token_item->datum_token);
+                    if( PVT(a_ledger)->net->pub.token_emission_signs_verify  ){
+                        dap_sign_t * l_sign =(dap_sign_t*) a_token_emission->data.type_auth.signs;
+                        size_t l_offset= (byte_t*)a_token_emission - (byte_t*) l_sign;
+                        uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
+
+                        for (uint16_t i=0; i <a_token_emission->data.type_auth.signs_count && l_offset < a_token_emission_size; i++){
+                            size_t l_sign_size = dap_sign_get_size(l_sign);
+                            l_sign = (dap_sign_t*) ((byte_t*) l_sign + l_sign_size);
+                            if (UINT16_MAX-l_offset> l_sign_size ){
+                                dap_chain_hash_fast_t l_sign_pkey_hash;
+                                dap_sign_get_pkey_hash(l_sign,&l_sign_pkey_hash);
+                                // Find pkey in auth hashes
+                                for(uint16_t k=0; k< l_token_item->auth_signs_total; k++  ){
+                                    if ( dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k]))
+                                        // Verify if its token emission header signed
+                                        if( dap_sign_verify(l_sign,&a_token_emission->hdr, sizeof (a_token_emission) ) ){
+                                            l_aproves++;
+                                            break;
+                                        }
+                                }
+                                l_offset+=l_sign_size;
+                            }else
+                                l_offset = UINT16_MAX;
+                        }
+
+                        if (l_aproves < l_aproves_valid ){
+                            log_it(L_WARNING, "Emission of %llu datoshi of %s:%s is wrong: only %u valid aproves when %u need",
+                                   a_token_emission->hdr.value, a_ledger->net_name, a_token_emission->hdr.ticker, l_aproves, l_aproves_valid );
+                            ret = -1;
+                        }
+                    }
+                }else{
+                    log_it(L_WARNING,"Can't find token declaration %s:%s thats pointed in token emission datum", a_ledger->net_name, a_token_emission->hdr.ticker);
+                    ret = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
+                }
+            }break;
+            default:{}
+        }
     }
 
     pthread_rwlock_unlock(l_token_item ?

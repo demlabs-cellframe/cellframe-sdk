@@ -1,9 +1,12 @@
 /*
-Implementation by the Keccak Team, namely, Guido Bertoni, Joan Daemen,
-Michaël Peeters, Gilles Van Assche and Ronny Van Keer,
-hereby denoted as "the implementer".
+The eXtended Keccak Code Package (XKCP)
+https://github.com/XKCP/XKCP
 
-For more information, feedback or questions, please refer to our website:
+Xoodyak, designed by Joan Daemen, Seth Hoffert, Michaël Peeters, Gilles Van Assche and Ronny Van Keer.
+
+Implementation by Ronny Van Keer, hereby denoted as "the implementer".
+
+For more information, feedback or questions, please refer to the Keccak Team website:
 https://keccak.team/
 
 To the extent possible under law, the implementer has waived all copyright
@@ -24,6 +27,6 @@ int main()
     const unsigned char *plaintext = (const unsigned char *)
         "\xe4\x65\xe5\x66\xe6\x67\xe7";
     const unsigned char *ciphertext = (const unsigned char *)
-        "\x82\x22\x79\xa9\x84\xd7\x79\xf7\x9b\x39\x7b\x07\x01\xbd\x68\x01\xa6\x93\x94\x11\x45\x3a\x30";
+        "\x7f\xb2\x76\x9a\x0f\xad\x33\xe6\x49\x6d\x5b\x0e\xe1\x72\x4b\xc9\x26\x13\xa1\x34\xa8\xdb\x79";
     return test_crypto_aead(key, 16, nonce, 16, AD, 6, plaintext, 7, ciphertext, 16);
 }

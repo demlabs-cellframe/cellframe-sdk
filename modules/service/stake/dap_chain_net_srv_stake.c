@@ -673,7 +673,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
     const char * l_hash_out_type = NULL;
     dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "-H", &l_hash_out_type);
     if(!l_hash_out_type)
-        l_hash_out_type = "base58";
+        l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;

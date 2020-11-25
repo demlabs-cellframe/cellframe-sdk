@@ -415,4 +415,3 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     }
     return l_res;
 }
-

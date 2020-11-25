@@ -33,6 +33,7 @@
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
 
+#define DAP_CHAIN_PKT_MAX_SIZE 25000    // WARNING: be sure to not exceed this limit
 
 typedef struct dap_stream_ch_chain dap_stream_ch_chain_t;
 typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, uint8_t a_pkt_type,

@@ -58,6 +58,9 @@ typedef struct dap_chain_net{
         char * gdb_nodes_aliases;
         char * gdb_nodes;
 
+        // checks
+        bool token_emission_signs_verify;
+
         dap_chain_t * chains; // double-linked list of chains
         dap_chain_t * default_chain;
         dap_ledger_t  *ledger;
@@ -82,6 +85,9 @@ inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_c
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
+void dap_chain_net_set_flag_sync_from_zero( dap_chain_net_t * a_net, bool a_flag_sync_from_zero);
+bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
+
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);

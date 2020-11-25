@@ -48,6 +48,25 @@
  * return type, or TX_ITEM_TYPE_ANY if error
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item);
+DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_item_type_t a_item_type)
+{
+    switch(a_item_type){
+        case TX_ITEM_TYPE_IN: return "TX_ITEM_TYPE_IN";
+        case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT";
+        case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT";
+        case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
+        case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
+        case TX_ITEM_TYPE_TOKEN: return "TX_ITEM_TYPE_TOKEN";
+        case TX_ITEM_TYPE_TOKEN_EXT: return "TX_ITEM_TYPE_TOKEN_EXT";
+        case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
+        case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND";
+        case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
+        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_ALL";
+        case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
+        default: return "UNDEFINED";
+    }
+
+}
 
 /**
  * Get item size

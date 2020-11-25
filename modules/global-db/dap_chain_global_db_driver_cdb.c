@@ -175,11 +175,11 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
             cdb_iterate(l_cdb_i->cdb, dap_cdb_get_last_obj_iter_callback, (void*)&l_arg, l_iter);
             cdb_iterate_destroy(l_cdb_i->cdb, l_iter);
             l_cdb_i->id = l_arg.o->id;
-            log_it(L_INFO, "Group \"%s\" found"             , l_cdb_i->local_group);
-            log_it(L_INFO, "Records: %-24u"                 , l_cdb_stat.rnum);
-            log_it(L_INFO, "Average read latency: %-24u"    , l_cdb_stat.rlatcy);
-            log_it(L_INFO, "Average write latency: %-24u"   , l_cdb_stat.wlatcy);
-            log_it(L_INFO, "Last id: %-24u"                 , l_cdb_i->id);
+            //log_it(L_INFO, "Group \"%s\" found"             , l_cdb_i->local_group);
+            //log_it(L_INFO, "Records: %-24u"                 , l_cdb_stat.rnum);
+            //log_it(L_INFO, "Average read latency: %-24u"    , l_cdb_stat.rlatcy);
+            //log_it(L_INFO, "Average write latency: %-24u"   , l_cdb_stat.wlatcy);
+            //log_it(L_INFO, "Last id: %-24u"                 , l_cdb_i->id);
             DAP_DELETE(l_arg.o);
         } else {
             log_it(L_INFO, "Group \"%s\" created"           , l_cdb_i->local_group);
@@ -277,7 +277,7 @@ int dap_db_driver_cdb_deinit() {
 
 int dap_db_driver_cdb_flush(void) {
     int ret = 0;
-    log_it(L_INFO, "Flushing CDB to disk");
+    log_it(L_DEBUG, "Flushing CDB to disk");
     cdb_instance *cur_cdb, *tmp;
     pthread_mutex_lock(&cdb_mutex);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
@@ -298,7 +298,7 @@ int dap_db_driver_cdb_flush(void) {
             goto RET;
         }
     }
-    log_it(L_INFO, "All data dumped");
+    log_it(L_DEBUG, "All data dumped");
 RET:
     pthread_mutex_unlock(&cdb_mutex);
     return ret;

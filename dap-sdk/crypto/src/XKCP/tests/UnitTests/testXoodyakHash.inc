@@ -1,7 +1,10 @@
 /*
+The eXtended Keccak Code Package (XKCP)
+https://github.com/XKCP/XKCP
+
 Implementation by Ronny Van Keer, hereby denoted as "the implementer".
 
-For more information, feedback or questions, please refer to our website:
+For more information, feedback or questions, please refer to the Keccak Team website:
 https://keccak.team/
 
 To the extent possible under law, the implementer has waived all copyright
@@ -36,16 +39,16 @@ static void testXoodyakHashOne(Xoodyak_Instance * global, FILE *f, size_t messag
     Xoodyak_Initialize(&instance, NULL, 0, NULL, 0, NULL, 0);
 	for (i = 0; i < numberOfMessages; ++i)	{
         generateSimpleRawMaterial(messageBuffer + align, messageLen, (uint8_t)(messageLen+hashLen+0x12), 3);
-	    #ifdef OUTPUT
+	    #if defined(UT_OUTPUT) || defined(UT_VERBOSE)
 	    fprintf( f, "Absorb" );
-	    displayByteString(f, "> M", messageBuffer + align, messageLen);
+	    UT_displayByteString(f, "> M", messageBuffer + align, messageLen);
 	    #endif
 	    Xoodyak_Absorb(&instance, messageBuffer + align, messageLen);
 	}
     Xoodyak_Squeeze(&instance, hashBuffer + align, hashLen);
-    #ifdef OUTPUT
+    #if defined(UT_OUTPUT) || defined(UT_VERBOSE)
     fprintf( f, "Squeeze" );
-    displayByteString(f, "> H", hashBuffer + align, hashLen);
+    UT_displayByteString(f, "> H", hashBuffer + align, hashLen);
     #endif
     Xoodyak_Absorb(global, hashBuffer + align, hashLen);
 
@@ -61,10 +64,11 @@ static void testXoodyakHash( const char *file, const uint8_t *expected )
 	unsigned int        numberOfMessages;
 	unsigned int        align;
 
-    #ifdef OUTPUT
+    #if defined(UT_OUTPUT)
     f = fopen(file, "w");
-    assert(f != NULL, "Could not open file");
-    PRINTS("Xoodyak hash ");
+    UT_assert(f != NULL, "Could not open file");
+    #elif defined(UT_VERBOSE)
+    f = stdout;
     #endif
 
 	for (align = 0; align < 4; ++align) {
@@ -85,15 +89,14 @@ static void testXoodyakHash( const char *file, const uint8_t *expected )
 		}
 
 	    Xoodyak_Squeeze(&global, checksum, sizeof(checksum));
-	    #ifdef OUTPUT
-	    displayByteString(f, "+++ Global checksum", checksum, sizeof(checksum));
+	    #if defined(UT_OUTPUT) || defined(UT_VERBOSE)
+	    UT_displayByteString(f, "+++ Global checksum", checksum, sizeof(checksum));
+	    #if defined(UT_OUTPUT)
 	    fclose(f);
 	    #endif
-	    assert(!memcmp(expected, checksum, sizeof(checksum)), "The global checksum is incorrect.");
-
-	    #ifdef OUTPUT
-	    PRINTS("v\n");
 	    #endif
+	    UT_assert(!memcmp(expected, checksum, sizeof(checksum)), "The global checksum is incorrect.");
+
 	}
 
 }

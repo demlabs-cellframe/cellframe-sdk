@@ -429,7 +429,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
             s_stage_status_error_callback);
     l_node_client->client->_inheritor = l_node_client;
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
-    dap_client_set_active_channels(l_node_client->client, a_active_channels);
+    dap_client_set_active_channels_unsafe(l_node_client->client, a_active_channels);
 
     //dap_client_set_auth_cert(l_node_client->client, dap_cert_find_by_name("auth")); // TODO provide the certificate choice
 
@@ -450,7 +450,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
         dap_chain_node_client_close(l_node_client);
         return NULL;
     }
-    dap_client_set_uplink(l_node_client->client, strdup(host), a_node_info->hdr.ext_port);
+    dap_client_set_uplink_unsafe(l_node_client->client, strdup(host), a_node_info->hdr.ext_port);
 //    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
 //    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
 
@@ -488,7 +488,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
     if (a_client && a_client->client) { // block tryes to close twice
         // clean client
-        dap_client_delete(a_client->client);
+        dap_client_delete_mt(a_client->client);
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);
 #else
@@ -551,9 +551,8 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 #ifndef _WIN32
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    uint32_t l_timeout_s = dap_config_get_item_uint32_default(g_config,"chain_net","status_wait_timeout",10);
     clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
-    l_cond_timeout.tv_sec += l_timeout_s;
+    l_cond_timeout.tv_sec += a_timeout_ms/1000;
 #else
     pthread_mutex_unlock( &a_client->wait_mutex );
 #endif
@@ -571,7 +570,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
-            log_it(L_NOTICE,"Wait for status is stopped by timeout");
+            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
             ret = -1;
             break;
         }else if (l_ret_wait != 0 ){

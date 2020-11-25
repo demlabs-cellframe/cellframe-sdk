@@ -54,6 +54,7 @@
 
 typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
+    dap_chain_hash_fast_t hash_event_content;
     time_t ts_added;
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
@@ -68,6 +69,7 @@ typedef struct dap_chain_cs_dag_pvt {
     pthread_rwlock_t events_rwlock;
 
     dap_chain_cs_dag_event_item_t * events;
+    dap_chain_cs_dag_event_item_t * events_tmp; // Tmp value for HASH_ITER
 
     dap_chain_cs_dag_event_item_t * tx_events;
     dap_chain_cs_dag_event_item_t * events_treshold;
@@ -960,8 +962,11 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     }
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
     dap_chain_cs_dag_pvt_t *l_dag_pvt = l_dag ? PVT(l_dag) : NULL;
-    a_atom_iter->cur_item = l_dag_pvt->events;
-    a_atom_iter->cur = (dap_chain_cs_dag_event_t*) (l_dag_pvt->events ? l_dag_pvt->events->event : NULL);
+    l_dag_pvt->events_tmp = NULL;
+    dap_chain_cs_dag_event_item_t * l_cur_item = NULL;
+    HASH_ITER(hh,l_dag_pvt->events, l_cur_item, l_dag_pvt->events_tmp);
+    a_atom_iter->cur_item = l_cur_item;
+    a_atom_iter->cur = (dap_chain_cs_dag_event_t*) (l_cur_item ? l_cur_item->event : NULL);
     a_atom_iter->cur_size = l_dag_pvt->events ? l_dag_pvt->events->event_size : 0;
 
 //    a_atom_iter->cur =  a_atom_iter->cur ?
@@ -1176,7 +1181,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
     const char * l_hash_out_type = NULL;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
-        l_hash_out_type = "base58";
+        l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
@@ -1329,8 +1334,8 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
             }
         }
 
-        //if (l_event_hash_str)
-        //    dap_chain_str_to_hash_fast(l_event_hash_str,&l_event_hash);
+        if (l_event_hash_hex_str)
+            dap_chain_hash_fast_from_str(l_event_hash_hex_str,&l_event_hash);
 
         switch ( l_event_subcmd ){
             case SUBCMD_EVENT_CREATE:{
@@ -1452,7 +1457,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         else {
                             ret = -23;
                             dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                              "Can't find events in events_last table\n");
+                                                              "Can't find event %s in events_last table\n", l_event_hash_str);
                             break;
                         }
                     }else if ( strcmp(l_from_events_str,"events") == 0){
@@ -1465,7 +1470,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         else {
                             ret = -24;
                             dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                              "Can't find events in events table\n");
+                                                              "Can't find event %s in events table\n", l_event_hash_str);
                             break;
                         }
 
