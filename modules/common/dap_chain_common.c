@@ -388,7 +388,7 @@ char *dap_chain_balance_to_coins(uint128_t a_balance)
         l_buf[l_pos] = '.';
     } else {
         int l_sub = DATOSHI_DEGREE - l_strlen + 2;
-        for (l_pos = DATOSHI_DEGREE; l_pos >= 0; l_pos--) {
+        for (l_pos = DATOSHI_DEGREE + 1; l_pos >= 0; l_pos--) {
             l_buf[l_pos] = (l_pos >= l_sub) ? l_buf[l_pos - l_sub] : '0';
         }
         l_buf[1] = '.';
