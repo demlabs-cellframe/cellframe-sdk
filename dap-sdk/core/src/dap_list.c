@@ -717,7 +717,7 @@ dap_list_t * dap_list_last(dap_list_t *list)
 {
     if(list)
     {
-        while(list->next)
+        while(list && list->next)
             list = list->next;
     }
 
