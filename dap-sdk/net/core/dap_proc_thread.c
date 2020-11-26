@@ -124,26 +124,37 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
     (void) a_value;
     //log_it(L_DEBUG, "Proc event callback");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
-    dap_proc_queue_item_t * l_item = l_thread->proc_queue->items_fisrt;
+    dap_proc_queue_item_t * l_item = l_thread->proc_queue->item_first;
     dap_proc_queue_item_t * l_item_old = NULL;
     bool l_is_anybody_for_repeat=false;
     while(l_item){
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
             if(l_item_old){
-                if ( ! l_item->prev )
-                    l_thread->proc_queue->items_last = l_item_old;
-                if ( ! l_item->next )
-                    l_thread->proc_queue->items_fisrt = l_item->prev;
+                if ( ! l_item->prev ){
+                    l_thread->proc_queue->item_last = l_item_old;
+                    if (l_thread->proc_queue->item_last)
+                        l_thread->proc_queue->item_last->next = NULL; // Next if it was - now its NULL
+                }
+                if ( ! l_item->next ){
+                    l_thread->proc_queue->item_first = l_item->prev;
+                    if (l_thread->proc_queue->item_first)
+                        l_thread->proc_queue->item_first->prev = NULL; // Prev if it was - now its NULL
+                }
 
                 l_item_old->prev = l_item->prev;
 
                 DAP_DELETE(l_item);
                 l_item = l_item_old->prev;
             }else{
-                l_thread->proc_queue->items_fisrt = l_item->prev;
+                l_thread->proc_queue->item_first = l_item->prev;
+                if (l_thread->proc_queue->item_first)
+                    l_thread->proc_queue->item_first->prev = NULL; // Prev if it was - now its NULL
+                else
+                    l_thread->proc_queue->item_last = NULL; // NULL last item
+
                 DAP_DELETE(l_item);
-                l_item = l_thread->proc_queue->items_fisrt;
+                l_item = l_thread->proc_queue->item_first;
             }
 
         }else{
