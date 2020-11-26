@@ -131,23 +131,14 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
             if(l_item_old){
-                if ( ! l_item->prev ){
+                if ( ! l_item->next ){ // We deleted tail
                     l_thread->proc_queue->item_last = l_item_old;
-                    if (l_thread->proc_queue->item_last)
-                        l_thread->proc_queue->item_last->next = NULL; // Next if it was - now its NULL
                 }
-                if ( ! l_item->next ){
-                    l_thread->proc_queue->item_first = l_item->prev;
-                    if (l_thread->proc_queue->item_first)
-                        l_thread->proc_queue->item_first->prev = NULL; // Prev if it was - now its NULL
-                }
-
-                l_item_old->prev = l_item->prev;
-
+                l_item_old->prev = l_item->next;
                 DAP_DELETE(l_item);
                 l_item = l_item_old->prev;
             }else{
-                l_thread->proc_queue->item_first = l_item->prev;
+                l_thread->proc_queue->item_first = l_item->next;
                 if (l_thread->proc_queue->item_first)
                     l_thread->proc_queue->item_first->prev = NULL; // Prev if it was - now its NULL
                 else
