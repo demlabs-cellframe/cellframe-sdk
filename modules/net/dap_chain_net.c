@@ -1799,13 +1799,16 @@ void dap_chain_net_deinit()
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 {
     *a_size = HASH_COUNT(s_net_items);
-    dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
-    dap_chain_net_item_t *l_current_item, *l_tmp;
-    int i = 0;
-    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        l_net_list[i++] = l_current_item->chain_net;
-    }
-    return l_net_list;
+    if(*a_size){
+        dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
+        dap_chain_net_item_t *l_current_item, *l_tmp;
+        int i = 0;
+        HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
+            l_net_list[i++] = l_current_item->chain_net;
+        }
+        return l_net_list;
+    }else
+        return NULL;
 }
 
 /**
@@ -2609,11 +2612,12 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    if (l_net_count) {
+    if (l_net_count && l_net_list) {
         uint8_t *l_ret = DAP_NEW_SIZE(uint8_t, l_net_count);
         for (uint16_t i = 0; i < l_net_count; i++) {
             l_ret[i] = s_net_check_acl(l_net_list[i], a_pkey_hash);
         }
+        DAP_DELETE(l_net_list);
         return l_ret;
     }
     return NULL;

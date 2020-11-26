@@ -351,7 +351,6 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
         {
             list = _dap_list_remove_link(list, tmp);
             dap_list_free1(tmp);
-
             break;
         }
     }

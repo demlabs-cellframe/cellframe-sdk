@@ -294,7 +294,7 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
     }
     l_client_pvt->refs_count--;
     if ( l_client_pvt->is_to_delete )
-        dap_client_delete_unsafe(l_client_pvt->client);
+        dap_client_delete_unsafe(l_client);
 
 }
 /**

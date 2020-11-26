@@ -779,7 +779,7 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
 static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
     dap_client_pvt_t * l_client_pvt = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
-    if (!dap_client_pvt_check(l_client_pvt) ){
+    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
         // Response received after client_pvt was deleted
         return;
     }
