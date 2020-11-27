@@ -31,3 +31,16 @@
  */
 char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type);
 char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type);
+
+/**
+ * ledger command
+ *
+ */
+int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
+
+/**
+ * token command
+ *
+ */
+int com_token(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
+

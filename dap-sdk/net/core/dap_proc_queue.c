@@ -75,14 +75,16 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t);
         l_item->callback = l_msg->callback;
         l_item->callback_arg = l_msg->callback_arg;
-        l_item->next=l_queue->items_last ;
-        if ( l_queue->items_last)
-            l_queue->items_last->prev = l_item;
 
-        l_queue->items_last = l_item->next;
+        if ( l_queue->item_last)
+            l_queue->item_last->prev = l_item;
 
-        if( !l_queue->items_fisrt)
-            l_queue->items_fisrt = l_item;
+        l_item->next=l_queue->item_last ;
+
+        l_queue->item_last = l_item;
+
+        if( !l_queue->item_first)
+            l_queue->item_first = l_item;
 
 
         // Add on top so after call this callback will be executed first

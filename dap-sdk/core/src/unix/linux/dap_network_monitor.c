@@ -189,7 +189,7 @@ static void _link_msg_handler(struct nlmsghdr *nlh,
 
 static void clear_results(dap_network_notification_t* cb_result)
 {
-    bzero(cb_result, sizeof (dap_network_notification_t));
+    memset(cb_result, 0,sizeof (dap_network_notification_t));
     cb_result->route.destination_address = (uint64_t) -1;
     cb_result->route.gateway_address = (uint64_t) -1;
 }

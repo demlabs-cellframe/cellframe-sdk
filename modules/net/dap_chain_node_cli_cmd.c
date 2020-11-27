@@ -3743,18 +3743,29 @@ int com_tx_create(int argc, char ** argv, void *arg_func, char **str_reply)
     dap_string_t *string_ret = dap_string_new(NULL);
     //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
     //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
-
-    int res =
-            l_tx_num ?
-                       dap_chain_mempool_tx_create_massive(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from,
+    int res = 0;
+    if(l_tx_num){
+        res = dap_chain_mempool_tx_create_massive(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from,
                                addr_to, addr_fee,
-                               l_token_ticker, value, value_fee, l_tx_num)
-                               :
-                       dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to,
-                               addr_fee,
-                               l_token_ticker, value, value_fee);
-    dap_string_append_printf(string_ret, "transfer=%s\n",
-            (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");
+                               l_token_ticker, value, value_fee, l_tx_num);
+
+        dap_string_append_printf(string_ret, "transfer=%s\n",
+                (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");
+    }else{
+        dap_hash_fast_t * l_tx_hash = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, addr_to,
+                addr_fee,
+                l_token_ticker, value, value_fee);
+        if (l_tx_hash){
+            char l_tx_hash_str[80]={[0]='\0'};
+            dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str)-1);
+            dap_string_append_printf(string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
+            DAP_DELETE(l_tx_hash);
+        }else{
+            dap_string_append_printf(string_ret, "transfer=False\n");
+            res = -1;
+        }
+
+    }
 
     dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
     dap_string_free(string_ret, false);

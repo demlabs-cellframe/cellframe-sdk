@@ -37,8 +37,8 @@ typedef struct dap_proc_queue_item{
 typedef struct dap_proc_queue{
     dap_proc_thread_t * proc_thread;
     dap_events_socket_t *esocket;
-    dap_proc_queue_item_t * items_last;
-    dap_proc_queue_item_t * items_fisrt;
+    dap_proc_queue_item_t * item_last;
+    dap_proc_queue_item_t * item_first;
 } dap_proc_queue_t;
 
 dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread);

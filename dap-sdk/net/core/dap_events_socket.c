@@ -361,6 +361,10 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    if(!l_es){
+        log_it(L_ERROR,"Can't allocate esocket!");
+        return NULL;
+    }
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->flags =  DAP_SOCK_QUEUE_PTR;
     if (a_w){
@@ -429,6 +433,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         DAP_DELETE(l_es);
         l_es = NULL;
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d",l_mq_name, l_errbuf, l_errno);
+        return NULL;
     }else{
         l_es->mqd_id = l_mq_last_number;
         l_mq_last_number++;
