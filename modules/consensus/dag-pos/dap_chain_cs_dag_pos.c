@@ -273,7 +273,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 
             bool l_is_enough_balance = false;
             for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
-                if ( dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] ) >= l_pos_pvt->tokens_hold_value[i]  ){
+                uint128_t l_balance = dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] );
+                uint64_t l_value = dap_chain_uint128_to(l_balance);
+                if (l_value >= l_pos_pvt->tokens_hold_value[i]) {
                     l_verified_num++;
                     l_is_enough_balance = true;
                     break;

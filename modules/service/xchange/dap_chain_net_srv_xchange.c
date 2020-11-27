@@ -568,7 +568,9 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;
             }
-            if (dap_chain_wallet_get_balance(l_wallet, l_net_sell->pub.id, l_token_sell_str) < l_datoshi_sell) {
+            uint128_t l_balance = dap_chain_wallet_get_balance(l_wallet, l_net_sell->pub.id, l_token_sell_str);
+            uint64_t l_value = dap_chain_uint128_to(l_balance);
+            if (l_value < l_datoshi_sell) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
                 dap_chain_wallet_close(l_wallet);
                 return -12;
@@ -690,7 +692,9 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     dap_chain_node_cli_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
                     return -13;
                 }
-                if (l_datoshi_sell && dap_chain_wallet_get_balance(l_wallet, l_net_sell->pub.id, l_token_sell_str) < l_datoshi_sell) {
+                uint128_t l_balance = dap_chain_wallet_get_balance(l_wallet, l_net_sell->pub.id, l_token_sell_str);
+                uint64_t l_value = dap_chain_uint128_to(l_balance);
+                if (l_datoshi_sell && l_value < l_datoshi_sell) {
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
                         dap_chain_wallet_close(l_wallet);
                         return -12;
