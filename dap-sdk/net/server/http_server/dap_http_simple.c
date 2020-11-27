@@ -295,14 +295,15 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
             return true;
         }
 
-        if(_is_user_agent_supported(header->value) == false) {
-            log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
-            const char* error_msg = "User-Agent version not supported. Update your software";
-            _write_response_bad_request(l_http_simple, error_msg);
-            s_set_writable_flags( l_http_simple);
-            dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
-            return true;
-        }
+        if(header)
+            if(_is_user_agent_supported(header->value) == false) {
+                log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
+                const char* error_msg = "User-Agent version not supported. Update your software";
+                _write_response_bad_request(l_http_simple, error_msg);
+                s_set_writable_flags( l_http_simple);
+                dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+                return true;
+            }
     }
 
     DAP_HTTP_SIMPLE_URL_PROC(l_http_simple->http_client->proc)->proc_callback(l_http_simple,&return_code);

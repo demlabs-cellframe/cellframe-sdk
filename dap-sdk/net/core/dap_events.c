@@ -263,13 +263,13 @@ int dap_events_start( dap_events_t *a_events )
         pthread_mutex_lock(&l_worker->started_mutex);
         struct timespec l_timeout;
         clock_gettime(CLOCK_REALTIME, &l_timeout);
-        l_timeout.tv_sec+=5;
+        l_timeout.tv_sec+=15;
         pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
 
         int l_ret;
         l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
         if ( l_ret== ETIMEDOUT ){
-            log_it(L_CRITICAL, "Timeout 5 seconds is out: worker #%u thread don't respond", i);
+            log_it(L_CRITICAL, "Timeout 15 seconds is out: worker #%u thread don't respond", i);
             return -2;
         } else if (l_ret != 0){
             log_it(L_CRITICAL, "Can't wait on condition: %d error code", l_ret);

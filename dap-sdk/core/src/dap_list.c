@@ -349,8 +349,14 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
             tmp = tmp->next;
         else
         {
-            list = _dap_list_remove_link(list, tmp);
-            dap_list_free1(tmp);
+            if (list == tmp){
+                _dap_list_remove_link(list, tmp);
+                list = NULL;
+                tmp = NULL;
+            }else {
+                list = _dap_list_remove_link(list, tmp);
+                dap_list_free1(tmp);
+            }
             break;
         }
     }
@@ -388,6 +394,8 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
             if(next)
                 next->prev = tmp->prev;
 
+            if (tmp == list)
+                list = NULL;
             dap_list_free1(tmp);
             tmp = next;
         }

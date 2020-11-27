@@ -289,7 +289,7 @@ static void* thread_one_client_func(void *args)
         }
         else
             free(str_header);
-        if(marker == 2) {
+        if(marker == 2 &&  cmd_param_list) {
             dap_list_t *list = cmd_param_list;
             // form command
             unsigned int argc = dap_list_length(list);
@@ -722,6 +722,7 @@ int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, co
  */
 int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
 {
+    assert(argv);
     int arg_index = arg_start;
     const char *arg_string;
     int l_ret_pos = 0;

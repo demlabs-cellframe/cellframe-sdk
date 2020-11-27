@@ -533,8 +533,11 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     bool found_sig=false;
     dap_stream_pkt_t * pkt=NULL;
 
-    char *buf_in = (a_stream->esocket) ? (char*)a_stream->esocket->buf_in : (char*)a_stream->esocket->buf_in;
-    size_t buf_in_size = (a_stream->esocket) ? a_stream->esocket->buf_in_size : a_stream->esocket->buf_in_size;
+    if (!a_stream->esocket)
+        return 0;
+
+    char *buf_in = (char*)a_stream->esocket->buf_in ;
+    size_t buf_in_size = a_stream->esocket->buf_in_size ;
     uint8_t *proc_data = (uint8_t *)buf_in;//a_stream->conn->buf_in;
     bool proc_data_defrag=false; // We are or not in defrag buffer
     size_t read_bytes_to=0;

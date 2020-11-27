@@ -1631,7 +1631,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     DAP_DELETE(l_node_addr);
                     l_node_addr = NULL;
                 }
-                log_it(L_NOTICE, "Parse node addr " NODE_ADDR_FP_STR " successfully", NODE_ADDR_FP_ARGS(l_node_addr));
+                if(l_node_addr)
+                    log_it(L_NOTICE, "Parse node addr " NODE_ADDR_FP_STR " successfully", NODE_ADDR_FP_ARGS(l_node_addr));
                 PVT(l_net)->node_addr = l_node_addr;
                 //}
             }

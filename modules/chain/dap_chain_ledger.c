@@ -1295,7 +1295,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if (!l_token || !*l_token) {
             l_token = l_item_out->cache_data.token_tiker;
         }
-        if (!*l_token) {
+        if (! l_token || !*l_token ) {
             log_it(L_WARNING, "No token ticker found in previous transaction");
             l_err_num = -15;
             break;

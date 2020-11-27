@@ -48,9 +48,9 @@
 
 
 /* if page cache size exceeds the limit */
-#define PCOVERFLOW(db) ((db)->dpcache && (db)->dpcache->size + (db)->pcache->size > (db)->pclimit)
+#define PCOVERFLOW(db) ( (db) && (db)->dpcache && (db)->pcache && (db)->dpcache->size + (db)->pcache->size > (db)->pclimit)
 /* if record cache size exceeds the limit */
-#define RCOVERFLOW(db) ((db)->rcache && (db)->rcache->size > (db)->rclimit)
+#define RCOVERFLOW(db) ((db) && (db)->rcache && (db)->rcache->size > (db)->rclimit)
 
 /* timeout for a dirty index page stays since last modify */
 #define DPAGETIMEOUT 40

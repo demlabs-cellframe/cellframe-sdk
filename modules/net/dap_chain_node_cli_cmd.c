@@ -2217,9 +2217,9 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
     }
 
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
-    if(!l_net)
+    if(!l_net){
         return -1;
-    else {
+    }else {
         if(*a_str_reply) {
             DAP_DELETE(*a_str_reply);
             *a_str_reply = NULL;
@@ -2229,6 +2229,16 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
     if(l_chain) {
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
         l_gdb_group_mempool_tmp = l_gdb_group_mempool;
+    }else{
+        dap_chain_node_cli_set_reply_text(a_str_reply, "no -chain param");
+        return -1;
+
+    }
+
+    // If full or light it doesnt work
+    if(dap_chain_net_get_role(l_net).enums>= NODE_ROLE_FULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Need master node role or higher for network %s to process this command", l_net->pub.name);
+        return -1;
     }
 
     const char * l_datum_hash_str = NULL;

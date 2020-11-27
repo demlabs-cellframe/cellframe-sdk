@@ -209,7 +209,8 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
             char *l_dst_to_str =
                     (l_tx_out) ? dap_chain_addr_to_str(&l_tx_out->addr) :
                     NULL;
-            dap_string_append_printf(l_str_out, " OUT item %lld %s to %s\n",
+            if(l_tx_out)
+                dap_string_append_printf(l_str_out, " OUT item %lld %s to %s\n",
                     l_tx_out->header.value,
                     dap_strlen(l_token_str) > 0 ? l_token_str : "?",
                     l_dst_to_str ? l_dst_to_str : "?"

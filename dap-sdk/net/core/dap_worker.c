@@ -522,9 +522,10 @@ void *dap_worker_thread(void *arg)
                if ( l_worker->poll[i].fd == -1){
                    if( l_worker->poll_count){
                        for(size_t j = i; j < l_worker->poll_count-1; j++){
-                           l_worker->poll[j].fd = l_worker->poll[j+1].fd;
-                           l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
-                           l_worker->poll_esocket[j]->poll_index = j;
+                            l_worker->poll[j].fd = l_worker->poll[j+1].fd;
+                            l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
+                            if(l_worker->poll_esocket[j])
+                                l_worker->poll_esocket[j]->poll_index = j;
                        }
                    }
                    i--;

@@ -660,7 +660,7 @@ dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t
     dap_chain_cs_dag_event_item_t* l_event_item = NULL;
     pthread_rwlock_wrlock( &PVT(a_dag)->events_rwlock );
     HASH_FIND(hh, PVT(a_dag)->events ,a_hash,sizeof(*a_hash), l_event_item);
-    dap_chain_cs_dag_event_t * l_event = l_event_item->event;
+    dap_chain_cs_dag_event_t * l_event = l_event_item? l_event_item->event: NULL;
     pthread_rwlock_unlock( &PVT(a_dag)->events_rwlock );
     return  l_event;
 }
@@ -1103,8 +1103,10 @@ static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chai
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t * a_atom_size )
 {
     if (a_atom_iter->cur ){
+        dap_chain_cs_dag_pvt_t* l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_atom_iter->chain));
         dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
         a_atom_iter->cur_item = l_event_item->hh.next;
+        HASH_ITER(hh,l_dag_pvt->events, a_atom_iter->cur_item, l_dag_pvt->events_tmp);
         l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
         // if l_event_item=NULL then items are over
         a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
