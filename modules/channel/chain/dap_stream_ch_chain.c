@@ -677,9 +677,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
         break;
     case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS: {
-        dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
+        dap_stream_ch_chain_sync_request_t l_sync_gdb = {0};
         memcpy(&l_sync_gdb, l_chain_pkt->data, l_chain_pkt_data_size);
-        l_sync_gdb.id_start = dap_db_get_last_id_remote(l_sync_gdb.node_addr.uint64);
+        //l_sync_gdb.id_start = dap_db_get_last_id_remote(l_sync_gdb.node_addr.uint64);
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         log_it(L_INFO, "In:  SYNC_GLOBAL_DB_RVRS pkt: net 0x%016x chain 0x%016x cell 0x%016x, request gdb sync from %u", l_chain_pkt->hdr.net_id.uint64 ,
@@ -693,7 +693,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_chain_sync_request_t l_request={0};
             dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
             if( l_chain){
-                dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from);
+                //dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from);
                 if( dap_log_level_get()<= L_INFO){
                     char l_hash_from_str[70]={[0]='\0'};
                     dap_chain_hash_fast_to_str(&l_request.hash_from,l_hash_from_str,sizeof (l_hash_from_str)-1);
