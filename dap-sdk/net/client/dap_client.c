@@ -317,7 +317,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
 
     assert(l_client_pvt);
 
-    struct go_stage_arg *l_stage_arg = DAP_NEW_Z(struct go_stage_arg);
+    struct go_stage_arg *l_stage_arg = DAP_NEW_Z(struct go_stage_arg); if (! l_stage_arg) return;
     l_stage_arg->stage_end_callback = a_stage_end_callback;
     l_stage_arg->stage_target = a_stage_target;
     l_stage_arg->client_pvt = l_client_pvt;
@@ -334,7 +334,7 @@ void dap_client_delete_mt(dap_client_t * a_client)
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
     assert(l_client_pvt);
 
-    struct go_stage_arg *l_stage_arg = DAP_NEW(struct go_stage_arg);
+    struct go_stage_arg *l_stage_arg = DAP_NEW(struct go_stage_arg); if (! l_stage_arg) return;
     l_stage_arg->stage_end_callback  = s_stage_done_delete ;
     l_stage_arg->stage_target = STAGE_BEGIN ;
     l_stage_arg->client_pvt = l_client_pvt;

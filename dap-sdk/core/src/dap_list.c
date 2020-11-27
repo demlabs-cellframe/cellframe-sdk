@@ -3,7 +3,6 @@
  */
 
 #include <stddef.h>
-
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_list.h"
@@ -105,6 +104,8 @@ dap_list_t * dap_list_append(dap_list_t *list, void* data)
     dap_list_t *last;
 
     new_list = dap_list_alloc();
+    if( !new_list) // Out of memory
+        return list;
     new_list->data = data;
     new_list->next = NULL;
 

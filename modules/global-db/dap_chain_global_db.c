@@ -859,7 +859,7 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_obj_count)
 {
     const dap_store_obj_pkt_t *l_pkt = (const dap_store_obj_pkt_t*) a_data;
-    if (! l_pkt)
+    if (! l_pkt || ! a_data_size)
         return NULL;
     if( (l_pkt->data_size+ sizeof(dap_store_obj_pkt_t)) != ((size_t) a_data_size ))
         return NULL;

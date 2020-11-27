@@ -345,6 +345,9 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_list_t *l_pkt_copy_list = l_ch_chain->pkt_copy_list;
     if (l_pkt_copy_list) {
         l_ch_chain->pkt_copy_list = l_ch_chain->pkt_copy_list->next;
+        if (l_ch_chain->pkt_copy_list )
+            l_ch_chain->pkt_copy_list->prev = NULL;
+
         dap_chain_pkt_copy_t *l_pkt_copy = (dap_chain_pkt_copy_t *)l_pkt_copy_list->data;
         size_t l_data_obj_count = 0;
         // deserialize data & Parse data from dap_db_log_pack()

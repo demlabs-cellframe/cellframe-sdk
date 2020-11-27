@@ -406,7 +406,7 @@ static void * s_proc_thread_function(void * a_arg)
                 }
             }
             if (l_flag_write ){
-                int l_errno;
+                int l_errno=0;
                 if (l_cur->buf_out_size){
                     ssize_t l_bytes_sent = -1;
                     switch (l_cur->type) {
@@ -571,7 +571,7 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     }
 
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
-    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1); if (!l_data) return -1;
     l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
     va_end(ap_copy);
 

@@ -528,7 +528,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
  */
 dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     if (a_w){
         l_es->events = a_w->events;
@@ -718,7 +718,7 @@ void *dap_events_socket_buf_thread(void *arg)
             dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
             break;
         }
-    //    l_count++;
+        l_count++;
     }
     if(l_res != 0)
         log_it(L_WARNING, "Lost data bulk in events socket buf thread");
@@ -729,7 +729,7 @@ void *dap_events_socket_buf_thread(void *arg)
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 {
-    dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t);
+    dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t); if (!l_item) return;
     l_item->es = a_es;
     l_item->arg = a_arg;
     pthread_t l_thread;
@@ -848,7 +848,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   assert( a_server );
 
   //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
-  dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t );
+  dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t ); if (!ret) return NULL;
 
   ret->socket = a_sock;
   ret->events = a_events;
@@ -1105,7 +1105,7 @@ void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_sock
  */
 void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready)
 {
-    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (! l_msg) return;
     l_msg->esocket = a_es;
     if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_READ;
@@ -1126,7 +1126,7 @@ void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t *
  */
 void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t * a_es,bool a_is_ready)
 {
-    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return;
     l_msg->esocket = a_es;
     if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -1150,7 +1150,7 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t *
  */
 size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {
-    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if( !l_msg) return 0;
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,a_data_size);
     l_msg->data_size = a_data_size;
@@ -1212,7 +1212,7 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
  */
 size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, const void * data, size_t l_data_size)
 {
-    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
     l_msg->esocket = a_es;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->data_size = l_data_size;
