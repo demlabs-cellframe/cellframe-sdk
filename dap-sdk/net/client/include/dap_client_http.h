@@ -18,6 +18,8 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef DAP_CLIENT_HTTP_H
+#define DAP_CLIENT_HTTP_H
 
 #pragma once
 
@@ -44,3 +46,5 @@ void* dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr,
 #ifdef __cplusplus
 }
 #endif
+
+#endif // DAP_CLIENT_HTTP_H
