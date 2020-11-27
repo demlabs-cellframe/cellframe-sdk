@@ -721,47 +721,52 @@ static void s_request_error(int a_err_code, void * a_obj)
  */
 static void s_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
-    dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
-    if(!a_client_internal || !a_client_internal->client){
-        if( !a_client_internal )
+    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
+    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
+        return;
+    }
+
+    if(!l_client_pvt || !l_client_pvt->client){
+        if( !l_client_pvt )
             log_it(L_ERROR,"Client internal is NULL for s_request_response");
         else
             log_it(L_ERROR,"Client is NULL for s_request_response");
 
         return;
     }
-    a_client_internal->refs_count--;
+    l_client_pvt->refs_count--;
 
-    if (a_client_internal->is_to_delete){
-        if(a_client_internal->refs_count==0) // Was requested to delete until we was working with request
-            dap_client_delete_unsafe(a_client_internal->client); // Init delete
+    if (l_client_pvt->is_to_delete){
+        if(l_client_pvt->refs_count==0) // Was requested to delete until we was working with request
+            dap_client_delete_unsafe(l_client_pvt->client); // Init delete
         return;
     }
 
 
     //int l_ref = dap_client_pvt_get_ref(a_client_internal);
-    if(a_client_internal->is_encrypted) {
+    if(l_client_pvt->is_encrypted) {
         size_t l_response_dec_size_max = a_response_size ? a_response_size * 2 + 16 : 0;
         char * l_response_dec = a_response_size ? DAP_NEW_Z_SIZE(char, l_response_dec_size_max) : NULL;
         size_t l_response_dec_size = 0;
         if(a_response_size)
-            l_response_dec_size = dap_enc_decode(a_client_internal->session_key,
+            l_response_dec_size = dap_enc_decode(l_client_pvt->session_key,
                     a_response, a_response_size,
                     l_response_dec, l_response_dec_size_max,
                     DAP_ENC_DATA_TYPE_RAW);
 
-        if ( a_client_internal->request_response_callback )
-            a_client_internal->request_response_callback(a_client_internal->client, l_response_dec, l_response_dec_size);
+        if ( l_client_pvt->request_response_callback )
+            l_client_pvt->request_response_callback(l_client_pvt->client, l_response_dec, l_response_dec_size);
         else
-            log_it(L_ERROR, "NULL request_response_callback for encrypted client %p", a_client_internal->client );
+            log_it(L_ERROR, "NULL request_response_callback for encrypted client %p", l_client_pvt->client );
 
         if(l_response_dec)
             DAP_DELETE(l_response_dec);
     } else {
-        if ( a_client_internal->request_response_callback )
-            a_client_internal->request_response_callback(a_client_internal->client, a_response, a_response_size);
+        if ( l_client_pvt->request_response_callback )
+            l_client_pvt->request_response_callback(l_client_pvt->client, a_response, a_response_size);
         else
-            log_it(L_ERROR, "NULL request_response_callback for unencrypted  client %p", a_client_internal->client );
+            log_it(L_ERROR, "NULL request_response_callback for unencrypted  client %p", l_client_pvt->client );
     }
 
     //int l_ref2 = dap_client_pvt_get_ref(a_client_internal);
@@ -885,6 +890,10 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
 static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
+    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
+        return;
+    }
 
     //dap_client_internal_t * l_client_internal = dap_CLIENT_INTERNAL(a_client);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
@@ -996,6 +1005,10 @@ static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
     log_it(L_WARNING, "STREAM_CTL error %d", a_error);
 
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
+    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
+        // Response received after client_pvt was deleted
+        return;
+    }
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

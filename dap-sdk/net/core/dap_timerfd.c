@@ -195,7 +195,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #if defined DAP_OS_WINDOWS
         CloseHandle(l_timerfd->th);
 #endif
-        dap_events_socket_remove_and_delete_unsafe(l_timerfd->events_socket, false);
+        l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
 

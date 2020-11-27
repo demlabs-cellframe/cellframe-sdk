@@ -604,8 +604,12 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 DL_FOREACH (a_net->pub.chains, l_chain) {
                     dap_chain_node_client_reset(l_node_client);
                     dap_stream_ch_chain_sync_request_t l_request = {0};
+
+                    // TODO: Uncomment next block when finish with partial updates
+                    /*
                     if (! (l_pvt_net->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO) )
                         dap_chain_get_atom_last_hash(l_chain,&l_request.hash_from);
+                    */
 
                     if ( !dap_hash_fast_is_blank(&l_request.hash_from) ){
                         if(dap_log_level_get() <= L_DEBUG){
