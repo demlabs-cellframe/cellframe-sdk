@@ -277,7 +277,6 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
                 memcpy(l_price, l_srv->pricelist, sizeof(*l_price));
                 l_price->value_datoshi = 0;
-                l_price->value_coins = 0;
             }
             l_usage->price = l_price;
             // TODO extend callback to pass ext and ext size from service callbacks

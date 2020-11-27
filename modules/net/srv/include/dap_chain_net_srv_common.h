@@ -75,7 +75,6 @@ typedef struct dap_chain_net_srv_price
     char * net_name;
     dap_chain_net_t * net;
     uint64_t value_datoshi;
-    double value_coins;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     uint64_t units;
     dap_chain_net_srv_price_unit_uid_t units_uid;
