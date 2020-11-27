@@ -159,6 +159,9 @@ typedef struct dap_chain{
 int dap_chain_init(void);
 void dap_chain_deinit(void);
 
+dap_chain_t* dap_chain_enum(void** a_item);
+void dap_chain_enum_unlock(void);
+
 
 dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger,const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );
 
