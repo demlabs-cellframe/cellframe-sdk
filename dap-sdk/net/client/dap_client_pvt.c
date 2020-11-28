@@ -698,19 +698,19 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
  */
 static void s_request_error(int a_err_code, void * a_obj)
 {
-    dap_client_pvt_t * a_client_internal = (dap_client_pvt_t *) a_obj;
+    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
     dap_client_pvt_hh_lock();
-    if(!dap_client_pvt_hh_get(a_client_internal)){
+    if(!dap_client_pvt_hh_get(l_client_pvt)){
         dap_client_pvt_hh_unlock();
         return;
     }
-    dap_client_pvt_hh_unlock();
 
-    if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client)
+    if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client)
     {
-        if(a_client_internal && a_client_internal->request_error_callback && a_client_internal->client && a_client_internal->client->_internal)
-            a_client_internal->request_error_callback(a_client_internal->client, a_err_code);
+        if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client && l_client_pvt->client->_internal)
+            l_client_pvt->request_error_callback(l_client_pvt->client, a_err_code);
     }
+    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -722,8 +722,9 @@ static void s_request_error(int a_err_code, void * a_obj)
 static void s_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
-    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
+    dap_client_pvt_hh_lock();
+    if(!dap_client_pvt_hh_get(l_client_pvt)){
+        dap_client_pvt_hh_unlock();
         return;
     }
 
@@ -768,11 +769,7 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
         else
             log_it(L_ERROR, "NULL request_response_callback for unencrypted  client %p", l_client_pvt->client );
     }
-
-    //int l_ref2 = dap_client_pvt_get_ref(a_client_internal);
-    // unref pvt client
-    //dap_client_pvt_unref(a_client_internal);
-    //dap_client_pvt_unref(DAP_CLIENT_PVT(a_client_internal->client));
+    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -783,11 +780,9 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
  */
 static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
-    dap_client_pvt_t * l_client_pvt = a_client ? DAP_CLIENT_PVT(a_client) : NULL;
-    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
+    assert(l_client_pvt);
+
     if (!l_client_pvt->session_key_open){
         log_it(L_ERROR, "m_enc_init_response: session is NULL!");
         l_client_pvt->last_error = ERROR_ENC_SESSION_CLOSED ;
@@ -890,12 +885,7 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
 static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
-
-    //dap_client_internal_t * l_client_internal = dap_CLIENT_INTERNAL(a_client);
+    assert(l_client_pvt);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
     if (a_err_code == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
@@ -915,10 +905,7 @@ static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+    assert(l_client_pvt);
 
     log_it(L_DEBUG, "STREAM_CTL response %u bytes length recieved", a_data_size);
     char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
@@ -1005,10 +992,7 @@ static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
     log_it(L_WARNING, "STREAM_CTL error %d", a_error);
 
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if (! l_client_pvt ||  !dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+    assert(l_client_pvt);
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
@@ -1031,10 +1015,7 @@ static void s_stream_ctl_error(dap_client_t * a_client, int a_error)
 static void s_stream_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+    assert(l_client_pvt);
     log_it(L_DEBUG, "STREAM response %u bytes length recieved", a_data_size);
 //    char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
 //    memcpy(l_response_str, a_data, a_data_size);
