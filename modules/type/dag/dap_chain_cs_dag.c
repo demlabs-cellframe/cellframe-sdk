@@ -69,7 +69,6 @@ typedef struct dap_chain_cs_dag_pvt {
     pthread_rwlock_t events_rwlock;
 
     dap_chain_cs_dag_event_item_t * events;
-    dap_chain_cs_dag_event_item_t * events_tmp; // Tmp value for HASH_ITER
 
     dap_chain_cs_dag_event_item_t * tx_events;
     dap_chain_cs_dag_event_item_t * events_treshold;
@@ -961,17 +960,18 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         return NULL;
     }
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
-    dap_chain_cs_dag_pvt_t *l_dag_pvt = l_dag ? PVT(l_dag) : NULL;
-    l_dag_pvt->events_tmp = NULL;
-    dap_chain_cs_dag_event_item_t * l_cur_item = NULL;
-    HASH_ITER(hh,l_dag_pvt->events, l_cur_item, l_dag_pvt->events_tmp);
-    a_atom_iter->cur_item = l_cur_item;
-    a_atom_iter->cur = (dap_chain_cs_dag_event_t*) (l_cur_item ? l_cur_item->event : NULL);
-    a_atom_iter->cur_size = l_dag_pvt->events ? l_dag_pvt->events->event_size : 0;
+    assert(l_dag);
+    dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
+    assert(l_dag_pvt);
+    a_atom_iter->cur_item = l_dag_pvt->events;
+    if ( a_atom_iter->cur_item ){
+        a_atom_iter->cur = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event;
+        a_atom_iter->cur_size = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event_size;
+    }else{
+        a_atom_iter->cur = NULL;
+        a_atom_iter->cur_size = 0;
+    }
 
-//    a_atom_iter->cur =  a_atom_iter->cur ?
-//                (dap_chain_cs_dag_event_t*) PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events->event : NULL;
-//    a_atom_iter->cur_item = PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events;
     if (a_ret_size)
         *a_ret_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
@@ -1103,10 +1103,9 @@ static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chai
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t * a_atom_size )
 {
     if (a_atom_iter->cur ){
-        dap_chain_cs_dag_pvt_t* l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_atom_iter->chain));
+        //dap_chain_cs_dag_pvt_t* l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_atom_iter->chain));
         dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
         a_atom_iter->cur_item = l_event_item->hh.next;
-        HASH_ITER(hh,l_dag_pvt->events, a_atom_iter->cur_item, l_dag_pvt->events_tmp);
         l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
         // if l_event_item=NULL then items are over
         a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;

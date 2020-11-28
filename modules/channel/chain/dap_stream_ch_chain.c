@@ -581,7 +581,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                    l_ch_chain->request_hdr.cell_id.uint64, l_ch_chain->request.id_start, l_ch_chain->request.id_end );
 
             if(l_ch_chain->state != CHAIN_STATE_IDLE) {
-                log_it(L_INFO, "Can't process SYNC_GLOBAL_DB request because not in idle state");
+                log_it(L_WARNING, "Can't process SYNC_GLOBAL_DB request because not in idle state");
                 dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                         l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                         "ERROR_STATE_NOT_IN_IDLE");
@@ -590,7 +590,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             // receive the latest global_db revision of the remote node -> go to send mode
             else {
-                log_it(L_ERROR, "Get DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB session_id=%u bad request",
+                log_it(L_INFO, "Got DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB request",
                         a_ch->stream->session->id);
                 dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
                 dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_gdb_callback, a_ch);
