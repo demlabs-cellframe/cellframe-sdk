@@ -687,7 +687,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #endif
         } else {
 #ifdef DAP_OS_WINDOWS
-            int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, sizeof(a_esocket->buf_in));
+            int l_read = read_from_socket(a_esocket, true);
             if (l_read == SOCKET_ERROR) {
                 log_it(L_ERROR, "Queue socket %d received invalid data, error %d", a_esocket->socket, WSAGetLastError());
                 return -1;
@@ -841,7 +841,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #elif defined DAP_OS_WINDOWS
         uint64_t l_value;
         int l_ret;
-        switch (l_ret = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size)) {
+        switch (l_ret = dap_recvfrom(a_esocket, true)) {
         case SOCKET_ERROR:
             log_it(L_CRITICAL, "Can't read from event socket, error: %d", WSAGetLastError());
             break;
@@ -1024,6 +1024,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     l_mps.aPropID = l_p_id;
     l_mps.aPropVar = l_mpvar;
     l_mps.aStatus = l_mstatus;
+    log_it(L_INFO, "Sent PTR %p", a_arg);
     HRESULT hr = MQSendMessage(a_es->mqh, &l_mps, MQ_NO_TRANSACTION);
 
     if (hr != MQ_OK) {
@@ -1031,7 +1032,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         return hr;
     }
     
-    if(dap_sendto(a_es->sock_sendr, NULL, 0) == SOCKET_ERROR) {
+    if(dap_sendto(a_es, false) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
@@ -1074,11 +1075,11 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     else
         return 1;
 #elif defined DAP_OS_WINDOWS
-    memset(a_es->buf_out, 0, sizeof(a_es->buf_out));
+	memset(a_es->buf_out, 0, sizeof(a_es->bufout));
 	for (u_short i = 0; i < sizeof(uint64_t); ++i, ++a_es->buf_out_size) {
         a_es->buf_out[i] = (char)(((uint64_t) a_value >> (8 * (sizeof(uint64_t) - 1 - i))) & 0xFFu);
     }
-    if(dap_sendto(a_es->sock_sendr, a_es->buf_out, sizeof(a_es->buf_out)) == SOCKET_ERROR) {
+    if(dap_sendto(a_es, true) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
@@ -1563,8 +1564,8 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data
         log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", sc->buf_out_size, sizeof(sc->buf_out));
         return 0;
     }
-     //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
-     data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out))) ? data_size : (sizeof(sc->buf_out)-sc->buf_out_size );
+    //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
+     data_size = ((sc->buf_out_size+data_size)<(sizeof(sc->buf_out)))?data_size:(sizeof(sc->buf_out)-sc->buf_out_size );
      memcpy(sc->buf_out+sc->buf_out_size,data,data_size);
      sc->buf_out_size+=data_size;
      dap_events_socket_set_writable_unsafe(sc, true);

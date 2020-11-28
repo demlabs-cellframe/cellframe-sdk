@@ -145,14 +145,10 @@ void *dap_worker_thread(void *arg)
         if(l_selected_sockets == -1) {
             if( errno == EINTR)
                 continue;
-#ifdef DAP_OS_WINDOWS
-            log_it(L_ERROR, "Worker thread %d got errno %d", l_worker->id, WSAGetLastError());
-#else
             int l_errno = errno;
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_ERROR, "Worker thread %d got errno:\"%s\" (%d)", l_worker->id, l_errbuf, l_errno);
-#endif
             break;
         }
 
@@ -195,7 +191,6 @@ void *dap_worker_thread(void *arg)
                 log_it(L_DEBUG, "Worker #%u esocket %p type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_worker->id, l_cur, l_cur->type, l_cur->socket,
                     l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
-            }
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
@@ -276,7 +271,7 @@ void *dap_worker_thread(void *arg)
                     case DESCRIPTOR_TYPE_FILE:
                         l_must_read_smth = true;
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, l_cur->buf_in + l_cur->buf_in_size, sizeof(l_cur->buf_in) - l_cur->buf_in_size);
+                        l_bytes_read = dap_recvfrom(l_cur->socket, l_tempbuf, sizeof(void*), 0, (struct sockaddr *)&l_dummy, &l_size);
 #else
                         l_bytes_read = read(l_cur->socket, (char *) (l_cur->buf_in + l_cur->buf_in_size),
                                 sizeof(l_cur->buf_in) - l_cur->buf_in_size);
@@ -332,7 +327,7 @@ void *dap_worker_thread(void *arg)
                         uint64_t val;
                         /* if we not reading data from socket, he triggered again */
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+                        l_bytes_read = dap_recvfrom(l_cur->socket, l_tempbuf, sizeof(void*), 0, (struct sockaddr *)&l_dummy, &l_size);
 #else
                         read( l_cur->fd, &val, 8);
 #endif
@@ -344,14 +339,14 @@ void *dap_worker_thread(void *arg)
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+                        l_bytes_read = dap_recvfrom(l_cur->socket, l_tempbuf, sizeof(void*), 0, (struct sockaddr *)&l_dummy, &l_size);
 #endif
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
                         dap_events_socket_set_writable_unsafe(l_cur, false);
                     break;
                     case DESCRIPTOR_TYPE_EVENT:
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+                        l_bytes_read = dap_recvfrom(l_cur->socket, l_tempbuf, sizeof(void*), 0, (struct sockaddr *)&l_dummy, &l_size);
 #endif
                         dap_events_socket_event_proc_input_unsafe(l_cur);
                     break;
@@ -517,8 +512,8 @@ void *dap_worker_thread(void *arg)
                                  } else {
                                      l_errno = WSAGetLastError();
 
-                                     if(dap_sendto(l_cur->sock_sendr, NULL, 0) == SOCKET_ERROR) {
-                                         log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
+                                     if(dap_sendto(l_cur->sock_sendr, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len) == -1) {
+                                         log_it(L_ERROR, "Write to pipe error: %d", WSAGetLastError());
                                      }
                                      l_cur->buf_out_size = 0;
                                      dap_events_socket_set_writable_unsafe(l_cur,false);
@@ -832,8 +827,8 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
     if(l_ret != 0 ){
         char l_errbuf[128];
         *l_errbuf = 0;
-        strerror_r(l_ret, l_errbuf, sizeof(l_errbuf));
-        log_it(L_ERROR, "Can't send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
     }
 }
 

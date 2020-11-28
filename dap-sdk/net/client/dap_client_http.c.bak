@@ -281,11 +281,6 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         return NULL;
     }
     // Get socket flags
-#if defined DAP_OS_WINDOWS
-    u_long l_socket_flags = 0;
-    if (ioctlsocket((SOCKET)l_socket, (long)FIONBIO, &l_socket_flags))
-        log_it(L_ERROR, "Error ioctl %d", WSAGetLastError());
-#else
     int l_socket_flags = fcntl(l_socket, F_GETFL);
     if (l_socket_flags == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
@@ -296,7 +291,6 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
         return NULL;
     }
-#endif
     // set socket param
     int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
 #ifdef _WIN32
@@ -347,8 +341,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
     l_ev_socket->flags |= DAP_SOCK_CONNECTING;
-    l_ev_socket->type = DESCRIPTOR_TYPE_SOCKET;
-    l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE;
+    l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE ;
 
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
     if (l_err == 0){

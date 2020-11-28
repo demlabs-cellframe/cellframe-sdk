@@ -411,7 +411,7 @@ static void * s_proc_thread_function(void * a_arg)
             l_cur->last_time_active = l_cur_time;
             if (l_flag_error){
 #ifdef DAP_OS_WINDOWS
-                int l_errno = WSAGetLastError();
+				l_errno = WSAGetLastError();
 #else
                 int l_errno = errno;
 #endif
@@ -427,7 +427,7 @@ static void * s_proc_thread_function(void * a_arg)
                     case DESCRIPTOR_TYPE_QUEUE:
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+						l_bytes_read = dap_recvfrom(l_cur, false);
 #endif
                         break;
                     case DESCRIPTOR_TYPE_EVENT:
@@ -437,7 +437,7 @@ static void * s_proc_thread_function(void * a_arg)
                     default:
                         log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop");
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+						l_bytes_read = dap_recvfrom(l_cur, false);
 #endif
                         break;
                 }
@@ -476,8 +476,8 @@ static void * s_proc_thread_function(void * a_arg)
                                     log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
                                     break;
                                 } else {
-                                    if(dap_sendto(l_cur->sock_sendr, NULL, 0) == SOCKET_ERROR) {
-                                        log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
+                                    if(dap_sendto(l_cur, false) == SOCKET_ERROR) {
+                                        log_it(L_ERROR, "Write to pipe error: %d", WSAGetLastError());
                                     }
                                     l_cur->buf_out_size = 0;
                                     dap_events_socket_set_writable_unsafe(l_cur,false);

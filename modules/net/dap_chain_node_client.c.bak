@@ -594,9 +594,9 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     }
 #endif
 
-#ifndef DAP_OS_WINDOWS
+    } while(1);
+
     pthread_mutex_unlock(&a_client->wait_mutex);
-#endif
     return ret;
 }
 

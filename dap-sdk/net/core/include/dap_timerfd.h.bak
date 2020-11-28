@@ -52,7 +52,7 @@ typedef struct dap_timerfd {
     void *callback_arg;
 #ifdef DAP_OS_WINDOWS
     HANDLE th;
-    SOCKET pipe_in;
+    int pipe_in;
 #endif
 } dap_timerfd_t;
 

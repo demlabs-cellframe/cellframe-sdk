@@ -289,34 +289,34 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 
 #ifdef DAP_OS_WINDOWS
-DAP_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
+DAP_INLINE int dap_recvfrom(dap_events_socket_t *s, bool in_buf) {
     struct sockaddr_in l_dummy;
     socklen_t l_size = sizeof(l_dummy);
     int ret;
-    if (buf_in) {
-        memset(buf_in, 0, buf_size);
-        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
+    if (in_buf) {
+        memset(s->buf_in, 0, sizeof(s->buf_in));
+        ret = recvfrom(s->socket, (char*)s->buf_in, sizeof(void*), 0, (struct sockaddr *)&l_dummy, &l_size);
     } else {
-        char l_tempbuf[sizeof(void*)];
-        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
+        char l_tempbuf[s->buf_in_size];
+        ret = recvfrom(s->socket, l_tempbuf, sizeof(void*), 0, (struct sockaddr *)&l_dummy, &l_size);
     }
     return ret;
 }
 
-DAP_INLINE int dap_sendto(SOCKET s, void* buf_out, size_t buf_out_size) {
+DAP_INLINE int dap_sendto(dap_events_socket_t *s, bool out_buf) {
     int l_addr_len;
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;
     IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
     l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = s + 32768;
+    l_addr.sin_port = s->socket + 32768;
     l_addr_len = sizeof(struct sockaddr_in);
     int ret;
-    if (buf_out) {
-        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
+    if (out_buf) {
+        ret = sendto(s->sock_sendr, (char*)s->buf_out, (int)s->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
     } else {
         char l_bytes[sizeof(void*)] = { 0 };
-        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
+        ret = sendto(s->sock_sendr, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
     }
     return ret;
 }

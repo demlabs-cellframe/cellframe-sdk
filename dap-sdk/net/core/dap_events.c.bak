@@ -252,13 +252,12 @@ int dap_events_start( dap_events_t *a_events )
         //log_it(L_DEBUG, "Created event_fd %d for worker %u", l_worker->epoll_fd,i);
 #ifdef DAP_OS_WINDOWS
         if (!l_worker->epoll_fd) {
-            int l_errno = WSAGetLastError();
 #else
         if ( l_worker->epoll_fd == -1 ) {
-            int l_errno = errno;
 #endif
+            int l_errno = errno;
             char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            strerror_r(l_errno, l_errbuf, sizeof ( l_errbuf) );
             log_it(L_CRITICAL, "Error create epoll fd: %s (%d)", l_errbuf, l_errno);
             DAP_DELETE(l_worker);
             return -1;

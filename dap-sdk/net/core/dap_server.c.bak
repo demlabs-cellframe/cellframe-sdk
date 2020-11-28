@@ -151,7 +151,6 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket");
-    reuse=1;
 #ifdef SO_REUSEPORT
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEPORT flag to the socket");
@@ -179,7 +178,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         log_it(L_INFO,"Binded %s:%u",l_server->address,l_server->port);
         listen(l_server->socket_listener, SOMAXCONN);
     }
-#ifdef DAP_OS_WINDOWS
+if defined DAP_OS_WINDOWS
      u_long l_mode = 0;
      ioctlsocket(l_server->socket_listener, (long)FIONBIO, &l_mode);
 #else
@@ -213,9 +212,9 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         if (l_es) {
             l_es->type = l_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
             // Prepare for multi thread listening
-            l_es->ev_base_flags = EPOLLIN;
+            l_es->ev_base_flags = EPOLLET| EPOLLIN | EPOLLEXCLUSIVE;
 #ifdef EPOLLEXCLUSIVE
-            l_es->ev_base_flags |= EPOLLET | EPOLLEXCLUSIVE;
+            l_es->ev_base_flags |= EPOLLEXCLUSIVE;
 #endif
             l_es->_inheritor = l_server;
             pthread_mutex_lock(&l_server->started_mutex);
@@ -240,7 +239,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         dap_worker_add_events_socket( l_es, l_w );
         pthread_cond_wait(&l_server->started_cond, &l_server->started_mutex);
         pthread_mutex_unlock(&l_server->started_mutex);
-    } else {
+    } else{
         log_it(L_WARNING, "Can't wrap event socket for %s:%u server", a_addr, a_port);
         return NULL;
     }
