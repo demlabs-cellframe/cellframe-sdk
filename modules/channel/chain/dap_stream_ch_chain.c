@@ -352,8 +352,14 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         size_t l_data_obj_count = 0;
         // deserialize data & Parse data from dap_db_log_pack()
         dap_store_obj_t *l_store_obj = dap_db_log_unpack(l_pkt_copy->pkt_data, l_pkt_copy->pkt_data_size, &l_data_obj_count);
-        if (s_debug_chain_sync)
-            log_it(L_INFO, "In: l_data_obj_count = %d", l_data_obj_count );
+        if (s_debug_chain_sync){
+            if (l_data_obj_count)
+                log_it(L_INFO, "In: l_data_obj_count = %d", l_data_obj_count );
+            else if (l_pkt_copy->pkt_data)
+                log_it(L_WARNING, "In: No data objs after unpack", l_data_obj_count );
+            else
+                 log_it(L_WARNING, "In: packet in list with NULL data");
+        }
 
         for(size_t i = 0; i < l_data_obj_count; i++) {
             // timestamp for exist obj
@@ -439,8 +445,10 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         }
         if(l_store_obj)
             dap_store_obj_free(l_store_obj, l_data_obj_count);
-        DAP_DELETE(l_pkt_copy);
-        DAP_DELETE(l_pkt_copy_list);
+        if (l_pkt_copy)
+            DAP_DELETE(l_pkt_copy);
+        if (l_pkt_copy_list)
+            DAP_DELETE(l_pkt_copy_list);
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
     }
