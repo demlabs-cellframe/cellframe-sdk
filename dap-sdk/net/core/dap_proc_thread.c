@@ -55,7 +55,7 @@ static void * s_proc_thread_function(void * a_arg);
 int dap_proc_thread_init(uint32_t a_threads_count){
     s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
-    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
+    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",true);
     for (size_t i = 0; i < s_threads_count; i++ ){
 
         s_threads[i].cpu_id = i;
@@ -476,7 +476,7 @@ static void * s_proc_thread_function(void * a_arg)
                                     log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
                                     break;
                                 } else {
-                                    if(dap_sendto(l_cur->sock_sendr, NULL, 0) == SOCKET_ERROR) {
+                                    if(dap_sendto(l_cur->socket, NULL, 0) == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
                                     }
                                     l_cur->buf_out_size = 0;

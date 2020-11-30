@@ -69,7 +69,7 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
     UNREFERENCED_PARAMETER(low)
     UNREFERENCED_PARAMETER(high)
     dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
-    if (dap_sendto(l_timerfd->pipe_in, NULL, 0) == SOCKET_ERROR) {
+    if (dap_sendto(l_timerfd->tfd, NULL, 0) == SOCKET_ERROR) {
         log_it(L_CRITICAL, "Error occured on writing into socket from APC, errno: %d", WSAGetLastError());
     }
 }
@@ -165,10 +165,6 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     l_timerfd->callback_arg     = a_callback_arg;
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
-    l_timerfd->pipe_in          = socket(AF_INET, SOCK_DGRAM, 0);
-    setsockopt(l_timerfd->pipe_in, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int));
-    l_mode = 0;
-    ioctlsocket(l_timerfd->pipe_in, FIONBIO, &l_mode);
 #endif
     dap_worker_add_events_socket(l_events_socket, a_worker);
     return l_timerfd;

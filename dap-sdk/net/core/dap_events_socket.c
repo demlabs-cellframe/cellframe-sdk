@@ -84,7 +84,7 @@ static bool s_debug_reactor = false;
 int dap_events_socket_init( )
 {
     log_it(L_NOTICE,"Initialized events socket module");
-    s_debug_reactor = dap_config_get_item_bool_default(g_config, "general","debug_reactor", false);
+    s_debug_reactor = dap_config_get_item_bool_default(g_config, "general","debug_reactor", true);
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -151,7 +151,11 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     if ( a_sock!= 0 && a_sock != -1){
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-        HASH_ADD(hh,a_events->sockets, socket, sizeof (int), ret);
+#ifdef DAP_OS_WINDOWS
+        HASH_ADD(hh,a_events->sockets, socket, sizeof(SOCKET), ret);
+#else
+        HASH_ADD_INT(hh,a_events->sockets, socket, ret);
+#endif
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
     }else
         log_it(L_WARNING, "Be carefull, you've wrapped socket 0 or -1 so it wasn't added to global list. Do it yourself when possible");
@@ -359,7 +363,6 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->mqh_recv  = a_es->mqh_recv;
 
     l_es->socket        = a_es->socket;
-    l_es->sock_sendr    = a_es->sock_sendr;
 
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN + 1] = { 0 };
     size_t l_sz_in_words = sizeof(l_direct_name)/sizeof(l_direct_name[0]);
@@ -484,16 +487,14 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     assert(l_es->mqd);
 #elif defined DAP_EVENTS_CAPS_MSMQ
     l_es->socket        = socket(AF_INET, SOCK_DGRAM, 0);
-    l_es->sock_sendr    = socket(AF_INET, SOCK_DGRAM, 0);
 
-    if (l_es->socket == INVALID_SOCKET || l_es->sock_sendr == INVALID_SOCKET) {
+    if (l_es->socket == INVALID_SOCKET) {
         log_it(L_ERROR, "Error creating socket for TYPE_QUEUE: %d", WSAGetLastError());
         DAP_DELETE(l_es);
         return NULL;
     }
 
     int buffsize = 1024;
-    setsockopt(l_es->sock_sendr, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int));
     setsockopt(l_es->socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
 
     int reuse = 1;
@@ -501,8 +502,6 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
 
     unsigned long l_mode = 0;
-    ioctlsocket(l_es->sock_sendr, FIONBIO, &l_mode);
-    l_mode = 0;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
     int l_addr_len;
@@ -612,8 +611,14 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
     dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
     assert(l_es);
     // If no worker - don't assign
-    if ( a_w)
-        dap_worker_add_events_socket_unsafe(l_es,a_w);
+    if ( a_w) {
+        if(dap_worker_add_events_socket_unsafe(l_es,a_w)) {
+#ifdef DAP_OS_WINDOWS
+            errno = WSAGetLastError();
+#endif
+            log_it(L_ERROR, "Can't add esocket %d to polling, err %d", l_es->socket, errno);
+        }
+    }
     return  l_es;
 }
 
@@ -751,21 +756,17 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
 
 
     l_es->socket        = socket(AF_INET, SOCK_DGRAM, 0);
-    l_es->sock_sendr    = socket(AF_INET, SOCK_DGRAM, 0);
     
-	if (l_es->socket == INVALID_SOCKET || l_es->sock_sendr == INVALID_SOCKET) {
+    if (l_es->socket == INVALID_SOCKET) {
         log_it(L_ERROR, "Error creating socket for TYPE_QUEUE: %d", WSAGetLastError());
         DAP_DELETE(l_es);
         return NULL;
     }
     
     int buffsize = 1024;
-    setsockopt(l_es->sock_sendr, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int));
     setsockopt(l_es->socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
 
     unsigned long l_mode = 0;
-    ioctlsocket(l_es->sock_sendr, FIONBIO, &l_mode);
-    l_mode = 0;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
     int reuse = 1;
@@ -920,7 +921,7 @@ static int wait_send_socket(int a_sockfd, long timeout_ms)
  * @param arg
  * @return
  */
-void *dap_events_socket_buf_thread(void *arg)
+static void *dap_events_socket_buf_thread(void *arg)
 {
     dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) arg;
     if(!l_item) {
@@ -1031,7 +1032,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         return hr;
     }
     
-    if(dap_sendto(a_es->sock_sendr, NULL, 0) == SOCKET_ERROR) {
+    if(dap_sendto(a_es->socket, NULL, 0) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
@@ -1078,7 +1079,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
 	for (u_short i = 0; i < sizeof(uint64_t); ++i, ++a_es->buf_out_size) {
         a_es->buf_out[i] = (char)(((uint64_t) a_value >> (8 * (sizeof(uint64_t) - 1 - i))) & 0xFFu);
     }
-    if(dap_sendto(a_es->sock_sendr, a_es->buf_out, sizeof(a_es->buf_out)) == SOCKET_ERROR) {
+    if(dap_sendto(a_es->socket, a_es->buf_out, sizeof(a_es->buf_out)) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
@@ -1343,8 +1344,11 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 #endif
 
     a_worker->event_sockets_count--;
-    if(a_worker->esockets)
+    if(a_worker->esockets) {
+        pthread_rwlock_wrlock(&a_worker->esocket_rwlock);
         HASH_DELETE(hh_worker,a_worker->esockets, a_es);
+        pthread_rwlock_unlock(&a_worker->esocket_rwlock);
+    }
     a_es->worker = NULL;
 }
 
@@ -1359,7 +1363,9 @@ bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t 
     if (a_es){
         if ( a_worker->esockets){
             dap_events_socket_t * l_es = NULL;
+            pthread_rwlock_rdlock(&a_worker->esocket_rwlock);
             HASH_FIND(hh_worker,a_worker->esockets,&a_es, sizeof(a_es), l_es );
+            pthread_rwlock_unlock(&a_worker->esocket_rwlock);
             return l_es == a_es;
         }else
             return false;
@@ -1639,3 +1645,37 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
     }
 
 }
+
+#ifdef DAP_OS_WINDOWS
+int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
+    struct sockaddr_in l_dummy;
+    socklen_t l_size = sizeof(l_dummy);
+    int ret;
+    if (buf_in) {
+        memset(buf_in, 0, buf_size);
+        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
+    } else {
+        char l_tempbuf[sizeof(void*)];
+        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
+    }
+    return ret;
+}
+
+int dap_sendto(SOCKET s, void* buf_out, size_t buf_out_size) {
+    int l_addr_len;
+    struct sockaddr_in l_addr;
+    l_addr.sin_family = AF_INET;
+    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
+    l_addr.sin_addr = _in_addr;
+    l_addr.sin_port = s + 32768;
+    l_addr_len = sizeof(struct sockaddr_in);
+    int ret;
+    if (buf_out) {
+        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
+    } else {
+        char l_bytes[sizeof(void*)] = { 0 };
+        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
+    }
+    return ret;
+}
+#endif

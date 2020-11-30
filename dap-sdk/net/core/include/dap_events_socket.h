@@ -54,7 +54,7 @@
     #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_QUEUE_WEVENT
     #define DAP_EVENTS_CAPS_EVENT_WEVENT
-    #define DAP_EVENTS_CAPS_PIPE_POSIX
+    //#define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_MSMQ
     #define INET_ADDRSTRLEN     16
     #define INET6_ADDRSTRLEN    46
@@ -154,9 +154,7 @@ typedef struct dap_events_socket {
 #endif
 #endif
 
-#ifdef DAP_OS_WINDOWS
-    SOCKET sock_sendr;
-#elif defined DAP_EVENTS_CAPS_PIPE_POSIX
+#if defined DAP_EVENTS_CAPS_PIPE_POSIX
     int fd2;
 #endif
     dap_events_desc_type_t type;
@@ -219,7 +217,6 @@ typedef struct dap_events_socket {
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
     void *_pvt; //Private section, different for different types
     struct dap_events_socket * me; // pointer on itself
-
     UT_hash_handle hh;
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
@@ -289,35 +286,6 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 
 #ifdef DAP_OS_WINDOWS
-DAP_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
-    struct sockaddr_in l_dummy;
-    socklen_t l_size = sizeof(l_dummy);
-    int ret;
-    if (buf_in) {
-        memset(buf_in, 0, buf_size);
-        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
-    } else {
-        char l_tempbuf[sizeof(void*)];
-        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
-    }
-    return ret;
-}
-
-DAP_INLINE int dap_sendto(SOCKET s, void* buf_out, size_t buf_out_size) {
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = s + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
-    int ret;
-    if (buf_out) {
-        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    } else {
-        char l_bytes[sizeof(void*)] = { 0 };
-        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    }
-    return ret;
-}
+int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
+int dap_sendto(SOCKET s, void* buf_in, size_t buf_size);
 #endif

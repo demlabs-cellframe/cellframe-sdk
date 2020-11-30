@@ -98,8 +98,9 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         // Init on stream worker
         dap_stream_worker_t * l_stream_worker = a_stream->stream_worker;
         l_ch_new->stream_worker = l_stream_worker;
+        pthread_rwlock_wrlock(&l_stream_worker->channels_rwlock);
         HASH_ADD(hh_worker,l_stream_worker->channels, me,sizeof (void*),l_ch_new);
-
+        pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
         pthread_mutex_init(&(l_ch_new->mutex),NULL);
 
         // Proc new callback
@@ -130,8 +131,9 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 {
     dap_stream_worker_t * l_stream_worker = a_ch->stream_worker;
+    pthread_rwlock_wrlock(&l_stream_worker->channels_rwlock);
     HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
-
+    pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
 
     pthread_mutex_lock(&s_ch_table_lock);
     struct dap_stream_ch_table_t *l_ret;;

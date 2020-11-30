@@ -67,7 +67,7 @@ int dap_worker_init( size_t a_conn_timeout )
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
 
-    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
+    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",true);
 #ifdef DAP_OS_UNIX
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
@@ -467,8 +467,9 @@ void *dap_worker_thread(void *arg)
                     //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
                     ssize_t l_bytes_sent =0;
                     int l_errno;
+
                     switch (l_cur->type){
-                        case DESCRIPTOR_TYPE_SOCKET:
+                        case DESCRIPTOR_TYPE_SOCKET: {
                             l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                 l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
 #ifdef DAP_OS_WINDOWS
@@ -477,7 +478,9 @@ void *dap_worker_thread(void *arg)
 #else
 							l_errno = errno;
 #endif
+
                         break;
+                    }
                         case DESCRIPTOR_TYPE_SOCKET_UDP:
                             l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
                                                   l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
@@ -517,7 +520,7 @@ void *dap_worker_thread(void *arg)
                                  } else {
                                      l_errno = WSAGetLastError();
 
-                                     if(dap_sendto(l_cur->sock_sendr, NULL, 0) == SOCKET_ERROR) {
+                                     if(dap_sendto(l_cur->socket, NULL, 0) == SOCKET_ERROR) {
                                          log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                      }
                                      l_cur->buf_out_size = 0;
@@ -642,7 +645,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         // Socket already present in worker, it's OK
         return;
     }
-
+    l_worker->esocket_rwlock = PTHREAD_RWLOCK_INITIALIZER;
     switch( l_es_new->type){
 
         case DESCRIPTOR_TYPE_SOCKET_UDP:
@@ -674,7 +677,9 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
             // Add in global list
             // Add in worker
             l_es_new->me = l_es_new;
+            pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
             HASH_ADD(hh_worker, l_worker->esockets, me, sizeof(void *), l_es_new );
+            pthread_rwlock_unlock(&l_worker->esocket_rwlock);
             l_worker->event_sockets_count++;
             //log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
             if (l_es_new->callbacks.worker_assign_callback)
@@ -761,7 +766,9 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
 
     // Check if it was removed from the list
     dap_events_socket_t *l_msg_es = NULL;
+    pthread_rwlock_rdlock(&a_es->worker->esocket_rwlock);
     HASH_FIND(hh_worker, a_es->worker->esockets, &l_msg->esocket , sizeof (void*), l_msg_es );
+    pthread_rwlock_unlock(&a_es->worker->esocket_rwlock);
     if ( l_msg_es == NULL){
         log_it(L_INFO, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
         DAP_DELETE(l_msg);
@@ -805,7 +812,7 @@ static bool s_socket_all_check_activity( void * a_arg)
     time_t l_curtime= time(NULL);
     ctime_r(&l_curtime, l_curtimebuf);
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
-
+    pthread_rwlock_rdlock(&l_worker->esocket_rwlock);
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
         if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  || l_es->type == DESCRIPTOR_TYPE_SOCKET_UDP ){
             if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
@@ -818,6 +825,7 @@ static bool s_socket_all_check_activity( void * a_arg)
             }
         }
     }
+    pthread_rwlock_unlock(&l_worker->esocket_rwlock);
     return true;
 }
 

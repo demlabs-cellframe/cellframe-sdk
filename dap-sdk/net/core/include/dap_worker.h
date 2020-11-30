@@ -36,6 +36,7 @@ typedef struct dap_worker
     dap_events_socket_t *proc_queue_input;
 
     atomic_uint event_sockets_count;
+    pthread_rwlock_t esocket_rwlock;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // Signal to exit

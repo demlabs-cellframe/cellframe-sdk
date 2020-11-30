@@ -155,9 +155,6 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 #ifdef SO_REUSEPORT
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEPORT flag to the socket");
-#else
-    if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&reuse, sizeof(reuse)) < 0)
-        log_it(L_WARNING, "Can't set up EXCLUSIVEADDRUSE flag to the socket, error %d", WSAGetLastError());
 #endif
 
 //create socket
