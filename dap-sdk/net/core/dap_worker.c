@@ -63,7 +63,8 @@ int dap_worker_init( size_t a_conn_timeout )
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
 
-    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
+
+    s_debug_reactor =g_config? dap_config_get_item_bool_default(g_config,"general","debug_reactor",false) : false;
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -1;
