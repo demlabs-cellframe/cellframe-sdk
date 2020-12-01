@@ -26,7 +26,7 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto ev)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto rt)
 
   if(NOT ANDROID)
       target_link_libraries(${PROJECT_NAME} pthread)

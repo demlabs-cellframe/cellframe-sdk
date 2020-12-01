@@ -709,7 +709,8 @@ dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
             s_callbacks[a_key_type].new_callback(ret);
         }
     }
-    ret->type = a_key_type;
+    if(ret)
+        ret->type = a_key_type;
     return ret;
 }
 

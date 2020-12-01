@@ -551,9 +551,8 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 #ifndef _WIN32
     // prepare for signal waiting
     struct timespec l_cond_timeout;
-    uint32_t l_timeout_s = dap_config_get_item_uint32_default(g_config,"chain_net","status_wait_timeout",10);
     clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
-    l_cond_timeout.tv_sec += l_timeout_s;
+    l_cond_timeout.tv_sec += a_timeout_ms/1000;
 #else
     pthread_mutex_unlock( &a_client->wait_mutex );
 #endif
@@ -571,7 +570,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
-            log_it(L_NOTICE,"Wait for status is stopped by timeout");
+            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
             ret = -1;
             break;
         }else if (l_ret_wait != 0 ){

@@ -199,7 +199,7 @@ bliss_signature_t* dap_enc_sig_bliss_read_signature(const uint8_t *a_buf, size_t
     l_sign->kind = kind;
     l_sign->z1 = DAP_NEW_SIZE(int32_t, p.n * sizeof(int32_t));
     l_sign->z2 = DAP_NEW_SIZE(int32_t, p.n * sizeof(int32_t));
-    l_sign->c = DAP_NEW_SIZE(uint32_t, p.kappa * sizeof(int32_t));
+    l_sign->c = DAP_NEW_SIZE(unsigned int, p.kappa * sizeof(unsigned int));
     size_t l_shift_mem = sizeof(size_t) + sizeof(bliss_kind_t);
     memcpy(l_sign->z1, a_buf + l_shift_mem, p.n * sizeof(int32_t));
     l_shift_mem += p.n * sizeof(int32_t);

@@ -2230,7 +2230,8 @@ rpaligned_alloc(size_t alignment, size_t size) {
       ptr = (void*)(((uintptr_t)ptr & ~(uintptr_t)align_mask) + alignment);
     //Mark as having aligned blocks
     span_t* span = (span_t*)((uintptr_t)ptr & _memory_span_mask);
-    span->flags |= SPAN_FLAG_ALIGNED_BLOCKS;
+    if (span)
+        span->flags |= SPAN_FLAG_ALIGNED_BLOCKS;
     return ptr;
   }
 

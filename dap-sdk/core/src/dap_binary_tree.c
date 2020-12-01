@@ -138,13 +138,15 @@ static dap_binary_tree_t *s_tree_delete(dap_binary_tree_t *a_elm, dap_binary_tre
         a_elm->data = l_tmp->data;
         a_elm->right = s_tree_delete(a_elm->right, a_elm->key);
     } else if (a_elm->left) {
+        dap_binary_tree_t * l_elm_old = a_elm;
         DAP_DELETE(a_elm->data);
         DAP_DELETE(a_elm);
-        a_elm = a_elm->left;
+        a_elm = l_elm_old->left;
     } else if (a_elm->right) {
+        dap_binary_tree_t * l_elm_old = a_elm;
         DAP_DELETE(a_elm->data);
         DAP_DELETE(a_elm);
-        a_elm = a_elm->right;
+        a_elm = l_elm_old->right;
     } else {
         DAP_DELETE(a_elm->data);
         DAP_DELETE(a_elm);

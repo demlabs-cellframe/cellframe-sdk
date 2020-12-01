@@ -182,6 +182,7 @@ int dap_stream_session_close_mt(unsigned int id)
     dap_stream_session_t *l_s = dap_stream_session_id_unsafe( id );
     if(!l_s) {
         log_it(L_WARNING, "Session id %u not found", id);
+        dap_stream_session_unlock();
         return -1;
     }
 

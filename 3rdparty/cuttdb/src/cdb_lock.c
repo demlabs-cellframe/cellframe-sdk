@@ -29,7 +29,8 @@ CDBLOCK *cdb_lock_new(int ltype)
         lock = (CDBLOCK *)malloc(sizeof(CDBLOCK) + sizeof(pthread_mutex_t));
         pthread_mutex_init((pthread_mutex_t*)&lock->lock, NULL);
     }
-    lock->ltype = ltype;
+    if( lock)
+        lock->ltype = ltype;
 
     return lock;
 }

@@ -3,7 +3,6 @@
  */
 
 #include <stddef.h>
-
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_list.h"
@@ -105,6 +104,8 @@ dap_list_t * dap_list_append(dap_list_t *list, void* data)
     dap_list_t *last;
 
     new_list = dap_list_alloc();
+    if( !new_list) // Out of memory
+        return list;
     new_list->data = data;
     new_list->next = NULL;
 
@@ -349,9 +350,14 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
             tmp = tmp->next;
         else
         {
-            list = _dap_list_remove_link(list, tmp);
-            dap_list_free1(tmp);
-
+            if (list == tmp){
+                _dap_list_remove_link(list, tmp);
+                list = NULL;
+                tmp = NULL;
+            }else {
+                list = _dap_list_remove_link(list, tmp);
+                dap_list_free1(tmp);
+            }
             break;
         }
     }
@@ -389,6 +395,8 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
             if(next)
                 next->prev = tmp->prev;
 
+            if (tmp == list)
+                list = NULL;
             dap_list_free1(tmp);
             tmp = next;
         }
@@ -717,7 +725,7 @@ dap_list_t * dap_list_last(dap_list_t *list)
 {
     if(list)
     {
-        while(list->next)
+        while(list && list->next)
             list = list->next;
     }
 

@@ -25,7 +25,8 @@
 //#define _XOPEN_SOURCE 700
 
 #pragma once
-
+#define __STDC_WANT_LIB_EXT1__ 1
+#include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -33,6 +34,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
+#ifdef DAP_OS_WINDOWS
+#include <fcntl.h>
+#define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
+#endif
+
 #ifndef __cplusplus
 #include <stdatomic.h>
 #else
@@ -41,11 +48,11 @@
 #define atomic_bool std::atomic_bool
 #define atomic_uint std::atomic_uint
 #endif
+
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
-
 typedef uint8_t byte_t;
 
 // Stuffs an integer into a pointer type

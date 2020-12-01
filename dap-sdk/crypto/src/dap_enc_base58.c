@@ -98,6 +98,7 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
     }
 
     unsigned char l_out_u80[l_out_size_max];
+    memset(l_out_u80,0,l_out_size_max);
     unsigned char *l_out_u8 = l_out_u80;
     j = 0;
     switch (bytesleft) {

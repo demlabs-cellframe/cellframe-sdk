@@ -105,6 +105,7 @@ static void session_data_del_all()
         HASH_DEL(s_chain_net_data, l_sdata);
         DAP_DELETE(l_sdata);
     }
+    //HASH_CLEAR(hh,s_chain_net_data);
     pthread_mutex_unlock(&s_hash_mutex);
 }
 
@@ -293,7 +294,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_chain_net_t * l_net = dap_chain_net_by_id( l_ch_chain_net_pkt->hdr.net_id );
                     if ( l_net == NULL){
                         char l_err_str[]="ERROR_NET_INVALID_ID";
-                        dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR , l_net->pub.id,
+                        dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR , l_ch_chain_net_pkt->hdr.net_id,
                                                           l_err_str,sizeof (l_err_str));
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                     } else {

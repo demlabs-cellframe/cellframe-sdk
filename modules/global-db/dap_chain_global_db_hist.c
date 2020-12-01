@@ -12,7 +12,7 @@
 #include "dap_chain_global_db_hist.h"
 
 #include "uthash.h"
-// for dap_db_history_filter()
+// for dap_db_history()
 typedef struct dap_tx_data{
         dap_chain_hash_fast_t tx_hash;
         char tx_hash_str[70];
@@ -138,7 +138,7 @@ dap_list_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
 }
 
 
-// for dap_db_history_filter()
+// for dap_db_history()
 static dap_store_obj_t* get_prev_tx(dap_global_db_obj_t *a_objs, dap_tx_data_t *a_tx_data)
 {
     if(!a_objs || !a_tx_data)
@@ -727,7 +727,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, const char *a_group_mempool
  *
  * return history string
  */
-char* dap_db_history_filter(dap_chain_addr_t * a_addr, const char *a_group_mempool)
+char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
     // load history

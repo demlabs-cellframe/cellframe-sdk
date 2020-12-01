@@ -78,16 +78,25 @@ typedef struct dap_chain_datum_token{
 // No any flags
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                    0x0000
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_BLOCKED                             0x0001
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             0x0001
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_ALLOWED                             0x0002
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             0x0002
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_FROZEN                              0x0003
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              0x0003
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_UNFROZEN                            0x0004
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            0x0004
+
+// Blocked all permissions, usefull issue it by default and then allow what you want to allow
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             0x0011
+// Allowed all permissions if not blocked them. Be careful with this mode
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             0x0012
+// All permissions are temprorary frozen
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              0x0013
+// Unfrozen permissions
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            0x0014
 
 //  Maximal flag
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     0x0004
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     0x0014
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                               0xffff
 
@@ -238,6 +247,7 @@ dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, 
 dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
+dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
 
 #define dap_chain_datum_token_tsd_create_scalar(type,value) dap_chain_datum_token_tsd_create (type, &value, sizeof(value) )
 #define dap_chain_datum_token_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
@@ -248,3 +258,4 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
 #define dap_chain_datum_token_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : "<CORRUPTED STRING>" )
 
 #define dap_chain_datum_token_tsd_size(a) (sizeof(*a)+a->size)
+

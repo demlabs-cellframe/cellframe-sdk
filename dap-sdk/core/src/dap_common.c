@@ -55,8 +55,6 @@
 
   #define popen _popen
   #define pclose _pclose
-  #define pipe(pfds) _pipe(pfds, 4096, 0x8000)
-
 #endif
 
 #include "dap_common.h"

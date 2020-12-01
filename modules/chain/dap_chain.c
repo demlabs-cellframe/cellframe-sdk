@@ -93,8 +93,35 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
-          dap_chain_delete(s_chain_items->chain);
-        }
+          dap_chain_delete(l_item->chain);
+    }
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
+}
+
+
+/**
+ * @brief dap_chain_deinit
+ * note: require dap_chain_enum_unlock() after
+ */
+dap_chain_t* dap_chain_enum(void** a_item)
+{
+    // if a_item == 0x1 then first item
+    dap_chain_item_t *l_item_start = (*a_item == 0x1) ? s_chain_items : (dap_chain_item_t*) *a_item;
+    dap_chain_item_t *l_item = NULL;
+    dap_chain_item_t *l_item_tmp = NULL;
+    pthread_rwlock_wrlock(&s_chain_items_rwlock);
+    HASH_ITER(hh, l_item_start, l_item, l_item_tmp) {
+        *a_item = l_item_tmp;
+        return l_item->chain;
+    }
+    return NULL ;
+}
+
+/**
+ * @brief dap_chain_enum_unlock
+ */
+void dap_chain_enum_unlock(void)
+{
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
@@ -494,4 +521,35 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
         return;
     a_chain->callback_notify = a_callback;
     a_chain->callback_notify_arg = a_callback_arg;
+}
+
+/**
+ * @brief dap_chain_get_last_atom_hash
+ * @param a_chain
+ * @param a_atom_hash
+ * @return
+ */
+bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash)
+{
+    bool l_ret = false;
+    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
+    dap_chain_atom_ptr_t * l_lasts_atom;
+    size_t l_lasts_atom_count=0;
+    size_t* l_lasts_atom_size =NULL;
+    l_lasts_atom= a_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_atom_count,&l_lasts_atom_size);
+    if (l_lasts_atom&& l_lasts_atom_count){
+        assert(l_lasts_atom_size[0]);
+        assert(l_lasts_atom[0]);
+        if(a_atom_hash){
+            dap_hash_fast(l_lasts_atom[0], l_lasts_atom_size[0],a_atom_hash);
+            if(dap_log_level_get() <= L_DEBUG){
+                char l_hash_str[128]={[0]='\0'};
+                dap_chain_hash_fast_to_str(a_atom_hash,l_hash_str,sizeof (l_hash_str)-1);
+                log_it(L_DEBUG,"Send sync chain request from %s to infinity",l_hash_str);
+            }
+        }
+        l_ret = true;
+    }
+    a_chain->callback_atom_iter_delete(l_atom_iter);
+    return l_ret;
 }

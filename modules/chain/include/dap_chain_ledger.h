@@ -146,6 +146,7 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
 int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
         dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
 
+
 /**
  * Delete transaction from the cache
  *
@@ -161,7 +162,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
 /**
  * Return number transactions from the cache
  */
-_dap_int128_t dap_chain_ledger_count(dap_ledger_t *a_ledger);
+unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger);
 
 uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_from, time_t a_ts_to );
 
@@ -174,10 +175,10 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
  * Calculate balance of addr
  *
  */
-uint64_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
         const char *a_token_ticker);
 
-uint64_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
             const char *a_token_ticker);
 
 /**

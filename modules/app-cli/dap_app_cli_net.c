@@ -95,6 +95,16 @@ static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_c
                 size_t l_head_size = l_str_ptr - l_cmd->cmd_res;
                 memmove(l_cmd->cmd_res, l_str_ptr, l_cmd->cmd_res_cur - l_head_size);
                 l_cmd->cmd_res_cur -= l_head_size;
+                // read rest of data
+                if(l_cmd->cmd_res_cur < l_cmd->cmd_res_len) {
+                    l_cmd->cmd_res = DAP_REALLOC(l_cmd->cmd_res, l_cmd->cmd_res_len + 1);
+                    while((l_cmd->cmd_res_len - l_cmd->cmd_res_cur) > 0) {
+                        ssize_t l_recv_len = recv(*socket, &l_cmd->cmd_res[l_cmd->cmd_res_cur], l_cmd->cmd_res_len - l_cmd->cmd_res_cur, 0);
+                        if(l_recv_len <= 0)
+                            break;
+                        l_cmd->cmd_res_cur += l_recv_len;
+                    }
+                }
                 s_status++;
             } else {
                 break;

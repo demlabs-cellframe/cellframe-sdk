@@ -159,6 +159,9 @@ typedef struct dap_chain{
 int dap_chain_init(void);
 void dap_chain_deinit(void);
 
+dap_chain_t* dap_chain_enum(void** a_item);
+void dap_chain_enum_unlock(void);
+
 
 dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger,const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );
 
@@ -175,3 +178,4 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chai
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash);

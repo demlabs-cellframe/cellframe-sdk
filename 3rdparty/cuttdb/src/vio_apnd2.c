@@ -384,16 +384,13 @@ static int _vio_apnd2_checkpid(CDBVIO *vio)
 
         int ret = fscanf(f, "%d", &pid);
         fclose(f);
-        if (ret != 1) {
-            cdb_seterrno(vio->db, CDB_PIDEXIST, __FILE__, __LINE__);
-            return -1;
-        }
-
-        /* check if the process still alive */
-        snprintf(syspidpath, MAX_PATH_LEN, "/proc/%d", pid);
-        if (stat(syspidpath, &st) == 0) {
-            cdb_seterrno(vio->db, CDB_PIDEXIST, __FILE__, __LINE__);
-            return -1;
+        if (ret == 1 ) {
+            /* check if the process still alive */
+            snprintf(syspidpath, MAX_PATH_LEN, "/proc/%d", pid);
+            if (stat(syspidpath, &st) == 0) {
+                cdb_seterrno(vio->db, CDB_PIDEXIST, __FILE__, __LINE__);
+                return -1;
+            }
         }
     }
 
