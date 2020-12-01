@@ -39,10 +39,14 @@ const char *c_dap_chain_datum_token_emission_type_str[]={
 
 const char *c_dap_chain_datum_token_flag_str[] = {
     [DAP_CHAIN_DATUM_TOKEN_FLAG_NONE] = "NONE",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_BLOCKED] = "ALL_BLOCKED",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_ALLOWED] = "ALL_ALLOWED",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_FROZEN] = "ALL_FROZEN",
-    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_UNFROZEN] = "ALL_UNFROZEN",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED] = "ALL_SENDER_BLOCKED",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED] = "ALL_SENDER_ALLOWED",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN] = "ALL_SENDER_FROZEN",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN] = "ALL_SENDER_UNFROZEN",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED] = "ALL_RECEIVER_BLOCKED",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED] = "ALL_RECEIVER_ALLOWED",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN] = "ALL_RECEIVER_FROZEN",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN] = "ALL_RECEIVER_UNFROZEN",
 };
 
 /**
@@ -181,7 +185,7 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
     }
 }
 
-dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
+dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
 {
     assert(a_datum_token_size);
     assert(a_datum_token);

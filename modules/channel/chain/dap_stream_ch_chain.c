@@ -353,9 +353,9 @@ bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (s_debug_chain_sync){
             if (l_data_obj_count)
                 log_it(L_INFO, "In: l_data_obj_count = %d", l_data_obj_count );
-            else if (l_pkt_copy->pkt_data)
+            else if (l_pkt_copy->pkt_data){
                 log_it(L_WARNING, "In: No data objs after unpack", l_data_obj_count );
-            else
+            }else
                  log_it(L_WARNING, "In: packet in list with NULL data");
         }
 
