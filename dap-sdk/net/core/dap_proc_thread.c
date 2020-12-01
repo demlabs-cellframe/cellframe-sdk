@@ -462,7 +462,7 @@ static void * s_proc_thread_function(void * a_arg)
 
                                 l_p_id[l_mp_id] = PROPID_M_BODY;
                                 l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
-                                l_mpvar[l_mp_id].caub.pElems = (unsigned char*)(l_cur->buf_out);
+                                l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
                                 l_mpvar[l_mp_id].caub.cElems = (u_long)l_cur->buf_out_size;
                                 l_mp_id++;
 
@@ -525,7 +525,8 @@ static void * s_proc_thread_function(void * a_arg)
             }
             if(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE){
 #ifdef DAP_EVENTS_CAPS_EPOLL
-                if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev ) == -1 )
+                log_it(L_WARNING, "Deleting esocket %d from proc thread?...", l_cur->fd);
+                if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev) == -1 )
                     log_it( L_ERROR,"Can't remove event socket's handler from the epoll ctl" );
                 //else
                 //    log_it( L_DEBUG,"Removed epoll's event from proc thread #%u", l_thread->cpu_id );

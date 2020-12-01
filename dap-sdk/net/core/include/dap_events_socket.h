@@ -104,12 +104,12 @@ typedef struct dap_events_socket_callbacks {
     union{ // Specific callbacks
         dap_events_socket_callback_connected_t connected_callback; // Connected callback for client socket
         dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
-        dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
         dap_events_socket_callback_event_t event_callback; // Event callback for listening socket
         dap_events_socket_callback_queue_t queue_callback; // Queue callback for listening socket
         dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // queue_ptr callback for listening socket
     };
 
+    dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
     dap_events_socket_callback_t read_callback; // Read function
@@ -171,26 +171,31 @@ typedef struct dap_events_socket {
     uint32_t buf_out_zero_count;
 
     // Input section
-    union{
-        uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
-        char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
-    };
+        //uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
+        //char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
+    byte_t  *buf_in;
+        //char    *buf_in_str;
     size_t buf_in_size; // size of data that is in the input buffer
 
     // Output section
 
-    byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+    //byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+    byte_t *buf_out;
     size_t buf_out_size; // size of data that is in the output buffer
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
-    char hostaddr[1024]; // Address
-    char service[128];
+    //char hostaddr[1024]; // Address
+    //char service[128];
+    char *hostaddr;
+    char *service;
 
     // Remote address, port and others
     struct sockaddr_in remote_addr;
-    char remote_addr_str[INET_ADDRSTRLEN];
-    char remote_addr_str6[INET6_ADDRSTRLEN];
+    //char remote_addr_str[INET_ADDRSTRLEN];
+    //char remote_addr_str6[INET6_ADDRSTRLEN];
+    char *remote_addr_str;
+    char *remote_addr_str6;
     short remote_port;
 
 

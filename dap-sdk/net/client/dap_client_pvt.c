@@ -358,6 +358,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     // connect
                     memset(&a_client_pvt->stream_es->remote_addr, 0, sizeof(a_client_pvt->stream_es->remote_addr));
+                    a_client_pvt->stream_es->remote_addr_str6   = NULL; //DAP_NEW_Z_SIZE(char, INET6_ADDRSTRLEN);
                     a_client_pvt->stream_es->remote_addr.sin_family = AF_INET;
                     a_client_pvt->stream_es->remote_addr.sin_port = htons(a_client_pvt->uplink_port);
                     if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(a_client_pvt->stream_es->remote_addr.sin_addr)) < 0) {
@@ -368,8 +369,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     }
                     else {
                         int l_err = 0;
-                        strncpy( a_client_pvt->stream_es->remote_addr_str, a_client_pvt->uplink_addr,
-                                 sizeof (a_client_pvt->stream_es->remote_addr_str)-1 );
+                        a_client_pvt->stream_es->remote_addr_str = dap_strdup(a_client_pvt->uplink_addr);
 
                         if((l_err = connect(a_client_pvt->stream_socket, (struct sockaddr *) &a_client_pvt->stream_es->remote_addr,
                                 sizeof(struct sockaddr_in))) ==0) {
@@ -1090,6 +1090,8 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         }
     }
     dap_stream_delete(l_client_pvt->stream);
+    DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str)
+    DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str6)
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
 }
@@ -1118,7 +1120,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
                 l_pos_endl = (char*) memchr(a_es->buf_in, '\r', a_es->buf_in_size - 1);
                 if(l_pos_endl) {
                     if(*(l_pos_endl + 1) == '\n') {
-                        dap_events_socket_shrink_buf_in(a_es, l_pos_endl - a_es->buf_in_str);
+                        dap_events_socket_shrink_buf_in(a_es, l_pos_endl - (char*)a_es->buf_in);
                         log_it(L_DEBUG, "Header passed, go to streaming (%lu bytes already are in input buffer",
                                 a_es->buf_in_size);
 
