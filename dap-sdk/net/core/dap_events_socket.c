@@ -84,7 +84,7 @@ static bool s_debug_reactor = false;
 int dap_events_socket_init( )
 {
     log_it(L_NOTICE,"Initialized events socket module");
-    s_debug_reactor = dap_config_get_item_bool_default(g_config, "general","debug_reactor", false);
+    s_debug_reactor = g_config? dap_config_get_item_bool_default(g_config, "general","debug_reactor", false) : false;
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
 #include <sys/resource.h>
