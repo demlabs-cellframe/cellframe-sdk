@@ -196,7 +196,7 @@ static  dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
 static void s_treshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_treshold_txs_proc( dap_ledger_t * a_ledger);
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size);
-
+static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size );
 static size_t s_treshold_emissions_max = 1000;
 static size_t s_treshold_txs_max = 10000;
 
@@ -1323,6 +1323,50 @@ static bool dap_chain_ledger_item_is_used_out(dap_chain_ledger_tx_item_t *a_item
 }
 
 /**
+ * @brief dap_chain_ledger_permissions_check
+ * @param a_token_item
+ * @param a_permission_id
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size )
+{
+    dap_chain_addr_t * l_addrs = NULL;
+    size_t l_addrs_count =0;
+    switch (a_permission_id) {
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+            l_addrs = a_token_item->tx_recv_allow;
+            l_addrs_count = a_token_item->tx_recv_allow_size;
+        break;
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
+            l_addrs = a_token_item->tx_recv_block;
+            l_addrs_count = a_token_item->tx_recv_block_size;
+        break;
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
+            l_addrs = a_token_item->tx_send_allow;
+            l_addrs_count = a_token_item->tx_send_allow_size;
+        break;
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
+            l_addrs = a_token_item->tx_send_block;
+            l_addrs_count = a_token_item->tx_send_block_size;
+        break;
+    }
+    if ( l_addrs && l_addrs_count){
+        if (a_data_size != sizeof (*l_addrs)){
+            log_it(L_ERROR,"Wrong data size %zd for ledger permission check", a_data_size);
+            return -2;
+        }
+        for(size_t n=0; n<l_addrs_count;n++ ){
+            if (memcmp(&l_addrs[n],a_data,a_data_size)==0)
+                return 0;
+        }
+        return -1;
+    }
+    return -10;
+}
+
+/**
  * Checking a new transaction before adding to the cache
  *
  * return 1 OK, -1 error
@@ -1361,6 +1405,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_chain_ledger_tokenizer_t *l_values_from_prev_tx = NULL, *l_values_from_cur_tx = NULL,
                                  *l_value_cur = NULL, *l_tmp = NULL, *l_res = NULL;
     char *l_token = NULL;
+    dap_chain_ledger_token_item_t * l_token_item = NULL;
     dap_chain_hash_fast_t *l_emission_hash;
     // 1. Verify signature in current transaction
     if(dap_chain_datum_tx_verify_sign(a_tx) != 1)
@@ -1392,9 +1437,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
      // find all previous transactions
     for (dap_list_t *l_list_tmp = l_list_in; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_list_tmp_num++) {
         bound_item = DAP_NEW_Z(dap_chain_ledger_tx_bound_t);
-        dap_chain_tx_in_t *l_tx_in;
+        dap_chain_tx_in_t *l_tx_in = NULL;
+        dap_chain_addr_t l_tx_in_from={0};
         dap_chain_tx_in_cond_t *l_tx_in_cond;
-        dap_chain_hash_fast_t l_tx_prev_hash;
+        dap_chain_hash_fast_t l_tx_prev_hash={0};
         uint8_t l_cond_type = *(uint8_t *)l_list_tmp->data;
         // one of the previous transaction
         if (l_cond_type == TX_ITEM_TYPE_IN) {
@@ -1409,7 +1455,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         memcpy(&bound_item->tx_prev_hash_fast, &l_tx_prev_hash, sizeof(dap_chain_hash_fast_t));
 
         bool l_is_blank = dap_hash_fast_is_blank(&l_tx_prev_hash);
-        char l_tx_prev_hash_str[70];
+        char l_tx_prev_hash_str[70]={[0]='\0'};
         if (l_is_blank){
            log_it(L_DEBUG, "Tx check: blank prev hash ");
            dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
@@ -1484,8 +1530,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             dap_chain_tx_item_type_t l_type = *(uint8_t *)l_tx_prev_out;
             if (l_type == TX_ITEM_TYPE_OUT) {
                 bound_item->out.tx_prev_out = l_tx_prev_out;
+                memcpy(&l_tx_in_from, &bound_item->out.tx_prev_out->addr,sizeof (bound_item->out.tx_prev_out->addr));
             } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
                 bound_item->out.tx_prev_out_ext = l_tx_prev_out;
+                memcpy(&l_tx_in_from, &bound_item->out.tx_prev_out_ext->addr,sizeof (bound_item->out.tx_prev_out_ext->addr));
             } else {
                 l_err_num = -8;
                 break;
@@ -1522,6 +1570,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         } else { // TX_ITEM_TYPE_IN_COND
             if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_COND) {
                 l_err_num = -8;
+                break;
+            }
+            if (! l_token_item){
+                l_err_num = -16;
+                log_it(L_ERROR,"Can't find token item for conditioned tx out");
                 break;
             }
             // 5a. Check for condition owner
@@ -1563,6 +1616,44 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_err_num = -15;
             break;
         }
+        // Get permissions
+        l_token_item = NULL;
+        pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+        HASH_FIND_STR(l_ledger_priv->tokens,l_token, l_token_item);
+        if (! l_token_item){
+            log_it(L_WARNING, "No token permissions found for token %s", l_token);
+            l_err_num = -15;
+            break;
+        }
+        // Check permissions
+        if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED ) ||  // If all is blocked - check if we're
+             (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN) ){ // in white list
+
+            if(s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD,&l_tx_in_from,
+                                          sizeof (l_tx_in_from)) != 0 ){
+                char * l_tmp_tx_in_from = dap_chain_addr_to_str(&l_tx_in_from);
+                log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_in_from?l_tmp_tx_in_from:"(null)");
+                DAP_DELETE(l_tmp_tx_in_from);
+                l_err_num = -20;
+                pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+                break;
+            }
+        }
+        if ((l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED ) || // If all is allowed - check if we're
+            (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN ) ){ // in black list
+            if(s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD ,&l_tx_in_from,
+                                          sizeof (l_tx_in_from)) == 0 ){
+                char * l_tmp_tx_in_from = dap_chain_addr_to_str(&l_tx_in_from);
+                log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_in_from?l_tmp_tx_in_from:"(null)");
+                DAP_DELETE(l_tmp_tx_in_from);
+                l_err_num = -20;
+                pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+                break;
+            }
+        }
+
+        pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+
         HASH_FIND_STR(l_values_from_prev_tx, l_token, l_value_cur);
         if (!l_value_cur) {
             l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
@@ -1603,6 +1694,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     uint64_t l_value=0;
     for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
+        dap_chain_addr_t l_tx_out_to={0};
         if (l_type == TX_ITEM_TYPE_OUT)
         {
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
@@ -1613,6 +1705,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             if (emission_flag) {
                  l_value = l_tx_out->header.value;
             }
+            memcpy(&l_tx_out_to , &l_tx_out->addr, sizeof (l_tx_out_to));
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
@@ -1624,6 +1717,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                  l_value = l_tx_out->header.value;
                  l_token = l_tx_out->token;
             }
+            memcpy(&l_tx_out_to , &l_tx_out->addr, sizeof (l_tx_out_to));
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } else if (l_type == TX_ITEM_TYPE_OUT_COND) {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
@@ -1646,6 +1740,44 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
         }
         l_value_cur->sum += l_value;
+
+        // Get permissions for token
+        l_token_item = NULL;
+        pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+        HASH_FIND_STR(l_ledger_priv->tokens,l_token, l_token_item);
+        if (! l_token_item){
+            log_it(L_WARNING, "No token permissions found for token %s", l_token);
+            l_err_num = -15;
+            break;
+        }
+        // Check permissions
+
+        if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED )||   //  If all is blocked or frozen
+             (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN) ){ //  check if we're in white list
+            if(s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD,&l_tx_out_to ,
+                                          sizeof (l_tx_out_to)) != 0 ){
+                char * l_tmp_tx_out_to = dap_chain_addr_to_str(&l_tx_out_to);
+                log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_out_to?l_tmp_tx_out_to:"(null)");
+                DAP_DELETE(l_tmp_tx_out_to);
+                l_err_num = -20;
+                pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+                break;
+            }
+        }
+        if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED )||
+             (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN )
+             ){ // If all is allowed - check if we're in black list
+            if(s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD ,&l_tx_out_to,
+                                          sizeof (l_tx_out_to)) == 0 ){
+                char * l_tmp_tx_out_to = dap_chain_addr_to_str(&l_tx_out_to);
+                log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_out_to?l_tmp_tx_out_to:"(null)");
+                DAP_DELETE(l_tmp_tx_out_to);
+                l_err_num = -20;
+                pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+                break;
+            }
+        }
+
     }
     if ( l_list_out )
         dap_list_free(l_list_out);

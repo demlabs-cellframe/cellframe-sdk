@@ -78,16 +78,25 @@ typedef struct dap_chain_datum_token{
 // No any flags
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                    0x0000
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_BLOCKED                             0x0001
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             0x0001
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_ALLOWED                             0x0002
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             0x0002
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_FROZEN                              0x0003
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              0x0003
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_UNFROZEN                            0x0004
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            0x0004
+
+// Blocked all permissions, usefull issue it by default and then allow what you want to allow
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             0x0011
+// Allowed all permissions if not blocked them. Be careful with this mode
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             0x0012
+// All permissions are temprorary frozen
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              0x0013
+// Unfrozen permissions
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            0x0014
 
 //  Maximal flag
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     0x0004
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     0x0014
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                               0xffff
 
