@@ -181,7 +181,7 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
     }
 }
 
-dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
+dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
 {
     assert(a_datum_token_size);
     assert(a_datum_token);
