@@ -72,15 +72,6 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     assert(l_msg);
     // We have callback to add in list
     if (l_msg->callback) {
-        if (l_queue->item_first
-                && (l_queue->item_first->callback       == l_msg->callback)
-                && (l_queue->item_first->callback_arg   == l_msg->callback_arg))
-        {
-            log_it(L_WARNING, "Duplicate cb %p with arg %p, drop it", l_msg->callback, l_msg->callback_arg);
-            DAP_DEL_Z(l_msg)
-            return;
-        }
-
         dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t); if (! l_item) return;
         l_item->callback = l_msg->callback;
         l_item->callback_arg = l_msg->callback_arg;

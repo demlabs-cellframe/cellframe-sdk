@@ -322,7 +322,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t, 8 * sizeof(void*));
-    l_es->buf_out_size  = 8 * sizeof(void*);
+    //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
@@ -720,8 +720,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
-    l_es->buf_out = DAP_NEW_Z_SIZE(byte_t, sizeof(uint64_t));
-    l_es->buf_out_size = sizeof(uint64_t);
+    l_es->buf_out        = DAP_NEW_Z_SIZE(byte_t, 1);
+    l_es->buf_out_size   = 1;
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     if (a_w){
         l_es->events = a_w->events;
@@ -844,7 +844,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
         }else
             return; // do nothing
 #elif defined DAP_OS_WINDOWS
-        uint64_t l_value;
+        u_short l_value;
         int l_ret;
         switch (l_ret = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size)) {
         case SOCKET_ERROR:
@@ -853,10 +853,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
         case 0:
             return;
         default:
-            for (u_short i = 0; i < sizeof(uint64_t); ++i){
-                uint8_t byte = (uint8_t) a_esocket->buf_in[i];
-                l_value = (l_value << 8) | (byte & 0xFFu);
-            }
+            l_value = a_esocket->buf_out[0];
             log_it(L_INFO, "Proc input event %d, val %d", a_esocket->socket, l_value);
             a_esocket->callbacks.event_callback(a_esocket, l_value);
             return;
@@ -972,6 +969,12 @@ static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, void * a_arg)
 {
     volatile void * l_arg = a_arg;
+    if (a_es_input->buf_out_size >= sizeof(void*)) {
+        if (memcmp(a_es_input->buf_out + a_es_input->buf_out_size - sizeof(void*), a_arg, sizeof(void*))) {
+            log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
+            return 2;
+        }
+    }
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
             == sizeof(l_arg) ? 0 : 1;
 }
@@ -1079,9 +1082,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     else
         return 1;
 #elif defined DAP_OS_WINDOWS
-    for (u_short i = 0; i < sizeof(uint64_t); ++i, ++a_es->buf_out_size) {
-        a_es->buf_out[i] = (char)(((uint64_t) a_value >> (8 * (sizeof(uint64_t) - 1 - i))) & 0xFFu);
-    }
+    a_es->buf_out[0] = (u_short)a_value;
     if(dap_sendto(a_es->socket, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {

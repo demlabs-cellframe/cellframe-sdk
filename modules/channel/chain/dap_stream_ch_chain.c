@@ -83,7 +83,7 @@ int dap_stream_ch_chain_init()
     log_it(L_NOTICE, "Chains and global db exchange channel initialized");
     dap_stream_ch_proc_add(dap_stream_ch_chain_get_id(), s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
             s_stream_ch_packet_out);
-    s_debug_chain_sync = dap_config_get_item_bool_default(g_config,"general","debug_chain_sync",false);
+    s_debug_chain_sync = dap_config_get_item_bool_default(g_config,"general","debug_chain_sync",true);
 
     return 0;
 }
@@ -684,10 +684,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             l_pkt_copy->pkt_data_size = l_chain_pkt_data_size;
             l_ch_chain->pkt_copy_list = dap_list_append(l_ch_chain->pkt_copy_list, l_pkt_copy);
             dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-#ifdef DAP_OS_WINDOWS
-            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
-#endif
-                dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_pkt_callback, a_ch);
+//#ifdef DAP_OS_WINDOWS
+//            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
+//#endif
+            dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_pkt_callback, a_ch);
         } else {
             log_it(L_WARNING, "Packet with GLOBAL_DB atom has zero body size");
             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
