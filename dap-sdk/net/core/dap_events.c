@@ -245,6 +245,8 @@ int dap_events_start( dap_events_t *a_events )
 
         l_worker->id = i;
         l_worker->events = a_events;
+        pthread_rwlock_init(&l_worker->esocket_rwlock,NULL);
+
 #ifdef DAP_EVENTS_CAPS_EPOLL
         l_worker->epoll_fd = epoll_create( DAP_MAX_EVENTS_COUNT );
         pthread_mutex_init(& l_worker->started_mutex, NULL);

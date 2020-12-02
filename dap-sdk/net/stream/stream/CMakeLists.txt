@@ -4,12 +4,6 @@ project (dap_stream)
 file(GLOB STREAM_SRCS *.c)
 file(GLOB STREAM_HDRS include/*.h)
 
-if(WIN32)
-  include_directories(../../../3rdparty/wepoll/)
-  include_directories(../../../3rdparty/uthash/src/)
-  #include_directories(../../3rdparty/curl/include/)
-endif()
-
 add_library(${PROJECT_NAME} STATIC ${STREAM_SRCS} ${STREAM_HDRS})
 
 target_link_libraries(dap_stream dap_core dap_server_core dap_crypto

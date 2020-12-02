@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 project (dap_core)
 
 add_definitions("-D_GNU_SOURCE") 
-add_definitions("-DDHASH_USING_NO_STRICT_ALIASING -DHASH_FUNCTION=HASH_MUR")
+
 if(UNIX)
   file(GLOB CORE_SRCS 
       src/*.c 
@@ -28,6 +28,11 @@ if(WIN32)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${CORE_SRCS} ${CORE_HEADERS})
+
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)
+#if (WIN32)
+#    target_include_directories(${PROJECT_NAME} PRIVATE ../../3rdparty/wepoll)
+#endif()
 
 #This paths will be used by project-dependent project libraries
 target_include_directories(${PROJECT_NAME} INTERFACE include/ src/rpmalloc/)

@@ -32,8 +32,6 @@ if(WIN32)
   add_definitions ("-D_POSIX_")
   add_definitions ("-D_POSIX_THREAD_SAFE_FUNCTIONS")
   add_compile_definitions(_GNU_SOURCE)
-  include_directories(../../3rdparty/wepoll/)
-  include_directories(../../3rdparty/uthash/src/)
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
@@ -52,6 +50,7 @@ endif()
 
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)
 
 if (!WIN32)
     target_include_directories(${PROJECT_NAME} PUBLIC ${IPUTILS_INCLUDE_DIRS})

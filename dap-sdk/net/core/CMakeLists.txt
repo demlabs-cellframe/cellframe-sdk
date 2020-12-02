@@ -14,8 +14,6 @@ else()
 endif()
 
 if(WIN32)
-  include_directories(../../../3rdparty/uthash/src/)
-  include_directories(../../../3rdparty/wepoll/)
   include_directories(../../../modules/net/win32)
 endif()
 
@@ -23,7 +21,6 @@ add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_
 
 if(WIN32)
   target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
-  target_include_directories(${PROJECT_NAME} INTERFACE ../../../3rdparty/wepoll)
 endif()
 
 if(UNIX)
@@ -37,7 +34,11 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/uthash/src)
 
+if (WIN32)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/wepoll)
+endif()
 
 if (${BUILD_DAP_SERVER_CORE_TESTS} MATCHES ON)
     enable_testing()

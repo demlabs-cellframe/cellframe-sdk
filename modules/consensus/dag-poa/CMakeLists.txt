@@ -4,11 +4,6 @@ project (dap_chain_cs_dag_poa)
 file(GLOB DAP_CHAIN_DAG_CS_POA_SRCS *.c)
 file(GLOB DAP_CHAIN_DAG_CS_POA_HEADERS include/*.h)
 
-if(WIN32)
-  include_directories(../../../3rdparty/wepoll/)
-  include_directories(../../../3rdparty/uthash/src/)
-endif()
-
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DAG_CS_POA_SRCS} ${DAP_CHAIN_DAG_CS_POA_HEADERS})
 
 target_link_libraries(dap_chain_cs_dag_poa dap_core dap_crypto dap_chain dap_chain_cs_dag dap_chain_net_srv_stake)

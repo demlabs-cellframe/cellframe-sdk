@@ -65,8 +65,8 @@
 #endif
 
 #if defined(DAP_EVENTS_CAPS_WEPOLL)
-#include "wepoll.h"
 #define EPOLL_HANDLE  HANDLE
+#include "wepoll.h"
 #elif defined (DAP_EVENTS_CAPS_EPOLL)
 #include <sys/epoll.h>
 #define EPOLL_HANDLE  int
@@ -144,14 +144,12 @@ typedef struct dap_events_socket {
         int fd;
 #if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         mqd_t mqd;
-    }
+    };
+    uint32_t mqd_id;
 #elif defined DAP_EVENTS_CAPS_MSMQ
     };
     QUEUEHANDLE mqh, mqh_recv;
     HANDLE ev_timeout, ev_recv;
-#if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-    uint32_t mqd_id;
-#endif
 #endif
 
 #if defined DAP_EVENTS_CAPS_PIPE_POSIX
@@ -291,6 +289,6 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 
 #ifdef DAP_OS_WINDOWS
-int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
-int dap_sendto(SOCKET s, void* buf_in, size_t buf_size);
+extern inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
+extern inline int dap_sendto(SOCKET s, void* buf_in, size_t buf_size);
 #endif

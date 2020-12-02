@@ -67,11 +67,8 @@ int dap_worker_init( size_t a_conn_timeout )
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
 
-    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
-#ifdef DAP_OS_UNIX
-=======
-
     s_debug_reactor =g_config? dap_config_get_item_bool_default(g_config,"general","debug_reactor",false) : false;
+#ifdef DAP_OS_UNIX
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -1;
@@ -518,7 +515,6 @@ void *dap_worker_thread(void *arg)
                                  l_mps.aPropID = l_p_id;
                                  l_mps.aPropVar = l_mpvar;
                                  l_mps.aStatus = l_mstatus;
-                                 log_it(L_INFO, "Sent to SOCKET %d", l_cur->socket);
                                  HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
 
                                  if (hr != MQ_OK) {
@@ -652,7 +648,6 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         // Socket already present in worker, it's OK
         return;
     }
-    l_worker->esocket_rwlock = PTHREAD_RWLOCK_INITIALIZER;
     switch( l_es_new->type){
 
         case DESCRIPTOR_TYPE_SOCKET_UDP:

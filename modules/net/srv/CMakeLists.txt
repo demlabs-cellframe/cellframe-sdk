@@ -11,3 +11,4 @@ target_link_libraries(dap_chain_net_srv dap_core dap_crypto dap_chain dap_chain_
 
 target_include_directories(dap_chain_net_srv INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/uthash/src)

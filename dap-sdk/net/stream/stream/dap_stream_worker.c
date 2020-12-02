@@ -50,7 +50,7 @@ int dap_stream_worker_init()
         dap_stream_worker_t *l_stream_worker =  DAP_NEW_Z(dap_stream_worker_t);
         l_worker->_inheritor = l_stream_worker;
         l_stream_worker->worker = l_worker;
-        l_stream_worker->channels_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+        pthread_rwlock_init( &l_stream_worker->channels_rwlock, NULL);
         l_stream_worker->queue_ch_io = dap_events_socket_create_type_queue_ptr_mt( l_worker, s_ch_io_callback);
         log_it(L_WARNING, "Queue ch io socket: %d, worker %p", l_stream_worker->queue_ch_io->socket, l_stream_worker->worker);
     }
