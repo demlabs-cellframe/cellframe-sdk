@@ -154,7 +154,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
         log_it(L_WARNING, "Hash add 0x%x", ret);
         HASH_ADD(hh,a_events->sockets, socket, sizeof(SOCKET), ret);
 #else
-        HASH_ADD_INT(hh,a_events->sockets, socket, ret);
+        HASH_ADD_INT(a_events->sockets, socket, ret);
 #endif
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
     }else

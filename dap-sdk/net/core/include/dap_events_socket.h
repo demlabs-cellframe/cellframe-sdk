@@ -144,14 +144,12 @@ typedef struct dap_events_socket {
         int fd;
 #if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         mqd_t mqd;
-    }
+    };
+    uint32_t mqd_id;
 #elif defined DAP_EVENTS_CAPS_MSMQ
     };
     QUEUEHANDLE mqh, mqh_recv;
     HANDLE ev_timeout, ev_recv;
-#if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-    uint32_t mqd_id;
-#endif
 #endif
 
 #if defined DAP_EVENTS_CAPS_PIPE_POSIX
