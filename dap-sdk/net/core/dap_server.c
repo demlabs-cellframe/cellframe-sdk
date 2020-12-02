@@ -21,15 +21,22 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef DAP_OS_WINDOWS
+#include "wepoll.h"
+#include <ws2tcpip.h>
+#elif defined DAP_OS_UNIX
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
+#include <netdb.h>
+#include <sys/timerfd.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <sys/epoll.h>
 
-#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
@@ -41,7 +48,6 @@
 #include <stddef.h>
 #include <errno.h>
 #include <signal.h>
-#include <sys/timerfd.h>
 #include <utlist.h>
 #if ! defined(_GNU_SOURCE)
 #define _GNU_SOURCE
@@ -117,9 +123,10 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 {
     assert(a_events);
     dap_server_t *l_server =  DAP_NEW_Z(dap_server_t);
-
+#ifndef DAP_OS_WINDOWS
     l_server->socket_listener=-1; // To diff it from 0 fd
-    l_server->address = a_addr? strdup( a_addr) : strdup("0.0.0.0"); // If NULL we listen everything
+#endif
+    l_server->address = a_addr ? strdup(a_addr) : strdup("0.0.0.0"); // If NULL we listen everything
     l_server->port = a_port;
     l_server->type = a_type;
 
@@ -127,10 +134,14 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         l_server->socket_listener = socket(AF_INET, SOCK_STREAM, 0);
     else if (l_server->type == DAP_SERVER_UDP)
         l_server->socket_listener = socket(AF_INET, SOCK_DGRAM, 0);
-
+#ifdef DAP_OS_WINDOWS
+    if (l_server->socket_listener == INVALID_SOCKET) {
+        log_it(L_ERROR, "Socket error: %d", WSAGetLastError());
+#else
     if (l_server->socket_listener < 0) {
         int l_errno = errno;
         log_it (L_ERROR,"Socket error %s (%d)",strerror(l_errno), l_errno);
+#endif
         DAP_DELETE(l_server);
         return NULL;
     }
@@ -140,6 +151,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket");
+    reuse=1;
 #ifdef SO_REUSEPORT
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEPORT flag to the socket");
@@ -150,17 +162,26 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
     l_server->listener_addr.sin_port = htons(l_server->port);
     inet_pton(AF_INET, l_server->address, &(l_server->listener_addr.sin_addr));
 
-    if(bind (l_server->socket_listener, (struct sockaddr *) &(l_server->listener_addr), sizeof(l_server->listener_addr)) < 0){
+    if(bind (l_server->socket_listener, (struct sockaddr *) &(l_server->listener_addr), sizeof(l_server->listener_addr)) < 0) {
+#ifdef DAP_OS_WINDOWS
+        log_it(L_ERROR,"Bind error: %d", WSAGetLastError());
+        closesocket(l_server->socket_listener);
+#else
         log_it(L_ERROR,"Bind error: %s",strerror(errno));
         close(l_server->socket_listener);
+#endif
         DAP_DELETE(l_server);
         return NULL;
-    }else{
+    } else {
         log_it(L_INFO,"Binded %s:%u",l_server->address,l_server->port);
         listen(l_server->socket_listener, SOMAXCONN);
     }
-
+#ifdef DAP_OS_WINDOWS
+     u_long l_mode = 0;
+     ioctlsocket(l_server->socket_listener, (long)FIONBIO, &l_mode);
+#else
     fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);
+#endif
     pthread_mutex_init(&l_server->started_mutex,NULL);
     pthread_cond_init(&l_server->started_cond,NULL);
 
@@ -179,7 +200,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
     }
 
 // if we have poll exclusive
-#if defined(DAP_EVENTS_CAPS_EPOLL)
+#ifdef DAP_EVENTS_CAPS_EPOLL
     for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
         assert(l_w);
@@ -188,9 +209,10 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
 
         if (l_es) {
             l_es->type = l_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
-#ifdef DAP_EVENTS_CAPS_EPOLL
             // Prepare for multi thread listening
-            l_es->ev_base_flags  = EPOLLET| EPOLLIN | EPOLLEXCLUSIVE;
+            l_es->ev_base_flags = EPOLLIN;
+#ifdef EPOLLEXCLUSIVE
+            l_es->ev_base_flags |= EPOLLET | EPOLLEXCLUSIVE;
 #endif
             l_es->_inheritor = l_server;
             pthread_mutex_lock(&l_server->started_mutex);
@@ -215,7 +237,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         dap_worker_add_events_socket( l_es, l_w );
         pthread_cond_wait(&l_server->started_cond, &l_server->started_mutex);
         pthread_mutex_unlock(&l_server->started_mutex);
-    } else{
+    } else {
         log_it(L_WARNING, "Can't wrap event socket for %s:%u server", a_addr, a_port);
         return NULL;
     }
@@ -271,7 +293,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, s
     l_es_new = s_es_server_create(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
     getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr
-                , sizeof(l_es_new->hostaddr),l_es_new->service,sizeof(l_es_new->service),
+                ,256, l_es_new->service,sizeof(l_es_new->service),
                 NI_NUMERICHOST | NI_NUMERICSERV);
 
     log_it(L_INFO,"Connection accepted from %s (%s)", l_es_new->hostaddr, l_es_new->service );
@@ -298,6 +320,8 @@ static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_s
         ret = dap_events_socket_wrap_no_add(a_events, a_sock, a_callbacks);
         ret->type = DESCRIPTOR_TYPE_SOCKET;
         ret->server = a_server;
+        ret->hostaddr   = DAP_NEW_Z_SIZE(char, 256);
+        ret->service    = DAP_NEW_Z_SIZE(char, 54);
 
     } else {
         log_it(L_CRITICAL,"Accept error: %s",strerror(errno));

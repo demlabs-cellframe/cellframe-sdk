@@ -548,7 +548,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         return -2;
     }
 
-#ifndef _WIN32
+#ifndef DAP_OS_WINDOWS
     // prepare for signal waiting
     struct timespec l_cond_timeout;
     clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
@@ -558,9 +558,10 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 #endif
 
     // signal waiting
-    do {
 
-#ifndef _WIN32
+
+#ifndef DAP_OS_WINDOWS
+    do {
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if(l_ret_wait == 0 && (
                 a_client->state == a_waited_state ||
@@ -579,27 +580,23 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
             log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
         }
+    } while(1);
 #else
-        int wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_s*1000 );
-        pthread_mutex_lock( &a_client->wait_mutex );
-
-        if ( wait == WAIT_OBJECT_0 && (
-                    a_client->state == a_waited_state ||
-                    a_client->state == NODE_CLIENT_STATE_ERROR || a_client->state == NODE_CLIENT_STATE_DISCONNECTED
-          )) {
-            ret = a_client->state == a_waited_state ? 0 : -2;
-            break;
-        }
-
-        else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
-            ret = -1;
-            break;
-        }
+    DWORD wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_ms);
+    if ( wait == WAIT_OBJECT_0 && (
+             a_client->state == a_waited_state ||
+             a_client->state == NODE_CLIENT_STATE_ERROR ||
+             a_client->state == NODE_CLIENT_STATE_DISCONNECTED))
+    {
+        return a_client->state == a_waited_state ? 0 : -2;
+    } else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
+        return -1;
+    }
 #endif
 
-    } while(1);
-
+#ifndef DAP_OS_WINDOWS
     pthread_mutex_unlock(&a_client->wait_mutex);
+#endif
     return ret;
 }
 

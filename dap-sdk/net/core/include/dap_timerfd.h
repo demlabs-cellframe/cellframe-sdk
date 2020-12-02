@@ -42,13 +42,17 @@ typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer. If return
 
 typedef struct dap_timerfd {
     uint64_t timeout_ms;
+#ifdef DAP_OS_WINDOWS
+	SOCKET tfd;
+#else
     int tfd; //timer file descriptor
+#endif
     dap_events_socket_t *events_socket;
     dap_timerfd_callback_t callback;
     void *callback_arg;
 #ifdef DAP_OS_WINDOWS
     HANDLE th;
-    int pipe_in;
+    SOCKET pipe_in;
 #endif
 } dap_timerfd_t;
 

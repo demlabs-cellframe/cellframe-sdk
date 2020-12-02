@@ -169,7 +169,7 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
     if(a_client_pvt->stream_key)
         dap_enc_key_delete(a_client_pvt->stream_key);
 
-    DAP_DELETE(a_client_pvt);
+    DAP_DEL_Z(a_client_pvt)
 }
 
 /**
@@ -236,21 +236,23 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         l_sign_size = dap_sign_get_size(l_sign);
                     }
                     uint8_t l_data[l_key_size + l_sign_size];
+                    memset(l_data, 0, sizeof(l_data));
                     memcpy(l_data,a_client_pvt->session_key_open->pub_key_data, l_key_size);
                     if (l_sign) {
                         memcpy(l_data + l_key_size, l_sign, l_sign_size);
                     }
                     size_t l_data_str_size_max = DAP_ENC_BASE64_ENCODE_SIZE(l_key_size + l_sign_size);
                     char l_data_str[l_data_str_size_max + 1];
+                    memset(l_data_str, 0, sizeof(l_data_str));
                     // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
                     size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
                     log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
 
-                    char * l_enc_init_url = dap_strdup_printf(DAP_UPLINK_PATH_ENC_INIT
-                                                              "/gd4y5yh78w42aaagh" "?enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
-                                                              a_client_pvt->session_key_type, a_client_pvt->session_key_open_type,
-                                                              l_key_size );
-
+                    char l_enc_init_url[1024] = { '\0' };
+                    dap_snprintf(l_enc_init_url, sizeof(l_enc_init_url), DAP_UPLINK_PATH_ENC_INIT
+                                 "/gd4y5yh78w42aaagh" "?enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
+                                 a_client_pvt->session_key_type, a_client_pvt->session_key_open_type,
+                                 l_key_size );
                     int l_res = dap_client_pvt_request(a_client_pvt, l_enc_init_url,
                             l_data_str, l_data_str_enc_size, s_enc_init_response, s_enc_init_error);
                     // bad request
@@ -290,13 +292,31 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 case STAGE_STREAM_SESSION: {
                     log_it(L_INFO, "Go to stage STREAM_SESSION: process the state ops");
 
-                    a_client_pvt->stream_socket = socket( PF_INET, SOCK_STREAM, 0);
-
+                    a_client_pvt->stream_socket = socket(PF_INET, SOCK_STREAM, 0);
+#ifdef DAP_OS_WINDOWS
+                    if (a_client_pvt->stream_socket == INVALID_SOCKET) {
+                        log_it(L_ERROR, "Socket create error %d", WSAGetLastError());
+#else
                     if (a_client_pvt->stream_socket == -1) {
                         log_it(L_ERROR, "Error %d with socket create", errno);
+#endif
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                         break;
                     }
+#ifdef DAP_OS_WINDOWS
+                    u_long l_socket_flags = 0;
+                    if (ioctlsocket(a_client_pvt->stream_socket, (long)FIONBIO, &l_socket_flags) == SOCKET_ERROR) {
+                        log_it(L_ERROR, "Can't set socket %d to nonblocking mode, error %d", a_client_pvt->stream_socket, WSAGetLastError());
+                    }
+                    int buffsize = 0x40000;
+                    int optsize = sizeof( int );
+                    if (setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, &optsize ) < 0) {
+                        log_it(L_ERROR, "Cant' set send buf size on socket %d, error %d", a_client_pvt->stream_socket, WSAGetLastError());
+                    }
+                    if (setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize ) < 0) {
+                        log_it(L_ERROR, "Cant' set recv buf size on socket %d, error %d", a_client_pvt->stream_socket, WSAGetLastError());
+                    }
+#else
                     // Get socket flags
                     int l_socket_flags = fcntl(a_client_pvt->stream_socket, F_GETFL);
                     if (l_socket_flags == -1){
@@ -306,16 +326,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // Make it non-block
                     if (fcntl( a_client_pvt->stream_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
                         log_it(L_ERROR, "Error %d can't get socket flags", errno);
-                        break;;
+                        break;
                     }
-#ifdef _WIN32
-                    {
-                      int buffsize = 65536*4;
-                      int optsize = sizeof( int );
-                      setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, &optsize );
-                      setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize );
-                    }
-#else
                     int buffsize = 65536*4;
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, ( void *) &buffsize, sizeof(int));
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, ( void *) &buffsize, sizeof(int));
@@ -330,9 +342,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         .connected_callback = s_stream_es_callback_connected
                     };//
                     a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
-                            a_client_pvt->stream_socket, &l_s_callbacks);
+                            (int)a_client_pvt->stream_socket, &l_s_callbacks);
                     a_client_pvt->stream_es->flags |= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should ar WRITE flag
-
+                    a_client_pvt->stream_es->flags |= DAP_SOCK_READY_TO_WRITE;
                     a_client_pvt->stream_es->_inheritor = a_client_pvt;
                     a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
                     assert(a_client_pvt->stream);
@@ -346,6 +358,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     // connect
                     memset(&a_client_pvt->stream_es->remote_addr, 0, sizeof(a_client_pvt->stream_es->remote_addr));
+                    a_client_pvt->stream_es->remote_addr_str6   = NULL; //DAP_NEW_Z_SIZE(char, INET6_ADDRSTRLEN);
                     a_client_pvt->stream_es->remote_addr.sin_family = AF_INET;
                     a_client_pvt->stream_es->remote_addr.sin_port = htons(a_client_pvt->uplink_port);
                     if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(a_client_pvt->stream_es->remote_addr.sin_addr)) < 0) {
@@ -356,8 +369,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     }
                     else {
                         int l_err = 0;
-                        strncpy( a_client_pvt->stream_es->remote_addr_str, a_client_pvt->uplink_addr,
-                                 sizeof (a_client_pvt->stream_es->remote_addr_str)-1 );
+                        a_client_pvt->stream_es->remote_addr_str = dap_strdup(a_client_pvt->uplink_addr);
 
                         if((l_err = connect(a_client_pvt->stream_socket, (struct sockaddr *) &a_client_pvt->stream_es->remote_addr,
                                 sizeof(struct sockaddr_in))) ==0) {
@@ -374,7 +386,11 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                 strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
                             log_it(L_ERROR, "Remote address can't connect (%s:%u) with sock_id %d: \"%s\" (code %d)", a_client_pvt->uplink_addr,
                                     a_client_pvt->uplink_port, l_errbuf, l_err);
+#ifdef DAP_OS_WINDOWS
+                            closesocket(a_client_pvt->stream_socket);
+#else
                             close(a_client_pvt->stream_socket);
+#endif
                             a_client_pvt->stream_socket = 0;
                             a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                             a_client_pvt->last_error = ERROR_STREAM_CONNECT ;
@@ -588,17 +604,17 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 //    l_url_size = strlen(l_url);
 
     size_t l_sub_url_enc_size_max = l_sub_url_size ? (5 * l_sub_url_size + 16) : 0;
-    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_Z_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
+    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_S_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
 
     size_t l_query_enc_size_max = (is_query_enc) ? (l_query_size * 5 + 16) : l_query_size;
     char *l_query_enc =
-            (is_query_enc) ? (l_query_size ? DAP_NEW_Z_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
+            (is_query_enc) ? (l_query_size ? DAP_NEW_S_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
 
 //    size_t l_url_full_size_max = 5 * l_sub_url_size + 5 * l_query_size + 16 + l_url_size + 2;
 //    char * l_url_full = DAP_NEW_Z_SIZE(char, l_url_full_size_max + 1);
 
     size_t l_request_enc_size_max = a_request_size ? a_request_size * 2 + 16 : 0;
-    char * l_request_enc = a_request_size ? DAP_NEW_Z_SIZE(char, l_request_enc_size_max + 1) : NULL;
+    char * l_request_enc = a_request_size ? DAP_NEW_S_SIZE(char, l_request_enc_size_max + 1) : NULL;
     size_t l_request_enc_size = 0;
 
     a_client_internal->request_response_callback = a_response_proc;
@@ -647,48 +663,32 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
         snprintf(l_url_full, l_url_full_size_max, "%s", l_url);
     }
 */
-    char *l_path = NULL;
+    int l_off;
+    char *l_path = DAP_NEW_S_SIZE(char, l_query_enc_size_max + l_sub_url_enc_size_max + 1);
     if(a_path) {
-        if(l_sub_url_size) {
-            if(l_query_size) {
-                l_path = dap_strdup_printf("%s/%s?%s", a_path, l_sub_url_enc, l_query_enc);
-
-            } else {
-                l_path = dap_strdup_printf("%s/%s", a_path, l_sub_url_enc);
-            }
+        if(l_sub_url_size)
+        {
+            l_off = l_query_size
+                    ? dap_snprintf(l_path, l_query_enc_size_max + l_sub_url_enc_size_max + 1, "%s/%s?%s", a_path, l_sub_url_enc, l_query_enc)
+                    : dap_snprintf(l_path, l_sub_url_enc_size_max + 1, "%s/%s", a_path, l_sub_url_enc);
         } else {
-            l_path = dap_strdup(a_path);
+            dap_stpcpy(l_path, a_path);
         }
     }
 
-    size_t l_custom_count = 1;
-    char **l_custom_new = DAP_NEW_Z_SIZE(char*,2*sizeof (char*));
-    l_custom_new[0] = dap_strdup_printf("KeyID: %s", a_client_internal->session_key_id ?
-                                                     a_client_internal->session_key_id : "NULL");
-    // close session
-    if(a_client_internal->is_close_session) {
-        l_custom_new[1] = dap_strdup("SessionCloseAfterRequest: true");
-        l_custom_count++;
-    }
+    size_t size_required = a_client_internal->session_key_id ? strlen(a_client_internal->session_key_id) + 40 : 40;
+    char *l_custom = DAP_NEW_S_SIZE(char, size_required);
+    size_t l_off2 = size_required;
+
+    l_off = dap_snprintf(l_custom, l_off2, "KeyID: %s\r\n", a_client_internal->session_key_id ? a_client_internal->session_key_id : "NULL");
+    l_off += a_client_internal->is_close_session
+            ? dap_snprintf(l_custom + l_off, l_off2 -= l_off, "%s\r\n", "SessionCloseAfterRequest: true")
+            : 0;
+
     a_client_internal->refs_count++;
     dap_client_http_request_custom(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
-                s_request_response, s_request_error, a_client_internal, l_custom_new, l_custom_count);
-//    dap_http_client_simple_request_custom(l_url_full, a_request ? "POST" : "GET", "text/text",
-//            l_request_enc, l_request_enc_size, NULL,
-//            m_request_response, a_client_internal->curl_sockfd ,m_request_error, a_client_internal, a_custom_new, a_custom_count);
-
-    if(l_sub_url_enc)
-        DAP_DELETE(l_sub_url_enc);
-
-    if(is_query_enc && l_query_enc)
-        DAP_DELETE(l_query_enc);
-
-//    if(l_url_full)
-//        DAP_DELETE(l_url_full);
-
-    if(l_request_enc)
-        DAP_DELETE(l_request_enc);
+                s_request_response, s_request_error, a_client_internal, l_custom);
 }
 
 /**
@@ -1090,6 +1090,8 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         }
     }
     dap_stream_delete(l_client_pvt->stream);
+    DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str)
+    DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str6)
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
 }
@@ -1118,7 +1120,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
                 l_pos_endl = (char*) memchr(a_es->buf_in, '\r', a_es->buf_in_size - 1);
                 if(l_pos_endl) {
                     if(*(l_pos_endl + 1) == '\n') {
-                        dap_events_socket_shrink_buf_in(a_es, l_pos_endl - a_es->buf_in_str);
+                        dap_events_socket_shrink_buf_in(a_es, l_pos_endl - (char*)a_es->buf_in);
                         log_it(L_DEBUG, "Header passed, go to streaming (%lu bytes already are in input buffer",
                                 a_es->buf_in_size);
 

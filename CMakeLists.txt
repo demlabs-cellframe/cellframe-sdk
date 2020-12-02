@@ -132,7 +132,7 @@ endif()
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
 					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-					 Shlwapi Bcrypt Crypt32 Secur32 userenv )
+                                         Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})

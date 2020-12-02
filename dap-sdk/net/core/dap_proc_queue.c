@@ -71,13 +71,13 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     dap_proc_queue_msg_t * l_msg = (dap_proc_queue_msg_t*) a_msg;
     assert(l_msg);
     // We have callback to add in list
-    if (l_msg->callback){
+    if (l_msg->callback) {
         dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t); if (! l_item) return;
         l_item->callback = l_msg->callback;
         l_item->callback_arg = l_msg->callback_arg;
 
         if ( l_queue->item_last)
-            l_queue->item_last->prev = l_item;
+            l_queue->item_last = l_item;
 
         l_item->next=l_queue->item_last ;
 
@@ -86,7 +86,6 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         if( !l_queue->item_first)
             l_queue->item_first = l_item;
 
-
         // Add on top so after call this callback will be executed first
         dap_events_socket_event_signal(l_queue->proc_thread->proc_event,1);
         //log_it( L_DEBUG, "Sent signal to proc thread that we have callback %p/%p on board", l_msg->callback,l_msg->callback_arg);
@@ -94,7 +93,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     if (l_msg->signal_kill){ // Say to kill this object and delete its inherior dap_proc_queue_t
         a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
-    DAP_DELETE(l_msg);
+    DAP_DEL_Z(l_msg)
 }
 
 /**

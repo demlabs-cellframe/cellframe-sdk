@@ -24,8 +24,11 @@
 #include <assert.h>
 #include "dap_server.h"
 
-#if defined(DAP_EVENTS_CAPS_EPOLL)
+#if defined(DAP_EVENTS_CAPS_EPOLL) && !defined(DAP_OS_WINDOWS)
 #include <sys/epoll.h>
+#elif defined DAP_OS_WINDOWS
+#include "wepoll.h"
+#include "ws2tcpip.h"
 #elif defined (DAP_EVENTS_CAPS_POLL)
 #include <poll.h>
 #else
@@ -167,14 +170,25 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
 static int s_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket)
 {
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    l_ev.events = a_esocket->ev_base_events;
-    if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
-        l_ev.events |= EPOLLIN;
-    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
-        l_ev.events |= EPOLLOUT;
-    l_ev.data.ptr = a_esocket ;
-    if( epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_MOD, a_esocket->fd , &l_ev) != 0 ){
-        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+    u_int events = a_esocket->ev_base_flags;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_READ) {
+        events |= EPOLLIN;
+#ifdef DAP_OS_WINDOWS
+        events ^= EPOLLONESHOT;
+#endif
+    }
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE) {
+        events |= EPOLLOUT;
+#ifdef DAP_OS_WINDOWS
+        events |= EPOLLONESHOT;
+#endif
+    }
+    a_esocket->ev.events = events;
+    if( epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+		errno = WSAGetLastError();
+#endif
+        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl, err: %d", errno);
         return -1;
     }
 #elif defined (DAP_EVENTS_CAPS_POLL)
@@ -195,7 +209,12 @@ static void * s_proc_thread_function(void * a_arg)
     dap_cpu_assign_thread_on(l_thread->cpu_id);
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
+#ifdef DAP_OS_WINDOWS 
+	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST))
+        log_it(L_ERROR, "Couldn't set thread priority, err: %d", GetLastError());
+#else
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
+#endif
     l_thread->proc_queue = dap_proc_queue_create(l_thread);
 
     // Init proc_queue for related worker
@@ -221,40 +240,51 @@ static void * s_proc_thread_function(void * a_arg)
         l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io );
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event *l_epoll_events = l_thread->epoll_events, l_ev;
-    memset(l_thread->epoll_events, 0,sizeof (l_thread->epoll_events));
+    struct epoll_event l_epoll_events[ DAP_EVENTS_SOCKET_MAX]= { { 0 } };
 
     // Create epoll ctl
     l_thread->epoll_ctl = epoll_create( DAP_EVENTS_SOCKET_MAX );
 
     // add proc queue
-    l_ev.events = l_thread->proc_queue->esocket->ev_base_flags;
-    l_ev.data.ptr = l_thread->proc_queue->esocket;
-    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_queue->esocket->socket , &l_ev) != 0 ){
-        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+    l_thread->proc_queue->esocket->ev.events    = l_thread->proc_queue->esocket->ev_base_flags;
+    l_thread->proc_queue->esocket->ev.data.ptr  = l_thread->proc_queue->esocket;
+    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_queue->esocket->socket , &l_thread->proc_queue->esocket->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+		errno = WSAGetLastError();    	
+#endif
+        log_it(L_CRITICAL, "Can't add proc queue %d on epoll ctl, error", l_thread->proc_queue->esocket->socket, errno);
         return NULL;
     }
 
     // Add proc event
-    l_ev.events = l_thread->proc_event->ev_base_flags ;
-    l_ev.data.ptr = l_thread->proc_event;
-    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_event->fd , &l_ev) != 0 ){
-        log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+    l_thread->proc_event->ev.events     = l_thread->proc_event->ev_base_flags ;
+    l_thread->proc_event->ev.data.ptr   = l_thread->proc_event;
+    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->proc_event->socket , &l_thread->proc_event->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+		errno = WSAGetLastError();    	
+#endif
+        log_it(L_CRITICAL, "Can't add proc event on epoll ctl, err: %d", errno);
         return NULL;
     }
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
-        l_ev.events = l_thread->queue_assign_input[n]->ev_base_flags ;
-        l_ev.data.ptr = l_thread->queue_assign_input[n];
-        if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_assign_input[n]->fd , &l_ev) != 0 ){
-            log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+        l_thread->queue_assign_input[n]->ev.events      = l_thread->queue_assign_input[n]->ev_base_flags ;
+        l_thread->queue_assign_input[n]->ev.data.ptr    = l_thread->queue_assign_input[n];
+        if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_assign_input[n]->socket, &l_thread->queue_assign_input[n]->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+		errno = WSAGetLastError();    	
+#endif
+            log_it(L_CRITICAL, "Can't add queue input on epoll ctl, err: %d", errno);
             return NULL;
         }
 
-        l_ev.events = l_thread->queue_io_input[n]->ev_base_flags ;
-        l_ev.data.ptr = l_thread->queue_io_input[n];
-        if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_io_input[n]->fd , &l_ev) != 0 ){
-            log_it(L_CRITICAL, "Can't add proc queue on epoll ctl");
+        l_thread->queue_io_input[n]->ev.events      = l_thread->queue_io_input[n]->ev_base_flags ;
+        l_thread->queue_io_input[n]->ev.data.ptr    = l_thread->queue_io_input[n];
+        if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_io_input[n]->fd , &l_thread->queue_io_input[n]->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+		errno = WSAGetLastError();    	
+#endif
+            log_it(L_CRITICAL, "Can't add proc io input on epoll ctl, err: %d", errno);
             return NULL;
         }
     }
@@ -371,8 +401,8 @@ static void * s_proc_thread_function(void * a_arg)
                 continue;
             }
             if(s_debug_reactor)
-                log_it(L_DEBUG, "Poc thread #%u esocket %p fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
-                    l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
+                log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%d type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
+                    l_cur->type, l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
 
             //log_it(L_DEBUG,"Waked up esocket %p (socket %d) {read:%s,write:%s,error:%s} ", l_cur, l_cur->fd,
@@ -380,21 +410,25 @@ static void * s_proc_thread_function(void * a_arg)
             time_t l_cur_time = time( NULL);
             l_cur->last_time_active = l_cur_time;
             if (l_flag_error){
-#if defined DAP_OS_UNIX
+#ifdef DAP_OS_WINDOWS
+                int l_errno = WSAGetLastError();
+#else
                 int l_errno = errno;
+#endif
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
                 log_it(L_ERROR,"Some error on proc thread #%u with %d socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
-#elif defined DAP_OS_WINDOWS
-                log_it(L_ERROR,"Some error occured on thread #%u with socket %d, errno: %d",l_thread->cpu_id, l_cur->socket, errno);
-#endif
                 if(l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur, errno);
             }
             if (l_flag_read ){
+				int32_t l_bytes_read = 0;
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_QUEUE:
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
+#ifdef DAP_OS_WINDOWS
+                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+#endif
                         break;
                     case DESCRIPTOR_TYPE_EVENT:
                         dap_events_socket_event_proc_input_unsafe (l_cur);
@@ -402,6 +436,9 @@ static void * s_proc_thread_function(void * a_arg)
 
                     default:
                         log_it(L_ERROR, "Unprocessed descriptor type accepted in proc thread loop");
+#ifdef DAP_OS_WINDOWS
+                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+#endif
                         break;
                 }
             }
@@ -414,6 +451,39 @@ static void * s_proc_thread_function(void * a_arg)
                             if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
                                 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
                                     l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
+                                #elif defined DAP_EVENTS_CAPS_QUEUE_POSIX
+                                    l_bytes_sent = mq_send(a_es->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
+                                #elif defined DAP_EVENTS_CAPS_MSMQ
+                                DWORD l_mp_id = 0;
+                                MQMSGPROPS    l_mps;
+                                MQPROPVARIANT l_mpvar[1];
+                                MSGPROPID     l_p_id[1];
+                                HRESULT       l_mstatus[1];
+
+                                l_p_id[l_mp_id] = PROPID_M_BODY;
+                                l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
+                                l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
+                                l_mpvar[l_mp_id].caub.cElems = (u_long)l_cur->buf_out_size;
+                                l_mp_id++;
+
+                                l_mps.cProp = l_mp_id;
+                                l_mps.aPropID = l_p_id;
+                                l_mps.aPropVar = l_mpvar;
+                                l_mps.aStatus = l_mstatus;
+                                HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
+
+                                if (hr != MQ_OK) {
+                                    log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
+                                    break;
+                                } else {
+                                    if(dap_sendto(l_cur->socket, NULL, 0) == SOCKET_ERROR) {
+                                        log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
+                                    }
+                                    l_cur->buf_out_size = 0;
+                                    dap_events_socket_set_writable_unsafe(l_cur,false);
+
+                                    break;
+                                }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                     l_bytes_sent = mq_send(l_cur->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
                                     if (l_bytes_sent==0)
@@ -455,7 +525,8 @@ static void * s_proc_thread_function(void * a_arg)
             }
             if(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE){
 #ifdef DAP_EVENTS_CAPS_EPOLL
-                if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev ) == -1 )
+                log_it(L_WARNING, "Deleting esocket %d from proc thread?...", l_cur->fd);
+                if ( epoll_ctl( l_thread->epoll_ctl, EPOLL_CTL_DEL, l_cur->fd, &l_cur->ev) == -1 )
                     log_it( L_ERROR,"Can't remove event socket's handler from the epoll ctl" );
                 //else
                 //    log_it( L_DEBUG,"Removed epoll's event from proc thread #%u", l_thread->cpu_id );

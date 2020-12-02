@@ -65,8 +65,11 @@ typedef struct dap_server {
   dap_server_type_t type; // Server's type
   uint16_t port; // Listen port
   char *address; // Listen address
-
+#ifdef DAP_OS_WINDOWS
+  SOCKET socket_listener;
+#else
   int32_t socket_listener; // Socket for listener
+#endif
   dap_list_t *es_listeners;
 
   struct sockaddr_in listener_addr; // Kernel structure for listener's binded address
