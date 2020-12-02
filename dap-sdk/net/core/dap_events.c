@@ -109,7 +109,7 @@ uint32_t dap_get_cpu_count( )
 
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 {
-#ifndef _WIN32
+#ifndef DAP_OS_WINDOWS
 #ifndef NO_POSIX_SHED
     cpu_set_t mask;
     CPU_ZERO(&mask);
@@ -250,10 +250,15 @@ int dap_events_start( dap_events_t *a_events )
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
         //log_it(L_DEBUG, "Created event_fd %d for worker %u", l_worker->epoll_fd,i);
+#ifdef DAP_OS_WINDOWS
+        if (!l_worker->epoll_fd) {
+            int l_errno = WSAGetLastError();
+#else
         if ( l_worker->epoll_fd == -1 ) {
             int l_errno = errno;
+#endif
             char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof ( l_errbuf) );
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_CRITICAL, "Error create epoll fd: %s (%d)", l_errbuf, l_errno);
             DAP_DELETE(l_worker);
             return -1;

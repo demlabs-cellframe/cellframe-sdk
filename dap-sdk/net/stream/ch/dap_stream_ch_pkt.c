@@ -143,7 +143,9 @@ bool dap_stream_ch_check_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t *
     if (a_ch){
         if ( a_worker->channels){
             dap_stream_ch_t * l_ch = NULL;
+            pthread_rwlock_wrlock(&a_worker->channels_rwlock);
             HASH_FIND(hh_worker,a_worker->channels ,&a_ch, sizeof(a_ch), l_ch );
+            pthread_rwlock_unlock(&a_worker->channels_rwlock);
             return l_ch == a_ch;
         }else
             return false;

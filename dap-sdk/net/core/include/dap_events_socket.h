@@ -54,7 +54,14 @@
     #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_QUEUE_WEVENT
     #define DAP_EVENTS_CAPS_EVENT_WEVENT
-    #define DAP_EVENTS_CAPS_PIPE_POSIX
+    //#define DAP_EVENTS_CAPS_PIPE_POSIX
+    #define DAP_EVENTS_CAPS_MSMQ
+    #define INET_ADDRSTRLEN     16
+    #define INET6_ADDRSTRLEN    46
+#include <mq.h>
+#include <ws2tcpip.h>
+#define MSG_DONTWAIT 0
+#define MSG_NOSIGNAL 0
 #endif
 
 #if defined(DAP_EVENTS_CAPS_WEPOLL)
@@ -97,12 +104,12 @@ typedef struct dap_events_socket_callbacks {
     union{ // Specific callbacks
         dap_events_socket_callback_connected_t connected_callback; // Connected callback for client socket
         dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
-        dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
         dap_events_socket_callback_event_t event_callback; // Event callback for listening socket
         dap_events_socket_callback_queue_t queue_callback; // Queue callback for listening socket
         dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // queue_ptr callback for listening socket
     };
 
+    dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
     dap_events_socket_callback_t new_callback; // Create new client callback
     dap_events_socket_callback_t delete_callback; // Delete client callback
     dap_events_socket_callback_t read_callback; // Read function
@@ -128,18 +135,26 @@ typedef enum {
 } dap_events_desc_type_t;
 
 typedef struct dap_events_socket {
-    union{
+    union {
+#ifdef DAP_OS_WINDOWS
+        SOCKET socket;
+#else
         int socket;
+#endif
         int fd;
 #if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         mqd_t mqd;
-#endif
+    }
+#elif defined DAP_EVENTS_CAPS_MSMQ
     };
+    QUEUEHANDLE mqh, mqh_recv;
+    HANDLE ev_timeout, ev_recv;
 #if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     uint32_t mqd_id;
 #endif
+#endif
 
-#ifdef DAP_EVENTS_CAPS_PIPE_POSIX
+#if defined DAP_EVENTS_CAPS_PIPE_POSIX
     int fd2;
 #endif
     dap_events_desc_type_t type;
@@ -156,26 +171,31 @@ typedef struct dap_events_socket {
     uint32_t buf_out_zero_count;
 
     // Input section
-    union{
-        uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
-        char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
-    };
+        //uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
+        //char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
+    byte_t  *buf_in;
+        //char    *buf_in_str;
     size_t buf_in_size; // size of data that is in the input buffer
 
     // Output section
 
-    byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+    //byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
+    byte_t *buf_out;
     size_t buf_out_size; // size of data that is in the output buffer
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
-    char hostaddr[1024]; // Address
-    char service[128];
+    //char hostaddr[1024]; // Address
+    //char service[128];
+    char *hostaddr;
+    char *service;
 
     // Remote address, port and others
     struct sockaddr_in remote_addr;
-    char remote_addr_str[INET_ADDRSTRLEN];
-    char remote_addr_str6[INET6_ADDRSTRLEN];
+    //char remote_addr_str[INET_ADDRSTRLEN];
+    //char remote_addr_str6[INET6_ADDRSTRLEN];
+    char *remote_addr_str;
+    char *remote_addr_str6;
     short remote_port;
 
 
@@ -202,7 +222,6 @@ typedef struct dap_events_socket {
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
     void *_pvt; //Private section, different for different types
     struct dap_events_socket * me; // pointer on itself
-
     UT_hash_handle hh;
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
@@ -271,4 +290,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 
-
+#ifdef DAP_OS_WINDOWS
+int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
+int dap_sendto(SOCKET s, void* buf_in, size_t buf_size);
+#endif

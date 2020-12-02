@@ -69,9 +69,8 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
     UNREFERENCED_PARAMETER(low)
     UNREFERENCED_PARAMETER(high)
     dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
-    byte_t l_bytes[sizeof(void*)] = { 0 };
-    if (write(l_timerfd->pipe_in, l_bytes, sizeof(l_bytes)) == -1) {
-        log_it(L_CRITICAL, "Error occured on writing into pipe from APC, errno: %d", errno);
+    if (dap_sendto(l_timerfd->tfd, NULL, 0) == SOCKET_ERROR) {
+        log_it(L_CRITICAL, "Error occured on writing into socket from APC, errno: %d", WSAGetLastError());
     }
 }
 #endif
@@ -115,14 +114,29 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
         DAP_DELETE(l_timerfd);
         return NULL;
     }
-    int l_pipe[2];
-    if (pipe(l_pipe) < 0) {
-        log_it(L_ERROR, "Can't create pipe, error: %d", errno);
-        DAP_DELETE(l_timerfd);
-        return NULL;
-    }
+
+    SOCKET l_tfd = socket(AF_INET, SOCK_DGRAM, 0);
+    int buffsize = 1024;
+
+    setsockopt(l_tfd, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
+
     unsigned long l_mode = 0;
-    int l_tfd = l_pipe[0];
+    ioctlsocket(l_tfd, FIONBIO, &l_mode);
+
+    int l_addr_len;
+    struct sockaddr_in l_addr;
+    l_addr.sin_family = AF_INET;
+    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
+    l_addr.sin_addr = _in_addr;
+    l_addr.sin_port = l_tfd + 32768;
+    l_addr_len = sizeof(struct sockaddr_in);
+
+    if (bind(l_tfd, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
+        log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
+    } else {
+        log_it(L_INFO, "Binded %d", l_tfd);
+    }
+
     LARGE_INTEGER l_due_time;
     l_due_time.QuadPart = (long long)a_timeout_ms * _MSEC;
     if (!SetWaitableTimer(l_th, &l_due_time, 0, TimerAPCb, l_timerfd, false)) {
@@ -151,10 +165,6 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     l_timerfd->callback_arg     = a_callback_arg;
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
-    l_timerfd->pipe_in          = l_pipe[1];
-    /*ioctlsocket(l_pipe[0], FIONBIO, &l_mode);
-    l_mode = 0;
-    ioctlsocket(l_pipe[1], FIONBIO, &l_mode);*/
 #endif
     dap_worker_add_events_socket(l_events_socket, a_worker);
     return l_timerfd;
@@ -191,8 +201,10 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #endif
         dap_events_socket_set_readable_unsafe(a_event_sock, true);
     } else {
+#ifndef DAP_OS_WINDOWS
         close(l_timerfd->tfd);
-#if defined DAP_OS_WINDOWS
+#else
+        closesocket(l_timerfd->tfd);
         CloseHandle(l_timerfd->th);
 #endif
         l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;

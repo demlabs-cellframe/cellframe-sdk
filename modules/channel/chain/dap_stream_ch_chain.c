@@ -191,7 +191,6 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
 bool s_sync_gdb_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
-    UNUSED(a_thread);
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
@@ -338,7 +337,6 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
 bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
-    UNUSED(a_thread);
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
@@ -557,6 +555,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 } else {
                     dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
+#ifdef DAP_OS_WINDOWS
+            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
+#endif
                     dap_proc_queue_add_callback_inter(  a_ch->stream_worker->worker->proc_queue_input, s_sync_chains_callback, a_ch);
                 }
             }
@@ -593,6 +594,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 log_it(L_INFO, "Got DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB request",
                         a_ch->stream->session->id);
                 dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
+#ifdef DAP_OS_WINDOWS
+            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
+#endif
                 dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_gdb_callback, a_ch);
             }
         }else{
@@ -639,6 +643,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     }
 
                     dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
+#ifdef DAP_OS_WINDOWS
+            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
+#endif
                     dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_chain_pkt_callback, a_ch);
                 } else {
                     log_it(L_WARNING, "Empty chain packet");
@@ -677,6 +684,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             l_pkt_copy->pkt_data_size = l_chain_pkt_data_size;
             l_ch_chain->pkt_copy_list = dap_list_append(l_ch_chain->pkt_copy_list, l_pkt_copy);
             dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
+//#ifdef DAP_OS_WINDOWS
+//            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
+//#endif
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_pkt_callback, a_ch);
         } else {
             log_it(L_WARNING, "Packet with GLOBAL_DB atom has zero body size");

@@ -459,6 +459,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         }
                         if (l_addr.s_addr) {
                             dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                            struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
+                            log_it(L_INFO, "dns get addrs %s : %d, net %s", inet_ntoa(_in_addr), l_port, a_net->pub.name);
                             int l_res = dap_dns_client_get_addr(l_addr, l_port, a_net->pub.name, l_link_node_info);
                             if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                 l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
