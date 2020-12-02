@@ -33,6 +33,7 @@
 #include "dap_chain_global_db_remote.h"
 
 #define LOG_TAG "dap_dns_server"
+#define BUF_SIZE 1024
 
 #ifndef _WIN32
 #include <unistd.h> // for close

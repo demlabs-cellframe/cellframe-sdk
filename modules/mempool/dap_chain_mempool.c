@@ -159,7 +159,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
-        return -1;
+        return NULL;
     }
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);

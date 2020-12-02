@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.6-70")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.6-72")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
@@ -132,7 +132,7 @@ endif()
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
 					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-					 Shlwapi Bcrypt Crypt32 Secur32 userenv )
+                                         Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})

@@ -414,7 +414,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     log_it(L_WARNING, "Wrong request size, less or more than required");
                     break;
                 }
-                gettimeofday(&l_request->recv_time1, NULL);
+                struct timeval l_recv_time;
+                gettimeofday(&l_recv_time, NULL);
+                l_request->recv_time1 = l_recv_time;
                 dap_chain_hash_fast_t l_data_hash;
                 dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
                 if(!dap_hash_fast_compare(&l_data_hash, &(l_request->data_hash))) {

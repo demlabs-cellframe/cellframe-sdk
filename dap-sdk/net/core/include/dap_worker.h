@@ -35,6 +35,7 @@ typedef struct dap_worker
     dap_events_socket_t *proc_queue_input;
 
     atomic_uint event_sockets_count;
+    pthread_rwlock_t esocket_rwlock;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // Signal to exit
@@ -51,7 +52,10 @@ typedef struct dap_worker
     dap_events_socket_t * queue_callback; // Queue for pure callback on worker
 
     dap_timerfd_t * timer_check_activity;
-#ifdef DAP_EVENTS_CAPS_EPOLL
+#if defined DAP_EVENTS_CAPS_MSMQ
+    HANDLE msmq_events[MAXIMUM_WAIT_OBJECTS];
+#endif
+#if defined DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
     int poll_fd;

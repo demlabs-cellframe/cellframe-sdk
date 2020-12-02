@@ -28,6 +28,7 @@ typedef struct dap_stream_worker {
     dap_worker_t * worker;
     dap_events_socket_t *queue_ch_io; // IO queue for channels
     dap_stream_ch_t * channels; // Client channels assigned on worker. Unsafe list, operate only in worker's context
+    pthread_rwlock_t channels_rwlock;
 } dap_stream_worker_t;
 
 #define DAP_STREAM_WORKER(a) ((dap_stream_worker_t*) (a->_inheritor)  )

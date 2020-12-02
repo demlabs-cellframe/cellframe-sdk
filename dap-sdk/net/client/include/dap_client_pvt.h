@@ -39,7 +39,11 @@ typedef struct dap_client_internal
     dap_http_client_t * http_client;
 
     dap_events_socket_t * stream_es;
+#ifdef DAP_OS_WINDOWS
+    SOCKET stream_socket;
+#else
     int stream_socket;
+#endif
     dap_stream_t* stream;
     dap_stream_worker_t* stream_worker;
     dap_worker_t * worker;

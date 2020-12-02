@@ -24,7 +24,9 @@
 #include <dap_chain_ledger.h>
 #include <sys/types.h>
 #include <dirent.h>
+#ifdef DAP_OS_UNIX
 #include <stdc-predef.h>
+#endif
 #include <unistd.h>
 
 #include "dap_common.h"

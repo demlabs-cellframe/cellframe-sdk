@@ -31,9 +31,6 @@
 #include <ws2tcpip.h>
 #include <io.h>
 
-#include "win32/ip.h"
-#include "win32/iphdr.h"
-
 #define s6_addr32 s6_addr
 #define herror perror
 #else
