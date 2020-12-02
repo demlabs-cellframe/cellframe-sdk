@@ -55,7 +55,7 @@ static void * s_proc_thread_function(void * a_arg);
 int dap_proc_thread_init(uint32_t a_threads_count){
     s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
-    s_debug_reactor = dap_config_get_item_bool_default(g_config,"general","debug_reactor",false);
+    s_debug_reactor = g_config? dap_config_get_item_bool_default(g_config,"general","debug_reactor",false) : false;
     for (size_t i = 0; i < s_threads_count; i++ ){
 
         s_threads[i].cpu_id = i;

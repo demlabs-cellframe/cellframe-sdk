@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 project (dap_core)
 
 add_definitions("-D_GNU_SOURCE") 
-add_definitions("-DDHASH_USING_NO_STRICT_ALIASING -DHASH_FUNCTION=HASH_MUR")
 if(UNIX)
   file(GLOB CORE_SRCS 
       src/*.c 
