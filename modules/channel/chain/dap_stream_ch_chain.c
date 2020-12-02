@@ -83,7 +83,7 @@ int dap_stream_ch_chain_init()
     log_it(L_NOTICE, "Chains and global db exchange channel initialized");
     dap_stream_ch_proc_add(dap_stream_ch_chain_get_id(), s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
             s_stream_ch_packet_out);
-    s_debug_chain_sync = dap_config_get_item_bool_default(g_config,"general","debug_chain_sync",true);
+    s_debug_chain_sync = dap_config_get_item_bool_default(g_config,"general","debug_chain_sync",false);
 
     return 0;
 }

@@ -116,7 +116,7 @@ int dap_stream_init(dap_config_t * a_config)
     }
 
     s_dap_stream_load_preferred_encryption_type(a_config);
-    s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",true);
+    s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
     pthread_mutex_init( &s_mutex_keepalive_list, NULL );
     dap_timerfd_start(STREAM_KEEPALIVE_TIMEOUT * 1000, (dap_timerfd_callback_t)s_keepalive_cb, NULL);
     log_it(L_NOTICE,"Init streaming module");
