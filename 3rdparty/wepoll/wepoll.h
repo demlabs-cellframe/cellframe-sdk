@@ -2,7 +2,7 @@
  * wepoll - epoll for Windows
  * https://github.com/piscisaureus/wepoll
  *
- * Copyright 2012-2019, Bert Belder <bertbelder@gmail.com>
+ * Copyright 2012-2020, Bert Belder <bertbelder@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

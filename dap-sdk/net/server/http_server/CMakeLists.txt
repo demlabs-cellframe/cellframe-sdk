@@ -14,16 +14,13 @@ if(WIN32)
     add_definitions ("-D__WINDOWS__")
     add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
     add_definitions ("-DCURL_STATICLIB")
-
-  include_directories(../../../../3rdparty/wepoll/)
-  include_directories(../../../../3rdparty/uthash/src/)
-  #include_directories(../../3rdparty/curl/include/)
 endif()
 
 include_directories(${PROJECT_NAME} include/)
 add_library(${PROJECT_NAME} STATIC ${HTTP_SERVER_SRCS} ${HTTP_SERVER_HDRS})
 target_include_directories(${PROJECT_NAME} INTERFACE . http_client/include/)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../3rdparty/uthash/src)
 
 if(WIN32)
   target_link_libraries(dap_http_server dap_core dap_crypto dap_server_core magic regex tre intl iconv

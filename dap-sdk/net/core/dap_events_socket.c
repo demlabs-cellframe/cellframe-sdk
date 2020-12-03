@@ -36,9 +36,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
-#include <ws2tcpip.h>
 #include <io.h>
-#include "wepoll.h"
 #endif
 
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
@@ -854,7 +852,6 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
             return;
         default:
             l_value = a_esocket->buf_out[0];
-            log_it(L_INFO, "Proc input event %d, val %d", a_esocket->socket, l_value);
             a_esocket->callbacks.event_callback(a_esocket, l_value);
             return;
         }
@@ -971,7 +968,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
     volatile void * l_arg = a_arg;
     if (a_es_input->buf_out_size >= sizeof(void*)) {
         if (memcmp(a_es_input->buf_out + a_es_input->buf_out_size - sizeof(void*), a_arg, sizeof(void*))) {
-            log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
+            //log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
             return 2;
         }
     }
@@ -1658,7 +1655,7 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
 }
 
 #ifdef DAP_OS_WINDOWS
-int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
+inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
     struct sockaddr_in l_dummy;
     socklen_t l_size = sizeof(l_dummy);
     int ret;
@@ -1672,7 +1669,7 @@ int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
     return ret;
 }
 
-int dap_sendto(SOCKET s, void* buf_out, size_t buf_out_size) {
+inline int dap_sendto(SOCKET s, void* buf_out, size_t buf_out_size) {
     int l_addr_len;
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;

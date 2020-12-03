@@ -515,7 +515,6 @@ void *dap_worker_thread(void *arg)
                                  l_mps.aPropID = l_p_id;
                                  l_mps.aPropVar = l_mpvar;
                                  l_mps.aStatus = l_mstatus;
-                                 log_it(L_INFO, "Sent to SOCKET %d", l_cur->socket);
                                  HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
 
                                  if (hr != MQ_OK) {
