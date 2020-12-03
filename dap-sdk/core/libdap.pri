@@ -52,4 +52,5 @@ SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_strfuncs.c \
     $$PWD/src/dap_string.c
 
-INCLUDEPATH += $$PWD/include
+INCLUDEPATH += $$PWD/include \
+    $$PWD/../../3rdparty/uthash/src/
