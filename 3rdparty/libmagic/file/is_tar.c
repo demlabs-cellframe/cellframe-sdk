@@ -40,7 +40,7 @@
 #include "file.h"
 
 #ifndef lint
-FILE_RCSID("@(#)$File: is_tar.c,v 1.44 2019/02/20 02:35:27 christos Exp $")
+FILE_RCSID("@(#)$File: is_tar.c,v 1.37 2010/11/30 14:58:53 rrt Exp $")
 #endif
 
 #include "magic.h"
@@ -51,19 +51,17 @@ FILE_RCSID("@(#)$File: is_tar.c,v 1.44 2019/02/20 02:35:27 christos Exp $")
 #define	isodigit(c)	( ((c) >= '0') && ((c) <= '7') )
 
 private int is_tar(const unsigned char *, size_t);
-private int from_oct(const char *, size_t);	/* Decode octal number */
+private int from_oct(int, const char *);	/* Decode octal number */
 
-static const char tartype[][32] = {	/* should be equal to messages */
-	"tar archive",			/* found in ../magic/Magdir/archive */
+static const char tartype[][32] = {
+	"tar archive",
 	"POSIX tar archive",
-	"POSIX tar archive (GNU)",	/*  */
+	"POSIX tar archive (GNU)",
 };
 
 protected int
-file_is_tar(struct magic_set *ms, const struct buffer *b)
+file_is_tar(struct magic_set *ms, const unsigned char *buf, size_t nbytes)
 {
-	const unsigned char *buf = CAST(const unsigned char *, b->fbuf);
-	size_t nbytes = b->flen;
 	/*
 	 * Do the tar test first, because if the first file in the tar
 	 * archive starts with a dot, we can confuse it with an nroff file.
@@ -71,20 +69,16 @@ file_is_tar(struct magic_set *ms, const struct buffer *b)
 	int tar;
 	int mime = ms->flags & MAGIC_MIME;
 
-	if ((ms->flags & (MAGIC_APPLE|MAGIC_EXTENSION)) != 0)
+	if ((ms->flags & MAGIC_APPLE) != 0)
 		return 0;
 
 	tar = is_tar(buf, nbytes);
 	if (tar < 1 || tar > 3)
 		return 0;
 
-	if (mime == MAGIC_MIME_ENCODING)
-		return 1;
-
 	if (file_printf(ms, "%s", mime ? "application/x-tar" :
 	    tartype[tar - 1]) == -1)
 		return -1;
-
 	return 1;
 }
 
@@ -98,37 +92,32 @@ file_is_tar(struct magic_set *ms, const struct buffer *b)
 private int
 is_tar(const unsigned char *buf, size_t nbytes)
 {
-	const union record *header = RCAST(const union record *,
-	    RCAST(const void *, buf));
-	size_t i;
-	int sum, recsum;
-	const unsigned char *p, *ep;
+	const union record *header = (const union record *)(const void *)buf;
+	int	i;
+	int	sum, recsum;
+	const unsigned char	*p;
 
-	if (nbytes < sizeof(*header))
+	if (nbytes < sizeof(union record))
 		return 0;
 
-	recsum = from_oct(header->header.chksum, sizeof(header->header.chksum));
+	recsum = from_oct(8,  header->header.chksum);
 
 	sum = 0;
 	p = header->charptr;
-	ep = header->charptr + sizeof(*header);
-	while (p < ep)
+	for (i = sizeof(union record); --i >= 0;)
 		sum += *p++;
 
 	/* Adjust checksum to count the "chksum" field as blanks. */
-	for (i = 0; i < sizeof(header->header.chksum); i++)
+	for (i = sizeof(header->header.chksum); --i >= 0;)
 		sum -= header->header.chksum[i];
-	sum += ' ' * sizeof(header->header.chksum);
+	sum += ' ' * sizeof header->header.chksum;
 
 	if (sum != recsum)
 		return 0;	/* Not a tar archive */
 
-	if (strncmp(header->header.magic, GNUTMAGIC,
-	    sizeof(header->header.magic)) == 0)
+	if (strcmp(header->header.magic, GNUTMAGIC) == 0)
 		return 3;		/* GNU Unix Standard tar archive */
-
-	if (strncmp(header->header.magic, TMAGIC,
-	    sizeof(header->header.magic)) == 0)
+	if (strcmp(header->header.magic, TMAGIC) == 0)
 		return 2;		/* Unix Standard tar archive */
 
 	return 1;			/* Old fashioned tar archive */
@@ -141,25 +130,22 @@ is_tar(const unsigned char *buf, size_t nbytes)
  * Result is -1 if the field is invalid (all blank, or non-octal).
  */
 private int
-from_oct(const char *where, size_t digs)
+from_oct(int digs, const char *where)
 {
 	int	value;
 
-	if (digs == 0)
-		return -1;
-
-	while (isspace(CAST(unsigned char, *where))) {	/* Skip spaces */
+	while (isspace((unsigned char)*where)) {	/* Skip spaces */
 		where++;
-		if (digs-- == 0)
+		if (--digs <= 0)
 			return -1;		/* All blank field */
 	}
 	value = 0;
 	while (digs > 0 && isodigit(*where)) {	/* Scan til non-octal */
 		value = (value << 3) | (*where++ - '0');
-		digs--;
+		--digs;
 	}
 
-	if (digs > 0 && *where && !isspace(CAST(unsigned char, *where)))
+	if (digs > 0 && *where && !isspace((unsigned char)*where))
 		return -1;			/* Ended on non-(space/NUL) */
 
 	return value;

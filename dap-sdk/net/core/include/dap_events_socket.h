@@ -21,10 +21,6 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <stdatomic.h>
 #include <pthread.h>
 #include "uthash.h"
 
@@ -224,6 +220,11 @@ typedef struct dap_events_socket {
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
 
@@ -291,4 +292,9 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
 #ifdef DAP_OS_WINDOWS
 extern inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
 extern inline int dap_sendto(SOCKET s, void* buf_in, size_t buf_size);
+#endif
+
+
+#ifdef __cplusplus
+}
 #endif

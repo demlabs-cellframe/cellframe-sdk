@@ -44,6 +44,11 @@ typedef struct dap_events {
     dap_thread_t proc_thread;
 } dap_events_t;
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout ); // Init server module
 void dap_events_deinit( ); // Deinit server module
 
@@ -63,3 +68,8 @@ dap_worker_t *dap_events_worker_get_auto( );
 dap_worker_t * dap_events_worker_get(uint8_t a_index);
 uint32_t dap_get_cpu_count();
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id);
+
+
+#ifdef __cplusplus
+}
+#endif

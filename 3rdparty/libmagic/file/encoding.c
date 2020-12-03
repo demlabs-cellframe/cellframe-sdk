@@ -35,7 +35,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: encoding.c,v 1.20 2019/04/15 16:48:41 christos Exp $")
+FILE_RCSID("@(#)$File: encoding.c,v 1.9 2013/11/19 20:45:50 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -47,9 +47,7 @@ FILE_RCSID("@(#)$File: encoding.c,v 1.20 2019/04/15 16:48:41 christos Exp $")
 private int looks_ascii(const unsigned char *, size_t, unichar *, size_t *);
 private int looks_utf8_with_BOM(const unsigned char *, size_t, unichar *,
     size_t *);
-private int looks_utf7(const unsigned char *, size_t, unichar *, size_t *);
 private int looks_ucs16(const unsigned char *, size_t, unichar *, size_t *);
-private int looks_ucs32(const unsigned char *, size_t, unichar *, size_t *);
 private int looks_latin1(const unsigned char *, size_t, unichar *, size_t *);
 private int looks_extended(const unsigned char *, size_t, unichar *, size_t *);
 private void from_ebcdic(const unsigned char *, size_t, unsigned char *);
@@ -67,21 +65,11 @@ private void from_ebcdic(const unsigned char *, size_t, unsigned char *);
  * ubuf, and the number of characters converted in ulen.
  */
 protected int
-file_encoding(struct magic_set *ms, const struct buffer *b, unichar **ubuf,
-    size_t *ulen, const char **code, const char **code_mime, const char **type)
+file_encoding(struct magic_set *ms, const unsigned char *buf, size_t nbytes, unichar **ubuf, size_t *ulen, const char **code, const char **code_mime, const char **type)
 {
-	const unsigned char *buf = CAST(const unsigned char *, b->fbuf);
-	size_t nbytes = b->flen;
 	size_t mlen;
 	int rv = 1, ucs_type;
 	unsigned char *nbuf = NULL;
-	unichar *udefbuf;
-	size_t udeflen;
-
-	if (ubuf == NULL)
-		ubuf = &udefbuf;
-	if (ulen == NULL)
-		ulen = &udeflen;
 
 	*type = "text";
 	*ulen = 0;
@@ -89,44 +77,29 @@ file_encoding(struct magic_set *ms, const struct buffer *b, unichar **ubuf,
 	*code_mime = "binary";
 
 	mlen = (nbytes + 1) * sizeof((*ubuf)[0]);
-	if ((*ubuf = CAST(unichar *, calloc(CAST(size_t, 1), mlen))) == NULL) {
+	if ((*ubuf = CAST(unichar *, calloc((size_t)1, mlen))) == NULL) {
 		file_oomem(ms, mlen);
 		goto done;
 	}
 	mlen = (nbytes + 1) * sizeof(nbuf[0]);
-	if ((nbuf = CAST(unsigned char *,
-	    calloc(CAST(size_t, 1), mlen))) == NULL) {
+	if ((nbuf = CAST(unsigned char *, calloc((size_t)1, mlen))) == NULL) {
 		file_oomem(ms, mlen);
 		goto done;
 	}
 
 	if (looks_ascii(buf, nbytes, *ubuf, ulen)) {
-		if (looks_utf7(buf, nbytes, *ubuf, ulen) > 0) {
-			DPRINTF(("utf-7 %" SIZE_T_FORMAT "u\n", *ulen));
-			*code = "UTF-7 Unicode";
-			*code_mime = "utf-7";
-		} else {
-			DPRINTF(("ascii %" SIZE_T_FORMAT "u\n", *ulen));
-			*code = "ASCII";
-			*code_mime = "us-ascii";
-		}
+		DPRINTF(("ascii %" SIZE_T_FORMAT "u\n", *ulen));
+		*code = "ASCII";
+		*code_mime = "us-ascii";
 	} else if (looks_utf8_with_BOM(buf, nbytes, *ubuf, ulen) > 0) {
 		DPRINTF(("utf8/bom %" SIZE_T_FORMAT "u\n", *ulen));
 		*code = "UTF-8 Unicode (with BOM)";
 		*code_mime = "utf-8";
 	} else if (file_looks_utf8(buf, nbytes, *ubuf, ulen) > 1) {
 		DPRINTF(("utf8 %" SIZE_T_FORMAT "u\n", *ulen));
+		*code = "UTF-8 Unicode (with BOM)";
 		*code = "UTF-8 Unicode";
 		*code_mime = "utf-8";
-	} else if ((ucs_type = looks_ucs32(buf, nbytes, *ubuf, ulen)) != 0) {
-		if (ucs_type == 1) {
-			*code = "Little-endian UTF-32 Unicode";
-			*code_mime = "utf-32le";
-		} else {
-			*code = "Big-endian UTF-32 Unicode";
-			*code_mime = "utf-32be";
-		}
-		DPRINTF(("ucs32 %" SIZE_T_FORMAT "u\n", *ulen));
 	} else if ((ucs_type = looks_ucs16(buf, nbytes, *ubuf, ulen)) != 0) {
 		if (ucs_type == 1) {
 			*code = "Little-endian UTF-16 Unicode";
@@ -165,8 +138,6 @@ file_encoding(struct magic_set *ms, const struct buffer *b, unichar **ubuf,
 
  done:
 	free(nbuf);
-	if (ubuf == &udefbuf)
-		free(udefbuf);
 
 	return rv;
 }
@@ -229,8 +200,8 @@ file_encoding(struct magic_set *ms, const struct buffer *b, unichar **ubuf,
 #define X 3   /* character appears in non-ISO extended ASCII (Mac, IBM PC) */
 
 private char text_chars[256] = {
-	/*                  BEL BS HT LF VT FF CR    */
-	F, F, F, F, F, F, F, T, T, T, T, T, T, T, F, F,  /* 0x0X */
+	/*                  BEL BS HT LF    FF CR    */
+	F, F, F, F, F, F, F, T, T, T, T, F, T, T, F, F,  /* 0x0X */
 	/*                              ESC          */
 	F, F, F, F, F, F, F, F, F, F, F, T, F, F, F, F,  /* 0x1X */
 	T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,  /* 0x2X */
@@ -402,26 +373,7 @@ looks_utf8_with_BOM(const unsigned char *buf, size_t nbytes, unichar *ubuf,
 }
 
 private int
-looks_utf7(const unsigned char *buf, size_t nbytes, unichar *ubuf, size_t *ulen)
-{
-	if (nbytes > 4 && buf[0] == '+' && buf[1] == '/' && buf[2] == 'v')
-		switch (buf[3]) {
-		case '8':
-		case '9':
-		case '+':
-		case '/':
-			if (ubuf)
-				*ulen = 0;
-			return 1;
-		default:
-			return -1;
-		}
-	else
-		return -1;
-}
-
-private int
-looks_ucs16(const unsigned char *bf, size_t nbytes, unichar *ubf,
+looks_ucs16(const unsigned char *buf, size_t nbytes, unichar *ubuf,
     size_t *ulen)
 {
 	int bigend;
@@ -430,9 +382,9 @@ looks_ucs16(const unsigned char *bf, size_t nbytes, unichar *ubf,
 	if (nbytes < 2)
 		return 0;
 
-	if (bf[0] == 0xff && bf[1] == 0xfe)
+	if (buf[0] == 0xff && buf[1] == 0xfe)
 		bigend = 0;
-	else if (bf[0] == 0xfe && bf[1] == 0xff)
+	else if (buf[0] == 0xfe && buf[1] == 0xff)
 		bigend = 1;
 	else
 		return 0;
@@ -443,64 +395,20 @@ looks_ucs16(const unsigned char *bf, size_t nbytes, unichar *ubf,
 		/* XXX fix to properly handle chars > 65536 */
 
 		if (bigend)
-			ubf[(*ulen)++] = bf[i + 1]
-			    | (CAST(unichar, bf[i]) << 8);
+			ubuf[(*ulen)++] = buf[i + 1] + 256 * buf[i];
 		else
-			ubf[(*ulen)++] = bf[i]
-			    | (CAST(unichar, bf[i + 1]) << 8);
+			ubuf[(*ulen)++] = buf[i] + 256 * buf[i + 1];
 
-		if (ubf[*ulen - 1] == 0xfffe)
+		if (ubuf[*ulen - 1] == 0xfffe)
 			return 0;
-		if (ubf[*ulen - 1] < 128 &&
-		    text_chars[CAST(size_t, ubf[*ulen - 1])] != T)
+		if (ubuf[*ulen - 1] < 128 &&
+		    text_chars[(size_t)ubuf[*ulen - 1]] != T)
 			return 0;
 	}
 
 	return 1 + bigend;
 }
 
-private int
-looks_ucs32(const unsigned char *bf, size_t nbytes, unichar *ubf,
-    size_t *ulen)
-{
-	int bigend;
-	size_t i;
-
-	if (nbytes < 4)
-		return 0;
-
-	if (bf[0] == 0xff && bf[1] == 0xfe && bf[2] == 0 && bf[3] == 0)
-		bigend = 0;
-	else if (bf[0] == 0 && bf[1] == 0 && bf[2] == 0xfe && bf[3] == 0xff)
-		bigend = 1;
-	else
-		return 0;
-
-	*ulen = 0;
-
-	for (i = 4; i + 3 < nbytes; i += 4) {
-		/* XXX fix to properly handle chars > 65536 */
-
-		if (bigend)
-			ubf[(*ulen)++] = CAST(unichar, bf[i + 3])
-			    | (CAST(unichar, bf[i + 2]) << 8)
-			    | (CAST(unichar, bf[i + 1]) << 16)
-			    | (CAST(unichar, bf[i]) << 24);
-		else
-			ubf[(*ulen)++] = CAST(unichar, bf[i + 0])
-			    | (CAST(unichar, bf[i + 1]) << 8) 
-			    | (CAST(unichar, bf[i + 2]) << 16)
-			    | (CAST(unichar, bf[i + 3]) << 24);
-
-		if (ubf[*ulen - 1] == 0xfffe)
-			return 0;
-		if (ubf[*ulen - 1] < 128 &&
-		    text_chars[CAST(size_t, ubf[*ulen - 1])] != T)
-			return 0;
-	}
-
-	return 1 + bigend;
-}
 #undef F
 #undef T
 #undef I
