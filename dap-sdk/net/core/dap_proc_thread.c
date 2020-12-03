@@ -28,7 +28,6 @@
 #include <sys/epoll.h>
 #elif defined DAP_OS_WINDOWS
 #include "wepoll.h"
-#include "ws2tcpip.h"
 #elif defined (DAP_EVENTS_CAPS_POLL)
 #include <poll.h>
 #else
