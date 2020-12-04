@@ -1,5 +1,5 @@
 QMAKE_CFLAGS_RELEASE += -std=gnu11
-QMAKE_CFLAGS_DEBUG += -std=gnu11 -DDAP_DEBUG
+QMAKE_CFLAGS_DEBUG = -std=gnu11 -DDAP_DEBUG
 QMAKE_CXXFLAGS +=  -std=c++11
 unix {
     QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
