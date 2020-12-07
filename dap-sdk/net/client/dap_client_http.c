@@ -49,9 +49,11 @@ typedef struct dap_http_client_internal {
     size_t request_size;
     size_t request_sent_size;
 
+
     int socket;
 
     bool is_header_read;
+    bool were_callbacks_called;
     size_t header_length;
     size_t content_length;
 
@@ -60,10 +62,10 @@ typedef struct dap_http_client_internal {
     size_t response_size_max;
 
     // Request args
-    const char *uplink_addr;
+    char *uplink_addr;
     uint16_t uplink_port;
-    const char *method;
-    const char *request_content_type;
+    char *method;
+    char *request_content_type;
     char * path;
     char *cookie;
     char *request_custom_headers; // Custom headers
@@ -151,23 +153,23 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
         if(l_client_http_internal->content_length
                 > (l_client_http_internal->response_size - l_client_http_internal->header_length)) {
             return;
+        }else{
+            // process data
+            if(l_client_http_internal->response_callback)
+                l_client_http_internal->response_callback(
+                        l_client_http_internal->response + l_client_http_internal->header_length,
+                        l_client_http_internal->content_length, //l_client_internal->response_size - l_client_internal->header_size,
+                        l_client_http_internal->obj);
+            l_client_http_internal->response_size -= l_client_http_internal->header_length;
+            l_client_http_internal->response_size -= l_client_http_internal->content_length;
+            l_client_http_internal->header_length = 0;
+            l_client_http_internal->content_length = 0;
+            l_client_http_internal->were_callbacks_called = true;
         }
-        // process data
-        if(l_client_http_internal->response_callback)
-            l_client_http_internal->response_callback(
-                    l_client_http_internal->response + l_client_http_internal->header_length,
-                    l_client_http_internal->content_length, //l_client_internal->response_size - l_client_internal->header_size,
-                    l_client_http_internal->obj);
-        l_client_http_internal->response_size -= l_client_http_internal->header_length;
-        l_client_http_internal->response_size -= l_client_http_internal->content_length;
-        l_client_http_internal->header_length = 0;
-        l_client_http_internal->content_length = 0;
 
-        s_client_http_delete(l_client_http_internal);
-        a_es->_inheritor = NULL;
-        a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
+
 
 /**
  * @brief s_http_stream_error
@@ -203,10 +205,51 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
     if(l_client_http_internal->error_callback)
         l_client_http_internal->error_callback(a_errno, l_client_http_internal->obj);
 
-    s_client_http_delete(l_client_http_internal);
-    a_es->_inheritor = NULL;
+    l_client_http_internal->were_callbacks_called = true;
+
     // close connection.
     a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+}
+
+/**
+ * @brief s_es_delete
+ * @param a_es
+ */
+static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
+{
+    (void) a_arg;
+    dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
+
+    if (! l_client_http_internal->were_callbacks_called){
+        size_t l_response_size = l_client_http_internal->response_size> l_client_http_internal->header_length ?
+                    l_client_http_internal->response_size - l_client_http_internal->header_length: 0;
+        if (l_client_http_internal->content_length){
+            log_it(L_WARNING, "Remote server disconnected before he sends all data: %zd data in buffer when expected %zd",
+               l_client_http_internal->response_size, l_client_http_internal->content_length);
+            l_client_http_internal->error_callback(-666, l_client_http_internal->obj); // -666 means remote server disconnected before he sends all
+        }else if (l_response_size){
+            log_it(L_INFO, "Remote server replied without no content legth but we have the response %zd bytes size",
+               l_response_size);
+
+            l_client_http_internal->error_callback(-10 , l_client_http_internal->obj);
+
+/*            if(l_client_http_internal->response_callback)
+                l_client_http_internal->response_callback(
+                        l_client_http_internal->response + l_client_http_internal->header_length,
+                        l_response_size,
+                        l_client_http_internal->obj);*/
+            l_client_http_internal->were_callbacks_called = true;
+        }else if (l_client_http_internal->response_size){
+            log_it(L_INFO, "Remote server disconnected with reply. Body is empty, only headers are in");
+            l_client_http_internal->error_callback(-667 , l_client_http_internal->obj); // -667 means remote server replied only with headers
+            l_client_http_internal->were_callbacks_called = true;
+        }else{
+            log_it(L_WARNING, "Remote server disconnected without reply");
+            l_client_http_internal->error_callback(-668, l_client_http_internal->obj); // -668 means remote server disconnected before he sends anythinh
+            l_client_http_internal->were_callbacks_called = true;
+        }
+    }
+    s_client_http_delete(PVT(a_es));
 }
 
 /**
@@ -223,10 +266,22 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
         return;
     }
 
-    DAP_DEL_Z(a_http_pvt->response)
-    DAP_DEL_Z(a_http_pvt->path)
-    DAP_DEL_Z(a_http_pvt->request)
-    DAP_DEL_Z(a_http_pvt->request_custom_headers)
+    if(a_http_pvt->method)
+        DAP_DEL_Z(a_http_pvt->method);
+    if(a_http_pvt->request_content_type)
+        DAP_DEL_Z(a_http_pvt->request_content_type);
+    if(a_http_pvt->uplink_addr )
+        DAP_DEL_Z(a_http_pvt->uplink_addr);
+    if (a_http_pvt->cookie)
+        DAP_DEL_Z(a_http_pvt->cookie);
+    if(a_http_pvt->response)
+        DAP_DEL_Z(a_http_pvt->response);
+    if(a_http_pvt->path)
+        DAP_DEL_Z(a_http_pvt->path);
+    if(a_http_pvt->request)
+        DAP_DEL_Z(a_http_pvt->request);
+    if(a_http_pvt->request_custom_headers)
+        DAP_DEL_Z(a_http_pvt->request_custom_headers);
 }
 
 
@@ -248,7 +303,7 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
  * @param a_custom_count
  */
 void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
-        const char *a_request_content_type, const char * a_path, void *a_request, size_t a_request_size, char *a_cookie,
+        const char *a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size, char *a_cookie,
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
         void *a_obj, char *a_custom)
 {
@@ -257,7 +312,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     static dap_events_socket_callbacks_t l_s_callbacks = {
         .connected_callback = s_http_connected,
         .read_callback = s_http_read,
-        .error_callback = s_http_error
+        .error_callback = s_http_error,
+        .delete_callback = s_es_delete
     };
 
     // create socket
@@ -307,12 +363,17 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     l_http_pvt->response_callback = a_response_callback;
     //l_client_http_internal->socket = l_socket;
     l_http_pvt->obj = a_obj;
-    l_http_pvt->method = a_method;
+    l_http_pvt->method = dap_strdup(a_method);
     l_http_pvt->path = dap_strdup(a_path);
-    l_http_pvt->request_content_type = a_request_content_type;
-    l_http_pvt->request = (u_char*)dap_strdup(a_request);
+    l_http_pvt->request_content_type = dap_strdup(a_request_content_type);
+
+    l_http_pvt->request = DAP_NEW_Z_SIZE(byte_t, a_request_size+1);
+    if (! l_http_pvt->request)
+        return NULL;
     l_http_pvt->request_size = a_request_size;
-    l_http_pvt->uplink_addr = a_uplink_addr;
+    memcpy(l_http_pvt->request, a_request, a_request_size);
+
+    l_http_pvt->uplink_addr = dap_strdup(a_uplink_addr);
     l_http_pvt->uplink_port = a_uplink_port;
     l_http_pvt->cookie = a_cookie;
     l_http_pvt->request_custom_headers = dap_strdup(a_custom);
@@ -377,7 +438,6 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         strerror_r(l_err, l_errbuf, sizeof (l_errbuf));
         log_it(L_ERROR, "Connecting error: \"%s\" (code %d)", l_errbuf, l_err);
         s_client_http_delete( l_http_pvt);
-        l_ev_socket->_inheritor = NULL;
         dap_events_socket_delete_unsafe( l_ev_socket, true);
         return NULL;
     }
@@ -401,7 +461,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
     //dap_events_new();
 
-    char l_request_headers[1024] = { '\0' };
+    char l_request_headers[1024] = { [0]='\0' };
     int l_offset = 0;
     size_t l_offset2 = sizeof(l_request_headers);
     if(l_http_pvt->request && (dap_strcmp(l_http_pvt->method, "POST") == 0 || dap_strcmp(l_http_pvt->method, "POST_ENC") == 0)) {
@@ -427,8 +487,8 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
 
     // adding string for GET request
     char l_get_str[l_http_pvt->request_size + 2];
-    memset(l_get_str, 0, sizeof(l_get_str));
-    if(!dap_strcmp(l_http_pvt->method, "GET")) {
+    l_get_str[0] = '\0';
+    if(! dap_strcmp(l_http_pvt->method, "GET") ) {
         // We hide our request and mask them as possible
         l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "User-Agent: Mozilla\r\n");
         l_offset += l_http_pvt->cookie
@@ -468,7 +528,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
  * @param a_custom
  */
 void* dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char * a_method,
-        const char* a_request_content_type, const char * a_path, void *a_request, size_t a_request_size,
+        const char* a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size,
         char * a_cookie, dap_client_http_callback_data_t a_response_callback,
         dap_client_http_callback_error_t a_error_callback, void *a_obj, void * a_custom)
 {
