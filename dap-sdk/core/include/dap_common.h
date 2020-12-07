@@ -33,6 +33,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+#ifndef __cplusplus
+# include <stdatomic.h>
+#else
+# include <atomic>
+# define _Atomic(X) std::atomic< X >
+#define atomic_bool _Atomic(bool)
+#define atomic_uint _Atomic(uint)
+#endif
+
+
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
 #include <fcntl.h>

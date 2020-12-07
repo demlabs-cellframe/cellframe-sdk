@@ -24,7 +24,6 @@
 #pragma once
 
 #include <pthread.h>
-#include <stdatomic.h>
 #include "dap_common.h"
 #include "dap_proc_queue.h"
 
