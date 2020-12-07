@@ -170,10 +170,10 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                            dap_chain_net_srv_stream_session_t * a_srv_session,
                            dap_chain_net_srv_usage_t * a_usage, size_t a_bytes);
 
-static void m_es_tun_new(dap_events_socket_t * a_es, void * arg);
-static void m_es_tun_delete(dap_events_socket_t * a_es, void * arg);
-static void m_es_tun_read(dap_events_socket_t * a_es, void * arg);
-static void m_es_tun_error(dap_events_socket_t * a_es,int arg);
+static void s_es_tun_new(dap_events_socket_t * a_es, void * arg);
+static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg);
+static void s_es_tun_read(dap_events_socket_t * a_es, void * arg);
+static void s_es_tun_error(dap_events_socket_t * a_es,int arg);
 
 static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void * a_msg );
 static void s_tun_send_msg_ip_assigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
@@ -415,14 +415,14 @@ static void s_tun_send_msg_ip_unassigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_v
 }
 
 /**
- * @brief s_tun_send_msg_esocket_reasigned_mt
+ * @brief s_tun_send_msg_esocket_reasigned_inter
  * @param a_worker_id
  * @param a_ch_vpn
  * @param a_esocket
  * @param a_addr
  * @param a_esocket_worker_id
  */
-static void s_tun_send_msg_esocket_reasigned_mt(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
+static void s_tun_send_msg_esocket_reasigned_inter(ch_sf_tun_socket_t * a_tun_socket,  dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
                                                 struct in_addr a_addr, uint32_t a_esocket_worker_id)
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
@@ -433,16 +433,23 @@ static void s_tun_send_msg_esocket_reasigned_mt(uint32_t a_worker_id, dap_chain_
     l_msg->esocket = a_esocket;
     l_msg->is_reassigned_once = true;
 
-    if (dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0){
-        log_it(L_WARNING, "Cant send esocket reassigment message to the tun msg queue #%u", a_worker_id);
+    if (dap_events_socket_queue_ptr_send_to_input(a_tun_socket->queue_tun_msg_input[a_esocket_worker_id] , l_msg) != 0){
+        log_it(L_WARNING, "Cant send esocket reassigment message to the tun msg queue #%u", a_tun_socket->worker_id );
     }
 }
 
-static void s_tun_send_msg_esocket_reasigned_all_mt(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
+/**
+ * @brief s_tun_send_msg_esocket_reasigned_all_inter
+ * @param a_ch_vpn
+ * @param a_esocket
+ * @param a_addr
+ * @param a_worker_id
+ */
+static void s_tun_send_msg_esocket_reasigned_all_inter(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
                                                     struct in_addr a_addr, uint32_t a_worker_id)
 {
     for( uint32_t i=0; i< s_tun_sockets_count; i++)
-        s_tun_send_msg_esocket_reasigned_mt(i, a_ch_vpn, a_esocket, a_addr, a_worker_id);
+        s_tun_send_msg_esocket_reasigned_inter(s_tun_sockets[i] , a_ch_vpn, a_esocket, a_addr, a_worker_id);
 }
 
 
@@ -452,15 +459,15 @@ static void s_tun_send_msg_esocket_reasigned_all_mt(dap_chain_net_srv_ch_vpn_t *
  * @param a_tun_fd
  * @return
  */
-dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, int a_tun_fd)
+static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, int a_tun_fd)
 {
     assert(a_worker);
     dap_events_socket_callbacks_t l_s_callbacks;
     memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
-    l_s_callbacks.new_callback = m_es_tun_new;
-    l_s_callbacks.read_callback = m_es_tun_read;
-    l_s_callbacks.error_callback = m_es_tun_error;
-    l_s_callbacks.delete_callback = m_es_tun_delete;
+    l_s_callbacks.new_callback = s_es_tun_new;
+    l_s_callbacks.read_callback = s_es_tun_read;
+    l_s_callbacks.error_callback = s_es_tun_error;
+    l_s_callbacks.delete_callback = s_es_tun_delete;
 
     s_tun_deattach_queue(a_tun_fd);
 
@@ -472,7 +479,15 @@ dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, int a_t
     return l_es;
 }
 
-
+/**
+ * @brief s_callback_client_success
+ * @param a_srv
+ * @param a_usage_id
+ * @param a_srv_client
+ * @param a_success
+ * @param a_success_size
+ * @return
+ */
 static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
                     const void * a_success, size_t a_success_size)
 {
@@ -529,7 +544,16 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
     return 0;
 }
 
-static int callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
+/**
+ * @brief callback_client_sign_request
+ * @param a_srv
+ * @param a_usage_id
+ * @param a_srv_client
+ * @param a_receipt
+ * @param a_receipt_size
+ * @return
+ */
+static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
                     dap_chain_datum_tx_receipt_t **a_receipt, size_t a_receipt_size)
 {
     dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
@@ -549,8 +573,11 @@ static int callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_
 }
 
 
-/*
- * Client VPN init (after dap_chain_net_srv_vpn_init!)
+/**
+ * @brief dap_chain_net_srv_client_vpn_init
+ * @details  Client VPN init (call after dap_chain_net_srv_vpn_init!)
+ * @param l_config
+ * @return
  */
 int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
@@ -571,7 +598,7 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
             s_callback_response_success, s_callback_response_error,
             s_callback_receipt_next_success,
             s_callback_client_success,
-            callback_client_sign_request,
+            s_callback_client_sign_request,
             l_srv_vpn)) {
         l_srv = dap_chain_net_srv_get(l_uid);
         //l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*)l_srv->_inhertor : NULL;
@@ -584,8 +611,12 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
 }
 
 
-
-int s_vpn_tun_create(dap_config_t * g_config)
+/**
+ * @brief s_vpn_tun_create
+ * @param g_config
+ * @return
+ */
+static int s_vpn_tun_create(dap_config_t * g_config)
 {
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
@@ -645,10 +676,10 @@ int s_vpn_tun_create(dap_config_t * g_config)
 }
 
 /**
-* @brief ch_sf_tun_init
+* @brief s_vpn_tun_init
 * @return
 */
-int s_vpn_tun_init()
+static int s_vpn_tun_init()
 {
     s_raw_server=DAP_NEW_Z(vpn_local_network_t);
     pthread_rwlock_init(&s_raw_server->rwlock, NULL);
@@ -660,7 +691,13 @@ int s_vpn_tun_init()
     return 0;
 }
 
-int s_vpn_service_create(dap_config_t * g_config){
+/**
+ * @brief s_vpn_service_create
+ * @param g_config
+ * @return
+ */
+static int s_vpn_service_create(dap_config_t * g_config)
+{
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add( l_uid, s_callback_requested,
                                                         s_callback_response_success, s_callback_response_error,
@@ -939,8 +976,9 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
  * @param ch
  * @param arg
  */
-void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
+static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
 {
+    (void) arg;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
 
@@ -1103,7 +1141,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
     free(pkt_out);
 }
 
-void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv_usage_t * a_usage){
+static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv_usage_t * a_usage){
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) a_usage->service->_inhertor;
     dap_chain_net_srv_stream_session_t * l_srv_session= DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
@@ -1442,22 +1480,41 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
 }
 
-void m_es_tun_delete(dap_events_socket_t * a_es, void * arg)
+/**
+ * @brief m_es_tun_delete
+ * @param a_es
+ * @param arg
+ */
+static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
+    (void) arg;
     s_tun_sockets[a_es->worker->id] = NULL;
     dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->worker->id],false);
     log_it(L_NOTICE,"Destroyed TUN event socket");
 }
 
-void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
+/**
+ * @brief s_es_tun_read
+ * @param a_es
+ * @param arg
+ */
+static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
 {
+    (void) arg;
     ch_sf_tun_socket_t * l_tun_socket = CH_SF_TUN_SOCKET(a_es);
     assert(l_tun_socket);
     size_t l_buf_in_size = a_es->buf_in_size;
-    //log_it(L_DEBUG,"m_es_tun_read() received ip pacet %u size", l_buf_in_size);
+    struct iphdr *iph = (struct iphdr*) a_es->buf_in;
+    if (s_debug_more){
+        char l_str_daddr[INET_ADDRSTRLEN];
+        char l_str_saddr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET,&iph->daddr,l_str_daddr,sizeof (iph->daddr));
+        inet_ntop(AF_INET,&iph->saddr,l_str_saddr,sizeof (iph->saddr));
+        log_it(L_DEBUG,"m_es_tun_read() received ip packet %s->%s size %u ",
+               l_str_saddr, l_str_saddr,   l_buf_in_size);
+    }
 
     if(l_buf_in_size) {
-        struct iphdr *iph = (struct iphdr*) a_es->buf_in;
         struct in_addr l_in_daddr;
         l_in_daddr.s_addr = iph->daddr;
 
@@ -1472,7 +1529,7 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
             if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once ){
                 log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->worker->id);
                 l_vpn_info->is_reassigned_once = true;
-                s_tun_send_msg_esocket_reasigned_all_mt(l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->addr_ipv4,a_es->worker->id);
+                s_tun_send_msg_esocket_reasigned_all_inter(l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->addr_ipv4,a_es->worker->id);
                 dap_events_socket_reassign_between_workers_mt( l_vpn_info->worker,l_vpn_info->esocket,a_es->worker);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
@@ -1485,27 +1542,48 @@ void m_es_tun_read(dap_events_socket_t * a_es, void * arg)
     a_es->buf_in_size=0; // NULL it out because read it all
 }
 
-
-void m_es_tun_error(dap_events_socket_t * a_es, int arg)
+/**
+ * @brief m_es_tun_error
+ * @param a_es
+ * @param a_error
+ */
+static void s_es_tun_error(dap_events_socket_t * a_es, int a_error)
 {
     if (! a_es->_inheritor)
         return;
-    log_it(L_ERROR,"%s: error in socket %u (socket type %d)", __PRETTY_FUNCTION__, a_es->socket, a_es->type);
+    log_it(L_ERROR,"%s: error %d in socket %u (socket type %d)", a_error, __PRETTY_FUNCTION__, a_es->socket, a_es->type);
 }
 
-void m_es_tun_new(dap_events_socket_t * a_es, void * arg)
+/**
+ * @brief m_es_tun_new
+ * @param a_es
+ * @param arg
+ */
+static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
     ch_sf_tun_socket_t * l_tun_socket = DAP_NEW_Z(ch_sf_tun_socket_t);
     if ( l_tun_socket ){
-        l_tun_socket->worker = a_es->worker;
-        l_tun_socket->worker_id = l_tun_socket->worker->id;
+        dap_worker_t * l_worker = l_tun_socket->worker = a_es->worker;
+        uint32_t l_worker_id = l_tun_socket->worker_id = l_worker->id;
         l_tun_socket->es = a_es;
-        s_tun_sockets_queue_msg[a_es->worker->id] = dap_events_socket_create_type_queue_ptr_unsafe(a_es->worker, s_tun_recv_msg_callback );
-        s_tun_sockets[a_es->worker->id] = l_tun_socket;
+        s_tun_sockets_queue_msg[l_worker_id] = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_tun_recv_msg_callback );
+        s_tun_sockets[l_worker_id] = l_tun_socket;
 
+        l_tun_socket->queue_tun_msg_input = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof(dap_events_socket_t*)*
+                                                            dap_events_worker_get_count());
         a_es->_inheritor = l_tun_socket;
         s_tun_attach_queue( a_es->fd );
+
+        // Create for all previous created sockets the input queue
+        for (size_t n=0; n< s_tun_sockets_count; n++){
+            if (s_tun_sockets[n]){
+                dap_events_socket_t * l_queue_msg_input =  s_tun_sockets[n]->queue_tun_msg_input[l_worker_id] =
+                        dap_events_socket_queue_ptr_create_input(s_tun_sockets_queue_msg[l_worker_id] );
+                dap_events_socket_assign_on_worker_inter(l_worker->queue_es_new_input[n],l_queue_msg_input);
+            }
+        }
+
         log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
 
     }else{

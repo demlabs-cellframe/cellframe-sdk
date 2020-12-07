@@ -115,6 +115,7 @@ typedef struct ch_sf_tun_socket {
     dap_worker_t * worker;
     dap_events_socket_t * es;
     dap_chain_net_srv_ch_vpn_info_t * clients; // Remote clients identified by destination address
+    dap_events_socket_t ** queue_tun_msg_input;
     //UT_hash_handle hh;
 }ch_sf_tun_socket_t;
 
