@@ -28,6 +28,7 @@
 #include "dap_string.h"
 #include "dap_net.h"
 #include "dap_events_socket.h"
+#include "dap_timerfd.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_server.h"
 #include "dap_client.h"
@@ -53,6 +54,7 @@ typedef struct dap_http_client_internal {
     int socket;
 
     bool is_header_read;
+    bool is_closed_by_timeout;
     bool were_callbacks_called;
     size_t header_length;
     size_t content_length;
@@ -81,7 +83,41 @@ static void s_http_connected(dap_events_socket_t * a_esocket); // Connected call
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
+static void s_timer_timeout_check(void * a_arg);
 
+uint64_t s_client_timeout_ms=10000;
+
+/**
+ * @brief dap_client_http_get_connect_timeout_ms
+ * @return
+ */
+uint64_t dap_client_http_get_connect_timeout_ms()
+{
+    return s_client_timeout_ms;
+}
+
+/**
+ * @brief dap_client_http_set_connect_timeout_ms
+ * @param a_timeout_ms
+ */
+void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
+{
+    s_client_timeout_ms = a_timeout_ms;
+}
+
+
+static void s_timer_timeout_check(void * a_arg)
+{
+    dap_events_socket_t * l_es = (dap_events_socket_t*) a_arg;
+    dap_worker_t * l_worker = l_es->worker; // We're in own esocket context
+    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
+        dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
+        log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
+               l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
+        l_http_pvt->is_closed_by_timeout = true;
+        l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    }
+}
 
 /**
  * @brief s_http_stream_read
@@ -430,6 +466,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
         l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
         dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
+        dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket);
         return l_http_pvt;
     }
     else{
