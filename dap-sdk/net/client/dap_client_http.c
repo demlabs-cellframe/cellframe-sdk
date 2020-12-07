@@ -221,23 +221,32 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
     dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
 
     if (! l_client_http_internal->were_callbacks_called){
+        size_t l_response_size = l_client_http_internal->response_size> l_client_http_internal->header_length ?
+                    l_client_http_internal->response_size - l_client_http_internal->header_length: 0;
         if (l_client_http_internal->content_length){
             log_it(L_WARNING, "Remote server disconnected before he sends all data: %zd data in buffer when expected %zd",
                l_client_http_internal->response_size, l_client_http_internal->content_length);
             l_client_http_internal->error_callback(-666, l_client_http_internal->obj); // -666 means remote server disconnected before he sends all
-        }else if (l_client_http_internal->response_size){
+        }else if (l_response_size){
             log_it(L_INFO, "Remote server replied without no content legth but we have the response %zd bytes size",
-               l_client_http_internal->response_size);
-            if(l_client_http_internal->response_callback)
+               l_response_size);
+
+            l_client_http_internal->error_callback(-10 , l_client_http_internal->obj);
+
+/*            if(l_client_http_internal->response_callback)
                 l_client_http_internal->response_callback(
                         l_client_http_internal->response + l_client_http_internal->header_length,
-                        l_client_http_internal->response_size> l_client_http_internal->header_length ?
-                                l_client_http_internal->response_size - l_client_http_internal->header_length: 0,
-                        l_client_http_internal->obj);
+                        l_response_size,
+                        l_client_http_internal->obj);*/
+            l_client_http_internal->were_callbacks_called = true;
+        }else if (l_client_http_internal->response_size){
+            log_it(L_INFO, "Remote server disconnected with reply. Body is empty, only headers are in");
+            l_client_http_internal->error_callback(-667 , l_client_http_internal->obj); // -667 means remote server replied only with headers
             l_client_http_internal->were_callbacks_called = true;
         }else{
             log_it(L_WARNING, "Remote server disconnected without reply");
-            l_client_http_internal->error_callback(-667, l_client_http_internal->obj); // -667 means remote server disconnected before he sends anythinh
+            l_client_http_internal->error_callback(-668, l_client_http_internal->obj); // -668 means remote server disconnected before he sends anythinh
+            l_client_http_internal->were_callbacks_called = true;
         }
     }
     s_client_http_delete(PVT(a_es));
