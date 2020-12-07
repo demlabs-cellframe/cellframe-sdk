@@ -29,7 +29,15 @@
 #define DAP_EVENTS_SOCKET_MAX 8194
 
 // Caps for different platforms
-#if defined(DAP_OS_LINUX)
+#if defined (DAP_OS_ANDROID)
+#define DAP_EVENTS_CAPS_POLL
+#define DAP_EVENTS_CAPS_PIPE_POSIX
+#define DAP_EVENTS_CAPS_QUEUE_PIPE2
+#define DAP_EVENTS_CAPS_EVENT_EVENTFD
+#include <netinet/in.h>
+#include <sys/eventfd.h>
+#include <mqueue.h>
+#elif defined(DAP_OS_LINUX)
 //    #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
