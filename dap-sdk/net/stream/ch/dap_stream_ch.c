@@ -51,7 +51,7 @@ static struct dap_stream_ch_table_t {
     UT_hash_handle hh;
 } *s_ch_table = NULL;
 
-static pthread_mutex_t s_ch_table_lock;
+static pthread_rwlock_t s_ch_table_lock;
 
 /**
  * @brief stream_ch_init Init stream channel module
@@ -67,7 +67,7 @@ int dap_stream_ch_init()
         log_it(L_CRITICAL,"Can't init stream channel packet submodule");
         return -1;
     }
-    pthread_mutex_init(&s_ch_table_lock, NULL);
+    pthread_rwlock_init(&s_ch_table_lock, NULL);
     log_it(L_NOTICE,"Module stream channel initialized");
     return 0;
 }
@@ -77,7 +77,7 @@ int dap_stream_ch_init()
  */
 void dap_stream_ch_deinit()
 {
-    pthread_mutex_destroy(&s_ch_table_lock);
+    pthread_rwlock_destroy(&s_ch_table_lock);
 }
 
 /**
@@ -112,9 +112,9 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
 
         struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
         l_new_ch->ch = l_ch_new;
-        pthread_mutex_lock(&s_ch_table_lock);
+        pthread_rwlock_wrlock(&s_ch_table_lock);
         HASH_ADD_PTR(s_ch_table, ch, l_new_ch);
-        pthread_mutex_unlock(&s_ch_table_lock);
+        pthread_rwlock_unlock(&s_ch_table_lock);
 
 
         return l_ch_new;
@@ -135,27 +135,24 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
     HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
     pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
 
-    pthread_mutex_lock(&s_ch_table_lock);
-    struct dap_stream_ch_table_t *l_ret;;
+    pthread_rwlock_wrlock(&s_ch_table_lock);
+    struct dap_stream_ch_table_t *l_ret;
     HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
     if (!l_ret) {
-        pthread_mutex_unlock(&s_ch_table_lock);
+        pthread_rwlock_unlock(&s_ch_table_lock);
         return;
     }
     HASH_DEL(s_ch_table, l_ret);
     pthread_mutex_lock(&a_ch->mutex);
-    pthread_mutex_unlock(&s_ch_table_lock);
+    pthread_rwlock_unlock(&s_ch_table_lock);
     DAP_DELETE(l_ret);
 
     if (a_ch->proc)
         if (a_ch->proc->delete_callback)
             a_ch->proc->delete_callback(a_ch, NULL);
+    a_ch->stream->channel[a_ch->stream->channel_count--] = NULL;
     pthread_mutex_unlock(&a_ch->mutex);
     pthread_mutex_destroy(&a_ch->mutex);
-
-    //pthread_rwlock_wrlock(&a_ch->stream->rwlock);
-    a_ch->stream->channel[a_ch->stream->channel_count--] = NULL;
-    //pthread_rwlock_unlock(&a_ch->stream->rwlock);
 
 /* fixed raise, but probably may be memory leak!
     if(ch->internal){
