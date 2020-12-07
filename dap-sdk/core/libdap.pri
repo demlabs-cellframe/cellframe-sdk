@@ -8,6 +8,9 @@ unix {
     DEFINES += DAP_OS_UNIX
 }
 DEFINES += _GNU_SOURCE
+android {
+    DEFINES += DAP_OS_ANDROID
+}
 
 unix: !android {
     LIBS += -lrt

@@ -200,7 +200,7 @@ void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_e
     if (a_es->callbacks.worker_unassign_callback)
         a_es->callbacks.worker_unassign_callback(a_es, a_es->worker);
 
-    dap_events_socket_assign_on_worker_mt( a_es, a_worker_new );
+    dap_worker_add_events_socket_unsafe(a_es, a_worker_new);
 }
 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
