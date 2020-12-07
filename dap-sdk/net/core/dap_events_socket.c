@@ -149,7 +149,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     if ( a_sock!= 0 && a_sock != -1){
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
 #ifdef DAP_OS_WINDOWS
-        log_it(L_WARNING, "Hash add 0x%x", ret);
         HASH_ADD(hh,a_events->sockets, socket, sizeof(SOCKET), ret);
 #else
         HASH_ADD_INT(a_events->sockets, socket, ret);
