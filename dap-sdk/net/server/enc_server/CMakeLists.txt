@@ -11,7 +11,6 @@ if(WIN32)
     add_definitions ("-D_WINDOWS")
     add_definitions ("-D__WINDOWS__")
     add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
-    add_definitions ("-DCURL_STATICLIB")
 endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_ENC_SERVER_SRCS} ${DAP_ENC_SERVER_HDRS})

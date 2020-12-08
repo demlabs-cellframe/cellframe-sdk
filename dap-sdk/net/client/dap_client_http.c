@@ -109,7 +109,10 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
 static void s_timer_timeout_check(void * a_arg)
 {
     dap_events_socket_t * l_es = (dap_events_socket_t*) a_arg;
+    assert(l_es);
     dap_worker_t * l_worker = l_es->worker; // We're in own esocket context
+    if( !l_worker) // Out of worker
+        return;
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
