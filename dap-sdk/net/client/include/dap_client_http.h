@@ -41,6 +41,8 @@ void* dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr,
         char * a_cookie, dap_client_http_callback_data_t a_response_callback,
         dap_client_http_callback_error_t a_error_callback, void *a_obj, void * a_custom);
 
+uint64_t dap_client_http_get_connect_timeout_ms();
+void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms);
 #ifdef __cplusplus
 }
 #endif

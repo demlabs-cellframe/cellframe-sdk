@@ -13,7 +13,6 @@ if(WIN32)
     add_definitions ("-D_WINDOWS")
     add_definitions ("-D__WINDOWS__")
     add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
-    add_definitions ("-DCURL_STATICLIB")
 endif()
 
 include_directories(${PROJECT_NAME} include/)
