@@ -657,11 +657,11 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag, dap_chain_hash_fast_t * a_hash)
 {
     dap_chain_cs_dag_event_item_t* l_event_item = NULL;
-    pthread_rwlock_wrlock( &PVT(a_dag)->events_rwlock );
+    pthread_rwlock_rdlock(&PVT(a_dag)->events_rwlock);
     HASH_FIND(hh, PVT(a_dag)->events ,a_hash,sizeof(*a_hash), l_event_item);
+    pthread_rwlock_unlock(&PVT(a_dag)->events_rwlock);
     dap_chain_cs_dag_event_t * l_event = l_event_item? l_event_item->event: NULL;
-    pthread_rwlock_unlock( &PVT(a_dag)->events_rwlock );
-    return  l_event;
+    return l_event;
 }
 
 
@@ -988,7 +988,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG( a_atom_iter->chain );
     dap_chain_atom_ptr_t * l_ret = NULL;
-    pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
+    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
     size_t l_lasts_size = HASH_COUNT( PVT(l_dag)->events_lasts_unlinked );
     if ( l_lasts_size > 0 ) {
         if( a_lasts_size)
@@ -1450,9 +1450,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
 
                     }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
                         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
                         if ( l_event_item )
                             l_event = l_event_item->event;
                         else {
@@ -1463,9 +1461,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         }
                     }else if ( strcmp(l_from_events_str,"events") == 0){
                         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
                         if ( l_event_item )
                             l_event = l_event_item->event;
                         else {

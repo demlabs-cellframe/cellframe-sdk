@@ -196,10 +196,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         pthread_mutex_lock(&l_ch_chain_net->mutex);
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *) l_ch_pkt->data;
-        uint8_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_ch_chain_net_pkt->hdr.net_id);
+        uint16_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_ch_chain_net_pkt->hdr.net_id);
         bool l_error = false;
         char l_err_str[64];
-        if (l_acl_idx == (uint8_t)-1) {
+        if (l_acl_idx == (uint16_t)-1) {
             log_it(L_ERROR, "Invalid net id in packet");
             strcpy(l_err_str, "ERROR_NET_INVALID_ID");
             l_error = true;
