@@ -471,8 +471,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return;
     }
     size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size - sizeof(l_chain_pkt->hdr);
-    uint8_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_chain_pkt->hdr.net_id);
-    if (l_acl_idx == (uint8_t)-1) {
+    uint16_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_chain_pkt->hdr.net_id);
+    if (l_acl_idx == (uint16_t)-1) {
         log_it(L_ERROR, "Invalid net id 0x%016x in packet", l_chain_pkt->hdr.net_id);
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR) {
             if(l_ch_chain->callback_notify_packet_in) {
