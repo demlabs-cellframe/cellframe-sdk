@@ -1652,7 +1652,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     PVT(l_net)->node_info = dap_chain_node_info_read (l_net, l_node_addr);
                     if ( !PVT(l_net)->node_info ) { // If not present - create it
                         PVT(l_net)->node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        memcpy(&PVT(l_net)->node_info->hdr.address, &l_node_addr,sizeof (*l_node_addr));
+                        memcpy(&PVT(l_net)->node_info->hdr.address, l_node_addr,sizeof (*l_node_addr));
                         dap_chain_node_info_save(l_net,PVT(l_net)->node_info);
                     }
                     log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",

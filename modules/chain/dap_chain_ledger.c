@@ -1787,8 +1787,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 break;
             }
         }
+        pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
 
     }
+
+
     if ( l_list_out )
         dap_list_free(l_list_out);
 
