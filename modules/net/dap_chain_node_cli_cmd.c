@@ -42,7 +42,7 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include <wepoll.h>
+#include "wepoll.h"
 #else
 #include <sys/types.h>
 #include <arpa/inet.h>

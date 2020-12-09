@@ -21,9 +21,11 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#include <stdint.h>
-#include <stdatomic.h>
+
+
 #include <pthread.h>
+
+#include "dap_common.h"
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
 
@@ -36,23 +38,33 @@ typedef struct dap_worker
     dap_events_socket_t *proc_queue_input;
 
     atomic_uint event_sockets_count;
+    pthread_rwlock_t esocket_rwlock;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // Signal to exit
     bool signal_exit;
     // worker control queues
     dap_events_socket_t * queue_es_new; // Queue socket for new socket
+    dap_events_socket_t ** queue_es_new_input; // Queue socket for new socket
 
     dap_events_socket_t * queue_es_delete; // Queue socke
+    dap_events_socket_t ** queue_es_delete_input; // Queue socke
+
     dap_events_socket_t * queue_es_reassign; // Queue for reassign between workers
+    dap_events_socket_t ** queue_es_reassign_input; // Queue for reassign between workers
+
     dap_events_socket_t * queue_es_io; // Queue socket for io ops
     dap_events_socket_t ** queue_es_io_input; // Queue socket for io ops between workers
+
     dap_events_socket_t * event_exit; // Events socket for exit
 
     dap_events_socket_t * queue_callback; // Queue for pure callback on worker
 
     dap_timerfd_t * timer_check_activity;
-#ifdef DAP_EVENTS_CAPS_EPOLL
+#if defined DAP_EVENTS_CAPS_MSMQ
+    HANDLE msmq_events[MAXIMUM_WAIT_OBJECTS];
+#endif
+#if defined DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
     int poll_fd;
@@ -89,6 +101,11 @@ typedef struct dap_worker_msg_callback{
     void * arg;
 } dap_worker_msg_callback_t;
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
 
@@ -100,3 +117,8 @@ void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t 
 
 // Thread function
 void *dap_worker_thread(void *arg);
+
+
+#ifdef __cplusplus
+}
+#endif

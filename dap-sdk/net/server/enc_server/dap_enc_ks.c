@@ -98,7 +98,6 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
                 return ret;
             }*/
         }
-        log_it(L_WARNING, "Key not found");
     }
     return ret;
 }

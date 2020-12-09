@@ -340,7 +340,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
                 }
 
                 if (peol) {
-                    eol = peol - a_esocket->buf_in_str;
+                    eol = peol - (char*)a_esocket->buf_in;
                     if (eol <= 0) {
                         eol = a_esocket->buf_in_size - 2;
                     }
@@ -422,7 +422,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *arg )
                     break;
                 }
 
-                l_eol_pos = l_str_eol - a_esocket->buf_in_str;
+                l_eol_pos = l_str_eol - (char*)a_esocket->buf_in;
 
                 int parse_ret;
                 memcpy( l_buf_line, a_esocket->buf_in, l_eol_pos + 1 );

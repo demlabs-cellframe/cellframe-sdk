@@ -24,7 +24,6 @@
 #pragma once
 
 #include <pthread.h>
-#include <stdatomic.h>
 #include "dap_common.h"
 #include "dap_proc_queue.h"
 
@@ -45,7 +44,6 @@ typedef struct dap_proc_thread{
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_ctl;
-    struct epoll_event epoll_events[DAP_EVENTS_SOCKET_MAX];
 #elif defined (DAP_EVENTS_CAPS_POLL)
     int poll_fd;
     struct pollfd * poll;

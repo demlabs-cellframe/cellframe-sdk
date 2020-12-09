@@ -36,6 +36,10 @@
 #undef  clamp
 #define clamp(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef _WIN32
 char *strptime( char *buff, const char *fmt, struct tm *tm );
 #endif
@@ -113,3 +117,6 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base);
 char *_strndup(const char *str, unsigned long len);
 #endif
 
+#ifdef __cplusplus
+}
+#endif

@@ -459,6 +459,12 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         }
                         if (l_addr.s_addr) {
                             dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+#ifdef DAP_OS_UNIX
+                            struct in_addr _in_addr = { .s_addr = l_addr.s_addr  };
+#else
+                            struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
+#endif
+                            log_it(L_INFO, "dns get addrs %s : %d, net %s", inet_ntoa(_in_addr), l_port, a_net->pub.name);
                             int l_res = dap_dns_client_get_addr(l_addr, l_port, a_net->pub.name, l_link_node_info);
                             if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                 l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
@@ -1617,7 +1623,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             else{
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 bool parse_succesfully = false;
-                if ( sscanf(l_node_addr_str, "0x%016" DAP_UINT64_FORMAT_x ,&l_node_addr->uint64 ) == 1 ){
+                if ( sscanf(l_node_addr_str, "0x%016x" DAP_UINT64_FORMAT_x ,&l_node_addr->uint64 ) == 1 ){
                     log_it(L_DEBUG, "Parse node address with format 0x016llx");
                     parse_succesfully = true;
                 }
@@ -1646,7 +1652,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     PVT(l_net)->node_info = dap_chain_node_info_read (l_net, l_node_addr);
                     if ( !PVT(l_net)->node_info ) { // If not present - create it
                         PVT(l_net)->node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        memcpy(&PVT(l_net)->node_info->hdr.address, &l_node_addr,sizeof (*l_node_addr));
+                        memcpy(&PVT(l_net)->node_info->hdr.address, l_node_addr,sizeof (*l_node_addr));
                         dap_chain_node_info_save(l_net,PVT(l_net)->node_info);
                     }
                     log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",
@@ -2463,13 +2469,13 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 } break;
                                 case TX_ITEM_TYPE_SIG:{
                                     dap_chain_tx_sig_t * l_item_sign = l_cur->data;
-                                    dap_sign_t *l_sign = l_item_sign->sig;
+                                    dap_sign_t *l_sign = (dap_sign_t *)l_item_sign->sig;
                                     dap_hash_fast_t l_sign_hash;
                                     char l_sign_hash_str[70]={[0]='\0'};
                                     dap_string_append_printf(a_str_out,"\tsig_size: %u\n", l_item_sign->header.sig_size );
                                     dap_string_append_printf(a_str_out,"\ttype: %s\n", dap_sign_type_to_str(l_sign->header.type) );
                                     dap_sign_get_pkey_hash(l_sign,&l_sign_hash);
-                                    dap_hash_fast_to_str(&l_sign_hash,&l_sign_hash_str,sizeof (l_sign_hash_str)-1);
+                                    dap_hash_fast_to_str(&l_sign_hash,l_sign_hash_str,sizeof (l_sign_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\tpkey_hash: %s\n", l_sign_hash_str );
                                 } break;
                                 case TX_ITEM_TYPE_TOKEN:{
@@ -2508,7 +2514,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     switch ( l_out->header.subtype){
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY\n");
-                                            dap_string_append_printf(a_str_out,"\srv_uid: 0x%016x\n", l_out->subtype.srv_pay.srv_uid.uint64 );
+                                            dap_string_append_printf(a_str_out,"\tsrv_uid: 0x%016x\n", l_out->subtype.srv_pay.srv_uid.uint64 );
                                             switch (l_out->subtype.srv_pay.unit.enm) {
                                                 case SERV_UNIT_UNDEFINED: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNDEFINED\n"); break;
                                                 case SERV_UNIT_MB: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_MB\n"); break;

@@ -188,7 +188,7 @@ void dap_client_delete_unsafe(dap_client_t * a_client)
     if ( DAP_CLIENT_PVT(a_client)->refs_count ==0 ){
         dap_client_pvt_delete( DAP_CLIENT_PVT(a_client) );
         pthread_mutex_destroy(&a_client->mutex);
-        DAP_DELETE(a_client);
+        DAP_DEL_Z(a_client)
     } else
         DAP_CLIENT_PVT(a_client)->is_to_delete = true;
 }
@@ -265,7 +265,7 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
         dap_client_delete_unsafe(l_client_pvt->client);
         return;
     }
-    log_it(L_DEBUG, "Start transitions chain for client %p from %s to %s", l_client_pvt->client, dap_client_stage_str(l_cur_stage ) , dap_client_stage_str(l_stage_target));
+    log_it(L_DEBUG, "Start transitions chain for client %p -> %p from %s to %s", l_client_pvt, l_client_pvt->client, dap_client_stage_str(l_cur_stage ) , dap_client_stage_str(l_stage_target));
     l_client_pvt->stage_target = l_stage_target;
     l_client_pvt->stage_target_done_callback = l_stage_end_callback;
     if (l_stage_target < l_cur_stage) {

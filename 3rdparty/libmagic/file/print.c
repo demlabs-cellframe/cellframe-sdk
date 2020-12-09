@@ -2,7 +2,7 @@
  * Copyright (c) Ian F. Darwin 1986-1995.
  * Software written by Ian F. Darwin and others;
  * maintained 1995-present by Christos Zoulas and others.
- *
+ * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -12,7 +12,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- *
+ *  
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -32,7 +32,7 @@
 #include "file.h"
 
 #ifndef lint
-FILE_RCSID("@(#)$File: print.c,v 1.85 2019/03/12 20:43:05 christos Exp $")
+FILE_RCSID("@(#)$File: print.c,v 1.76 2013/02/26 18:25:00 christos Exp $")
 #endif  /* lint */
 
 #include <string.h>
@@ -42,6 +42,8 @@ FILE_RCSID("@(#)$File: print.c,v 1.85 2019/03/12 20:43:05 christos Exp $")
 #include <unistd.h>
 #endif
 #include <time.h>
+
+#define SZOF(a)	(sizeof(a) / sizeof(a[0]))
 
 #include "cdf.h"
 
@@ -63,9 +65,9 @@ file_mdump(struct magic *m)
 		if (m->in_op & FILE_OPINVERSE)
 			(void) fputc('~', stderr);
 		(void) fprintf(stderr, "%c%u),",
-		    (CAST(size_t, m->in_op & FILE_OPS_MASK) <
-		    __arraycount(optyp)) ?
-		    optyp[m->in_op & FILE_OPS_MASK] : '?', m->in_offset);
+		    ((size_t)(m->in_op & FILE_OPS_MASK) <
+		    SZOF(optyp)) ? optyp[m->in_op & FILE_OPS_MASK] : '?',
+		    m->in_offset);
 	}
 	(void) fprintf(stderr, " %s%s", (m->flag & UNSIGNED) ? "u" : "",
 	    /* Note: type is unsigned */
@@ -76,16 +78,16 @@ file_mdump(struct magic *m)
 	if (IS_STRING(m->type)) {
 		if (m->str_flags) {
 			(void) fputc('/', stderr);
-			if (m->str_flags & STRING_COMPACT_WHITESPACE)
+			if (m->str_flags & STRING_COMPACT_WHITESPACE) 
 				(void) fputc(CHAR_COMPACT_WHITESPACE, stderr);
-			if (m->str_flags & STRING_COMPACT_OPTIONAL_WHITESPACE)
+			if (m->str_flags & STRING_COMPACT_OPTIONAL_WHITESPACE) 
 				(void) fputc(CHAR_COMPACT_OPTIONAL_WHITESPACE,
 				    stderr);
-			if (m->str_flags & STRING_IGNORE_LOWERCASE)
+			if (m->str_flags & STRING_IGNORE_LOWERCASE) 
 				(void) fputc(CHAR_IGNORE_LOWERCASE, stderr);
-			if (m->str_flags & STRING_IGNORE_UPPERCASE)
+			if (m->str_flags & STRING_IGNORE_UPPERCASE) 
 				(void) fputc(CHAR_IGNORE_UPPERCASE, stderr);
-			if (m->str_flags & REGEX_OFFSET_START)
+			if (m->str_flags & REGEX_OFFSET_START) 
 				(void) fputc(CHAR_REGEX_OFFSET_START, stderr);
 			if (m->str_flags & STRING_TEXTTEST)
 				(void) fputc(CHAR_TEXTTEST, stderr);
@@ -110,15 +112,14 @@ file_mdump(struct magic *m)
 			(void) fprintf(stderr, "/%u", m->str_range);
 	}
 	else {
-		if (CAST(size_t, m->mask_op & FILE_OPS_MASK) <
-		    __arraycount(optyp))
+		if ((size_t)(m->mask_op & FILE_OPS_MASK) < SZOF(optyp))
 			(void) fputc(optyp[m->mask_op & FILE_OPS_MASK], stderr);
 		else
 			(void) fputc('?', stderr);
-
+			
 		if (m->num_mask) {
 			(void) fprintf(stderr, "%.8llx",
-			    CAST(unsigned long long, m->num_mask));
+			    (unsigned long long)m->num_mask);
 		}
 	}
 	(void) fprintf(stderr, ",%c", m->reln);
@@ -140,7 +141,7 @@ file_mdump(struct magic *m)
 		case FILE_LEQUAD:
 		case FILE_QUAD:
 			(void) fprintf(stderr, "%" INT64_T_FORMAT "d",
-			    CAST(long long, m->value.q));
+			    (unsigned long long)m->value.q);
 			break;
 		case FILE_PSTRING:
 		case FILE_STRING:
@@ -148,34 +149,32 @@ file_mdump(struct magic *m)
 		case FILE_BESTRING16:
 		case FILE_LESTRING16:
 		case FILE_SEARCH:
-			file_showstr(stderr, m->value.s,
-			    CAST(size_t, m->vallen));
+			file_showstr(stderr, m->value.s, (size_t)m->vallen);
 			break;
 		case FILE_DATE:
 		case FILE_LEDATE:
 		case FILE_BEDATE:
 		case FILE_MEDATE:
 			(void)fprintf(stderr, "%s,",
-			    file_fmttime(m->value.l, 0, tbuf));
+			    file_fmttime(m->value.l, FILE_T_LOCAL, tbuf));
 			break;
 		case FILE_LDATE:
 		case FILE_LELDATE:
 		case FILE_BELDATE:
 		case FILE_MELDATE:
 			(void)fprintf(stderr, "%s,",
-			    file_fmttime(m->value.l, FILE_T_LOCAL, tbuf));
-			break;
+			    file_fmttime(m->value.l, 0, tbuf));
 		case FILE_QDATE:
 		case FILE_LEQDATE:
 		case FILE_BEQDATE:
 			(void)fprintf(stderr, "%s,",
-			    file_fmttime(m->value.q, 0, tbuf));
+			    file_fmttime(m->value.q, FILE_T_LOCAL, tbuf));
 			break;
 		case FILE_QLDATE:
 		case FILE_LEQLDATE:
 		case FILE_BEQLDATE:
 			(void)fprintf(stderr, "%s,",
-			    file_fmttime(m->value.q, FILE_T_LOCAL, tbuf));
+			    file_fmttime(m->value.q, 0, tbuf));
 			break;
 		case FILE_QWDATE:
 		case FILE_LEQWDATE:
@@ -198,7 +197,6 @@ file_mdump(struct magic *m)
 			break;
 		case FILE_USE:
 		case FILE_NAME:
-		case FILE_DER:
 			(void) fprintf(stderr, "'%s'", m->value.s);
 			break;
 		default:
@@ -217,11 +215,11 @@ file_magwarn(struct magic_set *ms, const char *f, ...)
 	va_list va;
 
 	/* cuz we use stdout for most, stderr here */
-	(void) fflush(stdout);
+	(void) fflush(stdout); 
 
 	if (ms->file)
 		(void) fprintf(stderr, "%s, %lu: ", ms->file,
-		    CAST(unsigned long, ms->line));
+		    (unsigned long)ms->line);
 	(void) fprintf(stderr, "Warning: ");
 	va_start(va, f);
 	(void) vfprintf(stderr, f, va);
@@ -233,27 +231,40 @@ protected const char *
 file_fmttime(uint64_t v, int flags, char *buf)
 {
 	char *pp;
-	time_t t;
-	struct tm *tm, tmz;
+	time_t t = (time_t)v;
+	struct tm *tm;
 
 	if (flags & FILE_T_WINDOWS) {
 		struct timespec ts;
-		cdf_timestamp_to_timespec(&ts, CAST(cdf_timestamp_t, v));
+		cdf_timestamp_to_timespec(&ts, t);
 		t = ts.tv_sec;
-	} else {
-		// XXX: perhaps detect and print something if overflow
-		// on 32 bit time_t?
-		t = CAST(time_t, v);
 	}
 
 	if (flags & FILE_T_LOCAL) {
-		tm = localtime_r(&t, &tmz);
+		pp = ctime_r(&t, buf);
 	} else {
-		tm = gmtime_r(&t, &tmz);
+#ifndef HAVE_DAYLIGHT
+		private int daylight = 0;
+#ifdef HAVE_TM_ISDST
+		private time_t now = (time_t)0;
+
+		if (now == (time_t)0) {
+			struct tm *tm1;
+			(void)time(&now);
+			tm1 = localtime(&now);
+			if (tm1 == NULL)
+				goto out;
+			daylight = tm1->tm_isdst;
+		}
+#endif /* HAVE_TM_ISDST */
+#endif /* HAVE_DAYLIGHT */
+		if (daylight)
+			t += 3600;
+		tm = gmtime(&t);
+		if (tm == NULL)
+			goto out;
+		pp = asctime_r(tm, buf);
 	}
-	if (tm == NULL)
-		goto out;
-	pp = asctime_r(tm, buf);
 
 	if (pp == NULL)
 		goto out;

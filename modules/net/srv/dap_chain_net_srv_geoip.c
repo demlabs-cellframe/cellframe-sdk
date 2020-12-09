@@ -73,11 +73,12 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
     const char *license_key = "1JGvRmd3Ux1kcBkb";
     char *l_auth = dap_strdup_printf("%s:%s", user_id, license_key);
     size_t l_out_len = dap_enc_base64_encode(l_auth, strlen(l_auth), l_out, DAP_ENC_DATA_TYPE_B64);
-    char * l_custom = l_out_len > 0 ? dap_strdup_printf("Authorization: Basic %s", l_out) : NULL;
-    size_t l_custom_count = 1;
+    size_t l_size_req = l_out_len > 0 ? l_out_len + 32 : 0;
+    char * l_custom = l_out_len > 0 ? DAP_NEW_S_SIZE(char, l_size_req) : NULL;
+    int l_offset = l_out_len ? dap_snprintf(l_custom, l_size_req, "Authorization: Basic %s\r\n", l_out) : 0;
     // todo just need to finish up https request
     dap_client_http_request_custom(NULL,"geoip.maxmind.com", 443, "GET", "application/json", l_path, NULL,
-            0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, &l_custom, l_custom_count);
+            0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, l_custom);
     return NULL;
 }
 

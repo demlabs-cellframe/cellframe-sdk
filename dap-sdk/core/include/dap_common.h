@@ -34,9 +34,24 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
+#ifndef __cplusplus
+# include <stdatomic.h>
+#else
+# include <atomic>
+# define _Atomic(X) std::atomic< X >
+#define atomic_bool _Atomic(bool)
+#define atomic_uint _Atomic(uint)
+#endif
+
+
+#include <time.h>
 #ifdef DAP_OS_WINDOWS
 #include <fcntl.h>
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
+#define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
+#define ctime_r(arg1, arg2) ctime_s(arg2, sizeof(arg2), arg1)
+#define asctime_r(arg1, arg2) asctime_s(arg2, sizeof(arg2), arg1)
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
@@ -439,6 +454,14 @@ void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
 // crossplatform usleep
 #define DAP_USEC_PER_SEC 1000000
 void dap_usleep(time_t a_microseconds);
+
+/**
+ * @brief dap_ctime_r This function does the same as ctime_r, but if it returns (null), a line break is added.
+ * @param a_time
+ * @param a_buf The minimum buffer size is 26 elements.
+ * @return
+ */
+char* dap_ctime_r(time_t *a_time, char* a_buf);
 
 
 
