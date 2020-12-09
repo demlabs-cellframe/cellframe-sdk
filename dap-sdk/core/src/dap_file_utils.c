@@ -409,6 +409,34 @@ dap_list_name_directories_t *dap_get_subs(const char *a_path_dir){
     return list;
 }
 
+
+
+
+/**
+ * dap_path_get_ext:
+ * @a_file_name: the name of the file
+ *
+ * Gets the extension components of a file name.
+ *
+ * Returns: the extension components of the file
+ */
+const char* dap_path_get_ext(const char *a_filename)
+{
+    size_t l_len = dap_strlen(a_filename);
+    const char *l_p = a_filename + l_len - 1;
+    if(l_len < 2)
+        return NULL ;
+
+    while(l_p > a_filename)
+    {
+        if(*l_p == '.') {
+            return ++l_p;
+        }
+        l_p--;
+    }
+    return NULL ;
+}
+
 static bool get_contents_stdio(const char *filename, FILE *f, char **contents, size_t *length)
 {
     char buf[4096];
