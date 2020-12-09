@@ -52,7 +52,6 @@ int dap_stream_worker_init()
         l_stream_worker->worker = l_worker;
         pthread_rwlock_init( &l_stream_worker->channels_rwlock, NULL);
         l_stream_worker->queue_ch_io = dap_events_socket_create_type_queue_ptr_mt( l_worker, s_ch_io_callback);
-        log_it(L_WARNING, "Queue ch io socket: %d, worker %p", l_stream_worker->queue_ch_io->socket, l_stream_worker->worker);
     }
     return 0;
 }
@@ -69,7 +68,7 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
 
     // Check if it was removed from the list
     dap_stream_ch_t *l_msg_ch = NULL;
-    pthread_rwlock_wrlock(&l_stream_worker->channels_rwlock);
+    pthread_rwlock_rdlock(&l_stream_worker->channels_rwlock);
     HASH_FIND(hh_worker, l_stream_worker->channels , &l_msg->ch , sizeof (void*), l_msg_ch );
     pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
     if ( l_msg_ch == NULL){

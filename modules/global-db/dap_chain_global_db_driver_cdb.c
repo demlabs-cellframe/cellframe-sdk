@@ -55,6 +55,7 @@ typedef struct _cdb_instance {
 static char *s_cdb_path = NULL;
 static pcdb_instance s_cdb = NULL;
 static pthread_mutex_t cdb_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static inline void dap_cdb_uint_to_hex(char *arr, uint64_t val, short size) {
     short i = 0;
@@ -241,9 +242,9 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
 
 pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
     pcdb_instance l_cdb_i = NULL;
-    pthread_mutex_lock(&cdb_mutex);
+    pthread_rwlock_rdlock(&cdb_rwlock);
     HASH_FIND_STR(s_cdb, a_group, l_cdb_i);
-    pthread_mutex_unlock(&cdb_mutex);
+    pthread_rwlock_unlock(&cdb_rwlock);
     return l_cdb_i;
 }
 
@@ -261,17 +262,15 @@ int dap_cdb_add_group(const char *a_group) {
 
 int dap_db_driver_cdb_deinit() {
     pcdb_instance cur_cdb, tmp;
-    pthread_mutex_lock(&cdb_mutex);
+    pthread_rwlock_wrlock(&cdb_rwlock);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
         DAP_DELETE(cur_cdb->local_group);
         cdb_destroy(cur_cdb->cdb);
         HASH_DEL(s_cdb, cur_cdb);
         DAP_DELETE(cur_cdb);
     }
-    pthread_mutex_unlock(&cdb_mutex);
-    if (s_cdb_path) {
-        DAP_DELETE(s_cdb_path);
-    }
+    pthread_rwlock_unlock(&cdb_rwlock);
+    DAP_DEL_Z(s_cdb_path)
     return CDB_SUCCESS;
 }
 
@@ -279,7 +278,7 @@ int dap_db_driver_cdb_flush(void) {
     int ret = 0;
     log_it(L_DEBUG, "Flushing CDB to disk");
     cdb_instance *cur_cdb, *tmp;
-    pthread_mutex_lock(&cdb_mutex);
+    pthread_rwlock_rdlock(&cdb_rwlock);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
         cdb_close(cur_cdb->cdb);
         char l_cdb_path[strlen(s_cdb_path) + strlen(cur_cdb->local_group) + 2];
@@ -300,7 +299,7 @@ int dap_db_driver_cdb_flush(void) {
     }
     log_it(L_DEBUG, "All data dumped");
 RET:
-    pthread_mutex_unlock(&cdb_mutex);
+    pthread_rwlock_unlock(&cdb_rwlock);
     return ret;
 }
 
@@ -468,14 +467,14 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
     if(!a_group_mask)
         return NULL;
     cdb_instance *cur_cdb, *tmp;
-    pthread_mutex_lock(&cdb_mutex);
+    pthread_rwlock_rdlock(&cdb_rwlock);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp)
     {
         if(!dap_fnmatch(a_group_mask, cur_cdb->local_group, 0))
             if(dap_fnmatch("*.del", cur_cdb->local_group, 0))
                 l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(cur_cdb->local_group));
     }
-    pthread_mutex_unlock(&cdb_mutex);
+    pthread_rwlock_unlock(&cdb_rwlock);
     return l_ret_list;
 }
 

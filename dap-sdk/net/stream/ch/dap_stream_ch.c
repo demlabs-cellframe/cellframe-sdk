@@ -135,18 +135,19 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
     HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
     pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
 
-    pthread_rwlock_wrlock(&s_ch_table_lock);
     struct dap_stream_ch_table_t *l_ret;
+    pthread_rwlock_rdlock(&s_ch_table_lock);
     HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
+    pthread_rwlock_unlock(&s_ch_table_lock);
     if (!l_ret) {
-        pthread_rwlock_unlock(&s_ch_table_lock);
         return;
     }
+    pthread_rwlock_wrlock(&s_ch_table_lock);
     HASH_DEL(s_ch_table, l_ret);
-    pthread_mutex_lock(&a_ch->mutex);
     pthread_rwlock_unlock(&s_ch_table_lock);
     DAP_DELETE(l_ret);
 
+    pthread_mutex_lock(&a_ch->mutex);
     if (a_ch->proc)
         if (a_ch->proc->delete_callback)
             a_ch->proc->delete_callback(a_ch, NULL);

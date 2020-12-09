@@ -1832,10 +1832,7 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
     dap_chain_net_item_t * l_net_item = NULL;
     if(a_name)
         HASH_FIND_STR(s_net_items,a_name,l_net_item );
-    if ( l_net_item )
-        return l_net_item->chain_net;
-    else
-        return NULL;
+    return l_net_item ? l_net_item->chain_net : NULL;
 }
 
 /**
@@ -1846,9 +1843,7 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    if(l_net)
-        return l_net->pub.ledger;
-    return NULL;
+    return l_net ? l_net->pub.ledger : NULL;
 }
 
 /**
@@ -1860,11 +1855,7 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
 {
     dap_chain_net_item_t * l_net_item = NULL;
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
-    if ( l_net_item )
-        return l_net_item->chain_net;
-    else
-        return NULL;
-
+    return l_net_item ? l_net_item->chain_net : NULL;
 }
 
 /**
@@ -1876,10 +1867,7 @@ uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
 {
     dap_chain_net_item_t * l_net_item = NULL;
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
-    if (l_net_item)
-        return PVT(l_net_item->chain_net)->acl_idx;
-    else
-        return -1;
+    return l_net_item ? PVT(l_net_item->chain_net)->acl_idx : (uint16_t)-1;
 
 }
 
@@ -1962,10 +1950,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
  */
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 {
-    if (!l_net) {
-        return NULL;
-    }
-    return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.address : PVT(l_net)->node_addr;
+    return l_net ? (PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.address : PVT(l_net)->node_addr) : NULL;
 }
 
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
@@ -1976,7 +1961,7 @@ uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
 
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
 {
-    return  PVT(l_net)->node_info? &PVT(l_net)->node_info->hdr.cell_id: 0;
+    return  PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.cell_id: 0;
 }
 
 

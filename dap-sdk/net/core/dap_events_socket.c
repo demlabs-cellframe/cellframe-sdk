@@ -1130,7 +1130,11 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   ret->last_time_active = ret->last_ping_request = time( NULL );
 
   pthread_rwlock_wrlock( &a_events->sockets_rwlock );
-  HASH_ADD_INT( a_events->sockets, socket, ret );
+#ifdef DAP_OS_WINDOWS
+  HASH_ADD(hh,a_events->sockets, socket, sizeof(SOCKET), ret);
+#else
+  HASH_ADD_INT(a_events->sockets, socket, ret);
+#endif
   pthread_rwlock_unlock( &a_events->sockets_rwlock );
 
   return ret;
@@ -1149,12 +1153,15 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
     dap_events_socket_t *ret = NULL;
     if(!a_events)
         return NULL;
-    if(a_events->sockets)
+    if(a_events->sockets) {
+        pthread_rwlock_rdlock(&a_events->sockets_rwlock);
 #ifdef DAP_OS_WINDOWS
         HASH_FIND(hh, a_events->sockets, &sock, sizeof(SOCKET), ret );
 #else
         HASH_FIND_INT( a_events->sockets, &sock, ret );
 #endif
+        pthread_rwlock_unlock(&a_events->sockets_rwlock);
+    }
 
     return ret;
 }
@@ -1285,16 +1292,16 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor)
 {
     if (a_esocket->events){ // It could be socket NOT from events
-        pthread_rwlock_wrlock( &a_esocket->events->sockets_rwlock );
         if(!dap_events_socket_find_unsafe(a_esocket->socket, a_esocket->events)){
             log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_esocket);
-            pthread_rwlock_unlock( &a_esocket->events->sockets_rwlock );
             return ;
         }
 
-        if(a_esocket->events->sockets)
+        if(a_esocket->events->sockets) {
+            pthread_rwlock_wrlock( &a_esocket->events->sockets_rwlock );
             HASH_DEL( a_esocket->events->sockets, a_esocket );
-        pthread_rwlock_unlock( &a_esocket->events->sockets_rwlock );
+            pthread_rwlock_unlock( &a_esocket->events->sockets_rwlock );
+        }
     }
 
     if (!a_preserve_inheritor )
@@ -1304,7 +1311,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
 #ifdef DAP_OS_WINDOWS
-    if ( a_esocket->socket && a_esocket->socket != SOCKET_ERROR) {
+    if ( a_esocket->socket && a_esocket->socket != INVALID_SOCKET) {
         closesocket( a_esocket->socket );
 #else
         if ( a_esocket->socket && a_esocket->socket != -1) {
