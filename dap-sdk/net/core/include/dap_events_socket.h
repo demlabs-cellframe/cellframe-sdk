@@ -153,6 +153,8 @@ typedef struct dap_events_socket {
 #elif defined DAP_EVENTS_CAPS_MSMQ
     };
     QUEUEHANDLE mqh, mqh_recv;
+    u_int mq_num;
+    u_short port;
     HANDLE ev_timeout, ev_recv;
 #endif
 
@@ -299,7 +301,7 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
 
 #ifdef DAP_OS_WINDOWS
 extern inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
-extern inline int dap_sendto(SOCKET s, void* buf_in, size_t buf_size);
+extern inline int dap_sendto(SOCKET s, u_short port, void* buf_in, size_t buf_size);
 #endif
 
 
