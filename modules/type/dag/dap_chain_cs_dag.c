@@ -1490,7 +1490,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     time_t l_ts_reated = (time_t) l_event->header.ts_created;
                      // Header
                     dap_string_append_printf(l_str_tmp,"Event %s:\n", l_event_hash_str);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\tversion: 0x%04sX\n",l_event->header.version);
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\tversion: 0x%02X\n",l_event->header.version);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tcell_id: 0x%016llX\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tchain_id: 0x%016llX\n",l_event->header.chain_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tts_created: %s\n",ctime_r(&l_ts_reated, buf) );
