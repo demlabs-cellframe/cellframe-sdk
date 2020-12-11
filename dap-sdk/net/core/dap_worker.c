@@ -529,7 +529,7 @@ void *dap_worker_thread(void *arg)
                                  } else {
                                      l_errno = WSAGetLastError();
 
-                                     if(dap_sendto(l_cur->socket, NULL, 0) == SOCKET_ERROR) {
+                                     if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                          log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                      }
                                      l_cur->buf_out_size = 0;

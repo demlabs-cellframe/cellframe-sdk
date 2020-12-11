@@ -361,10 +361,12 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->mqh_recv  = a_es->mqh_recv;
 
     l_es->socket        = a_es->socket;
+    l_es->port          = a_es->port;
+    l_es->mq_num        = a_es->mq_num;
 
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN + 1] = { 0 };
     size_t l_sz_in_words = sizeof(l_direct_name)/sizeof(l_direct_name[0]);
-    int pos = _snwprintf_s(l_direct_name, l_sz_in_words, l_sz_in_words - 1, L"DIRECT=OS:.\\PRIVATE$\\DapEventSocketQueue%d", l_es->socket);
+    int pos = _snwprintf_s(l_direct_name, l_sz_in_words, l_sz_in_words - 1, L"DIRECT=OS:.\\PRIVATE$\\DapEventSocketQueue%d", l_es->mq_num);
     if (pos < 0) {
         log_it(L_ERROR, "Message queue path error");
         DAP_DELETE(l_es);
@@ -508,13 +510,16 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     l_addr.sin_family = AF_INET;
     IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
     l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = l_es->socket  + 32768;
+    l_addr.sin_port = 0; //l_es->socket  + 32768;
     l_addr_len = sizeof(struct sockaddr_in);
 
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
-        log_it(L_INFO, "Binded %d", l_es->socket);
+        int dummy = 100;
+        getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
+        l_es->port = l_addr.sin_port;
+        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
     MQQUEUEPROPS   l_qps;
@@ -523,8 +528,9 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     HRESULT        l_q_status[1];
 
     WCHAR l_pathname[MAX_PATH] = { 0 };
+    static atomic_uint s_queue_num = 0;
     size_t l_sz_in_words = sizeof(l_pathname)/sizeof(l_pathname[0]);
-    int pos = _snwprintf_s(l_pathname, l_sz_in_words, l_sz_in_words - 1, L".\\PRIVATE$\\DapEventSocketQueue%d", l_es->socket);
+    int pos = _snwprintf_s(l_pathname, l_sz_in_words, l_sz_in_words - 1, L".\\PRIVATE$\\DapEventSocketQueue%d", l_es->mq_num = s_queue_num++);
     if (pos < 0) {
         log_it(L_ERROR, "Message queue path error");
         DAP_DELETE(l_es);
@@ -573,6 +579,10 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         MQCloseQueue(l_es->mqh);
         MQDeleteQueue(l_format_name);
         return NULL;
+    }
+    hr = MQPurgeQueue(l_es->mqh_recv);
+    if (hr != MQ_OK) {
+        log_it(L_DEBUG, "Message queue %d NOT purged, possible data corruption, err %d", l_es->mq_num, hr);
     }
 
 #else
@@ -779,13 +789,16 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     l_addr.sin_family = AF_INET;
     IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
     l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = l_es->socket + 32768;
+    l_addr.sin_port = 0; //l_es->socket + 32768;
     l_addr_len = sizeof(struct sockaddr_in);
 
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
-        log_it(L_INFO, "Binded %d", l_es->socket);
+        int dummy = 100;
+        getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
+        l_es->port = l_addr.sin_port;
+        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 #endif
     return l_es;
@@ -1035,7 +1048,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         return hr;
     }
     
-    if(dap_sendto(a_es->socket, NULL, 0) == SOCKET_ERROR) {
+    if(dap_sendto(a_es->socket, a_es->port, NULL, 0) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
@@ -1079,7 +1092,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
         return 1;
 #elif defined DAP_OS_WINDOWS
     a_es->buf_out[0] = (u_short)a_value;
-    if(dap_sendto(a_es->socket, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
+    if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
@@ -1675,13 +1688,13 @@ inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
     return ret;
 }
 
-inline int dap_sendto(SOCKET s, void* buf_out, size_t buf_out_size) {
+inline int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
     int l_addr_len;
     struct sockaddr_in l_addr;
     l_addr.sin_family = AF_INET;
     IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
     l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = s + 32768;
+    l_addr.sin_port = port;
     l_addr_len = sizeof(struct sockaddr_in);
     int ret;
     if (buf_out) {

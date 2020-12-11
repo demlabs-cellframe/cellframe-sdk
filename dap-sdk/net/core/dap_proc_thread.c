@@ -475,7 +475,7 @@ static void * s_proc_thread_function(void * a_arg)
                                     log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
                                     break;
                                 } else {
-                                    if(dap_sendto(l_cur->socket, NULL, 0) == SOCKET_ERROR) {
+                                    if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
                                     }
                                     l_cur->buf_out_size = 0;
