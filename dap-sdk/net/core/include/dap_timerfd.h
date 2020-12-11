@@ -44,6 +44,7 @@ typedef struct dap_timerfd {
     uint64_t timeout_ms;
 #ifdef DAP_OS_WINDOWS
 	SOCKET tfd;
+    u_short port;
 #else
     int tfd; //timer file descriptor
 #endif
