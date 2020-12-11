@@ -136,7 +136,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
         int dummy = 100;
         getsockname(l_tfd, (struct sockaddr*)&l_addr, &dummy);
         l_timerfd->port = l_addr.sin_port;
-        log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
+        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
     LARGE_INTEGER l_due_time;

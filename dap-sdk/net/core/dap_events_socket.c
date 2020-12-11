@@ -519,7 +519,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
+        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
     MQQUEUEPROPS   l_qps;
@@ -581,9 +581,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         return NULL;
     }
     hr = MQPurgeQueue(l_es->mqh_recv);
-    if (hr == MQ_OK) {
-        log_it(L_DEBUG, "Message queue %d purged", l_es->mq_num);
-    } else {
+    if (hr != MQ_OK) {
         log_it(L_DEBUG, "Message queue %d NOT purged, possible data corruption, err %d", l_es->mq_num, hr);
     }
 
@@ -800,7 +798,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
+        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 #endif
     return l_es;
