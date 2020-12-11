@@ -361,6 +361,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->mqh_recv  = a_es->mqh_recv;
 
     l_es->socket        = a_es->socket;
+    l_es->port          = a_es->port;
+    l_es->mq_num        = a_es->mq_num;
 
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN + 1] = { 0 };
     size_t l_sz_in_words = sizeof(l_direct_name)/sizeof(l_direct_name[0]);
