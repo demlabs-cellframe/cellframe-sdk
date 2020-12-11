@@ -1,18 +1,19 @@
 QMAKE_CFLAGS_RELEASE += -std=gnu11
-QMAKE_CFLAGS_DEBUG = -std=gnu11 -DDAP_DEBUG
+QMAKE_CFLAGS_DEBUG = -std=gnu11
+-DDAP_DEBUG
 QMAKE_CXXFLAGS +=  -std=c++11
 unix {
-    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
-    QMAKE_LFLAGS_DEBUG += -pg
     include(src/unix/unix.pri)
     DEFINES += DAP_OS_UNIX
 }
-DEFINES += _GNU_SOURCE
 android {
     DEFINES += DAP_OS_ANDROID
 }
 
 unix: !android {
+    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
+    QMAKE_LFLAGS_DEBUG += -pg
+    DEFINES += _GNU_SOURCE
     LIBS += -lrt
 }
 darwin {
