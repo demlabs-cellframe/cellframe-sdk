@@ -273,7 +273,7 @@ void *dap_worker_thread(void *arg)
             if(l_flag_read) {
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
-                if(l_cur->buf_in_size >= DAP_EVENTS_SOCKET_BUF) {
+                if(l_cur->buf_in_size >= l_cur->buf_in_size_max) {
                     log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped!");
                     l_cur->buf_in_size = 0;
                 }
@@ -286,24 +286,24 @@ void *dap_worker_thread(void *arg)
                     case DESCRIPTOR_TYPE_FILE:
                         l_must_read_smth = true;
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, l_cur->buf_in + l_cur->buf_in_size, DAP_EVENTS_SOCKET_BUF - l_cur->buf_in_size);
+                        l_bytes_read = dap_recvfrom(l_cur->socket, l_cur->buf_in + l_cur->buf_in_size, l_cur->buf_in_size_max - l_cur->buf_in_size);
 #else
                         l_bytes_read = read(l_cur->socket, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                sizeof(l_cur->buf_in) - l_cur->buf_in_size);
+                                l_cur->buf_in_size_max - l_cur->buf_in_size);
 #endif
                         l_errno = errno;
                     break;
                     case DESCRIPTOR_TYPE_SOCKET:
                         l_must_read_smth = true;
                         l_bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                            DAP_EVENTS_SOCKET_BUF - l_cur->buf_in_size, 0);
+                                            l_cur->buf_in_size_max - l_cur->buf_in_size, 0);
                         l_errno = errno;
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_UDP: {
                         l_must_read_smth = true;
                         socklen_t l_size = sizeof(l_cur->remote_addr);
                         l_bytes_read = recvfrom(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                                DAP_EVENTS_SOCKET_BUF - l_cur->buf_in_size, 0,
+                                                l_cur->buf_in_size_max - l_cur->buf_in_size, 0,
                                                 (struct sockaddr *)&l_cur->remote_addr, &l_size);
 
                         l_errno = errno;
@@ -374,7 +374,7 @@ void *dap_worker_thread(void *arg)
                         }
                         l_cur->buf_in_size += l_bytes_read;
                         if(s_debug_reactor)
-                            log_it(L_DEBUG, "Received %d bytes", l_bytes_read);
+                            log_it(L_DEBUG, "Received %d bytes for fd %d ", l_bytes_read, l_cur->fd);
                         if(l_cur->callbacks.read_callback){
                             l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
                             if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,

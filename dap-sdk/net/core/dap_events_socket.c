@@ -137,8 +137,12 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     ret->events = a_events;
     memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
     ret->flags = DAP_SOCK_READY_TO_READ;
-    ret->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, DAP_EVENTS_SOCKET_BUF + 1);
-    ret->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, DAP_EVENTS_SOCKET_BUF + 1);
+
+    ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
+    ret->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
+
+    ret->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_in_size_max + 1);
+    ret->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_out_size_max + 1);
     ret->buf_in_size = ret->buf_out_size = 0;
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
@@ -318,7 +322,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t, 8 * sizeof(void*));
+    l_es->buf_out_size_max = 8 * sizeof(void*);
+    l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
     //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -418,6 +423,11 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         l_es->worker = a_w;
     }
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
+    if (l_es->buf_out){
+        DAP_DELETE(l_es->buf_out);
+        l_es->buf_out_size_max =0;
+
+    }
     l_es->buf_out = NULL;
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -727,8 +737,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
-    l_es->buf_out        = DAP_NEW_Z_SIZE(byte_t, 1);
-    l_es->buf_out_size   = 1;
+    l_es->buf_out_size_max = 1;
+    l_es->buf_out        = DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     if (a_w){
         l_es->events = a_w->events;
@@ -1137,7 +1147,9 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   ret->server = a_server;
 
   memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
-  ret->buf_in = ret->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, DAP_EVENTS_SOCKET_BUF+1);
+  ret->buf_out_size_max = ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
+  ret->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_in_size_max+1);
+  ret->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_out_size_max+1);
   ret->buf_in_size = ret->buf_out_size = 0;
   ret->flags = DAP_SOCK_READY_TO_READ;
   ret->last_time_active = ret->last_ping_request = time( NULL );
@@ -1592,12 +1604,12 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size)
 {
-    if(sc->buf_out_size > DAP_EVENTS_SOCKET_BUF){
-        log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", sc->buf_out_size, DAP_EVENTS_SOCKET_BUF);
+    if(sc->buf_out_size > sc->buf_out_size_max){
+        log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", sc->buf_out_size, sc->buf_out_size_max);
         return 0;
     }
      //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
-     data_size = (sc->buf_out_size + data_size < DAP_EVENTS_SOCKET_BUF) ? data_size : (DAP_EVENTS_SOCKET_BUF - sc->buf_out_size);
+     data_size = (sc->buf_out_size + data_size < sc->buf_out_size_max) ? data_size : (sc->buf_out_size_max - sc->buf_out_size);
      memcpy(sc->buf_out + sc->buf_out_size, data, data_size);
      sc->buf_out_size += data_size;
      dap_events_socket_set_writable_unsafe(sc, true);
@@ -1614,10 +1626,13 @@ size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * fo
 {
     //log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
 
-    size_t max_data_size = DAP_EVENTS_SOCKET_BUF - sc->buf_out_size;
+    size_t l_max_data_size = sc->buf_out_size_max - sc->buf_out_size;
+    if (! l_max_data_size)
+        return 0;
+
     va_list ap;
     va_start(ap, format);
-    int ret=dap_vsnprintf((char*)sc->buf_out + sc->buf_out_size, max_data_size, format, ap);
+    int ret=dap_vsnprintf((char*)sc->buf_out + sc->buf_out_size, l_max_data_size, format, ap);
     va_end(ap);
     if(ret > 0) {
         sc->buf_out_size += (unsigned int)ret;

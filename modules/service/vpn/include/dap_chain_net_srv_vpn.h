@@ -24,11 +24,6 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#ifdef DAP_OS_UNIX
-#include <netinet/in.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-#endif
 
 #include "dap_config.h"
 #include "dap_chain_net_srv.h"
