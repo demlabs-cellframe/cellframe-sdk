@@ -339,11 +339,11 @@ void *dap_worker_thread(void *arg)
                             log_it(L_ERROR,"No accept_callback on listening socket");
                     break;
                     case DESCRIPTOR_TYPE_TIMER:{
-                        uint64_t val;
                         /* if we not reading data from socket, he triggered again */
 #ifdef DAP_OS_WINDOWS
                         l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
 #else
+                        uint64_t val;
                         read( l_cur->fd, &val, 8);
 #endif
                         if (l_cur->callbacks.timer_callback)
