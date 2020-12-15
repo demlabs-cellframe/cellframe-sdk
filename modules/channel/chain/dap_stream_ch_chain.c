@@ -867,7 +867,7 @@ static bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         } break;
         default: break;
     }
-    if (l_ch->stream->esocket->buf_out_size > DAP_EVENTS_SOCKET_BUF - DAP_CHAIN_PKT_MAX_SIZE ||
+    if (l_ch->stream->esocket->buf_out_size + DAP_CHAIN_PKT_MAX_SIZE > l_ch->stream->esocket->buf_out_size_max  ||
             l_ch_chain->state == CHAIN_STATE_IDLE) {
         if (l_ch->stream->esocket->buf_out_size) {
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
@@ -886,9 +886,13 @@ static bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
 void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    if (a_ch->stream->esocket->buf_out_size > DAP_EVENTS_SOCKET_BUF / 4) {
-        return;
-    }
+
+    /// That was for what?!
+    ///
+    /// if (a_ch->stream->esocket->buf_out_size > ( a_ch->stream->esocket->buf_out_size_max / 4 )) {
+    ///        return;
+    ///   }
+    ///
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     if (l_ch_chain && l_ch_chain->state != CHAIN_STATE_IDLE) {

@@ -103,8 +103,9 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_key_type_t l_pkey_exchange_type =DAP_ENC_KEY_TYPE_MSRLN ;
         dap_enc_key_type_t l_enc_type = DAP_ENC_KEY_TYPE_IAES;
         size_t l_pkey_exchange_size=MSRLN_PKA_BYTES;
-        sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
-                                      &l_enc_type,&l_pkey_exchange_type,&l_pkey_exchange_size);
+        size_t l_block_key_size=DAP_ENC_KS_KEY_ID_SIZE;
+        sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd,block_key_size=%zd",
+                                      &l_enc_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
 
         log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_type),
                dap_enc_get_type_name(l_pkey_exchange_type));
@@ -150,12 +151,12 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         l_enc_key_ks->key = dap_enc_key_new_generate(l_enc_type,
                                                l_pkey_exchange_key->priv_key_data, // shared key
                                                l_pkey_exchange_key->priv_key_data_size,
-                                               l_enc_key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, 0);
+                                               l_enc_key_ks->id, l_block_key_size, 0);
         dap_enc_ks_save_in_storage(l_enc_key_ks);
 
-        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1];
+        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(l_block_key_size) + 1];
 
-        size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, encrypt_id, DAP_ENC_DATA_TYPE_B64);
+        size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, l_block_key_size, encrypt_id, DAP_ENC_DATA_TYPE_B64);
         encrypt_id[encrypt_id_size] = '\0';
 
         _enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);

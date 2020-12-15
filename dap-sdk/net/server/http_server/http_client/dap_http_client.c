@@ -590,8 +590,9 @@ void dap_http_client_error( dap_events_socket_t *cl, int arg )
   log_it( L_NOTICE, "dap_http_client_error" );
 
   dap_http_client_t *cl_ht = DAP_HTTP_CLIENT( cl );
-
-  if ( cl_ht->proc )
-    if ( cl_ht->proc->error_callback )
-      cl_ht->proc->error_callback( cl_ht, arg );
+  if (cl_ht){
+      if ( cl_ht->proc )
+        if ( cl_ht->proc->error_callback )
+          cl_ht->proc->error_callback( cl_ht, arg );
+  }
 }

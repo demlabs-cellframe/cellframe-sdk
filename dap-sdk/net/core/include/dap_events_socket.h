@@ -178,6 +178,7 @@ typedef struct dap_events_socket {
         //uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
         //char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
     byte_t  *buf_in;
+    size_t buf_in_size_max; //  size of alloced buffer
         //char    *buf_in_str;
     size_t buf_in_size; // size of data that is in the input buffer
 
@@ -186,6 +187,7 @@ typedef struct dap_events_socket {
     //byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
     byte_t *buf_out;
     size_t buf_out_size; // size of data that is in the output buffer
+    size_t buf_out_size_max; // max size of data
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
