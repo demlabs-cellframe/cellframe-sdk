@@ -123,6 +123,8 @@ typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_SIG_RINGCT20,//ring signature for confidentional transaction
 
+                           DAP_ENC_KEY_TYPE_THREEFISH,
+
                            DAP_ENC_KEY_TYPE_LAST = DAP_ENC_KEY_TYPE_SIG_RINGCT20,
                            DAP_ENC_KEY_TYPE_NULL = 0 // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
 
