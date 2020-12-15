@@ -88,7 +88,7 @@ typedef struct ch_vpn_pkt {
     byte_t data[]; // Binary data nested by packet
 }DAP_ALIGN_PACKED ch_vpn_pkt_t;
 
-typedef struct ch_sf_tun_socket ch_sf_tun_socket_t;
+typedef struct dap_chain_net_srv_vpn_tun_socket dap_chain_net_srv_vpn_tun_socket_t;
 typedef struct dap_chain_net_srv_ch_vpn dap_chain_net_srv_ch_vpn_t;
 
 
@@ -99,22 +99,22 @@ typedef struct usage_client {
     size_t receipt_size;
     uint32_t usage_id;
     dap_chain_net_srv_t * srv;
-    ch_sf_tun_socket_t * tun_socket;
+    dap_chain_net_srv_vpn_tun_socket_t * tun_socket;
     UT_hash_handle hh;
 } usage_client_t;
 
 typedef struct dap_chain_net_srv_ch_vpn_info dap_chain_net_srv_ch_vpn_info_t;
 
-typedef struct ch_sf_tun_socket {
+typedef struct dap_chain_net_srv_vpn_tun_socket {
     uint8_t worker_id;
     dap_worker_t * worker;
     dap_events_socket_t * es;
     dap_chain_net_srv_ch_vpn_info_t * clients; // Remote clients identified by destination address
     dap_events_socket_t ** queue_tun_msg_input;
     //UT_hash_handle hh;
-}ch_sf_tun_socket_t;
+}dap_chain_net_srv_vpn_tun_socket_t;
 
-#define CH_SF_TUN_SOCKET(a) ((ch_sf_tun_socket_t*) a->_inheritor )
+#define CH_SF_TUN_SOCKET(a) ((dap_chain_net_srv_vpn_tun_socket_t*) a->_inheritor )
 
 
 /**
@@ -129,7 +129,7 @@ typedef struct dap_chain_net_srv_ch_vpn
     dap_chain_net_srv_t* net_srv;
     //dap_chain_net_srv_uid_t srv_uid; // Unique ID for service.
     bool is_allowed;
-    ch_sf_tun_socket_t * tun_socket;
+    dap_chain_net_srv_vpn_tun_socket_t * tun_socket;
 
     struct in_addr addr_ipv4;
     dap_stream_ch_t * ch;

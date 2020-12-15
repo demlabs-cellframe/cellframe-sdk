@@ -324,6 +324,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->buf_out_size_max = 8 * sizeof(void*);
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
+    l_es->buf_in_size_max = 8 * sizeof(void*);
+    l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
     //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
 #if defined(DAP_EVENTS_CAPS_EPOLL)

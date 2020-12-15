@@ -239,8 +239,10 @@ void *dap_worker_thread(void *arg)
             if(l_flag_nval ){
                 log_it(L_WARNING, "NVAL flag armed for socket %p (%d)", l_cur, l_cur->socket);
                 l_cur->buf_out_size = 0;
+                l_cur->buf_in_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
+                assert(0);
             }
 
             if(l_flag_error) {
@@ -273,8 +275,8 @@ void *dap_worker_thread(void *arg)
             if(l_flag_read) {
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
-                if(l_cur->buf_in_size >= l_cur->buf_in_size_max) {
-                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped!");
+                if(l_cur->buf_in_size_max && l_cur->buf_in_size >= l_cur->buf_in_size_max ) {
+                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (%d)", l_cur, l_cur->socket);
                     l_cur->buf_in_size = 0;
                 }
 
