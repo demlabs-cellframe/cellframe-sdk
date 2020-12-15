@@ -322,7 +322,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = 8 * sizeof(void*);
+    l_es->buf_out_size_max = l_es->buf_in_size_max = 8 * sizeof(void*);
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
     l_es->buf_in_size_max = 8 * sizeof(void*);
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
@@ -425,11 +425,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         l_es->worker = a_w;
     }
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    if (l_es->buf_out){
-        DAP_DELETE(l_es->buf_out);
-        l_es->buf_out_size_max =0;
-
-    }
+    l_es->buf_in_size_max = 8 * sizeof(void*);
     l_es->buf_out = NULL;
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -739,8 +735,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
-    l_es->buf_out_size_max = 1;
-    l_es->buf_out        = DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max);
+    l_es->buf_out_size_max = l_es->buf_in_size_max = 1;
+    l_es->buf_out = DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
     if (a_w){
         l_es->events = a_w->events;
