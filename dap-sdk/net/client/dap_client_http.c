@@ -44,6 +44,7 @@ typedef struct dap_http_client_internal {
 
     dap_client_http_callback_data_t response_callback;
     dap_client_http_callback_error_t error_callback;
+    dap_client_http_callback_error_ext_t error_ext_callback;
 
     void *obj; // dap_client_pvt_t *client_pvt;
     byte_t *request;
@@ -535,7 +536,8 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
                 ? dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Cookie: %s\r\n", l_http_pvt->cookie)
                 : 0;
 
-        l_offset = l_http_pvt->request ? dap_snprintf(l_get_str, sizeof(l_get_str), "?%s", l_http_pvt->request) : 0;
+        if ((l_http_pvt->request_size && l_http_pvt->request_size))
+            dap_snprintf(l_get_str, sizeof(l_get_str), "?%s", l_http_pvt->request) ;
     }
 
     // send header
@@ -543,9 +545,9 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
             "Host: %s\r\n"
             "%s"
             "\r\n",
-            l_http_pvt->method, l_http_pvt->path, strlen(l_get_str) ? l_get_str : "", l_http_pvt->uplink_addr, l_request_headers);
+            l_http_pvt->method, l_http_pvt->path, l_get_str, l_http_pvt->uplink_addr, l_request_headers);
     // send data for POST request
-    if (l_http_pvt->request_size) {
+    if (l_http_pvt->request_size && l_http_pvt->request_size) {
         dap_events_socket_write_unsafe( a_esocket, l_http_pvt->request, l_http_pvt->request_size);
     }
 }
