@@ -132,6 +132,8 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     assert(a_callbacks);
 
     dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
+    if (!ret)
+        return NULL;
 
     ret->socket = a_sock;
     ret->events = a_events;
@@ -335,7 +337,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = l_es->buf_in_size_max = 8 * sizeof(void*);
+    l_es->buf_out_size_max = 8 * sizeof(void*);
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
     l_es->buf_in_size_max = 8 * sizeof(void*);
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
@@ -722,13 +724,13 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #endif
         } else {
 #ifdef DAP_OS_WINDOWS
-            int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, DAP_EVENTS_SOCKET_BUF);
+            int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
             if (l_read == SOCKET_ERROR) {
                 log_it(L_ERROR, "Queue socket %d received invalid data, error %d", a_esocket->socket, WSAGetLastError());
                 return -1;
             }
 #else
-            size_t l_read = read(a_esocket->socket, a_esocket->buf_in,sizeof(a_esocket->buf_in));
+            size_t l_read = read(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max );
 #endif
             a_esocket->callbacks.queue_callback(a_esocket, a_esocket->buf_in, l_read);
         }
@@ -1386,6 +1388,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (a_es->poll_index < a_worker->poll_count ){
         a_worker->poll[a_es->poll_index].fd = -1;
+        a_worker->poll_compress = true;
     }else{
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
     }
@@ -1492,7 +1495,8 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
     l_msg->data = DAP_NEW_SIZE(void,a_data_size);
     l_msg->data_size = a_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
-    memcpy( l_msg->data, a_data, a_data_size);
+    if( a_data)
+        memcpy( l_msg->data, a_data, a_data_size);
 
     int l_ret= dap_events_socket_queue_ptr_send_to_input( a_es_input, l_msg );
     if (l_ret!=0){

@@ -158,6 +158,7 @@ void *dap_worker_thread(void *arg)
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_ERROR, "Worker thread %d got errno:\"%s\" (%d)", l_worker->id, l_errbuf, l_errno);
+            assert_perror(l_errno);
 #endif
             break;
         }
@@ -429,14 +430,14 @@ void *dap_worker_thread(void *arg)
                 char l_error_buf[128];
                 l_error_buf[0]='\0';
                 getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_error, &l_error_len);
-                if (l_error){
+                if(l_error == EINPROGRESS) {
+                    log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
+                }else if (l_error){
                     strerror_r(l_error, l_error_buf, sizeof (l_error_buf));
                     log_it(L_ERROR,"Connecting error with %s: \"%s\" (code %d)", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)",
                            l_error_buf, l_error);
                     if ( l_cur->callbacks.error_callback )
                         l_cur->callbacks.error_callback(l_cur, l_error);
-                }else if(l_error == EINPROGRESS) {
-                    log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
                 }else{
                     if(s_debug_reactor)
                         log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
@@ -478,7 +479,7 @@ void *dap_worker_thread(void *arg)
                     }
                     //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
                     ssize_t l_bytes_sent =0;
-                    int l_errno;
+                    int l_errno=0;
 
                     switch (l_cur->type){
                         case DESCRIPTOR_TYPE_SOCKET: {

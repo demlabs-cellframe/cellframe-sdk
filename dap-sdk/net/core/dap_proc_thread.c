@@ -487,8 +487,9 @@ static void * s_proc_thread_function(void * a_arg)
                                     l_bytes_sent = mq_send(l_cur->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
                                     if (l_bytes_sent==0)
                                         l_bytes_sent = sizeof (void *);
-                                    if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
+                                    if (l_bytes_sent == -1 && errno == EINVAL) // To make compatible with other
                                         l_errno = EAGAIN;                        // non-blocking sockets
+
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
                                 #endif
@@ -555,14 +556,12 @@ static void * s_proc_thread_function(void * a_arg)
            l_poll_compress = false;
            for (size_t i = 0; i < l_thread->poll_count ; i++)  {
                if ( l_thread->poll[i].fd == -1){
-                   if ( l_thread->poll_count){
-                        for(size_t j = i; j < l_thread->poll_count-1; j++){
-                            l_thread->poll[j].fd = l_thread->poll[j+1].fd;
-                            l_thread->esockets[j] = l_thread->esockets[j+1];
-                            if(l_thread->esockets[j])
-                                l_thread->esockets[j]->poll_index = j;
-                        }
-                   }
+                    for(size_t j = i; j +1 < l_thread->poll_count; j++){
+                        l_thread->poll[j].fd = l_thread->poll[j+1].fd;
+                        l_thread->esockets[j] = l_thread->esockets[j+1];
+                        if(l_thread->esockets[j])
+                            l_thread->esockets[j]->poll_index = j;
+                    }
                    i--;
                    l_thread->poll_count--;
                }
