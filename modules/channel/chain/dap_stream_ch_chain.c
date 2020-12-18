@@ -122,17 +122,17 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
         DAP_STREAM_CH_CHAIN(a_ch)->request_global_db_trs = NULL;
     }
 
-    if (DAP_STREAM_CH_CHAIN(a_ch)->pkt_copy_list) {
-        dap_list_t *l_tmp_item = DAP_STREAM_CH_CHAIN(a_ch)->pkt_copy_list;
+    if (DAP_STREAM_CH_CHAIN(a_ch)->in_gdb_list) {
+        dap_list_t *l_tmp_item = DAP_STREAM_CH_CHAIN(a_ch)->in_gdb_list;
         while(l_tmp_item) {
-            dap_chain_pkt_copy_t *l_pkt_copy = (dap_chain_pkt_copy_t *)l_tmp_item->data;
+            dap_chain_pkt_item_t *l_pkt_copy = (dap_chain_pkt_item_t *)l_tmp_item->data;
             DAP_DELETE(l_pkt_copy->pkt_data);
             DAP_DELETE(l_pkt_copy);
             dap_list_t *l_trash_item = l_tmp_item;
             l_tmp_item = dap_list_next(l_tmp_item);
             DAP_DELETE(l_trash_item);
         }
-        DAP_STREAM_CH_CHAIN(a_ch)->pkt_copy_list = NULL;
+        DAP_STREAM_CH_CHAIN(a_ch)->in_gdb_list = NULL;
     }
     if (DAP_STREAM_CH_CHAIN(a_ch)->db_iter) {
         DAP_STREAM_CH_CHAIN(a_ch)->db_iter = dap_list_first( DAP_STREAM_CH_CHAIN(a_ch)->db_iter);
@@ -147,7 +147,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
  * @param a_arg
  * @return
  */
-bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
+bool s_sync_out_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
@@ -189,7 +189,13 @@ bool s_sync_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     return true;
 }
 
-bool s_sync_gdb_callback(dap_proc_thread_t *a_thread, void *a_arg)
+/**
+ * @brief s_sync_out_gdb_callback
+ * @param a_thread
+ * @param a_arg
+ * @return
+ */
+bool s_sync_out_gdb_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
@@ -233,27 +239,32 @@ bool s_sync_gdb_callback(dap_proc_thread_t *a_thread, void *a_arg)
     return true;
 }
 
-bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
+/**
+ * @brief s_chain_in_pkt_callback
+ * @param a_thread
+ * @param a_arg
+ * @return
+ */
+bool s_chain_in_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     dap_chain_hash_fast_t l_atom_hash = {};
-    dap_list_t *l_pkt_copy_list = l_ch_chain->pkt_copy_list;
+    dap_list_t *l_pkt_copy_list = l_ch_chain->in_chains_list;
     if (l_pkt_copy_list) {
-        l_ch_chain->pkt_copy_list = l_ch_chain->pkt_copy_list->next;
-        if ( l_ch_chain->pkt_copy_list ) {
-            dap_chain_pkt_copy_t *l_pkt_copy = (dap_chain_pkt_copy_t *)l_pkt_copy_list->data;
-            if (l_pkt_copy){
-                dap_chain_t *l_chain = dap_chain_find_by_id(l_pkt_copy->pkt_hdr.net_id, l_pkt_copy->pkt_hdr.chain_id);
+        l_ch_chain->in_chains_list = l_ch_chain->in_chains_list->next;
+            dap_chain_pkt_item_t *l_pkt_item = (dap_chain_pkt_item_t *)l_pkt_copy_list->data;
+            if (l_pkt_item){
+                dap_chain_t *l_chain = dap_chain_find_by_id(l_pkt_item->pkt_hdr.net_id, l_pkt_item->pkt_hdr.chain_id);
                 if (!l_chain) {
                     if (s_debug_chain_sync)
                         log_it(L_WARNING, "No chain found for DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN");
                     return true;
                 }
-                dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_copy->pkt_data;
-                uint64_t l_atom_copy_size = l_pkt_copy->pkt_data_size;
-                if ( l_atom_copy_size && l_pkt_copy && l_atom_copy ){
+                dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
+                uint64_t l_atom_copy_size = l_pkt_item->pkt_data_size;
+                if ( l_atom_copy_size && l_pkt_item && l_atom_copy ){
                     dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
                     dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain);
                     size_t l_atom_size =0;
@@ -261,7 +272,7 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
                         if (l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
                             // append to file
-                            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_pkt_copy->pkt_hdr.cell_id);
+                            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_pkt_item->pkt_hdr.cell_id);
                             int l_res;
                             if (l_cell) {
                                 // add one atom only
@@ -300,7 +311,7 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                 dap_chain_cell_delete(l_cell);
                             }
                             else{
-                                log_it(L_ERROR, "Can't get cell for cell_id 0x%x for save event to file", l_pkt_copy->pkt_hdr.cell_id);
+                                log_it(L_ERROR, "Can't get cell for cell_id 0x%x for save event to file", l_pkt_item->pkt_hdr.cell_id);
 
                             }
                         }
@@ -312,41 +323,38 @@ bool s_chain_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     }
                     l_chain->callback_atom_iter_delete(l_atom_iter);
                 }else{
-                    if (!l_pkt_copy)
-                        log_it(L_WARNING, "packet copy is NULL");
+                    if (!l_pkt_item)
+                        log_it(L_WARNING, "chain packet item is NULL");
                     if (!l_pkt_copy_list)
-                        log_it(L_WARNING, "packet copy list is NULL");
+                        log_it(L_WARNING, "chain packet item list is NULL");
                     if (l_atom_copy_size)
-                        log_it(L_WARNING, "Atom copy size is zero");
+                        log_it(L_WARNING, "chain packet item data size is zero");
                 }
             }else{
                 log_it(L_WARNING, "pkt copy is NULL");
             }
-            if (l_pkt_copy)
-                DAP_DELETE(l_pkt_copy);
+            if (l_pkt_item)
+                DAP_DELETE(l_pkt_item);
 
             DAP_DELETE(l_pkt_copy_list);
-        }else{
-         //   log_it(L_WARNING, "Next pkt copy list is NULL");
-        }
     }else
         log_it(L_WARNING, "In proc thread got CHAINS stream ch packet with zero data");
     dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
     return true;
 }
 
-bool s_gdb_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
+bool s_gdb_in_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     dap_stream_ch_t *l_ch = (dap_stream_ch_t *)a_arg;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
-    dap_list_t *l_pkt_copy_list = l_ch_chain->pkt_copy_list;
+    dap_list_t *l_pkt_copy_list = l_ch_chain->in_gdb_list;
     if (l_pkt_copy_list) {
-        l_ch_chain->pkt_copy_list = l_ch_chain->pkt_copy_list->next;
-        if (l_ch_chain->pkt_copy_list )
-            l_ch_chain->pkt_copy_list->prev = NULL;
+        l_ch_chain->in_gdb_list = l_ch_chain->in_gdb_list->next;
+        if (l_ch_chain->in_gdb_list )
+            l_ch_chain->in_gdb_list->prev = NULL;
 
-        dap_chain_pkt_copy_t *l_pkt_copy = (dap_chain_pkt_copy_t *)l_pkt_copy_list->data;
+        dap_chain_pkt_item_t *l_pkt_copy = (dap_chain_pkt_item_t *)l_pkt_copy_list->data;
         size_t l_data_obj_count = 0;
         // deserialize data & Parse data from dap_db_log_pack()
         dap_store_obj_t *l_store_obj = dap_db_log_unpack(l_pkt_copy->pkt_data, l_pkt_copy->pkt_data_size, &l_data_obj_count);
@@ -555,10 +563,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 } else {
                     dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-#ifdef DAP_OS_WINDOWS
-            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
-#endif
-                    dap_proc_queue_add_callback_inter(  a_ch->stream_worker->worker->proc_queue_input, s_sync_chains_callback, a_ch);
+                    dap_proc_queue_add_callback_inter(  a_ch->stream_worker->worker->proc_queue_input, s_sync_out_chains_callback, a_ch);
                 }
             }
             DAP_DELETE(l_hash_from_str);
@@ -588,16 +593,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         "ERROR_STATE_NOT_IN_IDLE");
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 break;
-            }
-            // receive the latest global_db revision of the remote node -> go to send mode
-            else {
+            } else { // receive the latest global_db revision of the remote node -> go to send mode
                 log_it(L_INFO, "Got DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB request",
                         a_ch->stream->session->id);
                 dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-#ifdef DAP_OS_WINDOWS
-            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
-#endif
-                dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_gdb_callback, a_ch);
+                dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_out_gdb_callback, a_ch);
             }
         }else{
             log_it(L_WARNING, "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB: Wrong chain packet size %zd when expected %zd", l_chain_pkt_data_size, sizeof(l_ch_chain->request));
@@ -628,12 +628,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if(l_chain) {
                 // Expect atom element in
                 if(l_chain_pkt_data_size > 0) {
-                    dap_chain_pkt_copy_t *l_pkt_copy = DAP_NEW_Z(dap_chain_pkt_copy_t);
-                    memcpy(&l_pkt_copy->pkt_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
-                    l_pkt_copy->pkt_data = DAP_NEW_Z_SIZE(byte_t, l_chain_pkt_data_size);
-                    memcpy(l_pkt_copy->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
-                    l_pkt_copy->pkt_data_size = l_chain_pkt_data_size;
-                    l_ch_chain->pkt_copy_list = dap_list_append(l_ch_chain->pkt_copy_list, l_pkt_copy);
+                    dap_chain_pkt_item_t *l_pkt_item = DAP_NEW_Z(dap_chain_pkt_item_t);
+                    memcpy(&l_pkt_item->pkt_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
+                    l_pkt_item->pkt_data = DAP_NEW_Z_SIZE(byte_t, l_chain_pkt_data_size);
+                    memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
+                    l_pkt_item->pkt_data_size = l_chain_pkt_data_size;
+                    l_ch_chain->in_chains_list = dap_list_append(l_ch_chain->in_chains_list, l_pkt_item);
                     if (s_debug_chain_sync){
                         dap_chain_hash_fast_t l_atom_hash={0};
                         dap_hash_fast(l_chain_pkt->data, l_chain_pkt_data_size ,&l_atom_hash);
@@ -643,10 +643,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     }
 
                     dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
-#ifdef DAP_OS_WINDOWS
-            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
-#endif
-                    dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_chain_pkt_callback, a_ch);
+                    dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_chain_in_pkt_callback, a_ch);
                 } else {
                     log_it(L_WARNING, "Empty chain packet");
                     dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
@@ -677,17 +674,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             log_it(L_INFO, "In: GLOBAL_DB data_size=%d ", l_chain_pkt_data_size);
         // get transaction and save it to global_db
         if(l_chain_pkt_data_size > 0) {
-            dap_chain_pkt_copy_t *l_pkt_copy = DAP_NEW_Z(dap_chain_pkt_copy_t);
+            dap_chain_pkt_item_t *l_pkt_copy = DAP_NEW_Z(dap_chain_pkt_item_t);
             memcpy(&l_pkt_copy->pkt_hdr, &l_chain_pkt->hdr, sizeof(l_chain_pkt->hdr));
             l_pkt_copy->pkt_data = DAP_NEW_Z_SIZE(byte_t, l_chain_pkt_data_size);
             memcpy(l_pkt_copy->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
             l_pkt_copy->pkt_data_size = l_chain_pkt_data_size;
-            l_ch_chain->pkt_copy_list = dap_list_append(l_ch_chain->pkt_copy_list, l_pkt_copy);
+            l_ch_chain->in_gdb_list = dap_list_append(l_ch_chain->in_gdb_list, l_pkt_copy);
             dap_events_socket_remove_from_worker_unsafe(a_ch->stream->esocket, a_ch->stream_worker->worker);
 //#ifdef DAP_OS_WINDOWS
 //            if (a_ch->stream_worker->worker->proc_queue_input->buf_out_size == 0)
 //#endif
-            dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_pkt_callback, a_ch);
+            dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_in_pkt_callback, a_ch);
         } else {
             log_it(L_WARNING, "Packet with GLOBAL_DB atom has zero body size");
             dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
@@ -867,11 +864,8 @@ static bool s_out_pkt_callback(dap_proc_thread_t *a_thread, void *a_arg)
         } break;
         default: break;
     }
-    if (l_ch->stream->esocket->buf_out_size + DAP_CHAIN_PKT_MAX_SIZE > l_ch->stream->esocket->buf_out_size_max  ||
-            l_ch_chain->state == CHAIN_STATE_IDLE) {
-        if (l_ch->stream->esocket->buf_out_size) {
-            dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-        }
+    if (l_ch->stream->esocket->buf_out_size || l_ch_chain->state == CHAIN_STATE_IDLE) {
+        dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         dap_proc_thread_assign_on_worker_inter(a_thread, l_ch->stream_worker->worker, l_ch->stream->esocket );
         return true;
     }

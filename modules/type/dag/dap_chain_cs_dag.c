@@ -385,7 +385,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size,&l_event_hash);
 
     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-    log_it(L_DEBUG, "Processing event: %s...", l_event_hash_str);
+    log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
 
     pthread_rwlock_wrlock( l_events_rwlock );
 

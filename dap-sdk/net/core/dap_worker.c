@@ -520,7 +520,7 @@ void *dap_worker_thread(void *arg)
                                  l_p_id[l_mp_id] = PROPID_M_BODY;
                                  l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
                                  l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
-                                 l_mpvar[l_mp_id].caub.cElems = (u_long)l_cur->buf_out_size;
+                                 l_mpvar[l_mp_id].caub.cElems = (u_long)sizeof(void*);
                                  l_mp_id++;
 
                                  l_mps.cProp = l_mp_id;
@@ -530,6 +530,7 @@ void *dap_worker_thread(void *arg)
                                  HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
 
                                  if (hr != MQ_OK) {
+                                     l_errno = hr;
                                      log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
                                      break;
                                  } else {
@@ -538,14 +539,10 @@ void *dap_worker_thread(void *arg)
                                      if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                          log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                      }
-                                     l_cur->buf_out_size = 0;
+                                     l_bytes_sent = sizeof(void*);
                                      dap_events_socket_set_writable_unsafe(l_cur,false);
 
-                                     break;
                                  }
-#ifndef DAP_OS_WINDOWS
-                                 l_errno = errno;
-#endif
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                 l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
                                 if(l_bytes_sent == 0)

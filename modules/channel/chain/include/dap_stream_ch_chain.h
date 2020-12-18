@@ -46,11 +46,11 @@ typedef struct dap_chain_atom_item{
     UT_hash_handle hh;
 } dap_chain_atom_item_t;
 
-typedef struct dap_chain_pkt_copy {
+typedef struct dap_chain_pkt_item {
     dap_stream_ch_chain_pkt_hdr_t pkt_hdr;
     uint64_t pkt_data_size;
     byte_t *pkt_data;
-} dap_chain_pkt_copy_t;
+} dap_chain_pkt_item_t;
 
 typedef struct dap_stream_ch_chain {
     dap_stream_ch_t * ch;
@@ -60,7 +60,8 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_state_t state;
 
     dap_chain_atom_iter_t *request_atom_iter;
-    dap_list_t *pkt_copy_list;
+    dap_list_t *in_gdb_list;
+    dap_list_t *in_chains_list;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
     dap_stream_ch_chain_sync_request_t request;
