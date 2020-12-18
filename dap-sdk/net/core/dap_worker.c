@@ -242,8 +242,11 @@ void *dap_worker_thread(void *arg)
                 l_cur->buf_out_size = 0;
                 l_cur->buf_in_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
-                assert(0);
+                if (l_cur->callbacks.error_callback)
+                    l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
+                if (l_cur->fd == 0 || l_cur->fd == -1)
+                    assert_perror(errno);
+                // If its not null or -1 we should try first to remove it from poll. Assert only if it doesn't help
             }
 
             if(l_flag_error) {
