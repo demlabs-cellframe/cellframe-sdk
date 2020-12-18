@@ -1389,6 +1389,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     if (a_es->poll_index < a_worker->poll_count ){
         a_worker->poll[a_es->poll_index].fd = -1;
         a_worker->poll_compress = true;
+        log_it(L_DEBUG,"Removed %d handler from poll() array", a_es->fd);
     }else{
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
     }
