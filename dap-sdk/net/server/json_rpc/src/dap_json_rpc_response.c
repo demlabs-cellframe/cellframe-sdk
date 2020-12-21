@@ -32,18 +32,19 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_si
     char *str_response = NULL;
     if (a_response->error == NULL){
         switch (a_response->type_result) {
-        case TYPE_RESPONSE_STRING:
-            l_JSON->obj_result = json_object_new_string(a_response->result_string);
-            break;
-        case TYPE_RESPONSE_DOUBLE:
-            l_JSON->obj_result = json_object_new_double(a_response->result_double);
-            break;
-        case TYPE_RESPONSE_BOOLEAN:
-            l_JSON->obj_result = json_object_new_boolean(a_response->result_boolean);
-            break;
-        case TYPE_RESPONSE_INTEGER:
-            l_JSON->obj_result = json_object_new_int64(a_response->result_int);
-            break;
+            case TYPE_RESPONSE_STRING:
+                l_JSON->obj_result = json_object_new_string(a_response->result_string);
+                break;
+            case TYPE_RESPONSE_DOUBLE:
+                l_JSON->obj_result = json_object_new_double(a_response->result_double);
+                break;
+            case TYPE_RESPONSE_BOOLEAN:
+                l_JSON->obj_result = json_object_new_boolean(a_response->result_boolean);
+                break;
+            case TYPE_RESPONSE_INTEGER:
+                l_JSON->obj_result = json_object_new_int64(a_response->result_int);
+                break;
+            default:{}
         }
     }else{
         l_JSON->struct_error = dap_json_rpc_error_JSON_add_data(a_response->error->code_error, a_response->error->msg);

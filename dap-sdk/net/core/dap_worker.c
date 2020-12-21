@@ -781,7 +781,7 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
     HASH_FIND(hh_worker, a_es->worker->esockets, &l_msg->esocket , sizeof (void*), l_msg_es );
     pthread_rwlock_unlock(&a_es->worker->esocket_rwlock);
     if ( l_msg_es == NULL){
-        log_it(L_INFO, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
+        log_it(L_INFO, "We got i/o message for esocket %p thats now not in list. Lost %u data", l_msg->esocket, l_msg->data_size);
         DAP_DELETE(l_msg);
         return;
     }

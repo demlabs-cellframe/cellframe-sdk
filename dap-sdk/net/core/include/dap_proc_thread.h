@@ -26,6 +26,7 @@
 #include <pthread.h>
 #include "dap_common.h"
 #include "dap_proc_queue.h"
+#include "dap_worker.h"
 
 typedef struct dap_proc_thread{
     uint32_t cpu_id;
@@ -35,6 +36,7 @@ typedef struct dap_proc_thread{
 
     dap_events_socket_t ** queue_assign_input; // Inputs for assign queues
     dap_events_socket_t ** queue_io_input; // Inputs for assign queues
+    dap_events_socket_t ** queue_callback_input; // Inputs for worker context callback queues
     atomic_uint proc_queue_size;
 
     pthread_cond_t started_cond;
@@ -58,8 +60,12 @@ typedef struct dap_proc_thread{
 int dap_proc_thread_init(uint32_t a_threads_count);
 dap_proc_thread_t * dap_proc_thread_get(uint32_t a_thread_number);
 dap_proc_thread_t * dap_proc_thread_get_auto();
+dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thread, dap_events_socket_callback_queue_ptr_t a_callback);
+
 bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_worker_t * a_worker, dap_events_socket_t *a_esocket  );
+
 int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
                                         const void * a_data, size_t a_data_size);
 int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
                                         const char * a_format,...);
+void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_worker_callback_t a_callback, void * a_arg);

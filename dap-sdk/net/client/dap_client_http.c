@@ -84,7 +84,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket); // Connected call
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
-static void s_timer_timeout_check(void * a_arg);
+static bool s_timer_timeout_check(void * a_arg);
 
 uint64_t s_client_timeout_ms=10000;
 
@@ -106,8 +106,13 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
     s_client_timeout_ms = a_timeout_ms;
 }
 
-
-static void s_timer_timeout_check(void * a_arg)
+/**
+ * @brief s_timer_timeout_check
+ * @details Returns 'false' to prevent looping the checks
+ * @param a_arg
+ * @return
+ */
+static bool s_timer_timeout_check(void * a_arg)
 {
     dap_events_socket_t * l_es = (dap_events_socket_t*) a_arg;
     assert(l_es);
@@ -124,6 +129,7 @@ static void s_timer_timeout_check(void * a_arg)
         l_http_pvt->is_closed_by_timeout = true;
         l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
+    return false;
 }
 
 /**

@@ -19,8 +19,7 @@
 
 # WARNING: State must be 256 bit (32 bytes) aligned, better is 64-byte aligned (cache line)
 
-    .text
-
+.text
 # conditional assembly settings
 .equ UseSIMD,    0
 .equ InlinePerm, 1

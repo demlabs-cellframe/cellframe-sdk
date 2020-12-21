@@ -55,17 +55,19 @@ typedef struct dap_chain_pkt_item {
 typedef struct dap_stream_ch_chain {
     dap_stream_ch_t * ch;
 
-    dap_db_log_list_t *request_global_db_trs; // list of global db records
-    dap_list_t *db_iter;
-    dap_stream_ch_chain_state_t state;
 
-    dap_chain_atom_iter_t *request_atom_iter;
-    dap_list_t *in_gdb_list;
-    dap_list_t *in_chains_list;
+    dap_stream_ch_chain_state_t state;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
+
+    // request section
+    dap_chain_atom_iter_t *request_atom_iter;
+    dap_db_log_list_t *request_global_db_trs; // list of global db records
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
+    dap_list_t *request_db_iter;
+
+    atomic_bool is_on_request; // Protects request section
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;

@@ -524,7 +524,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
             for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; ) {
                 dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
                 dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
-                if (!l_ch_chain) { // Channel or stream or client itself closed
+                if (   !l_ch_chain) { // Channel or stream or client itself closed
                     l_tmp = dap_list_next(l_tmp);
                     dap_chain_node_client_close(l_node_client);
                     l_pvt_net->links = dap_list_remove(l_pvt_net->links, l_node_client);
@@ -1623,7 +1623,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             else{
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 bool parse_succesfully = false;
-                if ( sscanf(l_node_addr_str, "0x%016x" DAP_UINT64_FORMAT_x ,&l_node_addr->uint64 ) == 1 ){
+                if ( sscanf(l_node_addr_str, "0x%016" DAP_UINT64_FORMAT_x ,&l_node_addr->uint64 ) == 1 ){
                     log_it(L_DEBUG, "Parse node address with format 0x016llx");
                     parse_succesfully = true;
                 }
