@@ -140,6 +140,7 @@ void dap_stream_ch_chain_deinit()
  */
 void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
+    UNUSED(a_arg);
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     l_ch_chain->ch = a_ch;
@@ -1040,7 +1041,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
         // Synchronize chains
         case CHAIN_STATE_SYNC_CHAINS: {
-            if (l_ch_chain->request_atom_iter->cur) { // Process one chain from l_ch_chain->request_atom_iter
+
+            if (l_ch_chain->request_atom_iter && l_ch_chain->request_atom_iter->cur) { // Process one chain from l_ch_chain->request_atom_iter
                 if(s_debug_chain_sync){
                     dap_chain_hash_fast_t l_atom_hash={0};
                     dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_atom_hash);
@@ -1056,7 +1058,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 // Then get next atom and populate new last
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
             } else { // All chains synced
-                dap_stream_ch_chain_sync_request_t l_request = {};
+                dap_stream_ch_chain_sync_request_t l_request = {0};
                 // last message
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
                                                      l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,

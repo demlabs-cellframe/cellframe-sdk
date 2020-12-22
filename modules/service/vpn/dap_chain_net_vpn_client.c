@@ -431,14 +431,13 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     gettimeofday(&l_t, NULL);//get_cur_time_msec
     long l_t1 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
 
-    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
     const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), 0 }; //only R, without S
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
 
-    s_vpn_client = dap_chain_client_connect(s_node_info, l_stage_target, l_active_channels);
+    s_vpn_client = dap_chain_client_connect(s_node_info, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
@@ -527,14 +526,13 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
         s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     s_node_info->hdr.ext_port = a_port;
 
-    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING; //DAP_CLIENT_STAGE_STREAM_CTL;//STAGE_STREAM_STREAMING;
     const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), DAP_STREAM_CH_ID_NET_SRV_VPN, 0 }; //R, S
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
 
-    s_vpn_client = dap_chain_client_connect(s_node_info, l_stage_target, l_active_channels);
+    s_vpn_client = dap_chain_client_connect(s_node_info, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
