@@ -673,12 +673,6 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
     }
     dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t, (count + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
     for(size_t i = 0; i < count; i++) {
-        if (l_store_obj[i].value_len > 1024*1024) {
-            char l_temp[64] = { '\0' };
-            log_it(L_ERROR, "Trash datum in gdb, key: %s, size: %d, created: %s", l_store_obj[i].key, l_store_obj[i].value_len, dap_ctime_r(&(l_store_obj[i].timestamp), l_temp));
-            --count;
-            continue;
-        }
         l_data[i].key = dap_strdup(l_store_obj[i].key);
         l_data[i].value_len = l_store_obj[i].value_len;
         l_data[i].value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj[i].value_len + 1);
