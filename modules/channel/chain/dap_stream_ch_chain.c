@@ -525,11 +525,11 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_store_obj_t *l_store_obj = dap_db_log_unpack(l_pkt_item->pkt_data, l_pkt_item->pkt_data_size, &l_data_obj_count);
         if (s_debug_chain_sync){
             if (l_data_obj_count)
-                log_it(L_INFO, "In: l_data_obj_count = %d", l_data_obj_count );
+                log_it(L_INFO, "In: GLOBAL_DB parse: pkt_data_size=%zd, l_data_obj_count = %d",l_pkt_item->pkt_data_size, l_data_obj_count );
             else if (l_pkt_item->pkt_data){
-                log_it(L_WARNING, "In: No data objs after unpack", l_data_obj_count );
+                log_it(L_WARNING, "In: GLOBAL_DB parse: pkt_data_size=%zd, error=\"No data objs after unpack\"", l_pkt_item->pkt_data_size, l_data_obj_count );
             }else
-                 log_it(L_WARNING, "In: packet in list with NULL data");
+                 log_it(L_WARNING, "In: GLOBAL_DB parse: packet in list with NULL data(pkt_data_size:%zd)", l_pkt_item->pkt_data_size);
         }
 
         for(size_t i = 0; i < l_data_obj_count; i++) {
