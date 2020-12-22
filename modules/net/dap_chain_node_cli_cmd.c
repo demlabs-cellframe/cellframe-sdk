@@ -2063,7 +2063,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
 
             dap_string_append_printf(a_str_tmp, "hash %s: type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
                     l_key, c_datum_type_str[l_datum->header.type_id],
-                    l_datum->header.data_size, l_data_hash_str, ctime_r(&l_ts_create, buf));
+                    l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
             DAP_DELETE(l_key);
             dap_chain_net_dump_datum(a_str_tmp, l_datum, a_hash_out_type);
         }
@@ -2278,7 +2278,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 time_t l_ts_create = (time_t) l_datum->header.ts_create;
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
                         l_datum_hash_out_str, c_datum_type_str[l_datum->header.type_id],
-                        ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                        dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
                 int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
                 if (l_verify_datum != 0){
                     dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
