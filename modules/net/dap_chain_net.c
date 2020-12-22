@@ -2091,7 +2091,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
                         time_t l_ts_create = (time_t) l_datum->header.ts_create;
                         log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
                                 l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
-                                ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                                dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
                     }
                 }
             }
@@ -2417,7 +2417,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                     char buf[50];
                     time_t l_ts_created = l_tx->header.ts_created;
                     dap_string_append_printf(a_str_out,"type: TX\n");
-                    dap_string_append_printf(a_str_out,"type: ts_created: %s \n",ctime_r(&l_ts_created, buf));
+                    dap_string_append_printf(a_str_out,"type: ts_created: %s \n", dap_ctime_r(&l_ts_created, buf));
                     int l_items_count = -1;
                     dap_list_t * l_items = dap_chain_datum_tx_items_get(l_tx,TX_ITEM_TYPE_ANY,&l_items_count);
                     dap_string_append_printf(a_str_out,"type: items_count: %d \n", l_items_count );
