@@ -249,7 +249,7 @@ char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del
 static void* thread_one_client_func(void *args)
 {
     SOCKET newsockfd = (SOCKET) (intptr_t) args;
-    log_it(L_INFO, "new connection sockfd=%d", newsockfd);
+    log_it(L_DEBUG, "new connection sockfd=%d", newsockfd);
 
     int str_len, marker = 0;
     int timeout = 5000; // 5 sec
@@ -313,7 +313,7 @@ static void* thread_one_client_func(void *args)
                     if(l_cmd->overrides.log_cmd_call)
                         l_cmd->overrides.log_cmd_call(str_cmd);
                     else
-                        log_it(L_INFO, "execute command=%s", str_cmd);
+                        log_it(L_DEBUG, "execute command=%s", str_cmd);
                     // exec command
 
                     char **l_argv = dap_strsplit(str_cmd, ";", -1);
@@ -364,7 +364,7 @@ static void* thread_one_client_func(void *args)
     }
     // close connection
     int cs = closesocket(newsockfd);
-    log_it(L_INFO, "close connection=%d sockfd=%d", cs, newsockfd);
+    log_it(L_DEBUG, "close connection=%d sockfd=%d", cs, newsockfd);
     return NULL;
 }
 
