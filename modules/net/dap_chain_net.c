@@ -180,7 +180,18 @@ static const char * c_net_states[]={
 
 static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
 inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state);
+
+
+// Node link callbacks
+static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg);
+static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg);
+static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
+static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
+
 static int s_net_states_proc(dap_chain_net_t * a_net);
+
+
+
 static void * s_net_check_thread ( void * a_net);
 static void s_net_check_thread_start( dap_chain_net_t * a_net );
 static void s_net_proc_kill( dap_chain_net_t * a_net );
@@ -372,6 +383,52 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
 }
 
 /**
+ * @brief s_node_link_callback_connected
+ * @param a_node_client
+ * @param a_arg
+ */
+static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg)
+{
+    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+}
+
+/**
+ * @brief s_node_link_callback_disconnected
+ * @param a_node_client
+ * @param a_arg
+ */
+static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg)
+{
+    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+
+}
+
+/**
+ * @brief s_node_link_callback_stage
+ * @param a_node_client
+ * @param a_stage
+ * @param a_arg
+ */
+static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg)
+{
+    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+
+}
+
+/**
+ * @brief s_node_link_callback_error
+ * @param a_node_client
+ * @param a_error
+ * @param a_arg
+ */
+static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
+{
+    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+
+}
+
+
+/**
  * @brief s_net_states_proc
  * @param l_net
  */
@@ -494,10 +551,12 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
             log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",a_net->pub.name);
             for (dap_list_t *l_tmp = l_pvt_net->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
-                dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(l_link_info);
+                dap_chain_node_client_t *l_node_client = dap_chain_node_client_create_n_connect(l_link_info,"CN",s_node_link_callback_connected,
+                                                                                                s_node_link_callback_disconnected,s_node_link_callback_stage,
+                                                                                                s_node_link_callback_error,NULL);
                 if (l_node_client) {
                     // wait connected
-                    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, 10000 );
+                    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, 20000 );
                     if (res == 0 ) {
                         log_it(L_DEBUG, "Established connection with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
                         l_pvt_net->links = dap_list_append(l_pvt_net->links, l_node_client);

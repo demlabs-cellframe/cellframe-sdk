@@ -126,7 +126,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
 #ifndef _WIN32
-        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_cond_broadcast(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
@@ -145,7 +145,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         l_node_client->state = NODE_CLIENT_STATE_ERROR;
 
 #ifndef _WIN32
-        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_cond_broadcast(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
@@ -463,11 +463,12 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_node_i
     {
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-    }
-    else
+        log_it(L_DEBUG, "Connect to %s address",host);
+    } else
     {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
+        log_it(L_DEBUG, "Connect to %s address",host);
     }
     // address not defined
     if(!strcmp(host, "::")) {

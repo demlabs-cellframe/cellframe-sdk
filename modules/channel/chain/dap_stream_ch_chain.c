@@ -202,6 +202,7 @@ static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
+    l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
     dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -233,6 +234,7 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
     }
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+    l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
     // last packet
     dap_stream_ch_chain_sync_request_t l_request = {0};
     if (s_debug_chain_sync )
