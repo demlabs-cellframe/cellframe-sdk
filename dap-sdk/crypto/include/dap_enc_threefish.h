@@ -1,10 +1,14 @@
 #pragma once
 #include "dap_common.h"
 #include "dap_enc_key.h"
+#include "dap_rand.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define THREEFISH_KEY_SIZE 512
+#define THREEFISH_TWEEK_SIZE 128
 
 struct dap_enc_key;
 
