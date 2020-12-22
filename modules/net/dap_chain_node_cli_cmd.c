@@ -2052,19 +2052,20 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
         for(size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-            char buf[50];
-            char * l_key  = dap_strdup(l_objs[i].key);
             time_t l_ts_create = (time_t) l_datum->header.ts_create;
-
+            if (l_datum->header.data_size > l_objs[i].value_len) {
+                log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s", a_net->pub.name, a_chain->name, l_objs[i].key);
+                continue;
+            }
+            char buf[50];
             dap_hash_fast_t l_data_hash;
             char l_data_hash_str[70]={[0]='\0'};
             dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
 
             dap_string_append_printf(a_str_tmp, "hash %s: type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
-                    l_key, c_datum_type_str[l_datum->header.type_id],
+                    l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
                     l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
-            DAP_DELETE(l_key);
             dap_chain_net_dump_datum(a_str_tmp, l_datum, a_hash_out_type);
         }
 
