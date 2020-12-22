@@ -51,7 +51,7 @@
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
 #define ctime_r(arg1, arg2) ctime_s(arg2, sizeof(arg2), arg1)
-#define asctime_r(arg1, arg2) asctime_s(arg2, sizeof(arg2), arg1)
+//#define asctime_r(arg1, arg2) asctime_s(arg2, sizeof(arg2), arg1)
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>

@@ -216,7 +216,7 @@ void *dap_worker_thread(void *arg)
                     if (l_sock_err) {
                          log_it(L_DEBUG, "Socket %d error %d", l_cur->socket, l_sock_err);
 #else
-                    if (l_err == SOCKET_ERROR) {
+                    //if (l_err == SOCKET_ERROR) {
                         log_it(L_DEBUG, "Socket %d will be shutdown (EPOLLHUP), error %d", l_cur->socket, WSAGetLastError());
 #endif
                         dap_events_socket_set_readable_unsafe(l_cur, false);
@@ -227,8 +227,9 @@ void *dap_worker_thread(void *arg)
                         l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
 #ifndef DAP_OS_WINDOWS
                         log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
-#endif
                     }
+#endif
+                    //}
                     break;
                 }
                 default:
@@ -244,8 +245,13 @@ void *dap_worker_thread(void *arg)
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 if (l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
-                if (l_cur->fd == 0 || l_cur->fd == -1)
+                if (l_cur->fd == 0 || l_cur->fd == -1) {
+#ifdef DAP_OS_WINDOWS
+                    log_it(L_ERROR, "Wrong fd: %d", l_cur->fd);
+#else
                     assert_perror(errno);
+#endif
+                }
                 // If its not null or -1 we should try first to remove it from poll. Assert only if it doesn't help
             }
 
@@ -821,7 +827,7 @@ static bool s_socket_all_check_activity( void * a_arg)
     dap_events_socket_t *l_es, *tmp;
     char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
-    ctime_r(&l_curtime, l_curtimebuf);
+    dap_ctime_r(&l_curtime, l_curtimebuf);
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
     pthread_rwlock_rdlock(&l_worker->esocket_rwlock);
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
