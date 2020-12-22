@@ -523,6 +523,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
         case NET_STATE_SYNC_GDB:{
             for (dap_list_t *l_tmp = l_pvt_net->links; l_tmp; ) {
                 dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
+                dap_stream_worker_t *l_worker = dap_client_get_stream_worker(l_node_client->client);
                 dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
                 if (   !l_ch_chain) { // Channel or stream or client itself closed
                     l_tmp = dap_list_next(l_tmp);
@@ -530,7 +531,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                     l_pvt_net->links = dap_list_remove(l_pvt_net->links, l_node_client);
                     continue;
                 }
-                dap_stream_worker_t *l_worker = dap_client_get_stream_worker(l_node_client->client);
+
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                 // Get last timestamp in log if wasn't SYNC_FROM_ZERO flag
                 if (! (l_pvt_net->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO) )
