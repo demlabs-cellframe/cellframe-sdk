@@ -333,10 +333,9 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
     dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
     if (res == 0 || memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0) {
         log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
-        res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
-        if (res) {
-            log_it(L_DEBUG,"Dag event %s checked, but ledger declined", l_buf_hash);
-            return res;
+        int l_ledger_res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+        if ( l_ledger_res ) {
+            log_it(L_WARNING,"Dag event %s checked, but ledger declined: code %d", l_buf_hash, l_ledger_res);
         }
         //All correct, no matter for result
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
