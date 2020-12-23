@@ -25,6 +25,7 @@
 
 #pragma once
 #include <stdbool.h>
+#include <pthread.h>
 #include "dap_config.h"
 #include "dap_chain_common.h"
 
@@ -114,6 +115,9 @@ typedef struct dap_chain{
     // To hold it in double-linked lists
     struct dap_chain * next;
     struct dap_chain * prev;
+
+    // read/write atoms rwlock
+    pthread_rwlock_t atoms_rwlock;
 
 
     dap_chain_callback_new_cfg_t callback_created;

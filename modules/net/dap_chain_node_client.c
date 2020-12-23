@@ -126,7 +126,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
 #ifndef _WIN32
-        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_cond_broadcast(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
@@ -145,7 +145,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         l_node_client->state = NODE_CLIENT_STATE_ERROR;
 
 #ifndef _WIN32
-        pthread_cond_signal(&l_node_client->wait_cond);
+        pthread_cond_broadcast(&l_node_client->wait_cond);
 #else
         SetEvent( l_node_client->wait_cond );
 #endif
@@ -404,8 +404,27 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
  *
  * return a connection handle, or NULL, if an error
  */
-dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_info, dap_client_stage_t a_stage_target,
-        const char *a_active_channels)
+
+dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_info, const char *a_active_channels)
+{
+    return dap_chain_node_client_create_n_connect(a_node_info,a_active_channels,NULL,NULL,NULL,NULL,NULL);
+}
+
+/**
+ * @brief dap_chain_node_client_go_stage
+ * @param a_node_info
+ * @param a_active_channels
+ * @param a_callback_connected
+ * @param a_callback_disconnected
+ * @param a_callback_stage
+ * @param a_callback_error
+ * @param a_callback_arg
+ * @return
+ */
+dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_node_info_t *a_node_info,
+        const char *a_active_channels, dap_chain_node_client_callback_t a_callback_connected, dap_chain_node_client_callback_t a_callback_disconnected,
+                                                        dap_chain_node_client_callback_stage_t a_callback_stage,
+                                                        dap_chain_node_client_callback_error_t a_callback_error, void * a_callback_arg )
 {
     if(!a_node_info) {
         log_it(L_ERROR, "Can't connect to the node: null object node_info");
@@ -413,6 +432,11 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
+    l_node_client->callback_arg = a_callback_arg;
+    l_node_client->callback_connected = a_callback_connected;
+    l_node_client->callback_discconnected = a_callback_disconnected;
+    l_node_client->callback_error = a_callback_error;
+    l_node_client->callback_stage = a_callback_stage;
 
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -439,11 +463,12 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     {
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-    }
-    else
+        log_it(L_DEBUG, "Connect to %s address",host);
+    } else
     {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
+        log_it(L_DEBUG, "Connect to %s address",host);
     }
     // address not defined
     if(!strcmp(host, "::")) {
@@ -458,7 +483,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
     // ref pvt client
     //dap_client_pvt_ref(DAP_CLIENT_PVT(l_node_client->client));
     // Handshake & connect
-    dap_client_go_stage(l_node_client->client, a_stage_target, s_stage_connected_callback);
+    dap_client_go_stage(l_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return l_node_client;
 }
 
@@ -469,9 +494,8 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
  */
 dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_node_info)
 {
-    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
     const char *l_active_channels = "CN";
-    return dap_chain_client_connect(a_node_info, l_stage_target, l_active_channels);
+    return dap_chain_client_connect(a_node_info, l_active_channels);
 }
 
 void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)

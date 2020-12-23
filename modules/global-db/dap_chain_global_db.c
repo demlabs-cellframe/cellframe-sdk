@@ -671,26 +671,14 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
             *a_data_size_out = 0;
         return NULL;
     }
-    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
-            (count + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
-    // clear only last item
-    //memset(&l_data[count], 0, sizeof(dap_global_db_obj_t));
+    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t, (count + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
     for(size_t i = 0; i < count; i++) {
-        dap_store_obj_t *l_store_obj_cur = l_store_obj + i;
-        /*assert(l_store_obj_cur);
-         l_data[i] = DAP_NEW(dap_global_db_obj_t);
-         l_data[i]->key = dap_strdup(l_store_obj_cur->key);
-         l_data[i]->value_len = l_store_obj_cur->value_len;
-         l_data[i]->value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj_cur->value_len + 1);
-         memcpy(l_data[i]->value, l_store_obj_cur->value, l_store_obj_cur->value_len);*/
-        //dap_global_db_obj_t *l_data = l_data0 + i;
-        l_data[i].key = l_store_obj_cur->key;
-        l_data[i].value_len = l_store_obj_cur->value_len;
-        l_data[i].value = l_store_obj_cur->value;
-        DAP_DELETE(l_store_obj_cur->group);
+        l_data[i].key = dap_strdup(l_store_obj[i].key);
+        l_data[i].value_len = l_store_obj[i].value_len;
+        l_data[i].value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj[i].value_len + 1);
+        memcpy(l_data[i].value, l_store_obj[i].value, l_store_obj[i].value_len);
     }
-    // inner data are use in l_data0
-    DAP_DELETE(l_store_obj); //dap_store_obj_free(l_store_obj, count);
+    dap_store_obj_free(l_store_obj, count);
     if(a_data_size_out)
         *a_data_size_out = count;
     return l_data;

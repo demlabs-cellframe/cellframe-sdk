@@ -91,6 +91,7 @@
 typedef struct dap_events dap_events_t;
 typedef struct dap_events_socket dap_events_socket_t;
 typedef struct dap_worker dap_worker_t;
+typedef struct dap_proc_thread dap_proc_thread_t ;
 
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
@@ -208,6 +209,7 @@ typedef struct dap_events_socket {
     // Links to related objects
     dap_events_t *events;
     dap_worker_t *worker;
+    dap_proc_thread_t * proc_thread; // If assigned on dap_proc_thread_t object
     dap_server_t *server; // If this socket assigned with server
 
     // Platform specific things

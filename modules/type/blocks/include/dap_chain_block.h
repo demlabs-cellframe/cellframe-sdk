@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Ltd   https://demlabs.net
- * Copyright  (c) 2017-2020
+ * Copyright  (c) 2017
  * All rights reserved.
 
  This file is part of DAP SDK the open source project
@@ -24,6 +24,7 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_hash.h"
+#include "dap_cert.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_hashtree_roots.h"
@@ -45,17 +46,17 @@ typedef struct dap_chain_block_hdr{
    int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
    dap_chain_cell_id_t cell_id; /// Cell id
    dap_chain_cell_id_t chain_id; /// Chain id
-   uint32_t meta_n_datums_size; /// @param size of the whole block except signatures meta
    dap_chain_time_t ts_created; /// @param timestamp @brief Block create time timestamp
    uint16_t meta_count; // Meta values number
    uint16_t datum_count; // Datums's count
+   uint32_t meta_n_datum_n_signs_size; // Meta&Datum&Signs section size
 } DAP_ALIGN_PACKED dap_chain_block_hdr_t;
 
 // Metadata item
 typedef struct dap_chain_block_meta{
     struct {
         uint8_t type; /// Meta type
-        uint16_t size;   /// Data size trailing the section
+        uint16_t data_size;   /// Data size trailing the section
     } DAP_ALIGN_PACKED hdr;
     byte_t data[]; /// Section's data
 } DAP_ALIGN_PACKED dap_chain_block_meta_t;
@@ -88,11 +89,15 @@ void dap_chain_block_deinit();
 dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block );
 
 // Add metadata in block
-size_t dap_chain_block_meta_add(dap_chain_block_t * a_block, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size);
+size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size);
 
 // Add datum in block
-size_t dap_chain_block_datum_add(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
-size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t * a_block, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
+size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
+size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
+
+// Add sign in block
+size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_cert_t * a_cert );
+dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block_ptr, size_t a_block_size, uint16_t a_sign_num );
 
 // Create and return datums list
 dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );

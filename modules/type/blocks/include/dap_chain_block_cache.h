@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Ltd   https://demlabs.net
- * Copyright  (c) 2017-2020
+ * Copyright  (c) 2017
  * All rights reserved.
 
  This file is part of DAP SDK the open source project
@@ -22,9 +22,17 @@
 */
 #pragma once
 #include "dap_chain_block.h"
+#include "dap_chain_datum_tx.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "uthash.h"
+
+typedef struct dap_chain_block_cache_tx_index
+{
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_datum_tx_t* tx;
+    UT_hash_handle hh;
+} dap_chain_block_cache_tx_index_t;
 
 typedef struct dap_chain_block_cache{
     // Block's general non-nested attributes
@@ -38,10 +46,21 @@ typedef struct dap_chain_block_cache{
     // Block's datums
     size_t datum_count;
     dap_chain_datum_t ** datum;
+    dap_chain_block_cache_tx_index_t * tx_index;
 
     // Block's metadatas
-    uint32_t meta_count;
+    size_t meta_count;
     dap_chain_block_meta_t** meta;
+
+    // Extracted metadata
+    dap_chain_hash_fast_t prev_hash;
+    dap_chain_hash_fast_t anchor_hash;
+    dap_chain_hash_fast_t* links_hash;
+    size_t links_hash_count;
+
+    uint64_t nonce;
+    uint64_t nonce2;
+    bool is_genesis;
 
     // Block's signatures
     size_t sign_count; // Number of signatures in block's tail
@@ -49,6 +68,10 @@ typedef struct dap_chain_block_cache{
 
     // Pointer to block itself
     dap_chain_block_t * block;
+
+    // Links to prev and next block
+    struct dap_chain_block_cache * prev;
+    struct dap_chain_block_cache * next;
 
     // Inhertied nested data
     void * _inheritor;
@@ -65,3 +88,5 @@ dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block,
 dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block);
 void dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);
+dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cache_t * a_block_cache, dap_chain_hash_fast_t * a_tx_hash);
+

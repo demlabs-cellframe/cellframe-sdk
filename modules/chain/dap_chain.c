@@ -106,7 +106,7 @@ void dap_chain_deinit(void)
 dap_chain_t* dap_chain_enum(void** a_item)
 {
     // if a_item == 0x1 then first item
-    dap_chain_item_t *l_item_start = (*a_item == 0x1) ? s_chain_items : (dap_chain_item_t*) *a_item;
+    dap_chain_item_t *l_item_start = ( *a_item == (void*) 0x1) ? s_chain_items : (dap_chain_item_t*) *a_item;
     dap_chain_item_t *l_item = NULL;
     dap_chain_item_t *l_item_tmp = NULL;
     pthread_rwlock_rdlock(&s_chain_items_rwlock);
@@ -142,6 +142,7 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     l_ret->name = strdup (a_chain_name);
     l_ret->net_name = strdup (a_chain_net_name);
     l_ret->ledger = a_ledger;
+    pthread_rwlock_init(&l_ret->atoms_rwlock,NULL);
 
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     l_ret_item->chain = l_ret;
@@ -189,6 +190,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     DAP_DELETE(a_chain->datum_types);
     a_chain->autoproc_datum_types_count = 0;
     DAP_DELETE(a_chain->autoproc_datum_types);
+    pthread_rwlock_destroy(&a_chain->atoms_rwlock);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
@@ -423,12 +425,14 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
 int dap_chain_save_all (dap_chain_t * l_chain)
 {
     int ret = -1;
+    pthread_rwlock_rdlock(&l_chain->atoms_rwlock);
     dap_chain_cell_t * l_item, *l_item_tmp = NULL;
     HASH_ITER(hh,l_chain->cells,l_item,l_item_tmp){
         dap_chain_cell_file_update(l_item);
         if (ret <0 )
             ret++;
     }
+    pthread_rwlock_unlock(&l_chain->atoms_rwlock);
     return ret;
 }
 
@@ -442,6 +446,8 @@ int dap_chain_load_all (dap_chain_t * l_chain)
     int l_ret = -2;
     if(!l_chain)
         return l_ret;
+    pthread_rwlock_wrlock(&l_chain->atoms_rwlock);
+
     // create directory if not exist
     if(!dap_dir_test(DAP_CHAIN_PVT (l_chain)->file_storage_dir)) {
         dap_mkdir_with_parents(DAP_CHAIN_PVT (l_chain)->file_storage_dir);
@@ -466,6 +472,8 @@ int dap_chain_load_all (dap_chain_t * l_chain)
         }
         closedir(l_dir);
     }
+    pthread_rwlock_unlock(&l_chain->atoms_rwlock);
+
     return l_ret;
 }
 
@@ -528,6 +536,8 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
 bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash)
 {
     bool l_ret = false;
+    pthread_rwlock_rdlock(&a_chain->atoms_rwlock);
+
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
     dap_chain_atom_ptr_t * l_lasts_atom;
     size_t l_lasts_atom_count=0;
@@ -547,5 +557,6 @@ bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_ato
         l_ret = true;
     }
     a_chain->callback_atom_iter_delete(l_atom_iter);
+    pthread_rwlock_unlock(&a_chain->atoms_rwlock);
     return l_ret;
 }

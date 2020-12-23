@@ -84,7 +84,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket); // Connected call
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
-static void s_timer_timeout_check(void * a_arg);
+static bool s_timer_timeout_check(void * a_arg);
 
 uint64_t s_client_timeout_ms=10000;
 
@@ -106,14 +106,22 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
     s_client_timeout_ms = a_timeout_ms;
 }
 
-
-static void s_timer_timeout_check(void * a_arg)
+/**
+ * @brief s_timer_timeout_check
+ * @details Returns 'false' to prevent looping the checks
+ * @param a_arg
+ * @return
+ */
+static bool s_timer_timeout_check(void * a_arg)
 {
     dap_events_socket_t * l_es = (dap_events_socket_t*) a_arg;
     assert(l_es);
-    dap_worker_t * l_worker = l_es->worker; // We're in own esocket context
-    if( !l_worker) // Out of worker
-        return;
+    dap_events_t * l_events = dap_events_get_default();
+    assert(l_events);
+
+    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker);; // We're in own esocket context
+    assert(l_worker);
+
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
@@ -121,6 +129,7 @@ static void s_timer_timeout_check(void * a_arg)
         l_http_pvt->is_closed_by_timeout = true;
         l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
+    return false;
 }
 
 /**
@@ -366,6 +375,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     if (l_socket == -1) {
         log_it(L_ERROR, "Error %d with socket create", errno);
 #endif
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
         return NULL;
     }
     // Get socket flags
@@ -377,11 +388,17 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     int l_socket_flags = fcntl(l_socket, F_GETFL);
     if (l_socket_flags == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
+
         return NULL;
     }
     // Make it non-block
     if (fcntl( l_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
+
         return NULL;
     }
 #endif
@@ -432,6 +449,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
             s_client_http_delete( l_http_pvt);
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
+
+            if(a_error_callback)
+                a_error_callback(errno,a_obj);
+
             return NULL;
         }
     }
@@ -480,6 +501,9 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         log_it(L_ERROR, "Connecting error: \"%s\" (code %d)", l_errbuf, l_err);
         s_client_http_delete( l_http_pvt);
         dap_events_socket_delete_unsafe( l_ev_socket, true);
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
+
         return NULL;
     }
 #endif

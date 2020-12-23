@@ -124,33 +124,40 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
 {
     (void) a_value;
-    //log_it(L_DEBUG, "Proc event callback");
+//    log_it(L_DEBUG, "--> Proc event callback start");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
     dap_proc_queue_item_t * l_item = l_thread->proc_queue->item_first;
     dap_proc_queue_item_t * l_item_old = NULL;
     bool l_is_anybody_for_repeat=false;
     while(l_item){
+//        log_it(L_INFO, "Proc event callback: %p/%p", l_item->callback, l_item->callback_arg);
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
+            if ( l_item->prev ){
+                l_item->prev->next = l_item_old;
+            }
             if(l_item_old){
-                if ( ! l_item->next ){ // We deleted tail
+                l_item_old->prev = l_item->prev;
+
+                if ( ! l_item->prev ) { // We deleted tail
                     l_thread->proc_queue->item_last = l_item_old;
                 }
-                l_item_old->prev = l_item->next;
+
                 DAP_DELETE(l_item);
                 l_item = l_item_old->prev;
             }else{
-                l_thread->proc_queue->item_first = l_item->next;
-                if (l_thread->proc_queue->item_first)
-                    l_thread->proc_queue->item_first->prev = NULL; // Prev if it was - now its NULL
-                else
+                l_thread->proc_queue->item_first = l_item->prev;
+                if ( l_item->prev){
+                    l_item->prev->next = NULL; // Prev if it was - now its NULL
+                }else
                     l_thread->proc_queue->item_last = NULL; // NULL last item
 
                 DAP_DELETE(l_item);
                 l_item = l_thread->proc_queue->item_first;
             }
-
+//            log_it(L_DEBUG, "Proc event finished");
         }else{
+//            log_it(L_DEBUG, "Proc event not finished");
             l_item_old = l_item;
             l_item=l_item->prev;
         }
@@ -158,6 +165,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
     }
     if(l_is_anybody_for_repeat) // Arm event if we have smth to proc again
         dap_events_socket_event_signal(a_esocket,1);
+//    log_it(L_DEBUG, "<-- Proc event callback end");
 }
 
 /**
@@ -196,10 +204,52 @@ static int s_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t
         a_thread->poll[a_esocket->poll_index].revents |= POLLIN;
     if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
         a_thread->poll[a_esocket->poll_index].revents |= POLLOUT;
+#else
+#error "Not defined dap_proc_thread.c::s_update_poll_flags() on your platform"
 #endif
     return 0;
 }
 
+/**
+ * @brief dap_proc_thread_create_queue_ptr
+ * @details Call this function as others only from safe situation, or, thats better, from a_thread's context
+ * @param a_thread
+ * @param a_callback
+ * @return
+ */
+dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thread, dap_events_socket_callback_queue_ptr_t a_callback)
+{
+    dap_events_socket_t * l_es = dap_events_socket_create_type_queue_ptr_unsafe(NULL,a_callback);
+    if(l_es == NULL)
+        return NULL;
+    l_es->proc_thread = a_thread;
+#ifdef DAP_EVENTS_CAPS_EPOLL
+    l_es->ev.events      = l_es->ev_base_flags ;
+    l_es->ev.data.ptr    = l_es;
+    if( epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, l_es->socket, &l_es->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+    errno = WSAGetLastError();
+#endif
+        log_it(L_CRITICAL, "Can't add queue input on epoll ctl, err: %d", errno);
+        return NULL;
+    }
+#elif defined(DAP_EVENTS_CAPS_POLL)
+    l_es->poll_index = a_thread->poll_count;
+    a_thread->poll[a_thread->poll_count].fd = l_es->fd;
+    a_thread->poll[a_thread->poll_count].events = l_es->poll_base_flags;
+    a_thread->esockets[a_thread->poll_count] = l_es;
+    a_thread->poll_count++;
+#else
+#error "Not defined dap_proc_thread_create_queue_ptr() on your platform"
+#endif
+    return l_es;
+}
+
+/**
+ * @brief s_proc_thread_function
+ * @param a_arg
+ * @return
+ */
 static void * s_proc_thread_function(void * a_arg)
 {
 
@@ -230,6 +280,7 @@ static void * s_proc_thread_function(void * a_arg)
     assert(l_workers_count);
     l_thread->queue_assign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
     l_thread->queue_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
+    l_thread->queue_callback_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
 
     assert(l_thread->queue_assign_input);
     assert(l_thread->queue_io_input);
@@ -237,6 +288,7 @@ static void * s_proc_thread_function(void * a_arg)
         dap_worker_t * l_worker =dap_events_worker_get(n);
         l_thread->queue_assign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new );
         l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io );
+        l_thread->queue_callback_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_callback );
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events[ DAP_EVENTS_SOCKET_MAX]= { { 0 } };
@@ -267,6 +319,7 @@ static void * s_proc_thread_function(void * a_arg)
     }
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
+        // Queue asssign
         l_thread->queue_assign_input[n]->ev.events      = l_thread->queue_assign_input[n]->ev_base_flags ;
         l_thread->queue_assign_input[n]->ev.data.ptr    = l_thread->queue_assign_input[n];
         if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_assign_input[n]->socket, &l_thread->queue_assign_input[n]->ev) != 0 ){
@@ -277,11 +330,23 @@ static void * s_proc_thread_function(void * a_arg)
             return NULL;
         }
 
+        // Queue IO
         l_thread->queue_io_input[n]->ev.events      = l_thread->queue_io_input[n]->ev_base_flags ;
         l_thread->queue_io_input[n]->ev.data.ptr    = l_thread->queue_io_input[n];
         if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_io_input[n]->fd , &l_thread->queue_io_input[n]->ev) != 0 ){
 #ifdef DAP_OS_WINDOWS
 		errno = WSAGetLastError();    	
+#endif
+            log_it(L_CRITICAL, "Can't add proc io input on epoll ctl, err: %d", errno);
+            return NULL;
+        }
+
+        // Queue callback
+        l_thread->queue_callback_input[n]->ev.events      = l_thread->queue_callback_input[n]->ev_base_flags ;
+        l_thread->queue_callback_input[n]->ev.data.ptr    = l_thread->queue_callback_input[n];
+        if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->queue_callback_input[n]->fd , &l_thread->queue_callback_input[n]->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+        errno = WSAGetLastError();
 #endif
             log_it(L_CRITICAL, "Can't add proc io input on epoll ctl, err: %d", errno);
             return NULL;
@@ -295,31 +360,42 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->esockets = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_thread->poll_count_max *sizeof (*l_thread->esockets));
 
     // Add proc queue
-    l_thread->poll[0].fd = l_thread->proc_queue->esocket->fd;
-    l_thread->poll[0].events = l_thread->proc_queue->esocket->poll_base_flags;
-    l_thread->esockets[0] = l_thread->proc_queue->esocket;
+    l_thread->poll[l_thread->poll_count].fd = l_thread->proc_queue->esocket->fd;
+    l_thread->poll[l_thread->poll_count].events = l_thread->proc_queue->esocket->poll_base_flags;
+    l_thread->esockets[l_thread->poll_count] = l_thread->proc_queue->esocket;
     l_thread->poll_count++;
 
     // Add proc event
-    l_thread->poll[1].fd = l_thread->proc_event->fd;
-    l_thread->poll[1].events = l_thread->proc_event->poll_base_flags;
-    l_thread->esockets[1] = l_thread->proc_event;
+    l_thread->poll[l_thread->poll_count].fd = l_thread->proc_event->fd;
+    l_thread->poll[l_thread->poll_count].events = l_thread->proc_event->poll_base_flags;
+    l_thread->esockets[l_thread->poll_count] = l_thread->proc_event;
     l_thread->poll_count++;
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         dap_events_socket_t * l_queue_assign_input =  l_thread->queue_assign_input[n];
         dap_events_socket_t * l_queue_io_input =  l_thread->queue_io_input[n];
+        dap_events_socket_t * l_queue_callback_input =  l_thread->queue_callback_input[n];
         if (l_queue_assign_input&&l_queue_io_input){
+
+            // Queue assign input
             l_queue_assign_input->poll_index = l_thread->poll_count;
             l_thread->poll[l_thread->poll_count].fd = l_queue_assign_input->fd;
             l_thread->poll[l_thread->poll_count].events = l_queue_assign_input->poll_base_flags;
             l_thread->esockets[l_thread->poll_count] = l_queue_assign_input;
             l_thread->poll_count++;
 
+            // Queue io input
             l_queue_io_input->poll_index = l_thread->poll_count;
             l_thread->poll[l_thread->poll_count].fd = l_queue_io_input->fd;
             l_thread->poll[l_thread->poll_count].events = l_queue_io_input->poll_base_flags;
             l_thread->esockets[l_thread->poll_count] = l_queue_io_input;
+            l_thread->poll_count++;
+
+            // Queue callback input
+            l_queue_callback_input->poll_index = l_thread->poll_count;
+            l_thread->poll[l_thread->poll_count].fd = l_queue_callback_input->fd;
+            l_thread->poll[l_thread->poll_count].events = l_queue_callback_input->poll_base_flags;
+            l_thread->esockets[l_thread->poll_count] = l_queue_callback_input;
             l_thread->poll_count++;
         }
     }
@@ -450,8 +526,6 @@ static void * s_proc_thread_function(void * a_arg)
                             if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
                                 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
                                     l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-                                #elif defined DAP_EVENTS_CAPS_QUEUE_POSIX
-                                    l_bytes_sent = mq_send(a_es->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
                                 #elif defined DAP_EVENTS_CAPS_MSMQ
                                 DWORD l_mp_id = 0;
                                 MQMSGPROPS    l_mps;
@@ -484,11 +558,21 @@ static void * s_proc_thread_function(void * a_arg)
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    l_bytes_sent = mq_send(l_cur->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
-                                    if (l_bytes_sent==0)
+                                    volatile char * l_ptr = (char *) l_cur->buf_out;
+                                    void *l_ptr_in;
+                                    memcpy(&l_ptr_in,l_ptr, sizeof (l_ptr_in) );
+
+                                    l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);
+                                    if (l_bytes_sent==0){
+//                                        log_it(L_DEBUG,"mq_send %p success", l_ptr_in);
                                         l_bytes_sent = sizeof (void *);
-                                    if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
+                                    }else if (l_bytes_sent == -1 && errno == EINVAL){ // To make compatible with other
                                         l_errno = EAGAIN;                        // non-blocking sockets
+//                                        log_it(L_DEBUG,"mq_send %p EAGAIN", l_ptr_in);
+                                    }else{
+                                        l_errno = errno;
+                                        log_it(L_WARNING,"mq_send %p errno: %d", l_ptr_in, l_errno);
+                                    }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
                                 #endif
@@ -555,14 +639,12 @@ static void * s_proc_thread_function(void * a_arg)
            l_poll_compress = false;
            for (size_t i = 0; i < l_thread->poll_count ; i++)  {
                if ( l_thread->poll[i].fd == -1){
-                   if ( l_thread->poll_count){
-                        for(size_t j = i; j < l_thread->poll_count-1; j++){
-                            l_thread->poll[j].fd = l_thread->poll[j+1].fd;
-                            l_thread->esockets[j] = l_thread->esockets[j+1];
-                            if(l_thread->esockets[j])
-                                l_thread->esockets[j]->poll_index = j;
-                        }
-                   }
+                    for(size_t j = i; j +1 < l_thread->poll_count; j++){
+                        l_thread->poll[j].fd = l_thread->poll[j+1].fd;
+                        l_thread->esockets[j] = l_thread->esockets[j+1];
+                        if(l_thread->esockets[j])
+                            l_thread->esockets[j]->poll_index = j;
+                    }
                    i--;
                    l_thread->poll_count--;
                }
@@ -651,3 +733,21 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     return 0;
 }
 
+/**
+ * @brief dap_proc_thread_worker_exec_callback
+ * @param a_thread
+ * @param a_worker_id
+ * @param a_callback
+ * @param a_arg
+ */
+void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_worker_callback_t a_callback, void * a_arg)
+{
+    dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
+    l_msg->callback = a_callback;
+    l_msg->arg = a_arg;
+    dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
+
+    a_thread->queue_callback_input[a_worker_id]->flags |= DAP_SOCK_READY_TO_WRITE;
+    s_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
+
+}
