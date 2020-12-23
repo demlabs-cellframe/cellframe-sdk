@@ -556,6 +556,9 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     if(! dap_strcmp(l_http_pvt->method, "GET") ) {
         // We hide our request and mask them as possible
         l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "User-Agent: Mozilla\r\n");
+        l_offset += l_http_pvt->request_custom_headers
+                ? dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "%s", l_http_pvt->request_custom_headers)
+                : 0;
         l_offset += l_http_pvt->cookie
                 ? dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Cookie: %s\r\n", l_http_pvt->cookie)
                 : 0;
