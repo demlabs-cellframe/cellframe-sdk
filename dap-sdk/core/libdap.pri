@@ -24,8 +24,9 @@ darwin {
 
 win32 {
     include(src/win32/win32.pri)
-    LIBS += -lpsapi
+    LIBS += -lntdll -lpsapi -ljson-c -lmagic -lmqrt -lshlwapi -lregex -ltre -lintl -liconv -lbcrypt -lcrypt32 -lsecur32 -luser32 -lws2_32 -lole32
     DEFINES += DAP_OS_WINDOWS
+    include($$PWD/../../3rdparty/wepoll/wepoll.pri)
 }
 
 # 3rd party

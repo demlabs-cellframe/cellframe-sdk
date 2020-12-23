@@ -1,6 +1,6 @@
 # JSON-C
-include (../../../3rdparty/json-c/json-c.pri)
-include (../../../3rdparty/libmagic/file/libmagic.pri)
+#include (../../../3rdparty/json-c/json-c.pri)
+#include (../../../3rdparty/libmagic/file/libmagic.pri)
 
 #enc_server
 HEADERS += $$PWD/enc_server/include/dap_enc_http.h \
