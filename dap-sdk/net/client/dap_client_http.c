@@ -375,6 +375,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     if (l_socket == -1) {
         log_it(L_ERROR, "Error %d with socket create", errno);
 #endif
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
         return NULL;
     }
     // Get socket flags
@@ -386,11 +388,17 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     int l_socket_flags = fcntl(l_socket, F_GETFL);
     if (l_socket_flags == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
+
         return NULL;
     }
     // Make it non-block
     if (fcntl( l_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
+
         return NULL;
     }
 #endif
@@ -441,6 +449,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
             s_client_http_delete( l_http_pvt);
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
+
+            if(a_error_callback)
+                a_error_callback(errno,a_obj);
+
             return NULL;
         }
     }
@@ -489,6 +501,9 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         log_it(L_ERROR, "Connecting error: \"%s\" (code %d)", l_errbuf, l_err);
         s_client_http_delete( l_http_pvt);
         dap_events_socket_delete_unsafe( l_ev_socket, true);
+        if(a_error_callback)
+            a_error_callback(errno,a_obj);
+
         return NULL;
     }
 #endif

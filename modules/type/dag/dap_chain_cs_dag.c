@@ -729,7 +729,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
             if ( l_event_search == NULL ){
                 char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
-                log_it(L_INFO, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
+                log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
                 DAP_DELETE(l_hash_str);
                 res = ATOM_MOVE_TO_THRESHOLD;
                 break;

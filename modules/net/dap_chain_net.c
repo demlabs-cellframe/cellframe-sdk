@@ -540,8 +540,11 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 if (dap_list_length(l_pvt_net->links_info)) {
                     l_pvt_net->state = NET_STATE_LINKS_CONNECTING;
                     log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_pvt_net->links_info));
+                }else{   // If no links prepared go to offline
+                    log_it(L_WARNING, "Not foun any links, return back to offline");
+                    l_pvt_net->state = NET_STATE_OFFLINE;
+                    l_pvt_net->state_target = NET_STATE_OFFLINE;
                 }
-            // If no links prepared go again to NET_STATE_LINKS_PREPARE
             } else {
                 l_pvt_net->state = NET_STATE_OFFLINE;
             }
@@ -1586,8 +1589,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                                                     ; i++ ){
             dap_chain_node_addr_t * l_seed_node_addr;
             l_seed_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i] );
-            if (l_seed_node_addr == NULL){
-                log_it(L_NOTICE, "Not found alias %s in database, prefill it",PVT(l_net)->seed_aliases[i]);
+            //if (l_seed_node_addr == NULL){
+                log_it(L_NOTICE, "Update alias %s in database, prefill it",PVT(l_net)->seed_aliases[i]);
                 dap_chain_node_info_t * l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
@@ -1648,10 +1651,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 }else
                     log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
                 DAP_DELETE( l_node_info);
-            }else{
+            /*}else{
                 log_it(L_DEBUG,"Seed alias %s is present",PVT(l_net)->seed_aliases[i]);
+                dap_chain_node_info_t * l_node_info= dap_chain_node_info_read(l_net,l_seed_node_addr);
+                l_node
                 DAP_DELETE( l_seed_node_addr);
-            }
+            }*/
         }
         PVT(l_net)->bootstrap_nodes_count = 0;
         PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));

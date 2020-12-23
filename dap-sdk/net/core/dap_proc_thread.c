@@ -124,33 +124,40 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
 {
     (void) a_value;
-    //log_it(L_DEBUG, "Proc event callback");
+//    log_it(L_DEBUG, "--> Proc event callback start");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
     dap_proc_queue_item_t * l_item = l_thread->proc_queue->item_first;
     dap_proc_queue_item_t * l_item_old = NULL;
     bool l_is_anybody_for_repeat=false;
     while(l_item){
+//        log_it(L_INFO, "Proc event callback: %p/%p", l_item->callback, l_item->callback_arg);
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
+            if ( l_item->prev ){
+                l_item->prev->next = l_item_old;
+            }
             if(l_item_old){
-                if ( ! l_item->next ){ // We deleted tail
+                l_item_old->prev = l_item->prev;
+
+                if ( ! l_item->prev ) { // We deleted tail
                     l_thread->proc_queue->item_last = l_item_old;
                 }
-                l_item_old->prev = l_item->next;
+
                 DAP_DELETE(l_item);
                 l_item = l_item_old->prev;
             }else{
-                l_thread->proc_queue->item_first = l_item->next;
-                if (l_thread->proc_queue->item_first)
-                    l_thread->proc_queue->item_first->prev = NULL; // Prev if it was - now its NULL
-                else
+                l_thread->proc_queue->item_first = l_item->prev;
+                if ( l_item->prev){
+                    l_item->prev->next = NULL; // Prev if it was - now its NULL
+                }else
                     l_thread->proc_queue->item_last = NULL; // NULL last item
 
                 DAP_DELETE(l_item);
                 l_item = l_thread->proc_queue->item_first;
             }
-
+//            log_it(L_DEBUG, "Proc event finished");
         }else{
+//            log_it(L_DEBUG, "Proc event not finished");
             l_item_old = l_item;
             l_item=l_item->prev;
         }
@@ -158,6 +165,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
     }
     if(l_is_anybody_for_repeat) // Arm event if we have smth to proc again
         dap_events_socket_event_signal(a_esocket,1);
+//    log_it(L_DEBUG, "<-- Proc event callback end");
 }
 
 /**
@@ -518,8 +526,6 @@ static void * s_proc_thread_function(void * a_arg)
                             if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
                                 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
                                     l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-                                #elif defined DAP_EVENTS_CAPS_QUEUE_POSIX
-                                    l_bytes_sent = mq_send(a_es->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
                                 #elif defined DAP_EVENTS_CAPS_MSMQ
                                 DWORD l_mp_id = 0;
                                 MQMSGPROPS    l_mps;
@@ -552,12 +558,21 @@ static void * s_proc_thread_function(void * a_arg)
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    l_bytes_sent = mq_send(l_cur->mqd, (const char *) l_cur->buf_out, sizeof (void *),0);
-                                    if (l_bytes_sent==0)
-                                        l_bytes_sent = sizeof (void *);
-                                    if (l_bytes_sent == -1 && errno == EINVAL) // To make compatible with other
-                                        l_errno = EAGAIN;                        // non-blocking sockets
+                                    volatile char * l_ptr = (char *) l_cur->buf_out;
+                                    void *l_ptr_in;
+                                    memcpy(&l_ptr_in,l_ptr, sizeof (l_ptr_in) );
 
+                                    l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);
+                                    if (l_bytes_sent==0){
+//                                        log_it(L_DEBUG,"mq_send %p success", l_ptr_in);
+                                        l_bytes_sent = sizeof (void *);
+                                    }else if (l_bytes_sent == -1 && errno == EINVAL){ // To make compatible with other
+                                        l_errno = EAGAIN;                        // non-blocking sockets
+//                                        log_it(L_DEBUG,"mq_send %p EAGAIN", l_ptr_in);
+                                    }else{
+                                        l_errno = errno;
+                                        log_it(L_WARNING,"mq_send %p errno: %d", l_ptr_in, l_errno);
+                                    }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
                                 #endif

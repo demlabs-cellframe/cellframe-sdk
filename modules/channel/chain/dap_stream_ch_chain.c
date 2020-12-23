@@ -411,6 +411,12 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) == NULL ) {
                     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
                     if (l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
+                        if (s_debug_chain_sync){
+                            char l_atom_hash_str[72]={[0]='\0'};
+                            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+                            log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
+                        }
+
                         // append to file
                         dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_pkt_item->pkt_hdr.cell_id);
                         int l_res;
@@ -454,10 +460,21 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             log_it(L_ERROR, "Can't get cell for cell_id 0x%x for save event to file", l_pkt_item->pkt_hdr.cell_id);
 
                         }
+                    }else{
+                        if (s_debug_chain_sync){
+                            char l_atom_hash_str[72]={[0]='\0'};
+                            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+                            log_it(L_WARNING,"Not accepted atom (code %d) with hash %s for %s:%s", l_atom_add_res, l_atom_hash_str, l_chain->net_name, l_chain->name);
+                        }
                     }
                     if(l_atom_add_res == ATOM_PASS)
                         DAP_DELETE(l_atom_copy);
                 } else {
+                    if (s_debug_chain_sync){
+                        char l_atom_hash_str[72]={[0]='\0'};
+                        dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+                        log_it(L_WARNING,"Already has atom with hash %s ", l_atom_hash_str);
+                    }
                     dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
                     DAP_DELETE(l_atom_copy);
                 }
