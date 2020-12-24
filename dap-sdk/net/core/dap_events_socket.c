@@ -1001,12 +1001,12 @@ static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, void * a_arg)
 {
     volatile void * l_arg = a_arg;
-    if (a_es_input->buf_out_size >= sizeof(void*)) {
+    /*if (a_es_input->buf_out_size >= sizeof(void*)) {
         if (memcmp(a_es_input->buf_out + a_es_input->buf_out_size - sizeof(void*), a_arg, sizeof(void*))) {
-            //log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
+            log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
             return 2;
         }
-    }
+    }*/
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
             == sizeof(l_arg) ? 0 : 1;
 }

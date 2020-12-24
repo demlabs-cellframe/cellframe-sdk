@@ -411,6 +411,12 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 if ( l_chain->callback_atom_find_by_hash(l_atom_iter, &l_atom_hash, &l_atom_size) == NULL ) {
                     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
                     if (l_atom_add_res == ATOM_ACCEPT && dap_chain_has_file_store(l_chain)) {
+                        if (s_debug_chain_sync){
+                            char l_atom_hash_str[72]={[0]='\0'};
+                            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+                            log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
+                        }
+
                         // append to file
                         dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_pkt_item->pkt_hdr.cell_id);
                         int l_res;
@@ -454,10 +460,21 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             log_it(L_ERROR, "Can't get cell for cell_id 0x%x for save event to file", l_pkt_item->pkt_hdr.cell_id);
 
                         }
+                    }else{
+                        if (s_debug_chain_sync){
+                            char l_atom_hash_str[72]={[0]='\0'};
+                            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+                            log_it(L_WARNING,"Not accepted atom (code %d) with hash %s for %s:%s", l_atom_add_res, l_atom_hash_str, l_chain->net_name, l_chain->name);
+                        }
                     }
                     if(l_atom_add_res == ATOM_PASS)
                         DAP_DELETE(l_atom_copy);
                 } else {
+                    if (s_debug_chain_sync){
+                        char l_atom_hash_str[72]={[0]='\0'};
+                        dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+                        log_it(L_WARNING,"Already has atom with hash %s ", l_atom_hash_str);
+                    }
                     dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
                     DAP_DELETE(l_atom_copy);
                 }
@@ -1001,9 +1018,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
 
-    if(s_debug_chain_sync)
-        log_it( L_DEBUG,"Out: ch=ch_chain state=%d esocket->buf_out_size=%zd", l_ch_chain ? l_ch_chain->state : -1, a_ch->stream->esocket->buf_out_size);
-
     switch (l_ch_chain->state) {
         // Synchronize GDB
         case CHAIN_STATE_SYNC_GLOBAL_DB: {
@@ -1029,6 +1043,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it( L_INFO,"Syncronized database:  last id %llu, items syncronyzed %llu ", dap_db_log_get_last_id(),
                         l_ch_chain->stats_request_gdb_processed );
                     // last message
+                    l_ch_chain->is_on_request = false;
                     dap_stream_ch_chain_sync_request_t l_request = {};
                     dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                          l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
@@ -1066,6 +1081,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
                                                      l_ch_chain->request_hdr.cell_id, &l_request, sizeof(l_request));
                 log_it( L_INFO,"Synced: %llu atoms processed", l_ch_chain->stats_request_atoms_processed);
+                l_ch_chain->is_on_request = false;
                 dap_stream_ch_chain_go_idle(l_ch_chain);
                 if (l_ch_chain->callback_notify_packet_out)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS, NULL,
