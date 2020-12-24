@@ -261,9 +261,10 @@ void *dap_worker_thread(void *arg)
                     case DESCRIPTOR_TYPE_SOCKET:
                         getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
 #ifdef DAP_OS_WINDOWS
-                        log_it(L_ERROR, "Winsock error: %d", WSAGetLastError());
-#endif
+                        log_it(L_ERROR, "Winsock error: %d", l_sock_err);
+#else
                         log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
+#endif
                     default: ;
                 }
                 dap_events_socket_set_readable_unsafe(l_cur, false);
