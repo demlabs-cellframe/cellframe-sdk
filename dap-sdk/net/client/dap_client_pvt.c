@@ -340,8 +340,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     int buffsize = 65536*4;
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, ( void *) &buffsize, sizeof(int));
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, ( void *) &buffsize, sizeof(int));
-                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDTIMEO, (void*)&timeout, sizeof(timeout);
-                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout);
+                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDTIMEO, (void*)&timeout, sizeof(timeout));
+                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
 #endif
 
                     // Wrap socket and setup callbacks
