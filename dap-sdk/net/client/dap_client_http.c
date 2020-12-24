@@ -381,7 +381,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     }
     // Get socket flags
 #if defined DAP_OS_WINDOWS
-    u_long l_socket_flags = 0;
+    u_long l_socket_flags = 1;
     if (ioctlsocket((SOCKET)l_socket, (long)FIONBIO, &l_socket_flags))
         log_it(L_ERROR, "Error ioctl %d", WSAGetLastError());
 #else
@@ -404,12 +404,21 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
 #endif
     // set socket param
     int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
-#ifdef _WIN32
+    struct timeval timeout;
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+#ifdef DAP_OS_WINDOWS
       setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
       setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
+      if (setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
+          log_it(L_ERROR, "Set send timeout failed, WSA errno %d", WSAGetLastError());
+      if (setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
+          log_it(L_ERROR, "Set recv timeout failed, WSA errno %d", WSAGetLastError());
 #else
     setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
     setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
+    setsockopt(l_socket, SOL_SOCKET, SO_SNDTIMEO, (void*) &timeout, sizeof(timeout));
+    setsockopt(l_socket, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
 #endif
     dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
@@ -473,13 +482,13 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
 #ifdef DAP_OS_WINDOWS
     else if(l_err == SOCKET_ERROR) {
         int l_err2 = WSAGetLastError();
-        if (l_err2 == EWOULDBLOCK || l_err2 == EAGAIN) {
+        if (l_err2 == WSAEWOULDBLOCK) {
             log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
             l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
             dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
             return l_http_pvt;
         } else {
-            log_it(L_ERROR, "Socket %d connecting error: %d", l_ev_socket->socket, WSAGetLastError());
+            log_it(L_ERROR, "Socket %d connecting error: %d", l_ev_socket->socket, l_err2);
             s_client_http_delete( l_http_pvt);
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
@@ -556,6 +565,9 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     if(! dap_strcmp(l_http_pvt->method, "GET") ) {
         // We hide our request and mask them as possible
         l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "User-Agent: Mozilla\r\n");
+        l_offset += l_http_pvt->request_custom_headers
+                ? dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "%s", l_http_pvt->request_custom_headers)
+                : 0;
         l_offset += l_http_pvt->cookie
                 ? dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Cookie: %s\r\n", l_http_pvt->cookie)
                 : 0;

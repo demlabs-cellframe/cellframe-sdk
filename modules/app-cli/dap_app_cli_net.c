@@ -62,7 +62,12 @@ static void dap_app_cli_http_read(dap_app_cli_connect_param_t *socket, dap_app_c
         return;
     }
     if (l_recv_len == -1) {
+#ifdef DAP_OS_WINDOWS
+        int l_errno = WSAGetLastError();
+        if (l_errno == WSAEWOULDBLOCK) {
+#else
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
+#endif
             s_status = DAP_CLI_ERROR_TIMEOUT;
         } else {
             s_status = DAP_CLI_ERROR_SOCKET;

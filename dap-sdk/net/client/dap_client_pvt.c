@@ -303,8 +303,11 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
                         break;
                     }
+                    struct timeval timeout;
+                    timeout.tv_sec = 10;
+                    timeout.tv_usec = 0;
 #ifdef DAP_OS_WINDOWS
-                    u_long l_socket_flags = 0;
+                    u_long l_socket_flags = 1;
                     if (ioctlsocket(a_client_pvt->stream_socket, (long)FIONBIO, &l_socket_flags) == SOCKET_ERROR) {
                         log_it(L_ERROR, "Can't set socket %d to nonblocking mode, error %d", a_client_pvt->stream_socket, WSAGetLastError());
                     }
@@ -315,6 +318,12 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     }
                     if (setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, &optsize ) < 0) {
                         log_it(L_ERROR, "Cant' set recv buf size on socket %d, error %d", a_client_pvt->stream_socket, WSAGetLastError());
+                    }
+                    if (setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+                        log_it(L_ERROR, "Set send timeout failed, WSA errno %d", WSAGetLastError());
+                    }
+                    if (setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+                        log_it(L_ERROR, "Set recv timeout failed, WSA errno %d", WSAGetLastError());
                     }
 #else
                     // Get socket flags
@@ -331,6 +340,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     int buffsize = 65536*4;
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDBUF, ( void *) &buffsize, sizeof(int));
                     setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVBUF, ( void *) &buffsize, sizeof(int));
+                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_SNDTIMEO, (void*)&timeout, sizeof(timeout);
+                    setsockopt(a_client_pvt->stream_socket, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout);
 #endif
 
                     // Wrap socket and setup callbacks
