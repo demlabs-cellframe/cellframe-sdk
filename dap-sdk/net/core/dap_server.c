@@ -177,7 +177,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         listen(l_server->socket_listener, SOMAXCONN);
     }
 #ifdef DAP_OS_WINDOWS
-     u_long l_mode = 0;
+     u_long l_mode = 1;
      ioctlsocket(l_server->socket_listener, (long)FIONBIO, &l_mode);
 #else
     fcntl( l_server->socket_listener, F_SETFL, O_NONBLOCK);

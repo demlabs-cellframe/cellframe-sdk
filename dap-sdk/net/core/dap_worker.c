@@ -261,9 +261,10 @@ void *dap_worker_thread(void *arg)
                     case DESCRIPTOR_TYPE_SOCKET:
                         getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
 #ifdef DAP_OS_WINDOWS
-                        log_it(L_ERROR, "Winsock error: %d", WSAGetLastError());
-#endif
+                        log_it(L_ERROR, "Winsock error: %d", l_sock_err);
+#else
                         log_it(L_ERROR, "Socket error: %s", strerror(l_sock_err));
+#endif
                     default: ;
                 }
                 dap_events_socket_set_readable_unsafe(l_cur, false);
@@ -309,7 +310,11 @@ void *dap_worker_thread(void *arg)
                         l_must_read_smth = true;
                         l_bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
                                             l_cur->buf_in_size_max - l_cur->buf_in_size, 0);
+#ifdef DAP_OS_WINDOWS
+                        l_errno = WSAGetLastError();
+#else
                         l_errno = errno;
+#endif
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_UDP: {
                         l_must_read_smth = true;
@@ -318,7 +323,11 @@ void *dap_worker_thread(void *arg)
                                                 l_cur->buf_in_size_max - l_cur->buf_in_size, 0,
                                                 (struct sockaddr *)&l_cur->remote_addr, &l_size);
 
+#ifdef DAP_OS_WINDOWS
+                        l_errno = WSAGetLastError();
+#else
                         l_errno = errno;
+#endif
                     }
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
@@ -328,12 +337,19 @@ void *dap_worker_thread(void *arg)
                             socklen_t l_remote_addr_size= sizeof (l_remote_addr);
                             int l_remote_socket= accept(l_cur->socket ,&l_remote_addr,&l_remote_addr_size);
 #ifdef DAP_OS_WINDOWS
-							u_long l_mode = 0;
-                            ioctlsocket((SOCKET)l_remote_socket, (long)FIONBIO, &l_mode);
+                            /*u_long l_mode = 1;
+                            ioctlsocket((SOCKET)l_remote_socket, (long)FIONBIO, &l_mode); */
+                            // no need, since l_cur->socket is already NBIO
+
+                            int l_errno = WSAGetLastError();
+                            if (l_errno == WSAEWOULDBLOCK)
+                                continue;
+                            else {
+                                log_it(L_WARNING,"Can't accept on socket %d, WSA errno: %d",l_cur->socket, l_errno);
+                                break;
+                            }
 #else
                             fcntl( l_remote_socket, F_SETFL, O_NONBLOCK);
-#endif
-
                             int l_errno = errno;
                             if ( l_remote_socket == -1 ){
                                 if( l_errno == EAGAIN || l_errno == EWOULDBLOCK){// Everything is good, we'll receive ACCEPT on next poll
@@ -345,7 +361,7 @@ void *dap_worker_thread(void *arg)
                                     break;
                                 }
                             }
-
+#endif
                             l_cur->callbacks.accept_callback(l_cur,l_remote_socket,&l_remote_addr);
                         }else
                             log_it(L_ERROR,"No accept_callback on listening socket");
@@ -400,8 +416,13 @@ void *dap_worker_thread(void *arg)
                         }
                     }
                     else if(l_bytes_read < 0) {
+#ifdef DAP_OS_WINDOWS
+                        if (l_errno != WSAEWOULDBLOCK) {
+                            log_it(L_ERROR, "Can't recv on socket %d, WSA error: %d", l_cur->socket, l_errno);
+#else
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK){ // Socket is blocked
                             log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
+#endif
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
@@ -507,7 +528,12 @@ void *dap_worker_thread(void *arg)
                             l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
                                                   l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
                                                   (struct sockaddr *)&l_cur->remote_addr, sizeof(l_cur->remote_addr));
+#ifdef DAP_OS_WINDOWS
+                            dap_events_socket_set_writable_unsafe(l_cur,false);
+                            l_errno = WSAGetLastError();
+#else
                             l_errno = errno;
+#endif
                         break;
                         case DESCRIPTOR_TYPE_QUEUE:
                              if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)){
@@ -572,8 +598,13 @@ void *dap_worker_thread(void *arg)
                     }
 
                     if(l_bytes_sent < 0) {
+#ifdef DAP_OS_WINDOWS
+                        if (l_errno != WSAEWOULDBLOCK) {
+                            log_it(L_ERROR, "Can't send to socket %d, WSA error: %d", l_cur->socket, l_errno);
+#else
                         if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
                             log_it(L_ERROR, "Some error occured in send(): %s (code %d)", strerror(l_errno), l_errno);
+#endif
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
