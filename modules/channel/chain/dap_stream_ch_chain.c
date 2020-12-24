@@ -1018,9 +1018,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
 
-    if(s_debug_chain_sync)
-        log_it( L_DEBUG,"Out: ch=ch_chain state=%d esocket->buf_out_size=%zd", l_ch_chain ? l_ch_chain->state : -1, a_ch->stream->esocket->buf_out_size);
-
     switch (l_ch_chain->state) {
         // Synchronize GDB
         case CHAIN_STATE_SYNC_GLOBAL_DB: {
@@ -1046,6 +1043,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it( L_INFO,"Syncronized database:  last id %llu, items syncronyzed %llu ", dap_db_log_get_last_id(),
                         l_ch_chain->stats_request_gdb_processed );
                     // last message
+                    l_ch_chain->is_on_request = false;
                     dap_stream_ch_chain_sync_request_t l_request = {};
                     dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                          l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
@@ -1083,6 +1081,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
                                                      l_ch_chain->request_hdr.cell_id, &l_request, sizeof(l_request));
                 log_it( L_INFO,"Synced: %llu atoms processed", l_ch_chain->stats_request_atoms_processed);
+                l_ch_chain->is_on_request = false;
                 dap_stream_ch_chain_go_idle(l_ch_chain);
                 if (l_ch_chain->callback_notify_packet_out)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS, NULL,
