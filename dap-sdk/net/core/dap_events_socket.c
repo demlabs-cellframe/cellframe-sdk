@@ -525,7 +525,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
 
-    unsigned long l_mode = 0;
+    unsigned long l_mode = 1;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
     int l_addr_len;
@@ -800,7 +800,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     int buffsize = 1024;
     setsockopt(l_es->socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
 
-    unsigned long l_mode = 0;
+    unsigned long l_mode = 1;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
     int reuse = 1;

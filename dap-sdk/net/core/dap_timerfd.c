@@ -120,7 +120,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
 
     setsockopt(l_tfd, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
 
-    unsigned long l_mode = 0;
+    unsigned long l_mode = 1;
     ioctlsocket(l_tfd, FIONBIO, &l_mode);
 
     int l_addr_len;
