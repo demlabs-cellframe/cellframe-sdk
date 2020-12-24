@@ -202,11 +202,11 @@ dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t *
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if(!l_sign_size ){
             log_it(L_WARNING,"Corrupted signature: size is zero");
-            break;
+            goto err;
         }
-        if(l_sign_size> (UINT32_MAX-l_offset ) ){
+        if(l_sign_size> (a_datum_token_size-l_offset ) ){
             log_it(L_WARNING,"Corrupted signature: size %zd is too big", l_sign_size);
-            break;
+            goto err;
         }
         l_ret[n] = l_sign;
         n++;
@@ -214,4 +214,10 @@ dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t *
         l_offset += l_sign_size;
     }
     return l_ret;
+err:
+    *a_signs_total = 0;
+    if(l_ret)
+        DAP_DELETE(l_ret);
+    return NULL;
+
 }

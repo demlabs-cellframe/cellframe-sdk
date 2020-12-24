@@ -339,14 +339,15 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
         l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
                                                                                    &l_token_item->auth_signs_total,
                                                                                    &l_token_item->auth_signs_valid );
-        if(l_token_item->auth_signs_total)
+        if(l_token_item->auth_signs_total){
             l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,sizeof (dap_chain_hash_fast_t)* l_token_item->auth_signs_total);
-        for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
-            dap_sign_get_pkey_hash(l_token_item->auth_signs[k],&l_token_item->auth_signs_pkey_hash[k]);
+            for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
+                dap_sign_get_pkey_hash(l_token_item->auth_signs[k],&l_token_item->auth_signs_pkey_hash[k]);
+            }
+            log_it(L_NOTICE, "Simple token %s added (total_supply = %.1llf total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
+                   a_token->ticker, dap_chain_datoshi_to_coins(a_token->header_private.total_supply),
+                   a_token->header_private.signs_valid, a_token->header_private.signs_total);
         }
-        log_it(L_NOTICE, "Simple token %s added (total_supply = %.1llf total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
-               a_token->ticker, dap_chain_datoshi_to_coins(a_token->header_private.total_supply),
-               a_token->header_private.signs_valid, a_token->header_private.signs_total);
         break;
     }
 
