@@ -36,7 +36,7 @@
 #define DAP_EVENTS_CAPS_EVENT_EVENTFD
 #include <netinet/in.h>
 #include <sys/eventfd.h>
-#include <mqueue.h>
+#include <unistd.h>
 #elif defined(DAP_OS_LINUX)
 //    #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_POLL
