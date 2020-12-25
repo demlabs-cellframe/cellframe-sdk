@@ -7,7 +7,7 @@ unix {
     DEFINES += DAP_OS_UNIX
 }
 android {
-    DEFINES += DAP_OS_ANDROID
+    DEFINES += DAP_OS_ANDROID DAP_OS_LINUX DAP_OS_UNIX
 }
 
 unix: !android {
