@@ -386,9 +386,13 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->port          = a_es->port;
     l_es->mq_num        = a_es->mq_num;
 
-    WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN + 1] = { 0 };
-    size_t l_sz_in_words = sizeof(l_direct_name)/sizeof(l_direct_name[0]);
-    int pos = _snwprintf_s(l_direct_name, l_sz_in_words, l_sz_in_words - 1, L"DIRECT=OS:.\\PRIVATE$\\DapEventSocketQueue%d", l_es->mq_num);
+    WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN] = { 0 };
+    int pos = 0;
+#ifdef DAP_BRAND
+    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\" DAP_BRAND "__esmq%d", l_es->mq_num);
+#else
+    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\%hs__esmq%d", dap_get_appname(), l_es->mq_num);
+#endif
     if (pos < 0) {
         log_it(L_ERROR, "Message queue path error");
         DAP_DELETE(l_es);
@@ -550,10 +554,14 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     QUEUEPROPID    l_qp_id[1];
     HRESULT        l_q_status[1];
 
-    WCHAR l_pathname[MAX_PATH] = { 0 };
+    WCHAR l_pathname[MQ_MAX_Q_NAME_LEN - 10] = { 0 };
     static atomic_uint s_queue_num = 0;
-    size_t l_sz_in_words = sizeof(l_pathname)/sizeof(l_pathname[0]);
-    int pos = _snwprintf_s(l_pathname, l_sz_in_words, l_sz_in_words - 1, L".\\PRIVATE$\\DapEventSocketQueue%d", l_es->mq_num = s_queue_num++);
+    int pos = 0;
+#ifdef DAP_BRAND
+    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\" DAP_BRAND "__esmq%d", l_es->mq_num = s_queue_num++);
+#else
+    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\%hs__esmq%d", dap_get_appname(), l_es->mq_num = s_queue_num++);
+#endif
     if (pos < 0) {
         log_it(L_ERROR, "Message queue path error");
         DAP_DELETE(l_es);
@@ -570,7 +578,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     l_qps.aPropVar  = l_qp_var;
     l_qps.aStatus   = l_q_status;
 
-    WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN + 1]      = { 0 };
+    WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN]      = { 0 };
     WCHAR l_format_name[sizeof(l_direct_name) - 10] = { 0 };
     DWORD l_buflen = sizeof(l_format_name);
     HRESULT hr = MQCreateQueue(NULL, &l_qps, l_format_name, &l_buflen);
@@ -579,9 +587,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         DAP_DELETE(l_es);
         return NULL;
     }
-
-    wcsncpy(l_direct_name, L"DIRECT=OS:", 10);
-    wcscat_s(l_direct_name, l_buflen, l_pathname);
+    _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:%ls", l_pathname);
 
     hr = MQOpenQueue(l_direct_name, MQ_SEND_ACCESS, MQ_DENY_NONE, &(l_es->mqh));
     if (hr == MQ_ERROR_QUEUE_NOT_FOUND) {
