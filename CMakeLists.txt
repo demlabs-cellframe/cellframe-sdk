@@ -32,6 +32,12 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
+if (ANDROID)
+    add_subdirectory(3rdparty/libmagic)
+    add_subdirectory(3rdparty/json-c)
+    include_directories(cellframe-sdk/3rdparty/)
+
+endif()
 add_subdirectory(modules/)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
