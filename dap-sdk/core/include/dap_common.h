@@ -72,6 +72,8 @@ typedef uint8_t byte_t;
 // Extracts a size_t from a pointer
 #define DAP_POINTER_TO_SIZE(p) ((size_t) (p))
 
+#define DAP_END_OF_DAYS 4102444799
+
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
 #else
