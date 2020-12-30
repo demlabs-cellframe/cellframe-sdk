@@ -63,31 +63,8 @@
 
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff
 
-#define DAP_DATUM_TYPE_STR(t, s)                \
-    switch (t) {                            \
-        case DAP_CHAIN_DATUM_TX:            \
-            s = "DATUM_TX"; break;          \
-        case DAP_CHAIN_DATUM_TX_REQUEST:    \
-            s = "DATUM_WASM_CODE"; break;   \
-        case DAP_CHAIN_DATUM_WASM_CODE:     \
-            s = "DATUM_WASM_CODE"; break;   \
-        case DAP_CHAIN_DATUM_WASM_DATA:     \
-            s = "DATUM_WASM_DATA"; break;   \
-        case DAP_CHAIN_DATUM_EVM_CODE:      \
-            s = "DATUM_EVM_CODE"; break;    \
-        case DAP_CHAIN_DATUM_EVM_DATA:      \
-            s = "DATUM_EVM_DATA"; break;    \
-        case DAP_CHAIN_DATUM_CA:            \
-            s = "DATUM_CA"; break;          \
-        case DAP_CHAIN_DATUM_CUSTOM:        \
-            s = "DATUM_CUSTOM"; break;      \
-        case DAP_CHAIN_DATUM_TOKEN_DECL:    \
-            s = "DATUM_TOKEN_DECL"; break;  \
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
-            s = "DATUM_TOKEN_EMISSION"; break;\
-        default:                            \
-            s = "DATUM_UNKNOWN"; break;     \
-}
+
+extern const char * c_datum_type_str[];
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2
 
@@ -132,6 +109,29 @@ typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_first_t)(dap_chai
 typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *  );
 typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *  );
 
+/**
+ * @brief dap_chain_datum_typeid_to_str
+ * @param a_type_id
+ * @return
+ */
+static inline const char * dap_chain_datum_type_id_to_str(uint16_t a_type_id){
+    switch ( a_type_id ){
+        case DAP_CHAIN_DATUM_TX:
+        case DAP_CHAIN_DATUM_TX_REQUEST:
+        case DAP_CHAIN_DATUM_WASM_CODE:
+        case DAP_CHAIN_DATUM_WASM_DATA:
+        case DAP_CHAIN_DATUM_EVM_CODE:
+        case DAP_CHAIN_DATUM_EVM_DATA:
+        case DAP_CHAIN_DATUM_CA:
+        case DAP_CHAIN_DATUM_TOKEN_DECL:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+	case DAP_CHAIN_DATUM_TOKEN_DISMISSAL:
+        case DAP_CHAIN_DATUM_CUSTOM:
+            return c_datum_type_str[a_type_id];
+        default:
+            return "(wrong datum type id)";
+    }
+}
 
 /**
  * @brief dap_chain_datum_size
