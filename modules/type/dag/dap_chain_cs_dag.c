@@ -1509,9 +1509,11 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
 
                     // Nested datum
+                    const char *l_datum_type = NULL;
+                    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
                     dap_string_append_printf(l_str_tmp,"\t\t\t\tdatum:\tdatum_size: %u\n",l_datum_size);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype_id:=%s\n", c_datum_type_str[l_datum->header.type_id]);
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype_id:=%s\n", l_datum_type);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tts_create=%s\n", dap_ctime_r( &l_datum_ts_create,buf ));
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
 
