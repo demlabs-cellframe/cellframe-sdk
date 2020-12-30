@@ -1068,11 +1068,14 @@ void dap_usleep(time_t a_microseconds)
 
 
 char* dap_ctime_r(time_t *a_time, char* a_buf){
-    struct tm *l_time = localtime(a_time);
-    char *l_str_time = asctime_r(l_time, a_buf);
+    if (*a_time > DAP_END_OF_DAYS) {
+        return "(null)\r\n";
+    }
+    struct tm l_time;
+    localtime_r(a_time, &l_time);
+    char *l_str_time = asctime_r(&l_time, a_buf);
     if (l_str_time)
         return  l_str_time;
     else
-        return "(null)\n";
-//    localtime_r()
+        return "(null)\r\n";
 }

@@ -1713,13 +1713,13 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
             if(l_addr_tokens_size > 0)
                 dap_string_append_printf(l_string_ret, "balance:\n");
             else
-                dap_string_append_printf(l_string_ret, "balance:\u00a00");
+                dap_string_append_printf(l_string_ret, "balance:\xA0""0");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
                     uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
-                    dap_string_append_printf(l_string_ret, "\t\u00a0%s (%s) %s", l_balance_coins,
+                    dap_string_append_printf(l_string_ret, "\t\xA0""%s (%s) %s", l_balance_coins,
                             l_balance_datoshi, l_addr_tokens[i]);
                     if(i < l_addr_tokens_size - 1)
                         dap_string_append_printf(l_string_ret, "\n");
@@ -2053,22 +2053,22 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         for(size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
             time_t l_ts_create = (time_t) l_datum->header.ts_create;
-            if (l_datum->header.data_size > l_objs[i].value_len) {
-                log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s", a_net->pub.name, a_chain->name, l_objs[i].key);
+            if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
+                //log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s", a_net->pub.name, a_chain->name, l_objs[i].key);
                 continue;
             }
-            char buf[50];
+            char buf[50] = {[0]='\0'};
             dap_hash_fast_t l_data_hash;
-            char l_data_hash_str[70]={[0]='\0'};
+            char l_data_hash_str[70] = {[0]='\0'};
             dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
-
+            const char *l_type = NULL;
+            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
             dap_string_append_printf(a_str_tmp, "hash %s: type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
-                    l_objs[i].key, c_datum_type_str[l_datum->header.type_id],
+                    l_objs[i].key, l_type,
                     l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
             dap_chain_net_dump_datum(a_str_tmp, l_datum, a_hash_out_type);
         }
-
         dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     }
 
@@ -2277,8 +2277,10 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
             if(l_datum) {
                 char buf[50];
                 time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                const char *l_type = NULL;
+                DATUM_TYPE_STR(l_datum->header.type_id, l_type)
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
-                        l_datum_hash_out_str, c_datum_type_str[l_datum->header.type_id],
+                        l_datum_hash_out_str, l_type,
                         dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
                 int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
                 if (l_verify_datum != 0){
