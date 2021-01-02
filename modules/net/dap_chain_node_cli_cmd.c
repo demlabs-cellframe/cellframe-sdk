@@ -2278,7 +2278,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 char buf[50];
                 time_t l_ts_create = (time_t) l_datum->header.ts_create;
                 const char *l_type = NULL;
-                DATUM_TYPE_STR(l_datum->header.type_id, l_type)
+                DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
                         l_datum_hash_out_str, l_type,
                         dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
@@ -2457,10 +2457,10 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                          l_str_flags++;
                      }
                      // Add flags as set_flags TDS section
-                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                     dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                              DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS, l_flags);
                      dap_list_append( l_tsd_list, l_tsd);
-                     l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                     l_tsd_total_size+= dap_tsd_size( l_tsd);
 
                 }else if ( strcmp( a_argv[l_arg_index],"-flags_unset" )==0){   // Flags
                     char ** l_str_flags = NULL;
@@ -2476,10 +2476,10 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                         l_str_flags++;
                     }
                     // Add flags as unset_flags TDS section
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS, l_flags);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
 
                }else if ( strcmp( a_argv[l_arg_index],"-signs" )==0){
                     dap_cert_parse_str_list(l_arg_param, &l_certs, &l_certs_count);
@@ -2490,77 +2490,77 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                     }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
                     uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
                     l_signs_total = l_param_value;
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed_add" )==0){ // Datum type allowed add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed_remove" )==0){ // Datum type allowed remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked_add" )==0){ // Datum type blocked add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked_remove" )==0){ // Datum type blocked remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed_add" )==0){ // TX Receiver add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed_remove" )==0){ // TX Receiver remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked_add" )==0){ // TX Receiver blocked add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked_remove" )==0){ // TX Receiver blocked remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed_add" )==0){ // TX Sender allowed add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed_remove" )==0){ // TX Sender allowed remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked_add" )==0){  // TX Sender blocked add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked_remove" )==0){  // TX Sender blocked remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unknown param \"%s\"",a_argv[l_arg_index]);
                     return -20;
@@ -2595,8 +2595,8 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_chain_datum_token_tsd_t * l_tsd = (dap_chain_datum_token_tsd_t *) l_iter->data;
-                size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
+                dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
+                size_t l_tsd_size = dap_tsd_size( l_tsd);
                 memcpy(l_datum_token_update->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_data_offset += l_tsd_size;
             }
@@ -2788,17 +2788,17 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                      }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
                     uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
                     l_signs_total = l_param_value;
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-signs" )==0){
                     dap_cert_parse_str_list(l_arg_param, &l_certs, &l_certs_count);
                     if(!l_certs_count) {
@@ -2807,35 +2807,35 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                         return -10;
                     }
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unknown param \"%s\"",a_argv[l_arg_index]);
                     return -20;
@@ -2873,45 +2873,45 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_chain_datum_token_tsd_t * l_tsd = (dap_chain_datum_token_tsd_t *) l_iter->data;
+                dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
                 if (l_tsd == NULL){
                     log_it(L_ERROR, "NULL tsd in list!");
                     continue;
                 }
                 switch (l_tsd->type){
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {
-                        char *l_balance = dap_chain_balance_print(dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t));
+                        char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint128_t));
                         log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);
                         DAP_DELETE(l_balance);
                     }
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                                dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t) );
+                                dap_tsd_get_scalar(l_tsd,uint16_t) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                         log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
-                               dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                               dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
                         log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
                         log_it(L_DEBUG,"== TX_SENDER_BLOCKED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
                         log_it(L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
                         log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     default: log_it(L_DEBUG, "== 0x%04X: binary data %zd size ",l_tsd->type, l_tsd->size );
                 }
-                size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
+                size_t l_tsd_size = dap_tsd_size( l_tsd);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
                 l_datum_data_offset += l_tsd_size;

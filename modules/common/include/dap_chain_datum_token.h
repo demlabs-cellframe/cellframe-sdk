@@ -28,6 +28,7 @@
 #include "dap_sign.h"
 
 #include "dap_string.h"
+#include "dap_tsd.h"
 #include "dap_strfuncs.h"
 
 // Token declaration
@@ -140,14 +141,6 @@ static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 // No tx receiver permissions lists manipulations after declarations
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          0x0015
 
-
-// TSD section - Type-Size-Data
-typedef struct dap_chain_datum_token_tsd{
-    uint16_t type; /// Section type
-    uint32_t size;   /// Data size trailing the section
-    byte_t data[]; /// Section's data
-} DAP_ALIGN_PACKED dap_chain_datum_token_tsd_t;
-
 /// -------- General tsd types ----
 // Flags set/unsed
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS           0x0001
@@ -243,19 +236,7 @@ extern const char *c_dap_chain_datum_token_emission_type_str[];
 /// TDS op funcs
 ///
 
-dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, const void * a_data, size_t a_data_size);
-dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
+dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
 dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
-
-#define dap_chain_datum_token_tsd_create_scalar(type,value) dap_chain_datum_token_tsd_create (type, &value, sizeof(value) )
-#define dap_chain_datum_token_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
-
-// NULL-terminated string
-#define dap_chain_datum_token_tsd_create_string(type,str) dap_chain_datum_token_tsd_create (type,str, dap_strlen(str)+1)
-#define dap_chain_datum_token_tsd_get_string(a)  ( ((char*) a->data )[a->size-1] == '\0'? (char*) a->data  : "<CORRUPTED STRING>" )
-#define dap_chain_datum_token_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : "<CORRUPTED STRING>" )
-
-#define dap_chain_datum_token_tsd_size(a) (sizeof(*a)+a->size)
-

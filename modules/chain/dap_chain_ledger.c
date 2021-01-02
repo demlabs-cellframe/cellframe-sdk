@@ -380,13 +380,13 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size)
 {
     dap_ledger_private_t * l_ledger_pvt = PVT(a_ledger);
-    dap_chain_datum_token_tsd_t * l_tsd= dap_chain_datum_token_tsd_get(a_token,a_token_size);
+    dap_tsd_t * l_tsd= dap_chain_datum_token_tsd_get(a_token,a_token_size);
     size_t l_tsd_size=0;
     size_t l_tsd_total_size =a_token_size-  (((byte_t*)l_tsd)- (byte_t*) a_token );
 
     for( size_t l_offset=0; l_tsd && l_offset < l_tsd_total_size;  l_offset += l_tsd_size ){
-        l_tsd = (dap_chain_datum_token_tsd_t *) (((byte_t*)l_tsd ) +l_offset);
-        l_tsd_size =  l_tsd? dap_chain_datum_token_tsd_size(l_tsd): 0;
+        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd ) +l_offset);
+        l_tsd_size =  l_tsd? dap_tsd_size(l_tsd): 0;
         if( l_tsd_size==0 ){
             log_it(L_ERROR,"Wrong zero TSD size, exiting TSD parse");
             break;
@@ -397,27 +397,27 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
         switch (l_tsd->type) {
            // set flags
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS:{
-                a_token_item->flags |= dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t);
+                a_token_item->flags |= dap_tsd_get_scalar(l_tsd,uint16_t);
             }break;
 
            // unset flags
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS:{
-                a_token_item->flags ^= dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t);
+                a_token_item->flags ^= dap_tsd_get_scalar(l_tsd,uint16_t);
             }break;
 
             // set total supply
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:{
-                a_token_item->total_supply = dap_chain_datum_token_tsd_get_scalar(l_tsd,uint64_t);
+                a_token_item->total_supply = dap_tsd_get_scalar(l_tsd,uint64_t);
             }break;
 
             // Set total signs count value to set to be valid
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:{
-                a_token_item->auth_signs_valid = dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t);
+                a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_tsd,uint16_t);
             }break;
 
             // Remove owner signature by pkey fingerprint
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE:{
-                dap_hash_fast_t l_hash = dap_chain_datum_token_tsd_get_scalar(l_tsd,dap_hash_fast_t);
+                dap_hash_fast_t l_hash = dap_tsd_get_scalar(l_tsd,dap_hash_fast_t);
                 for( size_t i=0; i<a_token_item->auth_signs_total; i++){
                     if (dap_hash_fast_compare(&l_hash, &a_token_item->auth_signs_pkey_hash[i] )){
                         if (i+1 != a_token_item->auth_signs_total){

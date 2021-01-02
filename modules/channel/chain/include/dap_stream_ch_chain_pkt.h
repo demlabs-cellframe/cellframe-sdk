@@ -35,9 +35,11 @@
 
 #include "dap_stream_ch.h"
 
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN               0x20
+
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN               0x20
+
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB           0x21
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB_GROUP     0x31
 
@@ -45,13 +47,23 @@
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB            0x12
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_ALL                  0x22
 
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS             0x03
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL                0x23
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB_GROUP    0x33
+
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS          0x04
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS       0x14
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS             0x03
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB          0x13
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB_GROUP    0x33
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL                0x23
+
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_META        0x15
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS             0x25
+
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x65
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_META     0x66
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x57
+
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
 
 typedef enum dap_stream_ch_chain_state{
@@ -60,6 +72,8 @@ typedef enum dap_stream_ch_chain_state{
     CHAIN_STATE_SYNC_GLOBAL_DB=2,
     CHAIN_STATE_SYNC_ALL=3
 } dap_stream_ch_chain_state_t;
+
+
 
 typedef struct dap_stream_ch_chain_sync_request{
     dap_chain_node_addr_t node_addr; // Requesting node's address
