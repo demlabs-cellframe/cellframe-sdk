@@ -1,7 +1,9 @@
-QMAKE_CFLAGS_RELEASE += -std=gnu11
-QMAKE_CFLAGS_DEBUG = -std=gnu11
--DDAP_DEBUG
+#QMAKE_CFLAGS_RELEASE += -std=gnu11
+#QMAKE_CFLAGS_DEBUG = -std=gnu11 -DDAP_DEBUG
+#QMAKE_CFLAGS_RELEASE += -std=gnu1
+QMAKE_CFLAGS_DEBUG += -DDAP_DEBUG
 QMAKE_CXXFLAGS +=  -std=c++11
+QMAKE_CFLAGS +=  -std=gnu11
 unix {
     include(src/unix/unix.pri)
     DEFINES += DAP_OS_UNIX
