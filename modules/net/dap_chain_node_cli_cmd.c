@@ -2278,7 +2278,7 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
                 char buf[50];
                 time_t l_ts_create = (time_t) l_datum->header.ts_create;
                 const char *l_type = NULL;
-                DATUM_TYPE_STR(l_datum->header.type_id, l_type)
+                DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
                         l_datum_hash_out_str, l_type,
                         dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
