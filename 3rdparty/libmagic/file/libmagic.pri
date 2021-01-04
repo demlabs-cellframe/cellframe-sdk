@@ -35,4 +35,5 @@ HEADERS+= $$PWD/cdf.h\
           $$PWD/tar.h\
           $$PWD/config.h
 
+INCLUDEPATH += $$PWD
 DEFINES += HAVE_CONFIG_H

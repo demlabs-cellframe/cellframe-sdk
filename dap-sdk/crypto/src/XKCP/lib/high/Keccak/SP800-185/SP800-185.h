@@ -17,7 +17,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #ifndef _SP800_185_h_
 #define _SP800_185_h_
 
-#include "config.h"
+#include "../../lib/common/config.h"
 #ifdef XKCP_has_KeccakP1600
 
 #include <stddef.h>

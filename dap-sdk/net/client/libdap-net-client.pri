@@ -1,3 +1,5 @@
+include (../../../3rdparty/json-c/json-c.pri)
+
 HEADERS += $$PWD/include/dap_client.h \
     $$PWD/include/dap_client_http.h \
     $$PWD/include/dap_client_pool.h \

@@ -81,10 +81,14 @@ int dap_proc_thread_init(uint32_t a_threads_count){
 void dap_proc_thread_deinit()
 {
     // Signal to cancel working threads and wait for finish
+    // TODO: Android realization
+#ifndef DAP_OS_ANDROID
     for (size_t i = 0; i < s_threads_count; i++ ){
         pthread_cancel(s_threads[i].thread_id);
         pthread_join(s_threads[i].thread_id, NULL);
     }
+#endif
+
 }
 
 /**

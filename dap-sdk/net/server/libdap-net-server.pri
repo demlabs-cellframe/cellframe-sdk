@@ -1,6 +1,5 @@
 
 android {
-    include (../../../3rdparty/json-c/json-c.pri)
     include (../../../3rdparty/libmagic/file/libmagic.pri)
 }
 

@@ -158,7 +158,7 @@ void *dap_worker_thread(void *arg)
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_ERROR, "Worker thread %d got errno:\"%s\" (%d)", l_worker->id, l_errbuf, l_errno);
-            assert_perror(l_errno);
+            assert(l_errno);
 #endif
             break;
         }
@@ -249,7 +249,7 @@ void *dap_worker_thread(void *arg)
 #ifdef DAP_OS_WINDOWS
                     log_it(L_ERROR, "Wrong fd: %d", l_cur->fd);
 #else
-                    assert_perror(errno);
+                    assert(errno);
 #endif
                 }
                 // If its not null or -1 we should try first to remove it from poll. Assert only if it doesn't help

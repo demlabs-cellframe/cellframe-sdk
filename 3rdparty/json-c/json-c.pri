@@ -38,3 +38,4 @@ HEADERS += $$PWD/arraylist.h\
            $$PWD/strerror_override_private.h\
            $$PWD/vasprintf_compat.h
 
+INCLUDEPATH += $$PWD/../

@@ -14,11 +14,12 @@ and related or neighboring rights to the source code in this file.
 http://creativecommons.org/publicdomain/zero/1.0/
 */
 
-#ifndef _SimpleFIPS202_h_
-#define _SimpleFIPS202_h_
+#pragma once
+#include "../../lib/common/config.h"
 
-#include "config.h"
-#ifdef XKCP_has_KeccakP1600
+#ifndef XKCP_has_KeccakP1600
+#error This requires an implementation of Keccak-p[1600]
+#endif
 
 #include <string.h>
 
@@ -76,12 +77,8 @@ int SHA3_384(unsigned char *output, const unsigned char *input, size_t inputByte
   */
 int SHA3_512(unsigned char *output, const unsigned char *input, size_t inputByteLen);
 
-#else
-#error This requires an implementation of Keccak-p[1600]
-#endif
+
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif
