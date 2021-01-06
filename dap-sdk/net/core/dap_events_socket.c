@@ -474,16 +474,20 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
      //   log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
-    const int l_file_buf_size = 64;
+
+#if !defined (DAP_OS_ANDROID)
     FILE* l_sys_max_pipe_size_fd = fopen("/proc/sys/fs/pipe-max-size", "r");
-    if (l_sys_max_pipe_size_fd == NULL) {
-        log_it(L_WARNING, "Сan't resize pipe buffer");
+    if (l_sys_max_pipe_size_fd) {
+        const int l_file_buf_size = 64;
+        char l_file_buf[l_file_buf_size];
+        memset(l_file_buf, 0, l_file_buf_size);
+        fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
+        l_sys_max_pipe_size_fd = NULL;
+        uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
+        fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size);
+        fclose(l_sys_max_pipe_size_fd);
     }
-    char l_file_buf[l_file_buf_size];
-    memset(l_file_buf, 0, l_file_buf_size);
-    fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
-    uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
-    fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size);
+#endif
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     char l_mq_name[64];
