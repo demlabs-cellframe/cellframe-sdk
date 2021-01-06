@@ -126,6 +126,8 @@ static bool s_timer_timeout_check(void * a_arg)
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
                l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
+        if(l_http_pvt->error_callback)
+            l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
         l_http_pvt->is_closed_by_timeout = true;
         l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
