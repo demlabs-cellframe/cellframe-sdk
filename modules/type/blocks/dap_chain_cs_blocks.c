@@ -513,7 +513,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
                         time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
                         // Nested datums
                         dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", c_datum_type_str[l_datum->header.type_id]);
+			const char * l_datum_type_str="UNKNOWN";
+			DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n",ctime_r( &l_datum_ts_create,buf ));
                         dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                         dap_chain_net_dump_datum(l_str_tmp, l_datum, "hex" );

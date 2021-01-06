@@ -143,8 +143,12 @@
 /* Define to 1 if you have the `vsyslog' function. */
 #define HAVE_VSYSLOG 1
 
+#ifdef DAP_OS_ANDROID
+#define ENABLE_RDRAND
+#else
 /* Define if you have the `getrandom' function. */
 #define HAVE_GETRANDOM
+#endif
 
 /* Define if you have the `getrusage' function. */
 #define HAVE_GETRUSAGE

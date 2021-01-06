@@ -33,7 +33,6 @@
 #elif defined DAP_OS_WINDOWS
 #define _MSEC -10000
 #endif
-#include <inttypes.h>
 
 #include "dap_common.h"
 #include "dap_events_socket.h"

@@ -164,6 +164,8 @@ typedef struct dap_events_socket {
     u_int mq_num;
     u_short port;
     HANDLE ev_timeout, ev_recv;
+#else
+    };
 #endif
 
 #if defined DAP_EVENTS_CAPS_PIPE_POSIX

@@ -33,8 +33,6 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <pthread.h>
-#else
-#include <mqueue.h>
 #endif
 
 #include "dap_common.h"
