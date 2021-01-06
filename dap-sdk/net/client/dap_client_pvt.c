@@ -58,6 +58,7 @@
 #include "dap_strfuncs.h"
 #include "dap_cert.h"
 
+#include "dap_timerfd.h"
 //#include "dap_http_client_simple.h"
 #include "dap_client_http.h"
 #include "dap_client.h"

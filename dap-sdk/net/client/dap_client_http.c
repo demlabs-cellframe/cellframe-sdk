@@ -119,7 +119,7 @@ static bool s_timer_timeout_check(void * a_arg)
     dap_events_t * l_events = dap_events_get_default();
     assert(l_events);
 
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker);; // We're in own esocket context
+    dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
     assert(l_worker);
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
@@ -469,7 +469,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
     l_ev_socket->flags |= DAP_SOCK_CONNECTING;
-    l_ev_socket->type = DESCRIPTOR_TYPE_SOCKET;
+    l_ev_socket->type = DESCRIPTOR_TYPE_SOCKET_CLIENT;
     l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE;
 
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));

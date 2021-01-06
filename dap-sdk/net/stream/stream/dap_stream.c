@@ -38,6 +38,7 @@
 #endif
 
 #include "dap_common.h"
+#include "dap_timerfd.h"
 
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"

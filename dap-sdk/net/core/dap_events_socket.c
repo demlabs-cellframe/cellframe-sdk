@@ -28,16 +28,24 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+
 #ifndef _WIN32
 #include <sys/epoll.h>
+#include <sys/types.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+
 #else
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
 #include <io.h>
 #endif
+
+
 
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
@@ -137,7 +145,8 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     ret->socket = a_sock;
     ret->events = a_events;
-    memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
+    if (a_callbacks)
+        memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
     ret->flags = DAP_SOCK_READY_TO_READ;
 
     ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
@@ -295,6 +304,43 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, 
     dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
     dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
+}
+
+/**
+ * @brief dap_events_socket_create
+ * @param a_type
+ * @param a_callbacks
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks)
+{
+    dap_events_socket_t * l_es = NULL;
+    switch(a_type){
+        case DESCRIPTOR_TYPE_SOCKET_CLIENT:
+        case DESCRIPTOR_TYPE_SOCKET_UDP :{
+        #ifdef WIN32
+            SOCKET l_sock;
+        #else
+            int l_sock;
+        #endif
+            l_sock = socket(AF_INET, (a_type==DESCRIPTOR_TYPE_SOCKET_CLIENT? SOCK_STREAM : SOCK_DGRAM)
+                                      | SOCK_NONBLOCK , 0);
+            if (l_sock == INVALID_SOCKET) {
+                log_it(L_ERROR, "Socket create error");
+                break;
+            }
+
+            dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(dap_events_get_default(),l_sock,a_callbacks);
+            if(!l_es){
+                log_it(L_CRITICAL,"Can't allocate memory for the new esocket");
+                break;
+            }
+            l_es->type = DESCRIPTOR_TYPE_EVENT;
+        } break;
+        default:
+            log_it(L_CRITICAL,"Can't create socket type %d", a_type );
+    }
+    return l_es;
 }
 
 /**

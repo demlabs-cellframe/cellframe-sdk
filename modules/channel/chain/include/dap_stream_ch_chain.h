@@ -52,6 +52,13 @@ typedef struct dap_chain_pkt_item {
     byte_t *pkt_data;
 } dap_chain_pkt_item_t;
 
+typedef struct dap_stream_ch_chain_hash_item{
+    dap_hash_fast_t hash;
+    uint32_t size;
+    UT_hash_handle hh;
+} dap_stream_ch_chain_hash_item_t;
+
+
 typedef struct dap_stream_ch_chain {
     dap_stream_ch_t * ch;
 
@@ -59,6 +66,10 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_state_t state;
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
+
+
+    dap_stream_ch_chain_hash_item_t * remote_atoms; // Remote atoms
+    dap_stream_ch_chain_hash_item_t * remote_gdbs; // Remote gdbs
 
     // request section
     dap_chain_atom_iter_t *request_atom_iter;

@@ -57,23 +57,37 @@
 
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_META        0x15
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD         0x15
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS             0x25
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END         0x35
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x65
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_META     0x66
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x57
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x06
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD      0x16
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x26
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x36
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
 
+// TSD sections
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_PROTO        0x0001   // Protocol version
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_COUNT        0x0002   // Items count
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_LAST    0x0003   // Hash of last(s) item
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
+
 typedef enum dap_stream_ch_chain_state{
     CHAIN_STATE_IDLE=0,
-    CHAIN_STATE_SYNC_CHAINS=1,
-    CHAIN_STATE_SYNC_GLOBAL_DB=2,
-    CHAIN_STATE_SYNC_ALL=3
+    CHAIN_STATE_UPDATE_GLOBAL_DB=1, // Update  GDB hashtable
+    CHAIN_STATE_UPDATE_CHAINS=2, // Update chains hashtable
+    CHAIN_STATE_SYNC_CHAINS=3,
+    CHAIN_STATE_SYNC_GLOBAL_DB=4,
+    CHAIN_STATE_SYNC_ALL=5
 } dap_stream_ch_chain_state_t;
 
 
+typedef struct dap_stream_ch_chain_update_element{
+    dap_hash_fast_t hash;
+    uint32_t size;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_update_element_t;
 
 typedef struct dap_stream_ch_chain_sync_request{
     dap_chain_node_addr_t node_addr; // Requesting node's address

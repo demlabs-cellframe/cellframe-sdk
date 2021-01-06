@@ -505,7 +505,7 @@ uint64_t dap_config_get_item_uint64_default(dap_config_t * a_config, const char 
  */
 static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    dap_config_item_t * l_item_section = DAP_CONFIG_INTERNAL(a_config)->item_root ;
+    dap_config_item_t * l_item_section = a_config? DAP_CONFIG_INTERNAL(a_config)->item_root: NULL ;
     while(l_item_section){
         if (strcmp(l_item_section->name,a_section_path)==0){
             dap_config_item_t * l_item = l_item_section->childs;
@@ -552,10 +552,11 @@ char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_
         if(array_length != NULL)
             *array_length = 0;
         return NULL;
+    }else{
+        if (array_length != NULL)
+            *array_length = item->array_length;
+        return item->data_str_array;
     }
-    if (array_length != NULL)
-        *array_length = item->array_length;
-    return item->data_str_array;
 }
 
 
@@ -569,7 +570,7 @@ char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_
  */
 const char * dap_config_get_item_str_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, const char * a_value_default)
 {
-    dap_config_item_t * l_item_section = DAP_CONFIG_INTERNAL(a_config)->item_root ;
+    dap_config_item_t * l_item_section =a_config? DAP_CONFIG_INTERNAL(a_config)->item_root: NULL ;
     while(l_item_section){
         if (strcmp(l_item_section->name,a_section_path)==0){
             dap_config_item_t * l_item = l_item_section->childs;

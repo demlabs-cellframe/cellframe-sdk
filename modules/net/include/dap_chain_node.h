@@ -40,6 +40,9 @@
 
 
 #include "dap_common.h"
+#include "dap_worker.h"
+#include "dap_events_socket.h"
+
 #include "dap_chain_common.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain.h"
@@ -146,3 +149,4 @@ bool dap_chain_node_mempool_autoproc_init();
 void dap_chain_node_mempool_autoproc_deinit();
 void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
                                              const char *a_key, const void *a_value, const size_t a_value_len);
+

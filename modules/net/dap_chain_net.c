@@ -82,7 +82,7 @@
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_dns_server.h"
+#include "dap_chain_node_dns_client.h"
 
 #include "dap_module.h"
 
@@ -121,7 +121,6 @@ typedef struct dap_chain_net_pvt{
     HANDLE state_proc_cond;
 #endif
 
-    dap_events_socket_t * event_state_proc;
 
     pthread_mutex_t state_mutex_cond;
     dap_chain_node_role_t node_role;
@@ -151,6 +150,13 @@ typedef struct dap_chain_net_pvt{
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
     uint16_t acl_idx;
+
+    // Main loop timer
+    dap_timerfd_t * main_timer;
+
+    // General rwlock for structure
+    pthread_rwlock_t rwlock;
+
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -188,11 +194,11 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 
-static int s_net_states_proc(dap_chain_net_t * a_net);
+static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
 
 
 
-static void * s_net_check_thread ( void * a_net);
+static bool s_net_check_timer_callback ( void * a_net);
 static void s_net_check_thread_start( dap_chain_net_t * a_net );
 static void s_net_proc_kill( dap_chain_net_t * a_net );
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
@@ -432,12 +438,14 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
  * @brief s_net_states_proc
  * @param l_net
  */
-static int s_net_states_proc(dap_chain_net_t *a_net)
+static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 {
-    dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
-    int ret = 0;
+    dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
+    dap_chain_net_pvt_t *l_pvt_net = PVT(l_net);
+    pthread_rwlock_wrlock(&l_pvt_net->rwlock);
 
     switch (l_pvt_net->state) {
+        // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
             // delete all links
             dap_list_t *l_tmp = l_pvt_net->links;
@@ -448,8 +456,10 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 l_tmp = l_next;
             }
             l_pvt_net->links = NULL;
-            dap_list_free_full(l_pvt_net->links_info, free);
-            l_pvt_net->links_info = NULL;
+            if(l_pvt_net->links_info){
+                dap_list_free_full(l_pvt_net->links_info, free);
+                l_pvt_net->links_info = NULL;
+            }
             if ( l_pvt_net->state_target != NET_STATE_OFFLINE ){
                 l_pvt_net->state = NET_STATE_LINKS_PREPARE;
                 break;
@@ -459,12 +469,13 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
             l_pvt_net->last_sync = 0;
         } break;
 
+        // Prepare links
         case NET_STATE_LINKS_PREPARE: {
-            log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE", a_net->pub.name);
-            uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(a_net);
+            log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE", l_net->pub.name);
+            uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(l_net);
             if (l_pvt_net->node_info) {
                 for (size_t i = 0; i < l_pvt_net->node_info->hdr.links_number; i++) {
-                    dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(a_net, &l_pvt_net->node_info->links[i]);
+                    dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_pvt_net->node_info->links[i]);
                     if (!l_link_node_info || l_link_node_info->hdr.address.uint64 == l_own_addr) {
                         continue;   // Do not link with self
                     }
@@ -483,7 +494,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 case NODE_ROLE_CELL_MASTER: {
                     if (l_pvt_net->seed_aliases_count) {
                         // Add other root nodes as synchronization links
-                        s_fill_links_from_root_aliases(a_net);
+                        s_fill_links_from_root_aliases(l_net);
                         break;
                     }
                 }
@@ -499,8 +510,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         uint16_t i, l_port;
                         if (l_pvt_net->seed_aliases_count) {
                             i = rand() % l_pvt_net->seed_aliases_count;
-                            dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_pvt_net->seed_aliases[i]);
-                            dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(a_net, l_remote_addr);
+                            dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_pvt_net->seed_aliases[i]);
+                            dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
                             l_addr.s_addr = l_remote_node_info ? l_remote_node_info->hdr.ext_addr_v4.s_addr : 0;
                             DAP_DELETE(l_remote_node_info);
                             l_port = DNS_LISTEN_PORT;
@@ -521,8 +532,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
 #else
                             struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
 #endif
-                            log_it(L_INFO, "dns get addrs %s : %d, net %s", inet_ntoa(_in_addr), l_port, a_net->pub.name);
-                            int l_res = dap_dns_client_get_addr(l_addr, l_port, a_net->pub.name, l_link_node_info);
+                            log_it(L_INFO, "dns get addrs %s : %d, net %s", inet_ntoa(_in_addr), l_port, l_net->pub.name);
+                            int l_res = dap_dns_client_get_addr(l_addr, l_port, l_net->pub.name, l_link_node_info);
                             if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
                                 l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
                                 l_tries = 0;
@@ -533,7 +544,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                         }
                         l_tries++;
                     }
-                    s_fill_links_from_root_aliases(a_net);
+                    s_fill_links_from_root_aliases(l_net);
                 } break;
             }
             if (l_pvt_net->state_target != NET_STATE_OFFLINE) {
@@ -551,7 +562,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
         } break;
 
         case NET_STATE_LINKS_CONNECTING: {
-            log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",a_net->pub.name);
+            log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             for (dap_list_t *l_tmp = l_pvt_net->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
                 dap_chain_node_client_t *l_node_client = dap_chain_node_client_create_n_connect(l_link_info,"CN",s_node_link_callback_connected,
@@ -598,14 +609,14 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 // Get last timestamp in log if wasn't SYNC_FROM_ZERO flag
                 if (! (l_pvt_net->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO) )
                     l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
-                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
+                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                 log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
                 // find dap_chain_id_t
-                dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(a_net, "gdb");
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
                 dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
                 dap_chain_node_client_reset(l_node_client);
-                size_t l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, a_net->pub.id,
-                                                                l_chain_id, a_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
+                size_t l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id,
+                                                                l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 if (l_res == 0) {
                     log_it(L_WARNING, "Can't send GDB sync request");
                     continue;
@@ -627,8 +638,8 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 }
 
                 dap_chain_node_client_reset(l_node_client);
-                l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, a_net->pub.id,
-                                                         l_chain_id, a_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
+                l_res = dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB_RVRS, l_net->pub.id,
+                                                         l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
                 l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                 switch (l_res) {
                     case -1:
@@ -670,7 +681,7 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                 dap_stream_worker_t *l_worker = dap_client_get_stream_worker(l_node_client->client);
                 dap_chain_t * l_chain = NULL;
                 int l_res = 0;
-                DL_FOREACH (a_net->pub.chains, l_chain) {
+                DL_FOREACH (l_net->pub.chains, l_chain) {
                     dap_chain_node_client_reset(l_node_client);
                     dap_stream_ch_chain_sync_request_t l_request = {0};
 
@@ -685,13 +696,13 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
                             char l_hash_str[128]={[0]='\0'};
                             dap_chain_hash_fast_to_str(&l_request.hash_from,l_hash_str,sizeof (l_hash_str)-1);
                             log_it(L_DEBUG,"Send sync chain request to"NODE_ADDR_FP_STR" for %s:%s from %s to infinity",
-                                   NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr) ,a_net->pub.name, l_chain->name,  l_hash_str);
+                                   NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr) ,l_net->pub.name, l_chain->name,  l_hash_str);
                         }
                     }else
                         log_it(L_DEBUG,"Send sync chain request for all the chains for addr "NODE_ADDR_FP_STR,
                                NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-                    dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, a_net->pub.id,
-                                                     l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
+                    dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS, l_net->pub.id,
+                                                     l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     // wait for finishing of request
                     int timeout_ms = 300000; // 5 min = 300 sec = 300 000 ms
                     // TODO add progress info to console                      
@@ -711,9 +722,9 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
 
                     dap_chain_node_client_reset(l_node_client);
 
-                    l_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
-                    dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, a_net->pub.id,
-                                                     l_chain->id, a_net->pub.cell_id, &l_request, sizeof(l_request));
+                    l_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                    dap_stream_ch_chain_pkt_write_mt(l_worker, l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS, l_net->pub.id,
+                                                     l_chain->id, l_net->pub.cell_id, &l_request, sizeof(l_request));
                     l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
                     switch (l_res) {
                         case -1:
@@ -778,16 +789,17 @@ static int s_net_states_proc(dap_chain_net_t *a_net)
         break;
         default: log_it (L_DEBUG, "Unprocessed state");
     }
-    return ret;
+    pthread_rwlock_unlock(&l_pvt_net->rwlock);
+
+    return false;
 }
 
 /**
- * @brief s_net_proc_thread
- * @details Brings up and check the Dap Chain Network
- * @param a_cfg Network1 configuration
+ * @brief s_net_check_timer_callback
+ * @details Brings up and checkup the Dap Chain Network
  * @return
  */
-static void *s_net_check_thread ( void *a_net )
+static bool s_net_check_timer_callback ( void *a_net )
 {
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_net;
     dap_chain_net_pvt_t *l_net_pvt = (dap_chain_net_pvt_t *)(void *)l_net->pvt;
@@ -797,35 +809,31 @@ static void *s_net_check_thread ( void *a_net )
     // set callback to update data
     //dap_chain_global_db_set_callback_for_update_base(s_net_proc_thread_callback_update_db);
 
-    while(1){
-        if ( l_net_pvt->flags & F_DAP_CHAIN_NET_SHUTDOWN ) {
-            log_it(L_NOTICE,"Shutdown chain net context thread for network \"%s\" (flags 0x%08X)",l_net->pub.name , l_net_pvt->flags);
-            return NULL;
-        }
-
-        //log_it(L_DEBUG, "Check net states");
-        // check or start sync
-        s_net_states_proc( l_net );
-
-        if (l_net_pvt->flags & F_DAP_CHAIN_NET_GO_SYNC) {
-            // check or start sync
-            s_net_states_proc( l_net );
-            continue;
-        }
-        struct timespec l_to;
-
-        // checking whether new sync is needed
-        time_t l_sync_timeout = 180; // 1800 sec = 30 min
-        clock_gettime(CLOCK_MONOTONIC, &l_to);
-        // start sync every l_sync_timeout sec
-        if(l_to.tv_sec >= l_net_pvt->last_sync + l_sync_timeout) {
-            l_net_pvt->flags |= F_DAP_CHAIN_NET_GO_SYNC;
-            s_net_states_proc( l_net );
-        }
-        //log_it(L_DEBUG, "Sleep on 10 seconds...");
-        sleep(10);
+    if ( l_net_pvt->flags & F_DAP_CHAIN_NET_SHUTDOWN ) {
+        log_it(L_NOTICE,"Shutdown chain net context thread for network \"%s\" (flags 0x%08X)",l_net->pub.name , l_net_pvt->flags);
+        return false;
     }
-    return NULL;
+
+    //log_it(L_DEBUG, "Check net states");
+    // check or start sync
+    dap_proc_queue_add_callback_inter( l_net_pvt->main_timer->events_socket->worker->proc_queue_input,s_net_states_proc,l_net );
+
+    if (l_net_pvt->flags & F_DAP_CHAIN_NET_GO_SYNC) {
+        // check or start sync
+        dap_proc_queue_add_callback_inter( l_net_pvt->main_timer->events_socket->worker->proc_queue_input,s_net_states_proc,l_net );
+        return true;
+    }
+    struct timespec l_to;
+
+    // checking whether new sync is needed
+    time_t l_sync_timeout = dap_config_get_item_uint64_default(g_config,"chain_net","net_sync_timeout",180) ; // 180 sec = 3 min
+    clock_gettime(CLOCK_MONOTONIC, &l_to);
+    // start sync every l_sync_timeout sec
+    if(l_to.tv_sec >= l_net_pvt->last_sync + l_sync_timeout) {
+        l_net_pvt->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+        dap_proc_queue_add_callback_inter( l_net_pvt->main_timer->events_socket->worker->proc_queue_input,s_net_states_proc,l_net );
+    }
+    return true;
 }
 
 /**
@@ -834,7 +842,8 @@ static void *s_net_check_thread ( void *a_net )
  */
 static void s_net_check_thread_start( dap_chain_net_t * a_net )
 {
-    pthread_create(&s_net_check_pid,NULL, s_net_check_thread, a_net);
+    PVT(a_net)->main_timer = dap_timerfd_start(dap_config_get_item_uint64_default(g_config,"chain_net","net_check_timeout",10)*1000,
+                                               s_net_check_timer_callback, a_net);
 }
 
 

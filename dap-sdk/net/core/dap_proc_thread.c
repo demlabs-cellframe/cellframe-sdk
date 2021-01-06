@@ -22,6 +22,7 @@
 */
 
 #include <assert.h>
+#include <errno.h>
 #include "dap_server.h"
 
 #if defined(DAP_EVENTS_CAPS_EPOLL) && !defined(DAP_OS_WINDOWS)

@@ -696,6 +696,98 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return;
     }
     switch (l_ch_pkt->hdr.type) {
+        /// --- GDB update ---
+        // Request for gdbs list update
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ:{
+            l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+        }break;
+        // Response with metadata organized in TSD
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD:{
+
+        }break;
+        // Response with gdb element hashes and sizes
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB:{
+            for ( dap_stream_ch_chain_update_element_t * l_element =(dap_stream_ch_chain_update_element_t *) l_chain_pkt->data;
+                   (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
+                  l_element++){
+                dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
+                HASH_FIND(hh,l_ch_chain->remote_gdbs, &l_element->hash, sizeof (l_element->hash), l_hash_item );
+                if( ! l_hash_item ){
+                    l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
+                    memcpy(&l_hash_item->hash, &l_element->hash, sizeof (l_element->hash));
+                    l_hash_item->size = l_element->size;
+                    HASH_ADD(hh, l_ch_chain->remote_gdbs, hash, sizeof (l_hash_item->hash), l_hash_item);
+                    if (s_debug_chain_sync){
+                        char l_hash_str[72]={ [0]='\0'};
+                        dap_chain_hash_fast_to_str(&l_hash_item->hash,l_hash_str,sizeof (l_hash_str));
+                        log_it(L_INFO,"In: Updated remote hash gdb list with %s ", l_hash_str);
+                    }
+                }
+            }
+        }break;
+        // End of response
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END:{
+            l_ch_chain->state = CHAIN_STATE_UPDATE_CHAINS ; // Switch on update chains hashes
+            dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ ,
+                                                 l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
+                                                 l_ch_chain->request_hdr.cell_id, NULL, 0);
+        }break;
+
+        /// --- Chains update ---
+        // Request for atoms list update
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ:{
+            l_ch_chain->state = CHAIN_STATE_UPDATE_CHAINS;
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+        }break;
+        // Response with metadata organized in TSD
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD :{
+
+        }break;
+        // Response with atom hashes and sizes
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS :{
+            for ( dap_stream_ch_chain_update_element_t * l_element =(dap_stream_ch_chain_update_element_t *) l_chain_pkt->data;
+                   (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
+                  l_element++){
+                dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
+                HASH_FIND(hh,l_ch_chain->remote_atoms, &l_element->hash, sizeof (l_element->hash), l_hash_item );
+                if( ! l_hash_item ){
+                    l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
+                    memcpy(&l_hash_item->hash, &l_element->hash, sizeof (l_element->hash));
+                    l_hash_item->size = l_element->size;
+                    HASH_ADD(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash), l_hash_item);
+                    if (s_debug_chain_sync){
+                        char l_hash_str[72]={ [0]='\0'};
+                        dap_chain_hash_fast_to_str(&l_hash_item->hash,l_hash_str,sizeof (l_hash_str));
+                        log_it(L_INFO,"In: Updated remote atom hash list with %s ", l_hash_str);
+                    }
+                }
+            }
+        }break;
+        // End of response
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END:{
+            l_ch_chain->state = CHAIN_STATE_UPDATE_CHAINS ; // Switch on update chains hashes
+            dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ ,
+                                                 l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id,
+                                                 l_ch_chain->request_hdr.cell_id, NULL, 0);
+        }break;
+
+        // first packet of data with source node address
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN: {
+            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
+                    log_it(L_INFO, "From "NODE_ADDR_FP_STR": FIRST_CHAIN data_size=%d net 0x%016x chain 0x%016x cell 0x%016x ",
+                           NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr),
+                           l_chain_pkt_data_size,      l_ch_chain->request_hdr.net_id.uint64 ,
+                           l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64);
+            }else{
+                log_it(L_WARNING,"Incorrect data size %zd in packet DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN", l_chain_pkt_data_size);
+                dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
+                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                        "ERROR_CHAIN_PACKET_TYPE_FIRST_CHAIN_INCORRET_DATA_SIZE(%zd/%zd)",l_chain_pkt_data_size, sizeof(dap_chain_node_addr_t));
+            }
+        }
+        break;
+
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
             log_it(L_INFO, "In:  SYNCED_ALL net 0x%016x chain 0x%016x cell 0x%016x", l_chain_pkt->hdr.net_id.uint64 ,
                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
@@ -822,21 +914,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
                         l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                         "ERROR_CHAIN_PKT_DATA_SIZE" );
-            }
-        }
-            break;
-            // first packet of data with source node address
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN: {
-            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
-                    log_it(L_INFO, "From "NODE_ADDR_FP_STR": FIRST_CHAIN data_size=%d net 0x%016x chain 0x%016x cell 0x%016x ",
-                           NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr),
-                           l_chain_pkt_data_size,      l_ch_chain->request_hdr.net_id.uint64 ,
-                           l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64);
-            }else{
-                log_it(L_WARNING,"Incorrect data size %zd in packet DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN", l_chain_pkt_data_size);
-                dap_stream_ch_chain_pkt_write_error(a_ch, l_chain_pkt->hdr.net_id,
-                        l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                        "ERROR_CHAIN_PACKET_TYPE_FIRST_CHAIN_INCORRET_DATA_SIZE(%zd/%zd)",l_chain_pkt_data_size, sizeof(dap_chain_node_addr_t));
             }
         }
             break;

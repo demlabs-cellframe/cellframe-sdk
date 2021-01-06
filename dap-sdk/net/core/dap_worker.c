@@ -41,6 +41,7 @@
 #include "dap_worker.h"
 #include "dap_events.h"
 #include "dap_enc_base64.h"
+#include "dap_proc_queue.h"
 
 #define LOG_TAG "dap_worker"
 
@@ -210,7 +211,7 @@ void *dap_worker_thread(void *arg)
             if( l_flag_hup ) {
                 switch (l_cur->type ){
                 case DESCRIPTOR_TYPE_SOCKET_UDP:
-                case DESCRIPTOR_TYPE_SOCKET: {
+                case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                     int l_err = getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
 #ifndef DAP_OS_WINDOWS
                     if (l_sock_err) {
@@ -258,7 +259,7 @@ void *dap_worker_thread(void *arg)
             if(l_flag_error) {
                 switch (l_cur->type ){
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
-                    case DESCRIPTOR_TYPE_SOCKET:
+                    case DESCRIPTOR_TYPE_SOCKET_CLIENT:
                         getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
 #ifdef DAP_OS_WINDOWS
                         log_it(L_ERROR, "Winsock error: %d", l_sock_err);
@@ -306,7 +307,7 @@ void *dap_worker_thread(void *arg)
 #endif
                         l_errno = errno;
                     break;
-                    case DESCRIPTOR_TYPE_SOCKET:
+                    case DESCRIPTOR_TYPE_SOCKET_CLIENT:
                         l_must_read_smth = true;
                         l_bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
                                             l_cur->buf_in_size_max - l_cur->buf_in_size, 0);
@@ -397,7 +398,7 @@ void *dap_worker_thread(void *arg)
 
                 if (l_must_read_smth){ // Socket/Descriptor read
                     if(l_bytes_read > 0) {
-                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET  || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP) {
+                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT  || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP) {
                             l_cur->last_time_active = l_cur_time;
                         }
                         l_cur->buf_in_size += l_bytes_read;
@@ -439,7 +440,7 @@ void *dap_worker_thread(void *arg)
             if (l_flag_rdhup){
                 switch (l_cur->type ){
                     case DESCRIPTOR_TYPE_SOCKET_UDP:
-                    case DESCRIPTOR_TYPE_SOCKET:
+                    case DESCRIPTOR_TYPE_SOCKET_CLIENT:
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                             l_cur->buf_out_size = 0;
@@ -454,7 +455,7 @@ void *dap_worker_thread(void *arg)
 
             // If its outgoing connection
             if ( l_flag_write &&  !l_cur->server &&  (l_cur->flags & DAP_SOCK_CONNECTING) &&
-                 (l_cur->type == DESCRIPTOR_TYPE_SOCKET || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
+                 (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
                 int l_error = 0;
                 socklen_t l_error_len = sizeof(l_error);
                 char l_error_buf[128];
@@ -512,7 +513,7 @@ void *dap_worker_thread(void *arg)
                     int l_errno=0;
 
                     switch (l_cur->type){
-                        case DESCRIPTOR_TYPE_SOCKET: {
+                        case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                             l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                 l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
 #ifdef DAP_OS_WINDOWS
@@ -697,7 +698,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     switch( l_es_new->type){
 
         case DESCRIPTOR_TYPE_SOCKET_UDP:
-        case DESCRIPTOR_TYPE_SOCKET:
+        case DESCRIPTOR_TYPE_SOCKET_CLIENT:
         case DESCRIPTOR_TYPE_SOCKET_LISTENING:{
 
 #ifdef DAP_OS_UNIX
@@ -862,7 +863,7 @@ static bool s_socket_all_check_activity( void * a_arg)
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
     pthread_rwlock_rdlock(&l_worker->esocket_rwlock);
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {
-        if ( l_es->type == DESCRIPTOR_TYPE_SOCKET  || l_es->type == DESCRIPTOR_TYPE_SOCKET_UDP ){
+        if ( l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT  || l_es->type == DESCRIPTOR_TYPE_SOCKET_UDP ){
             if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
                  (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {
                 log_it( L_INFO, "Socket %u timeout (diff %u ), closing...", l_es->socket, l_curtime -  (time_t)l_es->last_time_active - s_connection_timeout );
