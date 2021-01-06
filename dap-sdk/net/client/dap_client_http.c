@@ -303,6 +303,7 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
         }
     }
     s_client_http_delete(l_client_http_internal);
+    a_es->_inheritor = NULL;
 }
 
 /**
@@ -463,6 +464,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
             return NULL;
         }
     }
+    l_ev_socket->remote_addr_str = dap_strdup(a_uplink_addr);
     // connect
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);

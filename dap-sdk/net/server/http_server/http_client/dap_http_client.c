@@ -107,10 +107,7 @@ void dap_http_client_delete( dap_events_socket_t * cl, void *arg )
           cl_ht->proc->delete_callback( cl_ht, NULL );
         }
     }
-
-    if( cl_ht->_inheritor ) {
-        free( cl_ht->_inheritor );
-    }
+    DAP_DEL_Z(cl_ht->_inheritor)
 
   (void) arg;
 }
