@@ -389,9 +389,9 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN] = { 0 };
     int pos = 0;
 #ifdef DAP_BRAND
-    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\" DAP_BRAND "__esmq%d", l_es->mq_num);
+    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\" DAP_BRAND "_esmq%d", l_es->mq_num);
 #else
-    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\%hs__esmq%d", dap_get_appname(), l_es->mq_num);
+    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\%hs_esmq%d", dap_get_appname(), l_es->mq_num);
 #endif
     if (pos < 0) {
         log_it(L_ERROR, "Message queue path error");
@@ -562,9 +562,9 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     static atomic_uint s_queue_num = 0;
     int pos = 0;
 #ifdef DAP_BRAND
-    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\" DAP_BRAND "__esmq%d", l_es->mq_num = s_queue_num++);
+    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\" DAP_BRAND "_esmq%d", l_es->mq_num = s_queue_num++);
 #else
-    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\%hs__esmq%d", dap_get_appname(), l_es->mq_num = s_queue_num++);
+    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\%hs_esmq%d", dap_get_appname(), l_es->mq_num = s_queue_num++);
 #endif
     if (pos < 0) {
         log_it(L_ERROR, "Message queue path error");
@@ -1358,6 +1358,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
+    DAP_DEL_Z(a_esocket->remote_addr_str)
 #ifdef DAP_OS_WINDOWS
     if ( a_esocket->socket && a_esocket->socket != INVALID_SOCKET) {
         closesocket( a_esocket->socket );
