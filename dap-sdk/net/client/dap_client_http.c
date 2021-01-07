@@ -126,8 +126,10 @@ static bool s_timer_timeout_check(void * a_arg)
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
                l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
-        if(l_http_pvt->error_callback)
+        if(l_http_pvt->error_callback) {
             l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
+            l_http_pvt->were_callbacks_called = true;
+        }
         l_http_pvt->is_closed_by_timeout = true;
         l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
@@ -300,7 +302,8 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
             l_client_http_internal->were_callbacks_called = true;
         }
     }
-    s_client_http_delete(PVT(a_es));
+    s_client_http_delete(l_client_http_internal);
+    a_es->_inheritor = NULL;
 }
 
 /**
@@ -317,22 +320,16 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
         return;
     }
 
-    if(a_http_pvt->method)
-        DAP_DEL_Z(a_http_pvt->method);
-    if(a_http_pvt->request_content_type)
-        DAP_DEL_Z(a_http_pvt->request_content_type);
-    if(a_http_pvt->uplink_addr )
-        DAP_DEL_Z(a_http_pvt->uplink_addr);
-    if (a_http_pvt->cookie)
-        DAP_DEL_Z(a_http_pvt->cookie);
-    if(a_http_pvt->response)
-        DAP_DEL_Z(a_http_pvt->response);
-    if(a_http_pvt->path)
-        DAP_DEL_Z(a_http_pvt->path);
-    if(a_http_pvt->request)
-        DAP_DEL_Z(a_http_pvt->request);
-    if(a_http_pvt->request_custom_headers)
-        DAP_DEL_Z(a_http_pvt->request_custom_headers);
+    DAP_DEL_Z(a_http_pvt->method)
+    DAP_DEL_Z(a_http_pvt->request_content_type)
+    DAP_DEL_Z(a_http_pvt->uplink_addr)
+    DAP_DEL_Z(a_http_pvt->cookie)
+    DAP_DEL_Z(a_http_pvt->response)
+    DAP_DEL_Z(a_http_pvt->path)
+    DAP_DEL_Z(a_http_pvt->request)
+    DAP_DEL_Z(a_http_pvt->request_custom_headers)
+    a_http_pvt->obj = NULL;
+    DAP_DEL_Z(a_http_pvt)
 }
 
 
@@ -467,6 +464,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
             return NULL;
         }
     }
+    l_ev_socket->remote_addr_str = dap_strdup(a_uplink_addr);
     // connect
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
