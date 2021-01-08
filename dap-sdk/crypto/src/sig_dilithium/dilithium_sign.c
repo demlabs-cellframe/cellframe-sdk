@@ -318,17 +318,18 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
 /*************************************************/
 int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilithium_signature_t *sig, const dilithium_public_key_t * public_key)
 {
-    assert(public_key->kind == sig->kind);
+    if(public_key->kind != sig->kind)
+        return -1;
 
     dilithium_param_t *p = malloc(sizeof(dilithium_param_t));
     if (! dilithium_params_init( p, public_key->kind)) {
         free(p);
-        return -1;
+        return -2;
     }
 
     if (sig->sig_len < p->CRYPTO_BYTES ) {
         free(p);
-        return -1;
+        return -3;
     }
 
     unsigned long long i;
@@ -340,18 +341,18 @@ int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilit
 
     if((sig->sig_len - p->CRYPTO_BYTES) != mlen) {
         free(p);
-        return -1;
+        return -4;
     }
 
     dilithium_unpack_pk(rho, &t1, public_key->data, p);
     if(dilithium_unpack_sig(&z, &h, &c, sig->sig_data, p)) {
         free(p);
-        return -1;
+        return -5;
     }
 
     if(polyvecl_chknorm(&z, GAMMA1 - p->PARAM_BETA, p)) {
         free(p);
-        return -1;
+        return -6;
     }
 
     unsigned char *tmp_m = malloc(CRHBYTES + mlen);
@@ -388,7 +389,7 @@ int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilit
     for(i = 0; i < NN; ++i)
         if(c.coeffs[i] != cp.coeffs[i]) {
             free(p);
-            return -1;
+            return -7;
         }
 
     return 0;

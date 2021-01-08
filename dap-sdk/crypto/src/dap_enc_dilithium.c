@@ -84,8 +84,9 @@ size_t dap_enc_sig_dilithium_verify_sign(struct dap_enc_key * key, const void * 
         log_it(L_ERROR, "bad signature size");
         return 0;
     }
-
-    return (dilithium_crypto_sign_open( (unsigned char *) msg, msg_size, (dilithium_signature_t *) signature, key->pub_key_data));
+    int l_ret = dilithium_crypto_sign_open( (unsigned char *) msg, msg_size, (dilithium_signature_t *) signature, key->pub_key_data);
+    log_it(L_WARNING,"Wrong signature, can't open with code %d", l_ret);
+    return l_ret>0? l_ret : 0;
 }
 
 void dap_enc_sig_dilithium_key_delete(struct dap_enc_key * key)
