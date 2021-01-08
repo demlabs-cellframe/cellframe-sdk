@@ -10,6 +10,10 @@
 
 static enum DAP_DILITHIUM_SIGN_SECURITY _dilithium_type = DILITHIUM_MIN_SIZE; // by default
 
+//// WARNING! Its because of accident with wrong sizes on mobile 32bit platforms
+//// Remove it after you'll update all mobile keys
+
+
 void dap_enc_sig_dilithium_set_type(enum DAP_DILITHIUM_SIGN_SECURITY type)
 {
     _dilithium_type = type;
@@ -114,12 +118,12 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
     size_t l_buflen = dap_enc_dilithium_calc_signagture_size(a_sign);
 
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
-    memcpy(l_buf, &l_buflen, sizeof(size_t));
-    l_shift_mem += sizeof(size_t);
+    memcpy(l_buf, &l_buflen, sizeof(uint64_t));
+    l_shift_mem += sizeof(uint64_t);
     memcpy(l_buf + l_shift_mem, &a_sign->kind, sizeof(dilithium_kind_t));
     l_shift_mem += sizeof(dilithium_kind_t);
     memcpy(l_buf + l_shift_mem, &a_sign->sig_len, sizeof(unsigned long long));
-    l_shift_mem += sizeof(unsigned long long);
+    l_shift_mem += sizeof(uint64_t);
     memcpy(l_buf + l_shift_mem, a_sign->sig_data, a_sign->sig_len );
     l_shift_mem += a_sign->sig_len ;
 
@@ -131,12 +135,43 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
 /* Deserialize a signature */
 dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a_buflen)
 {
-    if( !a_buf || (a_buflen < (sizeof(size_t) + sizeof(dilithium_kind_t)) )  )
+    if( !a_buf || (a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t)) )  )
         return NULL ;
     dilithium_kind_t kind;
-    size_t l_buflen_internal = 0;
-    memcpy(&l_buflen_internal, a_buf, sizeof(size_t));
-    memcpy(&kind, a_buf + sizeof(size_t), sizeof(dilithium_kind_t));
+    uint64_t l_buflen_internal = 0;
+    memcpy(&l_buflen_internal, a_buf, sizeof(uint64_t));
+    memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(dilithium_kind_t));
+    if(l_buflen_internal != a_buflen)
+        return NULL ;
+    dilithium_param_t p;
+    if(!dilithium_params_init(&p, kind))
+        return NULL ;
+
+    dilithium_signature_t* l_sign = DAP_NEW(dilithium_signature_t);
+    l_sign->kind = kind;
+    uint64_t l_shift_mem = sizeof(uint64_t) + sizeof(dilithium_kind_t);
+    memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(uint64_t));
+    l_shift_mem += sizeof(uint64_t);
+    l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
+    memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
+    l_shift_mem += l_sign->sig_len;
+    return l_sign;
+}
+
+/**
+ * @brief dap_enc_dilithium_read_signature
+ * @param a_buf
+ * @param a_buflen
+ * @return
+ */
+dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size_t a_buflen)
+{
+    if( !a_buf || (a_buflen < (sizeof(uint32_t) + sizeof(dilithium_kind_t)) )  )
+        return NULL ;
+    dilithium_kind_t kind;
+    uint32_t l_buflen_internal = 0;
+    memcpy(&l_buflen_internal, a_buf, sizeof(uint32_t));
+    memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(dilithium_kind_t));
     if(l_buflen_internal != a_buflen)
         return NULL ;
     dilithium_param_t p;
@@ -153,6 +188,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
     l_shift_mem += l_sign->sig_len;
     return l_sign;
 }
+
 
 /* Serialize a private key. */
 uint8_t* dap_enc_dilithium_write_private_key(const dilithium_private_key_t* a_private_key, size_t *a_buflen_out)
@@ -178,11 +214,11 @@ uint8_t* dap_enc_dilithium_write_public_key(const dilithium_public_key_t* a_publ
     if(!dilithium_params_init(&p, a_public_key->kind))
         return NULL;
 
-    size_t l_buflen = sizeof(size_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES;
+    uint64_t l_buflen = sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES;
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
-    memcpy(l_buf, &l_buflen, sizeof(size_t));
-    memcpy(l_buf + sizeof(size_t), &a_public_key->kind, sizeof(dilithium_kind_t));
-    memcpy(l_buf + sizeof(size_t) + sizeof(dilithium_kind_t), a_public_key->data, p.CRYPTO_PUBLICKEYBYTES);
+    memcpy(l_buf, &l_buflen, sizeof(uint64_t));
+    memcpy(l_buf + sizeof(uint64_t), &a_public_key->kind, sizeof(dilithium_kind_t));
+    memcpy(l_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), a_public_key->data, p.CRYPTO_PUBLICKEYBYTES);
     if(a_buflen_out)
         *a_buflen_out = l_buflen;
     return l_buf;
@@ -191,12 +227,12 @@ uint8_t* dap_enc_dilithium_write_public_key(const dilithium_public_key_t* a_publ
 /* Deserialize a private key. */
 dilithium_private_key_t* dap_enc_dilithium_read_private_key(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(dilithium_kind_t)))
+    if(!a_buf || a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t)))
         return NULL;
     dilithium_kind_t kind;
-    size_t l_buflen = 0;
-    memcpy(&l_buflen, a_buf, sizeof(size_t));
-    memcpy(&kind, a_buf + sizeof(size_t), sizeof(dilithium_kind_t));
+    uint64_t l_buflen = 0;
+    memcpy(&l_buflen, a_buf, sizeof(uint64_t));
+    memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(dilithium_kind_t));
     if(l_buflen != a_buflen)
         return NULL;
     dilithium_param_t p;
@@ -206,19 +242,41 @@ dilithium_private_key_t* dap_enc_dilithium_read_private_key(const uint8_t *a_buf
     l_private_key->kind = kind;
 
     l_private_key->data = DAP_NEW_SIZE(unsigned char, p.CRYPTO_SECRETKEYBYTES);
-    memcpy(l_private_key->data, a_buf + sizeof(size_t) + sizeof(dilithium_kind_t), p.CRYPTO_SECRETKEYBYTES);
+    memcpy(l_private_key->data, a_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), p.CRYPTO_SECRETKEYBYTES);
+    return l_private_key;
+}
+
+/* Deserialize a private key. */
+dilithium_private_key_t* dap_enc_dilithium_read_private_key_old(const uint8_t *a_buf, size_t a_buflen)
+{
+    if(!a_buf || a_buflen < (sizeof(uint32_t) + sizeof(dilithium_kind_t)))
+        return NULL;
+    dilithium_kind_t kind;
+    uint32_t l_buflen = 0;
+    memcpy(&l_buflen, a_buf, sizeof(uint32_t));
+    memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(dilithium_kind_t));
+    if(l_buflen != a_buflen)
+        return NULL;
+    dilithium_param_t p;
+    if(!dilithium_params_init(&p, kind))
+        return NULL;
+    dilithium_private_key_t* l_private_key = DAP_NEW(dilithium_private_key_t);
+    l_private_key->kind = kind;
+
+    l_private_key->data = DAP_NEW_SIZE(unsigned char, p.CRYPTO_SECRETKEYBYTES);
+    memcpy(l_private_key->data, a_buf + sizeof(uint32_t) + sizeof(dilithium_kind_t), p.CRYPTO_SECRETKEYBYTES);
     return l_private_key;
 }
 
 /* Deserialize a public key. */
 dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(size_t) + sizeof(dilithium_kind_t)))
+    if(!a_buf || a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t)))
         return NULL;
     dilithium_kind_t kind;
-    size_t l_buflen = 0;
-    memcpy(&l_buflen, a_buf, sizeof(size_t));
-    memcpy(&kind, a_buf + sizeof(size_t), sizeof(dilithium_kind_t));
+    uint64_t l_buflen = 0;
+    memcpy(&l_buflen, a_buf, sizeof(uint64_t));
+    memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(dilithium_kind_t));
     if(l_buflen != a_buflen)
         return NULL;
     dilithium_param_t p;
@@ -228,6 +286,33 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
     l_public_key->kind = kind;
 
     l_public_key->data = DAP_NEW_Z_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
-    memcpy(l_public_key->data, a_buf + sizeof(size_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
+    memcpy(l_public_key->data, a_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
+    return l_public_key;
+}
+
+/**
+ * @brief dap_enc_dilithium_read_public_key_old
+ * @param a_buf
+ * @param a_buflen
+ * @return
+ */
+dilithium_public_key_t* dap_enc_dilithium_read_public_key_old(const uint8_t *a_buf, size_t a_buflen)
+{
+    if(!a_buf || a_buflen < (sizeof(uint32_t) + sizeof(dilithium_kind_t)))
+        return NULL;
+    dilithium_kind_t kind;
+    uint32_t l_buflen = 0;
+    memcpy(&l_buflen, a_buf, sizeof(uint32_t));
+    memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(dilithium_kind_t));
+    if(l_buflen != a_buflen)
+        return NULL;
+    dilithium_param_t p;
+    if(!dilithium_params_init(&p, kind))
+        return NULL;
+    dilithium_public_key_t* l_public_key = DAP_NEW_Z(dilithium_public_key_t);
+    l_public_key->kind = kind;
+
+    l_public_key->data = DAP_NEW_Z_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
+    memcpy(l_public_key->data, a_buf + sizeof(uint32_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
     return l_public_key;
 }
