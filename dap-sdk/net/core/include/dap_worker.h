@@ -43,6 +43,7 @@ typedef struct dap_worker
 
     // Signal to exit
     bool signal_exit;
+
     // worker control queues
     dap_events_socket_t * queue_es_new; // Queue socket for new socket
     dap_events_socket_t ** queue_es_new_input; // Queue socket for new socket

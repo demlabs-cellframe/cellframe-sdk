@@ -29,6 +29,8 @@
 #include "dap_worker.h"
 #include "dap_chain_node.h"
 
+#define DNS_LISTEN_PORT 53      // UDP
+
 typedef struct _dap_dns_buf_t {
     char *data;
     uint32_t size;

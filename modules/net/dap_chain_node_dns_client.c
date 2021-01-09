@@ -37,6 +37,10 @@ struct dns_client
     struct in_addr addr;
     uint16_t port;
     char *name;
+    dap_dns_buf_t * dns_request;
+    byte_t * buf;
+    size_t buf_size;
+
     dap_dns_client_node_info_request_success_callback_t callback_success;
     dap_dns_client_node_info_request_error_callback_t callback_error;
     void * callbacks_arg;
@@ -50,56 +54,53 @@ static bool s_dns_client_esocket_timeout_callback( void * a_arg);
 static void s_dns_client_esocket_delete_callback(dap_events_socket_t * a_esocket, void * a_arg);
 
 /**
- * @brief s_dns_client_esocket_new_callback
- * @param a_esocket
- * @param a_arg
- */
-static void s_dns_client_esocket_new_callback(dap_events_socket_t * a_esocket, void * a_arg)
-{
-    struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
-}
-
-/**
  * @brief s_dns_client_esocket_read_callback
  * @param a_esocket
  * @param a_arg
  */
 static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, void * a_arg)
 {
+    (void) a_arg;
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
-    struct sockaddr_in l_clientaddr;
-    socklen_t l_clientlen = sizeof(l_clientaddr);
-    size_t l_recieved = recvfrom(l_sock, (char *)l_buf, l_buf_size, 0, (struct sockaddr *)&l_clientaddr, &l_clientlen);
-    size_t l_addr_point = DNS_HEADER_SIZE + strlen(a_name) + 2 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
+    byte_t * l_buf = a_esocket->buf_in;
+    size_t l_recieved = a_esocket->buf_in_size;
+    size_t l_addr_point = DNS_HEADER_SIZE + strlen(l_dns_client->name) + 2 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
     if (l_recieved < l_addr_point + sizeof(uint32_t)) {
         log_it(L_WARNING, "DNS answer incomplete");
-        closesocket(l_sock);
-        return -5;
+        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EREMOTEIO );
+        l_dns_client->is_callbacks_called = true;
+        a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        return;
     }
-    l_cur = l_buf + 3 * sizeof(uint16_t);
+    byte_t * l_cur = l_buf + 3 * sizeof(uint16_t);
     int l_answers_count = ntohs(*(uint16_t *)l_cur);
     if (l_answers_count != 1) {
         log_it(L_WARNING, "Incorrect DNS answer format");
-        closesocket(l_sock);
-        return -6;
+        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EMEDIUMTYPE );
+        l_dns_client->is_callbacks_called = true;
+        a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        return;
     }
     l_cur = l_buf + l_addr_point;
-    if (a_result) {
-        a_result->hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
+    if ( l_dns_client->result) {
+        l_dns_client->result->hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
     }
     l_cur = l_buf + 5 * sizeof(uint16_t);
     int l_additions_count = ntohs(*(uint16_t *)l_cur);
     if (l_additions_count == 1) {
         l_cur = l_buf + l_addr_point + DNS_ANSWER_SIZE;
-        if (a_result) {
-            a_result->hdr.ext_port = ntohs(*(uint16_t *)l_cur);
+        if (l_dns_client->result) {
+            l_dns_client->result->hdr.ext_port = ntohs(*(uint16_t *)l_cur);
         }
         l_cur += sizeof(uint16_t);
-        if (a_result) {
-           a_result->hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
+        if (l_dns_client->result) {
+           l_dns_client->result->hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
         }
     }
-    closesocket(l_sock);
+
+    l_dns_client->callback_success(a_esocket->worker,l_dns_client->result,l_dns_client->callbacks_arg);
+    l_dns_client->is_callbacks_called = true;
+    a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
 }
 
 /**
@@ -152,11 +153,13 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
  */
 static void s_dns_client_esocket_delete_callback(dap_events_socket_t * a_esocket, void * a_arg)
 {
+    (void) a_arg;
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
     if(! l_dns_client->is_callbacks_called )
         l_dns_client->callback_error(a_esocket->worker,l_dns_client->result,l_dns_client->callbacks_arg,EBUSY);
     if(l_dns_client->name)
         DAP_DELETE(l_dns_client->name);
+    DAP_DEL_Z(l_dns_client->buf);
 }
 
 /**
@@ -180,19 +183,20 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
     l_dns_client->callbacks_arg = a_callbacks_arg;
     l_dns_client->addr = a_addr;
 
-    const size_t l_buf_size = 1024;
-    uint8_t l_buf[l_buf_size];
-    dap_dns_buf_t l_dns_request = {};
-    l_dns_request.data = (char *)l_buf;
-    dap_dns_buf_put_uint16(&l_dns_request, rand() % 0xFFFF);    // ID
+    l_dns_client->buf_size = 1024;
+    l_dns_client->buf = DAP_NEW_Z_SIZE(byte_t,l_dns_client->buf_size);
+    l_dns_client->dns_request->data = (char *)l_dns_client->buf;
+    l_dns_client->result = a_result;
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, rand() % 0xFFFF);    // ID
     dap_dns_message_flags_t l_flags = {};
-    dap_dns_buf_put_uint16(&l_dns_request, l_flags.val);
-    dap_dns_buf_put_uint16(&l_dns_request, 1);                  // we have only 1 question
-    dap_dns_buf_put_uint16(&l_dns_request, 0);
-    dap_dns_buf_put_uint16(&l_dns_request, 0);
-    dap_dns_buf_put_uint16(&l_dns_request, 0);
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, l_flags.val);
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, 1);                  // we have only 1 question
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, 0);
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, 0);
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, 0);
     size_t l_ptr = 0;
-    uint8_t *l_cur = l_buf + l_dns_request.size;
+
+    uint8_t *l_cur = l_dns_client->buf + l_dns_client->dns_request->size;
     for (size_t i = 0; i <= strlen(a_name); i++)
     {
         if (a_name[i] == '.' || a_name[i] == 0)
@@ -206,9 +210,9 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
         }
     }
     *l_cur++='\0';
-    l_dns_request.size = l_cur - l_buf;
-    dap_dns_buf_put_uint16(&l_dns_request, DNS_RECORD_TYPE_A);
-    dap_dns_buf_put_uint16(&l_dns_request, DNS_CLASS_TYPE_IN);
+    l_dns_client->dns_request->size = l_cur - l_dns_client->buf;
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, DNS_RECORD_TYPE_A);
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, DNS_CLASS_TYPE_IN);
 
     dap_events_socket_callbacks_t l_esocket_callbacks={0};
 
@@ -221,11 +225,13 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
     l_esocket->remote_addr.sin_family = AF_INET;
     l_esocket->remote_addr.sin_port = htons(a_port);
     l_esocket->remote_addr.sin_addr = a_addr;
+    l_esocket->_inheritor = l_dns_client;
 
     dap_worker_t * l_worker = dap_events_worker_get_auto();
-    dap_events_socket_write_unsafe(l_esocket,l_dns_request.data, l_dns_request.size );
+    dap_events_socket_write_unsafe(l_esocket,l_dns_client->dns_request->data, l_dns_client->dns_request->size );
     dap_events_socket_assign_on_worker_mt(l_esocket,l_worker);
-    dap_timerfd_start_on_worker(l_worker,10000,s_dns_client_esocket_timeout_callback,l_esocket);
+    dap_timerfd_start_on_worker(l_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
+                                 s_dns_client_esocket_timeout_callback,l_esocket);
 }
 
 

@@ -368,14 +368,17 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
 #ifdef DAP_OS_WINDOWS
     SOCKET l_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (l_socket == INVALID_SOCKET) {
-        log_it(L_ERROR, "Socket create error: %d", WSAGetLastError());
+        int err = WSAGetLastError();
+        log_it(L_ERROR, "Socket create error: %d", err);
+        if(a_error_callback)
+            a_error_callback(err, a_obj);
 #else
     int l_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (l_socket == -1) {
         log_it(L_ERROR, "Error %d with socket create", errno);
-#endif
         if(a_error_callback)
             a_error_callback(errno,a_obj);
+#endif
         return NULL;
     }
     // Get socket flags
@@ -486,12 +489,15 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
             log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
             l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
             dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
+            dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket);
             return l_http_pvt;
         } else {
             log_it(L_ERROR, "Socket %d connecting error: %d", l_ev_socket->socket, l_err2);
             s_client_http_delete( l_http_pvt);
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
+            if(a_error_callback)
+                a_error_callback(l_err2, a_obj);
             return NULL;
         }
     }
@@ -509,6 +515,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         strerror_r(l_err, l_errbuf, sizeof (l_errbuf));
         log_it(L_ERROR, "Connecting error: \"%s\" (code %d)", l_errbuf, l_err);
         s_client_http_delete( l_http_pvt);
+        l_ev_socket->_inheritor = NULL;
         dap_events_socket_delete_unsafe( l_ev_socket, true);
         if(a_error_callback)
             a_error_callback(errno,a_obj);

@@ -163,11 +163,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     if ( a_sock!= 0 && a_sock != -1){
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-#ifdef DAP_OS_WINDOWS
-        HASH_ADD(hh,a_events->sockets, socket, sizeof(SOCKET), ret);
-#else
         HASH_ADD_INT(a_events->sockets, socket, ret);
-#endif
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
     }else
         log_it(L_WARNING, "Be carefull, you've wrapped socket 0 or -1 so it wasn't added to global list. Do it yourself when possible");
@@ -1224,11 +1220,7 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   ret->last_time_active = ret->last_ping_request = time( NULL );
 
   pthread_rwlock_wrlock( &a_events->sockets_rwlock );
-#ifdef DAP_OS_WINDOWS
-  HASH_ADD(hh,a_events->sockets, socket, sizeof(SOCKET), ret);
-#else
   HASH_ADD_INT(a_events->sockets, socket, ret);
-#endif
   pthread_rwlock_unlock( &a_events->sockets_rwlock );
 
   return ret;
@@ -1249,14 +1241,9 @@ dap_events_socket_t *dap_events_socket_find_unsafe( int sock, struct dap_events 
         return NULL;
     if(a_events->sockets) {
         pthread_rwlock_rdlock(&a_events->sockets_rwlock);
-#ifdef DAP_OS_WINDOWS
-        HASH_FIND(hh, a_events->sockets, &sock, sizeof(SOCKET), ret );
-#else
         HASH_FIND_INT( a_events->sockets, &sock, ret );
-#endif
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
     }
-
     return ret;
 }
 
@@ -1367,8 +1354,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
         return;
 
     //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
-    if ( a_es->worker)
-        dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
+    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
     //log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
 
@@ -1387,7 +1373,11 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 {
     if (a_esocket->events){ // It could be socket NOT from events
         if(!dap_events_socket_find_unsafe(a_esocket->socket, a_esocket->events)){
-            log_it( L_ERROR, "dap_events_socket 0x%x already deleted", a_esocket);
+            log_it(L_ERROR, "esocket %d type %d already deleted", a_esocket->socket, a_esocket->type);
+            /*dap_events_socket_t * es1 = NULL, *es2;
+              HASH_ITER(hh, a_esocket->events->sockets, es1, es2) {
+                log_it(L_INFO, "Table: socket %d", es1->socket);
+            }*/
             return ;
         }
 
@@ -1404,12 +1394,14 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
-    DAP_DEL_Z(a_esocket->remote_addr_str)
+    if (a_esocket->type == DESCRIPTOR_TYPE_SOCKET) {
+        DAP_DEL_Z(a_esocket->remote_addr_str)
+    }
 #ifdef DAP_OS_WINDOWS
-    if ( a_esocket->socket && a_esocket->socket != INVALID_SOCKET) {
+    if ( a_esocket->socket && (a_esocket->socket != INVALID_SOCKET)) {
         closesocket( a_esocket->socket );
 #else
-        if ( a_esocket->socket && a_esocket->socket != -1) {
+        if ( a_esocket->socket && (a_esocket->socket != -1)) {
         close( a_esocket->socket );
 #ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
         if( a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
@@ -1429,7 +1421,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
     if (!a_es->worker) {
-        // Socket already removed from worker
+        log_it(L_INFO, "No worker assigned to esocket %d", a_es->socket);
         return;
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL

@@ -180,6 +180,10 @@ void *dap_worker_thread(void *arg)
             l_flag_nval     = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
             short l_cur_events =l_worker->poll[n].revents;
+
+            if (l_worker->poll[n].fd == -1) // If it was deleted on previous iterations
+                continue;
+
             if (!l_cur_events) // No events for this socket
                 continue;
             l_flag_hup =  l_cur_events& POLLHUP;
@@ -632,10 +636,12 @@ void *dap_worker_thread(void *arg)
             if ((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close)
             {
                 if (l_cur->buf_out_size == 0) {
-                    log_it(L_INFO, "Process signal to close %s, sock %u [thread %u]", l_cur->remote_addr_str, l_cur->socket, l_tn);
+                    log_it(L_INFO, "Process signal to close %s sock %u type %d [thread %u]",
+                           l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn);
                     dap_events_socket_remove_and_delete_unsafe( l_cur, false);
                 } else if (l_cur->buf_out_size ) {
-                    log_it(L_INFO, "Got signal to close %s, sock %u [thread %u] but buffer is not empty(%zd)", l_cur->remote_addr_str, l_cur->socket, l_tn,
+                    log_it(L_INFO, "Got signal to close %s sock %u [thread %u] type %d but buffer is not empty(%zd)",
+                           l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn,
                            l_cur->buf_out_size);
                 }
             }
@@ -644,6 +650,7 @@ void *dap_worker_thread(void *arg)
                 log_it(L_NOTICE,"Worker :%u finished", l_worker->id);
                 return NULL;
             }
+
         }
 #ifdef DAP_EVENTS_CAPS_POLL
       /***********************************************************/

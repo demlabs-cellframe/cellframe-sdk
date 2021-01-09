@@ -195,6 +195,9 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 
 static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
+static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg);
+static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg, int a_errno);
+
 
 
 
@@ -371,7 +374,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
 {
      dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
      uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(a_net);
-     for (int i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
+     for (size_t i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
          if (dap_list_length(l_pvt_net->links_info) >= s_max_links_count) {
              break;
          }
@@ -433,6 +436,38 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
 
 }
 
+/**
+ * @brief s_net_state_link_prepare_success
+ * @param a_worker
+ * @param a_node_info
+ * @param a_arg
+ */
+static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg)
+{
+    if (a_link_node_info->hdr.address.uint64 != l_own_addr) {
+        l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+        l_tries = 0;
+    }
+    }
+    if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
+        break;
+    }
+    l_tries++;
+    }
+    s_fill_links_from_root_aliases(l_net);
+}
+
+/**
+ * @brief s_net_state_link_prepare_error
+ * @param a_worker
+ * @param a_node_info
+ * @param a_arg
+ * @param a_errno
+ */
+static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg, int a_errno)
+{
+
+}
 
 /**
  * @brief s_net_states_proc
@@ -505,6 +540,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     // Get DNS request result from root nodes as synchronization links
                     int l_max_tries = 5;
                     int l_tries = 0;
+                    bool l_sync_fill_root_nodes = true;
                     while (dap_list_length(l_pvt_net->links_info) < s_max_links_count && l_tries < l_max_tries) {
                         struct in_addr l_addr = {};
                         uint16_t i, l_port;
@@ -527,24 +563,29 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                         }
                         if (l_addr.s_addr) {
                             dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                            if(! l_link_node_info){
+                                log_it(L_CRITICAL,"Can't allocate memory for node link info");
+                                break;
+                            }
 #ifdef DAP_OS_UNIX
                             struct in_addr _in_addr = { .s_addr = l_addr.s_addr  };
 #else
                             struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
 #endif
                             log_it(L_INFO, "dns get addrs %s : %d, net %s", inet_ntoa(_in_addr), l_port, l_net->pub.name);
-                            int l_res = dap_dns_client_get_addr(l_addr, l_port, l_net->pub.name, l_link_node_info);
-                            if (!l_res && l_link_node_info->hdr.address.uint64 != l_own_addr) {
-                                l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
-                                l_tries = 0;
-                            }
+                            l_sync_fill_root_nodes = false;
+                            dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
+                                                                s_net_state_link_prepare_success,s_net_state_link_prepare_error,l_net);
+
+                            break;
                         }
                         if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
                             break;
                         }
                         l_tries++;
                     }
-                    s_fill_links_from_root_aliases(l_net);
+                    if (l_sync_fill_root_nodes)
+                        s_fill_links_from_root_aliases(l_net);
                 } break;
             }
             if (l_pvt_net->state_target != NET_STATE_OFFLINE) {

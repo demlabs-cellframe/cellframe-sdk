@@ -32,7 +32,6 @@
 #include "dap_chain_node.h"
 #include "uthash.h"
 
-#define DNS_LISTEN_PORT 53      // UDP
 #define DNS_TIME_TO_LIVE 600    // Seconds
 #define DNS_HEADER_SIZE 12
 #define DNS_ANSWER_SIZE 16
