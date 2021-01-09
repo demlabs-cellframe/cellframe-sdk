@@ -652,6 +652,7 @@ int dap_enc_key_deserealize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, 
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
         if ( a_key->pub_key_data )
             dilithium_public_key_delete((dilithium_public_key_t *) a_key->pub_key_data);
+
         a_key->pub_key_data = (uint8_t*) dap_enc_dilithium_read_public_key(a_buf, a_buflen);
         if(!a_key->pub_key_data)
         {

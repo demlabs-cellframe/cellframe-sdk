@@ -41,6 +41,7 @@
 int dap_enc_init()
 {
     srand(time(NULL));
+    dap_enc_key_init();
     return 0;
 }
 

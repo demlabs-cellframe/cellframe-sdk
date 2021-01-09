@@ -211,8 +211,8 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
 
     unsigned long long i, j;
     unsigned int n;
-    unsigned char seedbuf[2*SEEDBYTES + CRHBYTES];
-    unsigned char tr[CRHBYTES];
+    byte_t seedbuf[2*SEEDBYTES + CRHBYTES]={0};
+    byte_t tr[CRHBYTES]={0};
     unsigned char *rho, *key, *mu;
     uint16_t nonce = 0;
     poly c, chat;

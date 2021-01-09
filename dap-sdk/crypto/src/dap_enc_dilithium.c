@@ -91,13 +91,21 @@ size_t dap_enc_sig_dilithium_verify_sign(struct dap_enc_key * key, const void * 
 
 void dap_enc_sig_dilithium_key_delete(struct dap_enc_key * key)
 {
-    if( key->priv_key_data && key->pub_key_data)
+    if( key->priv_key_data && key->pub_key_data){
         dilithium_private_and_public_keys_delete((dilithium_private_key_t *) key->priv_key_data,
             (dilithium_public_key_t *) key->pub_key_data);
-    else if ( key->pub_key_data )
+        free(key->pub_key_data);
+        free(key->priv_key_data);
+        key->pub_key_data=NULL;
+        key->priv_key_data=NULL;
+    }else if ( key->pub_key_data ){
         dilithium_public_key_delete((dilithium_public_key_t *) key->pub_key_data);
-    else if ( key->priv_key_data )
-        dilithium_public_key_delete((dilithium_public_key_t *) key->priv_key_data);
+        free(key->pub_key_data);
+        key->pub_key_data=NULL;
+    }else if ( key->priv_key_data ){
+        dilithium_private_key_delete((dilithium_private_key_t *) key->priv_key_data);
+        key->priv_key_data=NULL;
+    }
 
 }
 
@@ -119,6 +127,9 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
     size_t l_buflen = dap_enc_dilithium_calc_signagture_size(a_sign);
 
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
+    if(! l_buf)
+        return NULL;
+
     memcpy(l_buf, &l_buflen, sizeof(uint64_t));
     l_shift_mem += sizeof(uint64_t);
     memcpy(l_buf + l_shift_mem, &a_sign->kind, sizeof(dilithium_kind_t));
@@ -136,8 +147,16 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
 /* Deserialize a signature */
 dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a_buflen)
 {
-    if( !a_buf || (a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t)) )  )
-        return NULL ;
+    if (!a_buf){
+        log_it(L_ERROR,"::read_signature() NULL buffer on input");
+        return NULL;
+    }
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t) + sizeof (uint64_t) )){
+        log_it(L_ERROR,"::read_signature() Buflen %zd is smaller than first three fields(%zd)", a_buflen,
+               sizeof(uint64_t) + sizeof(dilithium_kind_t) +sizeof (uint64_t)  );
+        return NULL;
+    }
+
     dilithium_kind_t kind;
     uint64_t l_buflen_internal = 0;
     memcpy(&l_buflen_internal, a_buf, sizeof(uint64_t));
@@ -152,8 +171,20 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
     l_sign->kind = kind;
     uint64_t l_shift_mem = sizeof(uint64_t) + sizeof(dilithium_kind_t);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(uint64_t));
+
+    if(   ( l_sign->sig_len> (UINT64_MAX - sizeof(uint64_t) + sizeof(dilithium_kind_t) +sizeof (uint64_t))) ||
+          ( a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t) +sizeof (uint64_t) + l_sign->sig_len ))
+       ){
+        log_it(L_ERROR,"::read_signature() Buflen %zd is smaller than all fields together(%zd)", a_buflen,
+               sizeof(uint64_t) + sizeof(dilithium_kind_t) + l_sign->sig_len  );
+        return NULL;
+    }
+
+
     l_shift_mem += sizeof(uint64_t);
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
+    if (!l_sign->sig_data)
+        log_it(L_ERROR,"::read_signature() Can't allocate sig_data %zd size", l_sign->sig_len);
     memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
     l_shift_mem += l_sign->sig_len;
     return l_sign;
@@ -181,7 +212,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
 
     dilithium_signature_t* l_sign = DAP_NEW(dilithium_signature_t);
     l_sign->kind = kind;
-    size_t l_shift_mem = sizeof(size_t) + sizeof(dilithium_kind_t);
+    size_t l_shift_mem = sizeof(uint32_t) + sizeof(dilithium_kind_t);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     l_shift_mem += sizeof(unsigned long long);
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
@@ -198,11 +229,11 @@ uint8_t* dap_enc_dilithium_write_private_key(const dilithium_private_key_t* a_pr
     if(!dilithium_params_init(&p, a_private_key->kind))
         return NULL;
 
-    size_t l_buflen = sizeof(size_t) + sizeof(dilithium_kind_t) + p.CRYPTO_SECRETKEYBYTES; //CRYPTO_PUBLICKEYBYTES;
-    uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
-    memcpy(l_buf, &l_buflen, sizeof(size_t));
-    memcpy(l_buf + sizeof(size_t), &a_private_key->kind, sizeof(dilithium_kind_t));
-    memcpy(l_buf + sizeof(size_t) + sizeof(dilithium_kind_t), a_private_key->data, p.CRYPTO_SECRETKEYBYTES);
+    uint64_t l_buflen = sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_SECRETKEYBYTES; //CRYPTO_PUBLICKEYBYTES;
+    byte_t *l_buf = DAP_NEW_Z_SIZE(byte_t, l_buflen);
+    memcpy(l_buf, &l_buflen, sizeof(uint64_t));
+    memcpy(l_buf + sizeof(uint64_t), &a_private_key->kind, sizeof(dilithium_kind_t));
+    memcpy(l_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), a_private_key->data, p.CRYPTO_SECRETKEYBYTES);
     if(a_buflen_out)
         *a_buflen_out = l_buflen;
     return l_buf;
@@ -216,7 +247,7 @@ uint8_t* dap_enc_dilithium_write_public_key(const dilithium_public_key_t* a_publ
         return NULL;
 
     uint64_t l_buflen = sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES;
-    uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
+    uint8_t *l_buf = DAP_NEW_Z_SIZE(byte_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(uint64_t));
     memcpy(l_buf + sizeof(uint64_t), &a_public_key->kind, sizeof(dilithium_kind_t));
     memcpy(l_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), a_public_key->data, p.CRYPTO_PUBLICKEYBYTES);
@@ -228,8 +259,15 @@ uint8_t* dap_enc_dilithium_write_public_key(const dilithium_public_key_t* a_publ
 /* Deserialize a private key. */
 dilithium_private_key_t* dap_enc_dilithium_read_private_key(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t)))
+    if(!a_buf ){
         return NULL;
+    }
+
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t))){
+        log_it(L_ERROR,"::read_private_key() Buflen %zd is smaller than first two fields(%zd)", a_buflen,sizeof(uint64_t) + sizeof(dilithium_kind_t)  );
+        return NULL;
+    }
+
     dilithium_kind_t kind;
     uint64_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(uint64_t));
@@ -239,6 +277,13 @@ dilithium_private_key_t* dap_enc_dilithium_read_private_key(const uint8_t *a_buf
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
         return NULL;
+
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_SECRETKEYBYTES ) ){
+        log_it(L_ERROR,"::read_private_key() Buflen %zd is smaller than all fields together(%zd)", a_buflen,
+               sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_SECRETKEYBYTES  );
+        return NULL;
+    }
+
     dilithium_private_key_t* l_private_key = DAP_NEW(dilithium_private_key_t);
     l_private_key->kind = kind;
 
@@ -261,6 +306,12 @@ dilithium_private_key_t* dap_enc_dilithium_read_private_key_old(const uint8_t *a
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
         return NULL;
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_SECRETKEYBYTES ) ){
+        log_it(L_ERROR,"::read_private_key() Buflen %zd is smaller than all fields together(%zd)", a_buflen,
+               sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_SECRETKEYBYTES  );
+        return NULL;
+    }
+
     dilithium_private_key_t* l_private_key = DAP_NEW(dilithium_private_key_t);
     l_private_key->kind = kind;
 
@@ -272,21 +323,48 @@ dilithium_private_key_t* dap_enc_dilithium_read_private_key_old(const uint8_t *a
 /* Deserialize a public key. */
 dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t)))
+    if (!a_buf){
+        log_it(L_ERROR,"::read_public_key() NULL buffer on input");
         return NULL;
-    dilithium_kind_t kind;
+    }
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t))){
+        log_it(L_ERROR,"::read_public_key() Buflen %zd is smaller than first two fields(%zd)", a_buflen,sizeof(uint64_t) + sizeof(dilithium_kind_t)  );
+        return NULL;
+    }
+    dilithium_kind_t kind = 0;
     uint64_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(uint64_t));
     memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(dilithium_kind_t));
-    if(l_buflen != a_buflen)
+    if(l_buflen != a_buflen){
+        log_it(L_ERROR,"::read_public_key() Buflen field inside buffer is %u when expected to be %u", l_buflen, a_buflen);
         return NULL;
+    }
     dilithium_param_t p;
-    if(!dilithium_params_init(&p, kind))
+    if(!dilithium_params_init(&p, kind)){
+        log_it(L_ERROR,"::read_public_key() Can't find params for signature kind %d", kind);
         return NULL;
+    }
+
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES ) ){
+        log_it(L_ERROR,"::read_public_key() Buflen %zd is smaller than all fields together(%zd)", a_buflen,
+               sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES  );
+        return NULL;
+    }
+
     dilithium_public_key_t* l_public_key = DAP_NEW_Z(dilithium_public_key_t);
+    if (!l_public_key){
+        log_it(L_CRITICAL,"::read_public_key() Can't allocate memory for public key");
+        return NULL;
+    }
     l_public_key->kind = kind;
 
-    l_public_key->data = DAP_NEW_Z_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
+    l_public_key->data = DAP_NEW_Z_SIZE(byte_t, p.CRYPTO_PUBLICKEYBYTES);
+    if (!l_public_key->data){
+        log_it(L_CRITICAL,"::read_public_key() Can't allocate memory for public key's data");
+        DAP_DELETE(l_public_key);
+        return NULL;
+    }
+
     memcpy(l_public_key->data, a_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
     return l_public_key;
 }
@@ -299,8 +377,15 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
  */
 dilithium_public_key_t* dap_enc_dilithium_read_public_key_old(const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_buf || a_buflen < (sizeof(uint32_t) + sizeof(dilithium_kind_t)))
+    if (!a_buf){
+        log_it(L_ERROR,"::read_public_key() NULL buffer on input");
         return NULL;
+    }
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t))){
+        log_it(L_ERROR,"::read_public_key() Buflen %zd is smaller than first two fields(%zd)", a_buflen,sizeof(uint64_t) + sizeof(dilithium_kind_t)  );
+        return NULL;
+    }
+
     dilithium_kind_t kind;
     uint32_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(uint32_t));
@@ -308,8 +393,17 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key_old(const uint8_t *a_b
     if(l_buflen != a_buflen)
         return NULL;
     dilithium_param_t p;
-    if(!dilithium_params_init(&p, kind))
+    if(!dilithium_params_init(&p, kind)){
+        log_it(L_ERROR,"::read_public_key() Can't find params for signature kind %d", kind);
         return NULL;
+    }
+
+    if(a_buflen < (sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES ) ){
+        log_it(L_ERROR,"::read_public_key_old() Buflen %zd is smaller than all fields together(%zd)", a_buflen,
+               sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES  );
+        return NULL;
+    }
+
     dilithium_public_key_t* l_public_key = DAP_NEW_Z(dilithium_public_key_t);
     l_public_key->kind = kind;
 
