@@ -92,7 +92,8 @@ static const dilithium_param_t dilithium_params[] = {
 };
 
 bool dilithium_params_init(dilithium_param_t *params, dilithium_kind_t kind){
-  assert(params != NULL);
+  if(!params)
+      return false;
 
   memset(params, 0, sizeof(dilithium_param_t));
   

@@ -67,7 +67,7 @@ typedef struct {
 typedef struct {
   dilithium_kind_t kind;                      /* the kind of dilithium       */
   unsigned char *sig_data;
-  unsigned long long sig_len;
+  uint64_t sig_len;
 } dilithium_signature_t;
 
 
