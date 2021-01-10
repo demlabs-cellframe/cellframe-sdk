@@ -119,10 +119,14 @@ static bool s_timer_timeout_check(void * a_arg)
     dap_events_t * l_events = dap_events_get_default();
     assert(l_events);
 
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker);; // We're in own esocket context
+    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
     assert(l_worker);
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
+        if ((l_es->type != DESCRIPTOR_TYPE_SOCKET) && (l_es->type != DESCRIPTOR_TYPE_SOCKET_UDP)) {
+            log_it(L_CRITICAL, "Timer esocket wrong argument: socket %d type %d, ignore this timeout...", l_es->socket, l_es->type);
+            return false;
+        }
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
                l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
@@ -131,7 +135,11 @@ static bool s_timer_timeout_check(void * a_arg)
             l_http_pvt->were_callbacks_called = true;
         }
         l_http_pvt->is_closed_by_timeout = true;
-        l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        log_it(L_INFO, "Close %s sock %u type %d by timeout",
+               l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
+        dap_events_socket_remove_and_delete_unsafe(l_es, true);
+    } else {
+        log_it(L_INFO, "Socket %d type %d already disposed", l_es->socket, l_es->type);
     }
     return false;
 }
