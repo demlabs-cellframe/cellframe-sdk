@@ -1466,7 +1466,7 @@ bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t 
         if ( a_worker->esockets){
             dap_events_socket_t * l_es = NULL;
             pthread_rwlock_rdlock(&a_worker->esocket_rwlock);
-            HASH_FIND(hh_worker,a_worker->esockets,&a_es, sizeof(a_es), l_es );
+            HASH_FIND(hh_worker,a_worker->esockets,&a_es, sizeof(void*), l_es );
             pthread_rwlock_unlock(&a_worker->esocket_rwlock);
             return l_es == a_es;
         }else
