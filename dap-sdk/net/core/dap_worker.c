@@ -179,6 +179,10 @@ void *dap_worker_thread(void *arg)
             l_flag_nval     = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
             short l_cur_events =l_worker->poll[n].revents;
+
+            if (l_worker->poll[n].fd == -1) // If it was deleted on previous iterations
+                continue;
+
             if (!l_cur_events) // No events for this socket
                 continue;
             l_flag_hup =  l_cur_events& POLLHUP;
@@ -645,6 +649,7 @@ void *dap_worker_thread(void *arg)
                 log_it(L_NOTICE,"Worker :%u finished", l_worker->id);
                 return NULL;
             }
+
         }
 #ifdef DAP_EVENTS_CAPS_POLL
       /***********************************************************/
