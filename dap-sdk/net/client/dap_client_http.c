@@ -138,6 +138,8 @@ static bool s_timer_timeout_check(void * a_arg)
         log_it(L_INFO, "Close %s sock %u type %d by timeout",
                l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
         dap_events_socket_remove_and_delete_unsafe(l_es, true);
+    } else {
+        log_it(L_INFO, "Socket %d type %d already disposed", l_es->socket, l_es->type);
     }
     return false;
 }
