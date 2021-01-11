@@ -74,6 +74,7 @@
 
 static SOCKET server_sockfd = -1; // network or local unix
 uint32_t l_listen_port = 0;
+bool s_debug_cli = false;
 
 #ifdef _WIN32
   #define poll WSAPoll
@@ -249,7 +250,8 @@ char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del
 static void* thread_one_client_func(void *args)
 {
     SOCKET newsockfd = (SOCKET) (intptr_t) args;
-    log_it(L_DEBUG, "new connection sockfd=%d", newsockfd);
+    if(s_debug_cli)
+        log_it(L_DEBUG, "new connection sockfd=%d", newsockfd);
 
     int str_len, marker = 0;
     int timeout = 5000; // 5 sec
@@ -364,7 +366,8 @@ static void* thread_one_client_func(void *args)
     }
     // close connection
     int cs = closesocket(newsockfd);
-    log_it(L_DEBUG, "close connection=%d sockfd=%d", cs, newsockfd);
+    if (s_debug_cli)
+        log_it(L_DEBUG, "close connection=%d sockfd=%d", cs, newsockfd);
     return NULL;
 }
 
@@ -453,7 +456,8 @@ static void *thread_pipe_client_func( void *args )
     HANDLE hPipe = (HANDLE)args;
 
 //    SOCKET newsockfd = (SOCKET) (intptr_t) args;
-    log_it(L_INFO, "new connection pipe = %X", hPipe );
+    if(s_debug_cli)
+        log_it(L_INFO, "new connection pipe = %X", hPipe );
 
     int str_len, marker = 0;
     int timeout = 5000; // 5 sec
@@ -810,6 +814,7 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
+    s_debug_cli = dap_config_get_item_bool_default(g_config,"conserver","debug_cli",false);
 #ifndef _WIN32
     struct sockaddr_un l_server_addr={0};
     l_server_addr.sun_family =  AF_UNIX;
