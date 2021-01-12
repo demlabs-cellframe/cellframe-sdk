@@ -274,6 +274,7 @@ uint8_t* dap_enc_dilithium_write_public_key(const dilithium_public_key_t* a_publ
     uint64_t l_buflen = sizeof(uint64_t) + sizeof(dilithium_kind_t) + p.CRYPTO_PUBLICKEYBYTES;
     uint8_t *l_buf = DAP_NEW_Z_SIZE(byte_t, l_buflen);
     memcpy(l_buf, &l_buflen, sizeof(uint64_t));
+
     memcpy(l_buf + sizeof(uint64_t), &a_public_key->kind, sizeof(dilithium_kind_t));
     memcpy(l_buf + sizeof(uint64_t) + sizeof(dilithium_kind_t), a_public_key->data, p.CRYPTO_PUBLICKEYBYTES);
     if(a_buflen_out)
@@ -368,9 +369,12 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
     memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(dilithium_kind_t));
 
     if(l_buflen !=  (uint64_t) a_buflen){
-        log_it(L_ERROR,"::read_public_key() Buflen field inside buffer is %"DAP_UINT64_FORMAT_u" when expected to be %" DAP_UINT64_FORMAT_u,
-               l_buflen,(uint64_t) a_buflen);
-        return NULL;
+        if (l_buflen <<32 >>32 != (uint64_t) a_buflen  ){
+            log_it(L_ERROR,"::read_public_key() Buflen field inside buffer is %"DAP_UINT64_FORMAT_u" when expected to be %" DAP_UINT64_FORMAT_u,
+                   l_buflen,(uint64_t) a_buflen);
+            return NULL;
+        }else
+            l_buflen = l_buflen<<32 >>32;
     }
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind)){
@@ -443,7 +447,7 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key_old(const uint8_t *a_b
     }
 
     dilithium_public_key_t* l_public_key = DAP_NEW_Z(dilithium_public_key_t);
-    l_public_key->kind = kind;
+    l_public_key->kind = kind ;
 
     l_public_key->data = DAP_NEW_Z_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
     memcpy(l_public_key->data, a_buf + sizeof(uint32_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
