@@ -25,6 +25,7 @@
 #include "uthash.h"
 
 #include "dap_common.h"
+#include "dap_math_ops.h"
 
 #define DAP_EVENTS_SOCKET_MAX 8194
 
@@ -151,6 +152,7 @@ typedef struct dap_events_socket {
         mqd_t mqd;
     };
     uint32_t mqd_id;
+    uint128_t uuid; // Unique UID
 #elif defined DAP_EVENTS_CAPS_MSMQ
     };
     QUEUEHANDLE mqh, mqh_recv;
@@ -236,6 +238,10 @@ typedef struct dap_events_socket {
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
 
+typedef struct dap_events_socket_handler{
+    dap_events_socket_t * esocket;
+    uint128_t uuid;
+} dap_events_socket_handler_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -281,6 +287,7 @@ size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, s
 
 // Non-MT functions
 bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t * a_es);
+
 void dap_events_socket_set_readable_unsafe(dap_events_socket_t * sc,bool is_ready);
 void dap_events_socket_set_writable_unsafe(dap_events_socket_t * sc,bool is_ready);
 void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket);

@@ -296,50 +296,6 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
 #endif
 }
 
-uint128_t dap_chain_balance_substract(uint128_t a, uint128_t b)
-{
-#ifdef DAP_GLOBAL_IS_INT128
-    if (a < b) {
-        log_it(L_WARNING, "Substract result overflow");
-        return 0;
-    }
-    return a - b;
-#else
-    uint128_t l_ret = {};
-    if (a.u64[0] < b.u64[0] || (a.u64[0] == b.u64[0] && a.u64[1] < b.u64[1])) {
-        log_it(L_WARNING, "Substract result overflow");
-        return l_ret;
-    }
-    l_ret.u64[0] = a.u64[0] - b.u64[0];
-    l_ret.u64[1] = a.u64[1] - b.u64[1];
-    if (a.u64[1] < b.u64[1])
-        l_ret.u64[0]--;
-    return l_ret;
-#endif
-}
-uint128_t dap_chain_balance_add(uint128_t a, uint128_t b)
-{
-#ifdef DAP_GLOBAL_IS_INT128
-    uint128_t l_ret = a + b;
-    if (l_ret < a || l_ret < b) {
-        log_it(L_WARNING, "Sum result overflow");
-        return 0;
-    }
-#else
-    uint128_t l_ret = {};
-    l_ret.u64[0] = a.u64[0] + b.u64[0];
-    l_ret.u64[1] = a.u64[1] + b.u64[1];
-    if (l_ret.u64[1] < a.u64[1] || l_ret.u64[1] < b.u64[1])
-        l_ret.u64[0]++;
-    if (l_ret.u64[0] < a.u64[0] || l_ret.u64[0] < b.u64[0]) {
-        log_it(L_WARNING, "Sum result overflow");
-        uint128_t l_nul = {};
-        return l_nul;
-    }
-#endif
-    return l_ret;
-}
-
 char *dap_chain_balance_print(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
@@ -464,7 +420,7 @@ uint128_t dap_chain_balance_scan(char *a_balance)
             return l_nul;
         }
         l_tmp = (l_tmp << 64) + c_pow10[i].u64[1] * l_digit;
-        l_ret = dap_chain_balance_add(l_ret, l_tmp);
+        l_ret = dap_uint128_add(l_ret, l_tmp);
         if (l_ret == l_nul)
             return l_nul;
 #else

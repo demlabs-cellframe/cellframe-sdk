@@ -2,7 +2,6 @@
 #include <stdint.h>
 
 #include "dap_common.h"
-//#include "common/int-util.h"
 
 #if defined(__GNUC__) || defined (__clang__)
 
@@ -36,3 +35,9 @@ typedef int128_t _dap_int128_t;
 #endif // __SIZEOF_INT128__ == 16
 
 #endif //defined(__GNUC__) || defined (__clang__)
+
+uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
+uint128_t dap_uint128_add(uint128_t a, uint128_t b);
+bool dap_uint128_check_equal(uint128_t a, uint128_t b);
+
+

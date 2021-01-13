@@ -114,7 +114,9 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
  */
 static bool s_timer_timeout_check(void * a_arg)
 {
-    dap_events_socket_t * l_es = (dap_events_socket_t*) a_arg;
+    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    assert(l_es_handler);
+    dap_events_socket_t * l_es = l_es_handler->esocket;
     assert(l_es);
     dap_events_t * l_events = dap_events_get_default();
     assert(l_events);
@@ -123,8 +125,9 @@ static bool s_timer_timeout_check(void * a_arg)
     assert(l_worker);
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if ((l_es->type != DESCRIPTOR_TYPE_SOCKET) && (l_es->type != DESCRIPTOR_TYPE_SOCKET_UDP)) {
-            log_it(L_CRITICAL, "Timer esocket wrong argument: socket %d type %d, ignore this timeout...", l_es->socket, l_es->type);
+        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
+            // Timer esocket wrong argument, ignore this timeout...
+            DAP_DELETE(l_es_handler);
             return false;
         }
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
@@ -141,6 +144,7 @@ static bool s_timer_timeout_check(void * a_arg)
     } else {
         log_it(L_INFO, "Socket %d type %d already disposed", l_es->socket, l_es->type);
     }
+    DAP_DELETE(l_es_handler);
     return false;
 }
 
@@ -514,7 +518,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
         log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
         l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
         dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
-        dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket);
+        dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+        l_ev_socket_handler->esocket = l_ev_socket;
+        l_ev_socket_handler->uuid = l_ev_socket->uuid;
+        dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket_handler);
         return l_http_pvt;
     }
     else{
