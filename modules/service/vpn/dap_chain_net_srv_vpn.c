@@ -143,13 +143,13 @@ pthread_cond_t * s_tun_sockets_cond_started = NULL;
 uint32_t s_tun_sockets_count = 0;
 bool s_debug_more = false;
 
-static usage_client_t * s_clients;
-static dap_chain_net_srv_ch_vpn_t * s_ch_vpn_addrs ;
+static usage_client_t * s_clients = NULL;
+static dap_chain_net_srv_ch_vpn_t * s_ch_vpn_addrs  = NULL;
 static pthread_rwlock_t s_clients_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static pthread_mutex_t s_sf_socks_mutex;
 static pthread_cond_t s_sf_socks_cond;
-static vpn_local_network_t *s_raw_server;
+static vpn_local_network_t *s_raw_server = NULL;
 static pthread_rwlock_t s_raw_server_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 // Service callbacks
@@ -1041,11 +1041,13 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
         s_tun_send_msg_ip_unassigned_all(l_ch_vpn, l_ch_vpn->addr_ipv4); // Signal all the workers that we're switching off
 
         pthread_rwlock_wrlock(& s_raw_server_rwlock);
-        if ( s_raw_server->ipv4_lease_last.s_addr == l_ch_vpn->addr_ipv4.s_addr ){
-            s_raw_server->ipv4_lease_last.s_addr = ntohl( ntohl(s_raw_server->ipv4_lease_last.s_addr)-1 );
+        if( s_raw_server){
+            if ( s_raw_server->ipv4_lease_last.s_addr == l_ch_vpn->addr_ipv4.s_addr ){
+                s_raw_server->ipv4_lease_last.s_addr = ntohl( ntohl(s_raw_server->ipv4_lease_last.s_addr)-1 );
+            }
+            else
+                l_is_unleased = true;
         }
-        else
-            l_is_unleased = true;
         pthread_rwlock_unlock(& s_raw_server_rwlock);
     }
     pthread_rwlock_wrlock(&s_clients_rwlock);
@@ -1200,6 +1202,9 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) a_usage->service->_inhertor;
     dap_chain_net_srv_stream_session_t * l_srv_session= DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
+
+    if (! s_raw_server)
+        return;
 
     if ( l_ch_vpn->addr_ipv4.s_addr ){
         log_it(L_WARNING,"We already have ip address leased to us");
@@ -1376,6 +1381,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return;
     }
 
+
     // TODO move address leasing to this structure
     //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_inhertor;
 
@@ -1410,7 +1416,11 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             // for server
             case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
                 log_it(L_INFO, "Received address request  ");
-                s_ch_packet_in_vpn_address_request(a_ch, l_usage);
+                if(s_raw_server){
+                    s_ch_packet_in_vpn_address_request(a_ch, l_usage);
+                }else{
+                    dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_IN_CLIENT_MODE  , NULL, 0 );
+                }
                 l_srv_session->stats.bytes_recv += l_vpn_pkt_size;
                 l_srv_session->stats.packets_recv++;
             } break;

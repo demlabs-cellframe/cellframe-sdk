@@ -968,12 +968,12 @@ int cdb_set2(CDB *db, const char *key, int ksize, const char *val, int vsize, in
     rec.expire = expire? now + expire : 0;
         
     cdb_lock_lock(db->mlock[lockid]);
+    cdb_lock_lock(db->rclock);
     if (db->rcache) {
         /* if record already exists, get its old meta info */
         int item_vsize;
         char *cval;
         uint32_t old_expire = 0;
-        cdb_lock_lock(db->rclock);
         cval = cdb_ht_get(db->rcache, key, ksize, &item_vsize, false);
         if (cval) {
             /* record already exists */
@@ -981,12 +981,12 @@ int cdb_set2(CDB *db, const char *key, int ksize, const char *val, int vsize, in
             rec.osize = item_vsize - SFOFF - SI4;
             old_expire = *(uint32_t*)(cval + SFOFF); 
         }
-        cdb_lock_unlock(db->rclock);
         if (old_expire && old_expire <= now)
             /* once exist but expired? */
             expired = true;
     }
-    
+    cdb_lock_unlock(db->rclock);
+
     if (OFFNULL(ooff)) {
         FOFF soffs[SFOFFNUM];
         FOFF *soff = soffs;
@@ -1155,9 +1155,9 @@ int cdb_get(CDB *db, const char *key, int ksize, void **val, int *vsize)
 
     *vsize = 0;
     *val = NULL;
+    cdb_lock_lock(db->rclock);
     if (db->rcache) {
         char *cval;
-        cdb_lock_lock(db->rclock);
         cval = cdb_ht_get(db->rcache, key, ksize, vsize, true);
         if (cval) {
             db->rchit++;
@@ -1183,8 +1183,8 @@ int cdb_get(CDB *db, const char *key, int ksize, void **val, int *vsize)
                 return -3;
             }
         }
-        cdb_lock_unlock(db->rclock);
     }
+    cdb_lock_unlock(db->rclock);
 
     offs = soffs;
     hash = CDBHASH64(key, ksize);
