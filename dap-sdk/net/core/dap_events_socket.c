@@ -1394,9 +1394,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
-    if (a_esocket->type == DESCRIPTOR_TYPE_SOCKET) {
-        DAP_DEL_Z(a_esocket->remote_addr_str)
-    }
+    DAP_DEL_Z(a_esocket->remote_addr_str)
 #ifdef DAP_OS_WINDOWS
     if ( a_esocket->socket && (a_esocket->socket != INVALID_SOCKET)) {
         closesocket( a_esocket->socket );

@@ -109,6 +109,12 @@ static size_t s_max_links_count = 5;// by default 5
 static size_t s_required_links_count = 3;// by default 3
 static pthread_t s_net_check_pid;
 
+
+struct link_dns_request {
+    dap_chain_net_t * net;
+    uint_fast16_t tries;
+};
+
 /**
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
@@ -375,16 +381,23 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
      dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
      uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(a_net);
      for (size_t i = 0; i < MIN(s_max_links_count, l_pvt_net->seed_aliases_count); i++) {
+         pthread_rwlock_rdlock(&l_pvt_net->rwlock);
          if (dap_list_length(l_pvt_net->links_info) >= s_max_links_count) {
+             pthread_rwlock_unlock(&l_pvt_net->rwlock);
              break;
-         }
+         }else
+            pthread_rwlock_unlock(&l_pvt_net->rwlock);
+
          dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(a_net, l_pvt_net->seed_aliases[i]);
+
          if (l_link_addr->uint64 == l_own_addr) {
              continue;   // Do not link with self
          }
          dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(a_net, l_link_addr);
          if(l_link_node_info) {
+             pthread_rwlock_wrlock(&l_pvt_net->rwlock);
              l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
+             pthread_rwlock_unlock(&l_pvt_net->rwlock);
          } else {
              log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_link_addr));
          }
@@ -444,16 +457,24 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
  */
 static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg)
 {
-    if (a_link_node_info->hdr.address.uint64 != l_own_addr) {
-        l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
-        l_tries = 0;
+    struct link_dns_request * l_dns_request = (struct link_dns_request *) a_arg;
+    dap_chain_net_t * l_net = l_dns_request->net;
+    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    uint64_t l_own_addr =0;
+    if (a_node_info->hdr.address.uint64 != l_own_addr) {
+        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+        l_net_pvt->links_info = dap_list_append(l_net_pvt->links_info, a_node_info);
+        pthread_rwlock_unlock(&l_net_pvt->rwlock);
+        l_dns_request->tries = 0;
     }
+    pthread_rwlock_rdlock(&l_net_pvt->rwlock);
+    if (l_net_pvt->state_target == NET_STATE_OFFLINE) { // Go away from
+        DAP_DELETE(l_dns_request);
+        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
     }
-    if (l_pvt_net->state_target == NET_STATE_OFFLINE) {
-        break;
-    }
-    l_tries++;
-    }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+
+    l_dns_request->tries++;
     s_fill_links_from_root_aliases(l_net);
 }
 
