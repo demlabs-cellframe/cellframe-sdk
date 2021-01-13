@@ -40,7 +40,6 @@ HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_binary_tree.h \
     $$PWD/include/dap_config.h \
     $$PWD/include/dap_math_ops.h \
-    $$PWD/include/dap_math_ops.h \
     $$PWD/include/dap_file_utils.h \
     $$PWD/src/circular_buffer.h \
     $$PWD/include/dap_circular_buffer.h \
@@ -52,6 +51,7 @@ HEADERS += $$PWD/include/dap_common.h \
 SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_binary_tree.c \
     $$PWD/src/dap_config.c \
+    $$PWD/src/dap_math_ops.c \
     $$PWD/src/dap_file_utils.c \
     $$PWD/src/dap_circular_buffer.c \
     $$PWD/src/dap_list.c \

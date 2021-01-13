@@ -1994,7 +1994,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                                     bound_item->out.tx_prev_out_ext->header.value;
                 //log_it(L_DEBUG,"SPEND %lu from addr: %s", l_value, l_wallet_balance_key);
                 uint128_t l_sub = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_chain_balance_substract(wallet_balance->balance, l_sub);
+                wallet_balance->balance = dap_uint128_substract(wallet_balance->balance, l_sub);
                 // Update the cache
                 dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
             } else {
@@ -2095,7 +2095,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             if (wallet_balance) {
                 //log_it(L_DEBUG, "Balance item is present in cache");
                 uint128_t l_add = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_chain_balance_add(wallet_balance->balance, l_add);
+                wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
                 DAP_DELETE (l_wallet_balance_key);
                 // Update the cache
                 dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
@@ -2103,7 +2103,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
                 wallet_balance->key = l_wallet_balance_key;
                 uint128_t l_add = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_chain_balance_add(wallet_balance->balance, l_add);
+                wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
                 //log_it(L_DEBUG,"!!! Create new balance item: %s %s", l_addr_str, l_token_ticker);
                 pthread_rwlock_wrlock(&l_ledger_priv->balance_accounts_rwlock);
                 HASH_ADD_KEYPTR(hh, PVT(a_ledger)->balance_accounts, wallet_balance->key,
@@ -2470,7 +2470,7 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
 
                             uint128_t l_add = dap_chain_uint128_from(l_tx_out->header.value);
-                            balance = dap_chain_balance_add(balance, l_add);
+                            balance = dap_uint128_add(balance, l_add);
                         }
                     }
                 }
@@ -2485,7 +2485,7 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                         if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             uint128_t l_add = dap_chain_uint128_from(l_tx_out->header.value);
-                            balance = dap_chain_balance_add(balance, l_add);
+                            balance = dap_uint128_add(balance, l_add);
                         }
                     }
                 }

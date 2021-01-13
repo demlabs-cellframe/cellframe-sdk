@@ -27,7 +27,7 @@
 
 ///========================================================================
 /* Names for the four varieties of Dilithium */
-typedef enum { MODE_0, MODE_1, MODE_2, MODE_3 } __attribute__((aligned(4))) dilithium_kind_t;
+typedef enum { MODE_0, MODE_1, MODE_2, MODE_3 } __attribute__((aligned(8))) dilithium_kind_t;
 
 typedef struct {
   dilithium_kind_t kind;     /* the kind of Dilithium (i.e. *this* choice of parameters)  */

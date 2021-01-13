@@ -70,7 +70,7 @@ uint32_t dap_get_cpu_count();
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id);
 
 static inline dap_worker_t * dap_events_get_current_worker(dap_events_t * a_events){
-    (dap_worker_t*) pthread_getspecific(a_events->pth_key_worker);
+    return (dap_worker_t*) pthread_getspecific(a_events->pth_key_worker);
 }
 
 #ifdef __cplusplus

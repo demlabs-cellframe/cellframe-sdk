@@ -377,6 +377,7 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
             l_buflen = l_buflen<<32 >>32;
     }
     dilithium_param_t p;
+
     if(!dilithium_params_init(&p, kind)){
         log_it(L_ERROR,"::read_public_key() Can't find params for signature kind %d", kind);
         return NULL;

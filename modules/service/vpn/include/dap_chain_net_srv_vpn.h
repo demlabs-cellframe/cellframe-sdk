@@ -147,6 +147,7 @@ typedef struct dap_chain_net_srv_ch_vpn_info
     dap_events_socket_t * queue_msg; // Message queue
     dap_worker_t * worker;
     dap_events_socket_t * esocket;
+    uint128_t esocket_uuid;
     UT_hash_handle hh;
 }dap_chain_net_srv_ch_vpn_info_t;
 

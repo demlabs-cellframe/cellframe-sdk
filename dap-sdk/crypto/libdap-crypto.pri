@@ -41,6 +41,7 @@ HEADERS += $$PWD/src/XKCP/lib/common/config.h \
     $$PWD/include/dap_cert_file.h \
     $$PWD/include/dap_pkey.h \
     $$PWD/include/dap_sign.h \
+    $$PWD/include/dap_uuid.h \
     $$PWD/include/dap_hash.h \
     $$PWD/include/dap_hash_fusion.h \
     $$PWD/include/dap_hash_keccak.h \
@@ -70,6 +71,7 @@ SOURCES += $$PWD/src/dap_enc.c \
     $$PWD/src/dap_pkey.c \
     $$PWD/src/dap_sign.c \
     $$PWD/src/dap_hash.c \
+    $$PWD/src/dap_uuid.c \
     $$PWD/src/dap_hash_fusion.c \
     $$PWD/src/dap_hash_keccak.c \
     $$PWD/src/dap_enc_SEED.c \

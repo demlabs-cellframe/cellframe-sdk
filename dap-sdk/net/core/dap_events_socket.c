@@ -59,6 +59,7 @@
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_worker.h"
+#include "dap_uuid.h"
 #include "dap_events.h"
 
 #include "dap_timerfd.h"
@@ -139,38 +140,39 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     assert(a_events);
     assert(a_callbacks);
 
-    dap_events_socket_t *ret = DAP_NEW_Z( dap_events_socket_t );
-    if (!ret)
+    dap_events_socket_t *l_ret = DAP_NEW_Z( dap_events_socket_t );
+    if (!l_ret)
         return NULL;
 
-    ret->socket = a_sock;
-    ret->events = a_events;
+    l_ret->socket = a_sock;
+    l_ret->events = a_events;
+    l_ret->uuid = dap_uuid_generate_uint128();
     if (a_callbacks)
-        memcpy(&ret->callbacks, a_callbacks, sizeof(ret->callbacks) );
-    ret->flags = DAP_SOCK_READY_TO_READ;
+        memcpy(&l_ret->callbacks, a_callbacks, sizeof(l_ret->callbacks) );
+    l_ret->flags = DAP_SOCK_READY_TO_READ;
 
-    ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
-    ret->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
+    l_ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
+    l_ret->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
 
-    ret->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_in_size_max + 1);
-    ret->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_out_size_max + 1);
-    ret->buf_in_size = ret->buf_out_size = 0;
+    l_ret->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_ret->buf_in_size_max + 1);
+    l_ret->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_ret->buf_out_size_max + 1);
+    l_ret->buf_in_size = l_ret->buf_out_size = 0;
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
-    ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
+    l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #endif
 
     if ( a_sock!= 0 && a_sock != -1){
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-        HASH_ADD_INT(a_events->sockets, socket, ret);
+        HASH_ADD_INT(a_events->sockets, socket, l_ret);
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
     }else
         log_it(L_WARNING, "Be carefull, you've wrapped socket 0 or -1 so it wasn't added to global list. Do it yourself when possible");
 
     //log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
-    return ret;
+    return l_ret;
 }
 
 /**
@@ -251,6 +253,7 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     l_es->type = DESCRIPTOR_TYPE_PIPE;
     l_es->worker = a_w;
     l_es->events = a_w->events;
+    l_es->uuid = dap_uuid_generate_uint128();
     l_es->callbacks.read_callback = a_callback; // Arm event callback
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
@@ -385,6 +388,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
     //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
+    l_es->uuid = dap_uuid_generate_uint128();
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #elif defined(DAP_EVENTS_CAPS_POLL)
@@ -481,6 +485,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->flags =  DAP_SOCK_QUEUE_PTR;
+    l_es->uuid = dap_uuid_generate_uint128();
     if (a_w){
         l_es->events = a_w->events;
         l_es->worker = a_w;
@@ -805,6 +810,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     l_es->buf_out_size_max = l_es->buf_in_size_max = 1;
     l_es->buf_out = DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
+    l_es->uuid = dap_uuid_generate_uint128();
     if (a_w){
         l_es->events = a_w->events;
         l_es->worker = a_w;
@@ -1205,25 +1211,25 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
   assert( a_server );
 
   //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
-  dap_events_socket_t * ret = DAP_NEW_Z( dap_events_socket_t ); if (!ret) return NULL;
+  dap_events_socket_t * l_es = DAP_NEW_Z( dap_events_socket_t ); if (!l_es) return NULL;
 
-  ret->socket = a_sock;
-  ret->events = a_events;
-  ret->server = a_server;
-
-  memcpy(&ret->callbacks,a_callbacks, sizeof ( ret->callbacks) );
-  ret->buf_out_size_max = ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
-  ret->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_in_size_max+1);
-  ret->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, ret->buf_out_size_max+1);
-  ret->buf_in_size = ret->buf_out_size = 0;
-  ret->flags = DAP_SOCK_READY_TO_READ;
-  ret->last_time_active = ret->last_ping_request = time( NULL );
+  l_es->socket = a_sock;
+  l_es->events = a_events;
+  l_es->server = a_server;
+  l_es->uuid = dap_uuid_generate_uint128();
+  memcpy(&l_es->callbacks,a_callbacks, sizeof ( l_es->callbacks) );
+  l_es->buf_out_size_max = l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
+  l_es->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max+1);
+  l_es->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max+1);
+  l_es->buf_in_size = l_es->buf_out_size = 0;
+  l_es->flags = DAP_SOCK_READY_TO_READ;
+  l_es->last_time_active = l_es->last_ping_request = time( NULL );
 
   pthread_rwlock_wrlock( &a_events->sockets_rwlock );
-  HASH_ADD_INT(a_events->sockets, socket, ret);
+  HASH_ADD_INT(a_events->sockets, socket, l_es);
   pthread_rwlock_unlock( &a_events->sockets_rwlock );
 
-  return ret;
+  return l_es;
 }
 
 /**

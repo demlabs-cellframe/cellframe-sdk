@@ -39,6 +39,7 @@
 #include "dap_config.h"
 #include "dap_math_ops.h"
 #include "dap_worker.h"
+#include "dap_timerfd.h"
 #include "dap_events.h"
 #include "dap_enc_base64.h"
 #include "dap_proc_queue.h"

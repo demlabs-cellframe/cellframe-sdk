@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <assert.h>
 //#include <glib.h>
+#include <unistd.h>
 
 #ifndef _WIN32
 #include <poll.h>
