@@ -45,8 +45,7 @@ uint128_t dap_uuid_generate_uint128()
         [2]=s_global_counter++,
         [3]=random_uint32_t(UINT32_MAX)
     };
-    uint128_t l_output=0;
-    memcpy(&l_output,&l_input,sizeof (l_output));
+    uint128_t l_output;
     SHAKE128((unsigned char *) &l_output,sizeof (l_output), (unsigned char*) &l_input,sizeof (l_input));
     uint64_t *l_output_u64 =(uint64_t*) &l_output;
     log_it(L_DEBUG,"UUID generated 0x%016X%016X ",l_output_u64[0],l_output_u64[1] );
