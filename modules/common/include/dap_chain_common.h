@@ -264,9 +264,9 @@ static inline char * dap_chain_hash_slow_to_str_new(dap_chain_hash_slow_t * a_ha
  */
 static inline dap_chain_hash_slow_kind_t dap_chain_hash_slow_kind_check(dap_chain_hash_slow_t * a_hash, const uint8_t a_valuable_head  )
 {
-    register uint8_t i;
-    register uint8_t l_hash_first = a_hash->raw[0];
-    register uint8_t * l_hash_data = a_hash->raw;
+    uint8_t i;
+    uint8_t l_hash_first = a_hash->raw[0];
+    uint8_t * l_hash_data = a_hash->raw;
     for ( i = 1; i < a_valuable_head; ++i ){
         if ( l_hash_data[i] != l_hash_first  )
             return HASH_USELESS;

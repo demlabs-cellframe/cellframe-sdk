@@ -123,6 +123,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static bool s_seed_mode = false;
+static bool s_debug_more = false;
 /**
  * @brief dap_chain_cs_dag_init
  * @return
@@ -132,6 +133,8 @@ int dap_chain_cs_dag_init(void)
     srand((unsigned int) time(NULL));
     dap_chain_cs_type_add( "dag", dap_chain_cs_dag_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+    s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
+
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, NULL, "DAG commands",
         "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H hex|base58(default)]\n"
             "\tCreate event from datum mempool element\n\n"
@@ -332,10 +335,12 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
     char l_buf_hash[128];
     dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
     if (res == 0 || memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0) {
-        log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
+        if(s_debug_more)
+            log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
         int l_ledger_res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
         if ( l_ledger_res ) {
-            log_it(L_WARNING,"Dag event %s checked, but ledger declined: code %d", l_buf_hash, l_ledger_res);
+            if(s_debug_more)
+                log_it(L_WARNING,"Dag event %s checked, but ledger declined: code %d", l_buf_hash, l_ledger_res);
         }
         //All correct, no matter for result
         HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (a_event_item->hash), a_event_item);
@@ -384,38 +389,45 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size,&l_event_hash);
 
     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-    log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
+    if(s_debug_more)
+        log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
 
     pthread_rwlock_wrlock( l_events_rwlock );
 
     // check if we already have this event
     if(s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_item->hash)){
         ret = ATOM_PASS;
-        log_it(L_DEBUG, "... already present in events");
+        if(s_debug_more)
+            log_it(L_DEBUG, "... already present in events");
     }else if(s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_item->hash)){
         ret = ATOM_PASS;
-        log_it(L_DEBUG, "... already present in threshold");
+        if(s_debug_more)
+            log_it(L_DEBUG, "... already present in threshold");
     }
 
     // verify hashes and consensus
     if(ret == ATOM_ACCEPT){
         ret = s_chain_callback_atom_verify (a_chain, a_atom, a_atom_size);
-        log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
+        if(s_debug_more)
+            log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
     }
 
     if( ret == ATOM_MOVE_TO_THRESHOLD){
         HASH_ADD(hh, PVT(l_dag)->events_treshold,hash,sizeof (l_event_item->hash),  l_event_item);
-        log_it(L_DEBUG, "... added to threshold");
+        if(s_debug_more)
+            log_it(L_DEBUG, "... added to threshold");
     }else if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
         if(!l_consensus_check){
-             log_it(L_DEBUG, "... added");
+            if(s_debug_more)
+                log_it(L_DEBUG, "... added");
         }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
-            log_it(L_DEBUG, "... tresholded");
+            if(s_debug_more)
+                log_it(L_DEBUG, "... tresholded");
             ret = ATOM_MOVE_TO_THRESHOLD;
         }else{
-             log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
+             log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str,a_atom_size, l_consensus_check);
              ret = ATOM_REJECT;
         }
     }
@@ -728,7 +740,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
             if ( l_event_search == NULL ){
                 char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
-                log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
+                if(s_debug_more)
+                    log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
                 DAP_DELETE(l_hash_str);
                 res = ATOM_MOVE_TO_THRESHOLD;
                 break;
@@ -851,16 +864,19 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
 
             if(ret == DAP_THRESHOLD_OK){
                 char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-                log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
+                if(s_debug_more)
+                    log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
 
                 int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 if(! l_add_res){
-                    log_it(L_DEBUG, "... added", l_event_hash_str);
+                    if(s_debug_more)
+                        log_it(L_INFO, "... moved from treshold to main chains", l_event_hash_str);
                     DAP_DELETE(l_event_hash_str);
                     res = true;
                     break;
                 }else{
-                    log_it(L_DEBUG, "... error adding", l_event_hash_str);
+                    if(s_debug_more)
+                        log_it(L_WARNING, "... error adding", l_event_hash_str);
                     //todo: delete event
                 }
                 DAP_DELETE(l_event_hash_str);
