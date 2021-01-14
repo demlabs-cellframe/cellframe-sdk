@@ -222,6 +222,8 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
         return NULL ;
 
     dilithium_signature_t* l_sign = DAP_NEW(dilithium_signature_t);
+    if(!l_sign)
+        return NULL;
     memcpy(&l_sign->kind+sizeof(uint32_t), &kind,sizeof (kind));
     uint64_t l_shift_mem = sizeof(uint32_t) + sizeof(uint32_t);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
@@ -328,7 +330,7 @@ dilithium_private_key_t* dap_enc_dilithium_read_private_key_old(const uint8_t *a
 {
     if(!a_buf || a_buflen < (sizeof(uint32_t) + sizeof(uint32_t)))
         return NULL;
-    dilithium_kind_t kind;
+    uint32_t kind;
     uint32_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(uint32_t));
     memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(uint32_t));
@@ -344,9 +346,16 @@ dilithium_private_key_t* dap_enc_dilithium_read_private_key_old(const uint8_t *a
     }
 
     dilithium_private_key_t* l_private_key = DAP_NEW(dilithium_private_key_t);
-    l_private_key->kind = kind;
+    if(!l_private_key){
+        return NULL;
+    }
+    memcpy(&l_private_key->kind+sizeof(uint32_t), &kind,sizeof (kind));
 
     l_private_key->data = DAP_NEW_SIZE(unsigned char, p.CRYPTO_SECRETKEYBYTES);
+    if(!l_private_key->data){
+        DAP_DELETE(l_private_key);
+        return NULL;
+    }
     memcpy(l_private_key->data, a_buf + sizeof(uint32_t) + sizeof(uint32_t), p.CRYPTO_SECRETKEYBYTES);
     return l_private_key;
 }
@@ -448,9 +457,16 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key_old(const uint8_t *a_b
     }
 
     dilithium_public_key_t* l_public_key = DAP_NEW_Z(dilithium_public_key_t);
-    l_public_key->kind = kind ;
+    if(!l_public_key){
+        return NULL;
+    }
+    memcpy(&l_public_key->kind+sizeof(uint32_t), &kind,sizeof (kind));
 
     l_public_key->data = DAP_NEW_Z_SIZE(unsigned char, p.CRYPTO_PUBLICKEYBYTES);
+    if(!l_public_key->data){
+        DAP_DELETE(l_public_key);
+        return NULL;
+    }
     memcpy(l_public_key->data, a_buf + sizeof(uint32_t) + sizeof(dilithium_kind_t), p.CRYPTO_PUBLICKEYBYTES);
     return l_public_key;
 }
