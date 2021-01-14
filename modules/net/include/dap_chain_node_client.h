@@ -37,8 +37,8 @@ typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_NODE_ADDR_LEASED = 2,
     NODE_CLIENT_STATE_PING = 3,
     NODE_CLIENT_STATE_PONG = 4,
-    NODE_CLIENT_STATE_CONNECT = 5,
-    NODE_CLIENT_STATE_CONNECTED = 100,
+    NODE_CLIENT_STATE_CONNECTING = 5,
+    NODE_CLIENT_STATE_ESTABLISHED = 100,
     //NODE_CLIENT_STATE_SEND,
     //NODE_CLIENT_STATE_SENDED,
     NODE_CLIENT_STATE_SYNC_GDB = 101,
@@ -56,9 +56,16 @@ typedef void (*dap_chain_node_client_callback_error_t)(dap_chain_node_client_t *
 // state for a client connection
 typedef struct dap_chain_node_client {
     dap_chain_node_client_state_t state;
+
+    bool sync_gdb;
+    bool sync_chains;
+
     dap_chain_cell_id_t cell_id;
     dap_client_t *client;
+    dap_chain_node_info_t * info;
     dap_events_t *events;
+
+    dap_chain_net_t * net;
     char last_error[128];
 
     #ifndef _WIN32
@@ -91,7 +98,7 @@ int dap_chain_node_client_init(void);
 void dap_chain_node_client_deinit(void);
 
 
-dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_node_info_t *a_node_info,  const char *a_active_channels,
+dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,  const char *a_active_channels,
                                                                 dap_chain_node_client_callback_t a_callback_connected,
                                                                 dap_chain_node_client_callback_t a_callback_disconnected,
                                                                 dap_chain_node_client_callback_stage_t a_callback_stage,
@@ -145,8 +152,8 @@ static inline const char * dap_chain_node_client_state_to_str( dap_chain_node_cl
         case NODE_CLIENT_STATE_NODE_ADDR_LEASED: return "NODE_ADDR_LEASED";
         case NODE_CLIENT_STATE_PING: return "PING";
         case NODE_CLIENT_STATE_PONG: return "PONG";
-        case NODE_CLIENT_STATE_CONNECT: return "CONNECT";
-        case NODE_CLIENT_STATE_CONNECTED: return "CONNECTED";
+        case NODE_CLIENT_STATE_CONNECTING: return "CONNECT";
+        case NODE_CLIENT_STATE_ESTABLISHED: return "CONNECTED";
         case NODE_CLIENT_STATE_SYNC_GDB: return "SYNC_GDB";
         case NODE_CLIENT_STATE_SYNC_CHAINS: return "SYNC_CHAINS";
         case NODE_CLIENT_STATE_SYNCED: return "SYNCED";

@@ -182,7 +182,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             l_node_client->callback_connected(l_node_client, a_arg);
         l_node_client->keep_connection = true;
         log_it(L_DEBUG, "Wakeup all who waits");
-        l_node_client->state = NODE_CLIENT_STATE_CONNECTED;
+        l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
 #ifndef _WIN32
         pthread_cond_broadcast(&l_node_client->wait_cond);
 #else
@@ -412,6 +412,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
 
 /**
  * @brief dap_chain_node_client_go_stage
+ * @param a_net
  * @param a_node_info
  * @param a_active_channels
  * @param a_callback_connected
@@ -421,7 +422,7 @@ dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_
  * @param a_callback_arg
  * @return
  */
-dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_node_info_t *a_node_info,
+dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
         const char *a_active_channels, dap_chain_node_client_callback_t a_callback_connected, dap_chain_node_client_callback_t a_callback_disconnected,
                                                         dap_chain_node_client_callback_stage_t a_callback_stage,
                                                         dap_chain_node_client_callback_error_t a_callback_error, void * a_callback_arg )
@@ -437,6 +438,8 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_node_i
     l_node_client->callback_discconnected = a_callback_disconnected;
     l_node_client->callback_error = a_callback_error;
     l_node_client->callback_stage = a_callback_stage;
+    l_node_client->info = a_node_info;
+    l_node_client->net = a_net;
 
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -479,7 +482,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_node_i
 //    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
 //    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
 
-    l_node_client->state = NODE_CLIENT_STATE_CONNECT;
+    l_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
     // ref pvt client
     //dap_client_pvt_ref(DAP_CLIENT_PVT(l_node_client->client));
     // Handshake & connect
@@ -500,8 +503,8 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_
 
 void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 {
-    if (a_client->state > NODE_CLIENT_STATE_CONNECTED) {
-        a_client->state = NODE_CLIENT_STATE_CONNECTED;
+    if (a_client->state > NODE_CLIENT_STATE_ESTABLISHED) {
+        a_client->state = NODE_CLIENT_STATE_ESTABLISHED;
     }
 }
 
@@ -530,7 +533,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
         const void *a_pkt_data, size_t a_pkt_data_size)
 {
-    if(!a_client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
+    if(!a_client || a_client->state < NODE_CLIENT_STATE_ESTABLISHED)
         return -1;
 
     dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->client);
@@ -566,7 +569,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         return 0;
     }
 
-    if (a_client->state < NODE_CLIENT_STATE_CONNECTED && a_waited_state > NODE_CLIENT_STATE_CONNECTED) {
+    if (a_client->state < NODE_CLIENT_STATE_ESTABLISHED && a_waited_state > NODE_CLIENT_STATE_ESTABLISHED) {
         log_it(L_WARNING, "Waited state can't be achieved");
         pthread_mutex_unlock(&a_client->wait_mutex);
         return -2;
@@ -676,7 +679,7 @@ static void nodelist_response_error_callback(dap_client_t *a_client, int a_err)
  */
 int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client)
 {
-    if(!a_client || !a_client->client || a_client->state < NODE_CLIENT_STATE_CONNECTED)
+    if(!a_client || !a_client->client || a_client->state < NODE_CLIENT_STATE_ESTABLISHED)
         return -1;
     //dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client->client);
 

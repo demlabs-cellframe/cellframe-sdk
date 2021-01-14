@@ -1002,7 +1002,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             }
             // wait connected
             int timeout_ms = 7000; // 7 sec = 7000 ms
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
             // select new node addr
             if(l_is_auto && res){
                 if(l_remote_node_addr && l_nodes_count>1){
@@ -1228,7 +1228,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             return -7;
         }
         // wait handshake
-        int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+        int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
         if(res != 1) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node");
             // clean client struct
