@@ -159,7 +159,6 @@ typedef struct dap_events_socket {
         mqd_t mqd;
     };
     uint32_t mqd_id;
-    uint128_t uuid; // Unique UID
 #elif defined DAP_EVENTS_CAPS_MSMQ
     };
     QUEUEHANDLE mqh, mqh_recv;
@@ -174,6 +173,7 @@ typedef struct dap_events_socket {
     int fd2;
 #endif
     dap_events_desc_type_t type;
+    uint128_t uuid; // Unique UID
     // Related sockets (be careful - possible problems, delete them before )
     dap_events_socket_t ** workers_es; // If not NULL - on every worker must be present
     size_t workers_es_size;           //  events socket with same socket
