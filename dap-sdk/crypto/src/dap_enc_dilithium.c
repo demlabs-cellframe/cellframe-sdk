@@ -222,7 +222,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
         return NULL ;
 
     dilithium_signature_t* l_sign = DAP_NEW(dilithium_signature_t);
-    l_sign->kind = kind;
+    l_sign->kind = (dilithium_kind_t) kind;
     uint64_t l_shift_mem = sizeof(uint32_t) + sizeof(uint32_t);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){
