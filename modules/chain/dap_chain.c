@@ -35,6 +35,7 @@
 #include "dap_config.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain.h"
+#include "dap_chain_ledger.h"
 #include "dap_cert.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_vf.h"
@@ -78,7 +79,7 @@ int dap_chain_init(void)
     }
     // Cell sharding init
     dap_chain_cell_init();
-
+    dap_chain_ledger_init();
     dap_chain_cs_init();
 
     dap_chain_vf_init();
@@ -96,6 +97,8 @@ void dap_chain_deinit(void)
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
     }
+    dap_chain_ledger_deinit();
+
 }
 
 

@@ -62,6 +62,9 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_LEDGER_TXS_THRES_STR           "thres_txs"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
 
+int dap_chain_ledger_init();
+void dap_chain_ledger_deinit();
+
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
 
 // Remove dap_ledger_t structure
