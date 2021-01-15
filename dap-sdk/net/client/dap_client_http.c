@@ -127,7 +127,7 @@ static bool s_timer_timeout_check(void * a_arg)
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
             // Timer esocket wrong argument, ignore this timeout...
-            DAP_DELETE(l_es_handler);
+            DAP_DEL_Z(l_es_handler)
             return false;
         }
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
@@ -141,10 +141,8 @@ static bool s_timer_timeout_check(void * a_arg)
         log_it(L_INFO, "Close %s sock %u type %d by timeout",
                l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
         dap_events_socket_remove_and_delete_unsafe(l_es, true);
-    } else {
-        log_it(L_INFO, "Socket %d type %d already disposed", l_es->socket, l_es->type);
     }
-    DAP_DELETE(l_es_handler);
+    DAP_DEL_Z(l_es_handler)
     return false;
 }
 
@@ -501,7 +499,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
             log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
             l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
             dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
-            dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket);
+            dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+            l_ev_socket_handler->esocket = l_ev_socket;
+            l_ev_socket_handler->uuid = l_ev_socket->uuid;
+            dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket_handler);
             return l_http_pvt;
         } else {
             log_it(L_ERROR, "Socket %d connecting error: %d", l_ev_socket->socket, l_err2);
