@@ -184,6 +184,46 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     s_stage_status_after(a_client_pvt);
 }
 
+static bool s_timer_timeout_check(void * a_arg)
+{
+    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    assert(l_es_handler);
+    dap_events_socket_t * l_es = l_es_handler->esocket;
+    assert(l_es);
+    dap_events_t * l_events = dap_events_get_default();
+    assert(l_events);
+
+    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    assert(l_worker);
+
+    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
+        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
+            log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
+            DAP_DEL_Z(l_es_handler)
+            return false;
+        }
+        if (l_es->flags & DAP_SOCK_CONNECTING ){
+            dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
+
+            log_it(L_WARNING,"Connecting timeout for stream uplink request http://%s:%u/, possible network problems or host is down",
+                   l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
+            l_client_pvt->is_closed_by_timeout = true;
+            if(l_es->callbacks.error_callback) {
+                l_es->callbacks.error_callback(l_es,ETIMEDOUT);
+            }
+            log_it(L_INFO, "Close %s sock %u type %d by timeout",
+                   l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
+            dap_events_socket_remove_and_delete_unsafe(l_es, true);
+        }else
+            log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
+    }else
+        log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+
+    DAP_DEL_Z(l_es_handler)
+    return false;
+}
+
+
 /**
  * @brief s_client_internal_stage_status_proc
  * @param a_client
@@ -411,6 +451,10 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             log_it(L_INFO,"Connecting stream to remote %s:%u",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                             // add to dap_worker
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
+                            dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+                            l_stream_es_handler->esocket = a_client_pvt->stream_es;
+                            l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, 10000, s_timer_timeout_check,l_stream_es_handler);
                         }
                     }
                 }
