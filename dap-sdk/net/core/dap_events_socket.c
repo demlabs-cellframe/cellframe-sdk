@@ -158,7 +158,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_ret->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_ret->buf_out_size_max + 1);
     l_ret->buf_in_size = l_ret->buf_out_size = 0;
     #if defined(DAP_EVENTS_CAPS_EPOLL)
-    ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+    l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
     l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #endif

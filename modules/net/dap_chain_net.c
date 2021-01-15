@@ -504,7 +504,6 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
 
         dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
     }
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
     l_dns_request->tries++;
     s_fill_links_from_root_aliases(l_net);
@@ -512,6 +511,7 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
     if (l_net_pvt->links_dns_requests == 0){ // It was the last one
 
     }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 
 /**
@@ -527,6 +527,7 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     dap_chain_net_t * l_net = l_dns_request->net;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
 
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     l_net_pvt->links_dns_requests--;
 }
 
