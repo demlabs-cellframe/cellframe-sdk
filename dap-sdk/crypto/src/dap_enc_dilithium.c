@@ -195,15 +195,16 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
                l_shift_mem + l_sign->sig_len  );
         return NULL;
     }
-    l_shift_mem+= l_sign->sig_len;
 
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
-    if (!l_sign->sig_data)
+    if (!l_sign->sig_data){
         log_it(L_ERROR,"::read_signature() Can't allocate sig_data %"DAP_UINT64_FORMAT_u" size", l_sign->sig_len);
-
-    memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
-    l_shift_mem += l_sign->sig_len;
-    return l_sign;
+        DAP_DELETE(l_sign);
+        return NULL;
+    }else{
+        memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
+        return l_sign;
+    }
 }
 
 /**
@@ -243,13 +244,12 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
         return NULL;
     }
 
-
     l_shift_mem += sizeof(unsigned long long);
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
     if (!l_sign->sig_data)
         log_it(L_ERROR,"::read_signature_old() Can't allocate sig_data %"DAP_UINT64_FORMAT_u" size", l_sign->sig_len);
     memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
-    l_shift_mem += l_sign->sig_len;
+
     return l_sign;
 }
 
@@ -296,7 +296,6 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old2(uint8_t *a_buf, siz
     if (!l_sign->sig_data)
         log_it(L_ERROR,"::read_signature_old() Can't allocate sig_data %"DAP_UINT64_FORMAT_u" size", l_sign->sig_len);
     memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
-    l_shift_mem += l_sign->sig_len;
     return l_sign;
 }
 
