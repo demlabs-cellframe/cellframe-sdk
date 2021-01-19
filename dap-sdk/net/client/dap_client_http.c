@@ -126,22 +126,27 @@ static bool s_timer_timeout_check(void * a_arg)
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            // Timer esocket wrong argument, ignore this timeout...
+            log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
             DAP_DEL_Z(l_es_handler)
             return false;
         }
-        dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
-        log_it(L_WARNING,"Connection timeout for request http://%s:%u/%s, possible network problems or host is down",
-               l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
-        if(l_http_pvt->error_callback) {
-            l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
-            l_http_pvt->were_callbacks_called = true;
-        }
-        l_http_pvt->is_closed_by_timeout = true;
-        log_it(L_INFO, "Close %s sock %u type %d by timeout",
-               l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
-        dap_events_socket_remove_and_delete_unsafe(l_es, true);
-    }
+        if (l_es->flags & DAP_SOCK_CONNECTING ){
+            dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
+            log_it(L_WARNING,"Connecting timeout for request http://%s:%u/%s, possible network problems or host is down",
+                   l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
+            if(l_http_pvt->error_callback) {
+                l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
+                l_http_pvt->were_callbacks_called = true;
+            }
+            l_http_pvt->is_closed_by_timeout = true;
+            log_it(L_INFO, "Close %s sock %u type %d by timeout",
+                   l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
+            dap_events_socket_remove_and_delete_unsafe(l_es, true);
+        }else
+            log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
+    }else
+        log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+
     DAP_DEL_Z(l_es_handler)
     return false;
 }
