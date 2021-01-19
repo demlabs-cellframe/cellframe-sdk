@@ -709,8 +709,10 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                             l_sync_fill_root_nodes = false;
                             if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
                                 l_net_pvt->links_dns_requests++;
+                                struct link_dns_request * l_dns_request = DAP_NEW_Z(struct link_dns_request);
+                                l_dns_request->net = l_net;
                                 dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
-                                                                    s_net_state_link_prepare_success,s_net_state_link_prepare_error,l_net);
+                                                                    s_net_state_link_prepare_success,s_net_state_link_prepare_error,l_dns_request);
                             }
 
                             break;
@@ -1780,13 +1782,18 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             PVT(l_net)->state_target = NET_STATE_OFFLINE;
+        }else{
+            PVT(l_net)->state = NET_STATE_LINKS_PREPARE;
         }
+
         PVT(l_net)->load_mode = false;
         PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 
         // Start the proc thread
         log_it(L_NOTICE, "Сhain network \"%s\" initialized",l_net_item->name);
-        dap_proc_queue_add_callback_inter( PVT(l_net)->main_timer->events_socket->worker->proc_queue_input,s_net_states_proc,l_net );
+
+
+        dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc,l_net );
         dap_config_close(l_cfg);
     }
     return 0;

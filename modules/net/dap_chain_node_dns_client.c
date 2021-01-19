@@ -185,6 +185,7 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
 
     l_dns_client->buf_size = 1024;
     l_dns_client->buf = DAP_NEW_Z_SIZE(byte_t,l_dns_client->buf_size);
+    l_dns_client->dns_request = DAP_NEW_Z(dap_dns_buf_t);
     l_dns_client->dns_request->data = (char *)l_dns_client->buf;
     l_dns_client->result = a_result;
     dap_dns_buf_put_uint16(l_dns_client->dns_request, rand() % 0xFFFF);    // ID
