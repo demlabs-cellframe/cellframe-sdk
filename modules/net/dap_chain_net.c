@@ -115,6 +115,7 @@ static pthread_t s_net_check_pid;
 static bool s_debug_more = false;
 
 struct link_dns_request {
+    uint32_t link_id;
     dap_chain_net_t * net;
     uint_fast16_t tries;
 };
@@ -587,6 +588,7 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     struct link_dns_request * l_dns_request = (struct link_dns_request *) a_arg;
     dap_chain_net_t * l_net = l_dns_request->net;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    log_it(L_WARNING,"Link " NODE_ADDR_FP_STR " prepare error with code %d",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address), a_errno );
 
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
     if(l_net_pvt->links_dns_requests)
@@ -674,6 +676,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     int l_max_tries = 5;
                     int l_tries = 0;
                     bool l_sync_fill_root_nodes = true;
+                    uint32_t l_link_id=0;
                     while (dap_list_length(l_net_pvt->links_info) < s_max_links_count && l_tries < l_max_tries) {
                         struct in_addr l_addr = {};
                         uint16_t i, l_port;
@@ -711,6 +714,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                                 l_net_pvt->links_dns_requests++;
                                 struct link_dns_request * l_dns_request = DAP_NEW_Z(struct link_dns_request);
                                 l_dns_request->net = l_net;
+                                l_dns_request->link_id = l_link_id;
                                 dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
                                                                     s_net_state_link_prepare_success,s_net_state_link_prepare_error,l_dns_request);
                             }
@@ -725,6 +729,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     if (l_sync_fill_root_nodes){
                         s_fill_links_from_root_aliases(l_net);
                     }
+                    l_link_id++;
                 } break;
             }
             if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
