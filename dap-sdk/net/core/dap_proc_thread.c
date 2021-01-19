@@ -174,12 +174,12 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
 }
 
 /**
- * @brief s_update_poll_flags
+ * @brief dap_proc_thread_esocket_update_poll_flags
  * @param a_thread
  * @param a_esocket
  * @return
  */
-static int s_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket)
+int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket)
 {
 #ifdef DAP_EVENTS_CAPS_EPOLL
     u_int events = a_esocket->ev_base_flags;
@@ -599,14 +599,14 @@ static void * s_proc_thread_function(void * a_arg)
                             memmove(l_cur->buf_out, l_cur->buf_out+l_bytes_sent, l_cur->buf_out_size );
                         }else{
                             l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
-                            s_update_poll_flags(l_thread, l_cur);
+                            dap_proc_thread_esocket_update_poll_flags(l_thread, l_cur);
                         }
                     }
 
                 }else{
                     log_it(L_DEBUG,"(!) Write event receieved but nothing in buffer, switching off this flag");
                     l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
-                    s_update_poll_flags(l_thread, l_cur);
+                    dap_proc_thread_esocket_update_poll_flags(l_thread, l_cur);
                 }
 
 
@@ -681,7 +681,7 @@ bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_wo
     //log_it(L_DEBUG,"Remove esocket %p from proc thread and send it to worker #%u",a_esocket, a_worker->id);
     dap_events_socket_assign_on_worker_inter(l_es_assign_input, a_esocket);
     l_es_assign_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    s_update_poll_flags(a_thread, l_es_assign_input);
+    dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_assign_input);
     return true;
 }
 
@@ -700,7 +700,7 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
     dap_events_socket_write_inter(l_es_io_input,a_esocket, a_data, a_data_size);
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    s_update_poll_flags(a_thread, l_es_io_input);
+    dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
     return 0;
 }
 
@@ -734,7 +734,7 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
 
     dap_events_socket_write_inter(l_es_io_input,a_esocket, l_data, l_data_size);
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    s_update_poll_flags(a_thread, l_es_io_input);
+    dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
     return 0;
 }
 
@@ -753,6 +753,6 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     a_thread->queue_callback_input[a_worker_id]->flags |= DAP_SOCK_READY_TO_WRITE;
-    s_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
+    dap_proc_thread_esocket_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
 
 }

@@ -407,7 +407,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
 
 dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_info, const char *a_active_channels)
 {
-    return dap_chain_node_client_create_n_connect(a_node_info,a_active_channels,NULL,NULL,NULL,NULL,NULL);
+    return dap_chain_node_client_create_n_connect(NULL,a_node_info,a_active_channels,NULL,NULL,NULL,NULL,NULL);
 }
 
 /**

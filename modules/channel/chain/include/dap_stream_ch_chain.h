@@ -29,6 +29,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 #include "dap_chain_global_db_hist.h"
+#include "dap_chain_node_client.h"
 #include "dap_list.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
@@ -62,8 +63,8 @@ typedef struct dap_stream_ch_chain_hash_item{
 typedef struct dap_stream_ch_chain {
     dap_stream_ch_t * ch;
 
-
     dap_stream_ch_chain_state_t state;
+    dap_chain_node_client_t * node_client; // Node client associated with stream
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
 

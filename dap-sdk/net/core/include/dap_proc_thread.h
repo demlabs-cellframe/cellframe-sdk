@@ -55,6 +55,7 @@ typedef struct dap_proc_thread{
 #else
 #error "No poll for proc thread for your platform"
 #endif
+    void * _inheritor;
 } dap_proc_thread_t;
 
 int dap_proc_thread_init(uint32_t a_threads_count);
@@ -68,6 +69,8 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
                                         const void * a_data, size_t a_data_size);
 int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
                                         const char * a_format,...);
+
+int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);
 
 typedef void (*dap_proc_worker_callback_t)(dap_worker_t *,void *);
 
