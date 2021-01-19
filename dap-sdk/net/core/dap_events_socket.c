@@ -313,32 +313,44 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, 
  */
 dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks)
 {
-    dap_events_socket_t * l_es = NULL;
+    int l_sock_type = SOCK_STREAM;
+    int l_sock_class = AF_INET;
+
     switch(a_type){
         case DESCRIPTOR_TYPE_SOCKET_CLIENT:
-        case DESCRIPTOR_TYPE_SOCKET_UDP :{
-        #ifdef WIN32
-            SOCKET l_sock;
-        #else
-            int l_sock;
-        #endif
-            l_sock = socket(AF_INET, (a_type==DESCRIPTOR_TYPE_SOCKET_CLIENT? SOCK_STREAM : SOCK_DGRAM)
-                                      | SOCK_NONBLOCK , 0);
-            if (l_sock == INVALID_SOCKET) {
-                log_it(L_ERROR, "Socket create error");
-                break;
-            }
-
-            dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(dap_events_get_default(),l_sock,a_callbacks);
-            if(!l_es){
-                log_it(L_CRITICAL,"Can't allocate memory for the new esocket");
-                break;
-            }
-            l_es->type = DESCRIPTOR_TYPE_EVENT;
-        } break;
+        break;
+        case DESCRIPTOR_TYPE_SOCKET_UDP :
+            l_sock_type = SOCK_DGRAM;
+        break;
+        case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
+#ifdef DAP_OS_UNIX
+            l_sock_class = AF_LOCAL;
+#elif DAP_OS_WIDNOWS
+#endif
+        break;
         default:
             log_it(L_CRITICAL,"Can't create socket type %d", a_type );
+            return NULL;
     }
+
+#ifdef WIN32
+    SOCKET l_sock;
+#else
+    int l_sock;
+#endif
+    l_sock = socket(l_sock_class, l_sock_type | SOCK_NONBLOCK , 0);
+    if (l_sock == INVALID_SOCKET) {
+        log_it(L_ERROR, "Socket create error");
+        return NULL;
+    }
+
+    dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(dap_events_get_default(),l_sock,a_callbacks);
+    if(!l_es){
+        log_it(L_CRITICAL,"Can't allocate memory for the new esocket");
+        return NULL;
+    }
+    l_es->type = a_type ;
+
     return l_es;
 }
 

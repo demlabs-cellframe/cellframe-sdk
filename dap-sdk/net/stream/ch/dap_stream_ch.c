@@ -38,6 +38,7 @@
 #include "dap_common.h"
 #include "dap_events_socket.h"
 #include "dap_http_client.h"
+#include "dap_uuid.h"
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
@@ -94,6 +95,7 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         l_ch_new->stream = a_stream;
         l_ch_new->proc = proc;
         l_ch_new->ready_to_read = true;
+        l_ch_new->uuid = dap_uuid_generate_uint128();
 
         // Init on stream worker
         dap_stream_worker_t * l_stream_worker = a_stream->stream_worker;

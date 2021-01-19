@@ -61,7 +61,17 @@ typedef struct dap_chain_node_client {
     bool sync_chains;
 
     dap_chain_cell_id_t cell_id;
+
     dap_client_t *client;
+    dap_stream_worker_t * stream_worker;
+
+    // Channel chain
+    dap_stream_ch_t * ch_chain;
+    uint128_t ch_chain_uuid;
+    // Channel chain net
+    dap_stream_ch_t * ch_chain_net;
+    uint128_t ch_chain_net_uuid;
+
     dap_chain_node_info_t * info;
     dap_events_t *events;
 
@@ -84,6 +94,7 @@ typedef struct dap_chain_node_client {
 
     bool keep_connection;
 
+    bool is_reconnecting;
     // callbacks
     dap_chain_node_client_callback_t callback_connected;
     dap_chain_node_client_callback_t callback_discconnected;

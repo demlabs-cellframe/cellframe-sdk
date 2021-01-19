@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include "uthash.h"
+#include "dap_math_ops.h"
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_worker dap_stream_worker_t;
 typedef struct dap_stream_pkt dap_stream_pkt_t;
@@ -40,6 +41,7 @@ typedef struct dap_stream_ch{
     bool ready_to_write;
     bool ready_to_read;
     dap_stream_t * stream;
+    uint128_t uuid;
     dap_stream_worker_t * stream_worker;
     struct{
         uint64_t bytes_write;

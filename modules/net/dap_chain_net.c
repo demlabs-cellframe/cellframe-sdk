@@ -112,7 +112,7 @@ static size_t s_max_links_count = 5;// by default 5
 // number of required connections
 static size_t s_required_links_count = 3;// by default 3
 static pthread_t s_net_check_pid;
-
+static bool s_debug_more = false;
 
 struct link_dns_request {
     dap_chain_net_t * net;
@@ -386,7 +386,10 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     }
 }
 
-
+/**
+ * @brief s_fill_links_from_root_aliases
+ * @param a_net
+ */
 static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
 {
      dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
@@ -410,7 +413,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
              l_pvt_net->links_info = dap_list_append(l_pvt_net->links_info, l_link_node_info);
              pthread_rwlock_unlock(&l_pvt_net->rwlock);
          } else {
-             log_it(L_WARNING, "Not found link "NODE_ADDR_FP_STR" in the node list", NODE_ADDR_FPS_ARGS(l_link_addr));
+             log_it(L_WARNING, "Not found link %s."NODE_ADDR_FP_STR" in the node list", a_net->pub.name, NODE_ADDR_FPS_ARGS(l_link_addr));
          }
      }
 }
@@ -428,18 +431,37 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 
     a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
 
-    log_it(L_DEBUG, "Established connection with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
+    if( !a_node_client->is_reconnecting || s_debug_more )
+        log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     l_net_pvt->links = dap_list_append(l_net_pvt->links, a_node_client);
     l_net_pvt->links_count++;
-    size_t l_links_count = l_net_pvt->links_count;
 
-    if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING )
+    a_node_client->is_reconnecting = false;
+
+    if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+
+        a_node_client->stream_worker = dap_client_get_stream_worker(a_node_client->client);
+        a_node_client->ch_chain = dap_client_get_stream_ch_unsafe(a_node_client->client, dap_stream_ch_chain_get_id());
+        if (a_node_client->ch_chain){
+            a_node_client->ch_chain_uuid = a_node_client->ch_chain->uuid;
+            a_node_client->ch_chain_net = dap_client_get_stream_ch_unsafe(a_node_client->client, dap_stream_ch_chain_net_get_id());
+            if (a_node_client->ch_chain_net){
+                a_node_client->ch_chain_net_uuid = a_node_client->ch_chain_net->uuid;
+            }else{
+                log_it(L_WARNING,"No channel 'chain net' in stream connection");
+            }
+            dap_proc_queue_add_callback_inter(dap_client_get_stream_worker(a_node_client->client)->worker->proc_queue_input,
+                                          s_node_link_states_proc, a_node_client);
+        }else{
+            log_it(L_CRITICAL,"No channel 'chain' in stream connection, disconnecting link");
+            l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+            dap_client_go_stage(a_node_client->client,STAGE_BEGIN,NULL);
+        }
+    }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
-    dap_proc_queue_add_callback_inter(dap_client_get_stream_worker(a_node_client->client)->worker->proc_queue_input,
-                                      s_node_link_states_proc, a_node_client);
 }
 
 /**
@@ -450,7 +472,33 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
+    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+        if ( l_net_pvt->state_target ==NET_STATE_ONLINE ){
+            if(s_debug_more)
+                log_it(L_NOTICE, "%s."NODE_ADDR_FP_STR" disconnected, reconnecting back...",
+                   l_net->pub.name,
+                   NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address) );
 
+            a_node_client->is_reconnecting = true;
+            dap_chain_node_client_create_n_connect(l_net, a_node_client->info,"CN",
+                                                                                            s_node_link_callback_connected,
+                                                                                            s_node_link_callback_disconnected,
+                                                                                            s_node_link_callback_stage,
+                                                                                            s_node_link_callback_error,NULL);
+        }else if (l_net_pvt->state_target == NET_STATE_OFFLINE){
+            log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+
+        }else{
+            log_it(L_CRITICAL,"Link "NODE_ADDR_FP_STR" disconnected, but wrong target state %s: could be only NET_STATE_ONLINE or NET_STATE_OFFLINE "
+                   ,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address)
+                   , c_net_states[l_net_pvt->state_target]  );
+        }
+        if(l_net_pvt->links_count)
+            l_net_pvt->links_count--;
+        else
+            log_it(L_CRITICAL,"Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 
 /**
@@ -462,7 +510,9 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-
+    if( s_debug_more)
+        log_it(L_INFO,"%s."NODE_ADDR_FP_STR" stage %s",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
+                                                        dap_client_stage_str(a_stage));
 }
 
 /**
@@ -474,10 +524,8 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    log_it(L_DEBUG, "Can't establish link with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
-    dap_chain_node_client_close(l_node_client);
-    l_node_client = NULL;
-
+    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net->pub.name, NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+    dap_chain_node_client_close(a_node_client);
 }
 
 /**
@@ -499,17 +547,13 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
         l_dns_request->tries = 0;
     }
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
-    if (l_net_pvt->state_target == NET_STATE_OFFLINE) { // Go away from
-        DAP_DELETE(l_dns_request);
-
-        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
-    }
 
     l_dns_request->tries++;
     s_fill_links_from_root_aliases(l_net);
     l_net_pvt->links_dns_requests--;
     if (l_net_pvt->links_dns_requests == 0){ // It was the last one
-
+        l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
@@ -528,7 +572,14 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
 
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    l_net_pvt->links_dns_requests--;
+    if(l_net_pvt->links_dns_requests)
+        l_net_pvt->links_dns_requests--;
+
+    if(!l_net_pvt->links_dns_requests ){
+        l_net_pvt->state = NET_STATE_OFFLINE;
+        log_it(L_WARNING,"Can't prepare links via DNS requests");
+        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+    }
 }
 
 /**
@@ -1039,6 +1090,7 @@ int dap_chain_net_init()
     s_max_links_count = dap_config_get_item_int32_default(g_config, "general", "max_links", s_max_links_count);
     // required number of connections to other nodes
     s_required_links_count = dap_config_get_item_int32_default(g_config, "general", "require_links", s_required_links_count);
+    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
 
     dap_chain_net_load_all();
 
