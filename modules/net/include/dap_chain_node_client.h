@@ -39,12 +39,11 @@ typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_PONG = 4,
     NODE_CLIENT_STATE_CONNECTING = 5,
     NODE_CLIENT_STATE_ESTABLISHED = 100,
-    //NODE_CLIENT_STATE_SEND,
-    //NODE_CLIENT_STATE_SENDED,
     NODE_CLIENT_STATE_SYNC_GDB = 101,
-    NODE_CLIENT_STATE_SYNC_CHAINS = 102,
-    NODE_CLIENT_STATE_SYNCED = 103,
-    NODE_CLIENT_STATE_CHECKED = 104,
+    NODE_CLIENT_STATE_SYNC_CHAINS_UPDATES = 110,
+    NODE_CLIENT_STATE_SYNC_CHAINS = 111,
+    NODE_CLIENT_STATE_SYNCED = 120,
+    NODE_CLIENT_STATE_CHECKED = 130,
 } dap_chain_node_client_state_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -52,6 +51,14 @@ typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef void (*dap_chain_node_client_callback_t)(dap_chain_node_client_t *, void*);
 typedef void (*dap_chain_node_client_callback_stage_t)(dap_chain_node_client_t *, dap_client_stage_t, void * );
 typedef void (*dap_chain_node_client_callback_error_t)(dap_chain_node_client_t *, int, void *);
+
+typedef struct dap_chain_node_client_callbacks{
+    dap_chain_node_client_callback_t connected;
+    dap_chain_node_client_callback_t disconnected;
+    dap_chain_node_client_callback_t delete;
+    dap_chain_node_client_callback_stage_t stage;
+    dap_chain_node_client_callback_error_t error;
+} dap_chain_node_client_callbacks_t;
 
 // state for a client connection
 typedef struct dap_chain_node_client {
@@ -64,6 +71,10 @@ typedef struct dap_chain_node_client {
 
     dap_client_t *client;
     dap_stream_worker_t * stream_worker;
+
+    // Update section
+    dap_chain_t * cur_chain; // Current chain to update
+    dap_chain_cell_t * cur_cell; // Current cell to update
 
     // Channel chain
     dap_stream_ch_t * ch_chain;
@@ -96,11 +107,8 @@ typedef struct dap_chain_node_client {
 
     bool is_reconnecting;
     // callbacks
-    dap_chain_node_client_callback_t callback_connected;
-    dap_chain_node_client_callback_t callback_discconnected;
-    dap_chain_node_client_callback_stage_t callback_stage;
-    dap_chain_node_client_callback_error_t callback_error;
-    void * callback_arg;
+    dap_chain_node_client_callbacks_t callbacks;
+    void * callbacks_arg;
 } dap_chain_node_client_t;
 #define DAP_CHAIN_NODE_CLIENT(a) (a ? (dap_chain_node_client_t *) (a)->_inheritor : NULL)
 
@@ -109,21 +117,18 @@ int dap_chain_node_client_init(void);
 void dap_chain_node_client_deinit(void);
 
 
-dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,  const char *a_active_channels,
-                                                                dap_chain_node_client_callback_t a_callback_connected,
-                                                                dap_chain_node_client_callback_t a_callback_disconnected,
-                                                                dap_chain_node_client_callback_stage_t a_callback_stage,
-                                                                dap_chain_node_client_callback_error_t a_callback_error,
+dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
+                                                                const char *a_active_channels,dap_chain_node_client_callbacks_t *a_callbacks,
                                                                 void * a_callback_arg );
 
 
-dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_info,  const char *a_active_channels);
+dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,  const char *a_active_channels);
 /**
  * Create handshake to server
  *
  * return a connection handle, or NULL, if an error
  */
-dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *node_info);
+dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *node_info);
 
 
 /**

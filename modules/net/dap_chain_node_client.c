@@ -53,6 +53,10 @@
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
+
+#include "dap_chain.h"
+#include "dap_chain_cell.h"
+
 #include "dap_chain_net_srv_common.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
@@ -140,6 +144,10 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         log_it(L_NOTICE,"Some errors happends, current state is %s but we need to return back to STAGE_STREAM_STREAMING",
                 dap_client_get_stage_str(a_client) );
 
+        // TODO make different error codes
+        if(l_node_client->callbacks.error)
+            l_node_client->callbacks.error(l_node_client, EINVAL,l_node_client->callbacks_arg );
+
         log_it(L_DEBUG, "Wakeup all who waits");
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ERROR;
@@ -178,8 +186,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 }
             }
         }
-        if(l_node_client->callback_connected)
-            l_node_client->callback_connected(l_node_client, a_arg);
+        if(l_node_client->callbacks.connected)
+            l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
         l_node_client->keep_connection = true;
         log_it(L_DEBUG, "Wakeup all who waits");
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
@@ -250,39 +258,118 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         void * a_arg)
 {
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
+
     switch (a_pkt_type) {
-    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
-        dap_snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
-                "%s", (char*) a_pkt->data);
-        log_it(L_WARNING, "Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
-                l_node_client->last_error);
-        l_node_client->state = NODE_CLIENT_STATE_ERROR;
+        case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
+            dap_snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
+                    "%s", (char*) a_pkt->data);
+            log_it(L_WARNING, "Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
+                    l_node_client->last_error);
+            l_node_client->state = NODE_CLIENT_STATE_ERROR;
 
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
-        break;
-    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
-    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
-    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
-        dap_stream_ch_chain_sync_request_t * l_request = NULL;
-        if(a_pkt_data_size == sizeof(*l_request))
-            l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;
+    #ifndef _WIN32
+            pthread_cond_broadcast(&l_node_client->wait_cond);
+    #else
+            SetEvent( l_node_client->wait_cond );
+    #endif
+            break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END:{
+        }break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:{
+            dap_chain_net_t * l_net = l_node_client->net;
 
-        if(l_request) {
-            // Process it if need
+            // We over with GLOBAL_DB and switch on syncing chains
+            l_node_client->state = NODE_CLIENT_STATE_SYNC_CHAINS_UPDATES;
+            dap_chain_net_state_t l_net_state = dap_chain_net_get_state(l_node_client->net);
+            if (l_net_state == NET_STATE_SYNC_GDB  )
+                dap_chain_net_set_state(l_node_client->net, NET_STATE_SYNC_CHAINS );
+
+            // Begin from the first chain
+            l_node_client->cur_chain =  l_node_client->net->pub.chains;
+            dap_chain_cell_id_t l_cell_id={0};
+            dap_chain_id_t l_chain_id={0};
+            if(! l_node_client->cur_chain){
+                log_it(L_CRITICAL,"Can't sync %s because there is no chains in it",l_net->pub.name);
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch_chain->ch,l_net->pub.id, l_chain_id,l_cell_id,"ERROR_CHAIN_NO_CHAINS");
+            }else{ // If present - select the first one cell in chain
+                l_chain_id=l_node_client->cur_chain->id;
+                dap_chain_cell_t * l_cell = l_node_client->cur_chain->cells;
+                if (l_cell){
+                    l_cell_id=l_cell->id;
+                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,l_net->pub.id ,
+                                                         l_chain_id,l_cell_id,NULL,0);
+                }else{
+                    log_it(L_CRITICAL,"Can't sync %s.%s because there is no cells in chain",l_net->pub.name, l_node_client->cur_chain->name);
+                    dap_stream_ch_chain_pkt_write_error_unsafe(a_ch_chain->ch,l_net->pub.id, l_chain_id,l_cell_id,"ERROR_CHAIN_NO_CELLS");
+                }
+            }
+
+        }break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
+            dap_stream_ch_chain_sync_request_t * l_request = NULL;
+            if(a_pkt_data_size == sizeof(*l_request))
+                l_request = (dap_stream_ch_chain_sync_request_t*) a_pkt->data;
+
+            if(l_request) {
+                // Process it if need
+            }
+
+            // Check if we over with it before
+            if ( !l_node_client->cur_cell ){
+                log_it(L_WARNING, "No current cell in sync state, anyway we over it");
+            }else
+                l_node_client->cur_cell =(dap_chain_cell_t *)  l_node_client->cur_cell->hh.next;
+
+            dap_chain_net_t * l_net = l_node_client->net;
+            dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
+
+            // If  over with cell, switch on next chain
+            if ( l_node_client->cur_cell){
+                // Check if we over with it before
+                if ( !l_node_client->cur_chain ){
+                    log_it(L_ERROR, "No chain but cell is present, over wit it");
+                }else{
+                    dap_chain_id_t  l_chain_id=l_node_client->cur_chain->id;
+                    dap_chain_cell_id_t l_cell_id = l_node_client->cur_cell->id;
+                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS,l_net->pub.id ,
+                                                         l_chain_id,l_cell_id,NULL,0);
+                }
+            }else{
+                // Check if we over with it before
+                if ( !l_node_client->cur_chain ){
+                    log_it(L_WARNING, "No current chain in sync state, anyway we over it");
+                }else{
+                    l_node_client->cur_chain = (dap_chain_t *) l_node_client->cur_chain->next;
+                    l_node_client->cur_cell = l_node_client->cur_chain? l_node_client->cur_chain->cells : NULL;
+                }
+
+                if (l_node_client->cur_chain && !l_node_client->cur_cell)
+                    log_it(L_WARNING,"Link %s."NODE_ADDR_FP_STR" started to sync %s chain but found no cells in it",l_net->pub.name,
+                           NODE_ADDR_FP_ARGS(l_node_addr), l_node_client->cur_chain->name );
+
+                // Check if we have some more chains and cells in it to sync
+                if( l_node_client->cur_chain && l_node_client->cur_cell ){
+                    dap_chain_id_t  l_chain_id=l_node_client->cur_chain->id;
+                    dap_chain_cell_id_t l_cell_id = l_node_client->cur_cell->id;
+                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS,l_net->pub.id ,
+                                                         l_chain_id,l_cell_id,NULL,0);
+                }else{ // If no - over with sync process
+                    log_it(L_INFO, "State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
+                    l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+                    if (dap_chain_net_get_state(l_net) == NET_STATE_SYNC_CHAINS )
+                        dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+            #ifndef _WIN32
+                    pthread_cond_broadcast(&l_node_client->wait_cond);
+            #else
+                    SetEvent( l_node_client->wait_cond );
+            #endif
+
+                }
+            }
+
         }
-        log_it(L_INFO, "Sync notify without request to sync back, stay in SYNCED state");
-        l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
-    }
-    default: break;
+        default: break;
     }
 }
 
@@ -405,27 +492,22 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
  * return a connection handle, or NULL, if an error
  */
 
-dap_chain_node_client_t* dap_chain_client_connect(dap_chain_node_info_t *a_node_info, const char *a_active_channels)
+dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t * l_net, dap_chain_node_info_t *a_node_info, const char *a_active_channels)
 {
-    return dap_chain_node_client_create_n_connect(NULL,a_node_info,a_active_channels,NULL,NULL,NULL,NULL,NULL);
+    return dap_chain_net_client_create_n_connect_channels(l_net,a_node_info,a_active_channels);
 }
 
 /**
- * @brief dap_chain_node_client_go_stage
+ * @brief dap_chain_node_client_create_n_connect
  * @param a_net
  * @param a_node_info
  * @param a_active_channels
- * @param a_callback_connected
- * @param a_callback_disconnected
- * @param a_callback_stage
- * @param a_callback_error
+ * @param a_callbacks
  * @param a_callback_arg
  * @return
  */
 dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
-        const char *a_active_channels, dap_chain_node_client_callback_t a_callback_connected, dap_chain_node_client_callback_t a_callback_disconnected,
-                                                        dap_chain_node_client_callback_stage_t a_callback_stage,
-                                                        dap_chain_node_client_callback_error_t a_callback_error, void * a_callback_arg )
+        const char *a_active_channels,dap_chain_node_client_callbacks_t *a_callbacks, void * a_callback_arg )
 {
     if(!a_node_info) {
         log_it(L_ERROR, "Can't connect to the node: null object node_info");
@@ -433,11 +515,9 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
-    l_node_client->callback_arg = a_callback_arg;
-    l_node_client->callback_connected = a_callback_connected;
-    l_node_client->callback_discconnected = a_callback_disconnected;
-    l_node_client->callback_error = a_callback_error;
-    l_node_client->callback_stage = a_callback_stage;
+    l_node_client->callbacks_arg = a_callback_arg;
+    if(a_callbacks)
+        memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
     l_node_client->info = a_node_info;
     l_node_client->net = a_net;
 
@@ -495,11 +575,12 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
  *
  * return a connection handle, or NULL, if an error
  */
-dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_node_info_t *a_node_info)
+dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net,dap_chain_node_info_t *a_node_info)
 {
     const char *l_active_channels = "CN";
-    return dap_chain_client_connect(a_node_info, l_active_channels);
+    return dap_chain_node_client_connect_channels(a_net,a_node_info, l_active_channels);
 }
+
 
 void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 {

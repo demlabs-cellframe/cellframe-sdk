@@ -437,7 +437,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
 
-    s_vpn_client = dap_chain_client_connect(s_node_info, l_active_channels);
+    s_vpn_client = dap_chain_node_client_connect_channels(a_net, s_node_info, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
@@ -532,7 +532,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
 
-    s_vpn_client = dap_chain_client_connect(s_node_info, l_active_channels);
+    s_vpn_client = dap_chain_node_client_connect_channels(a_net,s_node_info, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct

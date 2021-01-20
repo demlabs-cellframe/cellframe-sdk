@@ -46,6 +46,7 @@ typedef void * dap_chain_atom_ptr_t;
 typedef struct dap_chain_atom_iter{
     dap_chain_t * chain;
     dap_chain_atom_ptr_t cur;
+    dap_chain_hash_fast_t cur_hash;
     size_t cur_size;
     void * cur_item;
     void * _inheritor;

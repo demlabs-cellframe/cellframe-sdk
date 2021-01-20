@@ -210,6 +210,14 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg);
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
+static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
+
+static dap_chain_node_client_callbacks_t s_node_link_callbacks={
+    .connected=s_node_link_callback_connected,
+    .disconnected=s_node_link_callback_disconnected,
+    .stage=s_node_link_callback_stage,
+    .error=s_node_link_callback_error
+};
 
 static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
 static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg);
@@ -475,11 +483,8 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
                    NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address) );
 
             a_node_client->is_reconnecting = true;
-            dap_chain_node_client_create_n_connect(l_net, a_node_client->info,"CN",
-                                                    s_node_link_callback_connected,
-                                                    s_node_link_callback_disconnected,
-                                                    s_node_link_callback_stage,
-                                                    s_node_link_callback_error,NULL);
+
+            dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
         }else if (l_net_pvt->state_target == NET_STATE_OFFLINE){
             log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
 
@@ -493,6 +498,8 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
         else
             log_it(L_CRITICAL,"Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
+
+    s_node_link_callback_delete(a_node_client,a_arg);
 }
 
 /**
@@ -752,14 +759,13 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             for (dap_list_t *l_tmp = l_net_pvt->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
-                (void) dap_chain_node_client_create_n_connect(l_net, l_link_info,"CN",s_node_link_callback_connected,
-                                                                     s_node_link_callback_disconnected,s_node_link_callback_stage,
-                                                                     s_node_link_callback_error,NULL);
+                (void) dap_chain_net_client_create_n_connect(l_net,l_link_info);
             }
         } break;
         case NET_STATE_LINKS_ESTABLISHED:{
         // TODO call some callbacks?
         }break;
+
         case NET_STATE_ONLINE: {
         // TODO call some callbacks?
         }
@@ -770,7 +776,35 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 
     return l_repeat_after_exit;
 }
+/**
+ * @brief dap_chain_net_client_create_n_connect
+ * @param a_net
+ * @param a_link_info
+ * @return
+ */
+struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info)
+{
+    return dap_chain_node_client_create_n_connect(a_net, a_link_info,"CN",&s_node_link_callbacks,a_net);
+}
 
+/**
+ * @brief dap_chain_net_client_create_n_connect_channels
+ * @param a_net
+ * @param a_link_info
+ * @param a_channels
+ * @return
+ */
+struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info,const char * a_channels )
+{
+    return dap_chain_node_client_create_n_connect(a_net, a_link_info,a_channels,&s_node_link_callbacks,a_net);
+}
+
+
+/**
+ * @brief dap_chain_net_get_role
+ * @param a_net
+ * @return
+ */
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 {
     return  PVT(a_net)->node_role;
@@ -1944,6 +1978,38 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
         }
     }
     return NULL;
+}
+
+/**
+ * @brief dap_chain_net_get_state
+ * @param l_net
+ * @return
+ */
+dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net)
+{
+    assert(l_net);
+    pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
+    dap_chain_net_state_t l_ret = PVT(l_net)->state;
+    pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+    return l_ret;
+}
+
+/**
+ * @brief dap_chain_net_set_state
+ * @param l_net
+ * @param a_state
+ */
+void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state)
+{
+    assert(l_net);
+    pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
+    if( a_state == PVT(l_net)->state){
+        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+        return;
+    }
+    PVT(l_net)->state = a_state;
+    pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc,l_net );
 }
 
 

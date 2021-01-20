@@ -994,7 +994,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 return -1;
             }
             // start connect
-            l_node_client = dap_chain_node_client_connect(l_remote_node_info);
+            l_node_client = dap_chain_node_client_connect(l_net,l_remote_node_info);
             if(!l_node_client) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "can't connect");
                 DAP_DELETE(l_remote_node_info);
@@ -1221,7 +1221,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             return -6;
         int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+        dap_chain_node_client_t *client = dap_chain_node_client_connect(l_net,node_info);
         if(!client) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "can't connect");
             DAP_DELETE(node_info);
