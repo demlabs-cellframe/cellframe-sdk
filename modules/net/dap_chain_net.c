@@ -434,6 +434,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 
     a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
 
+    a_node_client->stream_worker = dap_client_get_stream_worker(a_node_client->client);
     if( !a_node_client->is_reconnecting || s_debug_more )
         log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -452,7 +453,14 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
 
-        dap_stream_ch_chain_pkt_write_unsafe( a_node_client->ch_chain,
+        a_node_client->ch_chain = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );
+        if (a_node_client->ch_chain)
+            a_node_client->ch_chain_uuid = a_node_client->ch_chain->uuid;
+
+        a_node_client->ch_chain_net = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );
+        if(a_node_client->ch_chain_net)
+            a_node_client->ch_chain_net_uuid = a_node_client->ch_chain_net->uuid;
+        dap_stream_ch_chain_pkt_write_unsafe( a_node_client->ch_chain ,
                                                            DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id,
                                                         l_chain_id, l_net->pub.cell_id, &l_sync_gdb, sizeof(l_sync_gdb));
     }
@@ -614,10 +622,12 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
 
     if(!l_net_pvt->links_dns_requests ){
         if( l_net_pvt->state != NET_STATE_OFFLINE){
-            log_it(L_WARNING,"Can't prepare links via DNS requests");
-            l_net_pvt->state = NET_STATE_OFFLINE;
-            l_net_pvt->state_target = NET_STATE_OFFLINE;
+            log_it(L_WARNING,"Can't prepare links via DNS requests. Prefilling links with root addresses");
+            l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+            pthread_rwlock_unlock(&l_net_pvt->rwlock);
+            s_fill_links_from_root_aliases(l_net);
             dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+            return;
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -685,7 +695,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 case NODE_ROLE_CELL_MASTER: {
                     if (l_net_pvt->seed_aliases_count) {
                         // Add other root nodes as synchronization links
+                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
                         s_fill_links_from_root_aliases(l_net);
+                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
                         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
                         l_repeat_after_exit = true;
                         break;
@@ -743,7 +755,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                         }
                     }
                     if (l_sync_fill_root_nodes){
+                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
                         s_fill_links_from_root_aliases(l_net);
+                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
                     }
                     l_link_id++;
                 } break;
@@ -751,18 +765,30 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         } break;
 
         case NET_STATE_LINKS_CONNECTING: {
-            log_it(L_DEBUG, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
+            log_it(L_INFO, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             for (dap_list_t *l_tmp = l_net_pvt->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
                 (void) dap_chain_net_client_create_n_connect(l_net,l_link_info);
             }
         } break;
         case NET_STATE_LINKS_ESTABLISHED:{
-        // TODO call some callbacks?
+            log_it(L_INFO,"%s.state: NET_STATE_LINKS_ESTABLISHED", l_net->pub.name);
+            for (dap_list_t *l_tmp = l_net_pvt->links ; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                dap_chain_node_client_t *l_link = (dap_chain_node_client_t *)l_tmp->data;
+                //
+            }
+        }break;
+        case NET_STATE_SYNC_GDB :{
+            log_it(L_INFO,"%s.state: NET_STATE_SYNC_GDB", l_net->pub.name);
         }break;
 
+        case NET_STATE_SYNC_CHAINS:{
+            log_it(L_INFO,"%s.state: NET_STATE_SYNC_CHAINS", l_net->pub.name);
+        }break;
+
+
         case NET_STATE_ONLINE: {
-        // TODO call some callbacks?
+            log_it(L_NOTICE,"%s.state: NET_STATE_ONLINE", l_net->pub.name);
         }
         break;
         default: log_it (L_DEBUG, "Unprocessed state");

@@ -297,12 +297,9 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 dap_chain_cell_t * l_cell = l_node_client->cur_chain->cells;
                 if (l_cell){
                     l_cell_id=l_cell->id;
-                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,l_net->pub.id ,
-                                                         l_chain_id,l_cell_id,NULL,0);
-                }else{
-                    log_it(L_CRITICAL,"Can't sync %s.%s because there is no cells in chain",l_net->pub.name, l_node_client->cur_chain->name);
-                    dap_stream_ch_chain_pkt_write_error_unsafe(a_ch_chain->ch,l_net->pub.id, l_chain_id,l_cell_id,"ERROR_CHAIN_NO_CELLS");
                 }
+                dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,l_net->pub.id ,
+                                                         l_chain_id,l_cell_id,NULL,0);
             }
 
         }break;
@@ -542,16 +539,14 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 
     int hostlen = 128;
     char host[hostlen];
-    if(a_node_info->hdr.ext_addr_v4.s_addr)
-    {
+    if(a_node_info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-        log_it(L_DEBUG, "Connect to %s address",host);
-    } else
-    {
+        log_it(L_INFO, "Connecting to %s address",host);
+    } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
-        log_it(L_DEBUG, "Connect to %s address",host);
+        log_it(L_INFO, "Connecting to %s address",host);
     }
     // address not defined
     if(!strcmp(host, "::")) {
