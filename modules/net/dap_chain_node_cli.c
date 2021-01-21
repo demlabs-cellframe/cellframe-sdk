@@ -1025,6 +1025,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create("stats", com_stats, NULL, "Print statistics",
                 "stats cpu");
 
+    // Export GDB to JSON
+    dap_chain_node_cli_cmd_item_create("gdb_export", com_gdb_export, NULL, "export", "export");
+
     // Exit
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );

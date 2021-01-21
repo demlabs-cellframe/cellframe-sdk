@@ -94,7 +94,8 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net_pkt.h"
-
+#include <json-c/json.h>
+#include "dap_enc_base64.h"
 #define LOG_TAG "chain_node_cli_cmd"
 
 /**
@@ -4021,3 +4022,47 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
     return 0;
 }
 
+int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    struct dirent *d;
+    DIR *dir = opendir(l_db_path);
+    if (!dir) {
+        log_it(L_ERROR, "Couldn't open db directory");
+        return -1;
+    }
+    for (d = readdir(dir); d; d = readdir(dir)) {
+        if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
+            continue;
+        }
+        size_t l_data_size = 0;
+        dap_global_db_obj_t *l_data = dap_chain_global_db_gr_load(d->d_name, &l_data_size);
+        log_it(L_INFO, "Exporting group %s, number of records: %d", d->d_name, l_data_size);
+        if (!l_data_size) {
+            continue;
+        }
+        char l_exported_path[strlen(l_db_path) + d->d_namlen + 8];
+        memset(l_exported_path, '\0', sizeof(l_exported_path));
+        dap_snprintf(l_exported_path, strlen(l_db_path) + d->d_namlen + 8, "%s/%s.json", l_db_path, d->d_name);
+        FILE *l_json_file = fopen(l_exported_path, "a");
+        if (!l_json_file) {
+            log_it(L_CRITICAL, "File %s cannot be opened", l_exported_path);
+            continue;
+        }
+        for (size_t i = 0; i < l_data_size; ++i) {
+            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len);
+            char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size + 1);
+            size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+
+            struct json_object *jobj = json_object_new_object();
+            json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
+            json_object_object_add(jobj, "key",     json_object_new_string(l_data[i].key));
+            json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
+            json_object_object_add(jobj, "value_len",      json_object_new_int64((int64_t)l_data[i].value_len));
+            const char *jstr = json_object_to_json_string(jobj);
+            fprintf(l_json_file, "%s\n", jstr);
+            DAP_FREE(l_value_enc_str);
+            json_object_put(jobj);
+        }
+        fclose(l_json_file);
+    }
+}
