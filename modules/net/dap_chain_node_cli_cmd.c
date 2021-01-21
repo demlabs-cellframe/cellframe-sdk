@@ -4023,13 +4023,31 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
 }
 
 int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "gdb_export requires parameter 'filename'");
+        return -1;
+    }
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     struct dirent *d;
     DIR *dir = opendir(l_db_path);
     if (!dir) {
         log_it(L_ERROR, "Couldn't open db directory");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Couldn't open db directory");
         return -1;
     }
+    char l_path[strlen(l_db_path) + strlen(l_filename) + 8];
+    memset(l_path, '\0', sizeof(l_path));
+    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    /*FILE *l_json_file = fopen(l_path, "a");
+    if (!l_json_file) {
+        log_it(L_ERROR, "Can't open file %s", l_path);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open specified file");
+        return -1;
+    }*/
+    struct json_object *l_json = json_object_new_array();
     for (d = readdir(dir); d; d = readdir(dir)) {
         if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
             continue;
@@ -4040,29 +4058,34 @@ int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
         if (!l_data_size) {
             continue;
         }
-        char l_exported_path[strlen(l_db_path) + d->d_namlen + 8];
-        memset(l_exported_path, '\0', sizeof(l_exported_path));
-        dap_snprintf(l_exported_path, strlen(l_db_path) + d->d_namlen + 8, "%s/%s.json", l_db_path, d->d_name);
-        FILE *l_json_file = fopen(l_exported_path, "a");
-        if (!l_json_file) {
-            log_it(L_CRITICAL, "File %s cannot be opened", l_exported_path);
-            continue;
-        }
+
+        struct json_object *l_json_group = json_object_new_array();
+        struct json_object *l_json_group_inner = json_object_new_object();
+        json_object_object_add(l_json_group_inner, "group", json_object_new_string(d->d_name));
+
         for (size_t i = 0; i < l_data_size; ++i) {
-            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len);
-            char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size + 1);
+            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
+            char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
             size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
 
             struct json_object *jobj = json_object_new_object();
             json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
             json_object_object_add(jobj, "key",     json_object_new_string(l_data[i].key));
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
-            json_object_object_add(jobj, "value_len",      json_object_new_int64((int64_t)l_data[i].value_len));
-            const char *jstr = json_object_to_json_string(jobj);
-            fprintf(l_json_file, "%s\n", jstr);
+            json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_data[i].value_len));
+            json_object_array_add(l_json_group, jobj);
+
             DAP_FREE(l_value_enc_str);
-            json_object_put(jobj);
         }
-        fclose(l_json_file);
+        json_object_object_add(l_json_group_inner, "records", l_json_group);
+        json_object_array_add(l_json, l_json_group_inner);
     }
+    if (json_object_to_file(l_path, l_json) == -1) {
+        log_it(L_CRITICAL, "Couldn't export JSON to file, err '%s'", json_util_get_last_err());
+         dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+         json_object_put(l_json);
+         return -1;
+    }
+    json_object_put(l_json);
+    return 0;
 }
