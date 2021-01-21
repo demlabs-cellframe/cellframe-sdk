@@ -70,6 +70,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
         l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EREMOTEIO );
         l_dns_client->is_callbacks_called = true;
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
         return;
     }
     byte_t * l_cur = l_buf + 3 * sizeof(uint16_t);
@@ -79,6 +80,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
         l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EMEDIUMTYPE );
         l_dns_client->is_callbacks_called = true;
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
         return;
     }
     l_cur = l_buf + l_addr_point;
@@ -101,6 +103,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     l_dns_client->callback_success(a_esocket->worker,l_dns_client->result,l_dns_client->callbacks_arg);
     l_dns_client->is_callbacks_called = true;
     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
 }
 
 /**
@@ -176,6 +179,8 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error,void * a_callbacks_arg)
 {
+    log_it(L_INFO, "DNS request for bootstrap nodelist  %s : %d, net %s", inet_ntoa(a_addr), a_port, a_name);
+
     struct dns_client * l_dns_client = DAP_NEW_Z(struct dns_client);
     l_dns_client->name = dap_strdup(a_name);
     l_dns_client->callback_error = a_callback_error;

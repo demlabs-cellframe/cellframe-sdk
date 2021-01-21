@@ -52,6 +52,18 @@ typedef  enum dap_chain_net_state{
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
 
+static const char * g_net_state_str[]={
+    [NET_STATE_OFFLINE] = "NET_STATE_OFFLINE",
+    [NET_STATE_LINKS_PREPARE]="NET_STATE_LINKS_PREPARE",
+    [NET_STATE_LINKS_CONNECTING]="NET_STATE_LINKS_CONNECTING",
+    [NET_STATE_LINKS_ESTABLISHED]="NET_STATE_LINKS_ESTABLISHED",
+    [NET_STATE_ADDR_REQUEST]="NET_STATE_ADDR_REQUEST", // Waiting for address assign
+    [NET_STATE_SYNC_GDB]="NET_STATE_SYNC_GDB",
+    [NET_STATE_SYNC_CHAINS]="NET_STATE_SYNC_CHAINS",
+    [NET_STATE_ONLINE]="NET_STATE_ONLINE"
+};
+
+
 typedef struct dap_chain_net{
     struct {
         dap_chain_net_id_t id;
@@ -89,6 +101,17 @@ inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_c
 void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
+/**
+ * @brief dap_chain_net_state_to_str
+ * @param a_state
+ * @return
+ */
+static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state){
+    if(a_state< NET_STATE_OFFLINE || a_state > NET_STATE_ONLINE)
+        return "<Undefined net state>";
+    else
+        return g_net_state_str[a_state];
+}
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);

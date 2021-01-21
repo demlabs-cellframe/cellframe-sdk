@@ -561,6 +561,13 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
  */
 static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg)
 {
+    if(s_debug_more){
+        char l_node_addr_str[INET_ADDRSTRLEN]={};
+        inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str,sizeof (a_node_info->hdr.ext_addr_v4));
+        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
+                                                                                     l_node_addr_str );
+    }
+
     struct link_dns_request * l_dns_request = (struct link_dns_request *) a_arg;
     dap_chain_net_t * l_net = l_dns_request->net;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
@@ -574,11 +581,12 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
 
     l_dns_request->tries++;
-    s_fill_links_from_root_aliases(l_net);
     l_net_pvt->links_dns_requests--;
     if (l_net_pvt->links_dns_requests == 0){ // It was the last one
-        l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
-        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+        if (l_net_pvt->state != NET_STATE_LINKS_ESTABLISHED){
+            l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+            dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+        }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
@@ -595,17 +603,24 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     struct link_dns_request * l_dns_request = (struct link_dns_request *) a_arg;
     dap_chain_net_t * l_net = l_dns_request->net;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-    log_it(L_WARNING,"Link " NODE_ADDR_FP_STR " prepare error with code %d",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address), a_errno );
+    char l_node_addr_str[INET_ADDRSTRLEN]={};
+    inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str,sizeof (a_node_info->hdr.ext_addr_v4));
+    log_it(L_WARNING,"Link " NODE_ADDR_FP_STR " (%s) prepare error with code %d", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
+                                                                                 l_node_addr_str,a_errno );
 
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     if(l_net_pvt->links_dns_requests)
         l_net_pvt->links_dns_requests--;
 
     if(!l_net_pvt->links_dns_requests ){
-        l_net_pvt->state = NET_STATE_OFFLINE;
-        log_it(L_WARNING,"Can't prepare links via DNS requests");
-        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+        if( l_net_pvt->state != NET_STATE_OFFLINE){
+            log_it(L_WARNING,"Can't prepare links via DNS requests");
+            l_net_pvt->state = NET_STATE_OFFLINE;
+            l_net_pvt->state_target = NET_STATE_OFFLINE;
+            dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+        }
     }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 
 /**
@@ -671,6 +686,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     if (l_net_pvt->seed_aliases_count) {
                         // Add other root nodes as synchronization links
                         s_fill_links_from_root_aliases(l_net);
+                        l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
                         l_repeat_after_exit = true;
                         break;
                     }
@@ -680,11 +696,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 case NODE_ROLE_LIGHT:
                 default: {
                     // Get DNS request result from root nodes as synchronization links
-                    int l_max_tries = 5;
-                    int l_tries = 0;
                     bool l_sync_fill_root_nodes = true;
                     uint32_t l_link_id=0;
-                    while (dap_list_length(l_net_pvt->links_info) < s_max_links_count && l_tries < l_max_tries) {
+                    for (size_t n=0; n< s_required_links_count;n++ ) {
                         struct in_addr l_addr = {};
                         uint16_t i, l_port;
                         if (l_net_pvt->seed_aliases_count) {
@@ -715,7 +729,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 #else
                             struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
 #endif
-                            log_it(L_INFO, "dns get addrs %s : %d, net %s", inet_ntoa(_in_addr), l_port, l_net->pub.name);
+
                             l_sync_fill_root_nodes = false;
                             if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
                                 l_net_pvt->links_dns_requests++;
@@ -723,15 +737,10 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                                 l_dns_request->net = l_net;
                                 l_dns_request->link_id = l_link_id;
                                 dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
-                                                                    s_net_state_link_prepare_success,s_net_state_link_prepare_error,l_dns_request);
+                                                                    s_net_state_link_prepare_success,
+                                                                s_net_state_link_prepare_error,l_dns_request);
                             }
-
-                            break;
                         }
-                        if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
-                            break;
-                        }
-                        l_tries++;
                     }
                     if (l_sync_fill_root_nodes){
                         s_fill_links_from_root_aliases(l_net);
@@ -739,20 +748,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     l_link_id++;
                 } break;
             }
-            if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-                if (dap_list_length(l_net_pvt->links_info)) {
-                    l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-                    log_it(L_DEBUG, "Prepared %u links, start to establish them", dap_list_length(l_net_pvt->links_info));
-                }else{   // If no links prepared go to offline
-                    log_it(L_WARNING, "Not foun any links, return back to offline");
-                    l_net_pvt->state = NET_STATE_OFFLINE;
-                    l_net_pvt->state_target = NET_STATE_OFFLINE;
-                }
-            } else {
-                l_net_pvt->state = NET_STATE_OFFLINE;
-            }
-            l_repeat_after_exit = true;
-
         } break;
 
         case NET_STATE_LINKS_CONNECTING: {
@@ -774,7 +769,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
-    return l_repeat_after_exit;
+    return ! l_repeat_after_exit;
 }
 /**
  * @brief dap_chain_net_client_create_n_connect
@@ -2002,6 +1997,7 @@ dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net)
 void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state)
 {
     assert(l_net);
+    log_it(L_DEBUG,"%s set state %s", l_net->pub.name, dap_chain_net_state_to_str(a_state)  );
     pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
     if( a_state == PVT(l_net)->state){
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
