@@ -138,6 +138,7 @@ int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_rep
 int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 /**
  * Place public CA into the mempool
  */

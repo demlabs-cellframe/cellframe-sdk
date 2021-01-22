@@ -216,6 +216,16 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
         return -1;
     }
     for (d = readdir(dir); d; d = readdir(dir)) {
+#ifdef _DIRENT_HAVE_D_TYPE
+        if (d->d_type != DT_DIR)
+            continue;
+#else
+        struct _stat buf;
+        int res = _stat(d->d_name, &buf);
+        if (!S_ISDIR(buf.st_mode) || !res) {
+            continue;
+        }
+#endif
         if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
             continue;
         }

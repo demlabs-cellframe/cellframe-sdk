@@ -4089,3 +4089,49 @@ int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
     json_object_put(l_json);
     return 0;
 }
+
+int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
+        return -1;
+    }
+    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    char l_path[strlen(l_db_path) + strlen(l_filename) + 8];
+    memset(l_path, '\0', sizeof(l_path));
+    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    struct json_object *l_json = json_object_from_file(l_path);
+    if (!l_json) {
+        log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
+        dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+        return -1;
+    }
+    for (size_t i = 0, l_groups_count = json_object_array_length(l_json); i < l_groups_count; ++i) {
+        struct json_object *l_group_obj = json_object_array_get_idx(l_json, i);
+        if (!l_group_obj) {
+            continue;
+        }
+        struct json_object *l_json_group_name = json_object_object_get(l_group_obj, "group");
+        const char *l_group_name = json_object_get_string(l_json_group_name);
+        // proc group name
+        log_it(L_INFO, "Group %d: %s", i, l_group_name);
+        struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
+        for (size_t j = 0, l_records_count = json_object_array_length(l_json_records); j < l_records_count; ++j) {
+            struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len;
+            l_record = json_object_array_get_idx(l_json_records, j);
+            l_key = json_object_object_get(l_record, "key");
+            const char *l_key_str = json_object_get_string(l_key);
+            //
+            l_value = json_object_object_get(l_record, "value");
+            const char *l_value_str = json_object_get_string(l_value);
+            //
+            l_value_len = json_object_object_get(l_record, "value_len");
+            uint64_t l_value_ulen = (uint64_t)json_object_get_int64(l_value_len);
+            //
+        }
+    }
+    json_object_put(l_json);
+    return 0;
+}

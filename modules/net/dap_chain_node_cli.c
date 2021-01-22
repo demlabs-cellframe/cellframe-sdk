@@ -1028,6 +1028,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Export GDB to JSON
     dap_chain_node_cli_cmd_item_create("gdb_export", com_gdb_export, NULL, "export", "export");
 
+    //Import GDB from JSON
+    dap_chain_node_cli_cmd_item_create("gdb_import", com_gdb_import, NULL, "import", "import");
+
     // Exit
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
