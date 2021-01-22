@@ -79,6 +79,8 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
+    bool request_updates_complete;
+
     atomic_bool is_on_request; // Protects request section
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;

@@ -1348,14 +1348,14 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
         a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
 #ifdef DAP_OS_WINDOWS
         if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->flags |= EPOLLONESHOT;
+            a_esocket->ev_base_flags |= EPOLLONESHOT;
 #endif
     }
     else {
         a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
 #ifdef DAP_OS_WINDOWS
         if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->flags ^= EPOLLONESHOT;
+            a_esocket->ev_base_flags ^= EPOLLONESHOT;
 #endif
 	}
     if( a_esocket->worker )

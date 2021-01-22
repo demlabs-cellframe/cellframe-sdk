@@ -59,13 +59,15 @@
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD         0x15
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS             0x25
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END         0x35
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START       0x25
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS             0x35
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END         0x45
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ      0x06
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD      0x16
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x26
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x36
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_START    0x26
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x36
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x46
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
 
@@ -77,11 +79,13 @@
 
 typedef enum dap_stream_ch_chain_state{
     CHAIN_STATE_IDLE=0,
-    CHAIN_STATE_UPDATE_GLOBAL_DB=1, // Update  GDB hashtable
-    CHAIN_STATE_UPDATE_CHAINS=2, // Update chains hashtable
-    CHAIN_STATE_SYNC_CHAINS=3,
-    CHAIN_STATE_SYNC_GLOBAL_DB=4,
-    CHAIN_STATE_SYNC_ALL=5
+    CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
+    CHAIN_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
+    CHAIN_STATE_SYNC_GLOBAL_DB,
+    CHAIN_STATE_UPDATE_CHAINS_REMOTE, // Update chains hashtable from remote
+    CHAIN_STATE_UPDATE_CHAINS, // Update chains hashtable to remote
+    CHAIN_STATE_SYNC_CHAINS,
+    CHAIN_STATE_SYNC_ALL
 } dap_stream_ch_chain_state_t;
 
 
@@ -100,8 +104,13 @@ typedef struct dap_stream_ch_chain_sync_request{
 
 
 typedef struct dap_stream_ch_chain_pkt_hdr{
-    uint8_t version;
-    uint8_t padding[7];
+    union{
+        struct{
+            uint8_t version;
+            uint8_t padding[7];
+        } DAP_ALIGN_PACKED;
+        uint64_t ext_id;
+    }DAP_ALIGN_PACKED;
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
@@ -127,16 +136,16 @@ static const char* c_dap_stream_ch_chain_pkt_type_str[]={
 
 dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_state(char a_state);
 
-size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id,
-                                            dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
+                                            uint64_t a_chain_id, uint64_t a_cell_id,
                                             const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id,
-                                        dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
+                                        uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type,dap_chain_net_id_t a_net_id,
-                                        dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
+size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type,uint64_t a_net_id,
+                                        uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
 /**
@@ -148,8 +157,8 @@ size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_str
  * @param a_err_string_format
  * @return
  */
-inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id,
-                                                  dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, const char * a_err_string_format,... )
+inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id,
+                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
 {
     va_list l_va;
     char * l_str;
@@ -178,8 +187,8 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t 
  * @param a_err_string_format
  * @return
  */
-inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t * a_stream_worker,  dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id,
-                                                  dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, const char * a_err_string_format,... )
+inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t * a_stream_worker,  dap_stream_ch_t *a_ch, uint64_t a_net_id,
+                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
 {
     va_list l_va;
     char * l_str;

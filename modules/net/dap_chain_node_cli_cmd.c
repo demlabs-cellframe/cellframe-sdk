@@ -1128,7 +1128,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
 
         if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
-                l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
+                l_net->pub.id.uint64, 0, 0, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
@@ -1168,7 +1168,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 DAP_DELETE(l_hash);
             }
             if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
-                    l_net->pub.id, l_chain->id, l_remote_node_info->hdr.cell_id, &l_sync_request,
+                    l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
