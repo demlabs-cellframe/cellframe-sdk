@@ -4040,7 +4040,7 @@ int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
     }
     char l_path[strlen(l_db_path) + strlen(l_filename) + 8];
     memset(l_path, '\0', sizeof(l_path));
-    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
     /*FILE *l_json_file = fopen(l_path, "a");
     if (!l_json_file) {
         log_it(L_ERROR, "Can't open file %s", l_path);
@@ -4101,7 +4101,7 @@ int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     char l_path[strlen(l_db_path) + strlen(l_filename) + 8];
     memset(l_path, '\0', sizeof(l_path));
-    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
         log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
@@ -4118,19 +4118,25 @@ int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
         // proc group name
         log_it(L_INFO, "Group %d: %s", i, l_group_name);
         struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
-        for (size_t j = 0, l_records_count = json_object_array_length(l_json_records); j < l_records_count; ++j) {
+        size_t l_records_count = json_object_array_length(l_json_records);
+        pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
+        for (size_t j = 0; j < l_records_count; ++j) {
             struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len;
             l_record = json_object_array_get_idx(l_json_records, j);
             l_key = json_object_object_get(l_record, "key");
             const char *l_key_str = json_object_get_string(l_key);
-            //
             l_value = json_object_object_get(l_record, "value");
             const char *l_value_str = json_object_get_string(l_value);
-            //
             l_value_len = json_object_object_get(l_record, "value_len");
             uint64_t l_value_ulen = (uint64_t)json_object_get_int64(l_value_len);
-            //
+            char *l_val = DAP_NEW_Z_SIZE(char, l_value_ulen);
+            size_t l_dec_size = dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
+            dap_chain_global_db_obj_deserialize(&l_group_store[i], l_key_str, l_group_name, l_val);
         }
+        if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
+            log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
+        }
+        DAP_DEL_Z(l_group_store)
     }
     json_object_put(l_json);
     return 0;

@@ -1105,14 +1105,13 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     // key - timestamp
     // value - keys of added/deleted data
     l_store_data.key = dap_db_new_history_timestamp();
-    l_store_data.value = (uint8_t*) strdup(l_str);
+    l_store_data.value = (uint8_t*)l_str;
     l_store_data.value_len = l_str_len + 1;
-    l_store_data.group = dap_strdup(a_group);//GROUP_LOCAL_HISTORY;
+    l_store_data.group = (char*)a_group;//GROUP_LOCAL_HISTORY;
     l_store_data.timestamp = time(NULL);
     int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
-    DAP_DELETE(l_store_data.value);
     DAP_DELETE(l_str);
     if(!l_res)
         return true;

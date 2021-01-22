@@ -110,6 +110,7 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count);
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group);
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
 
+void dap_chain_global_db_obj_deserialize(pdap_store_obj_t a_obj, const char *a_key, const char *a_group, const char *a_val);
 /**
  * Calc hash for data
  *
