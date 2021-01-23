@@ -406,6 +406,8 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
             pthread_rwlock_unlock(&l_pvt_net->rwlock);
 
          dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(a_net, l_pvt_net->seed_aliases[i]);
+         if (!l_link_addr)
+             continue;
 
          if (l_link_addr->uint64 == l_own_addr) {
              continue;   // Do not link with self
