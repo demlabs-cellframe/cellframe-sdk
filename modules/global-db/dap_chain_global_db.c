@@ -820,25 +820,6 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     return false;
 }
 
-void dap_chain_global_db_obj_deserialize(pdap_store_obj_t a_obj, const char *a_key, const char *a_group, const char *a_val) {
-    if (!a_key || !a_val) {
-        a_obj = NULL;
-        return;
-    }
-    int offset = 0;
-    a_obj->key = dap_strdup(a_key);
-    a_obj->id = dap_hex_to_uint(a_val, sizeof(uint64_t));
-    offset += sizeof(uint64_t);
-    a_obj->value_len = dap_hex_to_uint(a_val + offset, sizeof(unsigned long));
-    offset += sizeof(unsigned long);
-    a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
-    memcpy(a_obj->value, a_val + offset, a_obj->value_len);
-    offset += a_obj->value_len;
-    a_obj->timestamp = (time_t)dap_hex_to_uint(a_val + offset, sizeof(time_t));
-    a_obj->type = 'a';
-    a_obj->group = dap_strdup(a_group);
-}
-
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count)
 {
     return dap_chain_global_db_gr_save(a_objs, a_objs_count, GROUP_LOCAL_GENERAL);
