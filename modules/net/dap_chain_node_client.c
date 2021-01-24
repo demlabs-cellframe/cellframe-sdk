@@ -322,7 +322,6 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 l_chain_pkt->hdr.net_id.uint64 = l_net_id;
                 l_chain_pkt->hdr.cell_id.uint64 = l_cell_id.uint64;
                 l_chain_pkt->hdr.chain_id.uint64 = l_chain_id.uint64;
-
                 dap_stream_ch_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START ,
                                                      l_chain_pkt,l_chain_pkt_size);
                 DAP_DELETE(l_chain_pkt);

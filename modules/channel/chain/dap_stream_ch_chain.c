@@ -115,6 +115,7 @@ static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_a
 
 static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
+static uint_fast16_t s_skip_in_reactor_count=10; // Number of hashes packed to skip in one reactor loop callback out packet
 /**
  * @brief dap_stream_ch_chain_init
  * @return
@@ -854,11 +855,29 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS :{
             uint l_count_added=0;
             uint l_count_total=0;
+
+            dap_chain_t * l_chain = dap_chain_find_by_id(l_ch_chain->request_hdr.net_id, l_ch_chain->request_hdr.chain_id);
+            if (! l_chain){
+                log_it(L_ERROR, "Invalid UPDATE_CHAINS request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x" chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet", a_ch->stream->esocket->remote_addr_str?
+                           a_ch->stream->esocket->remote_addr_str: "<unknown>", l_chain_pkt->hdr.ext_id,
+                       l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                       l_chain_pkt->hdr.cell_id.uint64);
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                                                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                                                    "ERROR_NET_INVALID_ID");
+                // Who are you? I don't know you! go away!
+                a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                break;
+            }
+
+            dap_chain_atom_iter_t * l_iter = l_chain->callback_atom_iter_create(l_chain);
+
+
             for ( dap_stream_ch_chain_update_element_t * l_element =(dap_stream_ch_chain_update_element_t *) l_chain_pkt->data;
                    (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
                   l_element++){
                 dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
-                HASH_FIND(hh,l_ch_chain->remote_atoms, &l_element->hash, sizeof (l_element->hash), l_hash_item );
+                HASH_FIND(hh,l_ch_chain->remote_atoms , &l_element->hash, sizeof (l_element->hash), l_hash_item );
                 if( ! l_hash_item ){
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_element->hash, sizeof (l_element->hash));
@@ -876,7 +895,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             if (s_debug_more)
                 log_it(L_INFO,"In: Added %u from %u remote atom hash  in list",l_count_added,l_count_total);
-
+            l_chain->callback_atom_iter_delete(l_iter);
         }break;
         // End of response
         //case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END:{
@@ -1259,9 +1278,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_chain_update_element_t * l_data= DAP_NEW_Z_SIZE(dap_stream_ch_chain_update_element_t,sizeof (dap_stream_ch_chain_update_element_t)*s_update_pack_size);
             size_t l_data_size=0;
             for(uint_fast16_t n=0; n<s_update_pack_size && (l_ch_chain->request_atom_iter && l_ch_chain->request_atom_iter->cur);n++){
-                // If present smth - hash it
-                dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_data[n].hash);
-                l_data[n].size=l_ch_chain->request_atom_iter->cur_size;
+                memcpy(&l_data[n].hash, l_ch_chain->request_atom_iter->cur_hash, sizeof (l_data[n].hash));
                 // Shift offset counter
                 l_data_size += sizeof (dap_stream_ch_chain_update_element_t);
                 // Then get next atom
@@ -1302,39 +1319,40 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
             if (l_ch_chain->request_atom_iter && l_ch_chain->request_atom_iter->cur) { // Process one chain from l_ch_chain->request_atom_iter
 
-                // Check if present and skip if present
+                // Pack loop to skip quicker
+                for(uint_fast16_t k=0; k<s_skip_in_reactor_count; k++){
+                    // Check if present and skip if present
+                    dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
+                    HASH_FIND(hh,l_ch_chain->remote_atoms, l_ch_chain->request_atom_iter->cur_hash , sizeof (l_hash_item->hash), l_hash_item );
+                    if( l_hash_item ){ // If found - skip it
+                        if(s_debug_more){
+                            char l_request_atom_hash_str[81]={[0]='\0'};
+                            dap_chain_hash_fast_to_str(l_ch_chain->request_atom_iter->cur_hash,l_request_atom_hash_str,sizeof (l_request_atom_hash_str));
+                            log_it(L_DEBUG, "Out CHAIN: skip atom hash %s because its already present in remote atom hash table",
+                                            l_request_atom_hash_str);
+                        }
+                    }else{
+                        l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                        if(s_debug_more){
+                            dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_hash_item->hash);
+                            char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
 
-                dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
-                dap_chain_hash_fast_t l_request_atom_hash;
-                dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_request_atom_hash);
-                HASH_FIND(hh,l_ch_chain->remote_atoms, &l_request_atom_hash , sizeof (l_hash_item->hash), l_hash_item );
-                if( l_hash_item ){ // If found - skip it
-                    if(s_debug_more){
-                        char l_request_atom_hash_str[81]={[0]='\0'};
-                        dap_chain_hash_fast_to_str(&l_request_atom_hash,l_request_atom_hash_str,sizeof (l_request_atom_hash_str));
-                        log_it(L_DEBUG, "Out CHAIN: skip atom hash %s because its already present in remote atom hash table",
-                                        l_request_atom_hash_str);
+                            log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
+                            DAP_DELETE(l_atom_hash_str);
+                        }
+                        dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id.uint64,
+                                                             l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
+                                                             l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size);
+                        break; // If sent smth - break out from pack loop
+                        l_ch_chain->stats_request_atoms_processed++;
+
+                        l_hash_item->size = l_ch_chain->request_atom_iter->cur_size;
+                        // Because we sent this atom to remote - we record it to not to send it twice
+                        HASH_ADD(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash), l_hash_item);
                     }
-                }else{
-                    l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
-                    if(s_debug_more){
-                        dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_hash_item->hash);
-                        char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
-
-                        log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
-                        DAP_DELETE(l_atom_hash_str);
-                    }
-                    dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id.uint64,
-                                                         l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
-                                                         l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size);
-                    l_ch_chain->stats_request_atoms_processed++;
-
-                    l_hash_item->size = l_ch_chain->request_atom_iter->cur_size;
-                    // Because we sent this atom to remote - we record it to not to send it twice
-                    HASH_ADD(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash), l_hash_item);
+                    // Then get next atom and populate new last
+                    l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
                 }
-                // Then get next atom and populate new last
-                l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
             } else { // All chains synced
                 dap_stream_ch_chain_sync_request_t l_request = {0};
                 // last message

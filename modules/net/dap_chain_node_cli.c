@@ -1026,16 +1026,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create("stats", com_stats, NULL, "Print statistics",
                 "stats cpu");
 
-    // Export GDB to JSON
-    dap_chain_node_cli_cmd_item_create("gdb_export", com_gdb_export, NULL, "export", "export");
 
-    //Import GDB from JSON
-    dap_chain_node_cli_cmd_item_create("gdb_import", com_gdb_import, NULL, "import", "import");
 
     // Exit
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
 
+#ifdef DAP_OS_UNIX
+        // Export GDB to JSON
+        dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, NULL, "GDB export to file", "GDB export to file");
+
+        //Import GDB from JSON
+        dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, NULL, "GDB import from file", "GDB import from file");
+#endif
     // create thread for waiting of clients
     pthread_t l_thread_id;
 

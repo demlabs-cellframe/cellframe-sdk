@@ -25,15 +25,14 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <errno.h>
 #include <time.h>
 #include <assert.h>
 //#include <string.h>
 
 #include "uthash.h"
-
-#include "dap_chain_common.h"
 #include "dap_strfuncs.h"
-//#include "dap_chain_global_db_pvt.h"
+#include "dap_chain_common.h"
 #include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
 
@@ -88,7 +87,10 @@ typedef struct history_extra_group_item
 static history_group_item_t * s_history_group_items = NULL;
 static char *s_storage_path = NULL;
 static history_extra_group_item_t * s_history_extra_group_items = NULL;
-
+#ifdef DAP_OS_UNIX
+static int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+static int s_command_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+#endif
 char * extract_group_prefix(const char * a_group);
 
 /**
@@ -114,6 +116,7 @@ char * extract_group_prefix(const char* a_group)
     }
     return l_group_prefix;
 }
+
 
 /*
  * Get history group by group name
@@ -249,6 +252,8 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     unlock();
     if( res != 0 )
         log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, s_storage_path );
+
+
     return res;
 }
 

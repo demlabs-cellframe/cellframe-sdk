@@ -81,6 +81,13 @@
 #endif
 #include "dap_chain_cell.h"
 
+
+#include "dap_enc_base64.h"
+#include <json-c/json.h>
+#ifdef DAP_OS_UNIX
+#include <dirent.h>
+#endif
+
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
@@ -94,9 +101,10 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net_pkt.h"
-#include <json-c/json.h>
 #include "dap_enc_base64.h"
+
 #define LOG_TAG "chain_node_cli_cmd"
+
 
 /**
  * Find in base addr by alias
@@ -4022,7 +4030,18 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
     return 0;
 }
 
-int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+
+#ifdef DAP_OS_UNIX
+/**
+ * @brief cmd_gdb_export
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param a_str_reply
+ * @return
+ */
+int cmd_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply)
+{
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
@@ -4083,8 +4102,13 @@ int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
         dap_store_obj_free(l_data, l_data_size);
     }
     if (json_object_to_file(l_path, l_json) == -1) {
+#if JSON_C_MINOR_VERSION<15
+        log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
+        dap_chain_node_cli_set_reply_text (a_str_reply, "Couldn't export JSON to file, error code %d", errno );
+#else
         log_it(L_CRITICAL, "Couldn't export JSON to file, err '%s'", json_util_get_last_err());
-         dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+        dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+#endif
          json_object_put(l_json);
          return -1;
     }
@@ -4092,7 +4116,16 @@ int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
     return 0;
 }
 
-int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+/**
+ * @brief cmd_gdb_import
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param a_str_reply
+ * @return
+ */
+int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply)
+{
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
@@ -4106,8 +4139,13 @@ int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
     dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
+#if JSON_C_MINOR_VERSION<15
+        log_it(L_CRITICAL, "Import error occured: code %d", errno);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Import error occured: code %d",errno);
+#else
         log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
         dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+#endif
         return -1;
     }
     for (size_t i = 0, l_groups_count = json_object_array_length(l_json); i < l_groups_count; ++i) {
@@ -4150,3 +4188,5 @@ int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) 
     json_object_put(l_json);
     return 0;
 }
+
+#endif
