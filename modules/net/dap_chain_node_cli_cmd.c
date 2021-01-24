@@ -94,7 +94,8 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net_pkt.h"
-
+#include <json-c/json.h>
+#include "dap_enc_base64.h"
 #define LOG_TAG "chain_node_cli_cmd"
 
 /**
@@ -4021,3 +4022,131 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
     return 0;
 }
 
+int com_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "gdb_export requires parameter 'filename'");
+        return -1;
+    }
+    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    struct dirent *d;
+    DIR *dir = opendir(l_db_path);
+    if (!dir) {
+        log_it(L_ERROR, "Couldn't open db directory");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Couldn't open db directory");
+        return -1;
+    }
+    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    memset(l_path, '\0', sizeof(l_path));
+    dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
+    /*FILE *l_json_file = fopen(l_path, "a");
+    if (!l_json_file) {
+        log_it(L_ERROR, "Can't open file %s", l_path);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open specified file");
+        return -1;
+    }*/
+    struct json_object *l_json = json_object_new_array();
+    for (d = readdir(dir); d; d = readdir(dir)) {
+        if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
+            continue;
+        }
+        size_t l_data_size = 0;
+        pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, d->d_name);
+        log_it(L_INFO, "Exporting group %s, number of records: %d", d->d_name, l_data_size);
+        if (!l_data_size) {
+            continue;
+        }
+
+        struct json_object *l_json_group = json_object_new_array();
+        struct json_object *l_json_group_inner = json_object_new_object();
+        json_object_object_add(l_json_group_inner, "group", json_object_new_string(d->d_name));
+
+        for (size_t i = 0; i < l_data_size; ++i) {
+            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
+            char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
+            size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+
+            struct json_object *jobj = json_object_new_object();
+            json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
+            json_object_object_add(jobj, "key",     json_object_new_string(l_data[i].key));
+            json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
+            json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_data[i].value_len));
+            json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_data[i].timestamp));
+            json_object_array_add(l_json_group, jobj);
+
+            DAP_FREE(l_value_enc_str);
+        }
+        json_object_object_add(l_json_group_inner, "records", l_json_group);
+        json_object_array_add(l_json, l_json_group_inner);
+        dap_store_obj_free(l_data, l_data_size);
+    }
+    if (json_object_to_file(l_path, l_json) == -1) {
+        log_it(L_CRITICAL, "Couldn't export JSON to file, err '%s'", json_util_get_last_err());
+         dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+         json_object_put(l_json);
+         return -1;
+    }
+    json_object_put(l_json);
+    return 0;
+}
+
+int com_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply) {
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
+        return -1;
+    }
+    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    memset(l_path, '\0', sizeof(l_path));
+    dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
+    struct json_object *l_json = json_object_from_file(l_path);
+    if (!l_json) {
+        log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
+        dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+        return -1;
+    }
+    for (size_t i = 0, l_groups_count = json_object_array_length(l_json); i < l_groups_count; ++i) {
+        struct json_object *l_group_obj = json_object_array_get_idx(l_json, i);
+        if (!l_group_obj) {
+            continue;
+        }
+        struct json_object *l_json_group_name = json_object_object_get(l_group_obj, "group");
+        const char *l_group_name = json_object_get_string(l_json_group_name);
+        // proc group name
+        log_it(L_INFO, "Group %d: %s", i, l_group_name);
+        struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
+        size_t l_records_count = json_object_array_length(l_json_records);
+        pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
+        for (size_t j = 0; j < l_records_count; ++j) {
+            struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len, *l_ts;
+            l_record = json_object_array_get_idx(l_json_records, j);
+            l_id        = json_object_object_get(l_record, "id");
+            l_key       = json_object_object_get(l_record, "key");
+            l_value     = json_object_object_get(l_record, "value");
+            l_value_len = json_object_object_get(l_record, "value_len");
+            l_ts        = json_object_object_get(l_record, "timestamp");
+            //
+            l_group_store[j].id     = (uint64_t)json_object_get_int64(l_id);
+            l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
+            l_group_store[j].group  = dap_strdup(l_group_name);
+            l_group_store[j].timestamp = json_object_get_int64(l_ts);
+            l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
+            l_group_store[j].type   = 'a';
+            const char *l_value_str = json_object_get_string(l_value);
+            char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
+            size_t l_dec_size = dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
+            l_group_store[j].value  = (uint8_t*)l_val;
+        }
+        if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
+            log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
+        }
+        dap_store_obj_free(l_group_store, l_records_count);
+    }
+    json_object_put(l_json);
+    return 0;
+}
