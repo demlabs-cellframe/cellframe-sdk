@@ -124,17 +124,18 @@ void dap_client_pvt_deinit()
  * @brief dap_client_internal_new
  * @param a_client_internal
  */
-void dap_client_pvt_new(dap_client_pvt_t * a_client_internal)
+void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
 {
-    a_client_internal->session_key_type = DAP_ENC_KEY_TYPE_BF_OFB;
-    a_client_internal->session_key_open_type = DAP_ENC_KEY_TYPE_MSRLN;
+    a_client_pvt->session_key_type = DAP_ENC_KEY_TYPE_SALSA2012 ;
+    a_client_pvt->session_key_open_type = DAP_ENC_KEY_TYPE_MSRLN ;
+    a_client_pvt->session_key_block_size = 32;
 
-    a_client_internal->stage = STAGE_BEGIN; // start point of state machine
-    a_client_internal->stage_status = STAGE_STATUS_DONE;
-    a_client_internal->uplink_protocol_version = DAP_PROTOCOL_VERSION;
-    a_client_internal->events = dap_events_get_default();
+    a_client_pvt->stage = STAGE_BEGIN; // start point of state machine
+    a_client_pvt->stage_status = STAGE_STATUS_DONE;
+    a_client_pvt->uplink_protocol_version = DAP_PROTOCOL_VERSION;
+    a_client_pvt->events = dap_events_get_default();
     // add to list
-    dap_client_pvt_hh_add(a_client_internal);
+    dap_client_pvt_hh_add(a_client_pvt);
 }
 
 
@@ -261,7 +262,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     log_it(L_INFO, "Go to stage ENC: prepare the request");
 
 
-                    a_client_pvt->session_key_open = dap_enc_key_new_generate(a_client_pvt->session_key_open_type, NULL, 0, NULL, 0, 0);
+                    a_client_pvt->session_key_open = dap_enc_key_new_generate(a_client_pvt->session_key_open_type, NULL, 0, NULL, 0,
+                                                                              a_client_pvt->session_key_block_size);
                     if (!a_client_pvt->session_key_open) {
                         log_it(L_ERROR, "Insufficient memory! May be a huge memory leak present");
                         a_client_pvt->stage_status = STAGE_STATUS_ERROR;
@@ -291,9 +293,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     char l_enc_init_url[1024] = { '\0' };
                     dap_snprintf(l_enc_init_url, sizeof(l_enc_init_url), DAP_UPLINK_PATH_ENC_INIT
-                                 "/gd4y5yh78w42aaagh" "?enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd",
-                                 a_client_pvt->session_key_type, a_client_pvt->session_key_open_type,
-                                 l_key_size );
+                                 "/gd4y5yh78w42aaagh" "?enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd,block_key_size=%zd",
+                                 a_client_pvt->session_key_type, a_client_pvt->session_key_open_type, l_key_size,
+                                 a_client_pvt->session_key_block_size );
                     int l_res = dap_client_pvt_request(a_client_pvt, l_enc_init_url,
                             l_data_str, l_data_str_enc_size, s_enc_init_response, s_enc_init_error);
                     // bad request
@@ -317,8 +319,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         l_suburl = dap_strdup_printf("stream_ctl,channels=%s",
                                                      a_client_pvt->active_channels);
                     }else{
-                        l_suburl = dap_strdup_printf("channels=%s,enc_type=%d,enc_headers=%d",
-                                                     a_client_pvt->active_channels,a_client_pvt->session_key_type,0);
+                        l_suburl = dap_strdup_printf("channels=%s,enc_type=%d,enc_key_size=%d,enc_headers=%d",
+                                                     a_client_pvt->active_channels,a_client_pvt->session_key_type,
+                                                     a_client_pvt->session_key_block_size,0 );
                     }
                     log_it(L_DEBUG, "Prepared enc request for streaming");
                     dap_client_pvt_request_enc(a_client_pvt,

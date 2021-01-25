@@ -182,11 +182,12 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 /*
  * 23: added support for encryption key type parameter and option to encrypt headers
+ * 24: Update hashes protocol
 */
-#define DAP_PROTOCOL_VERSION          23
-#define DAP_PROTOCOL_VERSION_DEFAULT  22 // used if version is not explicitly specified
+#define DAP_PROTOCOL_VERSION          24
+#define DAP_PROTOCOL_VERSION_DEFAULT  24 // used if version is not explicitly specified
 
-#define DAP_CLIENT_PROTOCOL_VERSION   23
+#define DAP_CLIENT_PROTOCOL_VERSION   24
 
 #if __SIZEOF_LONG__==8
 #define DAP_UINT64_FORMAT_X  "lX"

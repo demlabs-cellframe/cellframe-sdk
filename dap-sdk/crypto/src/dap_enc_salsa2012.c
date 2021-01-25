@@ -18,7 +18,7 @@ void dap_enc_salsa2012_key_generate(struct dap_enc_key * a_key, const void *kex_
 {
     if(key_size < SALSA20_KEY_SIZE)
     {
-        log_it(L_ERROR, "SALSA20 key cannot be less than 32 bytes.");
+        log_it(L_ERROR, "SALSA20 key cannot be less than 32 bytes but got %zd",key_size);
     }
     a_key->last_used_timestamp = time(NULL);
 

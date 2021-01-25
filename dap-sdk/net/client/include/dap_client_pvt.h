@@ -51,6 +51,7 @@ typedef struct dap_client_internal
 
     dap_enc_key_type_t session_key_type;
     dap_enc_key_type_t session_key_open_type;
+    size_t session_key_block_size;
 
     dap_enc_key_t * session_key_open; // Open assymetric keys exchange
     dap_enc_key_t * session_key; // Symmetric private key for session encryption
