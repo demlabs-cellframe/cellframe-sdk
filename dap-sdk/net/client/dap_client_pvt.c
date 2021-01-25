@@ -888,7 +888,7 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
             l_client_pvt->session_key = dap_enc_key_new_generate(l_client_pvt->session_key_type,
                     l_client_pvt->session_key_open->priv_key_data, // shared key
                     l_client_pvt->session_key_open->priv_key_data_size,
-                    l_client_pvt->session_key_id, strlen(l_client_pvt->session_key_id), 0);
+                    l_client_pvt->session_key_id, strlen(l_client_pvt->session_key_id), l_client_pvt->session_key_block_size);
 
             DAP_DELETE(l_bob_message);
             if(l_client_pvt->stage == STAGE_ENC_INIT) { // We are in proper stage
