@@ -312,6 +312,7 @@ void *dap_worker_thread(void *arg)
 #endif
                         l_errno = errno;
                     break;
+                    case DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT:
                     case DESCRIPTOR_TYPE_SOCKET_CLIENT:
                         l_must_read_smth = true;
                         l_bytes_read = recv(l_cur->fd, (char *) (l_cur->buf_in + l_cur->buf_in_size),
@@ -336,6 +337,7 @@ void *dap_worker_thread(void *arg)
 #endif
                     }
                     break;
+                    case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
                     case DESCRIPTOR_TYPE_SOCKET_LISTENING:
                         // Accept connection
                         if ( l_cur->callbacks.accept_callback){

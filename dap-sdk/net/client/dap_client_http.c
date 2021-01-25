@@ -420,23 +420,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     }
 #endif
     // set socket param
-    int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
     struct timeval timeout;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
-#ifdef DAP_OS_WINDOWS
-      setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
-      setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
-      if (setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
-          log_it(L_ERROR, "Set send timeout failed, WSA errno %d", WSAGetLastError());
-      if (setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
-          log_it(L_ERROR, "Set recv timeout failed, WSA errno %d", WSAGetLastError());
-#else
-    setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
-    setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
-    setsockopt(l_socket, SOL_SOCKET, SO_SNDTIMEO, (void*) &timeout, sizeof(timeout));
-    setsockopt(l_socket, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
-#endif
+
     dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
     // create private struct
