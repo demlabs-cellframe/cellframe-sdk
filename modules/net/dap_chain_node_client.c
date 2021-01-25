@@ -342,8 +342,9 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             }
 
             // Check if we over with it before
-            if ( !l_node_client->cur_cell ){
-                log_it(L_WARNING, "In: No current cell in sync state, anyway we over it");
+            if ( ! l_node_client->cur_cell ){
+                if(s_stream_ch_chain_debug_more)
+                    log_it(L_INFO, "In: No current cell in sync state, anyway we over it");
             }else
                 l_node_client->cur_cell =(dap_chain_cell_t *)  l_node_client->cur_cell->hh.next;
 
