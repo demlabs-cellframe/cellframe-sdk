@@ -88,8 +88,10 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
         l_ret = dap_db_driver_sqlite_init(a_filename_db, &s_drv_callback);
     else if(!dap_strcmp(s_used_driver, "cdb"))
         l_ret = dap_db_driver_cdb_init(a_filename_db, &s_drv_callback);
+#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
         l_ret = dap_db_driver_mdbx_init(a_filename_db, &s_drv_callback);
+#endif
     else
         log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
 #ifdef USE_WRITE_BUFFER
