@@ -85,12 +85,7 @@ typedef struct history_extra_group_item
 
 // Tacked group callbacks
 static history_group_item_t * s_history_group_items = NULL;
-static char *s_storage_path = NULL;
 static history_extra_group_item_t * s_history_extra_group_items = NULL;
-#ifdef DAP_OS_UNIX
-static int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply);
-static int s_command_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply);
-#endif
 char * extract_group_prefix(const char * a_group);
 
 /**
@@ -243,17 +238,14 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
-    s_storage_path= dap_strdup(
-                dap_config_get_item_str(g_config, "resources", "dap_global_db_path") );
+    const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
     lock();
-    int res = dap_db_driver_init(l_driver_name, s_storage_path);
+    int res = dap_db_driver_init(l_driver_name, l_storage_path);
     unlock();
     if( res != 0 )
-        log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, s_storage_path );
-
-
+        log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
     return res;
 }
 

@@ -4030,8 +4030,6 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
     return 0;
 }
 
-
-#ifdef DAP_OS_UNIX
 /**
  * @brief cmd_gdb_export
  * @param argc
@@ -4059,7 +4057,7 @@ int cmd_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     }
     char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
-    dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
+    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
     /*FILE *l_json_file = fopen(l_path, "a");
     if (!l_json_file) {
         log_it(L_ERROR, "Can't open file %s", l_path);
@@ -4136,7 +4134,7 @@ int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
-    dap_snprintf(l_path, sizeof(l_path), "%s/../%s.json", l_db_path, l_filename);
+    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15
@@ -4188,5 +4186,3 @@ int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply)
     json_object_put(l_json);
     return 0;
 }
-
-#endif
