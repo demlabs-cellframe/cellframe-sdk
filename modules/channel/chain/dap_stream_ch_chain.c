@@ -1351,12 +1351,12 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                          l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
                                                          l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size);
                     l_was_sent_smth = true;
-                    break; // If sent smth - break out from pack loop
                     l_ch_chain->stats_request_atoms_processed++;
 
                     l_hash_item->size = l_ch_chain->request_atom_iter->cur_size;
                     // Because we sent this atom to remote - we record it to not to send it twice
                     HASH_ADD(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash), l_hash_item);
+                    break; // If sent smth - break out from pack loop
                 }
                 // Then get next atom and populate new last
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);

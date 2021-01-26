@@ -521,8 +521,11 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
             l_query = sqlite3_mprintf("delete from '%s' where key = '%s'",
                     a_store_obj->group, a_store_obj->key);
         // remove all group
-        else
-            l_query = sqlite3_mprintf("drop table if exists '%s'", a_store_obj->group);
+        else{
+            char * l_table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
+            l_query = sqlite3_mprintf("drop table if exists '%s'", l_table_name);
+            DAP_DELETE(l_table_name);
+        }
     }
     else {
         log_it(L_ERROR, "Unknown store_obj type '0x%x'", a_store_obj->type);
@@ -613,9 +616,11 @@ dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
     sqlite3_stmt *l_res;
     if(!a_group)
         return NULL;
-    char *l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id DESC LIMIT 1", a_group);
+    char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
+    char *l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id DESC LIMIT 1", l_table_name);
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
     sqlite3_free(l_str_query);
+    DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "read last l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         dap_db_driver_sqlite_free(l_error_message);
@@ -653,6 +658,8 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     sqlite3_stmt *l_res;
     if(!a_group)
         return NULL;
+
+    char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     // no limit
     int l_count_out = 0;
     if(a_count_out)
@@ -660,12 +667,14 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     char *l_str_query;
     if(l_count_out)
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC LIMIT %d",
-                a_group, a_id, l_count_out);
+                l_table_name, a_id, l_count_out);
     else
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC",
-                a_group, a_id);
+                l_table_name, a_id);
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
     sqlite3_free(l_str_query);
+    DAP_DEL_Z(l_table_name);
+
     if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         dap_db_driver_sqlite_free(l_error_message);
@@ -719,6 +728,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     sqlite3_stmt *l_res;
     if(!a_group)
         return NULL;
+    char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     // no limit
     uint64_t l_count_out = 0;
     if(a_count_out)
@@ -727,20 +737,21 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     if(a_key) {
         if(l_count_out)
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC LIMIT %d",
-                    a_group, a_key, l_count_out);
+                    l_table_name, a_key, l_count_out);
         else
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC",
-                    a_group, a_key);
+                    l_table_name, a_key);
     }
     else {
         if(l_count_out)
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC LIMIT %d",
-                    a_group, l_count_out);
+                    l_table_name, l_count_out);
         else
-            l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", a_group);
+            l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", l_table_name);
     }
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
     sqlite3_free(l_str_query);
+    DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         dap_db_driver_sqlite_free(l_error_message);
