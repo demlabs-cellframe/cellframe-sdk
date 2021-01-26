@@ -134,6 +134,9 @@ int com_stats(int argc, char ** argv, void *arg_func, char **str_reply);
 
 int com_exit(int argc, char ** argv, void *arg_func, char **str_reply);
 
+int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+int cmd_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply);
+
 int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 int com_mempool_list(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply);

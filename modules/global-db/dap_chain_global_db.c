@@ -86,8 +86,6 @@ typedef struct history_extra_group_item
 // Tacked group callbacks
 static history_group_item_t * s_history_group_items = NULL;
 static history_extra_group_item_t * s_history_extra_group_items = NULL;
-static int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply);
-static int s_command_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply);
 char * extract_group_prefix(const char * a_group);
 
 /**
@@ -248,8 +246,6 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     unlock();
     if( res != 0 )
         log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
-
-
     return res;
 }
 
