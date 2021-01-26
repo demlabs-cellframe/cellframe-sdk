@@ -79,7 +79,7 @@
 #endif
 
 static int s_max_attempts = 5;
-static int s_timeout = 10;
+static int s_timeout = 20;
 
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
@@ -192,7 +192,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     s_stage_status_after(a_client_pvt);
 }
 
-static bool s_timer_timeout_check(void * a_arg)
+static bool s_stream_timer_timeout_check(void * a_arg)
 {
     dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
     assert(l_es_handler);
@@ -447,7 +447,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
                             l_stream_es_handler->esocket = a_client_pvt->stream_es;
                             l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker, 10000, s_timer_timeout_check,l_stream_es_handler);
+                            dap_timerfd_start_on_worker(a_client_pvt->worker,s_timeout*1000, s_stream_timer_timeout_check,l_stream_es_handler);
                         }
                     }
                 }
@@ -508,47 +508,31 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             // limit the number of attempts
             a_client_pvt->stage_errors++;
             bool l_is_last_attempt = a_client_pvt->stage_errors > s_max_attempts ? true : false;
-            if (a_client_pvt->last_error == ERROR_NETWORK_CONNECTION_TIMEOUT) {
-                l_is_last_attempt = true;
-            }
+            //if (a_client_pvt->last_error == ERROR_NETWORK_CONNECTION_TIMEOUT) {
+            //    l_is_last_attempt = true;
+            //}
             log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_get_error_str(a_client_pvt->client));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 
-            switch (a_client_pvt->stage) {
-                case STAGE_UNDEFINED:
-                    log_it(L_ERROR,"!!Stage undefined!!! in dap_client_pvt::s_stage_status_after()");
-                break;
-                case STAGE_BEGIN:
-                case STAGE_ENC_INIT:
-                case STAGE_STREAM_CTL:
-                case STAGE_STREAM_SESSION:
-                case STAGE_STREAM_CONNECTED:
-                case STAGE_STREAM_STREAMING:
-                case STAGE_STREAM_ABORT:
-                    if(a_client_pvt->stage_target == STAGE_STREAM_ABORT) {
-                        a_client_pvt->stage = STAGE_STREAM_ABORT;
-                        a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
-                        // unref pvt
-                        //l_is_unref = true;
-                    } else if (a_client_pvt->last_error != ERROR_NETWORK_CONNECTION_TIMEOUT) {
-                        if(!l_is_last_attempt) {
-                            a_client_pvt->stage = STAGE_ENC_INIT;
-                            // Trying the step again
-                            a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
-                            log_it(L_INFO, "Connection attempt %d in 0.3 seconds", a_client_pvt->stage_errors);
-                            // small delay before next request
-                            dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
-                                                        a_client_pvt);
-                        }
-                        else{
-                            log_it(L_INFO, "Too many connection attempts. Tries are over.");
-                            a_client_pvt->stage_status = STAGE_STATUS_DONE;
-                        }
-                    }
-                break;
+            if(a_client_pvt->stage_target == STAGE_STREAM_ABORT) {
+                a_client_pvt->stage = STAGE_STREAM_ABORT;
+                a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
+            } else {
+                if(!l_is_last_attempt) {
+                    a_client_pvt->stage = STAGE_ENC_INIT;
+                    // Trying the step again
+                    a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+                    log_it(L_INFO, "Reconnect attempt %d in 0.3 seconds with %s:%u", a_client_pvt->stage_errors,
+                           a_client_pvt->uplink_addr,a_client_pvt->uplink_port);
+                    // small delay before next request
+                    dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
+                                                a_client_pvt);
+                } else{
+                    log_it(L_INFO, "Too many connection attempts. Tries are over.");
+                    a_client_pvt->stage_status = STAGE_STATUS_DONE;
+                }
             }
-
         }
         break;
         case STAGE_STATUS_DONE: {
