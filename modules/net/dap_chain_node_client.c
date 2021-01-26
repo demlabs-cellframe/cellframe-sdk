@@ -124,6 +124,9 @@ static void s_stage_status_callback(dap_client_t *a_client, void *a_arg)
  */
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
+    if (s_stream_ch_chain_debug_more)
+        log_it(L_DEBUG, "s_stage_status_error_callback");
+
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     if(!l_node_client)
         return;
@@ -584,6 +587,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     l_node_client->events = NULL; //dap_events_new();
     l_node_client->client = dap_client_new(l_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
+    dap_client_set_is_always_reconnect(l_node_client->client, true);
     l_node_client->client->_inheritor = l_node_client;
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
     dap_client_set_active_channels_unsafe(l_node_client->client, a_active_channels);

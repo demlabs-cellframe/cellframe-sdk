@@ -126,6 +126,10 @@ const char * dap_client_stage_status_str(dap_client_stage_status_t a_stage_statu
 const char * dap_client_error_str(dap_client_error_t a_client_error);
 const char * dap_client_get_error_str(dap_client_t * a_client);
 
+
+bool dap_client_get_is_always_reconnect(dap_client_t * a_client);
+void dap_client_set_is_always_reconnect(dap_client_t * a_client, bool a_value);
+
 const char * dap_client_get_auth_cookie(dap_client_t * a_client);
 dap_stream_t * dap_client_get_stream(dap_client_t * a_client);
 dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client);

@@ -487,6 +487,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     break;
                 case STAGE_STREAM_STREAMING: {
                     log_it(L_INFO, "Go to stage STAGE_STREAM_STREAMING");
+                    a_client_pvt->stage_errors = 0;
 
                     a_client_pvt->stage_status = STAGE_STATUS_DONE;
                     s_stage_status_after(a_client_pvt);
@@ -511,6 +512,11 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //if (a_client_pvt->last_error == ERROR_NETWORK_CONNECTION_TIMEOUT) {
             //    l_is_last_attempt = true;
             //}
+
+            if (a_client_pvt->is_always_reconnect ){
+                l_is_last_attempt = false;
+            }
+
             log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_get_error_str(a_client_pvt->client));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
@@ -519,7 +525,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 a_client_pvt->stage = STAGE_STREAM_ABORT;
                 a_client_pvt->stage_status = STAGE_STATUS_ABORTING;
             } else {
-                if(!l_is_last_attempt) {
+                if(!l_is_last_attempt ) {
                     a_client_pvt->stage = STAGE_ENC_INIT;
                     // Trying the step again
                     a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
@@ -528,9 +534,14 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // small delay before next request
                     dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
                                                 a_client_pvt);
-                } else{
+                } else {
+
                     log_it(L_INFO, "Too many connection attempts. Tries are over.");
                     a_client_pvt->stage_status = STAGE_STATUS_DONE;
+
+                    // small delay before next request
+                    dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
+                                                a_client_pvt);
                 }
             }
         }
