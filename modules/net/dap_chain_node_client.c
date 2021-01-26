@@ -277,6 +277,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             SetEvent( l_node_client->wait_cond );
     #endif
         break;
+
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END:{
             dap_chain_net_t * l_net = l_node_client->net;
             assert(l_net);
@@ -285,6 +286,17 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                        l_net->pub.name,
                        NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr )
                        );
+        }break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START:{
+            dap_chain_net_t * l_net = l_node_client->net;
+            assert(l_net);
+            dap_chain_net_set_state(l_net, NET_STATE_SYNC_CHAINS );
+        }break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB :
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_START:{
+            dap_chain_net_t * l_net = l_node_client->net;
+            assert(l_net);
+            dap_chain_net_set_state(l_net, NET_STATE_SYNC_GDB );
         }break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:{
             dap_chain_net_t * l_net = l_node_client->net;
@@ -295,8 +307,6 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             // We over with GLOBAL_DB and switch on syncing chains
             l_node_client->state = NODE_CLIENT_STATE_SYNC_CHAINS_UPDATES;
             dap_chain_net_state_t l_net_state = dap_chain_net_get_state(l_node_client->net);
-            if (l_net_state == NET_STATE_SYNC_GDB  )
-                dap_chain_net_set_state(l_node_client->net, NET_STATE_SYNC_CHAINS );
 
             // Begin from the first chain
             l_node_client->cur_chain =  l_node_client->net->pub.chains;
@@ -393,8 +403,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 }else{ // If no - over with sync process
                     log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
                     l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                    if (dap_chain_net_get_state(l_net) == NET_STATE_SYNC_CHAINS )
-                        dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+                    dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
             #ifndef _WIN32
                     pthread_cond_broadcast(&l_node_client->wait_cond);
             #else

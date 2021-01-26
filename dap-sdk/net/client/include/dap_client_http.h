@@ -32,6 +32,9 @@ typedef void (*dap_client_http_callback_error_t)(int, void *); // Callback for s
 typedef void (*dap_client_http_callback_error_ext_t)(int,int , void *,size_t, void *); // Callback with extended error processing
 typedef void (*dap_client_http_callback_data_t)(void *, size_t, void *); // Callback for specific http client operations
 
+int dap_client_http_init();
+void dap_client_http_deinit();
+
 void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
         const char *a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size, char *a_cookie,
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,

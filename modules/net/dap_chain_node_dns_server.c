@@ -267,6 +267,7 @@ void dap_dns_server_start(dap_events_t *a_ev, uint16_t a_port)
         return;
     }
     dap_dns_zone_register(&s_root_alias[0], dap_dns_resolve_hostname);  // root resolver
+    log_it(L_NOTICE,"DNS server started");
 }
 
 void dap_dns_server_stop() {

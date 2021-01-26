@@ -462,7 +462,7 @@ void *dap_worker_thread(void *arg)
 
             // If its outgoing connection
             if ( l_flag_write &&  !l_cur->server &&  (l_cur->flags & DAP_SOCK_CONNECTING) &&
-                 (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
+               ( l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
                 int l_error = 0;
                 socklen_t l_error_len = sizeof(l_error);
                 char l_error_buf[128];

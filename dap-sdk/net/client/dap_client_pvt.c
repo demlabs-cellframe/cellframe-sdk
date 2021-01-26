@@ -78,6 +78,9 @@
 #define DAP_ENC_KS_KEY_ID_SIZE 33
 #endif
 
+static int s_max_attempts = 5;
+static int s_timeout = 10;
+
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
 // ENC stage callbacks
@@ -110,6 +113,9 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_arg);
  */
 int dap_client_pvt_init()
 {
+    s_max_attempts = dap_config_get_item_int32_default(g_config,"dap_client","max_tries",5);
+    s_timeout = dap_config_get_item_int32_default(g_config,"dap_client","timeout",10);
+
     return 0;
 }
 
@@ -500,9 +506,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
         case STAGE_STATUS_ERROR: {
             // limit the number of attempts
-            int MAX_ATTEMPTS = 3;
             a_client_pvt->stage_errors++;
-            bool l_is_last_attempt = a_client_pvt->stage_errors > MAX_ATTEMPTS ? true : false;
+            bool l_is_last_attempt = a_client_pvt->stage_errors > s_max_attempts ? true : false;
             if (a_client_pvt->last_error == ERROR_NETWORK_CONNECTION_TIMEOUT) {
                 l_is_last_attempt = true;
             }

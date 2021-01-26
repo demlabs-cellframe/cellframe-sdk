@@ -23,6 +23,7 @@
 #include "dap_http_client.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
+#include "dap_client_http.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_worker.h"
 
@@ -43,6 +44,7 @@ int dap_client_init()
     if (s_is_first_time ){
         log_it(L_INFO, "Init DAP client module");
         dap_http_client_init();
+        dap_client_http_init();
         dap_client_pvt_init();
         s_is_first_time = false;
     }

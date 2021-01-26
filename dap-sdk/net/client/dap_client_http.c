@@ -87,6 +87,21 @@ static void s_http_error(dap_events_socket_t * a_es, int a_arg);
 static bool s_timer_timeout_check(void * a_arg);
 
 uint64_t s_client_timeout_ms=10000;
+uint32_t s_max_attempts = 5;
+
+
+int dap_client_http_init()
+{
+    s_max_attempts = dap_config_get_item_uint32_default(g_config,"dap_client","max_tries",5);
+    s_client_timeout_ms = dap_config_get_item_int32_default(g_config,"dap_client","timeout",10)*1000;
+    return 0;
+}
+
+void dap_client_http_deinit()
+{
+
+}
+
 
 /**
  * @brief dap_client_http_get_connect_timeout_ms
