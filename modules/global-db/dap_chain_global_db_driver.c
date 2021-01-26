@@ -81,8 +81,8 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
     if(s_used_driver)
         dap_db_driver_deinit();
     s_used_driver = dap_strdup(a_driver_name);
-    char l_db_path_ext[strlen(a_driver_name) + strlen(a_filename_db) + 3];
-    dap_snprintf(l_db_path_ext, sizeof(l_db_path_ext), "/%s.%s", a_filename_db, a_driver_name);
+    char l_db_path_ext[strlen(a_driver_name) + strlen(a_filename_db) + 6];
+    dap_snprintf(l_db_path_ext, sizeof(l_db_path_ext), "%s/gdb-%s", a_filename_db, a_driver_name);
     memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
     if(!dap_strcmp(s_used_driver, "ldb"))
         l_ret = -1;
