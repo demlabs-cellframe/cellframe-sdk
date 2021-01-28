@@ -212,7 +212,7 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
 
-static dap_chain_node_client_callbacks_t s_node_link_callbacks={
+static const dap_chain_node_client_callbacks_t s_node_link_callbacks={
     .connected=s_node_link_callback_connected,
     .disconnected=s_node_link_callback_disconnected,
     .stage=s_node_link_callback_stage,

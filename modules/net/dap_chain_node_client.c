@@ -315,10 +315,14 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             l_node_client->cur_chain =  l_node_client->net->pub.chains;
             dap_chain_cell_id_t l_cell_id={0};
             dap_chain_id_t l_chain_id={0};
+
+
             if(! l_node_client->cur_chain){
                 log_it(L_CRITICAL,"In: Can't sync chains for %s because there is no chains in it",l_net->pub.name);
                 dap_stream_ch_chain_pkt_write_error_unsafe(a_ch_chain->ch,l_net->pub.id.uint64,
                                                            l_chain_id.uint64,l_cell_id.uint64,"ERROR_CHAIN_NO_CHAINS");
+                l_node_client->state = NODE_CLIENT_STATE_SYNC_CHAINS_UPDATES ;
+
             }else{ // If present - select the first one cell in chain
                 l_chain_id=l_node_client->cur_chain->id;
                 dap_chain_cell_t * l_cell = l_node_client->cur_chain->cells;
@@ -404,14 +408,18 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                                                          l_net->pub.id.uint64 ,
                                                          l_chain_id.uint64,l_cell_id.uint64,NULL,0);
                 }else{ // If no - over with sync process
-                    log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
-                    l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+                    log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED, init reverse SYNC",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
+                    l_node_client->state = NODE_CLIENT_STATE_SYNC_CHAINS_RVRS;
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
             #ifndef _WIN32
                     pthread_cond_broadcast(&l_node_client->wait_cond);
             #else
                     SetEvent( l_node_client->wait_cond );
             #endif
+                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS,
+                                                         l_net->pub.id.uint64 ,
+                                                         l_chain_id.uint64,l_cell_id.uint64,NULL,0);
+
 
                 }
             }
@@ -420,6 +428,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:{
             dap_chain_net_t * l_net = l_node_client->net;
             assert(l_net);
+            l_node_client->state = NODE_CLIENT_STATE_SYNCED;
             dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
         }break;
         default: break;

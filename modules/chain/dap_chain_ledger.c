@@ -227,14 +227,15 @@ void dap_chain_ledger_deinit()
 static dap_ledger_t * dap_chain_ledger_handle_new(void)
 {
     dap_ledger_t *l_ledger = DAP_NEW_Z(dap_ledger_t);
-    l_ledger->_internal = (void*)DAP_NEW_Z(dap_ledger_private_t);
+    dap_ledger_private_t * l_ledger_pvt;
+    l_ledger->_internal = l_ledger_pvt = DAP_NEW_Z(dap_ledger_private_t);
 
     // Initialize Read/Write Lock Attribute
-    pthread_rwlock_init(&PVT(l_ledger)->ledger_rwlock, NULL); // PTHREAD_RWLOCK_INITIALIZER;
-    pthread_rwlock_init(&PVT(l_ledger)->tokens_rwlock, NULL);
-    pthread_rwlock_init(&PVT(l_ledger)->treshold_txs_rwlock , NULL);
-    pthread_rwlock_init(&PVT(l_ledger)->treshold_emissions_rwlock , NULL);
-    pthread_rwlock_init(&PVT(l_ledger)->balance_accounts_rwlock , NULL);
+    pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, NULL); // PTHREAD_RWLOCK_INITIALIZER;
+    pthread_rwlock_init(&l_ledger_pvt->tokens_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->treshold_txs_rwlock , NULL);
+    pthread_rwlock_init(&l_ledger_pvt->treshold_emissions_rwlock , NULL);
+    pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
     return l_ledger;
 }
 
@@ -245,6 +246,7 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger)
 {
     if(!a_ledger)
         return;
+    log_it(L_INFO,"Ledger %s destroyed", a_ledger->net_name);
     // Destroy Read/Write Lock
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->tokens_rwlock);
@@ -253,6 +255,7 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->balance_accounts_rwlock );
     DAP_DELETE(PVT(a_ledger));
     DAP_DELETE(a_ledger);
+
 }
 
 
@@ -870,20 +873,21 @@ static void s_treshold_emissions_proc(dap_ledger_t * a_ledger)
 static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
 {  
     bool l_success;
+    dap_ledger_private_t * l_ledger_pvt = PVT(a_ledger);
     do {
         l_success = false;
         dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
-        pthread_rwlock_wrlock(&PVT(a_ledger)->treshold_txs_rwlock);
-        HASH_ITER(hh, PVT(a_ledger)->treshold_txs, l_tx_item, l_tx_tmp) {
+        pthread_rwlock_wrlock(&l_ledger_pvt->treshold_txs_rwlock);
+        HASH_ITER(hh, l_ledger_pvt->treshold_txs, l_tx_item, l_tx_tmp) {
             int l_res = dap_chain_ledger_tx_add(a_ledger, l_tx_item->tx, true);
             if (l_res == 1) {
-                HASH_DEL(PVT(a_ledger)->treshold_txs, l_tx_item);
+                HASH_DEL(l_ledger_pvt->treshold_txs, l_tx_item);
                 DAP_DELETE(l_tx_item->tx);
                 DAP_DELETE(l_tx_item);
                 l_success = true;
             }
         }
-        pthread_rwlock_unlock(&PVT(a_ledger)->treshold_txs_rwlock);
+        pthread_rwlock_unlock(& l_ledger_pvt->treshold_txs_rwlock );
     } while (l_success);
 }
 
@@ -1016,6 +1020,8 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->check_cells_ds = a_check_flags & DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
     l_ledger_priv->check_token_emission = a_check_flags & DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
     l_ledger_priv->net = dap_chain_net_by_name(a_net_name);
+
+    log_it(L_DEBUG,"Created ledger \"%s\"",a_net_name);
     // load ledger cache from GDB
     dap_chain_ledger_load_cache(l_ledger);
     return l_ledger;
@@ -1881,6 +1887,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             } else {
                 log_it(L_ERROR, "Emission for tx_token wasn't found");
                 l_err_num = -11;
+                break;
             }
         }
         break;
@@ -1915,7 +1922,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     } else {
         *a_list_tx_out = l_list_tx_out;
     }
-
+ret:
     return l_err_num;
 }
 

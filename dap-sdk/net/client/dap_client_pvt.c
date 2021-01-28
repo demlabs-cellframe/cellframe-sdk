@@ -1122,7 +1122,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         return;
     }
 
-    log_it(L_DEBUG, "client_pvt=0x%x", l_client_pvt);
+    log_it(L_DEBUG, "Delete stream socket for client_pvt=0x%x", l_client_pvt);
 
     if (l_client_pvt->stage_status_error_callback) {
         if(l_client_pvt == l_client_pvt->client->_internal)
