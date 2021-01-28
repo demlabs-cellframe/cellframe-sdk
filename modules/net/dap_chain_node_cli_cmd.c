@@ -4048,12 +4048,23 @@ int cmd_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply)
         return -1;
     }
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+
+    // NB! [TEMPFIX] Temporarily backward-compatible until migration to new databases locations (after updates)
+    const char *l_db_driver = dap_config_get_item_str(g_config, "resources", "dap_global_db_driver");
+    char l_db_concat[80];
+    dap_sprintf(l_db_concat, "%s/gdb-%s", l_db_path, l_db_driver);
+
     struct dirent *d;
-    DIR *dir = opendir(l_db_path);
+    DIR *dir = opendir(l_db_concat);
     if (!dir) {
-        log_it(L_ERROR, "Couldn't open db directory");
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Couldn't open db directory");
-        return -1;
+        // External "if" to check out old or new path.
+        log_it(L_WARNING, "Probably db directory is in old path. Checking out.");
+        dir = opendir(l_db_path);
+        if (!dir) {
+            log_it(L_ERROR, "Can't open db directory");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open db directory");
+            return -1;
+        }
     }
     char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
