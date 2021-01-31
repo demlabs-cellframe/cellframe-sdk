@@ -80,13 +80,21 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
     int l_ret = -1;
     if(s_used_driver)
         dap_db_driver_deinit();
+
+    // Fill callbacks with zeros
+    memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
+
+    // Setup driver name
     s_used_driver = dap_strdup(a_driver_name);
+
+    // Compose path
     char l_db_path_ext[strlen(a_driver_name) + strlen(a_filename_db) + 6];
     dap_snprintf(l_db_path_ext, sizeof(l_db_path_ext), "%s/gdb-%s", a_filename_db, a_driver_name);
-    memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
+
+   // Check for engine
     if(!dap_strcmp(s_used_driver, "ldb"))
         l_ret = -1;
-    else if(!dap_strcmp(s_used_driver, "sqlite"))
+    else if(!dap_strcmp(s_used_driver, "sqlite") || !dap_strcmp(s_used_driver, "sqlite3") )
         l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback);
     else if(!dap_strcmp(s_used_driver, "cdb"))
         l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback);

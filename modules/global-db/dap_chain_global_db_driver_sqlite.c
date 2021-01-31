@@ -83,14 +83,15 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
     if(sqlite3_threadsafe() && !sqlite3_config(SQLITE_CONFIG_SERIALIZED))
         l_ret = sqlite3_initialize();
     if(l_ret != SQLITE_OK) {
-        log_it(L_ERROR, "Can't init sqlite err=%d", l_ret);
-        return l_ret;
+        log_it(L_ERROR, "Can't init sqlite err=%d (%s)", l_ret, sqlite3_errstr(l_ret));
+        return -2;
     }
     char *l_error_message = NULL;
     s_db = dap_db_driver_sqlite_open(a_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
     if(!s_db) {
-        log_it(L_ERROR, "Can't init sqlite err=%d", l_error_message);
+        log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
+        l_ret = -3;
     }
     else {
         if(!dap_db_driver_sqlite_set_pragma(s_db, "synchronous", "NORMAL")) // 0 | OFF | 1 | NORMAL | 2 | FULL
@@ -154,12 +155,15 @@ sqlite3* dap_db_driver_sqlite_open(const char *a_filename_utf8, int a_flags, cha
     int l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_FULLMUTEX, NULL);
     // if unable to open the database file
     if(l_rc == SQLITE_CANTOPEN) {
-        sqlite3_close(l_db);
+        log_it(L_WARNING,"No database on path %s, creating one from scratch", a_filename_utf8);
+        if(l_db)
+            sqlite3_close(l_db);
         // try to create database
         l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_CREATE, NULL);
     }
-    if(l_rc != SQLITE_OK)
-    {
+
+    if(l_rc != SQLITE_OK) {
+        log_it(L_CRITICAL,"Can't open database on path %s (code %d: \"%s\" )", a_filename_utf8, l_rc, sqlite3_errstr(l_rc));
         if(a_error_message)
             *a_error_message = sqlite3_mprintf("Can't open database: %s\n", sqlite3_errmsg(l_db));
         sqlite3_close(l_db);
@@ -220,7 +224,7 @@ int dap_db_driver_sqlite_flush()
     char *l_error_message;
     s_db = dap_db_driver_sqlite_open(s_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
     if(!s_db) {
-        log_it(L_ERROR, "Can't init sqlite err=%d", l_error_message);
+        log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
         return -3;
     }

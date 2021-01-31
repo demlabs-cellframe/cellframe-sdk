@@ -416,11 +416,17 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             #else
                     SetEvent( l_node_client->wait_cond );
             #endif
-                    dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS,
-                                                         l_net->pub.id.uint64 ,
-                                                         l_chain_id.uint64,l_cell_id.uint64,NULL,0);
+                    a_ch_chain->state = CHAIN_STATE_SYNC_CHAINS ;
+
+                    if (l_node_client->net->pub.chains){
+                        dap_chain_t * l_chain = l_node_client->net->pub.chains;
+                        a_ch_chain->request_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+                        size_t l_first_size = 0;
+                        l_chain->callback_atom_iter_get_first(a_ch_chain->request_atom_iter, &l_first_size);
+                    }
 
 
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch_chain->ch, true);
                 }
             }
 
@@ -454,15 +460,16 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
     (void) a_ch_chain;
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
-    case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL:
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
-        l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
+            if(s_stream_ch_chain_debug_more)
+                log_it(L_INFO,"Out: chains all sent to uplink "NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
+            l_node_client->state = NODE_CLIENT_STATE_SYNCED ;
+    #ifndef _WIN32
+            pthread_cond_broadcast(&l_node_client->wait_cond);
+    #else
+            SetEvent( l_node_client->wait_cond );
+    #endif
     }
         break;
     default: {

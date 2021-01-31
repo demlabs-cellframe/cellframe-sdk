@@ -219,13 +219,19 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks={
     .error=s_node_link_callback_error
 };
 
+
+// State machine switchs here
 static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
+
+// Prepare link success/error endpoints
 static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg);
 static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg, int a_errno);
+
 
 static void s_net_proc_kill( dap_chain_net_t * a_net );
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
 
+// Notify callback for GlobalDB changes
 static void s_gbd_history_callback_notify (void * a_arg,const char a_op_code, const char * a_prefix, const char * a_group,
                                                      const char * a_key, const void * a_value,
                                                      const size_t a_value_len);
@@ -700,9 +706,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 case NODE_ROLE_CELL_MASTER: {
                     if (l_net_pvt->seed_aliases_count) {
                         // Add other root nodes as synchronization links
-                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
                         s_fill_links_from_root_aliases(l_net);
-                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
                         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
                         l_repeat_after_exit = true;
                         break;
@@ -721,10 +725,19 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                         if (l_net_pvt->seed_aliases_count) {
                             i = rand() % l_net_pvt->seed_aliases_count;
                             dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
-                            dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
-                            l_addr.s_addr = l_remote_node_info ? l_remote_node_info->hdr.ext_addr_v4.s_addr : 0;
-                            DAP_DELETE(l_remote_node_info);
-                            l_port = DNS_LISTEN_PORT;
+                            if (l_remote_addr){
+                                dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
+                                if(l_remote_node_info){
+                                    l_addr.s_addr = l_remote_node_info ? l_remote_node_info->hdr.ext_addr_v4.s_addr : 0;
+                                    DAP_DELETE(l_remote_node_info);
+                                    l_port = DNS_LISTEN_PORT;
+                                }else{
+                                    log_it(L_WARNING,"Can't find node info for node addr "NODE_ADDR_FP_STR,
+                                           NODE_ADDR_FP_ARGS(l_remote_addr));
+                                }
+                            }else{
+                                log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
+                            }
                         } else if (l_net_pvt->bootstrap_nodes_count) {
                             i = rand() % l_net_pvt->bootstrap_nodes_count;
                             l_addr = l_net_pvt->bootstrap_nodes_addrs[i];
@@ -758,13 +771,12 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                                                                 s_net_state_link_prepare_error,l_dns_request);
                             }
                         }
+                        l_link_id++;
                     }
                     if (l_sync_fill_root_nodes){
-                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
+                        log_it(L_ATT,"Not found bootstrap addresses, fill seed nodelist from root aliases");
                         s_fill_links_from_root_aliases(l_net);
-                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
                     }
-                    l_link_id++;
                 } break;
             }
         } break;
