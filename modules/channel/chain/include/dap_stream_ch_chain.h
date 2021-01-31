@@ -81,7 +81,8 @@ typedef struct dap_stream_ch_chain {
 
     bool request_updates_complete;
 
-    atomic_bool is_on_request; // Protects request section
+    bool is_on_request; // Protects request section
+    bool is_on_reverse_request;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
@@ -96,3 +97,4 @@ void dap_stream_ch_chain_deinit(void);
 
 inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
 void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain);
+void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);

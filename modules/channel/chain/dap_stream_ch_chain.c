@@ -691,6 +691,27 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 }
 
 /**
+ * @brief dap_stream_ch_chain_create_sync_request_gdb
+ * @param a_ch_chain
+ * @param a_net
+ */
+void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net)
+{
+    a_ch_chain->is_on_request = true;
+    memset(&a_ch_chain->request_hdr,0,sizeof (a_ch_chain->request_hdr));
+    a_ch_chain->request_hdr.net_id = a_net->pub.id;
+
+    struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
+    l_sync_request->ch = a_ch_chain->ch;
+    l_sync_request->worker = a_ch_chain->ch->stream_worker->worker;
+    memcpy(&l_sync_request->request, &a_ch_chain->request, sizeof (a_ch_chain->request));
+    memcpy(&l_sync_request->request_hdr, &a_ch_chain->request_hdr, sizeof (a_ch_chain->request_hdr));
+    dap_proc_queue_add_callback_inter(a_ch_chain->ch->stream_worker->worker->proc_queue_input, s_sync_out_gdb_proc_callback,
+                                      l_sync_request);
+}
+
+
+/**
  * @brief s_stream_ch_packet_in
  * @param a_ch
  * @param a_arg
@@ -1036,12 +1057,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                            l_ch_chain->request_hdr.net_id.uint64 , l_ch_chain->request_hdr.chain_id.uint64,
                            l_ch_chain->request_hdr.cell_id.uint64, l_ch_chain->request.id_start, l_ch_chain->request.id_end );
 
-                    struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
-                    l_sync_request->ch = a_ch;
-                    l_sync_request->worker = a_ch->stream_worker->worker;
-                    memcpy(&l_sync_request->request, &l_ch_chain->request, sizeof (l_ch_chain->request));
-                    memcpy(&l_sync_request->request_hdr, &l_ch_chain->request_hdr, sizeof (l_ch_chain->request_hdr));
-                    dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_out_gdb_proc_callback, l_sync_request);
+                    dap_stream_ch_chain_create_sync_request_gdb(l_ch_chain,dap_chain_net_by_id(l_ch_chain->request_hdr.net_id) );
                 }
             }else{
                 log_it(L_WARNING, "DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB: Wrong chain packet size %zd when expected %zd", l_chain_pkt_data_size, sizeof(l_ch_chain->request));
