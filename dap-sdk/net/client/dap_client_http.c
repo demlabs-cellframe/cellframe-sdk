@@ -88,19 +88,27 @@ static bool s_timer_timeout_check(void * a_arg);
 static bool s_timer_timeout_after_connected_check(void * a_arg);
 
 
-uint64_t s_client_timeout_ms=10000;
-time_t s_client_timeout_read_after_connect_ms=5000;
-uint32_t s_max_attempts = 5;
+static bool s_debug_more=false;
+static uint64_t s_client_timeout_ms=10000;
+static time_t s_client_timeout_read_after_connect_ms=5000;
+static uint32_t s_max_attempts = 5;
 
-
+/**
+ * @brief dap_client_http_init
+ * @return
+ */
 int dap_client_http_init()
 {
+    s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
     s_max_attempts = dap_config_get_item_uint32_default(g_config,"dap_client","max_tries",5);
     s_client_timeout_ms = dap_config_get_item_uint32_default(g_config,"dap_client","timeout",10)*1000;
     s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
     return 0;
 }
 
+/**
+ * @brief dap_client_http_deinit
+ */
 void dap_client_http_deinit()
 {
 
@@ -144,7 +152,8 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
+            if(s_debug_more)
+                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
             DAP_DEL_Z(l_es_handler)
             return false;
         }
@@ -162,7 +171,8 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
             dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }
     }else
-        log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+        if(s_debug_more)
+            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -188,7 +198,8 @@ static bool s_timer_timeout_check(void * a_arg)
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
+            if(s_debug_more)
+                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
             DAP_DEL_Z(l_es_handler)
             return false;
         }
@@ -205,9 +216,11 @@ static bool s_timer_timeout_check(void * a_arg)
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
             dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }else
-            log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
+            if(s_debug_more)
+                log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
-        log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+        if(s_debug_more)
+            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -391,7 +404,8 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
 {
     // call from dap_events_socket_delete(ev_socket, true);
-    log_it(L_DEBUG, "HTTP client delete");
+    if(s_debug_more)
+        log_it(L_DEBUG, "HTTP client delete");
 
     if(!a_http_pvt) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
