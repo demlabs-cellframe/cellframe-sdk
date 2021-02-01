@@ -536,11 +536,11 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                                 a_client_pvt);
                 } else {
 
-                    log_it(L_INFO, "Too many connection attempts. Tries are over.");
+                    log_it(L_INFO, "Too many connection attempts. Tries are over. Check again at 20 secs");
                     a_client_pvt->stage_status = STAGE_STATUS_DONE;
 
                     // small delay before next request
-                    dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
+                    dap_timerfd_start_on_worker(l_worker, 20000, (dap_timerfd_callback_t)s_stage_status_after,
                                                 a_client_pvt);
                 }
             }

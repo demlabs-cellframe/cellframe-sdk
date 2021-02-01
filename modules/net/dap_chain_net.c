@@ -652,7 +652,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 {
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
+    assert(l_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    assert(l_net_pvt);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
 
     switch (l_net_pvt->state) {
@@ -706,7 +708,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 case NODE_ROLE_CELL_MASTER: {
                     if (l_net_pvt->seed_aliases_count) {
                         // Add other root nodes as synchronization links
+                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
                         s_fill_links_from_root_aliases(l_net);
+                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
                         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
                         l_repeat_after_exit = true;
                         break;
@@ -775,7 +779,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     }
                     if (l_sync_fill_root_nodes){
                         log_it(L_ATT,"Not found bootstrap addresses, fill seed nodelist from root aliases");
+                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
                         s_fill_links_from_root_aliases(l_net);
+                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
                     }
                 } break;
             }
