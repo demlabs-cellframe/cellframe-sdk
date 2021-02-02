@@ -614,3 +614,14 @@ void dap_client_set_is_always_reconnect(dap_client_t * a_client, bool a_value)
 {
     DAP_CLIENT_PVT(a_client)->is_always_reconnect = a_value;
 }
+
+/**
+ * @brief dap_client_from_esocket
+ * @param a_esocket
+ * @return
+ */
+dap_client_t * dap_client_from_esocket(dap_events_socket_t * a_esocket)
+{
+   dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_esocket->_inheritor;
+   return l_client_pvt?l_client_pvt->client: NULL;
+}

@@ -92,6 +92,10 @@ typedef struct dap_chain_node_client {
     dap_chain_net_t * net;
     char last_error[128];
 
+    // Timer
+    dap_events_socket_t * timer_update_states;
+
+
     #ifndef _WIN32
     pthread_cond_t wait_cond;
     #else

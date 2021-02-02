@@ -460,7 +460,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
         // find dap_chain_id_t
-        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+        dap_chain_t *l_chain = l_net->pub.chains;
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
 
         a_node_client->ch_chain = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );

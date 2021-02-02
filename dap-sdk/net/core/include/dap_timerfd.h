@@ -38,7 +38,8 @@
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
 
-typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer. If return true, it will be called after next timeout
+typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer. If return true,
+                                                // it will be called after next timeout
 
 typedef struct dap_timerfd {
     uint64_t timeout_ms;

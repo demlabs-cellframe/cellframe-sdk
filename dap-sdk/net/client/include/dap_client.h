@@ -130,6 +130,7 @@ const char * dap_client_get_error_str(dap_client_t * a_client);
 bool dap_client_get_is_always_reconnect(dap_client_t * a_client);
 void dap_client_set_is_always_reconnect(dap_client_t * a_client, bool a_value);
 
+dap_client_t * dap_client_from_esocket(dap_events_socket_t * a_esocket);
 const char * dap_client_get_auth_cookie(dap_client_t * a_client);
 dap_stream_t * dap_client_get_stream(dap_client_t * a_client);
 dap_stream_worker_t * dap_client_get_stream_worker(dap_client_t * a_client);

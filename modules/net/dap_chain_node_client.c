@@ -48,6 +48,7 @@
 #include "dap_client.h"
 #include "dap_config.h"
 #include "dap_events.h"
+#include "dap_timerfd.h"
 #include "dap_hash.h"
 //#include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
@@ -76,6 +77,8 @@
 //static int listen_port_tcp = 8079;
 
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
+static bool s_timer_update_states_callback(void * a_arg );
+
 static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
@@ -84,6 +87,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         void * a_arg);
 
 bool s_stream_ch_chain_debug_more = false;
+uint32_t s_timer_update_states=60;
+
 /**
  * @brief dap_chain_node_client_init
  * @return
@@ -91,7 +96,7 @@ bool s_stream_ch_chain_debug_more = false;
 int dap_chain_node_client_init(void)
 {
     s_stream_ch_chain_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
-
+    s_timer_update_states = dap_config_get_item_uint32_default(g_config,"node_client","timer_update_states",60);
     return 0;
 }
 
@@ -171,6 +176,62 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 }
 
 /**
+ * @brief s_timer_update_states_callback
+ * @param a_arg
+ * @return
+ */
+static bool s_timer_update_states_callback(void * a_arg )
+{
+    dap_events_socket_handler_t * l_es_handler = (dap_events_socket_handler_t *) a_arg;
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    assert(l_worker);
+    assert(l_es_handler);
+    dap_events_socket_t * l_es = l_es_handler->esocket;
+    uint128_t l_es_uuid = l_es_handler->uuid;
+    DAP_DEL_Z(l_es_handler);
+    // check if esocket still in worker
+    if(dap_events_socket_check_unsafe(l_worker,l_es)){
+
+        // Check if its exactly ours!
+        if (dap_uint128_check_equal(l_es->uuid,l_es_uuid)){
+            dap_client_t * l_client = dap_client_from_esocket(l_es);
+            if(! l_client )
+                return false;
+            dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
+            if(! l_node_client) // No active node client
+                return false;
+
+            if(! l_node_client->ch_chain) // No active ch channel
+                return false;
+            dap_stream_ch_chain_t * l_ch_chain = (dap_stream_ch_chain_t*) l_node_client->ch_chain->internal;
+            assert(l_ch_chain);
+            dap_chain_net_t * l_net = l_node_client->net;
+            assert(l_net);
+
+            // If we do nothing - init sync process
+            if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
+                dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
+                l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
+                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start,
+                       l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
+                // find dap_chain_id_t
+                dap_chain_t *l_chain = l_net->pub.chains;
+                dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
+                dap_stream_ch_chain_pkt_write_unsafe( l_node_client->ch_chain ,
+                                                  DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB, l_net->pub.id.uint64,
+                                                                l_chain_id.uint64, l_net->pub.cell_id.uint64,
+                                                      &l_sync_gdb, sizeof(l_sync_gdb));
+
+            }
+            return true;
+        }else
+            return false;
+    }else
+        return false;
+}
+
+/**
  * @brief a_stage_end_callback
  * @param a_client
  * @param a_arg
@@ -198,6 +259,14 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         if(s_stream_ch_chain_debug_more)
             log_it(L_DEBUG, "Wakeup all who waits");
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+
+        dap_stream_t * l_stream  = dap_client_get_stream(a_client);
+        if (l_stream) {
+            dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+            l_es_handler->esocket = l_stream->esocket;
+            l_es_handler->uuid = l_stream->esocket->uuid;
+            dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_es_handler);
+        }
 #ifndef _WIN32
         pthread_cond_broadcast(&l_node_client->wait_cond);
 #else

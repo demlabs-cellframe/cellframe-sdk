@@ -81,6 +81,9 @@
 static int s_max_attempts = 5;
 static int s_timeout = 20;
 static bool s_debug_more = false;
+static time_t s_client_timeout_read_after_connect_ms=5000;
+
+
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
 
 // ENC stage callbacks
@@ -107,6 +110,12 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg);
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_arg);
 
+// Timer callbacks
+static bool s_stream_timer_timeout_after_connected_check(void * a_arg);
+static bool s_stream_timer_timeout_check(void * a_arg);
+
+
+
 /**
  * @brief dap_client_internal_init
  * @return
@@ -116,6 +125,7 @@ int dap_client_pvt_init()
     s_max_attempts = dap_config_get_item_int32_default(g_config,"dap_client","max_tries",5);
     s_timeout = dap_config_get_item_int32_default(g_config,"dap_client","timeout",10);
     s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
+    s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
 
     return 0;
 }
@@ -193,6 +203,10 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
             a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     s_stage_status_after(a_client_pvt);
+    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    l_ev_socket_handler->esocket = a_client_pvt->stream_es;
+    l_ev_socket_handler->uuid = a_client_pvt->stream_es->uuid;
+    dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker,s_client_timeout_read_after_connect_ms*1000, s_stream_timer_timeout_after_connected_check ,l_ev_socket_handler);
 }
 
 /**
@@ -237,6 +251,53 @@ static bool s_stream_timer_timeout_check(void * a_arg)
     }else
         if(s_debug_more)
             log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+
+    DAP_DEL_Z(l_es_handler)
+    return false;
+}
+
+/**
+ * @brief s_stream_timer_timeout_after_connected_check
+ * @param a_arg
+ * @return
+ */
+static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
+{
+    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    assert(l_es_handler);
+    dap_events_socket_t * l_es = l_es_handler->esocket;
+    assert(l_es);
+    dap_events_t * l_events = dap_events_get_default();
+    assert(l_events);
+
+    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    assert(l_worker);
+
+    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
+        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
+            if(s_debug_more)
+                log_it(L_DEBUG,"Streaming socket timer wrong argument, ignore this timeout...");
+            DAP_DEL_Z(l_es_handler)
+            return false;
+        }
+        dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
+        if ( time(NULL)- l_client_pvt->ts_last_read > s_client_timeout_read_after_connect_ms ){
+
+            log_it(L_WARNING,"Connecting timeout for streaming uplink http://%s:%u/, possible network problems or host is down",
+                   l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
+            l_client_pvt->is_closed_by_timeout = true;
+            if(l_es->callbacks.error_callback) {
+                l_es->callbacks.error_callback(l_es,ETIMEDOUT);
+            }
+            log_it(L_INFO, "Close streaming socket %s by timeout",
+                   l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
+            dap_events_socket_remove_and_delete_unsafe(l_es, true);
+        }else
+            if(s_debug_more)
+                log_it(L_DEBUG,"Streaming socket %d is connected, close check timer", l_es->socket);
+    }else
+        if(s_debug_more)
+            log_it(L_DEBUG,"Streaming socket %p is finished, close check timer", l_es);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -434,6 +495,13 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             log_it(L_INFO, "Connected momentaly with %s:%u", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                             // add to dap_worker
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
+
+                            // Add check timer
+                            dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+                            l_stream_es_handler->esocket = a_client_pvt->stream_es;
+                            l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
+                            dap_timerfd_start_on_worker(a_client_pvt->worker,s_client_timeout_read_after_connect_ms*1000,
+                                                        s_stream_timer_timeout_check,l_stream_es_handler);
                         }
                         else if (l_err != EINPROGRESS && l_err != -1){
                             char l_errbuf[128];
@@ -461,7 +529,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
                             l_stream_es_handler->esocket = a_client_pvt->stream_es;
                             l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker,s_timeout*1000, s_stream_timer_timeout_check,l_stream_es_handler);
+                            dap_timerfd_start_on_worker(a_client_pvt->worker,s_client_timeout_read_after_connect_ms*1000,
+                                                        s_stream_timer_timeout_check,l_stream_es_handler);
                         }
                     }
                 }
@@ -1015,8 +1084,7 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
             if(strlen(l_stream_id) < 13) {
                 //log_it(L_DEBUG, "Stream server id %s, stream key length(base64 encoded) %u"
                 //       ,l_stream_id,strlen(l_stream_key) );
-                log_it(L_DEBUG, "Stream server id %s, stream key '%s'"
-                        , l_stream_id, l_stream_key);
+                log_it(L_DEBUG, "Stream server id %s", l_stream_id);
 
                 // Delete old key if present
                 if(l_client_pvt->stream_key)
@@ -1179,10 +1247,11 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
         // Response received after client_pvt was deleted
         return;
     }
+    l_client_pvt->ts_last_read = time(NULL);
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_SESSION:
             dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, s_stage_stream_streaming);
-            break;
+        break;
         case STAGE_STREAM_CONNECTED: { // Collect HTTP headers before streaming
             if(a_es->buf_in_size > 1) {
                 char * l_pos_endl;
